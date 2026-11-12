@@ -75,7 +75,7 @@ describe("SettingsRetentionPage", () => {
     fireEvent.change(revisions, { target: { value: "0" } });
     fireEvent.click(screen.getByRole("button", { name: "Save retention settings" }));
 
-    expect(await screen.findByText("All retention values must be whole numbers greater than 0.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("All retention values must be whole numbers greater than 0.")).toBeInTheDocument());
     expect(mockedSave).not.toHaveBeenCalled();
   });
 

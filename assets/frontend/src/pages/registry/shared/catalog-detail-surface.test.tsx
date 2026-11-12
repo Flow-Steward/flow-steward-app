@@ -1,7 +1,7 @@
 import { createElement } from "react";
 import type { ReactElement } from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -114,7 +114,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Writer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Writer")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Prompts" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Skills" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tools" })).toBeInTheDocument();
@@ -143,7 +143,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Planner")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Planner")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Config" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Prompt" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Agents Using" })).toBeInTheDocument();
@@ -171,7 +171,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("No Secrets")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No Secrets")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Config" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Agent Scope" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Changelog" })).toBeInTheDocument();
@@ -199,7 +199,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Writer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Writer")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: "Delete" }).at(-1)!);
@@ -236,9 +236,9 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Catalog Read")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Catalog Read")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Delete" }));
-    expect(await screen.findByRole("dialog", { name: "Move MCP tool to Trash" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Move MCP tool to Trash" })).toBeInTheDocument());
     await user.click(screen.getByRole("checkbox"));
     await user.click(screen.getByRole("button", { name: "Move to Trash" }));
 
@@ -270,7 +270,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Available Checks")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Available Checks")).toBeInTheDocument());
     expect(screen.getByText("Data contracts are generated and cannot be mutated directly.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enable" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Disable" })).not.toBeInTheDocument();
@@ -301,7 +301,7 @@ describe("RegistryDetailSurface", () => {
       }),
     );
 
-    expect(await screen.findByText("Architecture")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Architecture")).toBeInTheDocument());
     expect(mockedFetchChangelogHistory).toHaveBeenCalledWith("field", "architecture");
   });
 });

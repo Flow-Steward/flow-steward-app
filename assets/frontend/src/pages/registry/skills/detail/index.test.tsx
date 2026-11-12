@@ -172,11 +172,11 @@ describe("RegistrySkillsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Review Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Review Summary")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
-    expect(await screen.findByRole("button", { name: "+ Add Input" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "+ Add Input" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Save Inputs" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Outputs" })).toBeInTheDocument();
 
@@ -205,7 +205,7 @@ describe("RegistrySkillsDetailPage", () => {
       });
     });
 
-    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
   });
 
   it("autofills output contract fields from the catalog and keeps new outputs required by default", async () => {
@@ -262,7 +262,7 @@ describe("RegistrySkillsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Review Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Review Summary")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Output" }));
@@ -361,7 +361,7 @@ describe("RegistrySkillsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Review Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Review Summary")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
     fireEvent.click(await screen.findByRole("button", { name: "+ Add Output" }));
 
@@ -441,7 +441,7 @@ describe("RegistrySkillsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Review Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Review Summary")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
     const catalogField = (await screen.findAllByLabelText("Catalog Field"))[0];

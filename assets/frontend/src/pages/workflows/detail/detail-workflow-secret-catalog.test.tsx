@@ -102,13 +102,13 @@ describe("WorkflowInputSecretBinding", () => {
         <WorkflowInputSecretBinding field="api_token" onPendingChange={onPendingChange} pendingSecretId={chosenId} projectId="p1" saved={false} workflowId="wf1" />
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(/once you save the workflow settings/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/once you save the workflow settings/)).toBeInTheDocument());
   });
 
   it("shows the bound secret of a saved input, binds another one and removes the binding", async () => {
     renderWithClient(<WorkflowInputSecretBinding field="api_token" projectId="p1" saved workflowId="wf1" />);
 
-    expect(await screen.findByText("Shop token")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Shop token")).toBeInTheDocument());
     await pick(/Stored secret for api_token/, /^Shared token/);
     await waitFor(() => expect(mockedBind).toHaveBeenCalledWith("p1", "wf1", "api_token", "s2"));
 
@@ -122,7 +122,7 @@ describe("WorkflowInputSecretBinding", () => {
         <input aria-label="Typed default" />
       </WorkflowInputSecretBinding>,
     );
-    expect(await screen.findByText("Shop token")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Shop token")).toBeInTheDocument());
     expect(screen.queryByLabelText("Typed default")).not.toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe("WorkflowInputSecretBinding", () => {
         <input aria-label="Typed default" />
       </WorkflowInputSecretBinding>,
     );
-    expect(await screen.findByLabelText("Typed default")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Typed default")).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Stored secret for api_token" })).toBeInTheDocument();
   });
 
@@ -182,7 +182,7 @@ describe("WorkflowSecretApprovalPanel", () => {
     mockedApprove.mockResolvedValue(status({ status: "approved", secrets: [] }));
     renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
 
-    expect(await screen.findByText("not approved for passed-in secrets")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("not approved for passed-in secrets")).toBeInTheDocument());
     expect(screen.getByText(/A parent workflow may pass it a stored secret/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Approve use of secrets" }));
     await waitFor(() => expect(mockedApprove).toHaveBeenCalledWith("p1", "wf1", "sha256:one", []));
@@ -201,7 +201,7 @@ describe("WorkflowSecretApprovalPanel", () => {
     );
     renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
 
-    expect(await screen.findByText("ship → extension release rel_1 · abcdef123456")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("ship → extension release rel_1 · abcdef123456")).toBeInTheDocument());
     expect(screen.getByText("ask → MCP ask · https://mcp.partner.test/mcp (streamable_http)")).toBeInTheDocument();
     expect(screen.getByText("fmt → built-in tool format (core.tools.format)")).toBeInTheDocument();
     expect(screen.getByText(/Connector steps do not receive stored secrets/)).toBeInTheDocument();
@@ -212,14 +212,14 @@ describe("WorkflowSecretApprovalPanel", () => {
     mockedApprove.mockResolvedValue(status({ status: "approved", approved_destinations: status().destinations }));
     renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
 
-    expect(await screen.findByText("approval required")).toBeInTheDocument();
-    expect(await screen.findByText("api_token → Shop token")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("approval required")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("api_token → Shop token")).toBeInTheDocument());
     expect(screen.getAllByText("https://api.example.test:443").length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: "Approve use of secrets" }));
 
     await waitFor(() => expect(mockedApprove).toHaveBeenCalledWith("p1", "wf1", "sha256:one", []));
-    expect(await screen.findByText("approved")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("approved")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Approve use of secrets" })).not.toBeInTheDocument();
   });
 
@@ -228,7 +228,7 @@ describe("WorkflowSecretApprovalPanel", () => {
     mockedApprove.mockResolvedValue(status({ status: "approved" }));
     renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" workflowId="wf1" />);
 
-    expect(await screen.findByText("call_api")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("call_api")).toBeInTheDocument());
     const approve = screen.getByRole("button", { name: "Approve use of secrets" });
     expect(approve).toBeDisabled();
 
@@ -255,7 +255,7 @@ describe("WorkflowSecretApprovalPanel", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Approve use of secrets" }));
 
-    expect(await screen.findByText("The workflow changed after it was shown")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The workflow changed after it was shown")).toBeInTheDocument());
     await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(screen.getByRole("button", { name: "Approve use of secrets" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Approve use of secrets" }));
@@ -266,6 +266,6 @@ describe("WorkflowSecretApprovalPanel", () => {
     mockedStatus.mockResolvedValue(status());
     renderWithClient(<WorkflowSecretApprovalPanel hasSecretInputs projectId="p1" unsavedChanges workflowId="wf1" />);
 
-    expect(await screen.findByText("Approval covers the saved workflow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Approval covers the saved workflow")).toBeInTheDocument());
   });
 });

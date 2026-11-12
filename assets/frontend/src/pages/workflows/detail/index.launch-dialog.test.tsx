@@ -86,7 +86,7 @@ describe("whole-workflow Test Run launch dialog", () => {
     expect(within(dialog).queryByLabelText("Step Test Run Summary")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-    expect(await screen.findByRole("tab", { name: "Test Run", selected: true })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Test Run", selected: true })).toBeInTheDocument());
     expect(screen.getByLabelText("Step Test Run Summary")).toHaveValue("Retain the isolated step draft");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeEnabled();
     expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
@@ -116,7 +116,7 @@ describe("whole-workflow Test Run launch dialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Test Run Summary"), { target: { value: "Keep values after refusal" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Run workflow test run" }));
 
-    expect(await within(dialog).findByText("The applied workflow cannot be launched.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("The applied workflow cannot be launched.")).toBeInTheDocument());
     expect(within(dialog).getByLabelText("Test Run Summary")).toHaveValue("Keep values after refusal");
     expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();

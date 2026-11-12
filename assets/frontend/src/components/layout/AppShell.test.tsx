@@ -560,7 +560,7 @@ describe("AppShell", () => {
     expect(screen.queryByRole("button", { name: /assistant/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /chat|assistant/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /approvals/i }));
-    expect(await screen.findByText("No approvals are waiting.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No approvals are waiting.")).toBeInTheDocument());
   });
 
   it("keeps approval queue failures visible and reloads the queue on retry", async () => {
@@ -584,12 +584,12 @@ describe("AppShell", () => {
     await renderShell();
     fireEvent.click(screen.getByRole("button", { name: "Open approvals" }));
 
-    expect(await screen.findByText("Approval queue unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Approval queue unavailable")).toBeInTheDocument());
     expect(screen.queryByText("No approvals are waiting.")).not.toBeInTheDocument();
     approvalsAvailable = true;
     fireEvent.click(screen.getByRole("button", { name: "Retry approvals" }));
 
-    expect(await screen.findByRole("button", { name: "Review deployment" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Review deployment" })).toBeInTheDocument());
     expect(screen.queryByText("Approval queue unavailable")).not.toBeInTheDocument();
   });
 

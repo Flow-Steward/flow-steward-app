@@ -85,9 +85,9 @@ describe("ProjectWorkflowSecrets", () => {
     const row = await screen.findByTestId("project-workflow-secrets-wf_one");
     expect(row).toHaveTextContent("Send order");
     expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("p1");
-    expect(await screen.findByText(/api\.partner\.test/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/api\.partner\.test/)).toBeInTheDocument());
 
-    expect(await screen.findByTestId("workflow-input-secret-binding-api_key")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-input-secret-binding-api_key")).toBeInTheDocument());
     const approve = await screen.findByRole("button", { name: /Approve/ });
     fireEvent.click(approve);
     await waitFor(() =>

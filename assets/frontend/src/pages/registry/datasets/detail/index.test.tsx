@@ -904,7 +904,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     mockedFetchDatasetQueryTemplates.mockResolvedValue([]);
     renderPage("/registry/datasets/events?tab=saved-queries");
 
-    expect(await screen.findByText("No saved queries yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No saved queries yet")).toBeInTheDocument());
     expect(
       screen.getByText("Add one to reference this dataset from a dataset_query workflow step."),
     ).toBeInTheDocument();
@@ -939,17 +939,17 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     renderPage("/registry/datasets/events?tab=saved-queries");
 
     await user.click(await screen.findByRole("button", { name: "Add query" }));
-    expect(await screen.findByRole("dialog", { name: "Add query" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Add query" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await clickRowAction("Escape me", "Preview");
-    expect(await screen.findByRole("dialog", { name: "Escape me" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Escape me" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await clickRowAction("Escape me", "Delete");
-    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alertdialog")).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   });

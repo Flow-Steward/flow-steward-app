@@ -54,7 +54,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
 
     renderPage();
 
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -64,9 +64,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
       );
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflow settings" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow settings" })).toBeInTheDocument());
     expect(within(screen.getByRole("dialog", { name: "Workflow settings" })).getByTestId("builder-drawer-body")).toHaveClass(
       "overflow-y-auto",
     );
@@ -169,7 +167,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -181,8 +179,8 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
 
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
 
-    expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
-    expect(await screen.findByText("/webhook/workflows/inventory_sync")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Incoming webhooks")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("/webhook/workflows/inventory_sync")).toBeInTheDocument());
     expect(screen.queryByText("Recent Deliveries")).not.toBeInTheDocument();
     // Incoming webhooks are the tab's only section: provider triggers are hidden.
     expect(screen.queryByText("Provider triggers")).not.toBeInTheDocument();
@@ -316,7 +314,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -329,10 +327,10 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
     fireEvent.click(await screen.findByRole("button", { name: /inventory_sync/i }));
 
-    expect(await screen.findByText("Editing saved trigger settings.")).toBeInTheDocument();
-    expect(await screen.findByText(/-u 'workflow:<password>'/)).toBeInTheDocument();
-    expect(await screen.findByText(/Idempotency-Key: <unique-key>/)).toBeInTheDocument();
-    expect(await screen.findByText(/Content-Type: application\/json/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Editing saved trigger settings.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/-u 'workflow:<password>'/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Idempotency-Key: <unique-key>/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Content-Type: application\/json/)).toBeInTheDocument());
 
     fireEvent.click(screen.getAllByLabelText("Enabled")[0]);
     fireEvent.change(screen.getByRole("combobox", { name: "Idempotency mode" }), {
@@ -478,7 +476,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -604,7 +602,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -616,10 +614,8 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     fireEvent.click(await screen.findByRole("button", { name: "New webhook" }));
     fireEvent.click(screen.getByRole("button", { name: "Create webhook" }));
 
-    expect(await screen.findByRole("button", { name: "Copy credential" })).toBeInTheDocument();
-    expect(
-      await screen.findByText(/secret-123/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy credential" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/secret-123/)).toBeInTheDocument());
   });
 
   it("creates a webhook with the full backend payload shape from the trigger editor", async () => {
@@ -767,7 +763,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -853,8 +849,8 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
         },
       });
     });
-    expect(await screen.findByRole("button", { name: "Copy credential" })).toBeInTheDocument();
-    expect(await screen.findByText(/shared-secret-123/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Copy credential" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/shared-secret-123/)).toBeInTheDocument());
   });
 
   const IMPORTED_SIGNING_SECRET = "whsec_from_provider"; // pragma: allowlist secret
@@ -984,7 +980,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
 
   async function openTriggersTab() {
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -1091,9 +1087,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     await waitFor(() => {
       expect(postBody).toMatchObject({ signing_secret: IMPORTED_SIGNING_SECRET });
     });
-    expect(
-      await screen.findByText("Webhook created. Your signing secret is stored."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Webhook created. Your signing secret is stored.")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Copy credential" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Provider signing secret")).not.toBeInTheDocument();
   });
@@ -1111,9 +1105,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
       target: { value: "1.5" },
     });
 
-    expect(
-      await screen.findByText("Tolerance must be a whole number of seconds."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Tolerance must be a whole number of seconds.")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Create webhook" }));
 
@@ -1206,9 +1198,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
     await openTriggersTab();
     fireEvent.click(await screen.findByRole("button", { name: /inventory_sync/i }));
 
-    expect(
-      await screen.findByText(/the simple editor cannot\s+represent/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/the simple editor cannot\s+represent/)).toBeInTheDocument());
     expect(
       screen.queryByRole("textbox", { name: "Signature header" }),
     ).not.toBeInTheDocument();
@@ -1225,7 +1215,7 @@ it("keeps workflow settings drawer bound to workflow metadata instead of the sel
 
     await openTriggersTab();
 
-    expect(await screen.findByText("1 webhook")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 webhook")).toBeInTheDocument());
     const row = await screen.findByRole("button", { name: /Orders feed/ });
     expect(row).toHaveTextContent("Custom · /webhook/workflows/inventory_sync");
     expect(row).toHaveTextContent("Off");

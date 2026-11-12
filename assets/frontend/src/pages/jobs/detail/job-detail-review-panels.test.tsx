@@ -311,7 +311,7 @@ describe("ReviewWorkspacePanel", () => {
       />,
     );
 
-    expect(await screen.findByText("Loading approval workspace…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading approval workspace…")).toBeInTheDocument());
     expect(screen.queryByText("Unverified generic gate")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
     expect(screen.queryByTestId("approval-reject-button")).not.toBeInTheDocument();
@@ -337,7 +337,7 @@ describe("ReviewWorkspacePanel", () => {
         workspace={{ kind: "document_review", title: "Generic review" }}
       />,
     );
-    expect(await screen.findByText("Loading approval workspace…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading approval workspace…")).toBeInTheDocument());
     expect(screen.queryByTestId("approval-approve-button")).not.toBeInTheDocument();
     expect(onSubmit).not.toHaveBeenCalled();
 
@@ -620,7 +620,7 @@ describe("StepInspectorPanel full text", () => {
     await userEvent.click(screen.getByRole("button", { name: "Show full text" }));
 
     expect(fetchJobStepOutputValue).toHaveBeenCalledWith("job-1", "m1", "brief");
-    expect(await screen.findByText((_text, node) => node?.tagName === "PRE" && node.textContent === full)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText((_text, node) => node?.tagName === "PRE" && node.textContent === full)).toBeInTheDocument());
   });
 
   it("offers nothing for a value that was not cut", () => {

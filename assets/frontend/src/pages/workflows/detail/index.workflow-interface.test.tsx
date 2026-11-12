@@ -21,7 +21,7 @@ it("opens one existing interface editor from Start and both successful stops, pr
   mockedFetchWorkflowCanvasGraph.mockResolvedValue(canvasGraphFixture({ entry: { kind: "step", id: "done" }, steps: [{ id: "done", step_id: "done", kind: "stop_success", display_name: "Done", config_summary: "", ports: [] }, { id: "other", step_id: "other", kind: "stop_success", display_name: "Other success", config_summary: "", ports: [] }], edges: [] }));
   renderPage({ surface: "builder" });
   fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
-  expect(await screen.findByRole("heading", { name: "Workflow interface" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow interface" })).toBeInTheDocument());
   let drawer = screen.getByRole("dialog", { name: "Workflow interface" });
   // The interface is Inputs and Outputs; returned files are outputs, ticked on their step.
   expect(within(drawer).getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Inputs", "Outputs"]);

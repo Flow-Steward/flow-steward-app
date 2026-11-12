@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import {
   mockedFetchWorkflowDetail,
@@ -54,12 +54,12 @@ describe("workflow diagnostics on the step and group model", () => {
     installDefinition();
     renderPage();
 
-    expect(await screen.findByText("Missing source step: deleted")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Missing source step: deleted")).toBeInTheDocument());
     expect(screen.getByText(/The referenced step is not in this workflow/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open source step" })).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Open step mapping" })[0]);
 
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     // The drawer keeps only failures on screen; the opened editor names the step itself.
     expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Normalize");
   });
@@ -70,7 +70,7 @@ describe("workflow diagnostics on the step and group model", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Open affected group" }));
 
-    expect(await screen.findByRole("heading", { name: "Group editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Group editor" })).toBeInTheDocument());
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Items");
   });
 });

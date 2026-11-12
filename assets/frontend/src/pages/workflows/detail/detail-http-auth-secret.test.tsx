@@ -81,7 +81,7 @@ describe("HttpAuthSecretField", () => {
     vi.mocked(bindWorkflowInputSecret).mockResolvedValue({} as never);
     renderField({ authRef: "{{ state.inputs.token }}", inputs: [savedInput] });
 
-    expect(await screen.findByText("Shop API key")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Shop API key")).toBeInTheDocument());
     expect(screen.queryByLabelText("Value of Token")).not.toBeInTheDocument();
     await pick("Stored secret for Token", /^Other key/);
     await waitFor(() => expect(bindWorkflowInputSecret).toHaveBeenCalledWith("p1", "wf1", "token", "s2"));

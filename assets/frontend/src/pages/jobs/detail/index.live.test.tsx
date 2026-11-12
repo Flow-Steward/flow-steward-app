@@ -89,7 +89,7 @@ describe("JobsDetailPage live updates", () => {
         await view.queryClient.refetchQueries({ queryKey: approvalKey, exact: true });
       });
       expect(approvalReads).toBeGreaterThan(initialReads);
-      expect(await screen.findByText("Recorded output refreshed for the same gate")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Recorded output refreshed for the same gate")).toBeInTheDocument());
       expect(view.queryClient.getQueryData(approvalKey)).toMatchObject({ approval: { approval_id: "gate-note" } });
       expect(screen.getByRole("textbox", { name: "Comment for rejection" })).toHaveValue(draft);
       await user.click(screen.getByTestId("approval-approve-button"));
@@ -97,7 +97,7 @@ describe("JobsDetailPage live updates", () => {
         approval_id: "gate-note", approved: true, comment: "Approved after checking the recorded output",
       }]));
       await screen.findByText("Decision history");
-      expect(await screen.findByText("Approved after checking the recorded output")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Approved after checking the recorded output")).toBeInTheDocument());
       expect(retainedHistoryReads).toBeGreaterThan(0);
       expect(view.queryClient.getQueryData(historyKey)).toMatchObject({ approvals: [{
         approval_id: "gate-note", approved: true, comment: "Approved after checking the recorded output",
@@ -108,7 +108,7 @@ describe("JobsDetailPage live updates", () => {
       view.queryClient.clear();
       reloaded = renderPage();
       await screen.findByText("Decision history");
-      expect(await screen.findByText("Approved after checking the recorded output")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Approved after checking the recorded output")).toBeInTheDocument());
       expect(screen.queryByTestId("approval-comment-input")).not.toBeInTheDocument();
     } finally {
       reloaded?.unmount();
@@ -134,7 +134,7 @@ describe("JobsDetailPage live updates", () => {
     vi.mocked(submitApprovalDecision).mockResolvedValue({ status: "in_progress" } as never);
     renderPage();
     fireEvent.click(await screen.findByTestId("approval-approve-button"));
-    expect(await screen.findByText("Decision submitted. Refreshing job state…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Decision submitted. Refreshing job state…")).toBeInTheDocument());
     // The same gate's refresh does not by itself mean the decision was applied.
     act(() => { mockJobStream.latestOptions?.onMessage?.({ type: "status", data: { status: "awaiting_approval" } }); });
     expect(screen.getByText("Decision submitted. Refreshing job state…")).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe("JobsDetailPage live updates", () => {
     await waitFor(() => expect(submitApprovalDecision).toHaveBeenCalledTimes(1));
     if (resolutionOrder === "before") {
       await act(async () => { finishSubmission(); });
-      expect(await screen.findByText("Decision submitted. Refreshing job state…")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Decision submitted. Refreshing job state…")).toBeInTheDocument());
     }
     mockedFetchJobDetail.mockResolvedValue(jobPayload({ id: "43", status: "awaiting_approval", thread_id: "thread-43" }) as never);
     mockedFetchJobApproval.mockResolvedValue({
@@ -243,7 +243,7 @@ describe("JobsDetailPage live updates", () => {
       mockJobStream.latestOptions?.onMessage?.({ type: "approval", data: frame });
       if (identifiedDuplicates) mockJobStream.latestOptions?.onMessage?.({ type: "approval", data: { ...frame } });
     });
-    expect(await screen.findByText("Canonical review workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Canonical review workspace")).toBeInTheDocument());
     expect(screen.getByTestId("approval-approve-button")).toBeEnabled();
     expect(screen.queryByText("Generic streamed workspace")).not.toBeInTheDocument();
     expect(mockedFetchJobApproval).toHaveBeenCalledTimes(2);
@@ -277,7 +277,7 @@ describe("JobsDetailPage live updates", () => {
     primeApi(first);
     mockedFetchJobApproval.mockImplementation(() => new Promise(() => undefined));
     const view = renderPage();
-    expect(await screen.findByText("First gate summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("First gate summary")).toBeInTheDocument());
     mockedFetchJobDetail.mockImplementation(() => new Promise(() => undefined));
 
     act(() => {
@@ -303,7 +303,7 @@ describe("JobsDetailPage live updates", () => {
         data: { thread_id: "thread-42", approval_id: "gate-second", step_id: "review_second", review_workspace: { thread_id: "thread-42", approval_id: "gate-second", title: "Second gate" } },
       });
     });
-    expect(await screen.findByText("Second gate")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Second gate")).toBeInTheDocument());
     expect(screen.queryByText("First gate is in progress")).not.toBeInTheDocument();
     expect(screen.queryByText("No action is required right now")).not.toBeInTheDocument();
     await waitFor(() => expect(mockedFetchJobDetail).toHaveBeenCalledTimes(3));
@@ -322,7 +322,7 @@ describe("JobsDetailPage live updates", () => {
         },
       }));
     });
-    expect(await screen.findByText("Canonical second gate summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Canonical second gate summary")).toBeInTheDocument());
     expect(screen.getByText("Canonical second gate action")).toBeInTheDocument();
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -362,15 +362,13 @@ describe("JobsDetailPage live updates", () => {
       })
       .mockRejectedValueOnce(new Error("Multiple simultaneous approval gates are not supported"));
     const view = renderPage();
-    expect(await screen.findByText("Gate A workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate A workspace")).toBeInTheDocument());
 
     await act(async () => {
       await view.queryClient.invalidateQueries({ queryKey: ["jobs", "detail", "42", "approval"] });
     });
 
-    expect(
-      await screen.findByText("Multiple simultaneous approval gates are not supported"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Multiple simultaneous approval gates are not supported")).toBeInTheDocument());
     expect(screen.getByText("Gate A workspace")).toBeInTheDocument();
     expect(
       screen.getByText("Approval decisions are temporarily unavailable. Refresh the gate before deciding."),
@@ -403,7 +401,7 @@ describe("JobsDetailPage live updates", () => {
       },
     });
     const view = renderPage();
-    expect(await screen.findByText("Gate A workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate A workspace")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -434,7 +432,7 @@ describe("JobsDetailPage live updates", () => {
       });
     });
 
-    expect(await screen.findByText("Gate B workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate B workspace")).toBeInTheDocument());
   });
 
   it("keeps the latest streamed approval when an older detail request finishes later", async () => {
@@ -454,7 +452,7 @@ describe("JobsDetailPage live updates", () => {
         },
       });
     });
-    expect(await screen.findByText("Gate B workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate B workspace")).toBeInTheDocument());
 
     act(() => {
       view.queryClient.setQueryData(
@@ -510,7 +508,7 @@ describe("JobsDetailPage live updates", () => {
         },
       });
     });
-    expect(await screen.findByText("Gate B workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate B workspace")).toBeInTheDocument());
 
     await act(async () => {
       resolveApproval?.({
@@ -646,7 +644,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText("Workflow: Stale Workflow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow: Stale Workflow")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -661,7 +659,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
       });
     });
 
-    expect(await screen.findByText("Workflow: Live Workflow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow: Live Workflow")).toBeInTheDocument());
     expect(screen.queryByText("Workflow: Stale Workflow")).not.toBeInTheDocument();
   });
 
@@ -679,7 +677,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Finished: 25 Apr 2026, 12:05/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Finished: 25 Apr 2026, 12:05/i)).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -692,7 +690,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
       });
     });
 
-    expect(await screen.findByText(/Finished: 25 Apr 2026, 14:11/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Finished: 25 Apr 2026, 14:11/i)).toBeInTheDocument());
   });
 
   it("falls back to sections.selected_step when the execution step list is absent", async () => {
@@ -717,11 +715,11 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /section-selected step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /section-selected step/i })).toBeInTheDocument());
     expect(screen.queryByText("No execution steps are available from the runtime feed yet.")).not.toBeInTheDocument();
     expect(screen.getAllByText("The canonical selected step came from sections.").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /section-selected step/i }));
-    expect(await screen.findByText("Selected-step result")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Selected-step result")).toBeInTheDocument());
   });
 
   it("keeps sections-backed decision history and diagnostics in sync when approval history frames arrive", async () => {
@@ -769,7 +767,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText("Stale section decision")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Stale section decision")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -786,7 +784,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
       });
     });
 
-    expect(await screen.findByText("Fresh section decision")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fresh section decision")).toBeInTheDocument());
     expect(screen.queryByText("Stale section decision")).not.toBeInTheDocument();
   });
 
@@ -806,7 +804,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
     );
 
     renderPage();
-    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 12")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 12")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -816,7 +814,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
         },
       });
     });
-    expect(await screen.findByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 900")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText((_, element) => Boolean(element?.classList.contains("job-usage")) && element?.textContent === "Tokens: 900")).toBeInTheDocument());
   });
 
   it("shows a warning when invocation snapshot was truncated", async () => {
@@ -856,7 +854,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByText("No execution steps are available from the runtime feed yet.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No execution steps are available from the runtime feed yet.")).toBeInTheDocument());
     expect(mockedUseJobStream).toHaveBeenCalled();
 
     act(() => {
@@ -909,7 +907,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Reviewer: Draft Plan/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Reviewer: Draft Plan/i })).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -955,7 +953,7 @@ it("prefers nested job payload over stale top-level job metadata", async () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /writer/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /writer/i })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /reviewer/i })).toBeInTheDocument();
 
     act(() => {

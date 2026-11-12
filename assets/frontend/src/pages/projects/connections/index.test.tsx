@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
@@ -48,7 +48,7 @@ describe("ProjectConnectionsEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByText("Main shop")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Main shop")).toBeInTheDocument());
     expect(screen.getByText("ext-shop")).toBeInTheDocument();
     expect(screen.getByText("admin_api")).toBeInTheDocument();
     expect(screen.getByText("healthy")).toBeInTheDocument();
@@ -82,7 +82,7 @@ describe("ProjectConnectionsEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByText("Docs connector")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Docs connector")).toBeInTheDocument());
     expect(screen.getByText("disabled")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
@@ -90,9 +90,7 @@ describe("ProjectConnectionsEditor", () => {
   it("says where connections come from when the project has none", async () => {
     renderEditor();
 
-    expect(
-      await screen.findByText("Connections appear here when an extension connects one for this project."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connections appear here when an extension connects one for this project.")).toBeInTheDocument());
   });
 
   it("shows a failed list request instead of the empty state", async () => {
@@ -100,7 +98,7 @@ describe("ProjectConnectionsEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByText("Connections are unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connections are unavailable")).toBeInTheDocument());
     expect(
       screen.queryByText("Connections appear here when an extension connects one for this project."),
     ).not.toBeInTheDocument();

@@ -105,7 +105,7 @@ describe("Quick create project contract", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
     await screen.findByText("Created project detail");
     await user.click(screen.getByRole("link", { name: "Back to projects" }));
-    expect(await screen.findByText("Chosen workspace project")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Chosen workspace project")).toBeInTheDocument());
     expect(localStorage.getItem("platform:selected-workspace-id")).toBe(workspaceId);
     expect(fetchProjectsList).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId }));
     expect(JSON.parse(String(create.mock.calls[0]?.[1]?.body))).toEqual({ name: "Chosen workspace project", workspace_id: workspaceId, workflow_ids: [] });
@@ -122,7 +122,7 @@ describe("Quick create project contract", () => {
     await user.click(await screen.findByRole("option", { name: "Demo workspace" }));
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Unsaved project" } });
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
-    expect(await within(dialog).findByText("Create unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Create unavailable")).toBeInTheDocument());
     expect(localStorage.getItem("platform:selected-workspace-id")).toBe("ws-2");
     expect(screen.queryByText("Created project detail")).not.toBeInTheDocument();
   });
@@ -130,7 +130,7 @@ describe("Quick create project contract", () => {
   it("offers only Name and Workspace, with one workspace as context rather than a choice", async () => {
     renderPage();
     const dialog = await openCreate();
-    expect(await within(dialog).findByText("Demo workspace")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Demo workspace")).toBeInTheDocument());
     expect(within(dialog).getByRole("textbox", { name: "Name" })).toBeInTheDocument();
     expect(within(dialog).queryAllByRole("combobox")).toHaveLength(0);
     for (const label of ["Description", "Project rules", "Extra tools JSON"]) {
@@ -159,7 +159,7 @@ describe("Quick create project contract", () => {
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       name: "New project", workspace_id: "ws-1", workflow_ids: [],
     });
-    expect(await screen.findByText("Created project detail")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created project detail")).toBeInTheDocument());
   });
 
   it("does not fetch optional creation catalogs or let their outage block Create", async () => {
@@ -177,7 +177,7 @@ describe("Quick create project contract", () => {
     expect(fetchDataConnections).not.toHaveBeenCalled();
     // The list may still fetch workflows to resolve its existing summary labels.
     fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
-    expect(await screen.findByText("Created project detail")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created project detail")).toBeInTheDocument());
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/projects", expect.objectContaining({ method: "POST" }),
     );
@@ -234,7 +234,7 @@ describe("Quick create project contract", () => {
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
       name: "Second team project", workspace_id: "ws-2", workflow_ids: [],
     });
-    expect(await screen.findByText("Created project detail")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created project detail")).toBeInTheDocument());
   });
 
   it("blocks submission while the required workspace inventory is loading", async () => {
@@ -242,7 +242,7 @@ describe("Quick create project contract", () => {
     const fetchSpy = spyOnCreateRequest();
     renderPage();
     const dialog = await openCreate();
-    expect(await within(dialog).findByText("Loading workspaces…")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Loading workspaces…")).toBeInTheDocument());
     expect(within(dialog).getByRole("button", { name: "Create" })).toBeDisabled();
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Pending inventory" } });
     fireEvent.submit(within(dialog).getByTestId("create-modal"));
@@ -272,6 +272,6 @@ describe("Quick create project contract", () => {
     await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
     const request = fetchSpy.mock.calls.find(([url, init]) => url === "/api/projects" && init?.method === "POST");
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({ name: "Owned project", workspace_id: "ws-1", workflow_ids: [] });
-    expect(await screen.findByText("Created project detail")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created project detail")).toBeInTheDocument());
   });
 });

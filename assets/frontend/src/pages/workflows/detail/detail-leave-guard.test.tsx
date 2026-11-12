@@ -62,7 +62,7 @@ it("stays on Stay and leaves on Leave and discard, marking the session only then
 
   await act(async () => { await router.navigate("/elsewhere"); });
   fireEvent.click(await screen.findByRole("button", { name: "Leave and discard" }));
-  expect(await screen.findByRole("heading", { name: "Elsewhere" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Elsewhere" })).toBeInTheDocument());
   expect(calls.discard).toBe(1);
 });
 
@@ -77,7 +77,7 @@ it("does not block query, hash or panel changes of the same page", async () => {
 it("lets a clean page leave without asking", async () => {
   const { router } = mount(false);
   await act(async () => { await router.navigate("/elsewhere"); });
-  expect(await screen.findByRole("heading", { name: "Elsewhere" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Elsewhere" })).toBeInTheDocument());
   expect(calls.discard).toBe(0);
   expect(calls.navigate).toEqual(["/elsewhere"]);
 });

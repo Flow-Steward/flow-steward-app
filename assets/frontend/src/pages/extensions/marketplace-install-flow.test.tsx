@@ -269,7 +269,7 @@ test("a plain install reports Installed only after the request returns, then off
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(1));
   expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "");
-  expect(await screen.findByText("Installed.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Installed.")).toBeInTheDocument());
   const open = await screen.findByRole("link", { name: "Open installed extension" });
   expect(open).toHaveAttribute("href", "/extensions/acme_crm#installed");
   await waitFor(() => expect(open).toHaveFocus());
@@ -282,7 +282,7 @@ test("a 412 opens the approval modal and does not claim the install happened", a
 
   await clickInstall();
 
-  expect(await screen.findByRole("dialog", { name: "Approve external browser code" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Approve external browser code" })).toBeInTheDocument());
   expect(screen.getByText("Waiting for browser authority approval.")).toBeInTheDocument();
   expect(screen.queryByText("Installed.")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Awaiting approval" })).toBeDisabled();
@@ -297,7 +297,7 @@ test("412 then cancel leaves the extension cancelled and installable again", asy
 
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-  expect(await screen.findByText(CANCEL_MESSAGE)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(CANCEL_MESSAGE)).toBeInTheDocument());
   expect(screen.queryByText("Installed.")).not.toBeInTheDocument();
   await waitFor(() => expect(screen.getByRole("button", { name: "Install" })).toBeEnabled());
   expect(mockedInstall).toHaveBeenCalledTimes(1);
@@ -316,7 +316,7 @@ test("412 then confirm replays the approved hash and only then reports Installed
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(2));
   expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH);
-  expect(await screen.findByText("Installed.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Installed.")).toBeInTheDocument());
 });
 
 test("a failed install shows the server's reason under the header and Install comes back", async () => {
@@ -369,12 +369,12 @@ test("a cancelled install leaves nothing behind once it later succeeds", async (
   mockedFetchExtensions.mockResolvedValue([INSTALLED_RECORD] as never);
   await clickInstall();
 
-  expect(await screen.findByText("Installed.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Installed.")).toBeInTheDocument());
 
   // The Installed tab is what renders the shared per-extension status, so the
   // row has to exist for its absence to mean anything.
   const installedRows = await screen.findByRole("table", { name: "Installed extensions" });
-  expect(await within(installedRows).findByText("Acme CRM")).toBeInTheDocument();
+  await waitFor(() => expect(within(installedRows).getByText("Acme CRM")).toBeInTheDocument());
   expect(within(installedRows).queryByText(CANCEL_MESSAGE)).not.toBeInTheDocument();
   expect(screen.queryByText(CANCEL_MESSAGE)).not.toBeInTheDocument();
 });
@@ -429,7 +429,7 @@ test("Update runs the catalog install call, says Updated to the version, and the
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
   // The Installed tab's row reports the same outcome; this is the Catalog page's.
   const catalogPanel = screen.getByRole("tabpanel", { name: "Catalog" });
-  expect(await within(catalogPanel).findByText("Updated to 1.10.0.")).toBeInTheDocument();
+  await waitFor(() => expect(within(catalogPanel).getByText("Updated to 1.10.0.")).toBeInTheDocument());
   const open = await screen.findByRole("link", { name: "Open installed extension" });
   await waitFor(() => expect(open).toHaveFocus());
   expect(screen.queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
@@ -444,14 +444,14 @@ test("an Update that needs browser authority waits for approval, then replays th
 
   await pressUpdate();
 
-  expect(await screen.findByRole("dialog", { name: "Approve external browser code" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Approve external browser code" })).toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Awaiting approval" })).toBeDisabled();
   expect(screen.queryByText("Updated to 1.10.0.")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Confirm and continue" }));
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(2));
   expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH);
-  expect(await screen.findByText("Updated to 1.10.0.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Updated to 1.10.0.")).toBeInTheDocument());
 });
 
 test("a cancelled Update says so and offers Update again", async () => {
@@ -463,7 +463,7 @@ test("a cancelled Update says so and offers Update again", async () => {
   await screen.findByText("Waiting for browser authority approval.");
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 
-  expect(await screen.findByText(UPDATE_CANCEL_MESSAGE)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(UPDATE_CANCEL_MESSAGE)).toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole("button", { name: "Update to v1.10.0" })).toBeEnabled());
   expect(mockedInstall).toHaveBeenCalledTimes(1);
 });
@@ -504,7 +504,7 @@ test("Marketplace keeps its mk_ params while open, and the Installed tab drops t
 
   fireEvent.click(screen.getByRole("tab", { name: "Catalog" }));
   await waitFor(() => expect(currentUrl()).toBe("#marketplace"));
-  expect(await screen.findByRole("heading", { name: "2 extensions" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "2 extensions" })).toBeInTheDocument());
 });
 
 test("the Catalog tab closes an open extension's page and keeps the filters", async () => {
@@ -514,11 +514,11 @@ test("the Catalog tab closes an open extension's page and keeps the filters", as
   renderHub("/extensions?mk_category=messaging&mk_entry=acme_mail#marketplace");
   const currentUrl = () => screen.getByTestId("location").textContent;
 
-  expect(await screen.findByRole("heading", { level: 2, name: /Acme Mail/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: /Acme Mail/ })).toBeInTheDocument());
   fireEvent.click(screen.getByRole("tab", { name: "Catalog" }));
 
   await waitFor(() => expect(currentUrl()).toBe("?mk_category=messaging#marketplace"));
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
 });
 
 /* ---- Install and update straight from the results ----------------------- */
@@ -679,7 +679,7 @@ describe("update notices (WordPress's update check)", () => {
     renderHub("/extensions#installed");
 
     const table = await screen.findByRole("table", { name: "Installed extensions" });
-    expect(await within(table).findByText("There is a new version of Acme CRM available.")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("There is a new version of Acme CRM available.")).toBeInTheDocument());
     expect(within(table).getByText("1.10.0 available")).toBeInTheDocument();
     expect(within(table).getByRole("link", { name: "View version 1.10.0 details" })).toHaveAttribute(
       "href",
@@ -689,7 +689,7 @@ describe("update notices (WordPress's update check)", () => {
     fireEvent.click(within(table).getByRole("button", { name: "Update to v1.10.0" }));
 
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
-    expect(await within(table).findByText("Updated to 1.10.0.")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Updated to 1.10.0.")).toBeInTheDocument());
     expect(within(table).queryByText("There is a new version of Acme CRM available.")).not.toBeInTheDocument();
     expect(mockedFetchUpdates.mock.calls.length).toBeGreaterThan(1);
   });
@@ -702,9 +702,7 @@ describe("update notices (WordPress's update check)", () => {
     renderHub("/extensions#installed");
 
     const table = await screen.findByRole("table", { name: "Installed extensions" });
-    expect(
-      await within(table).findByText(/There is a new version of Acme CRM available, but it does not work with this server\. Needs Flow Steward 9\.0\.0 or later\./),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText(/There is a new version of Acme CRM available, but it does not work with this server\. Needs Flow Steward 9\.0\.0 or later\./)).toBeInTheDocument());
     expect(within(table).queryByRole("button", { name: /Update to/ })).not.toBeInTheDocument();
   });
 
@@ -713,7 +711,7 @@ describe("update notices (WordPress's update check)", () => {
     mockedFetchUpdates.mockResolvedValue(updateCheck([], false));
     renderHub("/extensions#installed");
 
-    expect(await screen.findByText("Couldn't check for extension updates.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Couldn't check for extension updates.")).toBeInTheDocument());
     expect(screen.getByRole("table", { name: "Installed extensions" })).toBeInTheDocument();
 
     mockedFetchUpdates.mockResolvedValue(updateCheck());

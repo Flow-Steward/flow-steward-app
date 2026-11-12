@@ -144,9 +144,7 @@ describe("SettingsServiceAccountsPage", () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText("Administrator access required"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Administrator access required")).toBeInTheDocument());
     expect(
       screen.queryByRole("button", { name: "New service account" }),
     ).not.toBeInTheDocument();
@@ -159,9 +157,7 @@ describe("SettingsServiceAccountsPage", () => {
     const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
     renderPage();
 
-    expect(
-      await screen.findByRole("button", { name: /CI Bot/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /CI Bot/i })).toBeInTheDocument());
     expect(screen.queryByLabelText("Account key")).not.toBeInTheDocument();
 
     await user.click(
@@ -197,9 +193,7 @@ describe("SettingsServiceAccountsPage", () => {
         "ci-bot",
       );
     });
-    expect(
-      await screen.findByRole("button", { name: /Deploy token/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Deploy token/i })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "New machine token" }));
     expect(
@@ -308,7 +302,7 @@ describe("SettingsServiceAccountsPage", () => {
       expect(mockedDeleteServiceAccount).toHaveBeenCalledWith("ci-bot");
     });
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("Service account ci-bot deleted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Service account ci-bot deleted.")).toBeInTheDocument());
   });
 
   it("allows catalog scopes covered by canonical service-account wildcards", async () => {
@@ -413,7 +407,7 @@ describe("SettingsServiceAccountsPage", () => {
       screen.getByRole("button", { name: "Create service account" }),
     );
 
-    expect(await screen.findByText(/at least one scope/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/at least one scope/i)).toBeInTheDocument());
     expect(mockedCreateServiceAccount).not.toHaveBeenCalled();
   });
 
@@ -639,7 +633,7 @@ describe("SettingsServiceAccountsPage", () => {
     await user.type(screen.getByLabelText("Account key"), "ci-bot");
     await user.click(screen.getByLabelText("jobs.read"));
     await user.click(screen.getByRole("button", { name: "Create service account" }));
-    expect(await screen.findByText("Tarnybinė paskyra „ci-bot“ jau yra. Atverkite ją, kad sukurtumėte kitą prieigos raktą.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Tarnybinė paskyra „ci-bot“ jau yra. Atverkite ją, kad sukurtumėte kitą prieigos raktą.")).toBeInTheDocument());
     expect(screen.getByLabelText("Account key")).toHaveValue("ci-bot");
     expect(mockedCreateServiceAccount).not.toHaveBeenCalled();
   });
@@ -657,7 +651,7 @@ describe("SettingsServiceAccountsPage", () => {
       screen.getByRole("button", { name: "Create service account" }),
     );
 
-    expect(await screen.findByText(/already exists/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/already exists/i)).toBeInTheDocument());
     expect(mockedCreateServiceAccount).not.toHaveBeenCalled();
   });
 

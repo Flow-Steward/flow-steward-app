@@ -354,14 +354,14 @@ describe("LlmProviderPanel", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    expect(await screen.findByText("Loading provider models…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading provider models…")).toBeInTheDocument());
     rejectLoad?.(new Error("source service unavailable"));
-    expect(await screen.findByText("Could not load provider models.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Could not load provider models.")).toBeInTheDocument());
     expect(screen.queryByText("No models discovered yet.")).not.toBeInTheDocument();
 
     mockedFetchSources.mockResolvedValueOnce([] as never);
     await user.click(screen.getByRole("button", { name: "Retry loading models" }));
-    expect(await screen.findByText("No models discovered yet.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No models discovered yet.")).toBeInTheDocument());
   });
 
   it("saves the host-to-runtime endpoint separately from upstream configuration", async () => {
@@ -532,7 +532,7 @@ describe("LlmProviderPanel", () => {
     ] as never);
     renderPanel();
 
-    expect(await screen.findByText("owner/tools-and-json")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("owner/tools-and-json")).toBeInTheDocument());
     expect(screen.getByText("owner/verified")).toBeInTheDocument();
     expect(screen.queryByText("owner/text-only")).not.toBeInTheDocument();
 
@@ -554,9 +554,7 @@ describe("LlmProviderPanel", () => {
     ] as never);
     renderPanel();
 
-    expect(
-      await screen.findByText("No model reports tool calling and structured output. Show all models to try one anyway."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No model reports tool calling and structured output. Show all models to try one anyway.")).toBeInTheDocument());
   });
 
   it("marks a required provider secret as required", async () => {
@@ -575,7 +573,7 @@ describe("LlmProviderPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Add owner/model" }));
 
-    expect(await screen.findByText("Capability verification failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Capability verification failed")).toBeInTheDocument());
     await waitFor(() => expect(mockedFetchSources).toHaveBeenCalledTimes(2));
   });
 
@@ -598,13 +596,11 @@ describe("LlmProviderPanel", () => {
     ] as never);
     renderPanel();
 
-    expect(
-      await screen.findByText("Failed the tool-result check: the model did not use the value the test tool returned."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Failed the tool-result check: the model did not use the value the test tool returned.")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Try verifying owner/model again" }));
 
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("model-row-1", true);
-    expect(await screen.findByText("owner/model added: it passed the checks.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("owner/model added: it passed the checks.")).toBeInTheDocument());
   });
 
   it("says a plan or credit refusal comes from the named provider, what to do, and when it was checked", async () => {
@@ -654,9 +650,7 @@ describe("LlmProviderPanel", () => {
     ] as never);
     renderPanel();
 
-    expect(
-      await screen.findByText("The extension was updated. Verify this model again before using it."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The extension was updated. Verify this model again before using it.")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Reverify owner/model" })).toBeEnabled();
   });
 
@@ -668,9 +662,7 @@ describe("LlmProviderPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Add owner/model" }));
 
-    expect(
-      await screen.findByText("Failed the structured-output check: the answer did not match the required JSON schema."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Failed the structured-output check: the answer did not match the required JSON schema.")).toBeInTheDocument());
   });
 
   it("says so when a save changed nothing, then still checks the connection", async () => {
@@ -724,7 +716,7 @@ describe("LlmProviderPanel", () => {
 
     renderPanel();
 
-    expect(await screen.findByText(/A public HTTPS runtime endpoint is required/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/A public HTTPS runtime endpoint is required/)).toBeInTheDocument());
     expect(screen.queryByText(/runtime_endpoint_required/)).not.toBeInTheDocument();
   });
 
@@ -753,9 +745,7 @@ describe("LlmProviderPanel", () => {
 
     renderPanel();
 
-    expect(
-      await screen.findByText("The provider key changed. Verify this model again before using it."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The provider key changed. Verify this model again before using it.")).toBeInTheDocument());
     expect(screen.queryByText("Verification failed.")).not.toBeInTheDocument();
     expect(screen.getByText("unverified")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reverify owner/verified-before" })).toBeInTheDocument();
@@ -806,7 +796,7 @@ describe("LlmProviderPanel", () => {
     await user.click(await screen.findByRole("button", { name: "Reverify owner/model" }));
 
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("model-row-1", true);
-    expect(await screen.findByText("owner/model added: it passed the checks.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("owner/model added: it passed the checks.")).toBeInTheDocument());
   });
 
   it("announces model verification progress and success", async () => {
@@ -824,7 +814,7 @@ describe("LlmProviderPanel", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Checking owner/model… This can take up to a minute.");
     resolveVerification?.();
-    expect(await screen.findByText("owner/model added: it passed the checks.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("owner/model added: it passed the checks.")).toBeInTheDocument());
   });
 
   it("announces mutation status and prevents duplicate requests while busy", async () => {
@@ -860,7 +850,7 @@ describe("LlmProviderPanel", () => {
     expect(mockedSaveCredentials).toHaveBeenCalledTimes(1);
 
     resolveSave?.();
-    expect(await screen.findByText(/Connection saved/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Connection saved/)).toBeInTheDocument());
   });
   it("shows the declared default, the extension's field help and its documentation", async () => {
     // The product owner tried https://ollama.com, …/api/chat and …/v1 and could
@@ -981,7 +971,7 @@ describe("LlmProviderPanel", () => {
     mockedFetchStatus.mockResolvedValue({ install_id: "install-1", saved_secrets: [], last_check: lastCheck });
     renderPanel({ optional_provider_secrets: ["api_key"] }, { runtimeMode: "subprocess" });
 
-    expect(await screen.findByText(badge)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(badge)).toBeInTheDocument());
     expect(screen.getByText(text)).toBeInTheDocument();
   });
 
@@ -1003,8 +993,8 @@ describe("LlmProviderPanel", () => {
     expect(mockedSaveCredentials.mock.invocationCallOrder[0]).toBeLessThan(
       mockedRefreshModels.mock.invocationCallOrder[0],
     );
-    expect(await screen.findByText("Connected")).toBeInTheDocument();
-    expect(await screen.findByText("API key saved")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("API key saved")).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent(
       "Connection saved; previous verification is stale until re-verified. Discovery complete.",
     );
@@ -1061,11 +1051,11 @@ describe("LlmProviderPanel", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    expect(await screen.findByText("Added")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Added")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Remove owner/model" }));
 
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("m1", false);
-    expect(await screen.findByText("owner/model removed.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("owner/model removed.")).toBeInTheDocument());
   });
 
   it("keeps the readable failure and Try again on a failed model", async () => {
@@ -1085,11 +1075,7 @@ describe("LlmProviderPanel", () => {
     const user = userEvent.setup();
     renderPanel();
 
-    expect(
-      await screen.findByText(
-        "Failed the tool-calling check: the model did not call the test tool once with the right arguments.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Failed the tool-calling check: the model did not call the test tool once with the right arguments.")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Try verifying owner/model again" }));
     expect(mockedSetModelEnabled).toHaveBeenCalledWith("m1", true);
   });

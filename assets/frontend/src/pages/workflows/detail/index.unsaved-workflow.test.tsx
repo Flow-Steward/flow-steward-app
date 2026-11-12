@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { fetchSpy, mockedFindWorkflowLinkedProjectId, renderPage } from "./index.test-helpers";
 
 describe("workflow form Test Run guard", () => {
@@ -23,7 +23,7 @@ describe("workflow form Test Run guard", () => {
       if (state === "error") await screen.findByText("Save failed");
     }
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
-    expect(await screen.findByTestId("workflow-test-run-blocked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-blocked")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
   });
 });

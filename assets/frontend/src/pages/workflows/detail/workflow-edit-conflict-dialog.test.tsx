@@ -102,7 +102,7 @@ it("answers a newer revision with a new comparison, never a retry", async () => 
   await screen.findByRole("region", { name: "My changes" });
   fireEvent.click(button("Keep my version"));
   fireEvent.click(button("Replace with my version"));
-  expect(await screen.findByText(/Another newer version was saved meanwhile/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Another newer version was saved meanwhile/)).toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole("region", { name: "Changes on the server" })).toHaveTextContent("Theirs 14"));
   expect(requests.filter((request) => request.url.endsWith("/apply"))).toHaveLength(1);
   expect(set.keepOwnVersionApplied).not.toHaveBeenCalled();
@@ -119,7 +119,7 @@ it("does not use an old review after the copy changed", async () => {
   fireEvent.click(button("Keep my version"));
   sequence = 5; // A later local action, or another tab's owner change.
   fireEvent.click(button("Replace with my version"));
-  expect(await screen.findByText(/Your copy changed after the comparison/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Your copy changed after the comparison/)).toBeInTheDocument());
   await waitFor(() => expect(requests.filter((request) => request.url.endsWith("/compare"))).toHaveLength(2));
   expect(requests.filter((request) => request.url.endsWith("/apply"))).toEqual([]);
   expect(set.keepOwnVersionApplied).not.toHaveBeenCalled();
@@ -131,7 +131,7 @@ it("accepts the server version locally after confirmation, and keeps the copy wh
   await screen.findByRole("region", { name: "My changes" });
   fireEvent.click(button("Accept the server version"));
   fireEvent.click(button("Discard my copy"));
-  expect(await screen.findByText("The server version could not be loaded. Your copy is kept.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("The server version could not be loaded. Your copy is kept.")).toBeInTheDocument());
   expect(failing.set.acceptServerVersion).not.toHaveBeenCalled();
   failing.view.unmount();
 
@@ -147,7 +147,7 @@ it("accepts the server version locally after confirmation, and keeps the copy wh
 it("offers no overwrite when the versions cannot be compared", async () => {
   server([{ url: "/edit-session/compare", status: 503, body: { detail: "Service unavailable" } }]);
   show();
-  expect(await screen.findByText(/could not be compared/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/could not be compared/)).toBeInTheDocument());
   expect(button("Keep my version")).toBeDisabled();
 });
 

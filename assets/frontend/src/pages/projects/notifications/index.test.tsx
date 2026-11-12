@@ -119,7 +119,7 @@ describe("ProjectNotificationRoutesEditor", () => {
 
     renderEditor();
 
-    expect(await screen.findByText("Notification provider inventory is unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Notification provider inventory is unavailable.")).toBeInTheDocument());
     expect(screen.queryByText(/internal server error/i)).not.toBeInTheDocument();
 
     await userEvent.setup().click(screen.getByRole("button", { name: "Retry notification data" }));
@@ -213,7 +213,7 @@ describe("ProjectNotificationRoutesEditor", () => {
     await user.click(await screen.findByRole("option", { name: /acme mailer/i }));
 
     // The field is an address to type, not a list to choose from.
-    expect(await screen.findByRole("textbox", { name: /recipient/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: /recipient/i })).toBeInTheDocument());
     expect(screen.queryByRole("combobox", { name: /channel/i })).not.toBeInTheDocument();
     // A recipient is typed, so no channel list is fetched for it.
     expect(mockedFetchChannels).not.toHaveBeenCalled();
@@ -273,7 +273,7 @@ describe("ProjectNotificationRoutesEditor", () => {
     const dialog = await screen.findByRole("dialog");
     const provider = within(dialog).getByRole("combobox", { name: "Provider" });
     await user.click(within(dialog).getByRole("button", { name: /create route/i }));
-    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toBeInTheDocument());
 
     await user.click(provider);
     await user.click(await screen.findByRole("option", { name: "Fixture notifications" }));

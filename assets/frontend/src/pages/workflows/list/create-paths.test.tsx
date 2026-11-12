@@ -211,7 +211,7 @@ test("the Catalog tab browses templates in the page, its search spanning the res
 
   expect(screen.getByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(await screen.findByLabelText("Search templates and integrations")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByLabelText("Search templates and integrations")).toBeInTheDocument());
   await waitFor(() => expect(mockedFetchCatalog).toHaveBeenCalledTimes(1));
   expect(screen.getByTestId("location")).toHaveTextContent("tab=catalog");
 });
@@ -262,7 +262,7 @@ test("an operator browses templates read-only", async () => {
   expect(screen.queryByRole("button", { name: /^Use template/ })).not.toBeInTheDocument();
   fireEvent.click(await screen.findByRole("button", { name: /^Template/ }));
   // The action-rights rule: the template's page has no Use template either, only why.
-  expect(await screen.findByText("Only administrators can create workflows.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Only administrators can create workflows.")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Use template" })).not.toBeInTheDocument();
 });
 
@@ -307,7 +307,7 @@ test("Use template from the card sets it up, and the result offers the builder w
   await waitFor(() => expect(create).toBeEnabled());
   fireEvent.click(create);
 
-  expect(await screen.findByRole("heading", { name: "Draft created" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Draft created" })).toBeInTheDocument());
   expect(screen.getByTestId("location")).toHaveTextContent("/registry/workflows?");
   fireEvent.click(screen.getByRole("button", { name: "Open in builder" }));
 
@@ -323,11 +323,11 @@ test("the Catalog tab closes an open template and returns to the results", async
 
   await header();
   fireEvent.click(await screen.findByRole("button", { name: /^Template/ }));
-  expect(await screen.findByRole("button", { name: "Use template" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Use template" })).toBeInTheDocument());
 
   fireEvent.click(screen.getByRole("tab", { name: "Catalog" }));
 
-  expect(await screen.findByRole("button", { name: /^Template/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: /^Template/ })).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Use template" })).not.toBeInTheDocument();
   expect(screen.getByTestId("location")).not.toHaveTextContent("tpl=");
 });

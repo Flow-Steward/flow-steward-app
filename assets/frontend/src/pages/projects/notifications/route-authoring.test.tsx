@@ -333,7 +333,7 @@ describe("notification route authoring", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Workflow" })).toBeEnabled());
     await act(async () => { resolveOld(new Response(JSON.stringify({ workflows: [{ workflow_id: "wf-old", display_name: "Old project workflow" }] }), { status: 200, headers: { "Content-Type": "application/json" } })); });
     await user.click(screen.getByRole("combobox", { name: "Workflow" }));
-    expect(await screen.findByRole("option", { name: "New project workflow" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "New project workflow" })).toBeInTheDocument());
     expect(screen.queryByRole("option", { name: "Old project workflow" })).not.toBeInTheDocument();
     expect(save).not.toHaveBeenCalled();
   });

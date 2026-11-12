@@ -9,7 +9,7 @@ it("labels saved validation while drafting and lists identical draft issues only
     return original ? original(url, init) : new Response("{}");
   });
   renderPage({ surface: "builder" });
-  expect(await screen.findByRole("button", { name: "Diagnostics" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Diagnostics" })).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "Add step" }));
   const palette = await screen.findByRole("listbox", { name: "Add step" });
   fireEvent.click(within(palette).getByRole("option", { name: "Wait" }));
@@ -17,7 +17,7 @@ it("labels saved validation while drafting and lists identical draft issues only
   fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "Extra wait" } });
   expect(screen.getByRole("combobox", { name: "Step kind" })).toHaveValue("wait");
   fireEvent.click(screen.getByRole("button", { name: "Update new step" }));
-  expect(await screen.findByRole("button", { name: /Diagnostics.*Saved workflow valid/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: /Diagnostics.*Saved workflow valid/ })).toBeInTheDocument());
   const kept = await screen.findByTestId("change-check-kept");
   expect(within(kept).getAllByText(issue.message)).toHaveLength(1);
 });
@@ -74,7 +74,7 @@ it("keeps a past owned result available after explicit history selection when th
   fireEvent.click(pastRun);
   expect(pastRun).toHaveAttribute("aria-current", "true");
   await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId));
-  expect(await screen.findByText("\"Prior successful report\"")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("\"Prior successful report\"")).toBeInTheDocument());
   fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Test Run results" })).not.toBeInTheDocument());
   const retry = await openLauncher();
@@ -82,7 +82,7 @@ it("keeps a past owned result available after explicit history selection when th
   const run = within(retry).getByRole("button", { name: "Run workflow test run" });
   await waitFor(() => expect(run).toBeEnabled());
   fireEvent.click(run);
-  expect(await within(retry).findByText("Workflow has unreachable steps.")).toBeInTheDocument();
+  await waitFor(() => expect(within(retry).getByText("Workflow has unreachable steps.")).toBeInTheDocument());
   expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
   expect(screen.queryByText("Previous test run — the latest start request failed.")).not.toBeInTheDocument();
   fireEvent.click(within(retry).getByRole("button", { name: "Cancel" }));
@@ -91,6 +91,6 @@ it("keeps a past owned result available after explicit history selection when th
   await waitFor(() => expect(selected).toHaveAttribute("data-job-id", jobId));
   fireEvent.click(within(selected).getByRole("button", { name: "Results" }));
   await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", jobId));
-  expect(await screen.findByText("\"Prior successful report\"")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("\"Prior successful report\"")).toBeInTheDocument());
   expect(localStorage.getItem("fs.workflow-run-job.weekly_report")).toBe(jobId);
 });

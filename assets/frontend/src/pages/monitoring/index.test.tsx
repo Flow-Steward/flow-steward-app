@@ -88,7 +88,7 @@ function storedComponents(serviceType = "image-indexer", freshness: "fresh" | "s
 describe("MonitoringPage", () => {
   it("localizes the diagnostics download action", async () => {
     renderPage("/monitoring", "lt");
-    expect(await screen.findByRole("button", { name: "Atsisiųsti diagnostiką" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Atsisiųsti diagnostiką" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Download diagnostics" })).not.toBeInTheDocument();
   });
   beforeEach(() => {
@@ -198,7 +198,7 @@ describe("MonitoringPage", () => {
       summary: { checks_total: 0, checks_ok: 0, checks_failed: 0 }, components: storedComponents(name) });
     renderPage();
     const services = await screen.findByRole("table", { name: "Services" });
-    expect(await within(services).findByText(label)).toBeInTheDocument();
+    await waitFor(() => expect(within(services).getByText(label)).toBeInTheDocument());
     expect(within(services).getByText("Not reporting")).toBeInTheDocument();
     const current = screen.getByRole("table", { name: "Current observations" });
     expect(within(current).getByText(/Last heartbeat:/)).toBeInTheDocument();
@@ -227,7 +227,7 @@ describe("MonitoringPage", () => {
     mockedFetchMonitoringSummary.mockResolvedValueOnce({ components });
     renderPage();
     const current = await screen.findByRole("table", { name: "Current observations" });
-    expect(await within(current).findByText(/Report age: 34s/)).toBeInTheDocument();
+    await waitFor(() => expect(within(current).getByText(/Report age: 34s/)).toBeInTheDocument());
     expect(screen.queryByText(/33\.751256/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Last heartbeat: 2026-10-01T/)).not.toBeInTheDocument();
     const disclosure = within(current).getByRole("group", { name: "Image Indexer observation diagnostics" });
@@ -244,7 +244,7 @@ describe("MonitoringPage", () => {
     mockedFetchMonitoringSummary.mockResolvedValueOnce({ ready: true, components });
     renderPage();
     const current = await screen.findByRole("table", { name: "Current observations" });
-    expect(await within(current).findByText("Cached check stale")).toBeInTheDocument();
+    await waitFor(() => expect(within(current).getByText("Cached check stale")).toBeInTheDocument());
     expect(within(current).getByRole("group", { name: "Image Indexer observation diagnostics" })).toHaveTextContent(/Health: Healthy \(stale; checked .*; age 181s/);
     // A stale health check is not a verdict: the role runs, its health is unknown.
     expect(within(screen.getByRole("table", { name: "Services" })).getByText("Running · health not measured")).toBeInTheDocument();
@@ -262,7 +262,7 @@ describe("MonitoringPage", () => {
     mockedFetchMonitoringSummary.mockResolvedValueOnce({ components });
     renderPage();
     const services = await screen.findByRole("table", { name: "Services" });
-    expect(await within(services).findByText("New Worker Role")).toBeInTheDocument();
+    await waitFor(() => expect(within(services).getByText("New Worker Role")).toBeInTheDocument());
     expect(within(services).getByText("Not reporting")).toBeInTheDocument();
     const dependencies = screen.getByRole("table", { name: "Dependencies" });
     expect(within(dependencies).getByText("External Object Store")).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe("MonitoringPage", () => {
     mockedFetchMonitoringSummary.mockResolvedValueOnce({ components });
     renderPage();
     const services = await screen.findByRole("table", { name: "Services" });
-    expect(await within(services).findByText("Unhealthy")).toBeInTheDocument();
+    await waitFor(() => expect(within(services).getByText("Unhealthy")).toBeInTheDocument());
     const current = screen.getByRole("table", { name: "Current observations" });
     expect(within(current).getByText("Failed")).toBeInTheDocument();
     expect(within(current).getByText(/Lifecycle: Running/)).toBeInTheDocument();
@@ -288,7 +288,7 @@ describe("MonitoringPage", () => {
     mockedFetchMonitoringSummary.mockResolvedValueOnce({ ready: true, checks: {},
       summary: { checks_total: 0, checks_ok: 0, checks_failed: 0 }, components });
     renderPage("/monitoring");
-    expect(await screen.findByRole("link", { name: "Healthy instances: unknown. Open services" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: "Healthy instances: unknown. Open services" })).toBeInTheDocument());
     expect(screen.getByText("Services: unknown")).toBeInTheDocument();
     expect(screen.getByText("Running instances: unknown")).toBeInTheDocument();
   });
@@ -296,7 +296,7 @@ describe("MonitoringPage", () => {
   it("does not keep old runtime/watchdog tab aliases", async () => {
     renderPage("/monitoring?tab=runtime");
 
-    expect(await screen.findByRole("heading", { name: "System monitoring" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "System monitoring" })).toBeInTheDocument());
     expect(screen.queryByRole("tab", { name: "Runtime" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Watchdog" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
@@ -314,7 +314,7 @@ describe("MonitoringPage", () => {
     expect(screen.queryByText("Container inventory")).not.toBeInTheDocument();
     expect(screen.getByText("Services: unknown")).toBeInTheDocument();
     expect(screen.queryByText("Workers")).not.toBeInTheDocument();
-    expect(await screen.findByText("Postgres")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Postgres")).toBeInTheDocument());
     expect(screen.getByText("Rabbitmq")).toBeInTheDocument();
     expect(screen.getByText("Connection refused")).toBeInTheDocument();
 
@@ -355,7 +355,7 @@ describe("MonitoringPage", () => {
 
     renderPage("/monitoring?tab=overview");
 
-    expect(await screen.findByText("Ready: yes")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready: yes")).toBeInTheDocument());
     expect(screen.queryByText(/Container discovery:/)).not.toBeInTheDocument();
     expect(screen.getByText("Healthy instances")).toBeInTheDocument();
     expect(screen.getByText("Unknown")).toBeInTheDocument();
@@ -397,12 +397,12 @@ describe("MonitoringPage", () => {
   it("renders the storage tab with backend and orphan visibility", async () => {
     renderPage("/monitoring?tab=storage");
 
-    expect(await screen.findByRole("heading", { name: "Storage summary" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Storage summary" })).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Storage" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Backend inventory")).toBeInTheDocument();
     expect(screen.getByText("Orphaned scope data")).toBeInTheDocument();
-    expect(await screen.findByText("qdrant")).toBeInTheDocument();
-    expect(await screen.findByText("ghost", { selector: "code" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("qdrant")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("ghost", { selector: "code" })).toBeInTheDocument());
   });
 
   it("requests orphan storage cleanup for missing scopes", async () => {
@@ -423,7 +423,7 @@ describe("MonitoringPage", () => {
         confirm: "DELETE_ORPHAN_STORAGE",
       });
     });
-    expect(await screen.findByText("Orphaned storage scope deleted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Orphaned storage scope deleted.")).toBeInTheDocument());
   });
 
   it("does not clean orphan storage when the confirmation is cancelled", async () => {
@@ -442,7 +442,7 @@ describe("MonitoringPage", () => {
   it("summarizes nested overview metadata instead of dumping recursive runtime details", async () => {
     renderPage("/monitoring");
 
-    expect(await screen.findByText("Queue delivery")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Queue delivery")).toBeInTheDocument());
     expect(screen.getByText("Retrying delivery")).toBeInTheDocument();
     expect(screen.getByText("RabbitMQ delivery is retrying before execution has safely started.")).toBeInTheDocument();
     expect(screen.getByText("Queued")).toBeInTheDocument();
@@ -505,7 +505,7 @@ describe("MonitoringPage", () => {
 
     renderPage("/monitoring");
 
-    expect(await screen.findByText("Needs operator action")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Needs operator action")).toBeInTheDocument());
     expect(screen.getByText("Ready: yes")).toBeInTheDocument();
     expect(screen.getByText("Showing 1 of 2 jobs")).toBeInTheDocument();
     expect(screen.getByText("Dead-lettered / requires intervention")).toBeInTheDocument();

@@ -87,7 +87,7 @@ describe("a hook in the step drawer (R2-11)", () => {
     api.fetchWorkflowHook.mockResolvedValue(hook());
     mount();
 
-    expect(await screen.findByText("Before creating an invoice")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Before creating an invoice")).toBeInTheDocument());
     expect(screen.getByText("Empty")).toBeInTheDocument();
     expect(screen.getByText(/the run goes on with the inputs unchanged/)).toBeInTheDocument();
     expect(screen.getByText("invoice.create")).toBeInTheDocument();
@@ -115,7 +115,7 @@ describe("a hook in the step drawer (R2-11)", () => {
     );
     mount(true, { stepCount: 2, onClear: vi.fn() });
 
-    expect(await screen.findByText("2 steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 steps")).toBeInTheDocument());
     expect(screen.queryByText("Empty")).not.toBeInTheDocument();
     expect(screen.queryByText(/invoice_flow_before_invoice/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Connected/)).not.toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("a hook in the step drawer (R2-11)", () => {
     const onClear = vi.fn();
     mount(true, { stepCount: 1, onClear });
 
-    expect(await screen.findByText("1 step")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 step")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Disconnect" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Clear the hook" }));
     await waitFor(() => expect(onClear).toHaveBeenCalledTimes(1));
@@ -138,7 +138,7 @@ describe("a hook in the step drawer (R2-11)", () => {
   it("offers nothing to clear on an empty hook", async () => {
     api.fetchWorkflowHook.mockResolvedValue(hook());
     mount(true, { stepCount: 0, onClear: vi.fn() });
-    expect(await screen.findByText("Empty")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Empty")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Clear the hook" })).not.toBeInTheDocument();
   });
 
@@ -146,14 +146,14 @@ describe("a hook in the step drawer (R2-11)", () => {
     api.fetchWorkflowHook.mockResolvedValue(hook());
     mount(false, { stepCount: 3, onClear: vi.fn() });
 
-    expect(await screen.findByText("Before creating an invoice")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Before creating an invoice")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Clear the hook" })).not.toBeInTheDocument();
   });
 
   it("asks for a project with the picker it is given, and calls no project API without one", async () => {
     mount(true, { projectId: "", projectPicker: <button type="button">Pick a linked project</button> });
 
-    expect(await screen.findByText("Choose a project")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Choose a project")).toBeInTheDocument());
     expect(screen.getByText(/Each project keeps its own steps in a hook/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pick a linked project" })).toBeInTheDocument();
     expect(api.fetchWorkflowHook).not.toHaveBeenCalled();

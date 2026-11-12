@@ -85,20 +85,20 @@ describe("ConnectedAppsSection", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Revoke access" }));
     await waitFor(() => expect(mockedRevoke).toHaveBeenCalledWith("g-1"));
     await waitFor(() => expect(mockedFetchGrants).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText("Revoked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Revoked")).toBeInTheDocument());
   });
 
   it("explains a readiness blocker and the empty state", async () => {
     mockedFetchGrants.mockResolvedValue(page([], { ready: false, blockers: ["public_https_required"] }));
     renderSection();
-    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("A public HTTPS address is required")).toBeInTheDocument());
     expect(screen.getByText("No connected AI apps")).toBeInTheDocument();
   });
 
   it("shows a recoverable error when the grants cannot be loaded", async () => {
     mockedFetchGrants.mockRejectedValue(new Error("storage_missing"));
     renderSection();
-    expect(await screen.findByText("Connected apps could not be loaded")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connected apps could not be loaded")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });

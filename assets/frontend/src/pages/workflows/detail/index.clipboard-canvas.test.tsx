@@ -164,7 +164,7 @@ it("copies the selected authored step through the real canvas action without sta
     clickCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     pressCanvasKey("KeyC");
     await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
-    expect(await screen.findByText("Plan work copied.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Plan work copied.")).toBeInTheDocument());
     const copied = JSON.parse(String(writeText.mock.calls[0][0])) as { roots: Array<{ kind: string; id: string }> };
     expect(copied.roots).toEqual([{ kind: "step", id: "plan" }]);
     expect(postedChangeSets()).toEqual([]);
@@ -195,7 +195,7 @@ it("pastes the builder's copy into the workflow root as one unapplied change (Ca
     expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 1 change(s)");
     await waitFor(() => expect(loadManualLayout("weekly_report").plan_2).toEqual({ x: expect.any(Number), y: expect.any(Number) }));
     // A place by hand while Arrange is Automatically turns it to Manually, and the toast says so with Undo.
-    expect(await screen.findByText("Layout: manually. Steps stay where you put them.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Layout: manually. Steps stay where you put them.")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
     expect(postedChangeSets()).toEqual([]);
   } finally {
@@ -334,7 +334,7 @@ it("names pasted steps and offers Undo for the staged paste", async () => {
     await waitFor(() => expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(2));
     const pastedIds = canvasIds().filter((id) => !originalIds.includes(id));
     expect(pastedIds.length).toBeGreaterThan(0);
-    expect(await screen.findByText("Pasted Plan work to the unapplied structure.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Pasted Plan work to the unapplied structure.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1));
     expect(canvasIds()).toEqual(originalIds);
@@ -679,7 +679,7 @@ it("summarizes a multi-root paste by count and offers Undo", async () => {
     });
     const pastedIds = canvasIds().filter((id) => !originalIds.includes(id));
     expect(pastedIds.length).toBeGreaterThan(0);
-    expect(await screen.findByText("2 items pasted to the unapplied structure.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 items pasted to the unapplied structure.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => {
       expect(screen.getAllByRole("group", { name: "Open step Plan work" })).toHaveLength(1);

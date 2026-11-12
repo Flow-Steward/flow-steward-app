@@ -27,7 +27,7 @@ it("previews typed mappings before applying the exact reviewed plan and linking 
     .mockResolvedValueOnce(new Response(JSON.stringify({ ...preview, applied: true, revision: 8, child_revision: 1 })));
   const { onApplied } = setup();
   expect(screen.getByRole("button", { name: "Create child workflow" })).toBeDisabled();
-  expect(await screen.findByText("state.items")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("state.items")).toBeInTheDocument());
   expect(screen.getByText("array")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Create child workflow" }));
   await waitFor(() => expect(screen.getByRole("link", { name: "Open child workflow" })).toHaveAttribute("href", "/registry/workflows/source_process/builder"));
@@ -306,7 +306,7 @@ it("keeps completed feedback truthful after onApplied refreshes the workflow rev
   await waitFor(() => expect(screen.getByRole("button", { name: "Create child workflow" })).toBeEnabled());
   const beforeApply = fetchMock.mock.calls.length;
   fireEvent.click(screen.getByRole("button", { name: "Create child workflow" }));
-  expect(await screen.findByRole("link", { name: "Open child workflow" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("link", { name: "Open child workflow" })).toBeInTheDocument());
   expect(onApplied).toHaveBeenCalledOnce();
   expect(fetchMock).toHaveBeenCalledTimes(beforeApply + 1);
   expect(screen.queryByRole("region", { name: "Conversion preview" })).not.toBeInTheDocument();
@@ -330,7 +330,7 @@ it("reconciles a confirmed apply when the same workflow and group revision advan
   expect(screen.getByRole("status", { name: "Conversion preview status" })).toHaveTextContent("Creating child workflow");
   rerender(<GroupExtractionDialog {...props} revision={8} />);
   resolveApply(new Response(JSON.stringify({ ...preview, applied: true, revision: 8, child_revision: 1 })));
-  expect(await screen.findByRole("link", { name: "Open child workflow" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("link", { name: "Open child workflow" })).toBeInTheDocument());
   expect(onApplied).toHaveBeenCalledOnce();
   expect(screen.queryByRole("region", { name: "Conversion preview" })).not.toBeInTheDocument();
   expect(screen.getByRole("status")).toHaveTextContent("Child workflow created.");

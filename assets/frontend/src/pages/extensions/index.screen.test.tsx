@@ -712,7 +712,7 @@ describe("ExtensionsHubPage", () => {
   it("keeps a restored viewer card read-only even with contradictory server flags", async () => {
     configureRecovery();
     renderPage("/extensions/smoke.guardrail.enforcement?project_id=project-1", "viewer");
-    expect(await screen.findByText(new RegExp(effectId))).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(new RegExp(effectId))).toBeInTheDocument());
     expect(screen.getByText("You can view this effect. An operator must record the decision.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Operation completed — continue" })).not.toBeInTheDocument();
     expect(mockedExecuteExtensionAction).not.toHaveBeenCalled();
@@ -769,7 +769,7 @@ describe("ExtensionsHubPage", () => {
     const { queryClient } = renderPage("/extensions/smoke.guardrail.enforcement?project_id=project-1", "operator", undefined, true);
     await waitFor(() => expect(mockedFetchExtensionExternalEffects).toHaveBeenCalledWith("project-1", "pi_smoke"));
     await user.click(screen.getByRole("button", { name: `Switch recovery ${selection}` }));
-    expect(await screen.findByText(new RegExp(otherEffectId))).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(new RegExp(otherEffectId))).toBeInTheDocument());
     resolveOld({ effects: [unknownEffect], truncated: false });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(screen.queryByText(new RegExp(effectId))).not.toBeInTheDocument();
@@ -803,7 +803,7 @@ describe("ExtensionsHubPage", () => {
     await user.click(screen.getByRole("button", { name: "Operation not completed — retry" }));
     await waitFor(() => expect(mockedResolveExtensionExternalEffect).toHaveBeenCalledOnce());
     await user.click(screen.getByRole("button", { name: `Switch recovery ${selection}` }));
-    expect(await screen.findByText(new RegExp(otherEffectId))).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(new RegExp(otherEffectId))).toBeInTheDocument());
     completeDecision(receipt);
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(screen.queryByText(new RegExp(effectId))).not.toBeInTheDocument();
@@ -910,7 +910,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth=success#overview",
     );
 
-    expect(await screen.findByText("External account connected successfully.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("External account connected successfully.")).toBeInTheDocument());
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
         "/extensions/smoke.guardrail.enforcement?project_id=project-1#overview",
@@ -923,7 +923,7 @@ describe("ExtensionsHubPage", () => {
   it("loads exact extension detail without fetching the admin catalog", async () => {
     renderPage("/extensions/smoke.guardrail.enforcement", "viewer");
 
-    expect(await screen.findByText("Smoke Guardrail Enforcement")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Smoke Guardrail Enforcement")).toBeInTheDocument());
     expect(mockedFetchExtension).toHaveBeenCalledWith("smoke.guardrail.enforcement");
     expect(mockedFetchExtensions).not.toHaveBeenCalled();
     expect(mockedFetchExtensionPreview).not.toHaveBeenCalled();
@@ -959,7 +959,7 @@ describe("ExtensionsHubPage", () => {
         role,
       );
 
-      expect(await screen.findByText("Smoke Guardrail Enforcement")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Smoke Guardrail Enforcement")).toBeInTheDocument());
       expect(mockedFetchExtensionPreview).not.toHaveBeenCalled();
       if (role === "operator") {
         expect(mockedFetchExtensionCallbacks).toHaveBeenCalledWith(
@@ -1012,7 +1012,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections&oauth=success&oauth_connection_id=connection%3Aa-b#overview",
     );
 
-    expect(await screen.findByText("Primary mailbox connected successfully.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Primary mailbox connected successfully.")).toBeInTheDocument());
     await waitFor(() => expect(mockedFetchProjectConnectionsList).toHaveBeenCalledTimes(2));
     expect(screen.getByTestId("location-probe")).toHaveTextContent(
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections#overview",
@@ -1269,9 +1269,7 @@ describe("ExtensionsHubPage", () => {
       + "&oauth_connection_id=connection%3Aa-b&oauth_connection_preserved=1",
     );
 
-    expect(await screen.findByText(
-      "Primary mailbox reauthorization did not complete. The existing connection and its previous authorization were not replaced and remain in their prior state.",
-    )).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Primary mailbox reauthorization did not complete. The existing connection and its previous authorization were not replaced and remain in their prior state.")).toBeInTheDocument());
     expect(screen.queryByText(/Reconnect/u)).not.toBeInTheDocument();
     await waitFor(() => expect(mockedFetchProjectConnectionsList).toHaveBeenCalledTimes(2));
     const focused = screen.getByLabelText("Connection Primary mailbox");
@@ -1289,9 +1287,7 @@ describe("ExtensionsHubPage", () => {
       + "&oauth=error&reason=authorization_required&oauth_connection_preserved=1",
     );
 
-    expect(await screen.findByText(
-      "Authorization must be completed again. Reconnect the account and approve the declared access.",
-    )).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization must be completed again. Reconnect the account and approve the declared access.")).toBeInTheDocument());
     expect(screen.queryByText(/existing connection and its previous authorization/u)).not.toBeInTheDocument();
   });
 
@@ -1383,9 +1379,7 @@ describe("ExtensionsHubPage", () => {
       + "&oauth_connection_id=connection%3Aa-b&oauth_connection_preserved=1",
     );
 
-    expect(await screen.findByText(
-      "Authorization must be completed again. Reconnect the account and approve the declared access.",
-    )).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization must be completed again. Reconnect the account and approve the declared access.")).toBeInTheDocument());
     expect(screen.queryByText(/existing connection and its previous authorization/u)).not.toBeInTheDocument();
     await waitFor(() => expect(mockedFetchProjectConnectionsList).toHaveBeenCalledTimes(2));
     const otherConnection = await screen.findByLabelText("Connection Other mailbox");
@@ -1398,7 +1392,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=configuration&oauth=error&reason=authorization_cancelled#connections",
     );
 
-    expect(await screen.findByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument());
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
         "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=configuration#connections",
@@ -1419,7 +1413,7 @@ describe("ExtensionsHubPage", () => {
     renderPage(
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections&oauth=error&reason=authorization_cancelled",
     );
-    expect(await screen.findByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument());
 
     await userEvent.setup().click(await screen.findByRole("tab", { name: "Other" }));
 
@@ -1451,7 +1445,7 @@ describe("ExtensionsHubPage", () => {
     renderPage(
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections&oauth=error&reason=authorization_cancelled",
     );
-    expect(await screen.findByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization was cancelled. You can try connecting the account again.")).toBeInTheDocument());
 
     await chooseProject(userEvent.setup(), "project-2");
 
@@ -1463,7 +1457,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth=error&reason=provider_configuration_error#overview",
     );
 
-    expect(await screen.findByText("The extension OAuth configuration needs attention. Open the extension Setup page.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The extension OAuth configuration needs attention. Open the extension Setup page.")).toBeInTheDocument());
     expect(screen.queryByText("provider_configuration_error")).not.toBeInTheDocument();
   });
 
@@ -1768,7 +1762,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=configuration",
     );
 
-    expect(await screen.findByText("No rows yet.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No rows yet.")).toBeInTheDocument());
     const row = await screen.findByTestId("manifest-repeater-row");
     expect(row).toHaveTextContent("Saved name");
     await user.click(within(row).getByRole("button", { name: "Edit" }));
@@ -2118,7 +2112,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth=error&reason=provider_configuration_error#configuration",
     );
 
-    expect(await screen.findByText("The extension OAuth configuration needs attention. Open the extension Setup page.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The extension OAuth configuration needs attention. Open the extension Setup page.")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /settings/i })).not.toBeInTheDocument();
   });
 
@@ -2140,7 +2134,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?extension_page=help&oauth=error&reason=missing_required_scope#retry",
     );
 
-    expect(await screen.findByText("Required access was not granted. Reconnect and approve the permissions declared by the extension.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Required access was not granted. Reconnect and approve the permissions declared by the extension.")).toBeInTheDocument());
     const helpTarget = await screen.findByRole("region", { name: "retry" });
     await waitFor(() => expect(helpTarget).toHaveFocus());
   });
@@ -2150,7 +2144,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?oauth=error&reason=OAuthTokenEndpointError#configuration",
     );
 
-    expect(await screen.findByText("Authorization failed. Try connecting the account again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization failed. Try connecting the account again.")).toBeInTheDocument());
     expect(screen.queryByText("OAuthTokenEndpointError")).not.toBeInTheDocument();
   });
 
@@ -2180,7 +2174,7 @@ describe("ExtensionsHubPage", () => {
       `/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth=error&reason=${reason}#overview`,
     );
 
-    expect(await screen.findByText(guidance)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(guidance)).toBeInTheDocument());
     await waitFor(() => {
       expect(screen.getByTestId("location-probe")).toHaveTextContent(
         "/extensions/smoke.guardrail.enforcement?project_id=project-1#overview",
@@ -2193,7 +2187,7 @@ describe("ExtensionsHubPage", () => {
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&oauth=error&reason=OAuthTokenEndpointError#overview",
     );
 
-    expect(await screen.findByText("Authorization failed. Try connecting the account again.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Authorization failed. Try connecting the account again.")).toBeInTheDocument());
     expect(screen.queryByText(/OAuthTokenEndpointError/)).not.toBeInTheDocument();
   });
 
@@ -2221,18 +2215,16 @@ describe("ExtensionsHubPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Nothing enabled yet")).toBeInTheDocument();
-    expect(
-      await screen.findByText(/2 extensions are installed but disabled/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing enabled yet")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/2 extensions are installed but disabled/)).toBeInTheDocument());
     // it must not send someone hunting for a download they already have
     expect(screen.queryByText(/install an extension from a .zip/i)).not.toBeInTheDocument();
 
     // and one click reaches them, rather than "choose Disabled or All" prose
     fireEvent.click(await screen.findByTestId("extensions-show-disabled"));
 
-    expect(await screen.findByText("Acme Documents")).toBeInTheDocument();
-    expect(await screen.findByText("Acme Shop")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Acme Documents")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Acme Shop")).toBeInTheDocument());
   });
 
   it("keeps the generic empty state when there is genuinely nothing installed", async () => {
@@ -2240,7 +2232,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("No active extensions")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No active extensions")).toBeInTheDocument());
     expect(screen.queryByTestId("extensions-show-disabled")).not.toBeInTheDocument();
   });
 
@@ -2264,7 +2256,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/partner.calendar?oauth=error&reason=duplicate_connection#connections");
 
-    expect(await screen.findByText("This external account is already connected to this project. Choose another account or reconnect the existing connection.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This external account is already connected to this project. Choose another account or reconnect the existing connection.")).toBeInTheDocument());
   });
 
   it("renders nested health payloads from the backend contract", async () => {
@@ -2283,11 +2275,11 @@ describe("ExtensionsHubPage", () => {
   it("renders installed extensions as a catalog table with publisher metadata", async () => {
     renderPage();
 
-    expect(await screen.findByRole("columnheader", { name: "Extension" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "Extension" })).toBeInTheDocument());
     expect(screen.getByRole("columnheader", { name: "Publisher" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Category" })).toBeInTheDocument();
     // The table keeps its header while loading, so wait for the row itself.
-    expect(await screen.findByText("Enforces extension runtime guardrails.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Enforces extension runtime guardrails.")).toBeInTheDocument());
     expect(screen.getByRole("cell", { name: "Security Automation" })).toBeInTheDocument();
     expect(screen.queryByText("Official")).not.toBeInTheDocument();
   });
@@ -2295,7 +2287,7 @@ describe("ExtensionsHubPage", () => {
   it("keeps a floor under the Extension name column so a medium screen scrolls the table instead", async () => {
     renderPage();
 
-    expect(await screen.findByText("Enforces extension runtime guardrails.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Enforces extension runtime guardrails.")).toBeInTheDocument());
     // The name cell is the last child of the logo lockup, inside the installed table.
     const table = screen.getByRole("table", { name: "Installed extensions" });
     expect(table).toHaveClass("fs-table");
@@ -2431,7 +2423,7 @@ describe("ExtensionsHubPage", () => {
     await screen.findByText("Smoke Guardrail Enforcement");
     await user.click(screen.getByRole("button", { name: "Extension runtime health" }));
 
-    expect(await screen.findByText("Healthy")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Healthy")).toBeInTheDocument());
     expect(screen.queryByText(/All runtime checks passed/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-07-30T20:30:00Z/u)).not.toBeInTheDocument();
   });
@@ -2451,7 +2443,7 @@ describe("ExtensionsHubPage", () => {
     await screen.findByText("Smoke Guardrail Enforcement");
     await user.click(screen.getByRole("button", { name: "Extension runtime health" }));
 
-    expect(await screen.findByText("Unhealthy — Runtime probe failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Unhealthy — Runtime probe failed")).toBeInTheDocument());
     expect(screen.queryByText(/900ms/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/2026-07-30T20:30:00Z/u)).not.toBeInTheDocument();
     expect(screen.queryByText(/raw diagnostic/u)).not.toBeInTheDocument();
@@ -2718,13 +2710,13 @@ describe("ExtensionsHubPage", () => {
       target: { files: [file] },
     });
 
-    expect(await screen.findByRole("heading", { name: "Approve external browser code" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Approve external browser code" })).toBeInTheDocument());
     expect(screen.getByText("acme.browser-picker")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Confirm and continue" }));
-    expect(await screen.findByText(/changed while approval was pending/u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/changed while approval was pending/u)).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Confirm and continue" }));
 
-    expect(await screen.findByText("Installed Browser Picker 1.0.0.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Installed Browser Picker 1.0.0.")).toBeInTheDocument());
     expect(mockedInstallExtensionFromFile).toHaveBeenNthCalledWith(1, file);
     expect(mockedInstallExtensionFromFile).toHaveBeenNthCalledWith(2, file, firstHash);
     expect(mockedInstallExtensionFromFile).toHaveBeenNthCalledWith(3, file, staleHash);
@@ -2765,9 +2757,7 @@ describe("ExtensionsHubPage", () => {
       },
     });
 
-    expect(
-      await screen.findByText("Install extension from file accepts only .zip archives."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Install extension from file accepts only .zip archives.")).toBeInTheDocument());
   });
 
   it("keeps broken extensions out of the default view but shows them in All", async () => {
@@ -2793,12 +2783,12 @@ describe("ExtensionsHubPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Active Extension")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Active Extension")).toBeInTheDocument());
     expect(screen.queryByText("Broken Extension")).not.toBeInTheDocument();
 
     await chooseStatus(user, "All");
 
-    expect(await screen.findByText("Broken Extension")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Broken Extension")).toBeInTheDocument());
     expect(screen.getByText("Extension bundle is missing.")).toBeInTheDocument();
   });
 
@@ -2826,7 +2816,7 @@ describe("ExtensionsHubPage", () => {
     // AC17-R66 changed only the wording here: it now counts the installs the filter is
     // hiding rather than telling the operator to "enable an extension" while showing none.
     // The filter mechanics this test exists for are unchanged and still asserted below.
-    expect(await screen.findByText("Nothing enabled yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing enabled yet")).toBeInTheDocument());
     expect(
       screen.getByText(/2 extensions are installed but disabled/),
     ).toBeInTheDocument();
@@ -2835,17 +2825,17 @@ describe("ExtensionsHubPage", () => {
 
     await chooseStatus(user, "Disabled");
 
-    expect(await screen.findByText("Chat Relay Notifications")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Chat Relay Notifications")).toBeInTheDocument());
     expect(screen.getByText("Sample Tasks Tasks")).toBeInTheDocument();
 
     await chooseStatus(user, "Active");
 
-    expect(await screen.findByText("Nothing enabled yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing enabled yet")).toBeInTheDocument());
     expect(screen.queryByText("Chat Relay Notifications")).not.toBeInTheDocument();
 
     await chooseStatus(user, "All");
 
-    expect(await screen.findByText("Chat Relay Notifications")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Chat Relay Notifications")).toBeInTheDocument());
     expect(screen.getByText("Sample Tasks Tasks")).toBeInTheDocument();
   });
 
@@ -2975,7 +2965,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/acme.router-llm");
 
-    expect(await screen.findByLabelText("Runtime endpoint URL")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Runtime endpoint URL")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Enable" })).toBeDisabled();
     expect(
       screen.getByText("Save a public HTTPS runtime endpoint below before enabling this extension."),
@@ -3025,7 +3015,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/acme.llm");
 
-    expect(await screen.findByLabelText("API key")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("API key")).toBeInTheDocument());
     expect(screen.queryByLabelText("Runtime endpoint URL")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Enable" })).toBeEnabled();
     expect(
@@ -3052,11 +3042,7 @@ describe("ExtensionsHubPage", () => {
     await chooseStatus(user, "Disabled");
     await user.click(await screen.findByRole("button", { name: "Enable" }));
 
-    expect(
-      await screen.findByText(
-        "Save a public HTTPS runtime endpoint on the extension page before enabling.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Save a public HTTPS runtime endpoint on the extension page before enabling.")).toBeInTheDocument());
     expect(mockedSetExtensionEnabled).not.toHaveBeenCalled();
   });
 
@@ -3086,9 +3072,7 @@ describe("ExtensionsHubPage", () => {
     await chooseStatus(user, "Disabled");
     await user.click(await screen.findByRole("button", { name: "Enable" }));
 
-    expect(
-      await screen.findByText("remote_base_url is required before activation"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("remote_base_url is required before activation")).toBeInTheDocument());
     expect(screen.queryByText("Updating active state...")).not.toBeInTheDocument();
   });
 
@@ -3153,11 +3137,7 @@ describe("ExtensionsHubPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Enable" }));
 
-    expect(
-      await screen.findByText(
-        "Managed extension release artifact is not available; reinstall or repair the extension before enabling.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Managed extension release artifact is not available; reinstall or repair the extension before enabling.")).toBeInTheDocument());
   });
 
   it("previews uninstall impact and requires explicit revision confirmation", async () => {
@@ -3218,9 +3198,7 @@ describe("ExtensionsHubPage", () => {
       queryKey: ["extensions", "archive-lifecycle-capability"],
     });
 
-    expect(
-      await screen.findByText("Could not verify whether extension archive changes are available."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Could not verify whether extension archive changes are available.")).toBeInTheDocument());
     expect(within(dialog).getByRole("button", { name: "Uninstall extension" })).toBeDisabled();
     await user.click(within(dialog).getByRole("button", { name: "Uninstall extension" }));
     expect(mockedConfirmExtensionUninstall).not.toHaveBeenCalled();
@@ -3247,7 +3225,7 @@ describe("ExtensionsHubPage", () => {
 
     await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Installed extension active release path is invalid"));
     expect(screen.queryByText("Uninstalling extension...")).not.toBeInTheDocument();
-    expect(await screen.findByText("Uninstall failed.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Uninstall failed.")).toBeInTheDocument());
   });
 
   it("shows an install whose files are gone as such, and uninstalls it by its real id", async () => {
@@ -3270,7 +3248,7 @@ describe("ExtensionsHubPage", () => {
     // Disabled installs sit behind the Active filter.
     fireEvent.click(await screen.findByTestId("extensions-show-disabled"));
 
-    expect(await screen.findByText("Files missing. Uninstall to clean up.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Files missing. Uninstall to clean up.")).toBeInTheDocument());
     expect(screen.getByText("1.0.0")).toBeInTheDocument();
     expect(screen.queryByText("Uncategorized")).not.toBeInTheDocument();
     expect(screen.queryByText("—")).not.toBeInTheDocument();
@@ -3315,11 +3293,7 @@ describe("ExtensionsHubPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Uninstall" }));
 
-    expect(
-      await screen.findByText(
-        "Couldn't load the uninstall plan: Extension 'smoke.guardrail.enforcement' not found",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Couldn't load the uninstall plan: Extension 'smoke.guardrail.enforcement' not found")).toBeInTheDocument());
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -3354,7 +3328,7 @@ describe("ExtensionsHubPage", () => {
     await user.click(within(first).getByRole("button", { name: "Uninstall extension" }));
 
     const refreshed = await screen.findByRole("dialog");
-    expect(await within(refreshed).findByText("Added meanwhile")).toBeInTheDocument();
+    await waitFor(() => expect(within(refreshed).getByText("Added meanwhile")).toBeInTheDocument());
     expect(within(refreshed).getByRole("alert")).toHaveTextContent(
       "The plan changed; review it and confirm again.",
     );
@@ -3419,7 +3393,7 @@ describe("ExtensionsHubPage", () => {
     });
     renderPage("/extensions/smoke.guardrail.enforcement");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Smoke Guardrail Enforcement" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "Smoke Guardrail Enforcement" })).toBeInTheDocument());
     const [pageTile] = screen.getAllByTestId("catalog-icon").filter((tile) => tile.className.includes("fs-catalog-icon-page"));
     expect(within(pageTile).getByRole("presentation")).toHaveAttribute(
       "src",
@@ -3488,7 +3462,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/smoke.guardrail.enforcement?project_id=project-1");
 
-    expect(await screen.findByText("Static About copy.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Static About copy.")).toBeInTheDocument());
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     expect(screen.queryByText("Select a project to continue.")).not.toBeInTheDocument();
     expect(mockedFetchProjectsList).not.toHaveBeenCalled();
@@ -3504,7 +3478,7 @@ describe("ExtensionsHubPage", () => {
 
     await user.click(screen.getByRole("tab", { name: "Configuration" }));
 
-    expect(await screen.findByRole("combobox", { name: "Project scope" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Project scope" })).toBeInTheDocument());
     expect(screen.getByText("Project Configuration")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockedFetchProjectConnectionsList).toHaveBeenCalledWith("project-1");
@@ -3515,7 +3489,7 @@ describe("ExtensionsHubPage", () => {
     });
 
     await user.click(screen.getByRole("tab", { name: "About" }));
-    expect(await screen.findByText("Static About copy.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Static About copy.")).toBeInTheDocument());
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(mockedFetchExtensionPreview).toHaveBeenLastCalledWith(
@@ -3679,7 +3653,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/smoke.guardrail.enforcement");
 
-    expect(await screen.findByText("Connector 20")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connector 20")).toBeInTheDocument());
     expect(screen.queryByText("Connector 21")).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     expect(mockedFetchProjectsList).not.toHaveBeenCalled();
@@ -3737,7 +3711,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage("/extensions/smoke.guardrail.enforcement?project_id=project-1");
 
-    expect(await screen.findByText("Runtime Health")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Runtime Health")).toBeInTheDocument());
     await waitFor(() => {
       expect(screen.getAllByText("healthy")).toHaveLength(2);
     });
@@ -3807,7 +3781,7 @@ describe("ExtensionsHubPage", () => {
 
     renderCachedExtensionTransition(queryClient);
 
-    expect(await screen.findByText("Alpha catalog")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Alpha catalog")).toBeInTheDocument());
     await waitFor(() => {
       expect(mockedExecuteExtensionQuery).toHaveBeenCalledWith(
         "extension.alpha",
@@ -3819,7 +3793,7 @@ describe("ExtensionsHubPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Switch to beta" }));
 
-    expect(await screen.findByText("Beta catalog")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Beta catalog")).toBeInTheDocument());
     await waitFor(() => {
       expect(
         mockedExecuteExtensionQuery.mock.calls.filter(
@@ -3925,7 +3899,7 @@ describe("ExtensionsHubPage", () => {
     queryClient.setQueryData(["model-selection", "options"], { provider_options: [] });
     queryClient.setQueryData(["projects"], []);
 
-    expect(await screen.findByText("Service connection")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Service connection")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Disable" }));
 
     await waitFor(() => {
@@ -4083,7 +4057,7 @@ describe("ExtensionsHubPage", () => {
     await chooseProject(user, "project-1");
     await user.click(screen.getByRole("button", { name: "Create connection" }));
 
-    expect(await screen.findByText("IMAP host is required.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("IMAP host is required.")).toBeInTheDocument());
     expect(screen.queryByText("password is required.")).not.toBeInTheDocument();
     expect(mockedCreateProjectConnection).not.toHaveBeenCalled();
   });

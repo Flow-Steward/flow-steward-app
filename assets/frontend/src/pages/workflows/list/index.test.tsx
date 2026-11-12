@@ -257,7 +257,7 @@ describe("WorkflowsListPage", () => {
     renderPage();
 
     // B13: the row's source detail was the install UUID.
-    expect(await screen.findByTitle("Provided by extension: Hook Sample 1.0.1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTitle("Provided by extension: Hook Sample 1.0.1")).toBeInTheDocument());
     expect(screen.queryByTitle(/4f054cc7/)).not.toBeInTheDocument();
   });
 
@@ -273,7 +273,7 @@ describe("WorkflowsListPage", () => {
   it("carries the catalog id when the catalog has rows", async () => {
     renderPage();
 
-    expect(await screen.findByText("Nightly reconciliation")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
     const card = elementBy((element) => element.id === "workflows-catalog-grid");
     expect(within(card).getByText("Nightly reconciliation")).toBeInTheDocument();
     const table = within(card).getByRole("table", { name: "Workflows catalog" });
@@ -300,7 +300,7 @@ describe("WorkflowsListPage", () => {
     renderPage();
 
     const table = await screen.findByRole("table", { name: "Workflows catalog" });
-    expect(await within(table).findByText("Demo: Dataset Open Orders")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Demo: Dataset Open Orders")).toBeInTheDocument());
     expect(within(table).getByText("unavailable")).toBeInTheDocument();
     expect(within(table).getByText(reason)).toBeInTheDocument();
     expect(within(table).queryByText("Runs a saved dataset query.")).not.toBeInTheDocument();
@@ -331,14 +331,14 @@ describe("WorkflowsListPage", () => {
     renderPage();
 
     const table = await screen.findByRole("table", { name: "Workflows catalog" });
-    expect(await within(table).findByText("Can't run yet: needs PostgreSQL (Google MCP Toolbox).")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Can't run yet: needs PostgreSQL (Google MCP Toolbox).")).toBeInTheDocument());
     expect(within(table).queryByText(reason)).not.toBeInTheDocument();
     expect(within(table).queryByText(/flowsteward\.data-connector/)).not.toBeInTheDocument();
   });
 
   it("opens the create dialog without offering an invalid enabled state", async () => {
     renderPage();
-    expect(await screen.findByText("Nightly reconciliation")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
 
     // The header owns the create action, as it does on Projects.
     const header = elementBy((element) => element.classList.contains("fs-page-header"));
@@ -356,7 +356,7 @@ describe("WorkflowsListPage", () => {
 
   it("reports an invalid workflow id under the field, not as a server alert", async () => {
     renderPage();
-    expect(await screen.findByText("Nightly reconciliation")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Create workflow" }));
 
     const dialog = await screen.findByRole("dialog");
@@ -377,7 +377,7 @@ describe("WorkflowsListPage", () => {
 
   it("keeps the search and enabled-only controls on the published roles", async () => {
     renderPage("/registry/workflows?search=nightly&enabled=1");
-    expect(await screen.findByText("Nightly reconciliation")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
 
     const searchContainer = elementBy((element) => element.classList.contains("fs-search"));
     const search = within(searchContainer).getByLabelText("Search workflows");
@@ -397,7 +397,7 @@ describe("WorkflowsListPage", () => {
 
   it("drops the enabled parameter when the filter is cleared", async () => {
     renderPage("/registry/workflows?enabled=1");
-    expect(await screen.findByText("Nightly reconciliation")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Remove Status filter" }));
 
@@ -417,9 +417,7 @@ describe("WorkflowsListPage", () => {
     mockedUseIsAdmin.mockReturnValue(false);
     renderPage();
 
-    expect(
-      await screen.findByText(/The workflow registry catalog is available to administrators/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/The workflow registry catalog is available to administrators/)).toBeInTheDocument());
     expect(mockedFetchWorkflows).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Create workflow" })).not.toBeInTheDocument();
   });
@@ -451,13 +449,13 @@ describe("WorkflowsListPage RBAC and create parity", () => {
 
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
-    expect(await within(dialog).findByText("Display name is required.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Display name is required.")).toBeInTheDocument());
     expect(within(dialog).getByLabelText(/^Display name/)).toHaveAttribute("aria-invalid", "true");
 
     // A name with no Latin letters makes no ID, so the ID is asked for.
     fireEvent.change(within(dialog).getByLabelText(/^Display name/), { target: { value: "Заказы" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
-    expect(await within(dialog).findByText("Workflow ID is required.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Workflow ID is required.")).toBeInTheDocument());
     expect(within(dialog).getByLabelText(/^Workflow ID/)).toHaveAttribute("aria-invalid", "true");
     expect(workflowCreateRequests()).toEqual([]);
   });
@@ -562,9 +560,7 @@ describe("WorkflowsListPage RBAC and create parity", () => {
     );
     renderPage();
 
-    expect(
-      await screen.findByText(/The workflow registry catalog is available to administrators/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/The workflow registry catalog is available to administrators/)).toBeInTheDocument());
     expect(screen.queryByText("No workflows found")).not.toBeInTheDocument();
   });
 

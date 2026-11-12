@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { Outlet } from "react-router";
 
 import { AppRouter } from "@/app/router";
@@ -47,22 +47,22 @@ describe("extension route access", () => {
     "lets an authenticated %s reach extension detail",
     async (role) => {
       renderRoute("/extensions/fixture.extension", role);
-      expect(await screen.findByText("Extensions surface reached")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Extensions surface reached")).toBeInTheDocument());
     },
   );
 
   it("redirects an anonymous detail request to login", async () => {
     renderRoute("/extensions/fixture.extension");
-    expect(await screen.findByText("Login required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Login required")).toBeInTheDocument());
   });
 
   it("keeps the global extensions catalog admin-only", async () => {
     const view = renderRoute("/extensions", "operator");
-    expect(await screen.findByRole("heading", { name: "Access denied" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Access denied" })).toBeInTheDocument());
     expect(screen.queryByText("Extensions surface reached")).not.toBeInTheDocument();
     view.unmount();
 
     renderRoute("/extensions", "admin");
-    expect(await screen.findByText("Extensions surface reached")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Extensions surface reached")).toBeInTheDocument());
   });
 });

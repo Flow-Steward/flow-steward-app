@@ -103,7 +103,7 @@ describe("ProjectNotificationOverview", () => {
 
     expect(screen.getByText("Automatic notifications")).toBeInTheDocument();
     expect(screen.getByText(/Messages sent by individual steps are configured inside the workflow and are not shown here\./)).toBeInTheDocument();
-    expect(await screen.findByText(/No automatic notifications are set up for this project\./)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/No automatic notifications are set up for this project\./)).toBeInTheDocument());
   });
 
   it("lists automation of all three scopes and the subscriptions, each with its source, event and destination", async () => {
@@ -182,10 +182,10 @@ describe("ProjectNotificationOverview", () => {
     mockedFetchOverview.mockReturnValue(new Promise((done) => { resolve = done; }));
     renderOverview();
 
-    expect(await screen.findByText("Loading automatic notifications…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading automatic notifications…")).toBeInTheDocument());
     expect(screen.queryByText(/No automatic notifications are set up/)).not.toBeInTheDocument();
     resolve([]);
-    expect(await screen.findByText(/No automatic notifications are set up/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/No automatic notifications are set up/)).toBeInTheDocument());
     expect(screen.queryByText("Loading automatic notifications…")).not.toBeInTheDocument();
   });
 
@@ -193,7 +193,7 @@ describe("ProjectNotificationOverview", () => {
     mockedFetchOverview.mockRejectedValueOnce(new Error("Notification overview lookup failed"));
     renderOverview();
 
-    expect(await screen.findByText("Automatic notifications could not be loaded.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Automatic notifications could not be loaded.")).toBeInTheDocument());
     expect(screen.getByText("Notification overview lookup failed")).toBeInTheDocument();
     expect(screen.queryByText(/No automatic notifications are set up/)).not.toBeInTheDocument();
 

@@ -217,7 +217,7 @@ describe("JobsDetailPage canonical rendering", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Weekly Report" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Weekly Report" })).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: /Job #42 detail/i })).not.toBeInTheDocument();
     expect(screen.getByText("Investigate the migrated job detail page")).toBeInTheDocument();
     const overview = screen.getByTestId("job-run-overview");
@@ -243,7 +243,7 @@ describe("JobsDetailPage canonical rendering", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Fix the supplier mapping")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fix the supplier mapping")).toBeInTheDocument());
     expect(screen.getByText("Catalog review decision")).toBeInTheDocument();
     expect(mockedFetchJobIncident).not.toHaveBeenCalled();
   });
@@ -487,7 +487,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText(/Status: Waiting for approval/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Status: Waiting for approval/i)).toBeInTheDocument());
     expect(screen.getByText(/Step: Approval Review/i)).toBeInTheDocument();
   });
 
@@ -508,7 +508,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
     renderPage();
 
     // The status group is the headline; its detailed label adds nothing here.
-    expect(await screen.findByText("Status: Waiting for approval")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status: Waiting for approval")).toBeInTheDocument());
     expect(screen.getByText(/Step: Approval Review/i)).toBeInTheDocument();
   });
 
@@ -533,7 +533,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText(/Status: In progress/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Status: In progress/i)).toBeInTheDocument());
     expect(screen.getByText(/Step: Analysis/i)).toBeInTheDocument();
 
     act(() => {
@@ -572,7 +572,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Stale section workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Stale section workspace")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -611,7 +611,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Gate A workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate A workspace")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -746,7 +746,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Lifecycle Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Lifecycle Step/i })).toBeInTheDocument());
     expect(screen.getByText("Lifecycle review workspace")).toBeInTheDocument();
   });
 
@@ -831,7 +831,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Section Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Section Step/i })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Stale Top Level Step/i })).not.toBeInTheDocument();
     expect(screen.getByText("Section review workspace")).toBeInTheDocument();
     const usage = screen.getByTestId("job-usage-breakdown");
@@ -872,7 +872,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Projection-backed hero summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Projection-backed hero summary")).toBeInTheDocument());
     expect(screen.queryByText("Stale top-level hero summary")).not.toBeInTheDocument();
     expect(screen.getByText("Projection step")).toBeInTheDocument();
     expect(screen.getByText("Projection next action")).toBeInTheDocument();
@@ -1004,7 +1004,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Projection Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Projection Step/i })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Stale Top Level Step/i })).not.toBeInTheDocument();
     expect(screen.getByText("Projection review workspace")).toBeInTheDocument();
   });
@@ -1046,10 +1046,10 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Recent batch/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Recent batch/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /Load earlier steps/i }));
 
-    expect(await screen.findByRole("button", { name: /Earlier batch/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Earlier batch/i })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /Recent batch/i })).toBeInTheDocument();
     expect(mockedFetchJobExecutionStepsPage).toHaveBeenCalledWith("42", "50:message-50");
   });

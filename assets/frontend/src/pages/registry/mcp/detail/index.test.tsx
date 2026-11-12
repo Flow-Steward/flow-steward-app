@@ -367,7 +367,7 @@ describe("RegistryMcpDetailPage", () => {
   it("starts with zero selected tools after sync discovery", async () => {
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Flow Steward MCP" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Flow Steward MCP" })).toBeInTheDocument());
     expect(screen.getByText(/Sync status: success/u)).toBeVisible();
     expect(screen.queryByText("Last sync failed")).not.toBeInTheDocument();
     expect(screen.queryByText("Sync completed with warnings")).not.toBeInTheDocument();
@@ -435,7 +435,7 @@ describe("RegistryMcpDetailPage", () => {
     );
     renderPage();
 
-    expect(await screen.findByText("In Trash")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("In Trash")).toBeInTheDocument());
     const checkbox = screen.getByRole("checkbox", { name: "Toggle Catalog Read" });
     expect(checkbox).toBeDisabled();
     expect(checkbox).not.toBeChecked();
@@ -633,11 +633,7 @@ describe("RegistryMcpDetailPage", () => {
     await user.click(screen.getByRole("option", { name: "Replace" }));
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
-    expect(
-      await screen.findByText(
-        "Add at least one replacement header, or choose Keep existing or Clear.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Add at least one replacement header, or choose Keep existing or Clear.")).toBeInTheDocument());
     const replacementHeaders = screen.getByRole("group", { name: "Replacement headers" });
     expect(replacementHeaders).toHaveClass("fs-field-error-state");
     expect(replacementHeaders).toHaveFocus();
@@ -690,7 +686,7 @@ describe("RegistryMcpDetailPage", () => {
     await user.type(screen.getByRole("textbox", { name: "Replacement header key" }), "X-Api-Key");
     await user.click(screen.getByRole("button", { name: "Save settings" }));
 
-    expect(await screen.findByText("Replacement header rows require both a key and value.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Replacement header rows require both a key and value.")).toBeInTheDocument());
     expect(mockedUpdateMcpConnector).not.toHaveBeenCalled();
   });
 
@@ -1004,7 +1000,7 @@ describe("RegistryMcpDetailPage", () => {
     );
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "OAuth" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "OAuth" })).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Start Authorization" }));
     const oauthCard = await screen.findByTestId("mcp-oauth-card");
     await waitFor(() => expect(within(oauthCard).getByText(/requires client credentials/u)).toBeVisible());

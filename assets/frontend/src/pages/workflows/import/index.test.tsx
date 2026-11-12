@@ -193,7 +193,7 @@ describe("WorkflowsImportPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(await screen.findByText("Blocked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Blocked")).toBeInTheDocument());
     const importButton = screen.getByRole("button", { name: /import workflow/i });
     expect(importButton).toBeDisabled();
 
@@ -231,7 +231,7 @@ describe("WorkflowsImportPage", () => {
         ],
       });
     });
-    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
     expect(importButton).toBeEnabled();
     expect(screen.getByLabelText("New workflow id for wf_existing")).toHaveValue("wf_existing_copy");
     fireEvent.click(importButton);
@@ -291,7 +291,7 @@ describe("WorkflowsImportPage", () => {
     await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenNthCalledWith(2, {
       bundleYaml: "bundle", targetWorkflowId: "wf_fresh", resolutions: [],
     }));
-    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
     expect(rowTarget).toHaveValue("");
     const importButton = screen.getByRole("button", { name: /import workflow/i });
     expect(importButton).toBeEnabled();
@@ -334,7 +334,7 @@ describe("WorkflowsImportPage", () => {
     expect(screen.queryByText("Ready")).not.toBeInTheDocument();
     fireEvent.change(target, { target: { value: "wf_free" } });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
-    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
     expect(importButton).toBeEnabled();
   });
 
@@ -351,7 +351,7 @@ describe("WorkflowsImportPage", () => {
     await waitFor(() => expect(mockedPreflightWorkflowImport).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("2. Preflight summary")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
-    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
     expect(mockedPreflightWorkflowImport).toHaveBeenNthCalledWith(2, {
       bundleYaml: "bundle B", targetWorkflowId: "", resolutions: [],
     });
@@ -396,7 +396,7 @@ describe("WorkflowsImportPage", () => {
     expect(screen.queryByText("Old check failed")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /run preflight/i })).toHaveAttribute("aria-busy", "true");
     await act(async () => { newer.resolve(readyPreflight("wf_new")); });
-    expect(await screen.findByText("Ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ready")).toBeInTheDocument());
     expect(mockedPreflightWorkflowImport).toHaveBeenNthCalledWith(2, {
       bundleYaml: "bundle", targetWorkflowId: "wf_new", resolutions: [],
     });
@@ -491,7 +491,7 @@ describe("WorkflowsImportPage", () => {
     const importButton = await screen.findByRole("button", { name: /import workflow/i });
     await waitFor(() => expect(importButton).toBeEnabled());
     fireEvent.click(importButton);
-    expect(await screen.findByText("Workflow id became reserved before import.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow id became reserved before import.")).toBeInTheDocument());
     expect(mockedApplyWorkflowImport).toHaveBeenCalledWith({
       bundleYaml: "bundle", targetWorkflowId: "", projectId: "", resolutions: [],
     });
@@ -510,7 +510,7 @@ describe("WorkflowsImportPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(await screen.findByText("YAML bundle could not be parsed.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("YAML bundle could not be parsed.")).toBeInTheDocument());
     expect(screen.queryByText("2. Preflight summary")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /import workflow/i })).not.toBeInTheDocument();
   });
@@ -670,7 +670,7 @@ describe("WorkflowsImportPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(await screen.findByText("Missing workflow id")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Missing workflow id")).toBeInTheDocument());
     expect(screen.getByText("child_workflow / None")).toBeInTheDocument();
     expect(screen.getByText(/without a usable id/i)).toBeInTheDocument();
     expect(screen.getByText(locale === "lt" ? "Negalima išspręsti šiame vedlyje." : "Cannot be resolved in this wizard.")).toBeInTheDocument();
@@ -717,7 +717,7 @@ describe("WorkflowsImportPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(await screen.findByText("Workflow 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow 1")).toBeInTheDocument());
     expect(screen.getByText("Workflow definition is missing workflow_id.")).toBeInTheDocument();
     expect(screen.getByText("Fix the source YAML before import.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /import workflow/i })).toBeDisabled();
@@ -732,7 +732,7 @@ describe("WorkflowsImportPage", () => {
     const picker = await screen.findByLabelText("Project");
 
     expect(picker).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "Release Candidate" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "Release Candidate" })).toBeInTheDocument());
   });
 
   // The page decided Apply purely from dependency resolutions, so a bundle whose
@@ -774,9 +774,7 @@ describe("WorkflowsImportPage", () => {
 
     // The operator is told which structural defect stops the import, and that
     // the dependency form below cannot clear it.
-    expect(
-      await screen.findByText(/workflow\.topology\.branch_target_missing/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/workflow\.topology\.branch_target_missing/)).toBeInTheDocument());
     expect(
       screen.getByText(/Resolving dependencies below will not clear these/i),
     ).toBeInTheDocument();
@@ -823,9 +821,7 @@ describe("WorkflowsImportPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(
-      await screen.findByText(/workflow\.topology\.path_unterminated/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/workflow\.topology\.path_unterminated/)).toBeInTheDocument());
     expect(
       screen.getByText(/imports as a draft and can be finished in the editor/i),
     ).toBeInTheDocument();
@@ -996,9 +992,7 @@ describe("WorkflowsImportPage", () => {
     fireEvent.change(screen.getByLabelText("Workflow bundle YAML"), { target: { value: "bundle" } });
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
 
-    expect(
-      await screen.findByText("Created as a new guardrail; its id is assigned automatically."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created as a new guardrail; its id is assigned automatically.")).toBeInTheDocument());
     expect(screen.queryByPlaceholderText("Enter a new id")).not.toBeInTheDocument();
     mockedPreflightWorkflowImport.mockResolvedValueOnce(readyPreflight());
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
@@ -1065,9 +1059,7 @@ describe("WorkflowsImportPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /run preflight/i }));
     fireEvent.click(await screen.findByRole("button", { name: /import workflow/i }));
 
-    expect(
-      await screen.findByText("Created from the file: 1 agent, 1 skill."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Created from the file: 1 agent, 1 skill.")).toBeInTheDocument());
     expect(screen.getByText("Some agents were left disabled")).toBeInTheDocument();
     expect(screen.getByText("writer: The project has no configured model.")).toBeInTheDocument();
   });

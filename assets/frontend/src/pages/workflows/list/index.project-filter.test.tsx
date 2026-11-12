@@ -148,7 +148,7 @@ it("preserves search, enabled status and view preferences while resetting page o
   expect(requests.filter((url) => url.pathname === "/api/workflows").every((url) => url.searchParams.get("search") === "workflow" && url.searchParams.get("enabled_only") === "true")).toBe(true);
   fireEvent.change(screen.getByRole("searchbox", { name: "Search workflows" }), { target: { value: "Shared" } });
   await waitFor(() => expect(table().queryByRole("link", { name: "Beta workflow" })).not.toBeInTheDocument());
-  expect(await table().findByRole("link", { name: "Shared workflow" })).toBeInTheDocument();
+  await waitFor(() => expect(table().getByRole("link", { name: "Shared workflow" })).toBeInTheDocument());
   expect(new URLSearchParams(view.router.state.location.search).get("project_id")).toBe(beta.id);
 });
 it("restores project and search state on a fresh URL load", async () => {
@@ -197,7 +197,7 @@ it("refreshes workspace-scoped choices without substituting the next workspace's
   await screen.findByRole("alert");
   fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Project" }));
-  expect(await screen.findByRole("menuitem", { name: "Beta project" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("menuitem", { name: "Beta project" })).toBeInTheDocument());
   expect(screen.queryByRole("menuitem", { name: "Alpha project" })).not.toBeInTheDocument();
   expect(new URLSearchParams(view.router.state.location.search).get("project_id")).toBe(alpha.id);
   expect(new URLSearchParams(view.router.state.location.search).get("search")).toBe("workflow"); expect(new URLSearchParams(view.router.state.location.search).get("view")).toBe("grid");
@@ -211,7 +211,7 @@ it("lets operators filter but keeps viewers from making project or registry requ
   await screen.findByText(/The workflow registry catalog is available to administrators/); expect(requests).toEqual([]);
   expect(appliedProject()).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
-  expect(await screen.findByRole("menuitem", { name: "Status" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("menuitem", { name: "Status" })).toBeInTheDocument());
   expect(screen.queryByRole("menuitem", { name: "Project" })).not.toBeInTheDocument();
 });
 

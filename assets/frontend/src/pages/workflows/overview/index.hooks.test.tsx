@@ -90,7 +90,7 @@ function renderPage(entry = "/registry/workflows/wf?project_id=p-1&tab=hooks") {
 }
 
 async function hooksCard() {
-  expect(await screen.findByRole("heading", { name: "Hooks" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Hooks" })).toBeInTheDocument());
   expect(within(screen.getByRole("table", { name: "Hooks" })).getByText("Before the order is finished")).toBeInTheDocument();
 }
 
@@ -118,9 +118,9 @@ describe("Workflow overview Hooks section", () => {
     expect(within(screen.getByRole("navigation", { name: "Workflow views" })).getAllByRole("link").map((link) => link.textContent))
       .toEqual(["Overview", "Projects", "Hooks", "Smart setup", "Automation", "History"]);
     expect(screen.queryByRole("heading", { name: "Run statistics" })).not.toBeInTheDocument();
-    expect(await screen.findByText("Empty")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Empty")).toBeInTheDocument());
     expect(screen.getByText("Adjust the customer name before the order is finished.")).toBeInTheDocument();
-    expect(await screen.findByText("Steps of project Orders demo.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Steps of project Orders demo.")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Edit the steps of hook Before the order is finished" })).toHaveAttribute(
       "href",
       "/registry/workflows/wf/builder?drawer=step&step_id=before_finish&project_id=p-1",
@@ -132,7 +132,7 @@ describe("Workflow overview Hooks section", () => {
     mockedHooks.mockResolvedValue({ project_id: "p-1", workflow_id: "wf", hooks: [hookRow("my_name_fix")] });
     renderPage();
 
-    expect(await screen.findByText("2 steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 steps")).toBeInTheDocument());
     expect(screen.queryByText(/Fix the customer name/)).not.toBeInTheDocument();
   });
 
@@ -177,7 +177,7 @@ describe("Workflow overview Hooks section", () => {
     });
     const view = renderPage("/registry/workflows/wf?tab=hooks&project_id=p-1");
     try {
-      expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Linked projects could not be loaded")).toBeInTheDocument());
       expect(requests).toContain("/api/workflows/wf/linked-projects");
       expect(requests.filter((path) => /^\/api\/projects\/[^/]+\/workflows$/.test(path))).toEqual([]);
       expect(mockedHooks).not.toHaveBeenCalled();
@@ -194,7 +194,7 @@ describe("Workflow overview Hooks section", () => {
     const reads = mockedHooks.mock.calls.length;
     mockedLinkedProjects.mockRejectedValue(new Error("Project links unavailable"));
     await act(async () => { await view.queryClient.refetchQueries({ queryKey: ["workflows", "wf", "hook-projects"], type: "active" }); });
-    expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Linked projects could not be loaded")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /Edit the steps of hook/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
     expect(mockedHooks).toHaveBeenCalledTimes(reads);
@@ -214,7 +214,7 @@ describe("Workflow overview Hooks section", () => {
     mockedDetail.mockResolvedValue({ ...author, steps: [author.steps[0]] } as never);
     renderPage();
 
-    expect(await screen.findByText("Hook sample — prepare an order")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Hook sample — prepare an order")).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "Hooks" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Hooks" })).not.toBeInTheDocument();
     expect(mockedHooks).not.toHaveBeenCalled();
@@ -323,7 +323,7 @@ it("keeps explicit project B through real nonmodal reads, Edit steps, URL and a 
 it("retains a real hook read error instead of presenting an unconnected successful state", async () => {
   mockedHooks.mockRejectedValue(new Error("Hook connection read denied"));
   renderPage();
-  expect(await screen.findByText("Hook connection read denied")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Hook connection read denied")).toBeInTheDocument());
   expect(screen.queryByText("Empty")).not.toBeInTheDocument();
 });
 

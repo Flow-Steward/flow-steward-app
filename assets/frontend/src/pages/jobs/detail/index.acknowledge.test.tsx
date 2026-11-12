@@ -112,7 +112,7 @@ describe("JobsDetailPage acknowledge", () => {
 
     fireEvent.click(await screen.findByTestId("job-acknowledge-button"));
 
-    expect(await screen.findByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: `Failed / Stuck: ${initiallyAcknowledged ? 1 : 0}. Show failed and stuck jobs` })).toBeInTheDocument());
     await waitFor(() => expect(Boolean(screen.queryByTestId("job-acknowledged-badge"))).toBe(!initiallyAcknowledged));
   });
 
@@ -121,7 +121,7 @@ describe("JobsDetailPage acknowledge", () => {
     renderPage();
 
     await waitFor(() => expect(mockedFetchJobDetail).toHaveBeenCalled());
-    expect(await screen.findByTestId("job-detail-page")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("job-detail-page")).toBeInTheDocument());
     expect(screen.queryByTestId("job-acknowledge-button")).not.toBeInTheDocument();
   });
 
@@ -129,13 +129,13 @@ describe("JobsDetailPage acknowledge", () => {
     primeApi(terminalJob("max_iterations", { lifecycle: { status: { code: "max_iterations", label: "Stopped after repeated retries", terminal: true } } }));
     renderPage();
 
-    expect(await screen.findByText("Status: Failed · Stopped after repeated retries")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status: Failed · Stopped after repeated retries")).toBeInTheDocument());
   });
 
   it("spells out a code outside every group, raw", async () => {
     primeApi(terminalJob("legacy_paused", { lifecycle: { status: { code: "legacy_paused", label: "Legacy Paused", terminal: true } } }));
     renderPage();
 
-    expect(await screen.findByText("Status: legacy_paused")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status: legacy_paused")).toBeInTheDocument());
   });
 });

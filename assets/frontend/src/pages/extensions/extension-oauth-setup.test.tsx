@@ -908,7 +908,7 @@ describe("ExtensionOAuthSetup", () => {
       screen.getByRole("combobox", { name: "OAuth configuration" }),
     ).toHaveTextContent(projectBPrimary.display_name));
     await user.click(screen.getByRole("combobox", { name: "OAuth configuration" }));
-    expect(await screen.findByRole("option", { name: "Project B primary" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "Project B primary" })).toBeInTheDocument());
     expect(screen.queryByRole("option", { name: "Project A secondary" })).not.toBeInTheDocument();
   });
 

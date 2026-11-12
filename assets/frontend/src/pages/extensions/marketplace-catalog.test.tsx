@@ -200,10 +200,10 @@ test("the rail narrows with OR inside and AND between, and every change lives in
   const rail = screen.getByRole("navigation", { name: "Extension filters" });
   const capability = within(rail).getByRole("group", { name: "Capability" });
   fireEvent.click(within(capability).getByRole("checkbox", { name: /Workflow actions/ }));
-  expect(await screen.findByRole("heading", { name: "2 extensions" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "2 extensions" })).toBeInTheDocument());
   const status = within(rail).getByRole("group", { name: "Status" });
   fireEvent.click(within(status).getByRole("checkbox", { name: /^Installed/ }));
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
   expect(currentUrl()).toBe("?mk_capability=action&mk_status=installed#marketplace");
   expect(screen.getByText("Capability · Workflow actions")).toBeInTheDocument();
 
@@ -228,14 +228,14 @@ test("two quick ticks in one turn keep both values", async () => {
     data.click();
   });
   await waitFor(() => expect(currentUrl()).toBe("?mk_category=crm%2Cdata#marketplace"));
-  expect(await screen.findByRole("heading", { name: "2 extensions" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "2 extensions" })).toBeInTheDocument());
 });
 
 test("the URL restores search, filters, sort, view and page, and search matches tags", async () => {
   mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
   renderMarketplace({ url: "/extensions?mk_q=CONTACTS&mk_view=list&mk_sort=added#marketplace" });
 
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
   expect(screen.getByRole("searchbox", { name: "Search extension catalog" })).toHaveValue("CONTACTS");
   expect(screen.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("combobox", { name: "Sort" })).toHaveTextContent("Recently added");
@@ -261,7 +261,7 @@ test("the list view is one link per row and a click anywhere on the row opens it
   expect(within(rows[2]).getByText("No package for this server.")).toBeInTheDocument();
 
   fireEvent.click(within(rows[1]).getByText("Messaging"));
-  expect(await screen.findByRole("heading", { level: 2, name: /Acme Mail/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: /Acme Mail/ })).toBeInTheDocument());
   expect(currentUrl()).toBe("?mk_view=list&mk_entry=acme.mail#marketplace");
 });
 
@@ -272,7 +272,7 @@ test("the count is announced after typing settles", async () => {
 
   fireEvent.change(screen.getByRole("searchbox", { name: "Search extension catalog" }), { target: { value: "acme m" } });
   // The heading changes at once; its live copy waits for typing to settle.
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
   expect(screen.getAllByText("1 extension")).toHaveLength(1);
   await waitFor(() => expect(screen.getAllByText("1 extension")).toHaveLength(2));
 });
@@ -282,7 +282,7 @@ test("one extension has nothing to sort, and keeps the filter rail", async () =>
   mockedFetchCatalog.mockResolvedValue(listing([entry({ extension_id: "acme.solo" })]));
   renderMarketplace();
 
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
   expect(screen.queryByRole("combobox", { name: "Sort" })).not.toBeInTheDocument();
   expect(screen.getByRole("navigation", { name: "Extension filters" })).toBeInTheDocument();
 });
@@ -317,7 +317,7 @@ test("the table pages by its own Rows per page, 25 or 50", async () => {
   expect(within(pager).getByText("1–25 of 30")).toBeInTheDocument();
   fireEvent.click(within(pager).getByRole("combobox", { name: "Rows per page" }));
   fireEvent.click(await screen.findByRole("option", { name: "50" }));
-  expect(await within(pager).findByText("1–30 of 30")).toBeInTheDocument();
+  await waitFor(() => expect(within(pager).getByText("1–30 of 30")).toBeInTheDocument());
   expect(within(screen.getByRole("table", { name: "Extensions" })).getAllByRole("row")).toHaveLength(31);
 });
 
@@ -325,7 +325,7 @@ test("no results offers to clear filters and to suggest an extension", async () 
   mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
   renderMarketplace({ url: "/extensions?mk_q=nothing&mk_category=crm#marketplace" });
 
-  expect(await screen.findByText("No extensions match.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("No extensions match.")).toBeInTheDocument());
   expect(screen.getByRole("link", { name: /Suggest one on GitHub/ })).toHaveAttribute(
     "href",
     "https://github.com/Flow-Steward/extensions",
@@ -338,7 +338,7 @@ test("an empty catalog says so", async () => {
   mockedFetchCatalog.mockResolvedValue(listing([]));
   renderMarketplace();
 
-  expect(await screen.findByText("The catalog lists no extensions yet.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("The catalog lists no extensions yet.")).toBeInTheDocument());
 });
 
 test("a catalog that is not set up points to installing from a file", async () => {
@@ -356,7 +356,7 @@ test("a catalog that is not set up points to installing from a file", async () =
   );
   renderMarketplace();
 
-  expect(await screen.findByText("The extension catalog isn't set up on this server.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("The extension catalog isn't set up on this server.")).toBeInTheDocument());
   expect(screen.getByText(/Install extension from file/)).toBeInTheDocument();
   expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
 });
@@ -377,10 +377,10 @@ test("an unavailable catalog shows the server's message and Retry repeats the re
   mockedFetchCatalog.mockResolvedValueOnce(listing([CRM]));
   renderMarketplace();
 
-  expect(await screen.findByText("Couldn't load the extension catalog.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Couldn't load the extension catalog.")).toBeInTheDocument());
   expect(screen.getByText(/HTTP 503/)).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByRole("link", { name: "Acme CRM" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("link", { name: "Acme CRM" })).toBeInTheDocument());
   expect(mockedFetchCatalog).toHaveBeenCalledTimes(2);
 });
 
@@ -399,9 +399,7 @@ test("a stale catalog is still usable, with a warning and Retry", async () => {
   );
   renderMarketplace();
 
-  expect(
-    await screen.findByText("Showing the catalog as of 1 Oct 2026. The latest refresh failed."),
-  ).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Showing the catalog as of 1 Oct 2026. The latest refresh failed.")).toBeInTheDocument());
   expect(screen.getByRole("link", { name: "Acme CRM" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(mockedFetchCatalog).toHaveBeenCalledTimes(2));
@@ -416,7 +414,7 @@ test("find opens the extension's page, and Marketplace then shows the whole cata
   await waitFor(() => expect(heading).toHaveFocus());
 
   fireEvent.click(screen.getByRole("button", { name: "Catalog" }));
-  expect(await screen.findByRole("heading", { name: "3 extensions" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "3 extensions" })).toBeInTheDocument());
   expect(currentUrl()).toBe("#marketplace");
 });
 
@@ -424,7 +422,7 @@ test("an unknown find id shows the catalog saying so, and Show all clears it", a
   mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
   renderMarketplace({ url: "/extensions?find=acme.unknown#marketplace" });
 
-  expect(await screen.findByText("acme.unknown isn't in the catalog.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("acme.unknown isn't in the catalog.")).toBeInTheDocument());
   expect(screen.getByRole("heading", { name: "3 extensions" })).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Show all" }));
   await waitFor(() => expect(screen.queryByText("acme.unknown isn't in the catalog.")).not.toBeInTheDocument());
@@ -435,7 +433,7 @@ test("an open page whose extension left the catalog returns to the results", asy
   mockedFetchCatalog.mockResolvedValue(listing([CRM]));
   renderMarketplace({ url: "/extensions?mk_entry=acme.gone#marketplace" });
 
-  expect(await screen.findByText("acme.gone isn't in the catalog.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("acme.gone isn't in the catalog.")).toBeInTheDocument());
   expect(screen.getByRole("link", { name: "Acme CRM" })).toBeInTheDocument();
 });
 
@@ -444,7 +442,7 @@ test("a selected value the index no longer has is dropped from the URL", async (
   renderMarketplace({ url: "/extensions?mk_category=crm,retired#marketplace" });
 
   await waitFor(() => expect(currentUrl()).toBe("?mk_category=crm#marketplace"));
-  expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
 });
 
 test("opening and leaving a page keeps the filters and returns focus to the card", async () => {
@@ -452,7 +450,7 @@ test("opening and leaving a page keeps the filters and returns focus to the card
   renderMarketplace({ url: "/extensions?mk_category=crm#marketplace" });
 
   fireEvent.click(await screen.findByRole("link", { name: "Acme CRM" }));
-  expect(await screen.findByRole("heading", { level: 2, name: /Acme CRM/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: /Acme CRM/ })).toBeInTheDocument());
   expect(currentUrl()).toBe("?mk_category=crm&mk_entry=acme.crm#marketplace");
   // The rail is hidden while a page is open.
   expect(screen.queryByRole("navigation", { name: "Extension filters" })).not.toBeInTheDocument();
@@ -656,7 +654,7 @@ test("cards and the page say who publishes an extension", async () => {
   );
   renderMarketplace();
 
-  expect(await screen.findByText("by Acme")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("by Acme")).toBeInTheDocument());
   expect(screen.getByText("by Other")).toBeInTheDocument();
   // Only a publisher the catalog verified carries the Verified pill, beside its name.
   expect(screen.getAllByText("Verified")).toHaveLength(1);
@@ -768,7 +766,7 @@ test("on a phone the results are rows and the facets one Add filter control", as
     fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Status" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Installed (1)" }));
-    expect(await screen.findByRole("heading", { name: "1 extension" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
     expect(screen.getByText("Status · Installed")).toBeInTheDocument();
   } finally {
     vi.unstubAllGlobals();
@@ -784,7 +782,7 @@ test("cards, list rows and the extension's page show the logo Flow Steward serve
   expect(within(card).getByRole("presentation")).toHaveAttribute("src", "/api/extensions/catalog/acme.crm/icon?v=abc");
 
   fireEvent.click(within(card).getByRole("link", { name: "Acme CRM" }));
-  expect(await screen.findByRole("heading", { level: 2, name: /Acme CRM/ })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { level: 2, name: /Acme CRM/ })).toBeInTheDocument());
   const [pageTile] = screen.getAllByTestId("catalog-icon").filter((tile) => tile.className.includes("fs-catalog-icon-page"));
   expect(within(pageTile).getByRole("presentation")).toHaveAttribute("src", "/api/extensions/catalog/acme.crm/icon?v=abc");
 });

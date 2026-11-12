@@ -86,7 +86,7 @@ describe("OAuthConsentPage", () => {
   it("renders the error variant without a session", async () => {
     mockedUseAuth.mockReturnValue(authState(false));
     mountConsent("/oauth/consent?error=public_https_required");
-    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("A public HTTPS address is required")).toBeInTheDocument());
     expect(mockedFetchConsent).not.toHaveBeenCalled();
   });
 
@@ -97,7 +97,7 @@ describe("OAuthConsentPage", () => {
     ["something_new", "The app could not connect"],
   ])("explains the %s error", async (code, title) => {
     mountConsent(`/oauth/consent?error=${code}`);
-    expect(await screen.findByText(title)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
   });
 
   it("sends an unauthenticated request to login with the consent path as next", async () => {
@@ -112,7 +112,7 @@ describe("OAuthConsentPage", () => {
   it("offers the requested subset and disables a preset above the user's authority", async () => {
     mockedFetchConsent.mockResolvedValue(view());
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText("Allow Claude to access Flow Steward?")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Allow Claude to access Flow Steward?")).toBeInTheDocument());
     expect(screen.getByRole("radio", { name: "Monitor and run workflows" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Full authoring" })).toBeDisabled();
     expect(screen.getByText("Only the access this app requested:")).toBeInTheDocument();
@@ -135,7 +135,7 @@ describe("OAuthConsentPage", () => {
       },
     }));
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText("Allow Microsoft 365 Copilot to access Flow Steward?")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Allow Microsoft 365 Copilot to access Flow Steward?")).toBeInTheDocument());
     expect(screen.getByText("Registered by")).toBeInTheDocument();
     expect(screen.getByText("An administrator of this Flow Steward installation")).toBeInTheDocument();
     expect(screen.queryByText("Identity published by")).not.toBeInTheDocument();
@@ -147,7 +147,7 @@ describe("OAuthConsentPage", () => {
       client: { ...view().client, redirect_uri: "http://127.0.0.1:53111/callback", redirect_uri_host: "127.0.0.1", redirect_uri_loopback: true },
     }));
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText("The app returns to this computer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The app returns to this computer")).toBeInTheDocument());
   });
 
   it("offers only Deny when nothing can be granted", async () => {
@@ -156,7 +156,7 @@ describe("OAuthConsentPage", () => {
       default_preset: null,
     }));
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText("Nothing can be granted")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing can be granted")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Allow access" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
   });
@@ -201,7 +201,7 @@ describe("OAuthConsentPage", () => {
     mockedDecide.mockRejectedValue(new HttpError({ status: 403, url: "/x", payload: { error: "Requested scopes exceed the caller's role authority" } }));
     const onRedirect = mountConsent("/oauth/consent?request=req-1");
     fireEvent.click(await screen.findByRole("button", { name: "Allow access" }));
-    expect(await screen.findByText("Requested scopes exceed the caller's role authority")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Requested scopes exceed the caller's role authority")).toBeInTheDocument());
     expect(onRedirect).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Allow access" })).toBeEnabled();
   });
@@ -214,6 +214,6 @@ describe("OAuthConsentPage", () => {
   ])("explains a %s %s view error", async (status, code, title) => {
     mockedFetchConsent.mockRejectedValue(new HttpError({ status, url: "/x", payload: { error: code } }));
     mountConsent("/oauth/consent?request=req-1");
-    expect(await screen.findByText(title)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
   });
 });

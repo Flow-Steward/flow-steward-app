@@ -86,7 +86,7 @@ describe("the step Test Run of a protected extension workflow", () => {
     renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?drawer=test-run" });
 
     // B28: "Run step test run" sat in this drawer's DOM, and the server answered 403.
-    expect(await screen.findByRole("button", { name: "Run workflow test run" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Run step test run" })).not.toBeInTheDocument();
   });
 
@@ -106,7 +106,7 @@ describe("the step Test Run of a protected extension workflow", () => {
     installWorkflow({ structure_change_allowed: true, step_test_run_allowed: true, full_export_allowed: true });
     await openStepTestRun();
 
-    expect(await screen.findByRole("button", { name: "Run step test run" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeInTheDocument());
     expect(screen.queryByTestId("step-test-run-blocked")).not.toBeInTheDocument();
   });
 });

@@ -32,7 +32,7 @@ describe("group form Test Run guard", () => {
     act(() => window.openGroupDrawer?.("items"));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue(expectedName));
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
-    expect(await screen.findByTestId("workflow-test-run-blocked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-blocked")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
   });
 });

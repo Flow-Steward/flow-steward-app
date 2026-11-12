@@ -193,7 +193,7 @@ describe("RegistryMcpPage", () => {
     expect(screen.getByRole("menuitem", { name: "Sync" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Health" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitem", { name: "View" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "View" })).toBeInTheDocument());
   });
 
   it("marks only the running row action busy and ignores the other items meanwhile", async () => {
@@ -291,7 +291,7 @@ describe("RegistryMcpPage", () => {
     renderPage("/registry/mcp");
 
     await waitFor(() => expect(mockedFetchMcpConnectors).toHaveBeenCalledWith());
-    expect(await screen.findByRole("columnheader", { name: "Project" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "Project" })).toBeInTheDocument());
     expect(screen.queryByRole("columnheader", { name: "Endpoint" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add filter" })).toBeInTheDocument();
@@ -300,7 +300,7 @@ describe("RegistryMcpPage", () => {
   it("narrows the list to the project the URL filters to", async () => {
     renderPage("/registry/mcp?project_id=project-2");
 
-    expect(await screen.findByText("No MCP connectors match this search")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No MCP connectors match this search")).toBeInTheDocument());
     expect(mockedFetchMcpConnectors).toHaveBeenCalledWith();
   });
 
@@ -317,9 +317,7 @@ describe("RegistryMcpPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(
-      await screen.findByRole("heading", { name: "MCP" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "MCP" })).toBeInTheDocument());
     expect(
       screen.getByRole("columnheader", { name: "Name" }),
     ).toBeInTheDocument();
@@ -329,12 +327,12 @@ describe("RegistryMcpPage", () => {
     expect(
       screen.getByRole("columnheader", { name: "Allowed Tools" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Flow Steward MCP")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Flow Steward MCP")).toBeInTheDocument());
 
     // The standalone Open link became row-menu navigation; assert where it goes.
     await user.click(screen.getByRole("button", { name: "Actions for Flow Steward MCP" }));
     await user.click(await screen.findByRole("menuitem", { name: "View" }));
-    expect(await screen.findByText("mcp detail page")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("mcp detail page")).toBeInTheDocument());
   });
 
   it("submits the create modal without an allowlist payload", async () => {
@@ -416,7 +414,7 @@ describe("RegistryMcpPage", () => {
       },
     }));
 
-    expect(await within(dialog).findByText("Filled from the JSON: github. Check the fields before saving.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Filled from the JSON: github. Check the fields before saving.")).toBeInTheDocument());
     expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("github");
     expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("https://api.githubcopilot.com/mcp/");
     expect(within(dialog).getByRole("combobox", { name: "Auth Mode" })).toHaveTextContent("bearer");
@@ -454,7 +452,7 @@ describe("RegistryMcpPage", () => {
     await user.click(within(dialog).getByRole("textbox", { name: "Paste JSON configuration" }));
     await user.paste('{"mcpServers": {"files": {"command": "npx", "args": ["server-filesystem"]}}}');
 
-    expect(await within(dialog).findByText(/files runs as a local program/u)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(/files runs as a local program/u)).toBeInTheDocument());
     expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("");
   });
 

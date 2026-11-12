@@ -282,7 +282,7 @@ describe("ProjectsDetailPage", () => {
     { tab: "data-connections", translated: "Šiai darbo sričiai dar nėra duomenų ryšių. Sukurkite juos registre, tada priskirkite projektui, kad darbo eigos galėtų per juos skaityti duomenis.", english: "No workspace data connections exist for this workspace yet. Create them in the registry, then assign them here so project workflows can read data through them." },
   ])("localizes the empty $tab catalog without fabricating entries", async ({ tab, translated, english }) => {
     renderProjectPage(`/projects/project-123?tab=${tab}`, "lt");
-    expect(await screen.findByText(translated)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(translated)).toBeInTheDocument());
     expect(screen.queryByText(english)).not.toBeInTheDocument();
   });
 
@@ -306,7 +306,7 @@ describe("ProjectsDetailPage", () => {
     ]);
     renderProjectPage("/projects/project-123?tab=workflows");
 
-    expect(await screen.findByText("Workflow secrets")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow secrets")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByTestId("project-workflow-secrets-orders_sync")).toHaveTextContent("orders-sync"));
     expect(fetchProjectWorkflowSecretApprovals).toHaveBeenCalledWith("project-123");
     // The admin-only workflow links are not asked for, so nothing claims they failed
@@ -334,7 +334,7 @@ describe("ProjectsDetailPage", () => {
 
     await chooseOption(user, "Default provider", "OpenAI");
     await openSelect(user, "Default model");
-    expect(await screen.findByRole("option", { name: "GPT-4.1 Nano" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "GPT-4.1 Nano" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("option", { name: "GPT-4.1 Nano" }));
     expect(screen.getByRole("combobox", { name: "Default model" })).toHaveTextContent("GPT-4.1 Nano");
@@ -345,15 +345,11 @@ describe("ProjectsDetailPage", () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     renderProjectPage();
 
-    expect(
-      await screen.findByRole("heading", { name: "Models" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Models" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Browse catalog" }));
 
-    expect(
-      await screen.findByRole("button", { name: "Hide catalog" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Hide catalog" })).toBeInTheDocument());
     expect(
       screen.getByText(
         /No linked workflows are contributing project-relevant agents yet/i,
@@ -371,7 +367,7 @@ describe("ProjectsDetailPage", () => {
       screen.getAllByRole("button", { name: "Add override" })[0],
     );
 
-    expect(await screen.findByRole("button", { name: "Remove override" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Remove override" })).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: /^Provider override for / })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /^Model override for / })).toBeInTheDocument();
   });
@@ -383,7 +379,7 @@ describe("ProjectsDetailPage", () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "owner_workflow", enabled: true, steps: [{ step_id: "plan", agent_id: "planner" }] } as never);
     renderProjectPage("/projects/project-123?tab=integrations", "lt");
     await user.click(await screen.findByRole("button", { name: "Browse catalog" }));
-    expect(await screen.findByText("Naudojamas susietose darbo eigose")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Naudojamas susietose darbo eigose")).toBeInTheDocument());
     expect(screen.queryByText("Referenced by linked workflows")).not.toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Toggle planner" })).toBeInTheDocument();
   });
@@ -451,9 +447,7 @@ describe("ProjectsDetailPage", () => {
     } as never);
     renderProjectPage();
 
-    expect(
-      await screen.findByRole("heading", { name: "Models" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Models" })).toBeInTheDocument());
     // Extension provider group renders with its canonical display label.
     await chooseOption(user, "Default provider", "DeepSeek (Acme LLM)");
     await chooseOption(user, "Default model", "DeepSeek Chat");
@@ -533,7 +527,7 @@ describe("ProjectsDetailPage", () => {
     // The published checkbox hides its native input behind the mark.
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     await user.click(await screen.findByRole("combobox", { name: "Default model" }));
-    expect(await screen.findByRole("option", { name: "gpt-4o (unavailable)" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "gpt-4o (unavailable)" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     expect(screen.getByText(/saved project model route is unavailable/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Project" })).toBeDisabled();
@@ -565,13 +559,11 @@ describe("ProjectsDetailPage", () => {
     expect(providerSelect).toHaveTextContent("custom_provider (unavailable)");
 
     await user.click(providerSelect);
-    expect(
-      await screen.findByRole("option", { name: "custom_provider (unavailable)" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "custom_provider (unavailable)" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
 
     await user.click(screen.getByRole("combobox", { name: "Default model" }));
-    expect(await screen.findByRole("option", { name: "gpt-5.5 (unavailable)" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "gpt-5.5 (unavailable)" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     expect(screen.getByRole("button", { name: "Save Project" })).toBeDisabled();
   });
@@ -607,9 +599,7 @@ describe("ProjectsDetailPage", () => {
     });
     expect(overrideProvider).toHaveTextContent("llmext_removed (unavailable)");
     await user.click(overrideProvider);
-    expect(
-      await screen.findByRole("option", { name: "llmext_removed (unavailable)" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "llmext_removed (unavailable)" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Save Project" })).toBeDisabled();
   });
 
@@ -621,14 +611,12 @@ describe("ProjectsDetailPage", () => {
       .mockResolvedValueOnce({ status: "updated" } as never);
     renderProjectPage("/projects/project-123?tab=overview");
 
-    expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Save Project" }));
-    expect(
-      await screen.findByText("Unknown project configuration field: agent_model_override"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Unknown project configuration field: agent_model_override")).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Save Project" }));
-    expect(await screen.findByText("Project updated successfully.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project updated successfully.")).toBeInTheDocument());
     expect(
       screen.queryByText("Unknown project configuration field: agent_model_override"),
     ).not.toBeInTheDocument();
@@ -644,9 +632,7 @@ describe("ProjectsDetailPage", () => {
     await user.clear(nameInput);
     await user.click(screen.getByRole("button", { name: "Save Project" }));
 
-    expect(
-      await screen.findByText("Project name is required."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project name is required.")).toBeInTheDocument());
     expect(mockedUpdateProject).not.toHaveBeenCalled();
   });
 
@@ -749,9 +735,7 @@ describe("ProjectsDetailPage", () => {
     ] as never);
     renderProjectPage("/projects/project-123?tab=workflows");
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflows" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflows" })).toBeInTheDocument());
     await user.click(
       screen.getByRole("checkbox", { name: "Toggle Weekly Report" }),
     );
@@ -791,9 +775,7 @@ describe("ProjectsDetailPage", () => {
         "/projects/project-123?tab=workflows",
       );
 
-      expect(
-        await screen.findByRole("heading", { name: "Workflows" }),
-      ).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Workflows" })).toBeInTheDocument());
       for (let index = 0; index < workflowIds.length; index += 1) {
         await user.click(
           screen.getByRole("checkbox", {
@@ -853,11 +835,9 @@ describe("ProjectsDetailPage", () => {
 
     renderProjectPage("/projects/project-123?tab=workflows");
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflows" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflows" })).toBeInTheDocument());
     // Stale binding renders as a still-selected row carrying a "missing" badge.
-    expect(await screen.findByText("missing")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("missing")).toBeInTheDocument());
     expect(
       screen.getByRole("checkbox", { name: "Toggle Acme Blog 1" }),
     ).toBeChecked();
@@ -875,11 +855,7 @@ describe("ProjectsDetailPage", () => {
     await user.click(screen.getByRole("button", { name: "Save Project" }));
 
     expect(mockedUpdateProject).not.toHaveBeenCalled();
-    expect(
-      await screen.findByText(
-        'This project references missing workflow "Acme Blog 1". Remove it before saving project changes.',
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('This project references missing workflow "Acme Blog 1". Remove it before saving project changes.')).toBeInTheDocument());
     expect(mockedFetchWorkflowDetail).not.toHaveBeenCalledWith("Acme Blog 1");
   });
 
@@ -905,9 +881,7 @@ describe("ProjectsDetailPage", () => {
 
     renderProjectPage("/projects/project-123?tab=workflows");
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflows" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflows" })).toBeInTheDocument());
     const staleToggle = await screen.findByRole("checkbox", {
       name: "Toggle Acme Blog 2",
     });
@@ -933,9 +907,7 @@ describe("ProjectsDetailPage", () => {
   it("remembers the edited project for extension connection selection", async () => {
     renderProjectPage("/projects/a8ed4486-c855-4c08-a4d5-8c0851d7603b");
 
-    expect(
-      await screen.findByRole("heading", { name: "Overview" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Overview" })).toBeInTheDocument());
 
     await waitFor(() => {
       expect(localStorage.getItem("platform-last-project-id")).toBe("a8ed4486-c855-4c08-a4d5-8c0851d7603b");
@@ -994,7 +966,7 @@ describe("ProjectsDetailPage", () => {
   it("ends the Project summary without links back to the page it is on", async () => {
     renderProjectPage("/projects/project-123");
 
-    expect(await screen.findByRole("heading", { name: "Project summary" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Project summary" })).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: "Open project" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "View jobs" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Open KB" })).not.toBeInTheDocument();
@@ -1027,7 +999,7 @@ describe("ProjectsDetailPage", () => {
   it("shows the read-only notification overview on the Notifications tab, with no Save", async () => {
     renderProjectPage("/projects/project-123?tab=notifications");
 
-    expect(await screen.findByText("notification-overview project-123")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("notification-overview project-123")).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Notifications" })).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("button", { name: "Save Project" })).not.toBeInTheDocument();
   });
@@ -1071,9 +1043,7 @@ describe("ProjectsDetailPage", () => {
 
   it("opens the data connections tab from a deep link", async () => {
     renderProjectPage("/projects/project-123?tab=data-connections");
-    expect(
-      await screen.findByRole("heading", { name: "Data Connections" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Data Connections" })).toBeInTheDocument());
     expect(screen.getByText(/Project data connections/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByRole("tab", { name: "Data Connections" })).toHaveAttribute("aria-selected", "true");
@@ -1123,7 +1093,7 @@ describe("ProjectsDetailPage", () => {
 
     renderProjectPage("/projects/project-123");
 
-    expect(await screen.findByRole("tab", { name: "Overview" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Overview" })).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Data Connections" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Data Connections" }));
@@ -1183,7 +1153,7 @@ describe("ProjectsDetailPage", () => {
   it("says on the Policy tab that the execution policy saves on its own", async () => {
     renderProjectPage("/projects/project-123?tab=policy");
 
-    expect(await screen.findByText("policy-editor")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("policy-editor")).toBeInTheDocument());
     expect(
       screen.getByText(
         "Save Project saves Project rules. The execution policy below saves with its own Save policy button.",

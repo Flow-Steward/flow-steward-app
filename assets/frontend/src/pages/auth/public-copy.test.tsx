@@ -105,11 +105,8 @@ describe("auth public copy", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
 
-    expect(
-      await screen.findByText((content) =>
-        content.includes("exists in Flow Steward, the reset instructions are on the way."),
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText((content) =>
+        content.includes("exists in Flow Steward, the reset instructions are on the way."))).toBeInTheDocument());
   });
 
   it("opens ordinary password recovery with an empty focused email field", async () => {
@@ -156,7 +153,7 @@ describe("auth public copy", () => {
     fireEvent.change(email, { target: { value: "person@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
 
-    expect(await screen.findByText("Too many reset requests.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Too many reset requests.")).toBeInTheDocument());
     expect(screen.getByText("Try again in 37 seconds.")).toBeInTheDocument();
     expect(email).toHaveValue("person@example.com");
   });
@@ -194,7 +191,7 @@ describe("auth public copy", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Send reset link" }));
 
-    expect(await screen.findByText("Password recovery is temporarily unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Password recovery is temporarily unavailable.")).toBeInTheDocument());
     expect(screen.getByText("Your email is still here. Try again in a moment.")).toBeInTheDocument();
   });
 
@@ -218,7 +215,7 @@ describe("auth public copy", () => {
       ),
     );
 
-    expect(await screen.findByText("Resetting password for person@example.com.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Resetting password for person@example.com.")).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText(/^New password$/i), {
       target: { value: "N3wStr0ngP@ss!!" },
     });
@@ -256,7 +253,7 @@ describe("auth public copy", () => {
       ),
     );
 
-    expect(await screen.findByText("This password reset link is invalid or expired.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This password reset link is invalid or expired.")).toBeInTheDocument());
     expect(screen.queryByLabelText(/New password/i)).not.toBeInTheDocument();
     expect(mockedFetchJson).toHaveBeenCalledWith("/api/auth/password-reset/verify", {
       method: "POST",

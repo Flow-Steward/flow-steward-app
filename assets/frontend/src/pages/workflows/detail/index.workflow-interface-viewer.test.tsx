@@ -22,7 +22,7 @@ it("lets a viewer inspect public Start and Stop contracts without edit controls 
   mockedFetchWorkflowCanvasGraph.mockResolvedValue(canvasGraphFixture({ entry: { kind: "step", id: "done" }, steps: [{ id: "done", step_id: "done", kind: "stop_success", display_name: "Done", config_summary: "", ports: [] }], edges: [] }));
   renderPage({ surface: "builder" });
   fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
-  expect(await screen.findByRole("heading", { name: "Workflow interface" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow interface" })).toBeInTheDocument());
   let drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
   await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Inputs" })).toHaveAttribute("aria-selected", "true"));
   expect(within(drawer).getByRole("combobox", { name: "Input mode" })).toBeDisabled();

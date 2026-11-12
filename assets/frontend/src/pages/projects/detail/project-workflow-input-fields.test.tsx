@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { ProjectWorkflowInputFields } from "@/pages/projects/detail/project-workflow-input-fields";
@@ -62,7 +62,7 @@ it("preserves nested member types when editing a string and adding an array item
   await user.click(screen.getByRole("button", { name: "Add item" }));
   await user.type(screen.getByRole("textbox", { name: "Rows item 7" }), "new");
   await user.click(screen.getByRole("button", { name: "Save inputs" }));
-  expect(await screen.findByRole("button", { name: "Reopen saved inputs" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Reopen saved inputs" })).toBeInTheDocument());
   expect(JSON.parse(screen.getByLabelText("Stored inputs").textContent || "{}")).toEqual({
     record: { ...original.record, text: "true" }, rows: [0, false, null, { name: "001" }, [2], "after", "new"],
   });

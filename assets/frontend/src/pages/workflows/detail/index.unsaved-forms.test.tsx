@@ -34,7 +34,7 @@ describe("unsaved builder forms", () => {
     fireEvent.click(within(discard).getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved wait");
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
-    expect(await screen.findByTestId("workflow-test-run-blocked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-blocked")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
   });
   it("asks before discarding extra edits to a new step already in the structural batch", async () => {

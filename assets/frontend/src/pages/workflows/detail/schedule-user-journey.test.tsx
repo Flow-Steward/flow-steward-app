@@ -458,7 +458,7 @@ it.each([
   const user = userEvent.setup();
   renderJourney();
   await openBuilderSchedules(user);
-  expect(await screen.findByText(message)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(message)).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   expect(state.reads.filter((path) => path.includes("scheduled-jobs"))).toEqual([]);
   expect(state.writes).toEqual([]);
@@ -471,7 +471,7 @@ it("rejects an unlinked URL hint until a named linked project is selected", asyn
   const user = userEvent.setup();
   renderJourney(`${builderPath}?project_id=foreign-project`);
   await openBuilderSchedules(user);
-  expect(await screen.findByText(/The requested project is not linked or accessible/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/The requested project is not linked or accessible/)).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   expect(state.reads.some((path) => path.includes("scheduled-jobs"))).toBe(false);
   expect(state.reads.filter((path) => path.includes("/foreign-project/"))).toEqual([foreignProjectBindingPath]);
@@ -512,7 +512,7 @@ it("shows loading instead of assuming a project and enforces required saved inpu
   const user = userEvent.setup();
   renderJourney();
   await openBuilderSchedules(user);
-  expect(await screen.findByText("Loading linked projects…")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Loading linked projects…")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   release();
   await user.click(await screen.findByRole("button", { name: "New schedule" }));

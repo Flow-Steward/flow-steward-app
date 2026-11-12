@@ -134,7 +134,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Disable" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Config" })).toBeInTheDocument();
     expect(screen.getByLabelText("Display Name")).toHaveValue("Demo Content Tools");
@@ -171,14 +171,12 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
 
-    expect(
-      await screen.findByRole("heading", {
+    await waitFor(() => expect(screen.getByRole("heading", {
         name: "demo_compose_content_brief",
-      }),
-    ).toBeInTheDocument();
+      })).toBeInTheDocument());
     expect(
       screen.getAllByText("Compose a compact content brief.").length,
     ).toBeGreaterThan(0);
@@ -211,7 +209,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Builder" }));
 
     fireEvent.change(
@@ -273,7 +271,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Unavailable")).toBeInTheDocument());
     expect(screen.getByText("Source MCP connector mcp_removed was deleted.")).toBeInTheDocument();
     expect(screen.getByText("source_connector_removed")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Enable" })).not.toBeInTheDocument();
@@ -291,7 +289,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Prompt" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), {
       target: { value: "  publish-ready copy  " },
@@ -324,7 +322,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Agents Using" }));
 
     await waitFor(() => expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute(
@@ -346,7 +344,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
 
     const chip = await screen.findByText("topic");
@@ -366,7 +364,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     const summary = screen.getByText("Advanced runtime details");
     fireEvent.click(summary);
 
@@ -395,7 +393,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
 
     // The name lands in the published chip's own name slot. Badge would have put
@@ -403,7 +401,7 @@ describe("RegistryToolsDetailPage", () => {
     // of using Badge at all. The name is its own leaf inside that slot — an
     // exact-text match has to find `topic` and nothing else, which is what the
     // browser lane asserts — so the slot is matched by class and full text.
-    expect(await screen.findByText("topic")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("topic")).toBeInTheDocument());
     expect(
       screen.getByText(
         (_, element) =>
@@ -436,7 +434,7 @@ describe("RegistryToolsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Demo Content Tools")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Demo Content Tools")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Actions" }));
 
     // The description is real content, not a title attribute nobody can reach by

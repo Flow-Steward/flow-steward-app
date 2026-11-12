@@ -77,7 +77,7 @@ describe("ProcessesControlPanel", () => {
       ),
     );
     // and the empty subprocess table must say idle, not absent
-    expect(await screen.findByText(/2 worker processes are running and idle/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/2 worker processes are running and idle/)).toBeInTheDocument());
   });
 
   it("keeps saying nothing is there when no worker process is visible", async () => {
@@ -127,7 +127,7 @@ describe("ProcessesControlPanel", () => {
 
     // No killable process at all: the empty state stands in, and no bulk bar
     // appears because nothing can be selected.
-    expect(await screen.findByTestId("proc-workers-grid")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("proc-workers-grid")).toBeInTheDocument());
     const table = screen.getByRole("table", { name: "Worker subprocesses" });
     expect(within(table).getAllByRole("row")).toHaveLength(1);
     expect(screen.queryByRole("region", { name: "Bulk actions" })).not.toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("ProcessesControlPanel", () => {
 
     await waitFor(() => expect(mockedCancelProcessJob).toHaveBeenCalledWith("12"));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("Job #12 cancelled.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Job #12 cancelled.")).toBeInTheDocument());
   });
 
   it("keeps the dialog open with the reason when the only job fails to cancel", async () => {
@@ -183,7 +183,7 @@ describe("ProcessesControlPanel", () => {
     fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel 3 jobs" }));
 
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("2 of 3 jobs cancelled.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 of 3 jobs cancelled.")).toBeInTheDocument());
     expect(screen.getByText(/#12: Job already finished\./)).toBeInTheDocument();
     expect(within(table).getByRole("checkbox", { name: /12/ })).toBeChecked();
     expect(within(table).getByRole("checkbox", { name: /11/ })).not.toBeChecked();

@@ -168,7 +168,7 @@ describe("ProjectsListPage", () => {
     expect(localStorage.getItem("platform:selected-workspace-id")).toBe("ws-1");
     expect(mockedFetchProjectsList).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: "ws-1" }));
     await user.click(within(table).getByRole("button", { name: /^Actions for / }));
-    expect(await screen.findByRole("menuitem", { name: "View" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "View" })).toBeInTheDocument());
     expect(Boolean(screen.queryByRole("menuitem", { name: "Delete" }))).toBe(canDelete);
   });
 
@@ -199,7 +199,7 @@ describe("ProjectsListPage", () => {
     expect(mockedFetchWorkspaces).toHaveBeenCalledTimes(1);
     view.rerenderRole("operator");
     await act(async () => { resolveWorkspaces([{ id: "foreign-workspace", display_name: "Other" }] as never); });
-    expect(await screen.findByText("Audit Project")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Audit Project")).toBeInTheDocument());
     expect(localStorage.getItem("platform:selected-workspace-id")).toBe("ws-1");
     expect(mockedFetchProjectsList).toHaveBeenLastCalledWith(expect.objectContaining({ workspaceId: "ws-1" }));
     expect(mockedFetchWorkspaces).toHaveBeenCalledTimes(1);
@@ -226,7 +226,7 @@ describe("ProjectsListPage", () => {
     expect(within(dialog).queryByText(/only offered while a project has no jobs/i)).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Delete project" }));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("No projects found")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No projects found")).toBeInTheDocument());
     expect(request).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledWith("/api/projects/project-1", expect.objectContaining({ method: "DELETE" }));
     // The only request is project soft deletion; there is no job-delete request.
@@ -234,7 +234,7 @@ describe("ProjectsListPage", () => {
 
   it("localizes the live project count announcement", async () => {
     renderProjectsListPage({ "monitoring.badge.projects": "Projektų: {count}" });
-    expect(await screen.findByText("Projektų: 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Projektų: 1")).toBeInTheDocument());
     expect(screen.queryByText("1 projects")).not.toBeInTheDocument();
   });
 
@@ -250,7 +250,7 @@ describe("ProjectsListPage", () => {
 
     const row = within(table).getAllByRole("row")[1];
     await user.click(within(row).getByRole("button", { name: /^Actions for / }));
-    expect(await screen.findByRole("menuitem", { name: "View" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "View" })).toBeInTheDocument());
     expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   });
@@ -318,7 +318,7 @@ describe("ProjectsListPage", () => {
     expect(row).toHaveAttribute("data-clickable");
 
     await user.click(within(row).getByText("Audit Project"));
-    expect(await screen.findByText("project detail route")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("project detail route")).toBeInTheDocument());
   });
 
   it("sends the has-jobs filter to the endpoint", async () => {

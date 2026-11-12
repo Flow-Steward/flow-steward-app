@@ -115,7 +115,7 @@ describe("RegistrySecretsPage", () => {
     const dialog = await screen.findByRole("dialog", { name: "New secret" });
     await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "New key");
     await user.click(within(dialog).getByRole("button", { name: "Create secret" }));
-    expect(await within(dialog).findByText("Enter the value.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Enter the value.")).toBeInTheDocument());
     expect(createCatalogSecret).not.toHaveBeenCalled();
   });
 
@@ -191,7 +191,7 @@ describe("RegistrySecretsPage", () => {
     renderPage();
     await openRowAction(user, "Mail key", "Delete");
     const dialog = await screen.findByRole("alertdialog", { name: "Delete Mail key?" });
-    expect(await within(dialog).findByText("Nothing uses this secret.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Nothing uses this secret.")).toBeInTheDocument());
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteCatalogSecret).toHaveBeenCalledWith("s2", "rev-0"));
   });

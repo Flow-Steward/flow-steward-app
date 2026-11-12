@@ -135,7 +135,7 @@ describe("JobsListPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(screen.getByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked());
     rejectDelete(new Error("Job is active"));
-    expect(await screen.findByText(/Job is active/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Job is active/)).toBeInTheDocument());
     expect(jobsRequests().at(-1)?.get("from_date")).toBe("2026-03-01");
     expect(screen.getByRole("checkbox", { name: "Select new-scope" })).not.toBeChecked();
     expect(screen.queryByRole("button", { name: "Delete Selected" })).not.toBeInTheDocument();
@@ -178,7 +178,7 @@ describe("JobsListPage", () => {
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select done" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Select active" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete Selected" }));
-    expect(await screen.findByText(/Job is active/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Job is active/)).toBeInTheDocument());
     expect(screen.getByRole("checkbox", { name: "Select active" })).toBeChecked();
     expect(screen.queryByRole("checkbox", { name: "Select done" })).not.toBeInTheDocument();
     confirm.mockRestore();
@@ -343,13 +343,13 @@ describe("JobsListPage", () => {
 
     renderJobsListPage();
 
-    expect(await screen.findByText("1–25 of 26")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1–25 of 26")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
 
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(expect.stringContaining("page=2&per_page=25"));
     });
-    expect(await screen.findByText("26–26 of 26")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("26–26 of 26")).toBeInTheDocument());
     expect(screen.getByText("Request 26")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("combobox", { name: "Rows per page" }));
@@ -357,7 +357,7 @@ describe("JobsListPage", () => {
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(expect.stringContaining("page=1&per_page=50"));
     });
-    expect(await screen.findByText("1–26 of 26")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1–26 of 26")).toBeInTheDocument());
   });
 
   it("seeds the status filter from the URL so dashboard metric cards deep-link into a filtered queue", async () => {
@@ -386,7 +386,7 @@ describe("JobsListPage", () => {
 
     // The seeded filter shows up as an applied-filter chip, which is how the
     // published filter toolbar reports an active value.
-    expect(await screen.findByText("Status · Waiting for approval")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Waiting for approval")).toBeInTheDocument());
   });
 
   it("leaves the status filter unset when the URL carries no status", async () => {
@@ -406,7 +406,7 @@ describe("JobsListPage", () => {
     const row = await within(table).findByText("Investigate failure");
     fireEvent.click(row);
 
-    expect(await screen.findByText("job detail page")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("job detail page")).toBeInTheDocument());
   });
 
   it("treats resume-pending jobs as visible, highlighted, and cancellable", async () => {
@@ -451,12 +451,12 @@ describe("JobsListPage", () => {
 
     // Cancel is gated by visible_if with an `in` set, so it is offered here...
     fireEvent.click(within(table).getByRole("button", { name: "Actions for job job-resume" }));
-    expect(await screen.findByRole("menuitem", { name: "Cancel" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Cancel" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" });
 
     // A durable approval pause can also be cancelled from the row menu.
     fireEvent.click(within(table).getByRole("button", { name: "Actions for job job-approval" }));
-    expect(await screen.findByRole("menuitem", { name: "Cancel" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Cancel" })).toBeInTheDocument());
     fireEvent.keyDown(document, { key: "Escape" });
 
     expect(await filterOptionLabels("Status")).toEqual(STATUS_GROUP_LABELS);
@@ -473,7 +473,7 @@ describe("JobsListPage", () => {
     // The menu stays open for the next status.
     fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Stuck" }));
 
-    expect(await screen.findByText("Status · Stuck, Failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Stuck, Failed")).toBeInTheDocument());
     expect(screen.getByRole("menuitemcheckbox", { name: "Failed" })).toBeChecked();
     expect(screen.getByRole("menuitemcheckbox", { name: "Stuck" })).toBeChecked();
     // A group asks the server for every stored status it holds.
@@ -483,14 +483,14 @@ describe("JobsListPage", () => {
     expect(screen.getByTestId("location-search")).toHaveTextContent("?status=stuck&status=failed");
 
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Failed" }));
-    expect(await screen.findByText("Status · Stuck")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Stuck")).toBeInTheDocument());
     expect(screen.getByTestId("location-search")).toHaveTextContent("?status=stuck");
   });
 
   it("keeps offering every status, project and workflow while a status filter is applied", async () => {
     mockFilteredJobsServer();
     renderJobsListPage("/jobs?status=failed");
-    expect(await screen.findByText("Status · Failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Failed")).toBeInTheDocument());
     await waitFor(() => {
       expect(mockedFetchJson.mock.calls.some(([input]) => String(input).startsWith("/api/workflows"))).toBe(true);
     });
@@ -508,7 +508,7 @@ describe("JobsListPage", () => {
     mockFilteredJobsServer();
     renderJobsListPage("/jobs?status=failed&status=stuck");
 
-    expect(await screen.findByText("Status · Stuck, Failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Stuck, Failed")).toBeInTheDocument());
     await waitFor(() => {
       expect(jobsRequests().at(-1)?.getAll("status")).toEqual(["stuck", "orphaned", "failed", "max_iterations", "triage_needed"]);
     });
@@ -547,7 +547,7 @@ describe("JobsListPage", () => {
     mockFilteredJobsServer();
     renderJobsListPage("/jobs?status=failed,stuck,awaiting_approval&status=max_iterations&status=no_such_status");
 
-    expect(await screen.findByText("Status · Waiting for approval, Stuck, Failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Waiting for approval, Stuck, Failed")).toBeInTheDocument());
     await waitFor(() => {
       expect(jobsRequests().at(-1)?.getAll("status")).toEqual(["awaiting_approval", "stuck", "orphaned", "failed", "max_iterations", "triage_needed"]);
     });
@@ -644,7 +644,7 @@ describe("JobsListPage", () => {
     mockWorkflowCatalogServer();
     renderJobsListPage("/jobs");
     const table = await screen.findByRole("table");
-    expect(await within(table).findByText("Original fan out demo")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Original fan out demo")).toBeInTheDocument());
     expect(within(table).queryByText(/extension\.install-old/)).not.toBeInTheDocument();
     await waitFor(() => {
       expect(mockedFetchJson.mock.calls.some(([input]) => String(input).startsWith("/api/extensions"))).toBe(true);

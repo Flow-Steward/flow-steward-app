@@ -129,7 +129,7 @@ describe("RegistryWorkspacesDetailPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Workspace settings" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workspace settings" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Save" }));
 

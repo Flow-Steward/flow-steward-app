@@ -145,7 +145,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Enter your email.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Enter your email.")).toBeInTheDocument());
     expect(screen.getByText("Enter your password.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText(/^Email address$/i)).toHaveAttribute("aria-describedby", "email-error");
@@ -160,7 +160,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Enter a valid email address.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Enter a valid email address.")).toBeInTheDocument());
     expect(mockedFetchJson).not.toHaveBeenCalled();
   });
 
@@ -233,7 +233,7 @@ describe("LoginPage", () => {
     });
 
     // The line waits out the loader delay, then leads with the round mono Loader.
-    expect(await screen.findByText("Loading sign-in providers…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading sign-in providers…")).toBeInTheDocument());
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
     resolveProviders([{
       provider_key: "okta",
@@ -256,7 +256,7 @@ describe("LoginPage", () => {
       },
     });
 
-    expect(await screen.findByText("No external providers are available.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No external providers are available.")).toBeInTheDocument());
     expect(screen.getByText("You can still use your email and password.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
   });
@@ -273,7 +273,7 @@ describe("LoginPage", () => {
       },
     });
 
-    expect(await screen.findByText("No external providers are available.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No external providers are available.")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /Unsafe provider/i })).not.toBeInTheDocument();
   });
 
@@ -291,7 +291,7 @@ describe("LoginPage", () => {
       },
     });
 
-    expect(await screen.findByRole("link", { name: "Continue with Microsoft" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: "Continue with Microsoft" })).toBeInTheDocument());
     expect(screen.queryByLabelText(/^Email address$/i)).not.toBeInTheDocument();
     expect(screen.getByText("Password sign-in is unavailable.")).toBeInTheDocument();
   });
@@ -318,7 +318,7 @@ describe("LoginPage", () => {
       },
     });
 
-    expect(await screen.findByText("No external providers are available.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No external providers are available.")).toBeInTheDocument());
     expect(screen.getAllByRole("status")).toHaveLength(1);
     expect(screen.queryByText("No external sign-in flow is configured. Contact your workspace administrator.")).not.toBeInTheDocument();
   });
@@ -331,7 +331,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Security destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -396,14 +396,14 @@ describe("LoginPage", () => {
     await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
     expect(submit).toHaveAttribute("aria-busy", "true");
     expect(submit).toBeDisabled();
-    expect(await screen.findByTestId("auth-submit-spinner")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("auth-submit-spinner")).toBeInTheDocument());
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Welcome back" })).not.toBeInTheDocument();
     expect(screen.queryByText("Taking you to your dashboard…")).not.toBeInTheDocument();
     expect(screen.queryByText("Dashboard destination")).not.toBeInTheDocument();
 
     resolveRefresh();
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
   });
 
   it("rejects an unsafe next route and returns a successful sign-in to the dashboard", async () => {
@@ -413,7 +413,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
   });
 
   it("requests account selection, retains credentials, validates it, and then completes sign-in", async () => {
@@ -438,13 +438,13 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText(/^Password$/i)).toHaveValue(TEST_PASSWORD);
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(await screen.findByText("Choose an account to continue.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Choose an account to continue.")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenCalledTimes(1);
 
     fireEvent.change(accountSelect, { target: { value: "platform" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -467,7 +467,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Account selection is temporarily unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Account selection is temporarily unavailable.")).toBeInTheDocument());
     expect(screen.getByText("Try again or contact your workspace administrator.")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Account" })).not.toBeInTheDocument();
   });
@@ -490,7 +490,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText(title)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
     expect(screen.getByText(copy)).toBeInTheDocument();
   });
 
@@ -501,7 +501,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("We couldn’t sign you in.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("We couldn’t sign you in.")).toBeInTheDocument());
     expect(screen.getByText("Check your email and password, then try again.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toHaveValue("person@example.com");
   });
@@ -516,7 +516,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Too many sign-in attempts.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Too many sign-in attempts.")).toBeInTheDocument());
     expect(screen.getByText("Try again in 37 seconds.")).toBeInTheDocument();
   });
 
@@ -527,7 +527,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Sign-in is temporarily unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Sign-in is temporarily unavailable.")).toBeInTheDocument());
     expect(screen.getByText("Your details are still here. Try again in a moment.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toHaveValue("person@example.com");
   });
@@ -539,7 +539,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("We couldn’t reach Flow Steward.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("We couldn’t reach Flow Steward.")).toBeInTheDocument());
     expect(screen.getByText("Check your connection and try again.")).toBeInTheDocument();
   });
 
@@ -550,7 +550,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByText("Password sign-in is unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Password sign-in is unavailable.")).toBeInTheDocument());
     expect(screen.getByText("Use a configured external provider to continue.")).toBeInTheDocument();
   });
 
@@ -569,7 +569,7 @@ describe("LoginPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("heading", { name: "Set a new password" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Set a new password" })).toBeInTheDocument());
     expect(screen.queryByText("Reset destination")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Forgot password?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^Temporary password$/i)).toHaveValue(temporary);
@@ -577,22 +577,22 @@ describe("LoginPage", () => {
 
     fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: "short-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
-    expect(await screen.findByText("Use at least 12 characters.", { selector: "[id='new-password-error']" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Use at least 12 characters.", { selector: "[id='new-password-error']" })).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: temporary } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
-    expect(await screen.findByText("Choose a password different from the temporary one.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Choose a password different from the temporary one.")).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: permanent } });
     fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: "permanent-pass-2" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
-    expect(await screen.findByText("Passwords do not match.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Passwords do not match.")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenCalledTimes(1);
 
     fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: permanent } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
 
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(mockedFetchJson).toHaveBeenCalledTimes(2);
     const [, init] = mockedFetchJson.mock.calls[1] ?? [];
@@ -623,7 +623,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: "a-new-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
 
-    expect(await screen.findByText("new_password must be at least 14 characters")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("new_password must be at least 14 characters")).toBeInTheDocument());
     expect(screen.queryByText("Dashboard destination")).not.toBeInTheDocument();
   });
 

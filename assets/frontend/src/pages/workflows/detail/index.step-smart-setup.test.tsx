@@ -674,9 +674,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "+ Add Step" }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
 
     const stepKindSelect = screen.getByRole("combobox", { name: "Step kind" });
     expect(
@@ -739,7 +737,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       for (const label of labels) {
         // HTTP map labels share their text with the Add row button; assert
         // the actual DS field label. Other kinds retain their existing lookup.
-        expect(await screen.findByText(label, { selector: stepKind === "http_request" ? ".fs-field-label" : ":not(option)" })).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByText(label, { selector: stepKind === "http_request" ? ".fs-field-label" : ":not(option)" })).toBeInTheDocument());
       }
       if (stepKind === "connector") {
         expect(screen.queryByText(/Parameters$/, { selector: ":not(option)" })).not.toBeInTheDocument();
@@ -789,8 +787,8 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Normalize customer/i }));
-    expect(await screen.findByText("Fields")).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "text / Append" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fields")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: "text / Append" })).toBeInTheDocument());
     fireEvent.change(screen.getByRole("combobox", { name: "Type" }), {
       target: { value: "number" },
     });
@@ -798,7 +796,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
 
     const actionSelect = screen.getByRole("combobox", { name: "Action" });
     fireEvent.change(actionSelect, { target: { value: "text.append" } });
-    expect(await screen.findByText("append_value")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("append_value")).toBeInTheDocument());
 
     const sourceModeSelect = screen.getByRole("combobox", { name: "append_value" });
     fireEvent.change(sourceModeSelect, { target: { value: "selector" } });
@@ -900,8 +898,8 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Normalize customer/i }));
-    expect(await screen.findByText("Fields")).toBeInTheDocument();
-    expect(await screen.findByRole("option", { name: "text / Append" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fields")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("option", { name: "text / Append" })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Add action" }));
 
@@ -1204,11 +1202,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       expect(config?.mode).toBe("list");
       expect(config).not.toHaveProperty("row_filter");
     });
-    expect(
-      await screen.findByText(
-        /is not produced by earlier steps · workflow\.steps\.prepare_variants\.transform\.input\.source/,
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/is not produced by earlier steps · workflow\.steps\.prepare_variants\.transform\.input\.source/)).toBeInTheDocument());
 
     fireEvent.change(rowSelector, { target: { value: "status" } });
     fireEvent.click(screen.getByRole("button", { name: "Run preview" }));
@@ -1295,7 +1289,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Write launch copy/i }));
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     const structure = screen.getByTestId("step-structure-setup");
     expect(structure).toHaveTextContent("Now in the workflow root.");
     // The entry is set from the step's menus, not from the editor.
@@ -1353,27 +1347,21 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Create issue/i }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Action source" })).toHaveTextContent("GitHub"));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Action" })).toHaveTextContent("Create issue"));
     // The action contract is reference material: closed under Action details, no source chip.
     await waitFor(() => expect(screen.getByText("Action details")).toBeVisible());
     expect(screen.queryByText("Tool registry")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Action inputs")).not.toBeVisible());
-    expect(await screen.findByText("Action returns")).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("title")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Action returns")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("title")).toBeInTheDocument());
     expect(
       screen.getByRole("combobox", { name: "Parameter source 1" }),
     ).toHaveValue("state");
-    expect(
-      await screen.findByDisplayValue("state.issue_title"),
-    ).toBeInTheDocument();
-    expect(await screen.findByDisplayValue("issue_url")).toBeInTheDocument();
-    expect(
-      await screen.findByDisplayValue("state.issue_url"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue("state.issue_title")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("issue_url")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByDisplayValue("state.issue_url")).toBeInTheDocument());
     // AC17-R65: the Connection select owns the binding. The repeater used to render the same
     // connection_id/conn_1 pair a second time as editable free text, which is what the owner
     // hit: the field deciding step validity was an unlabelled box keyed by a guessed name.
@@ -1938,9 +1926,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Check city input/i }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     const ifSelectorInput = screen.getByDisplayValue("state.inputs.city");
     fireEvent.change(ifSelectorInput, {
       target: { value: "state.needs_upscale" },
@@ -1968,7 +1954,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     fireEvent.change(switchSelectorInput, { target: { value: "" } });
     await waitFor(() => expect(screen.getByTestId("workflow-variable-suggestions-root-switch-selector")).toHaveTextContent("state.project_config.stack.language"));
     fireEvent.change(switchSelectorInput, { target: { value: "state.inputs.city" } });
-    expect(await screen.findByDisplayValue("Berlin")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue("Berlin")).toBeInTheDocument());
     expect(screen.getByText("case_id: berlin")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Next step for Berlin" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Next step for Default" })).toBeInTheDocument();
@@ -2251,11 +2237,9 @@ describe("WorkflowsDetailPage step smart setup", () => {
 
     const actionSelect = await screen.findByRole("combobox", { name: "Action" });
     await waitFor(() => expect(actionSelect).toHaveTextContent("Convert with legacy release"));
-    expect(
-      await setupOptions(actionSelect).findByRole("option", {
+    await waitFor(() => expect(setupOptions(actionSelect).getByRole("option", {
         name: "Convert with legacy release",
-      }),
-    ).toBeInTheDocument();
+      })).toBeInTheDocument());
     expect(
       setupOptions(actionSelect).queryByRole("option", {
         name: "Convert with current release",
@@ -2376,9 +2360,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     await waitFor(() => expect(setupOptions(connectionSelect).getByRole("option", {
         name: "Mail account (invoices@example.test)",
       })).toBeEnabled());
-    expect(
-      await screen.findByText("The saved mail account was removed. Choose another one for this action."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The saved mail account was removed. Choose another one for this action.")).toBeInTheDocument());
     expect(setupOptions(connectionSelect).getByRole("option", { name: "Choose connection" })).toBeEnabled();
     expect(
       setupOptions(connectionSelect).getByRole("option", {
@@ -2638,12 +2620,10 @@ describe("WorkflowsDetailPage step smart setup", () => {
         name: "Connection",
       });
       await waitFor(() => expect(connectionSelect).toHaveTextContent("Mail account (invoices@example.test)"));
-      expect(
-        await setupOptions(connectionSelect).findByRole("option", {
+      await waitFor(() => expect(setupOptions(connectionSelect).getByRole("option", {
           name: /Mail account \(invoices@example\.test\) —/,
-        }),
-      ).toBeInTheDocument();
-      expect(await screen.findByText(guidance)).toBeInTheDocument();
+        })).toBeInTheDocument());
+      await waitFor(() => expect(screen.getByText(guidance)).toBeInTheDocument());
       editStepLabel(); // With a change waiting, only readiness decides whether Save is live.
       expect(screen.getByRole("button", { name: "Save parameters" })).toBeDisabled();
 
@@ -2827,9 +2807,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     );
 
     const connectionSelect = await screen.findByRole("combobox", { name: "Connection" });
-    expect(
-      await screen.findByText("The saved mail account was removed. Choose another one for this action."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The saved mail account was removed. Choose another one for this action.")).toBeInTheDocument());
 
     fireEvent.click(
       screen.getByRole("button", { name: "Use Mail account (invoices@example.test)" }),
@@ -3164,9 +3142,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
     } as never);
 
     renderPage({ embedded: false });
-    expect(
-      await screen.findByText("Validation: 1 errors / 0 warnings"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Validation: 1 errors / 0 warnings")).toBeInTheDocument());
     expect(screen.queryByText("Validation: valid")).not.toBeInTheDocument();
     fireEvent.click(
       await screen.findByRole("button", { name: /Convert stale document/i }),
@@ -3510,11 +3486,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       await screen.findByRole("button", { name: /Publish required record/i }),
     );
 
-    expect(
-      await screen.findByText(
-        "Link this workflow to a project to choose a resource account for this action.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Link this workflow to a project to choose a resource account for this action.")).toBeInTheDocument());
     expect(screen.queryByText(/no longer available/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Connection" })).not.toBeInTheDocument();
     await expectStepIsNotSaved();
@@ -3528,11 +3500,7 @@ describe("WorkflowsDetailPage step smart setup", () => {
       await screen.findByRole("button", { name: /Publish required record/i }),
     );
 
-    expect(
-      await screen.findByText(
-        "Connect a compatible resource account before using this action.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Connect a compatible resource account before using this action.")).toBeInTheDocument());
     expect(screen.queryByText(/no longer available/i)).not.toBeInTheDocument();
     // One Connection control: nothing to pick yet, so it offers adding one in the extension.
     const opened = vi.spyOn(window, "open").mockReturnValue(null);

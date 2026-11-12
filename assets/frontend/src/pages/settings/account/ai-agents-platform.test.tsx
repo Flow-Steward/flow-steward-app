@@ -80,10 +80,10 @@ describe("PlatformClientStep", () => {
     mockedFetch.mockResolvedValue(view());
     mockedCreate.mockResolvedValue(view({ clients: [ACTIVE] }));
     renderStep();
-    expect(await screen.findByText("https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("https://teams.microsoft.com/api/platform/v1.0/oAuthRedirect")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Create the Microsoft 365 client" }));
     await waitFor(() => expect(mockedCreate).toHaveBeenCalledWith("microsoft_365"));
-    expect(await screen.findByText(CLIENT_ID)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(CLIENT_ID)).toBeInTheDocument());
     expect(screen.getByText("https://fs.example.com/oauth/authorize")).toBeInTheDocument();
     expect(screen.getAllByText("https://fs.example.com/oauth/token")).toHaveLength(2);
     expect(screen.getByText("offline_access")).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("PlatformClientStep", () => {
     fireEvent.change(screen.getByLabelText(/OAuth client registration ID/), { target: { value: "OTVkNjMyZTEtYmU2Ny00NjYy" } });
     expect(download).toBeEnabled();
     fireEvent.click(download);
-    expect(await screen.findByText("Downloaded flow-steward-operator-m365-copilot.zip.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Downloaded flow-steward-operator-m365-copilot.zip.")).toBeInTheDocument());
     expect(created).toHaveLength(1);
     expect(created[0].type).toBe("application/zip");
     expect(click).toHaveBeenCalled();
@@ -128,14 +128,14 @@ describe("PlatformClientStep", () => {
     const dialog = await screen.findByRole("alertdialog", { name: "Revoke the Microsoft 365 client?" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Revoke the Microsoft 365 client" }));
     await waitFor(() => expect(mockedRevoke).toHaveBeenCalledWith(CLIENT_ID));
-    expect(await screen.findByRole("button", { name: "Create the Microsoft 365 client" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create the Microsoft 365 client" })).toBeInTheDocument());
     expect(screen.getByText("Revoked earlier: 1")).toBeInTheDocument();
   });
 
   it("does not offer a client while cloud AI apps are not ready", async () => {
     mockedFetch.mockResolvedValue(view({ portal: null, readiness: { ready: false, blockers: ["public_https_required"] } }));
     renderStep();
-    expect(await screen.findByText("Cloud AI apps are not ready")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Cloud AI apps are not ready")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Create the Microsoft 365 client" })).toBeDisabled();
   });
 });

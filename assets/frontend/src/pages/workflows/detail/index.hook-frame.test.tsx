@@ -396,7 +396,7 @@ it("waits for an explicitly selected connected Hook before adding to its own chi
         step: expect.objectContaining({ step_id: "set_variable", step_kind: "set_variable", group_id: null }) },
     ]);
     expect(scope.canvasChangeSet.preview).toEqual(authorBefore);
-    expect(await screen.findByRole("group", { name: "Open step Set variable" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Set variable" })).toBeInTheDocument());
     expect(screen.getByRole("group", { name: "Open step Other: Fix the customer name" })).toBeInTheDocument();
     expect(screen.getAllByRole("group", { name: "Open step Set variable" })).toHaveLength(1);
     expect(fetchSpy.mock.calls.filter(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))).toEqual([]);
@@ -656,7 +656,7 @@ it.each([
     });
     expect(requests.slice(afterSwitch).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
     view.switchActor(HOOK_ACTOR_A);
-    expect(await screen.findByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument());
     // Returning to A restores its draft, while A's old callback occurrence stays retired.
     await act(async () => {
       expect(await heldApply()).toBe(false);
@@ -801,7 +801,7 @@ it("lets the current actor intentionally discard its suspended child draft witho
     await waitFor(() => expect(screen.queryByRole("button", { name: "Discard changes" })).not.toBeInTheDocument());
     mockedFetchWorkflowLinkedProjects.mockResolvedValue([{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }] as never);
     await act(async () => { await view.client.refetchQueries({ queryKey: ["workflows", "weekly_report", "hook-projects"], type: "active" }); });
-    expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument());
     expect(screen.queryByRole("group", { name: "Open step Pending client action" })).not.toBeInTheDocument();
     expect(requests.slice(afterWithdrawal).filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
     expect(postedChangeSets()).toEqual([]);
@@ -856,7 +856,7 @@ it.each([
   // The picker only appears after the linked-project query resolves. Confirm both
   // authorized choices exist; an empty mocked project list must not hide fallback.
   fireEvent.click(select);
-  expect(await screen.findByRole("option", { name: "Alpha project" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("option", { name: "Alpha project" })).toBeInTheDocument());
   expect(screen.getByRole("option", { name: "Beta project" })).toBeInTheDocument();
   await userEvent.keyboard("{Escape}");
   expect(select).toHaveTextContent("Choose a linked project");
@@ -865,7 +865,7 @@ it.each([
   // Mount the real declaration/binding consumer as well as the canvas list consumer.
   fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
   const editor = await screen.findByRole("dialog", { name: "Step editor" });
-  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  await waitFor(() => expect(within(editor).getByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument());
   expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
   expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
   expect(postedChangeSets()).toEqual([]);
@@ -884,11 +884,11 @@ it("waits for authorized Hook membership before reading a selected project's bin
   expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
   fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
   const editor = await screen.findByRole("dialog", { name: "Step editor" });
-  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  await waitFor(() => expect(within(editor).getByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument());
   expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
   expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
   await act(async () => { resolveMembership([{ id: "project_alpha", name: "Alpha project" }, { id: "project_beta", name: "Beta project" }]); });
-  expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument());
   expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
   expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
 });
@@ -914,11 +914,11 @@ it.each([403, 404])("withdraws Builder Hook authority when authorized link enume
   await screen.findByRole("group", { name: "Open step Prepare the order" });
   await waitFor(() => expect(membershipRequests).toContain("/api/workflows/weekly_report/linked-projects"));
   expect(perProjectEnumeration).toEqual([]);
-  expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Linked projects could not be loaded")).toBeInTheDocument());
   expect(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" })).toBeDisabled();
   fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
   const editor = await screen.findByRole("dialog", { name: "Step editor" });
-  expect(await within(editor).findByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument();
+  await waitFor(() => expect(within(editor).getByText("Each project keeps its own steps in a hook. Choose the project to add or change them.")).toBeInTheDocument());
   expect(requests.filter(({ path }) => /\/hooks(?:\/|$)/.test(path))).toEqual([]);
   expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
   expect(requests.filter(({ method }) => !["GET", "HEAD"].includes(method))).toEqual([]);
@@ -958,7 +958,7 @@ it("rejects a held child delete after its Hook project loses authority and does 
   await act(async () => { releaseGuard(response); await parsed; });
   expect(screen.queryByRole("group", { name: "Open step Beta: Fix the customer name" })).not.toBeInTheDocument();
   await act(async () => { await view.router.navigate(validEntry); });
-  expect(await screen.findByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Beta: Fix the customer name" })).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Discard changes" })).not.toBeInTheDocument();
   expect(postedChangeSets()).toEqual([]);
   expect(changeUrls).toEqual([]);
@@ -1082,7 +1082,7 @@ it.each(["invalid URL", "failed membership refresh"])("withdraws dirty child Hoo
         await client.refetchQueries({ type: "active", predicate: (query) => query.queryKey[0] === "workflows" && query.queryKey[1] === "weekly_report"
           && ["hook-projects", "schedule-projects"].includes(String(query.queryKey[2])) });
       });
-      expect(await screen.findByText("Linked projects could not be loaded")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Linked projects could not be loaded")).toBeInTheDocument());
     }
 
     // The old activeOwner must not redraw a writable child from its cached graph.
@@ -1110,7 +1110,7 @@ it.each(["invalid URL", "failed membership refresh"])("withdraws dirty child Hoo
     });
     const picker = await screen.findByTestId("hook-project-picker");
     await waitFor(() => expect(within(picker).getByRole("combobox", { name: "Project for hooks" })).toHaveTextContent("Beta project"));
-    expect(await screen.findByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /Apply changes/ })).toBeEnabled();
     expect(requests.some(({ path }) => path.startsWith("/api/projects/project_alpha/workflows/weekly_report/hooks"))).toBe(false);
     expect(postedChangeSets()).toEqual([]);
@@ -1139,7 +1139,7 @@ it.each([false, true])("refreshes selected-project Hook-of membership after succ
   try {
     await waitFor(() => expect(membershipReads).toBe(1));
     if (initiallyLinked) {
-      expect(await screen.findByRole("navigation", { name: "Hook of" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("navigation", { name: "Hook of" })).toBeInTheDocument());
       expect(whereUsedReads).toBe(1);
     } else {
       await act(async () => { await Promise.resolve(); });
@@ -1154,7 +1154,7 @@ it.each([false, true])("refreshes selected-project Hook-of membership after succ
       await waitFor(() => expect(screen.queryByRole("navigation", { name: "Hook of" })).not.toBeInTheDocument());
       expect(whereUsedReads).toBe(1);
     } else {
-      expect(await screen.findByRole("navigation", { name: "Hook of" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("navigation", { name: "Hook of" })).toBeInTheDocument());
       expect(whereUsedReads).toBe(1);
     }
   } finally { view.unmount(); client.clear(); }
@@ -1288,7 +1288,7 @@ it("keeps the requested hook child selection while its detail is deferred and sa
     releaseOtherDetail();
     await otherDetailReady;
   });
-  expect(await screen.findByDisplayValue("hook:after_finish:fix_name")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByDisplayValue("hook:after_finish:fix_name")).toBeInTheDocument());
   await waitFor(() => expect(screen.getByRole("combobox", { name: "Parameter 1" })).toHaveValue(""));
   await openChild("before_finish");
   const firstValue = await screen.findByRole("textbox", { name: "Parameter value 1" });
@@ -1436,7 +1436,7 @@ describe("a hook on the builder canvas (B14)", () => {
     expect(screen.queryByRole("button", { name: "More actions for Prepare the order" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Edit step Prepare the order" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("group", { name: "Open step Prepare the order" }));
-    expect(await screen.findByTestId("protected-step-view")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("protected-step-view")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("group", { name: "Open step Fix the customer name" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Fix the customer name"));
   });
@@ -1506,7 +1506,7 @@ describe("a hook on the builder canvas (B14)", () => {
 
     // An author step opens read-only, with nothing to delete or save.
     window.editStep?.("prepare");
-    expect(await screen.findByTestId("protected-step-view")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("protected-step-view")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Delete step" })).not.toBeInTheDocument();
     expect(changeUrls.some((url) => url.includes("/api/workflows/weekly_report/changes"))).toBe(false);
   });
@@ -1526,7 +1526,7 @@ describe("a hook on the builder canvas (B14)", () => {
     );
     const body = JSON.parse(String(fetchSpy.mock.calls.find(([input]) => stringFromUnknownValue(input).endsWith("/create-and-bind"))?.[1]?.body || "{}"));
     expect(body).toMatchObject({ expected_revision: 0, child_workflow_id: "weekly_report_before_finish" });
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toBeInTheDocument());
   });
 
   it("opens the hook drawer from the frame header with Smart setup, TEST RUN and Automation", async () => {
@@ -1537,11 +1537,11 @@ describe("a hook on the builder canvas (B14)", () => {
     fireEvent.keyDown(within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0], { key: "Enter" });
 
     const drawer = await screen.findByRole("dialog", { name: "Step editor" });
-    expect(await within(drawer).findByRole("tab", { name: "Smart setup" })).toBeInTheDocument();
+    await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Smart setup" })).toBeInTheDocument());
     expect(within(drawer).getByRole("tab", { name: "Test Run" })).toBeInTheDocument();
     expect(within(drawer).getByRole("tab", { name: "Automation" })).toBeInTheDocument();
     fireEvent.click(within(drawer).getByRole("tab", { name: "Test Run" }));
-    expect(await within(drawer).findByRole("button", { name: "Run hook test run" })).toBeInTheDocument();
+    await waitFor(() => expect(within(drawer).getByRole("button", { name: "Run hook test run" })).toBeInTheDocument());
   });
 
   it("runs a member's step Test Run against the hook's workflow", async () => {
@@ -1592,7 +1592,7 @@ describe("a hook on the builder canvas (B14)", () => {
     // No workflow selector, mapping, Connect or Disconnect: the hook explains itself.
     expect(within(drawer).queryByRole("combobox", { name: "Workflow to run here" })).not.toBeInTheDocument();
     expect(within(drawer).queryByRole("button", { name: /^(Connect|Disconnect|Check|Create and connect)$/ })).not.toBeInTheDocument();
-    expect(await within(drawer).findByText("1 step")).toBeInTheDocument();
+    await waitFor(() => expect(within(drawer).getByText("1 step")).toBeInTheDocument());
 
     fireEvent.click(within(drawer).getByRole("button", { name: "Clear the hook" }));
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Clear the hook?" })).getByRole("button", { name: "Clear the hook" }));
@@ -1680,7 +1680,7 @@ it.each(["header", "Add step"])("keeps an unapplied hook draft when another hook
     fireEvent.click(within(screen.getByRole("dialog", { name: "Add step to After the order is finished" })).getByRole("button", { name: "StepA step in this hook." }));
     await choosePaletteOption("Set variable");
   }
-  expect(await screen.findByText("Apply or discard the changes in hook Before the order is finished first.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Apply or discard the changes in hook Before the order is finished first.")).toBeInTheDocument());
   expect(screen.getByRole("group", { name: "Open step Pending client action" })).toBeInTheDocument();
   expect(postedChangeSets()).toEqual([]);
   expect(changeUrls).toEqual([]);
@@ -1802,7 +1802,7 @@ it.each(["production", "development"])("keeps the protected core declaration rea
   setDeclarationSession(mode); installHookedWorkflow(); await renderHookedBuilder();
   within(frame()).getAllByRole("button", { name: /Before the order is finished/ })[0].focus();
   await userEvent.keyboard("{Enter}");
-  expect(await screen.findByTestId("protected-step-view")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByTestId("protected-step-view")).toBeInTheDocument());
   expect(screen.queryByRole("textbox", { name: "Hook name" })).not.toBeInTheDocument();
   fireEvent.click(within(frame()).getByRole("button", { name: "Add step to Before the order is finished" }));
   // Current Hook Add composition still owns the Step/Group/For each submenu.
@@ -1811,7 +1811,7 @@ it.each(["production", "development"])("keeps the protected core declaration rea
   expect(palette.queryByRole("option", { name: "Hook" })).not.toBeInTheDocument();
   expect(palette.getByRole("option", { name: "Invoke workflow" })).toBeInTheDocument();
   fireEvent.click(palette.getByRole("option", { name: "Wait" }));
-  expect(await screen.findByRole("group", { name: "Open step Wait" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Wait" })).toBeInTheDocument());
   expect(postedChangeSets()).toEqual([]);
 });
 
@@ -1856,7 +1856,7 @@ it("refuses deleting a child Group whose nested For each step owns a saved disab
   const editor = await screen.findByRole("dialog", { name: "Group editor" });
   fireEvent.click(within(editor).getByRole("button", { name: "Delete group" }));
 
-  expect(await screen.findByText(/Guard child/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Guard child/)).toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Open Automation" })).toBeInTheDocument();
   expect(reactionRequests.some((url) => url.pathname === "/api/workflows/client_fix/reactions"
     && url.searchParams.get("project_id") === "project_alpha"
@@ -1884,7 +1884,7 @@ it("offers selected child Step Delete but no protected author Delete, then drops
   await screen.findByRole("group", { name: "Open step Other: Fix the customer name" });
 
   fireEvent.click(screen.getByRole("group", { name: "Open step Prepare the order" }));
-  expect(await screen.findByTestId("protected-step-view")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByTestId("protected-step-view")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "More actions for Prepare the order" })).not.toBeInTheDocument();
 
   const childCard = screen.getByRole("group", { name: "Open step Fix the customer name" });
@@ -1995,12 +1995,12 @@ it("undoes and redoes the last child Delete from an empty canvas even when the a
   expect(screen.queryByRole("toolbar", { name: "Selected items" })).not.toBeInTheDocument();
   fireEvent.keyDown(reactFlowNodeFor("Fix the customer name"), { key: "Delete", code: "Delete" });
   await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Fix the customer name" })).not.toBeInTheDocument());
-  expect(await screen.findByRole("button", { name: "Undo" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument());
   const canvas = screen.getByRole("region", { name: "Workflow canvas" });
   canvas.focus();
   expect(canvas).toHaveFocus();
   fireEvent.keyDown(canvas, { key: "z", code: "KeyZ", ctrlKey: true });
-  expect(await screen.findByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument());
   fireEvent.keyDown(canvas, { key: "z", code: "KeyZ", ctrlKey: true, shiftKey: true });
   await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Fix the customer name" })).not.toBeInTheDocument());
   expect(postedChangeSets()).toEqual([]);
@@ -2018,7 +2018,7 @@ it("keeps an inactive connected child out of empty-selection Undo for the editab
   canvas.focus();
   expect(canvas).toHaveFocus();
   fireEvent.keyDown(canvas, { key: "z", code: "KeyZ", ctrlKey: true });
-  expect(await screen.findByRole("group", { name: "Open step Prepare the order" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Prepare the order" })).toBeInTheDocument());
   expect(screen.getByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument();
   expect(postedChangeSets()).toEqual([]);
 });
@@ -2237,10 +2237,10 @@ it("cancels hook clearing above the inspector and stages one undoable clear only
   await waitFor(() => expect(screen.queryByRole("group", { name: "Open step Fix the customer name" })).not.toBeInTheDocument());
   expect(within(frame()).getByText("Empty")).toBeInTheDocument();
   expect(inspector).toBeInTheDocument();
-  expect(await screen.findByRole("button", { name: "Apply changes" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Apply changes" })).toBeInTheDocument());
   screen.getByRole("region", { name: "Workflow canvas" }).focus();
   await user.keyboard("{Control>}z{/Control}");
-  expect(await screen.findByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Fix the customer name" })).toBeInTheDocument());
   expect(within(frame()).queryByText("Empty")).not.toBeInTheDocument();
   // Exactly one staged batch: a single Undo returns to no pending graph history.
   expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();

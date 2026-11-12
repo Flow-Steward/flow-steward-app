@@ -61,7 +61,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -73,7 +73,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
 
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
 
-    expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Incoming webhooks")).toBeInTheDocument());
   });
 
   it("renders auth-aware request examples for every webhook auth mode and payload style", async () => {
@@ -227,7 +227,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -241,32 +241,28 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     const backToTriggers = () => fireEvent.click(screen.getByRole("button", { name: "Triggers" }));
 
     fireEvent.click(await screen.findByRole("button", { name: /Basic JSON/ }));
-    expect(await screen.findByText(/-u 'workflow:<password>'/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/-u 'workflow:<password>'/)).toBeInTheDocument());
 
     backToTriggers();
     fireEvent.click(await screen.findByRole("button", { name: /Shared Form/ }));
-    expect(await screen.findByText(/X-Demo-Secret: <shared-secret>/)).toBeInTheDocument();
-    expect(
-      await screen.findByText(/--data-urlencode 'title=Sync inventory now'/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/X-Demo-Secret: <shared-secret>/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/--data-urlencode 'title=Sync inventory now'/)).toBeInTheDocument());
 
     backToTriggers();
     fireEvent.click(await screen.findByRole("button", { name: /HMAC Text/ }));
-    expect(
-      await screen.findByText(/X-Demo-Signature: sha256=<hex-digest>/),
-    ).toBeInTheDocument();
-    expect(await screen.findByText(/Content-Type: text\/plain/)).toBeInTheDocument();
-    expect(await screen.findByText(/--data-raw 'Sync inventory now'/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/X-Demo-Signature: sha256=<hex-digest>/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Content-Type: text\/plain/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/--data-raw 'Sync inventory now'/)).toBeInTheDocument());
 
     backToTriggers();
     fireEvent.click(await screen.findByRole("button", { name: /Multipart Upload/ }));
-    expect(await screen.findByText(/Authorization: Bearer <token>/)).toBeInTheDocument();
-    expect(await screen.findByText(/-F 'files=@\/path\/to\/sample.json'/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Authorization: Bearer <token>/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/-F 'files=@\/path\/to\/sample.json'/)).toBeInTheDocument());
 
     backToTriggers();
     fireEvent.click(await screen.findByRole("button", { name: /Bearer JSON/ }));
-    expect(await screen.findByText(/Idempotency-Key: <unique-key>/)).toBeInTheDocument();
-    expect(await screen.findByText(/Content-Type: application\/json/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Idempotency-Key: <unique-key>/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Content-Type: application\/json/)).toBeInTheDocument());
   });
 
   it("threads explicit project context through webhook lifecycle writes", async () => {
@@ -467,7 +463,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     renderPage({
       initialEntry: "/registry/workflows/weekly_report/builder?project_id=proj-3",
     });
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -601,7 +597,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -614,12 +610,8 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
     fireEvent.click(await screen.findByRole("button", { name: /inventory_sync/i }));
 
-    expect(
-      await screen.findByText(/Public base URL is not configured/i),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText(/Content-Type: application\/x-www-form-urlencoded/),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Public base URL is not configured/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Content-Type: application\/x-www-form-urlencoded/)).toBeInTheDocument());
 
     fireEvent.change(screen.getByLabelText("Dry-run headers"), {
       target: { value: '{\n  "x-event-type": "sync"\n}' },
@@ -698,7 +690,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -713,9 +705,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     fireEvent.click(screen.getByLabelText("application/json"));
     fireEvent.click(screen.getByLabelText("text/plain"));
 
-    expect(
-      await screen.findByText(/Text-only webhooks need an explicit selector/i),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Text-only webhooks need an explicit selector/i)).toBeInTheDocument());
     expect(screen.getByRole("textbox", { name: /email \*string/i })).toHaveAttribute(
       "placeholder",
       "body.body",
@@ -786,7 +776,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -798,11 +788,11 @@ it("scopes trigger list requests with the resolved linked project id", async () 
 
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
 
-    expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
-    expect(await screen.findByText("No incoming webhooks yet.")).toBeInTheDocument();
-    expect(await screen.findByRole("region", { name: "Provider triggers" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /Sample Tasks task created/i })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "New provider trigger" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Incoming webhooks")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No incoming webhooks yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("region", { name: "Provider triggers" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Sample Tasks task created/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "New provider trigger" })).toBeInTheDocument());
     expect(screen.queryByText("Pick a provider trigger from the catalog.")).not.toBeInTheDocument();
     const requested = fetchSpy.mock.calls.map(([input]) => stringFromUnknownValue(input));
     expect(requested.some((url) => url.includes("/api/workflows/weekly_report/triggers"))).toBe(true);
@@ -858,7 +848,7 @@ it("scopes trigger list requests with the resolved linked project id", async () 
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -870,9 +860,9 @@ it("scopes trigger list requests with the resolved linked project id", async () 
 
     fireEvent.click(await screen.findByRole("tab", { name: "Webhook" }));
 
-    expect(await screen.findByText("Incoming webhooks")).toBeInTheDocument();
-    expect(await screen.findByText("No incoming webhooks yet.")).toBeInTheDocument();
-    expect(await screen.findByText(/Resolving project context for provider triggers/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Incoming webhooks")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No incoming webhooks yet.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Resolving project context for provider triggers/i)).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("button", { name: "New provider trigger" })).toBeDisabled());
   });
 });

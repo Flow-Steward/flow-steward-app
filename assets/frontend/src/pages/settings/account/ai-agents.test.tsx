@@ -237,7 +237,7 @@ describe("AiAgentsSection", () => {
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
     expect(within(currentStep()).getByRole("heading", { name: "Step 4. Set up Local agent" })).toBeInTheDocument();
     expect(screen.getByText("Your token is already in this setup")).toBeInTheDocument();
-    expect(await screen.findByText("No request yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No request yet")).toBeInTheDocument());
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText(/^Monitor and run workflows · All projects · Expires /)).toBeInTheDocument();
     expect(screen.getByText("The plugin carries this installation's MCP address and your token, so there is nothing to configure.")).toBeInTheDocument();
@@ -263,7 +263,7 @@ describe("AiAgentsSection", () => {
       await waitFor(() => expect(downloadButton).toBeEnabled());
       fireEvent.click(downloadButton);
       await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
-      expect(await screen.findByText("Downloaded flow-steward-operator-claude-code.zip.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Downloaded flow-steward-operator-claude-code.zip.")).toBeInTheDocument());
       const files = readStoredZip(await blobBytes(blobs[0]));
       const manifest = JSON.parse(files.get("flow-steward-operator/.claude-plugin/plugin.json") || "{}");
       expect(manifest.mcpServers["flow-steward"]).toEqual({ type: "http", url: MCP, headers: { Authorization: `Bearer ${SECRET}` } });
@@ -282,7 +282,7 @@ describe("AiAgentsSection", () => {
       await createLocalToken();
       const block = screen.getByRole("group", { name: "Add the server" });
       fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
-      expect(await within(block).findByRole("button", { name: "Copied" })).toBeInTheDocument();
+      await waitFor(() => expect(within(block).getByRole("button", { name: "Copied" })).toBeInTheDocument());
       expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
       expect(screen.queryByText("Copied.")).not.toBeInTheDocument();
       await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument());
@@ -326,11 +326,11 @@ describe("AiAgentsSection", () => {
     mockedTokens.mockResolvedValue({ tokens: [{ id: "tok-1", label: "AI agent · Local agent", created_at: "2026-10-31T12:00:00Z", scopes: [], allowed_project_ids: [], allowed_workflow_ids: [] }], total: 1, page: 1, per_page: 25, total_pages: 1 } as never);
     await chooseLocalOperator();
     fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-    expect(await screen.findByText("We could not confirm whether the token was created")).toBeInTheDocument();
-    expect(await screen.findByText(/AI agent · Local agent/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("We could not confirm whether the token was created")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/AI agent · Local agent/)).toBeInTheDocument());
     expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Check again" }));
-    expect(await screen.findByText("This token already exists; its secret was shown once")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This token already exists; its secret was shown once")).toBeInTheDocument());
     expect(mockedIssue).toHaveBeenCalledTimes(2);
     expect(mockedIssue.mock.calls[1][0]).toBe(mockedIssue.mock.calls[0][0]);
     expect(mockedIssue.mock.calls[1][1]).toEqual(mockedIssue.mock.calls[0][1]);
@@ -342,7 +342,7 @@ describe("AiAgentsSection", () => {
     mockedIssue.mockResolvedValueOnce(created());
     await chooseLocalOperator();
     fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-    expect(await screen.findByText("This access is more than your own role allows.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This access is more than your own role allows.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Create token" }));
     await waitFor(() => expect(mockedIssue).toHaveBeenCalledTimes(2));
     expect(mockedIssue.mock.calls[1][0]).not.toBe(mockedIssue.mock.calls[0][0]);
@@ -356,7 +356,7 @@ describe("AiAgentsSection", () => {
     mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: [], revoked: true, last_used_at: "2026-10-31T12:05:00Z" } });
     fireEvent.click(within(confirm).getByRole("button", { name: "Revoke token" }));
     await waitFor(() => expect(mockedRevoke).toHaveBeenCalledWith("tok-1"));
-    expect(await screen.findByText("Revoked")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Revoked")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
     expect(screen.getByText(/Access used/)).toBeInTheDocument();
     expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
@@ -387,7 +387,7 @@ describe("AiAgentsSection", () => {
     expect(screen.queryByText("Not published")).not.toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Flow Steward Operator/ })).toBeChecked();
     clickContinue();
-    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("A public HTTPS address is required")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
     clickContinue();
     expect(screen.queryByText("Add Flow Steward as a custom MCP connector")).not.toBeInTheDocument();

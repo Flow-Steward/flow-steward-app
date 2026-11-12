@@ -100,7 +100,7 @@ describe("TrashPage", () => {
     await screen.findByText("Project One");
     expect(screen.getByRole("columnheader", { name: "Tipas" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
-    expect(await screen.findByRole("menuitem", { name: "Tipas" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Tipas" })).toBeInTheDocument());
     expect(screen.queryByRole("columnheader", { name: "Įveskite" })).not.toBeInTheDocument();
     expect(screen.getByText("Tool One")).toBeInTheDocument();
   });
@@ -118,14 +118,14 @@ describe("TrashPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Loading deleted items")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading deleted items")).toBeInTheDocument());
     expect(screen.queryByText("No deleted items found")).not.toBeInTheDocument();
     expect(screen.queryByText(/showing 0 of 0/i)).not.toBeInTheDocument();
 
     resolveList({ items: [] });
 
-    expect(await screen.findByText(/showing 0 of 0/i)).toBeInTheDocument();
-    expect(await screen.findByText("No deleted items found")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/showing 0 of 0/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("No deleted items found")).toBeInTheDocument());
   });
 
   it("opens lifecycle modal for bulk purge of a single project instead of a direct confirmation", async () => {
@@ -188,7 +188,7 @@ describe("TrashPage", () => {
 
     const triggers = await screen.findAllByRole("button", { name: /^Actions for / });
     await user.click(triggers[0]);
-    expect(await screen.findByRole("menuitem", { name: "Restore" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Restore" })).toBeInTheDocument());
     expect(screen.getByRole("menuitem", { name: "Purge" })).toBeInTheDocument();
   });
 
@@ -285,7 +285,7 @@ describe("TrashPage", () => {
 
     await waitFor(() => expect(mockedHardDeleteTrashItem).toHaveBeenCalledWith("registry_tool", "tool-1", ""));
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(await screen.findByText("Tool “Tool One” purged.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Tool “Tool One” purged.")).toBeInTheDocument());
   });
 
   it("confirms a row restore in place of the row, with a primary action and the selection untouched", async () => {
@@ -314,7 +314,7 @@ describe("TrashPage", () => {
     await user.click(confirm);
 
     await waitFor(() => expect(mockedRestoreTrashItem).toHaveBeenCalledWith("registry_skill", "skill-1", ""));
-    expect(await screen.findByText("Skill “Skill One” restored.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Skill “Skill One” restored.")).toBeInTheDocument());
     // A row action never touches the selection.
     expect(screen.getByRole("checkbox", { name: "Select Tool Tool One" })).toBeChecked();
   });
@@ -367,7 +367,7 @@ describe("TrashPage", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     await user.click(within(question).getByRole("button", { name: "Restore 2 items" }));
 
-    expect(await screen.findByText("1 of 2 items restored.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 2 items restored.")).toBeInTheDocument());
     expect(screen.getByText(/Skill One: restore blocked/)).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Select Skill Skill One" })).toBeChecked();
     expect(screen.getByRole("checkbox", { name: "Select Tool Tool One" })).not.toBeChecked();
@@ -401,7 +401,7 @@ describe("TrashPage", () => {
     expect(within(dialog).getByRole("list", { name: "Affected objects" })).toHaveTextContent("Tool · Tool One");
     expect(within(dialog).getByText("This cannot be undone.")).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Purge 2 items" }));
-    expect(await screen.findByText("2 items purged.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 items purged.")).toBeInTheDocument());
   });
 
   it("moves focus to the page title when the last row is purged", async () => {

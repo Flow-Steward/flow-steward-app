@@ -52,7 +52,7 @@ describe("ProjectSecretApprovals", () => {
     mockedFetch.mockResolvedValue([pendingRow("c1", "sha256:one")]);
     renderPanel();
 
-    expect(await screen.findByText("Shop c1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Shop c1")).toBeInTheDocument());
     expect(screen.getByText("api_token → Shop token")).toBeInTheDocument();
     expect(screen.getByText("https://api.example.test:443")).toBeInTheDocument();
     expect(screen.getByText(/rel-1.*→.*rel-2/)).toBeInTheDocument();

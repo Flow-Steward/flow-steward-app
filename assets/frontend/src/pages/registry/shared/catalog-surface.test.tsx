@@ -232,7 +232,7 @@ describe("RegistryCatalogSurface", () => {
     renderCatalogSurface({ createLabel: "Skill", endpoint: "/api/skills" });
 
     expect(screen.queryByRole("button", { name: "+ New Skill" })).not.toBeInTheDocument();
-    expect(await screen.findByTestId("registry-read-only-notice")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("registry-read-only-notice")).toBeInTheDocument());
   });
 
   it("includes the router basename in native grid detail links", async () => {
@@ -270,7 +270,7 @@ describe("RegistryCatalogSurface", () => {
     await user.click(trigger);
     await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
-    expect(await screen.findByRole("alertdialog", { name: "Delete writer" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alertdialog", { name: "Delete writer" })).toBeInTheDocument());
     expect(screen.getByText("This moves writer to Trash.")).toBeInTheDocument();
     expect(mockedDeleteRegistryEntity).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -295,7 +295,7 @@ describe("RegistryCatalogSurface", () => {
     await user.click(trigger);
     await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
 
-    expect(await screen.findByRole("alertdialog", { name: "Delete writer" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alertdialog", { name: "Delete writer" })).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(trigger).toHaveFocus());
   });
@@ -317,10 +317,10 @@ describe("RegistryCatalogSurface", () => {
     await user.click(trigger);
     await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
 
-    expect(await screen.findByRole("dialog", { name: "Clone writer" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Clone writer" })).toBeInTheDocument());
     fireEvent.change(screen.getByLabelText("New ID"), { target: { value: "BAD ID" } });
     fireEvent.click(screen.getByRole("button", { name: "Clone" }));
-    expect(await screen.findByText(/Agent ID must start with a lowercase letter/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Agent ID must start with a lowercase letter/i)).toBeInTheDocument());
     expect(mockedFetchJson.mock.calls.some(([url]) => String(url).includes("/clone"))).toBe(false);
   });
 
@@ -369,7 +369,7 @@ describe("RegistryCatalogSurface", () => {
     await user.click(trigger);
     await user.click(await screen.findByRole("menuitem", { name: "Clone" }));
 
-    expect(await screen.findByRole("dialog", { name: "Clone writer" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Clone writer" })).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(trigger).toHaveFocus());
   });
@@ -481,7 +481,7 @@ describe("RegistryCatalogSurface", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
 
-    expect(await screen.findByText("Model catalog is unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Model catalog is unavailable.")).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Model" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Create entry" })).toBeDisabled();
 
@@ -492,7 +492,7 @@ describe("RegistryCatalogSurface", () => {
       expect(screen.getByRole("combobox", { name: "Model" })).toBeEnabled(),
     );
     fireEvent.click(screen.getByRole("combobox", { name: "Model" }));
-    expect(await screen.findByRole("option", { name: "GPT-5.6 Sol (OpenAI)" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "GPT-5.6 Sol (OpenAI)" })).toBeInTheDocument());
     expect(screen.queryByText("Model catalog is unavailable.")).not.toBeInTheDocument();
   });
 
@@ -572,12 +572,12 @@ describe("RegistryCatalogSurface", () => {
     });
 
     const user = userEvent.setup();
-    expect(await screen.findByText("Orphaned Tool")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Orphaned Tool")).toBeInTheDocument());
     expect(screen.queryByRole("columnheader", { name: "Availability" })).not.toBeInTheDocument();
     expect(screen.queryByText("Source MCP connector mcp_removed was deleted.")).not.toBeInTheDocument();
     expect(screen.getByText("unavailable")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: /^Actions for / }));
-    expect(await screen.findByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument());
     expect(screen.queryByRole("menuitem", { name: /Enable/ })).not.toBeInTheDocument();
 
     await waitFor(() => expect(mockedToggleRegistryEntity).not.toHaveBeenCalled());
@@ -640,7 +640,7 @@ describe("RegistryCatalogSurface", () => {
 
     await user.click(await screen.findByRole("button", { name: /^Actions for / }));
     await user.click(await screen.findByRole("menuitem", { name: "Delete" }));
-    expect(await screen.findByRole("dialog", { name: "Move MCP tool to Trash" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Move MCP tool to Trash" })).toBeInTheDocument());
     expect(screen.getByText("Catalog Flow")).toBeInTheDocument();
     expect(mockedDeleteRegistryEntity).not.toHaveBeenCalled();
     await user.click(screen.getByRole("checkbox"));
@@ -682,7 +682,7 @@ describe("RegistryCatalogSurface", () => {
   it("narrows the catalog to the rows matching the search", async () => {
     renderToolCatalog();
     const user = userEvent.setup();
-    expect(await screen.findByText("Alpha Probe")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Alpha Probe")).toBeInTheDocument());
 
     await user.type(
       screen.getByRole("searchbox", { name: "Search tool entries" }),
@@ -707,7 +707,7 @@ describe("RegistryCatalogSurface", () => {
 
     // The empty state has to count *visible* rows. Counting fetched ones would
     // leave a search that matches nothing looking like a broken table.
-    expect(await screen.findByTestId("tools-grid")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("tools-grid")).toBeInTheDocument());
     expect(screen.queryByText("Alpha Probe")).not.toBeInTheDocument();
   });
 
@@ -727,7 +727,7 @@ describe("RegistryCatalogSurface", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear all" }));
 
-    expect(await screen.findByText("Alpha Probe")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Alpha Probe")).toBeInTheDocument());
     expect(screen.getByText("Gamma Scan")).toBeInTheDocument();
   });
 
@@ -765,24 +765,24 @@ describe("RegistryCatalogSurface", () => {
     const user = userEvent.setup();
     await screen.findByText("31 of 31");
     await addCatalogFilter(user, "Category", "writing");
-    expect(await screen.findByText("3 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("3 of 31")).toBeInTheDocument());
     await addCatalogFilter(user, "Model", "model-b");
-    expect(await screen.findByText("2 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 of 31")).toBeInTheDocument());
     await addCatalogFilter(user, "Status", "Enabled");
-    expect(await screen.findByText("1 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 31")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Agent selected" })).toHaveAttribute("href", "/registry/agents/agent_selected");
     expect(screen.queryByRole("link", { name: "Agent disabled" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Agent other model" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Agent unclassified" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove Model filter" }));
-    expect(await screen.findByText("2 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 of 31")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Agent other model" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(await screen.findByText("31 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("31 of 31")).toBeInTheDocument());
     // Search after reset proves blank category/model rows were not dropped from
     // the underlying catalog. No invented category or model is persisted.
     await user.type(screen.getByRole("searchbox", { name: "Search agent entries" }), "Agent unclassified");
-    expect(await screen.findByText("1 of 31")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 31")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Agent unclassified" })).toBeInTheDocument();
     expect(rows).toEqual(originalRows);
     expectNoCatalogMutation();
@@ -820,18 +820,18 @@ describe("RegistryCatalogSurface", () => {
       expect(screen.getByRole("columnheader", { name })).toBeVisible();
     }
     await addCatalogFilter(user, "Category", "integration");
-    expect(await screen.findByText("4 of 32")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("4 of 32")).toBeInTheDocument());
     await addCatalogFilter(user, "Implementation", implementation);
     await addCatalogFilter(user, "Status", status);
-    expect(await screen.findByText("1 of 32")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 32")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: expectedName })).toHaveAttribute("href", `/registry/tools/${expectedId}`);
     for (const otherName of ["Internal integration", "MCP integration", "Native integration", "Disabled MCP integration", "Tool unclassified"]) {
       if (otherName !== expectedName) expect(screen.queryByRole("link", { name: otherName })).not.toBeInTheDocument();
     }
     await user.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(await screen.findByText("32 of 32")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("32 of 32")).toBeInTheDocument());
     await user.type(screen.getByRole("searchbox", { name: "Search tool entries" }), "Tool unclassified");
-    expect(await screen.findByText("1 of 32")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 32")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Tool unclassified" })).toBeInTheDocument();
     expect(rows).toEqual(originalRows);
     expectNoCatalogMutation();
@@ -857,16 +857,16 @@ describe("RegistryCatalogSurface", () => {
     const user = userEvent.setup();
     await screen.findByText("30 of 30");
     await addCatalogFilter(user, "Category", "writing");
-    expect(await screen.findByText("2 of 30")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("2 of 30")).toBeInTheDocument());
     await addCatalogFilter(user, "Status", "Disabled");
-    expect(await screen.findByText("1 of 30")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 30")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Disabled writing skill" })).toHaveAttribute("href", "/registry/skills/skill_disabled");
     expect(screen.queryByRole("link", { name: "Writing skill" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Skill unclassified" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(await screen.findByText("30 of 30")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("30 of 30")).toBeInTheDocument());
     await user.type(screen.getByRole("searchbox", { name: "Search skill entries" }), "Skill unclassified");
-    expect(await screen.findByText("1 of 30")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("1 of 30")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Skill unclassified" })).toBeInTheDocument();
     expect(rows).toEqual(originalRows);
     expectNoCatalogMutation();

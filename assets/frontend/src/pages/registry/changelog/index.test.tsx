@@ -101,7 +101,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByRole("button", { name: "Validate registry" }));
 
-    expect(await screen.findByText("Validation failed • errors: 1 • warnings: 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Validation failed • errors: 1 • warnings: 1")).toBeInTheDocument());
     expect(screen.getByText("missing_reference")).toBeInTheDocument();
     expect(screen.getByText("unused_entity")).toBeInTheDocument();
     expect(screen.getByText("error")).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByText(/Entry #2/iu));
 
-    expect(await screen.findByText("Access denied")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Access denied")).toBeInTheDocument());
     expect(screen.queryByText("No history rows found.")).not.toBeInTheDocument();
     expect(screen.queryByText(/No previous revision available/u)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Restore selected revision" })).not.toBeInTheDocument();
@@ -151,7 +151,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByText(/Entry #selected-event/iu));
 
-    expect(await screen.findByText("Lifecycle event")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Lifecycle event")).toBeInTheDocument());
     expect(screen.queryByText("Revision diff")).not.toBeInTheDocument();
     expect(screen.getByText(/not a content revision/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Restore selected revision" })).not.toBeInTheDocument();
@@ -176,7 +176,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByText(/Entry #content-after-marker/iu));
 
-    expect(await screen.findByText(/not a content comparison/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/not a content comparison/i)).toBeInTheDocument());
     expect(screen.queryByText("Revision diff")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Restore selected revision" })).toBeEnabled());
     expect(screen.queryByText(/total: 0|No explicit diff rows/u)).not.toBeInTheDocument();
@@ -202,7 +202,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByText(/Entry #new-content/iu));
 
-    expect(await screen.findByText("display_name")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("display_name")).toBeInTheDocument());
     expect(fetchChangelogDiff).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "owned-workflow", fromEntryId: "old-content", toEntryId: "new-content",
     });
@@ -212,7 +212,7 @@ describe("RegistryChangelogPage validation issues", () => {
     await waitFor(() => expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "owned-workflow", entryId: "new-content", expectedRevision: 7,
     }));
-    expect(await screen.findByText("Restored this saved revision.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Restored this saved revision.")).toBeInTheDocument());
   });
 
   it("restores other entity types without a workflow revision", async () => {
@@ -245,7 +245,7 @@ describe("RegistryChangelogPage validation issues", () => {
     const { queryClient } = renderPage();
 
     await openWorkflowRevision(user);
-    expect(await screen.findByText(/Current workflow revision: 4\./u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Current workflow revision: 4\./u)).toBeInTheDocument());
     const listReads = mockedFetchChangelogList.mock.calls.length;
     await act(async () => {
       await queryClient.invalidateQueries({ queryKey: ["registry", "changelog"] });
@@ -256,7 +256,7 @@ describe("RegistryChangelogPage validation issues", () => {
     await confirmRestore(user);
     await user.click(screen.getByRole("button", { name: "Restore" }));
 
-    expect(await screen.findByText(/workflow changed after you opened this revision/u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/workflow changed after you opened this revision/u)).toBeInTheDocument());
     expect(restoreChangelogEntry).toHaveBeenCalledTimes(1);
     expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "owned-workflow", entryId: "new-content", expectedRevision: 4,
@@ -278,11 +278,11 @@ describe("RegistryChangelogPage validation issues", () => {
     await openWorkflowRevision(user);
     await confirmRestore(user);
     await user.click(screen.getByRole("button", { name: "Restore" }));
-    expect(await screen.findByText(/workflow changed after you opened this revision/u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/workflow changed after you opened this revision/u)).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Close revision details" }));
     await openWorkflowRevision(user);
-    expect(await screen.findByText(/Current workflow revision: 5\./u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Current workflow revision: 5\./u)).toBeInTheDocument());
     expect(screen.queryByText(/workflow changed after you opened this revision/u)).not.toBeInTheDocument();
     await confirmRestore(user);
     await user.click(screen.getByRole("button", { name: "Restore" }));
@@ -301,7 +301,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await openWorkflowRevision(user);
 
-    expect(await screen.findByText(/current revision could not be loaded/u)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/current revision could not be loaded/u)).toBeInTheDocument());
     const restore = screen.getByRole("button", { name: "Restore selected revision" });
     expect(restore).toBeDisabled();
     await user.click(restore);
@@ -372,7 +372,7 @@ describe("RegistryChangelogPage validation issues", () => {
 
     await user.click(await screen.findByText(/Entry #unknown-kind/iu));
 
-    expect(await screen.findByText(/revision type is unavailable/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/revision type is unavailable/i)).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Restore selected revision" })).not.toBeInTheDocument();
     expect(fetchChangelogDiff).not.toHaveBeenCalled();
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
