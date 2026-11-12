@@ -180,7 +180,7 @@ PACKAGES: tuple[AgentSkillPackage, ...] = (
     AgentSkillPackage(
         id=OPERATOR_PACKAGE_ID,
         display_name="Flow Steward Operator",
-        version="1.0.2",
+        version="1.1.0",
         short_description="Build and run automations",
         needs_mcp=True,
         description_key="react.agent_access.package_operator_description",
