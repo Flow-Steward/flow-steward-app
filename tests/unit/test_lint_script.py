@@ -542,10 +542,15 @@ def test_full_validates_cumulative_evidence_before_reporting_success() -> None:
     )
 
 
-@pytest.mark.parametrize("tier_two_exit", (31, 32, 33))
-def test_full_stops_before_long_suites_when_final_tier_two_is_not_green(
-    tmp_path: Path, tier_two_exit: int
-) -> None:
+def _run_full_gate(
+    tmp_path: Path,
+    *,
+    tier_two_exit: int,
+    extra_env: dict[str, str] | None = None,
+    extra_bin: dict[str, str] | None = None,
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    """Run `lint.sh --full` on the host path against a fake docker that logs each call."""
+    extra_env = extra_env or {}
     invocation_log = tmp_path / "docker-invocations.txt"
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -585,6 +590,13 @@ fi"""
     mount_refresh = scripts / "docker_desktop_file_cache.sh"
     mount_refresh.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
     mount_refresh.chmod(mount_refresh.stat().st_mode | stat.S_IXUSR)
+    external_tier_three = scripts / "run-external-tier-three.sh"
+    external_tier_three.write_text("#!/usr/bin/env bash\nexit 0\n", encoding="utf-8")
+    external_tier_three.chmod(external_tier_three.stat().st_mode | stat.S_IXUSR)
+    for name, body in (extra_bin or {}).items():
+        tool = fake_bin / name
+        tool.write_text(body, encoding="utf-8")
+        tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
     docker_compose_env = scripts / "docker_compose_env.sh"
     docker_compose_env.write_text(
         "#!/usr/bin/env bash\n"
@@ -619,6 +631,7 @@ fi"""
             "FS_LINT_CONTAINER_FALLBACK": "1",
             "FS_TEST_DOCKER_LOG": str(invocation_log),
             "FS_TEST_TIER_TWO_EXIT": str(tier_two_exit),
+            **extra_env,
             "FS_TEST_IMAGE_LABEL": str(tmp_path / "image-label"),
             "FS_TEST_AUDIT_IMAGE_ID": "sha256:" + "f" * 64,
         }
@@ -633,7 +646,15 @@ fi"""
         check=False,
     )
 
-    invocations = invocation_log.read_text(encoding="utf-8")
+    return completed, invocation_log.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("tier_two_exit", (31, 32, 33))
+def test_full_stops_before_long_suites_when_final_tier_two_is_not_green(
+    tmp_path: Path, tier_two_exit: int
+) -> None:
+    completed, invocations = _run_full_gate(tmp_path, tier_two_exit=tier_two_exit)
+
     assert completed.returncode == tier_two_exit
     assert "-e FS_TEST_AUDIT_IMAGE_ID=sha256:" + "a" * 64 in invocations
     assert "-e FS_TEST_AUDIT_IMAGE_ID=sha256:" + "f" * 64 not in invocations
@@ -650,6 +671,64 @@ fi"""
     assert "up -d --wait pg-audit rabbitmq-audit" not in invocations
     assert "core.application.tooling.quality.release_gate" not in invocations
     assert "Quality gate passed (full)" not in completed.stdout
+
+
+# `date -u +%F` answers the first call with one day and every later call with the next.
+_CROSSING_MIDNIGHT_DATE = """#!/usr/bin/env bash
+if [[ "$*" == "-u +%F" ]]; then
+  calls="$(cat "$FS_TEST_DATE_CALLS" 2>/dev/null || echo 0)"
+  printf '%s' "$((calls + 1))" >"$FS_TEST_DATE_CALLS"
+  if [[ "${calls}" -eq 0 ]]; then echo 2026-11-12; else echo 2026-11-13; fi
+  exit 0
+fi
+exec /bin/date "$@"
+"""
+
+
+def _tier_two_runs(invocations: str) -> list[int]:
+    calls = invocations.splitlines()
+    return [
+        i
+        for i, call in enumerate(calls)
+        if call.startswith("compose run ") and " --fast " in f"{call} "
+    ]
+
+
+def _release_gate_run(invocations: str) -> int:
+    calls = invocations.splitlines()
+    return next(i for i, call in enumerate(calls) if "quality.release_gate" in call)
+
+
+def test_full_reevaluates_tier_two_when_the_gate_crosses_utc_midnight(tmp_path: Path) -> None:
+    # pip-audit evidence is bound to the UTC day; release-sonar 43322669456 ran
+    # 22:44-00:22 UTC, every check green, and failed the final read for want of
+    # pip-audit evidence for the new day.
+    completed, invocations = _run_full_gate(
+        tmp_path,
+        tier_two_exit=0,
+        extra_env={"FS_TEST_DATE_CALLS": str(tmp_path / "date-calls")},
+        extra_bin={"date": _CROSSING_MIDNIGHT_DATE},
+    )
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    first, again = _tier_two_runs(invocations)
+    calls = invocations.splitlines()
+    tier_three = next(
+        i
+        for i, call in enumerate(calls)
+        if call.startswith("compose run ") and "--inside" in call and i != first
+    )
+    assert first < tier_three < again < _release_gate_run(invocations)
+    assert calls[again] == calls[first], "the repeat must be the same Tier 2 invocation"
+    assert "re-evaluating Tier 2 for 2026-11-13" in completed.stdout
+
+
+def test_full_evaluates_tier_two_once_within_one_utc_day(tmp_path: Path) -> None:
+    completed, invocations = _run_full_gate(tmp_path, tier_two_exit=0)
+
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert len(_tier_two_runs(invocations)) == 1
+    assert "re-evaluating Tier 2" not in completed.stdout
 
 
 def test_internal_full_delta_does_not_repeat_provider_neutral_tier_two_owner() -> None:
