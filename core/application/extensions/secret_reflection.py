@@ -140,14 +140,23 @@ def collect_secret_values(value: Any) -> tuple[frozenset[str], bool]:
     return frozenset(secrets), False
 
 
-def _check_incomplete(
-    limit: SecretCheckLimit, observed: int, maximum: int
-) -> SecretExposureFinding:
+def _limit_maximum(limit: SecretCheckLimit) -> int:
+    # Read at call time, so a budget lowered for a test is the one reported.
+    maxima: dict[SecretCheckLimit, int] = {
+        "secret_count": _MAX_SECRET_COUNT,
+        "secret_codepoints": _MAX_SECRET_CODEPOINTS,
+        "traversal_nodes": _MAX_TRAVERSAL_NODES,
+        "nesting_depth": _MAX_NESTING_DEPTH,
+        "comparison_codepoints": _MAX_COMPARISON_CODEPOINTS,
+    }
+    return maxima.get(limit, 0)
+
+
+def _check_incomplete(limit: SecretCheckLimit) -> SecretExposureFinding:
+    # Only the limit's name and its configured maximum are logged: anything measured
+    # on the secrets themselves (their count or length) stays out of the log.
     logger.warning(
-        "reflected-value check incomplete: limit=%s observed=%d maximum=%d",
-        limit,
-        observed,
-        maximum,
+        "reflected-value check incomplete: limit=%s maximum=%d", limit, _limit_maximum(limit)
     )
     return SecretExposureFinding.check_incomplete(limit)
 
@@ -159,15 +168,15 @@ def _normalized_secrets(
     codepoints = 0
     for secret in secrets:
         if not isinstance(secret, str):
-            return _check_incomplete("secret_type", 1, 0)
+            return _check_incomplete("secret_type")
         if not secret:
             continue
         normalized.append(secret)
         codepoints += len(secret)
         if len(normalized) > _MAX_SECRET_COUNT:
-            return _check_incomplete("secret_count", len(normalized), _MAX_SECRET_COUNT)
+            return _check_incomplete("secret_count")
         if codepoints > _MAX_SECRET_CODEPOINTS:
-            return _check_incomplete("secret_codepoints", codepoints, _MAX_SECRET_CODEPOINTS)
+            return _check_incomplete("secret_codepoints")
     return normalized
 
 
@@ -184,19 +193,15 @@ def find_secret_exposure(value: Any, secrets: Iterable[str]) -> SecretExposureFi
         _nested_nodes(value, string_keys_are_candidates=True), start=1
     ):
         if node_count > _MAX_TRAVERSAL_NODES:
-            return _check_incomplete("traversal_nodes", node_count, _MAX_TRAVERSAL_NODES)
+            return _check_incomplete("traversal_nodes")
         if depth > _MAX_NESTING_DEPTH:
-            return _check_incomplete("nesting_depth", depth, _MAX_NESTING_DEPTH)
+            return _check_incomplete("nesting_depth")
         if not is_candidate or not isinstance(node, str) or node in compared:
             continue
         compared.add(node)
         comparison_work = max(1, len(node)) * len(normalized_secrets)
         if comparison_work > remaining_work:
-            return _check_incomplete(
-                "comparison_codepoints",
-                _MAX_COMPARISON_CODEPOINTS - remaining_work + comparison_work,
-                _MAX_COMPARISON_CODEPOINTS,
-            )
+            return _check_incomplete("comparison_codepoints")
         remaining_work -= comparison_work
         if any(candidate_exposes_secret(node, secret) for secret in normalized_secrets):
             return SecretExposureFinding.match()
