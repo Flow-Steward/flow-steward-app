@@ -82,6 +82,62 @@ def _page_query_references(value: Any) -> set[str]:
     return found
 
 
+def _check_connection_query(
+    query: dict[str, Any],
+    *,
+    idx: int,
+    query_id: str,
+    type_ids: list[str],
+    own_types: set[str] | frozenset[str],
+    effect_ids: set[str] | frozenset[str],
+    issues: list[dict],
+    manifest_path: str,
+) -> None:
+    """Report the problems of one query that declares a valid ``connection``."""
+    field_path = f"query_definitions[{idx}].connection"
+    unknown = [type_id for type_id in type_ids if type_id not in own_types]
+    if unknown:
+        issues.append(
+            _issue(
+                severity="error",
+                code="query_connection_type_unknown",
+                message=(
+                    f"Query '{query_id}' names connection types this extension does not "
+                    f"declare: {', '.join(unknown)}"
+                ),
+                file_path=manifest_path,
+                field_path=f"{field_path}.connection_type_ids",
+            )
+        )
+    handler_mode = (
+        str(_as_dict(query.get("handler")).get("mode") or "extension").strip().lower()
+        or "extension"
+    )
+    if handler_mode != "extension":
+        issues.append(
+            _issue(
+                severity="error",
+                code="query_connection_handler_mode",
+                message=f"Query '{query_id}' runs with a connection, so handler.mode is extension",
+                file_path=manifest_path,
+                field_path=f"query_definitions[{idx}].handler.mode",
+            )
+        )
+    if query_id in effect_ids:
+        issues.append(
+            _issue(
+                severity="error",
+                code="query_connection_external_effect",
+                message=(
+                    f"Query '{query_id}' runs with a connection and only reads; effects "
+                    "belong to actions, so external_effects must not name it"
+                ),
+                file_path=manifest_path,
+                field_path="external_effects",
+            )
+        )
+
+
 def _validate_query_connections(
     compiled_manifest: dict[str, Any], *, issues: list[dict], manifest_path: str
 ) -> dict[str, frozenset[str]]:
@@ -95,7 +151,6 @@ def _validate_query_connections(
         if "connection" not in query:
             continue
         query_id = str(query.get("query_id") or "").strip()
-        field_path = f"query_definitions[{idx}].connection"
         type_ids = declared_connection_type_ids(query.get("connection"))
         if type_ids is None:
             issues.append(
@@ -107,52 +162,21 @@ def _validate_query_connections(
                         "list of unique connection type ids and no other key"
                     ),
                     file_path=manifest_path,
-                    field_path=field_path,
+                    field_path=f"query_definitions[{idx}].connection",
                 )
             )
             continue
         needs_host_minimum = True
-        unknown = [type_id for type_id in type_ids if type_id not in own_types]
-        if unknown:
-            issues.append(
-                _issue(
-                    severity="error",
-                    code="query_connection_type_unknown",
-                    message=(
-                        f"Query '{query_id}' names connection types this extension does not "
-                        f"declare: {', '.join(unknown)}"
-                    ),
-                    file_path=manifest_path,
-                    field_path=f"{field_path}.connection_type_ids",
-                )
-            )
-        handler_mode = (
-            str(_as_dict(query.get("handler")).get("mode") or "extension").strip().lower()
-            or "extension"
+        _check_connection_query(
+            query,
+            idx=idx,
+            query_id=query_id,
+            type_ids=list(type_ids),
+            own_types=own_types,
+            effect_ids=effect_ids,
+            issues=issues,
+            manifest_path=manifest_path,
         )
-        if handler_mode != "extension":
-            issues.append(
-                _issue(
-                    severity="error",
-                    code="query_connection_handler_mode",
-                    message=f"Query '{query_id}' runs with a connection, so handler.mode is extension",
-                    file_path=manifest_path,
-                    field_path=f"query_definitions[{idx}].handler.mode",
-                )
-            )
-        if query_id in effect_ids:
-            issues.append(
-                _issue(
-                    severity="error",
-                    code="query_connection_external_effect",
-                    message=(
-                        f"Query '{query_id}' runs with a connection and only reads; effects "
-                        "belong to actions, so external_effects must not name it"
-                    ),
-                    file_path=manifest_path,
-                    field_path="external_effects",
-                )
-            )
         declared[query_id] = frozenset(type_ids)
     if needs_host_minimum and not _declares_host_minimum(compiled_manifest):
         issues.append(
