@@ -293,12 +293,16 @@ def test_installer_drops_and_probes_with_its_own_image_before_the_installer_cont
     completed = _install(tmp_path)
 
     assert completed.returncode == 0, completed.stderr
-    drop, probe, installer = _runs(log_path)
+    drop, *probes, installer = _runs(log_path)
     assert drop[-1] == DROP
+    # The probe folder is this checkout's own `.flow-steward`, shared with the other
+    # installer tests running in parallel: when one of them replaces the probe file
+    # first, the helper probes again (by design), so there is at least one probe.
     lifecycle_dir = (ROOT / ".flow-steward").resolve()
-    assert f"{lifecycle_dir}:/probe:ro" in probe
+    assert probes
+    assert all(f"{lifecycle_dir}:/probe:ro" in probe for probe in probes)
     # The same immutable image the installer itself then runs.
-    for run in (drop, probe, installer):
+    for run in (drop, *probes, installer):
         assert INSTALLER_IMAGE_ID in run
     assert "--privileged" not in installer
     assert "core.entrypoints.cli.installer" in installer
