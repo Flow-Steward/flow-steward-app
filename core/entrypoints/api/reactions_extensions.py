@@ -385,12 +385,16 @@ def create_reactions_extensions_router(
         request: Request, extension_id: str, query_id: str, body: ExtensionQueryRequest
     ):
         try:
-            payload = extension_binding_service().execute_query(
-                extension_id,
-                query_id,
-                body,
-                scope=request_scope(request, project_id=_extension_request_project_id(body)),
-            )
+            scope = request_scope(request, project_id=_extension_request_project_id(body))
+
+            def execute_query():
+                return extension_binding_service().execute_query(
+                    extension_id, query_id, body, scope=scope
+                )
+
+            # A query may wait on the extension's own service for up to its
+            # timeout; it runs off the event loop, as an action does.
+            payload = await asyncio.to_thread(execute_query)
         except ServiceError as e:
             return service_error_response(e, request)
         except Exception as e:

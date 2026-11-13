@@ -121,6 +121,10 @@ _PROJECT_EXTENSION_CALLBACK_WRITE_RE = re.compile(
     r"^/api/extensions/[^/]+/callbacks/[^/]+(?:/(?:rotate|status))?$"
 )
 _PROJECT_EXTENSION_ACTION_WRITE_RE = re.compile(r"^/api/extensions/[^/]+/action/[^/]+$")
+# Running an extension query spends the same authority as an action (ADR 0067): a
+# query may resolve a project connection's credentials, so it follows the action
+# rule -- operator or admin, or the token scopes of an action write.
+_PROJECT_EXTENSION_QUERY_WRITE_RE = re.compile(r"^/api/extensions/[^/]+/query/[^/]+$")
 _PROJECT_EFFECT_RESOLUTION_WRITE_RE = re.compile(
     r"^/api/projects/[^/]+/extensions/[^/]+/external-effects/[^/]+/resolution$"
 )
@@ -216,6 +220,7 @@ def _is_project_extension_callback_write(path: str, method: str) -> bool:
 def _is_project_extension_action_write(path: str, method: str) -> bool:
     return method == "POST" and bool(
         _PROJECT_EXTENSION_ACTION_WRITE_RE.fullmatch(str(path or "").strip())
+        or _PROJECT_EXTENSION_QUERY_WRITE_RE.fullmatch(str(path or "").strip())
         or _PROJECT_EFFECT_RESOLUTION_WRITE_RE.fullmatch(str(path or "").strip())
     )
 

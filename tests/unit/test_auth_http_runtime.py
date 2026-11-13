@@ -778,6 +778,72 @@ def test_operator_pat_extension_action_requires_project_or_command_scope(
     assert response.status_code == expected_status
 
 
+@pytest.mark.parametrize(
+    ("role", "expected_status"), [("admin", 204), ("operator", 204), ("viewer", 403)]
+)
+def test_extension_query_route_follows_the_action_role_rule(
+    role: str, expected_status: int
+) -> None:
+    """ADR 0067: a query may spend a connection's credentials, like an action."""
+    response = _run_middleware_with_principal(
+        path="/api/extensions/acme.notifier/query/list_channels",
+        method="POST",
+        registry_read=True,
+        principal=ResolvedPrincipal(
+            id=f"{role}-1", username=role, roles=[role], auth_source="session"
+        ),
+    )
+
+    assert response.status_code == expected_status
+    if expected_status == 403:
+        assert b"Operator role required" in response.body
+
+
+@pytest.mark.parametrize(
+    ("scopes", "expected_status"),
+    [
+        (["projects.write"], 204),
+        (["projects:*"], 204),
+        (["command:*"], 204),
+        (["registry.read"], 403),
+        (["notify:dispatch"], 403),
+    ],
+)
+def test_operator_pat_extension_query_needs_the_scopes_of_an_action_write(
+    scopes: list[str], expected_status: int
+) -> None:
+    response = _run_middleware_with_principal(
+        path="/api/extensions/acme.notifier/query/list_channels",
+        method="POST",
+        registry_read=True,
+        principal=ResolvedPrincipal(
+            id="pat-1",
+            username="operator-pat",
+            roles=["operator"],
+            auth_source="pat",
+            scopes=scopes,
+        ),
+    )
+
+    assert response.status_code == expected_status
+    if expected_status == 403:
+        assert b"Missing required token scope" in response.body
+
+
+def test_extension_query_route_near_miss_remains_admin_only() -> None:
+    response = _run_middleware_with_principal(
+        path="/api/extensions/acme.notifier/query/list_channels/extra",
+        method="POST",
+        registry_read=True,
+        principal=ResolvedPrincipal(
+            id="operator-1", username="operator", roles=["operator"], auth_source="session"
+        ),
+    )
+
+    assert response.status_code == 403
+    assert b"Admin role required" in response.body
+
+
 def test_extension_action_route_near_miss_remains_admin_only() -> None:
     response = _run_middleware_with_principal(
         path="/api/extensions/fixture.extension/action/test_runtime_connection/extra",

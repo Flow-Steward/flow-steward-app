@@ -35,6 +35,7 @@ import {
   manifestActionHostEffect,
 } from "./manifest-action-support";
 import { connectionActionTarget } from "./connection-form-support";
+import { pageActionTarget, pageUrlParameters, queryConnectionTarget } from "./extension-page-connection";
 
 import type { ExtensionEffectRecovery } from "./extension-action-result-panel";
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
@@ -68,6 +69,8 @@ export function useExtensionManifestActions(
     extensionInstallId,
     canManageProject,
     setCallbackStatuses,
+    pageConnection,
+    location,
   } = hubState;
   const { withBusy } = lifecycleActions;
 
@@ -104,7 +107,7 @@ export function useExtensionManifestActions(
       const result = await executeExtensionAction(extensionKey, retained.actionId, payload, intent.idempotencyKey);
       if (scopeRef.current !== scopeKey) return;
       const outcome = manifestActionOutcome(result, t);
-      setActionResultByExtension((current) => ({ ...current, [extensionKey]: { label: retained.label, ok: outcome.ok, payload: result, scopeKey } }));
+      setActionResultByExtension((current) => ({ ...current, [extensionKey]: { label: retained.label, ok: outcome.ok, payload: result, scopeKey, componentId: retained.componentId } }));
       if (outcome.ok && ownsAmbiguityFeedback && pendingManifestActionIntentRef.current === intent) {
         setComponentErrors((current) => {
           if (current[retained.componentId] !== originalError) return current;
@@ -126,7 +129,7 @@ export function useExtensionManifestActions(
       const failure = manifestFailureMessage(error, undefined, code, `${retained.label} failed.`, t);
       if (!failure.ambiguous && pendingManifestActionIntentRef.current === intent) pendingManifestActionIntentRef.current = null;
       setActionResultByExtension((current) => ({ ...current, [extensionKey]: {
-        label: retained.label, ok: false, scopeKey,
+        label: retained.label, ok: false, scopeKey, componentId: retained.componentId,
         payload: isHttpError(error) ? error.payload : { error: { message: error instanceof Error ? error.message : "Extension action failed." } },
       } }));
     }
@@ -201,7 +204,8 @@ export function useExtensionManifestActions(
       component_id: payload.component_id,
       context: payload.context,
       page_id: payload.page_id,
-      params: resolvedValues,
+      params: { ...pageUrlParameters(location.search), ...resolvedValues },
+      ...queryConnectionTarget(manifestQuery.data, targetId, pageConnection.selectedId),
     });
     if (scopeRef.current !== scopeKey) return;
     if (componentId) {
@@ -213,7 +217,7 @@ export function useExtensionManifestActions(
     }
     setActionResultByExtension((current) => ({
       ...current,
-      [extensionKey]: { label: action.label, ok: true, payload: result, scopeKey },
+      [extensionKey]: { label: action.label, ok: true, payload: result, scopeKey, componentId },
     }));
   }
 
@@ -261,7 +265,7 @@ export function useExtensionManifestActions(
     attempt.failedPayload = outcome.ok ? undefined : result;
     setActionResultByExtension((current) => ({
       ...current,
-      [extensionKey]: { label: action.label, ok: outcome.ok, payload: result, scopeKey },
+      [extensionKey]: { label: action.label, ok: outcome.ok, payload: result, scopeKey, componentId },
     }));
     if (!outcome.ok) {
       const code = externalEffectActionErrorCode(result);
@@ -376,6 +380,7 @@ export function useExtensionManifestActions(
       [extensionKey]: {
         label: action.label,
         scopeKey,
+        componentId,
         ok: false,
         payload: attempt.failedPayload ?? fallbackPayload,
       },
@@ -436,9 +441,12 @@ export function useExtensionManifestActions(
         }));
         return;
       }
-      const actionTarget =
-        overrides?.target
-        || connectionActionTarget(component, resolvedValues);
+      // On a connection page the page's connection goes last, so a row value never replaces it.
+      const actionTarget = pageActionTarget(
+        overrides?.target || connectionActionTarget(component, resolvedValues),
+        pageConnection.selectedId,
+        Boolean(overrides?.target),
+      );
       const basePayload = {
         component_id: componentId,
         context: activePageProjectId ? { project_id: activePageProjectId } : {},

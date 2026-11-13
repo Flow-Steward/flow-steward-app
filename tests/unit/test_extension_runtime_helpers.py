@@ -979,7 +979,6 @@ def test_resource_query_rejects_wrong_scope_or_connection_requirements_before_oa
     row_patch,
     scope_patch,
 ):
-    from core.application.management.errors import ServiceValidationError
     from core.infrastructure.extension_runtime import extension_runtime_helpers as helpers
 
     row = {
@@ -1035,18 +1034,23 @@ def test_resource_query_rejects_wrong_scope_or_connection_requirements_before_oa
         **scope_patch,
     }
 
-    with pytest.raises(ServiceValidationError):
-        provider(
-            {
-                "query_id": "resource_by_id",
-                "scope": scope,
-                "query_manifest": {
-                    "operation_id": "search_resources",
-                    "connection_type_id": "resource_account",
-                },
-            }
-        )
+    result = provider(
+        {
+            "query_id": "resource_by_id",
+            "scope": scope,
+            "query_manifest": {
+                "operation_id": "search_resources",
+                "connection_type_id": "resource_account",
+            },
+        }
+    )
 
+    # Refused with a closed code for the picker, not raised as a server error.
+    assert result["items"] == []
+    assert result["error_code"] == "connection_resolution_failed"
+    assert result["error"].startswith(
+        ("target.connection_id must reference", "connection_runtime_requirement_failed")
+    )
     resolve_oauth.assert_not_called()
     run_query.assert_not_called()
 

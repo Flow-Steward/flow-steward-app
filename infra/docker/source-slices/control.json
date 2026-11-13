@@ -681,6 +681,10 @@
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {
+      "path": "db/migrations/20261113073401_webhook_signature_auth_mode.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
       "path": "db/released_migrations.json",
       "consumer": "core.application.tooling.db.upgrade_preflight._released_baselines supported upgrade source ledger"
     },

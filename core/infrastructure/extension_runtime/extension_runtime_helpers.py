@@ -525,6 +525,33 @@ def extension_page_projects(bl, *, account_id: str | None = None) -> list[dict]:
     return projects
 
 
+def _refused_resource_query(finding: Any) -> dict[str, Any]:
+    """A resource query result withheld by the reflected-secret check, with its code."""
+    from core.application.extensions.secret_reflection import secret_exposure_invocation
+
+    response = secret_exposure_invocation(finding)["response"]
+    return {
+        "items": [],
+        "next_cursor": "",
+        "total": 0,
+        "error": str(response.get("error") or ""),
+        "error_code": str(response.get("error_code") or ""),
+    }
+
+
+def _unresolved_resource_query_connection(exc: Any) -> dict[str, Any]:
+    """A resource query whose connection could not be resolved, with its closed code."""
+    payload = getattr(exc, "payload", None)
+    payload = payload if isinstance(payload, dict) else {}
+    return {
+        "items": [],
+        "next_cursor": "",
+        "total": 0,
+        "error": str(getattr(exc, "message", "") or "Connection could not be resolved"),
+        "error_code": str(payload.get("code") or "connection_resolution_failed"),
+    }
+
+
 def get_extension_query_provider(install_id: str, *, get_logger_only=None):
     """Return a callable that executes resource queries against an extension runtime.
 
@@ -555,6 +582,12 @@ def get_extension_query_provider(install_id: str, *, get_logger_only=None):
     extension = dict(extension)
     extension.setdefault("compiled_manifest", compiled_manifest)
 
+    from core.application.extensions.secret_reflection import (
+        SecretExposureFinding,
+        collect_secret_values,
+        find_secret_exposure,
+    )
+
     def _provider(request_payload: dict[str, Any]) -> dict[str, Any]:
         request = _to_json_obj(request_payload) or {}
         query_id = str(request.get("query_id") or "").strip()
@@ -574,6 +607,7 @@ def get_extension_query_provider(install_id: str, *, get_logger_only=None):
             "query_manifest": _to_json_obj(request.get("query_manifest")) or {},
         }
         target: dict[str, Any] = {}
+        connection_secrets: frozenset[str] = frozenset()
         query_manifest = params["query_manifest"]
         connection_id = context["connection_id"]
         if (
@@ -601,20 +635,34 @@ def get_extension_query_provider(install_id: str, *, get_logger_only=None):
             required_connection_type_ids = operation_contract.connection_type_ids
             required_oauth_scopes = operation_contract.required_oauth_scopes
 
-            runtime_connection = _direct_action_connection_target(
-                bl,
-                connection_id=connection_id,
-                account_id=context["account_id"],
-                project_id=context["project_id"],
-                extension_id=extension_id,
-                extension_install_id=normalized_install_id,
-                required_connection_type_ids=required_connection_type_ids,
-                required_oauth_scopes=required_oauth_scopes,
-            )
+            from core.application.management.errors import ServiceError
+
+            try:
+                runtime_connection = _direct_action_connection_target(
+                    bl,
+                    connection_id=connection_id,
+                    account_id=context["account_id"],
+                    project_id=context["project_id"],
+                    extension_id=extension_id,
+                    extension_install_id=normalized_install_id,
+                    required_connection_type_ids=required_connection_type_ids,
+                    required_oauth_scopes=required_oauth_scopes,
+                )
+            except ServiceError as exc:
+                # The picker shows why, with the code a person can act on
+                # (an unapproved configuration), instead of a server error.
+                return _unresolved_resource_query_connection(exc)
             target = {
                 "connection_id": runtime_connection["connection_id"],
                 "connection": runtime_connection,
             }
+            connection_secrets, secret_budget_exceeded = collect_secret_values(
+                runtime_connection.get("secrets")
+            )
+            if secret_budget_exceeded:
+                return _refused_resource_query(
+                    SecretExposureFinding.check_incomplete("secret_inventory")
+                )
 
         runtime_context: dict[str, Any] = {}
         if bl is not None:
@@ -643,6 +691,11 @@ def get_extension_query_provider(install_id: str, *, get_logger_only=None):
             params=params,
             runtime_context=runtime_context,
         )
+        # The same reflected-secret check an action result passes: a resource
+        # query that resolved the connection's secrets must not return them.
+        secret_finding = find_secret_exposure(invocation, connection_secrets)
+        if secret_finding is not None:
+            return _refused_resource_query(secret_finding)
         if str(invocation.get("status") or "").strip().lower() != "succeeded":
             return {"items": [], "next_cursor": "", "total": 0}
 

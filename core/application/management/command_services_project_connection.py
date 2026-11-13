@@ -415,13 +415,18 @@ class ProjectConnectionService(ProjectConnectionContract):
             connection_id=connection_id,
             platform_secret_ref_names=platform_secret_ref_names,
         )
+        catalog_bindings = self._requested_catalog_bindings(
+            inp.secret_refs, platform_secret_ref_names=platform_secret_ref_names
+        )
 
         self._validate_connection_contract_against_extension_schemas(
             bl=bl,
             extension_id=runtime_payload["extension_id"],
             connection_type=resolved_connection_type,
             connection_config=inp.connection_config,
-            secret_refs=sanitized_secret_refs,
+            secret_refs=self._refs_with_catalog_choices(
+                sanitized_secret_refs, catalog_bindings, scope=scope
+            ),
         )
 
         conn = ProjectConnection(
@@ -464,9 +469,17 @@ class ProjectConnectionService(ProjectConnectionContract):
                 status_code=500,
             ) from exc
 
-        return ProjectConnectionView(
-            **self._normalize_connection_view_row(conn.model_dump(mode="json"))
-        )
+        row = conn.model_dump(mode="json")
+        if catalog_bindings:
+            self._bind_catalog_choices(
+                bl,
+                connection_id,
+                scope,
+                catalog_bindings,
+                remove_connection=lambda: self._delete_connection_row(bl, connection_id),
+            )
+            row = self._get_connection_row(bl, connection_id) or row
+        return ProjectConnectionView(**self._normalize_connection_view_row(row))
 
     def update_connection(
         self,

@@ -62,6 +62,7 @@ from .compiled_manifest_policies import (
     _validate_project_state_declaration,
     _validate_runtime_grants,
 )
+from .query_connection_contract import validate_query_connection_contract
 
 
 def validate_compiled_manifest(compiled_manifest: dict) -> dict:
@@ -705,6 +706,10 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
                         field_path=field_path,
                     )
                 )
+
+    validate_query_connection_contract(
+        compiled_manifest, issues=issues, manifest_path=manifest_path
+    )
 
     errors, warnings = _split_issues(issues)
     return {

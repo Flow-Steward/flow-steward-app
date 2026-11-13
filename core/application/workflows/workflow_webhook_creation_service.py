@@ -38,6 +38,11 @@ _AUTH_MODES = frozenset(
         WEBHOOK_SIGNATURE_AUTH_MODE,
     }
 )
+_IDEMPOTENCY_MODES = ("none", "header")
+_RESPONSE_MODES = ("accepted", "ok", "no_content")
+_ENTRY_KIND = "webhook"
+_MAX_BODY_OR_FILE_BYTES = 104857600
+_MAX_FILES = 32
 _DEFAULT_CONTENT_TYPES = ("application/json",)
 
 
@@ -80,6 +85,15 @@ def _auth_mode(value: Any) -> str:
     mode = _text(value or "bearer_token").lower() or "bearer_token"
     if mode not in _AUTH_MODES:
         raise WorkflowWebhookValidationError("Unsupported auth_mode")
+    return mode
+
+
+def _idempotency_mode(value: Any) -> str:
+    mode = _text(value).lower() or "none"
+    if mode not in _IDEMPOTENCY_MODES:
+        raise WorkflowWebhookValidationError(
+            f"Unsupported idempotency_mode; allowed values: {', '.join(_IDEMPOTENCY_MODES)}"
+        )
     return mode
 
 
@@ -267,7 +281,9 @@ def _response_mode(value: Any) -> str:
         return "ok"
     if mode in {"no_content", "empty", "204"}:
         return "no_content"
-    raise WorkflowWebhookValidationError("Unsupported response_mode")
+    raise WorkflowWebhookValidationError(
+        f"Unsupported response_mode; allowed values: {', '.join(_RESPONSE_MODES)}"
+    )
 
 
 @dataclass(frozen=True)
@@ -307,12 +323,20 @@ class WorkflowWebhookCreateCommand:
                 _content_types(request.get("allowed_content_types"), reject_empty=True)
             ),
             "max_body_bytes": _limit(
-                request.get("max_body_bytes"), default=46137344, minimum=1, maximum=104857600
+                request.get("max_body_bytes"),
+                default=46137344,
+                minimum=1,
+                maximum=_MAX_BODY_OR_FILE_BYTES,
             ),
-            "max_file_bytes": _limit(request.get("max_file_bytes"), default=10485760, minimum=1),
-            "max_files": _limit(request.get("max_files"), default=4, minimum=0),
+            "max_file_bytes": _limit(
+                request.get("max_file_bytes"),
+                default=10485760,
+                minimum=1,
+                maximum=_MAX_BODY_OR_FILE_BYTES,
+            ),
+            "max_files": _limit(request.get("max_files"), default=4, minimum=0, maximum=_MAX_FILES),
             "secret_ref": reference,
-            "idempotency_mode": _text(request.get("idempotency_mode") or "none") or "none",
+            "idempotency_mode": _idempotency_mode(request.get("idempotency_mode")),
             "input_mapping_jsonb": mapping,
             "response_mode": _response_mode(request.get("response_mode")),
             "description": _text(request.get("description")),
@@ -411,7 +435,7 @@ class WorkflowWebhookUpdateCommand:
                 else request.get("max_body_bytes"),
                 default=46137344,
                 minimum=1,
-                maximum=104857600,
+                maximum=_MAX_BODY_OR_FILE_BYTES,
             ),
             "max_file_bytes": _limit(
                 existing.get("max_file_bytes")
@@ -419,6 +443,7 @@ class WorkflowWebhookUpdateCommand:
                 else request.get("max_file_bytes"),
                 default=10485760,
                 minimum=1,
+                maximum=_MAX_BODY_OR_FILE_BYTES,
             ),
             "max_files": _limit(
                 existing.get("max_files")
@@ -426,14 +451,14 @@ class WorkflowWebhookUpdateCommand:
                 else request.get("max_files"),
                 default=4,
                 minimum=0,
+                maximum=_MAX_FILES,
             ),
             "secret_ref": reference,
-            "idempotency_mode": _text(
+            "idempotency_mode": _idempotency_mode(
                 existing.get("idempotency_mode")
                 if request.get("idempotency_mode") is None
                 else request.get("idempotency_mode")
-            )
-            or "none",
+            ),
             "input_mapping_jsonb": mapping,
             "response_mode": _response_mode(
                 existing.get("response_mode")
@@ -564,7 +589,7 @@ class WorkflowWebhookCreationService:
                 workflow_id=command.workflow_id,
                 project_id=str(project_id),
                 account_id=account_id,
-                entry_kind="webhook",
+                entry_kind=_ENTRY_KIND,
                 **command.fields,
             )
         # An operator-supplied secret is never echoed back: the caller already has

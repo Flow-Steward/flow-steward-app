@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import re
 from pathlib import Path
 from typing import Any
@@ -120,18 +121,21 @@ def _resolve_query_manifest(
             )
             continue
         seen.add(query_id)
-        normalized_queries.append(
-            {
-                "query_id": query_id,
-                "title": str(row.get("title") or query_id).strip(),
-                "description": str(row.get("description") or "").strip(),
-                "required_scopes": _normalize_string_list(row.get("required_scopes")),
-                "result_fields": _normalize_string_list(row.get("result_fields")),
-                "error_codes": _normalize_string_list(row.get("error_codes")),
-                "contract": _as_dict(row.get("contract")),
-                "handler": _as_dict(row.get("handler") or row.get("runtime") or {}),
-            }
-        )
+        normalized_query = {
+            "query_id": query_id,
+            "title": str(row.get("title") or query_id).strip(),
+            "description": str(row.get("description") or "").strip(),
+            "required_scopes": _normalize_string_list(row.get("required_scopes")),
+            "result_fields": _normalize_string_list(row.get("result_fields")),
+            "error_codes": _normalize_string_list(row.get("error_codes")),
+            "contract": _as_dict(row.get("contract")),
+            "handler": _as_dict(row.get("handler") or row.get("runtime") or {}),
+        }
+        if "connection" in row:
+            # Kept as declared: the compiled-manifest check refuses a malformed one
+            # instead of a silent drop running the query without a connection.
+            normalized_query["connection"] = copy.deepcopy(row["connection"])
+        normalized_queries.append(normalized_query)
     return normalized_queries
 
 

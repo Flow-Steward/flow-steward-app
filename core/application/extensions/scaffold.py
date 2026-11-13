@@ -488,7 +488,7 @@ whose `icon.png` is missing or breaks the rules:
 ## Host contract
 
 The extension declares `runtime.contract_version: extension_host_v2` and
-uses `flowsteward-extension-sdk` 0.4.0. `main.py` checks every payload with
+uses `flowsteward-extension-sdk` 0.5.0. `main.py` checks every payload with
 `runtime_context_from_payload` before any work: an envelope of another
 contract, or a `runtime_context` missing one of the four scope keys
 (`group_id`, `for_each_id`, `step_id`, `step_execution_id`) or naming both a

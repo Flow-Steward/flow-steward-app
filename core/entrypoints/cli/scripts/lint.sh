@@ -1542,9 +1542,14 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
       final_tier_two_args+=(--fingerprint-source commit)
       final_tier_two_args+=(--trust "${evidence_trust}")
       final_tier_two_args+=(--commit-sha "${candidate_commit_sha}")
-      fs_compose run --no-deps --rm -T "${lint_container_env_args[@]}" "${lint_container_volume_args[@]}" fs-audit \
-        bash /app/core/entrypoints/cli/scripts/lint.sh "${final_tier_two_args[@]}" \
-        || audit_exit_code=$?
+      # Later steps add test-service identity; Tier 2 keeps the environment it had here.
+      final_tier_two_env_args=("${lint_container_env_args[@]}")
+      run_final_tier_two() {
+        final_tier_two_utc_day="$(date -u +%F)"
+        fs_compose run --no-deps --rm -T "${final_tier_two_env_args[@]}" "${lint_container_volume_args[@]}" fs-audit \
+          bash /app/core/entrypoints/cli/scripts/lint.sh "${final_tier_two_args[@]}"
+      }
+      run_final_tier_two || audit_exit_code=$?
     fi
 
     if [[ "${audit_exit_code}" -eq 0 && "${needs_test_infra}" -eq 1 ]]; then
@@ -1586,6 +1591,14 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
       "${SCRIPT_DIR}/run-external-tier-three.sh" "${external_verify_args[@]}" \
         || audit_exit_code=$?
     fi
+    # pip-audit evidence is bound to the UTC day (testing-standard: a new day
+    # invalidates it). A gate that crossed midnight re-evaluates Tier 2 for the new
+    # day -- everything else is reused -- instead of failing the final read below.
+    while [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" \
+      && "$(date -u +%F)" != "${final_tier_two_utc_day}" ]]; do
+      echo "[lint] The UTC day changed during the gate; re-evaluating Tier 2 for $(date -u +%F)."
+      run_final_tier_two || audit_exit_code=$?
+    done
     if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
       # External checks write 0600 evidence as root; the final reader must be
       # able to validate both those records and the ordinary fs-owned records.

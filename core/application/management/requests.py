@@ -429,6 +429,9 @@ class ExtensionQueryRequest(BaseModel):
     component_id: str = ""
     context: dict[str, Any] = Field(default_factory=dict)
     params: dict[str, Any] = Field(default_factory=dict)
+    # Only {connection_id}, and only for a query that declares a connection
+    # (ADR 0067); the service refuses any other shape.
+    target: dict[str, Any] = Field(default_factory=dict)
     timeout_seconds: int | None = None
 
 

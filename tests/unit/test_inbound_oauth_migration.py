@@ -148,5 +148,6 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         "20261103090000_secret_catalog.sql",
         "20261104120000_secret_catalog_installation_wide.sql",
         "20261109150000_user_date_time_format.sql",
+        "20261113073401_webhook_signature_auth_mode.sql",
     ]
     assert status["needs_upgrade"] is True

@@ -326,3 +326,28 @@ it("redacts secrets from the technical details", () => {
     .toContain("[REDACTED]");
 });
 /* eslint-enable testing-library/no-node-access */
+
+describe("guidance for a connection whose stored secrets are not approved", () => {
+  const unapproved = "connection_secret_resolution_failed:conn_4f2a:secret_configuration_unapproved";
+  const guidance = "This connection uses stored secrets that are not approved for it yet. Approval is needed again after the connection changes. Choose Approve use of secrets on the connection's card, then run the action again.";
+
+  it("reads the code at the end of the platform's failure text", () => {
+    const translate = vi.fn((key: string, fallback?: string) => fallback ?? key);
+
+    expect(translatedExtensionActionErrorGuidance(translate, unapproved)).toBe(guidance);
+    expect(translate).toHaveBeenCalledExactlyOnceWith("react.extensions.connection_secrets_not_approved", guidance);
+    expect(extensionActionErrorGuidance("secret_configuration_unapproved")).toBe(guidance);
+  });
+
+  it("gives no guidance for another credential failure or a look-alike text", () => {
+    expect(extensionActionErrorGuidance("connection_secret_resolution_failed:conn_4f2a:stored_secret_unavailable")).toBe("");
+    expect(extensionActionErrorGuidance(`note: ${unapproved}`)).toBe("");
+  });
+
+  it("shows the guidance instead of the raw code in a failed action's result", () => {
+    render(<ExtensionActionResultPanel result={{ label: "Send test", ok: false, payload: { status: "error", message: unapproved } }} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(guidance);
+    expect(screen.getByRole("alert")).not.toHaveTextContent("connection_secret_resolution_failed");
+  });
+});

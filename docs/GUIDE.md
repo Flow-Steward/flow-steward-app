@@ -2845,7 +2845,9 @@ The JSON summary separates checks that were `executed`, `reused`,
 Relevant input or gate-code changes invalidate only affected fingerprints.
 `pip-audit` also fingerprints the current UTC date: acceptance expiry is inclusive
 through that UTC day, and prior-day evidence cannot be reused on a new day, even
-for the same SHA. Other checks retain ordinary input-bound reuse.
+for the same SHA. A `--full` gate that crosses UTC midnight re-evaluates Tier 2
+for the new day (everything but `pip-audit` is reused) before its final read.
+Other checks retain ordinary input-bound reuse.
 
 For diagnosis, `--evidence-mode off` forces execution without writing reusable
 evidence. Diagnostic runs do not produce retained reusable release evidence.

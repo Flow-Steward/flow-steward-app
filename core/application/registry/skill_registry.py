@@ -47,17 +47,8 @@ class SkillRegistry:
 
             for row in projected_artifact_rows(self._db_store, "skill", "skill_id"):
                 try:
-                    inputs = list(row.get("expected_inputs") or [])
-                    outputs = list(row.get("expected_outputs") or [])
-                    row["_inputs"] = inputs
-                    row["_outputs"] = outputs
-                    if not row.get("input_schema") or not row.get("output_schema"):
-                        from core.application.registry.db_store import RegistryDBStore
-
-                        if not row.get("input_schema"):
-                            row["input_schema"] = RegistryDBStore._build_contract_schema(inputs)
-                        if not row.get("output_schema"):
-                            row["output_schema"] = RegistryDBStore._build_contract_schema(outputs)
+                    # The projected row already carries the declared I/O as
+                    # `_inputs`/`_outputs`, as a registry row does.
                     manifest = SkillManifest.from_db_row(row)
                     self._skills[manifest.skill_id] = manifest
                 except Exception as e:

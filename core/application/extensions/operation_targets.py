@@ -1,15 +1,24 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
-from core.application.management.errors import ServiceNotFoundError, ServiceValidationError
+from core.application.management.errors import (
+    ServiceConflictError,
+    ServiceNotFoundError,
+    ServiceValidationError,
+)
 from core.application.management.scope import ScopeContext
 from core.infrastructure.db import project_connection_store
 from core.infrastructure.db.db_pool import transaction_connection
 
 from .lifecycle_ports import require_project_access
 from .oauth_connection_runtime_config import runtime_connection_config
+
+#: The code of an unapproved catalog-secret configuration (ADR 0057), kept on the
+#: error so a page can offer the approval control instead of a raw failure.
+UNAPPROVED_CONFIGURATION_CODE = "secret_configuration_unapproved"
 
 
 def _browser_oauth_configuration(bl: Any, *, connection: dict[str, Any]) -> dict[str, str]:
@@ -396,9 +405,15 @@ def _direct_action_connection_target(
                 connection_secret_failure,
             )
 
-            raise ServiceValidationError(
-                connection_secret_failure(connection_id, exc).detail
-            ) from None
+            failure = connection_secret_failure(connection_id, exc)
+            if failure.code == UNAPPROVED_CONFIGURATION_CODE:
+                # A person can fix this one: the page shows the approval control
+                # for the connection when it reads the code (ADR 0057, ADR 0067).
+                raise ServiceConflictError(
+                    failure.detail,
+                    payload={"error": failure.detail, "code": failure.code},
+                ) from None
+            raise ServiceValidationError(failure.detail) from None
     for name, value in provider_secrets_for_connection(bl, connection, secret_refs).items():
         secrets.setdefault(name, value)
     if callable(getattr(bl, "cursor", None)):
@@ -426,6 +441,88 @@ def _direct_action_connection_target(
         "secret_refs": secret_refs,
         "secrets": secrets,
     }
+
+
+@dataclass(frozen=True)
+class ResolvedOperationConnection:
+    """A project connection resolved for one operation, with the scope it was checked in."""
+
+    project_id: str
+    extension_install_id: str
+    connection: dict[str, Any]
+
+    @property
+    def connection_id(self) -> str:
+        return str(self.connection.get("connection_id") or "").strip()
+
+    def audit_fields(self) -> dict[str, str]:
+        return {"project_id": self.project_id, "connection_id": self.connection_id}
+
+    def runtime_context(self) -> dict[str, str]:
+        return {
+            "project_id": self.project_id,
+            "connection_id": self.connection_id,
+            "extension_install_id": self.extension_install_id,
+            "oauth_configuration_id": str(
+                self.connection.get("oauth_configuration_id") or ""
+            ).strip(),
+            "oauth_provider_id": str(self.connection.get("oauth_provider_id") or "").strip(),
+        }
+
+
+def operation_install_id(extension: dict[str, Any]) -> str:
+    return str(extension.get("extension_install_id") or extension.get("install_id") or "").strip()
+
+
+def resolve_operation_connection(
+    bl: Any,
+    *,
+    connection_id: str,
+    project_id: str,
+    scope: ScopeContext,
+    extension: dict[str, Any],
+    extension_id: str,
+    account_id: str,
+    required_connection_type_ids: frozenset[str] = frozenset(),
+    required_oauth_scopes: frozenset[str] = frozenset(),
+    browser_safe: bool = False,
+    get_project_by_id: Callable[[str], Any] | None = None,
+    authorized_project_ids: set[str] | None = None,
+) -> ResolvedOperationConnection:
+    """The one host resolution of an operation's project connection.
+
+    Actions and page queries both resolve ``target.connection_id`` here: the
+    caller must reach the project, the install must be known, and the row must
+    match the connection, account, project, extension, install and enabled state
+    and one of the operation's connection types before any secret is read.
+    ``authorized_project_ids`` carries projects the caller already passed.
+    """
+    authorized = authorized_project_ids if authorized_project_ids is not None else set()
+    if project_id not in authorized:
+        _require_direct_action_project_access(
+            bl, project_id, scope, get_project_by_id=get_project_by_id
+        )
+        authorized.add(project_id)
+    extension_install_id = operation_install_id(extension)
+    if not extension_install_id:
+        raise ServiceValidationError("extension_install_id is required for extension operations")
+    connection = _direct_action_connection_target(
+        bl,
+        connection_id=connection_id,
+        account_id=account_id,
+        project_id=project_id,
+        extension_id=extension_id,
+        extension_install_id=extension_install_id,
+        required_connection_type_ids=required_connection_type_ids,
+        required_oauth_scopes=required_oauth_scopes,
+        browser_safe=browser_safe,
+        get_project_by_id=get_project_by_id,
+    )
+    return ResolvedOperationConnection(
+        project_id=project_id,
+        extension_install_id=extension_install_id,
+        connection=connection,
+    )
 
 
 def provider_secrets_for_connection(
@@ -460,11 +557,15 @@ def provider_secrets_for_connection(
 
 
 __all__ = [
+    "UNAPPROVED_CONFIGURATION_CODE",
+    "ResolvedOperationConnection",
     "_direct_action_connection_target",
     "_direct_action_project_id",
     "_load_direct_action_connection_row",
     "_require_direct_action_project_access",
     "_target_connection_id",
     "_target_connection_id_for_external_effect",
+    "operation_install_id",
     "provider_secrets_for_connection",
+    "resolve_operation_connection",
 ]

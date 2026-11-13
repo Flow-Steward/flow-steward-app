@@ -801,6 +801,14 @@ def execute_resource_query(
             "items": [],
             "next_cursor": "",
         }
+    if str(response.get("error_code") or "").strip():
+        return {
+            "ok": False,
+            "error": str(response.get("error") or "Extension query failed"),
+            "error_code": str(response.get("error_code")).strip(),
+            "items": [],
+            "next_cursor": "",
+        }
     items = response.get("items")
     if not isinstance(items, list):
         items = []

@@ -73,6 +73,26 @@ function panelProps(): ComponentProps<typeof ExtensionDetailPanel> {
     onProjectStateSave: noop,
     onProjectStateSelect: noop,
     pageRequiresProject: false,
+    pageConnection: {
+      types: [],
+      typeLabel: "",
+      projectId: "",
+      candidates: [],
+      selectedId: "",
+      loading: false,
+      canLoad: true,
+      ready: true,
+      setupPageId: "",
+      select: noop,
+    },
+    pageRefresh: {
+      seconds: 0,
+      stopped: false,
+      available: false,
+      refresh: noop,
+      loadStarted: noop,
+      loadFinished: noop,
+    },
     projectConnections: [],
     projectConnectionsQuery: {
       isError: false,
@@ -1477,5 +1497,65 @@ describe("ExtensionDetailPanel marketplace links", () => {
       expect(screen.queryByRole("combobox", { name: "OAuth configuration" })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Open provider help" })).toBeVisible();
     });
+  });
+});
+
+describe("the result of a component's action", () => {
+  const page = {
+    page_id: "run",
+    title: "Run",
+    components: [
+      { component_id: "intro", type: "note", title: "Intro block" },
+      { component_id: "run_form", type: "note", title: "Run form" },
+      { component_id: "after", type: "note", title: "After block" },
+    ],
+  };
+
+  function renderWithResult(actionResult: Record<string, unknown>, overrides: Record<string, unknown> = {}) {
+    render(
+      <ExtensionDetailPanel
+        {...panelProps()}
+        actionResult={{ label: "Start run", ok: true, payload: { action: { status: "succeeded", response: { ok: true } } }, ...actionResult } as never}
+        activeManifestPage={page}
+        detailExtension={{ active: true, display_name: "Fixture extension", extension_id: "fixture.extension" } as never}
+        manifestPages={[page]}
+        {...overrides}
+      />,
+    );
+    return screen.getAllByRole("region", { name: "Start run result" });
+  }
+
+  function follows(first: Element, second: Element): boolean {
+    return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+  }
+
+  it("shows beside the component whose control ran it, once", () => {
+    const [result, ...others] = renderWithResult({ componentId: "run_form" });
+
+    expect(others).toHaveLength(0);
+    expect(within(screen.getByRole("tabpanel")).getByRole("region", { name: "Start run result" })).toBe(result);
+    expect(follows(screen.getByText("Run form"), result)).toBe(true);
+    expect(follows(result, screen.getByText("After block"))).toBe(true);
+  });
+
+  it("stays at the top for an action no page component ran", () => {
+    const [result, ...others] = renderWithResult({});
+
+    expect(others).toHaveLength(0);
+    expect(screen.getByRole("tabpanel")).not.toContainElement(result);
+    expect(follows(result, screen.getByText("Intro block"))).toBe(true);
+  });
+
+  it("stays at the top when the component is not on the page shown", () => {
+    const [result] = renderWithResult({ componentId: "on_another_page" });
+
+    expect(screen.getByRole("tabpanel")).not.toContainElement(result);
+  });
+
+  it("stays at the top while the page waits for a project", () => {
+    const [result] = renderWithResult({ componentId: "run_form" }, { pageRequiresProject: true });
+
+    expect(screen.queryByText("Run form")).not.toBeInTheDocument();
+    expect(result).toBeInTheDocument();
   });
 });

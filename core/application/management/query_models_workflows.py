@@ -142,7 +142,7 @@ class WorkflowEntrypointView(ViewModel):
                 "workflow_id": "release-report",
                 "enabled": True,
                 "allowed_methods": ["POST"],
-                "idempotency_mode": "client_key",
+                "idempotency_mode": "header",
                 "response_mode": "accepted",
                 "requires_secret": True,
                 "input_mapping_keys": ["release_version", "requested_by"],
@@ -165,7 +165,10 @@ class WorkflowEntrypointView(ViewModel):
     )
     idempotency_mode: str = Field(
         default="",
-        description="How callers should provide idempotency information.",
+        description=(
+            "How callers should provide idempotency information: 'none' or 'header' "
+            "(an Idempotency-Key request header)."
+        ),
     )
     response_mode: str = Field(
         default="",
@@ -194,7 +197,7 @@ class ProjectWorkflowEntrypointsView(ViewModel):
                         "workflow_id": "release-report",
                         "enabled": True,
                         "allowed_methods": ["POST"],
-                        "idempotency_mode": "client_key",
+                        "idempotency_mode": "header",
                         "response_mode": "accepted",
                         "requires_secret": True,
                         "input_mapping_keys": ["release_version", "requested_by"],

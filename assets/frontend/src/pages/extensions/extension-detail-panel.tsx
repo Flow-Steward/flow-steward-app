@@ -52,6 +52,10 @@ function extensionStateTone(state: string, active: boolean): DsBadgeTone {
   return "neutral";
 }
 
+function manifestComponentKey(component: Record<string, unknown>): string {
+  return stringFrom(component.component_id || component.id || component.key);
+}
+
 function detailStatusSucceeded(status: string): boolean {
   const normalized = status.toLowerCase();
   return normalized.includes("successful") || normalized.includes("completed");
@@ -67,6 +71,10 @@ import {
   isRefreshTokenImportProvider,
   oauthProvidersFromManifest,
 } from "@/pages/extensions/extension-oauth-types";
+import { ExtensionPageConnectionScope } from "./extension-page-connection-scope";
+import { ExtensionPageRefreshControl } from "./extension-page-refresh";
+import type { ExtensionPageRefresh } from "./use-extension-page-refresh";
+import type { ExtensionPageConnection } from "./use-extension-page-connection";
 
 
 
@@ -135,6 +143,8 @@ type ExtensionDetailPanelProps = {
   };
   projectState: Array<Record<string, unknown>>;
   pageRequiresProject: boolean;
+  pageConnection: ExtensionPageConnection;
+  pageRefresh: ExtensionPageRefresh;
   projectsQuery: {
     error: unknown;
     isError: boolean;
@@ -295,13 +305,29 @@ function activeOAuthProviderRows(
   });
 }
 
+function effectRecoveryGuidance(t: ReturnType<typeof useI18n>["t"], recovery?: ExtensionEffectRecovery): string {
+  return recovery?.effect.status === "timeout_unknown" && !recovery.effect.resolution_ref
+    ? t("react.extensions.display_external_effect_ambiguity", "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.") : "";
+}
+
+/** The last action's result with its effect recovery, wherever the page shows it. */
+function ManifestActionResult({ panel }: Readonly<{ panel: ExtensionDetailPanelProps }>) {
+  const { t } = useI18n();
+  if (!panel.actionResult) return null;
+  const actionEffectId = manifestActionHostEffect(panel.actionResult.payload)?.effectId;
+  const recovery = panel.effectRecoveries?.find((candidate) => candidate.effect.effect_id === actionEffectId);
+  return <ExtensionActionResultPanel guidance={effectRecoveryGuidance(t, recovery)} result={panel.actionResult} recovery={recovery} />;
+}
+
 function ExtensionSummary({
+  actionResultBesideComponent,
   canAdministerPlatform,
   detailExtension,
   panel,
   safeSupportUrl,
   safeWebsiteUrl,
 }: Readonly<{
+  actionResultBesideComponent: boolean;
   canAdministerPlatform: boolean;
   detailExtension: ExtensionRecord;
   panel: ExtensionDetailPanelProps;
@@ -311,9 +337,6 @@ function ExtensionSummary({
   const { t } = useI18n();
   const state = extensionState(detailExtension);
   const actionEffectId = manifestActionHostEffect(panel.actionResult?.payload)?.effectId;
-  const actionRecovery = panel.effectRecoveries?.find((recovery) => recovery.effect.effect_id === actionEffectId);
-  const recoveryGuidance = (recovery?: ExtensionEffectRecovery) => recovery?.effect.status === "timeout_unknown" && !recovery.effect.resolution_ref
-    ? t("react.extensions.display_external_effect_ambiguity", "The provider may have accepted this action. Flow Steward did not submit it again. Check the provider status before retrying or starting a new action.") : "";
   return (
     <>
       <div className="fs-extension-detail-facts">
@@ -338,8 +361,8 @@ function ExtensionSummary({
       {panel.detailStatus ? (
         <DsAlert title={panel.detailStatus} tone={detailStatusSucceeded(panel.detailStatus) ? "success" : "neutral"} />
       ) : null}
-      {panel.actionResult ? <ExtensionActionResultPanel guidance={recoveryGuidance(actionRecovery)} result={panel.actionResult} recovery={actionRecovery} /> : null}
-      {panel.effectRecoveries?.filter((recovery) => recovery.effect.effect_id !== actionEffectId).map((recovery) => <ExtensionActionResultPanel key={recovery.effect.effect_id} guidance={recoveryGuidance(recovery)} result={{ label: catalogLabel(recovery.effect.operation_id), ok: false, payload: { external_effect: recovery.effect } }} recovery={recovery} />)}
+      {actionResultBesideComponent ? null : <ManifestActionResult panel={panel} />}
+      {panel.effectRecoveries?.filter((recovery) => recovery.effect.effect_id !== actionEffectId).map((recovery) => <ExtensionActionResultPanel key={recovery.effect.effect_id} guidance={effectRecoveryGuidance(t, recovery)} result={{ label: catalogLabel(recovery.effect.operation_id), ok: false, payload: { external_effect: recovery.effect } }} recovery={recovery} />)}
     </>
   );
 }
@@ -611,6 +634,7 @@ function ManifestComponentSections({
   // pressed control's key tells which of them shows busy.
   const [pressedAction, setPressedAction] = useState("");
   const running = panel.busyById[panel.detailExtension.extension_id];
+  const resultComponentId = stringFrom(panel.actionResult?.componentId);
   return listFromUnknown(panel.activeManifestPage?.components).map((component) => {
     const anchorId = stringFrom(component.anchor_id);
     const anchorDomId = manifestAnchorDomId(activePageId, anchorId);
@@ -620,7 +644,7 @@ function ManifestComponentSections({
         className={anchorDomId ? "scroll-mt-4 outline-none" : "contents"}
         data-extension-anchor={anchorDomId ? anchorId : undefined}
         id={anchorDomId || undefined}
-        key={stringFrom(component.component_id || component.id || component.key)}
+        key={manifestComponentKey(component)}
         tabIndex={anchorDomId ? -1 : undefined}
       >
         {renderManifestComponent(component, {
@@ -669,6 +693,8 @@ function ManifestComponentSections({
           onProjectStateDelete: (sourceComponent, row) => ignoreAsyncResult(panel.onProjectStateDelete(sourceComponent, row)),
           onProjectStateSelect: panel.onProjectStateSelect,
         }, t)}
+        {/* The result of a control's action shows beside the component that ran it. */}
+        {resultComponentId && resultComponentId === manifestComponentKey(component) ? <ManifestActionResult panel={panel} /> : null}
       </section>
     );
   });
@@ -710,6 +736,8 @@ function ActiveManifestPagePanel({
         {t("extensions.detail.select_project_body", "This extension stores project-scoped configuration, secrets, channels, and routes. Choose the project above to load its project binding.")}
       </DsAlert>
     );
+  } else if (panel.pageConnection.types.length && !panel.pageConnection.ready) {
+    content = <ExtensionPageConnectionScope connection={panel.pageConnection} onOpenPage={panel.setActiveExtensionPageId} />;
   } else if (activePageOAuthBlocked) {
     content = (
       <DsAlert title={t("react.extensions.finish_provider_setup", "Finish provider setup")} tone="warning">
@@ -720,7 +748,7 @@ function ActiveManifestPagePanel({
       </DsAlert>
     );
   } else {
-    content = <><ActiveOAuthProviderSet activeOAuthProviders={activeOAuthProviders} activePageId={activePageId} canManageProject={canManageProject} oauthConnectionDeclarations={oauthConnectionDeclarations} panel={panel} /><ManifestComponentSections activePageId={activePageId} canManageProject={canManageProject} extensionDescriptorSha256={extensionDescriptorSha256} extensionReleaseId={extensionReleaseId} pageOAuthConnectionProviderIds={pageOAuthConnectionProviderIds} panel={panel} /></>;
+    content = <><ExtensionPageConnectionScope connection={panel.pageConnection} onOpenPage={panel.setActiveExtensionPageId} /><ExtensionPageRefreshControl refresh={panel.pageRefresh} /><ActiveOAuthProviderSet activeOAuthProviders={activeOAuthProviders} activePageId={activePageId} canManageProject={canManageProject} oauthConnectionDeclarations={oauthConnectionDeclarations} panel={panel} /><ManifestComponentSections activePageId={activePageId} canManageProject={canManageProject} extensionDescriptorSha256={extensionDescriptorSha256} extensionReleaseId={extensionReleaseId} pageOAuthConnectionProviderIds={pageOAuthConnectionProviderIds} panel={panel} /></>;
   }
   return (
     <div aria-labelledby={`extension-page-tab-${domPageId}`} className="fs-tabs-panel fs-extension-detail-page" id={`extension-page-panel-${domPageId}`} role="tabpanel">
@@ -796,6 +824,18 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
   const activePageBlockedReason = activePageBlockedProviderId
     ? panelProps.oauthProviderBlockedReasons?.[activePageBlockedProviderId] ?? null
     : null;
+  // Where the page draws the component that ran the last action, its result shows
+  // beside it rather than at the top, far from a long form's button.
+  const actionResultComponentId = stringFrom(panelProps.actionResult?.componentId);
+  const actionResultBesideComponent = Boolean(
+    actionResultComponentId
+    && detailExtension.active
+    && manifestPages.length > 0
+    && !activePageOAuthBlocked
+    && !(panelProps.pageRequiresProject && !panelProps.selectedProjectId)
+    && listFromUnknown(activeManifestPage?.components)
+      .some((component) => manifestComponentKey(component) === actionResultComponentId),
+  );
   const activeOAuthProviders = activeOAuthProviderRows(
     oauthProviders,
     activePageId,
@@ -807,6 +847,7 @@ export function ExtensionDetailPanel(panelProps: Readonly<ExtensionDetailPanelPr
     <article className="fs-card fs-extension-detail" id="extension-detail-panel">
       <div className="fs-card-body fs-extension-detail-body">
         <ExtensionSummary
+          actionResultBesideComponent={actionResultBesideComponent}
           canAdministerPlatform={canAdministerPlatform}
           detailExtension={detailExtension}
           panel={panelProps}

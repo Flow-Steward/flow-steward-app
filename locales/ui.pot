@@ -3969,6 +3969,9 @@ msgstr ""
 msgid "react.extensions.connection_name"
 msgstr ""
 
+msgid "react.extensions.connection_secrets_not_approved"
+msgstr ""
+
 msgid "react.extensions.connection_storage_unavailable"
 msgstr ""
 
@@ -4954,6 +4957,36 @@ msgid "react.extensions.opens_in_a_new_tab"
 msgstr ""
 
 msgid "react.extensions.page"
+msgstr ""
+
+msgid "react.extensions.page_connection.choose"
+msgstr ""
+
+msgid "react.extensions.page_connection.help"
+msgstr ""
+
+msgid "react.extensions.page_connection.label"
+msgstr ""
+
+msgid "react.extensions.page_connection.none"
+msgstr ""
+
+msgid "react.extensions.page_connection.none_help"
+msgstr ""
+
+msgid "react.extensions.page_connection.open_setup"
+msgstr ""
+
+msgid "react.extensions.page_connection.operator_only"
+msgstr ""
+
+msgid "react.extensions.page_connection.select"
+msgstr ""
+
+msgid "react.extensions.page_refresh.refresh"
+msgstr ""
+
+msgid "react.extensions.page_refresh.stopped"
 msgstr ""
 
 msgid "react.extensions.permissions_it_asks_for"

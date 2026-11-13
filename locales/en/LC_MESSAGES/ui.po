@@ -26566,6 +26566,9 @@ msgstr "Secret storage is unavailable. Retry, then contact an administrator if t
 msgid "react.extensions.secret_storage_failed"
 msgstr "The secret was not saved. Retry, then contact an administrator if the problem continues."
 
+msgid "react.extensions.connection_secrets_not_approved"
+msgstr "This connection uses stored secrets that are not approved for it yet. Approval is needed again after the connection changes. Choose Approve use of secrets on the connection's card, then run the action again."
+
 msgid "react.extensions.connection_storage_unavailable"
 msgstr "The connection could not be saved. Retry, then contact an administrator if the problem continues."
 
@@ -30431,3 +30434,33 @@ msgstr "Regenerating…"
 
 msgid "react.workflows.rotating_credential"
 msgstr "Rotating…"
+
+msgid "react.extensions.page_connection.operator_only"
+msgstr "Only an operator or administrator can load this page's data."
+
+msgid "react.extensions.page_connection.none"
+msgstr "No {type} connection in this project."
+
+msgid "react.extensions.page_connection.none_help"
+msgstr "Create one, then come back to this page."
+
+msgid "react.extensions.page_connection.open_setup"
+msgstr "Open connections"
+
+msgid "react.extensions.page_connection.label"
+msgstr "Connection"
+
+msgid "react.extensions.page_connection.select"
+msgstr "Select a connection"
+
+msgid "react.extensions.page_connection.help"
+msgstr "This page reads its data through the selected connection."
+
+msgid "react.extensions.page_connection.choose"
+msgstr "Choose the connection this page reads its data through."
+
+msgid "react.extensions.page_refresh.refresh"
+msgstr "Refresh"
+
+msgid "react.extensions.page_refresh.stopped"
+msgstr "Automatic refresh stopped after a failed load. Press Refresh to try again."

@@ -21,6 +21,7 @@ _AUDIT_REQUEST_CONTEXT_KEYS = (
     "parent_span_id",
     "span_id",
     "project_id",
+    "connection_id",
     "job_id",
     "tool_id",
     "function_name",

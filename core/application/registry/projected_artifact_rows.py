@@ -262,6 +262,8 @@ def projected_artifact_rows(
                 # (ADR 0065): never a workflow a person browses, links or launches.
                 snapshot["visible_in_catalog"] = False
                 snapshot[ACTION_IMPLEMENTATION_SETTING] = True
+        elif artifact_kind == "skill":
+            _attach_skill_contract_rows(snapshot)
         elif artifact_kind == "saved_query" and snapshot.get("dataset_id"):
             snapshot["dataset_id"] = _scoped_reference(
                 snapshot["dataset_id"],
@@ -270,6 +272,36 @@ def projected_artifact_rows(
 
         rows.append(snapshot)
     return rows
+
+
+def _attach_skill_contract_rows(snapshot: dict[str, Any]) -> None:
+    """Give a bundle skill the declared I/O shape of a registry skill row.
+
+    A registry skill reaches ``SkillManifest.from_db_row`` with its declared
+    inputs and outputs in ``_inputs``/``_outputs``, read from its registry I/O
+    tables. A bundle declares them as ``expected_inputs``/``expected_outputs``,
+    so a manifest built from the projected row, as an assigned skill is at run
+    time, had no outputs: the phase-result schema then allowed no artifacts and
+    the model's answer was refused. The rows are normalized exactly as the
+    install-owned anchor stores them. An authored ``input_schema`` or
+    ``output_schema`` stays as declared; a missing one is derived from the rows,
+    as for a registry skill.
+    """
+    from core.application.registry.db_store_contracts_mixin import (
+        RegistryDBStoreContractsMixin,
+    )
+    from core.application.registry.db_store_projected_skills_mixin import (
+        projected_skill_contract_rows,
+    )
+
+    inputs = projected_skill_contract_rows(snapshot.get("expected_inputs"), default_required=False)
+    outputs = projected_skill_contract_rows(snapshot.get("expected_outputs"), default_required=True)
+    snapshot["_inputs"] = inputs
+    snapshot["_outputs"] = outputs
+    if not snapshot.get("input_schema"):
+        snapshot["input_schema"] = RegistryDBStoreContractsMixin._build_contract_schema(inputs)
+    if not snapshot.get("output_schema"):
+        snapshot["output_schema"] = RegistryDBStoreContractsMixin._build_contract_schema(outputs)
 
 
 def _own_extension_step_install(

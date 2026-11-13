@@ -70,6 +70,15 @@ import {
   uninstallExtensionForPlan,
 } from "./hub-support";
 import { oauthConnectionTypesFromManifest } from "./connection-form-support";
+import {
+  PAGE_CONNECTION_PARAM,
+  pageUrlParameters,
+  queryConnectionTarget,
+  queryFailureMessage,
+  withoutPageUrlParameters,
+} from "./extension-page-connection";
+import { useExtensionPageConnection } from "./use-extension-page-connection";
+import { pageRefreshSeconds, useExtensionPageRefresh } from "./use-extension-page-refresh";
 
 /** The running action per extension, so only its own control shows busy ("other": a connection or manifest action). */
 export type ExtensionBusyAction = "toggle" | "health" | "uninstall" | "install" | "other";
@@ -461,6 +470,18 @@ export function useExtensionsHubState() {
     enabled: Boolean(detailExtension?.active && activePageProjectId),
   });
   const refetchCallbackConnections = projectConnectionsQuery.refetch;
+  const pageConnection = useExtensionPageConnection({
+    page: activeManifestPage,
+    pages: manifestPages,
+    manifest: localizedManifest,
+    connections: projectConnectionsQuery.data,
+    connectionsPending: projectConnectionsQuery.isPending,
+    installId: extensionInstallId,
+    projectId: activePageProjectId,
+    canManageProject,
+    search: location.search,
+    updateSearchParams,
+  });
   const oauthCallbackConnection = useMemo(() => {
     if (
       !oauthCallbackNotice?.connectionId
@@ -547,6 +568,8 @@ export function useExtensionsHubState() {
       globalThis.localStorage.setItem("platform-last-project-id", normalizedProjectId);
     }
     const params = new URLSearchParams(location.search);
+    // A connection belongs to its project.
+    params.delete(PAGE_CONNECTION_PARAM);
     if (normalizedProjectId) {
       params.set("project_id", normalizedProjectId);
     } else {
@@ -586,7 +609,8 @@ export function useExtensionsHubState() {
     setActionResultByExtension({});
     setComponentErrors({});
     setActiveExtensionPageId(normalizedPageId);
-    const params = new URLSearchParams(location.search);
+    // A page's URL parameters belong to that page.
+    const params = withoutPageUrlParameters(new URLSearchParams(location.search));
     if (normalizedPageId) {
       params.set("extension_page", normalizedPageId);
     } else {
@@ -658,6 +682,20 @@ export function useExtensionsHubState() {
     });
   }, [activeManifestPage, componentQueryData]);
 
+  const pageConnectionId = pageConnection.selectedId;
+  // URL page parameters (p.<name>) feed every query of the page, e.g. a detail page's id.
+  const pageParametersKey = JSON.stringify(pageUrlParameters(location.search));
+  const pageConnectionReady = pageConnection.ready;
+  const pageHasQueries = listFromUnknown(activeManifestPage?.components)
+    .some((component) => Boolean(componentQueryId(component)));
+  const pageRefresh = useExtensionPageRefresh({
+    pageKey: [detailExtension?.extension_id, activeExtensionPageId, activePageProjectId, pageConnectionId].join(":"),
+    seconds: pageRefreshSeconds(activeManifestPage),
+    available: pageHasQueries && pageConnectionReady
+      && Boolean(pageRefreshSeconds(activeManifestPage) || pageConnection.types.length),
+    setComponentQueryRevision,
+  });
+  const { loadStarted: pageLoadStarted, loadFinished: pageLoadFinished } = pageRefresh;
   useEffect(() => {
     const extensionKey = detailExtension?.extension_id;
     const activePageId = stringFrom(
@@ -669,6 +707,7 @@ export function useExtensionsHubState() {
       || !activeManifestPage
       || (activePageId && activeExtensionPageId !== activePageId)
       || (activePageRequiresProject && !activePageProjectId)
+      || !pageConnectionReady
     ) {
       return;
     }
@@ -678,7 +717,10 @@ export function useExtensionsHubState() {
       return;
     }
     let disposed = false;
+    let failed = false;
+    const pageParameters = JSON.parse(pageParametersKey) as Record<string, string>;
     const run = async () => {
+      pageLoadStarted();
       for (const component of queryComponents) {
         const queryId = componentQueryId(component);
         const componentId = stringFrom(component.component_id || component.id || component.key);
@@ -688,6 +730,7 @@ export function useExtensionsHubState() {
         try {
           const queryParams = {
             ...componentQueryParamsForComponent(component),
+            ...pageParameters,
             ...objectOrEmpty(componentQueryParams[componentId]),
           };
           const payload = await executeExtensionQuery(extensionKey, queryId, {
@@ -695,6 +738,7 @@ export function useExtensionsHubState() {
             context: activePageProjectId ? { project_id: activePageProjectId } : {},
             page_id: activePageId,
             params: queryParams,
+            ...queryConnectionTarget(manifestQuery.data, queryId, pageConnectionId),
           });
           if (disposed) {
             return;
@@ -716,20 +760,23 @@ export function useExtensionsHubState() {
           if (disposed) {
             return;
           }
+          failed = true;
           setComponentErrors((current) => ({
             ...current,
             [componentId]: {
-              message:
-                error instanceof Error ? error.message : t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data."),
+              message: queryFailureMessage(error, t, t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data.")),
               fieldPath: "",
             },
           }));
         }
       }
     };
-    ignoreAsyncResult(run());
+    ignoreAsyncResult(run().finally(() => {
+      if (!disposed) pageLoadFinished(failed);
+    }));
     return () => {
       disposed = true;
+      pageLoadFinished(false);
     };
   }, [
     activeManifestPage,
@@ -739,6 +786,12 @@ export function useExtensionsHubState() {
     detailExtension?.extension_id,
     activePageProjectId,
     activePageRequiresProject,
+    manifestQuery.data,
+    pageConnectionId,
+    pageConnectionReady,
+    pageLoadFinished,
+    pageLoadStarted,
+    pageParametersKey,
     t,
   ]);
 
@@ -796,6 +849,8 @@ export function useExtensionsHubState() {
     extensionInstallId,
     location,
     projectConnectionsQuery,
+    pageConnection,
+    pageRefresh,
     oauthConnectionTypes,
     projectStateQuery,
     oauthCallbackNotice,
