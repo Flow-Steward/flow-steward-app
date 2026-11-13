@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fetchSpy, mockedFetchWorkflowDag, mockedFetchWorkflowDetail, mockedFetchWorkflowValidation, renderPage } from "./index.test-helpers";
 
@@ -67,7 +67,7 @@ it("does not restore a saved extension after entering MCP through another kind",
   expect(source).toHaveTextContent("Choose MCP server");
   await user.click(source);
   const sources = screen.getByRole("listbox", { name: "MCP server options" });
-  expect(await within(sources).findByRole("option", { name: "Shop" })).toBeInTheDocument();
+  await waitFor(() => expect(within(sources).getByRole("option", { name: "Shop" })).toBeInTheDocument());
   expect(within(sources).queryByRole("option", { name: "Mail" })).not.toBeInTheDocument();
 });
 

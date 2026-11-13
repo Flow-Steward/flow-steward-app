@@ -175,7 +175,7 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
     await waitFor(() => expect(agentSelect).toBeEnabled());
     await user.click(agentSelect);
     const agentOptions = screen.getByRole("listbox", { name: "Agent options" });
-    await user.click(await within(agentOptions).findByRole("option", { name: "Release Writer" }, { timeout: 4000 }));
+    await user.click(await within(agentOptions).findByRole("option", { name: "Release Writer" }));
     expect(agentSelect).toHaveTextContent("Release Writer");
     await user.click(agentSelect);
     expect(within(screen.getByRole("listbox", { name: "Agent options" }))
@@ -211,9 +211,7 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
     renderPage();
     await openAgentStepEditor();
 
-    expect(
-      await screen.findByText(/saved query catalog could not be loaded/i),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/saved query catalog could not be loaded/i)).toBeInTheDocument());
     expect(screen.queryByText(/no saved queries are available/i)).not.toBeInTheDocument();
   });
 
@@ -231,6 +229,6 @@ describe("WorkflowsDetailPage agent catalog (AUDIT-033)", () => {
     renderPage();
     await openAgentStepEditor();
 
-    expect(await screen.findByText(/agent catalog could not be loaded/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/agent catalog could not be loaded/i)).toBeInTheDocument());
   });
 });

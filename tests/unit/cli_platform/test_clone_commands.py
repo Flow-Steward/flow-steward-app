@@ -345,13 +345,13 @@ def test_clone_restore_noninteractive_preview_prints_complete_review_and_confirm
         SERVICE_FACTORIES["clone.restore"] = original_service
 
     assert first.exit_code == 10
-    assert "target_installation_id" in first.output
+    assert "Target installation ID:" in first.output
     assert "target-installation" in first.output
-    assert "target_profile" in first.output
+    assert "Target profile:" in first.output
     assert "compact" in first.output
-    assert "public_host" in first.output
+    assert "Public host:" in first.output
     assert "clone.example.test" in first.output
-    assert "plan_digest" in first.output
+    assert "Plan digest:" in first.output
     assert "b" * 64 in first.output
     assert f"Confirmation value: {expected}" in first.output
     assert json_preview.exit_code == 10

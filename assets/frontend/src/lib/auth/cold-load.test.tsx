@@ -67,7 +67,7 @@ test("a session read that fails once is retried, and the job page opens where it
 
   renderColdLoad();
 
-  expect(await screen.findByText("Job details", {}, { timeout: 3000 })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Job details")).toBeInTheDocument());
   expect(screen.getByTestId("where")).toHaveTextContent(JOB_PATH);
   expect(screen.queryByText("Sign in")).not.toBeInTheDocument();
   expect(mockedFetch).toHaveBeenCalledTimes(2);
@@ -88,7 +88,7 @@ test("a retry paused in a background tab still waits instead of signing the user
     expect(screen.getByTestId("where")).toHaveTextContent(JOB_PATH);
 
     act(() => focusManager.setFocused(true));
-    expect(await screen.findByText("Job details", {}, { timeout: 3000 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Job details")).toBeInTheDocument());
     expect(screen.getByTestId("where")).toHaveTextContent(JOB_PATH);
   } finally {
     focusManager.setFocused(undefined);
@@ -100,13 +100,13 @@ test("a session that cannot be read at all is not treated as signed out", async 
 
   renderColdLoad();
 
-  expect(await screen.findByRole("alert", {}, { timeout: 4000 })).toHaveTextContent("Your session could not be checked");
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Your session could not be checked"));
   expect(screen.getByTestId("where")).toHaveTextContent(JOB_PATH);
   expect(screen.queryByText("Sign in")).not.toBeInTheDocument();
 
   mockedFetch.mockResolvedValue(SIGNED_IN);
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  expect(await screen.findByText("Job details")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Job details")).toBeInTheDocument());
   expect(screen.getByTestId("where")).toHaveTextContent(JOB_PATH);
 });
 
@@ -133,8 +133,8 @@ test("a deep link waits on the session behind the page loader, not an empty scre
 
   // The same named page loader as the home route; it owns the wait, so the
   // global request loader stays unpainted behind it.
-  expect(await screen.findByText("Restoring your session", {}, { timeout: 1000 })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Restoring your session")).toBeInTheDocument());
   await act(async () => answer(SIGNED_IN));
-  expect(await screen.findByText("Job details")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Job details")).toBeInTheDocument());
   expect(screen.queryByText("Restoring your session")).not.toBeInTheDocument();
 });

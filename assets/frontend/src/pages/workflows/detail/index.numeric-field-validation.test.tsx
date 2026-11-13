@@ -160,7 +160,7 @@ describe("numeric fields through the actual workflow page", () => {
     expect(boundary.storedConfig()).toEqual({ duration_ms: 0 });
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Numeric step/i }));
-    expect(await screen.findByRole("spinbutton", { name: "Duration, milliseconds" })).toHaveValue(0);
+    await waitFor(() => expect(screen.getByRole("spinbutton", { name: "Duration, milliseconds" })).toHaveValue(0));
   });
 
   it.each([
@@ -227,7 +227,7 @@ describe("numeric fields through the actual workflow page", () => {
     fireEvent.change(raw, { target: { value: invalidJson } });
     await user.click(screen.getByRole("button", { name: "Save parameters" }));
     expect(boundary.writes).toEqual([]);
-    expect(await screen.findByRole("alert")).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("alert")).toBeVisible());
     expect(raw).toHaveFocus();
     expect(raw).toHaveValue(invalidJson);
   });
@@ -324,7 +324,7 @@ describe("HTTP response-mode preservation through the workflow page", () => {
     expect(boundary.storedConfig()).toEqual({ ...initial, max_response_bytes: expected });
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Numeric step/i }));
-    expect(await screen.findByRole("textbox", { name: "Max response bytes" })).toHaveValue(visible);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Max response bytes" })).toHaveValue(visible));
     expect(screen.getByRole("textbox", { name: "Artifact filename" })).toHaveValue(initial.artifact_filename);
   });
 
@@ -396,7 +396,7 @@ describe("HTTP response-mode preservation through the workflow page", () => {
     expect(boundary.storedConfig()).toEqual({ ...initial, response_mode: "artifact", max_response_bytes: "" });
     await user.click(screen.getByRole("button", { name: "Close" }));
     await user.click(screen.getByRole("button", { name: /Numeric step/i }));
-    expect(await screen.findByRole("textbox", { name: "Max response bytes" })).toHaveValue("");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Max response bytes" })).toHaveValue(""));
   });
 });
 
@@ -471,14 +471,14 @@ describe("HTTP preservation with a fresh mounted readback owner", () => {
       view = renderPage();
       await waitFor(() => expect(readStarted).toBeGreaterThan(0));
       expect(completedReads).toEqual([]);
-      expect(await screen.findByText("Preparing the workflow")).toBeVisible(); // the page loader paints after its 400 ms delay
+      await waitFor(() => expect(screen.getByText("Preparing the workflow")).toBeVisible()); // the page loader paints after its 400 ms delay
       expect(screen.queryByDisplayValue(returnedConfig.artifact_filename)).not.toBeInTheDocument();
       expect(screen.queryByDisplayValue("Local label before readback")).not.toBeInTheDocument();
       releaseRead();
       await waitFor(() => expect(screen.queryByText("Preparing the workflow")).not.toBeInTheDocument());
       fireEvent.click(await screen.findByRole("button", { name: /Server observed HTTP step/i }));
       const readbackEditor = within(await screen.findByRole("dialog", { name: "Step editor" }));
-      expect(await readbackEditor.findByRole("textbox", { name: "Max response bytes" })).toHaveValue(visible);
+      await waitFor(() => expect(readbackEditor.getByRole("textbox", { name: "Max response bytes" })).toHaveValue(visible));
       expect(readbackEditor.getByRole("textbox", { name: "Step label" })).toHaveValue("Server observed HTTP step");
       expect(readbackEditor.getByRole("textbox", { name: "Artifact filename" })).toHaveValue(returnedConfig.artifact_filename);
       expect(readbackEditor.getByRole("textbox", { name: "Response target" })).toHaveValue(returnedConfig.response_target);

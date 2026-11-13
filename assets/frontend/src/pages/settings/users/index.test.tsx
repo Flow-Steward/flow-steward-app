@@ -89,7 +89,7 @@ describe("SettingsUsersPage", () => {
   it("does not request users or accounts for a non-admin", async () => {
     mockedUseAuth.mockReturnValue(authValue(["viewer"]));
     renderUsersPage();
-    expect(await screen.findByText("Administrator access required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Administrator access required")).toBeInTheDocument());
     expect(mockedFetchUsersCollection).not.toHaveBeenCalled();
     expect(mockedFetchAccountsCollection).not.toHaveBeenCalled();
   });
@@ -167,11 +167,7 @@ describe("SettingsUsersPage", () => {
       must_change_password: true,
     }));
 
-    expect(
-      await screen.findByText(
-        "Mail warning user was added. User created, but the welcome email was not delivered. Check the email extension's connection.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Mail warning user was added. User created, but the welcome email was not delivered. Check the email extension's connection.")).toBeInTheDocument());
   });
 
   it("keeps password-change policy explicit in the set-password dialog", async () => {
@@ -222,7 +218,7 @@ describe("SettingsUsersPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Delete user" }));
 
     await waitFor(() => expect(mockedDeleteUser).toHaveBeenCalledWith("u1"));
-    expect(await screen.findByText("Maya Chen was deleted.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Maya Chen was deleted.")).toBeInTheDocument());
   });
 
   it("does not offer self-delete", async () => {
@@ -246,7 +242,7 @@ describe("SettingsUsersPage", () => {
     await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
     await user.click(screen.getByRole("menuitem", { name: "Clear sign-in lockout" }));
     await waitFor(() => expect(mockedUnlockUser).toHaveBeenCalledWith("u1"));
-    expect(await screen.findByText("Sign-in lockout cleared for Maya Chen.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Sign-in lockout cleared for Maya Chen.")).toBeInTheDocument());
   });
 
   it("retains accurate failure feedback when unlock rejects", async () => {
@@ -255,7 +251,7 @@ describe("SettingsUsersPage", () => {
     renderUsersPage();
     await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
     await user.click(screen.getByRole("menuitem", { name: "Clear sign-in lockout" }));
-    expect(await screen.findByText("Lockout service unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Lockout service unavailable")).toBeInTheDocument());
     expect(screen.queryByText(/cleared for Maya/)).not.toBeInTheDocument();
   });
 
@@ -279,7 +275,7 @@ describe("SettingsUsersPage", () => {
     await user.type(name, "Maya Updated");
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
 
-    expect(await within(dialog).findByText("The saved display name did not match the submitted value.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("The saved display name did not match the submitted value.")).toBeInTheDocument());
     expect(screen.queryByText("Access for Maya Chen was updated.")).not.toBeInTheDocument();
   });
 
@@ -292,7 +288,7 @@ describe("SettingsUsersPage", () => {
     const dialog = screen.getByRole("dialog", { name: "Edit access for Maya Chen" });
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
 
-    expect(await within(dialog).findByText("Change at least one setting before saving.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Change at least one setting before saving.")).toBeInTheDocument());
     expect(mockedUpdateUser).not.toHaveBeenCalled();
     expect(screen.queryByText("Access for Maya Chen was updated.")).not.toBeInTheDocument();
   });
@@ -322,6 +318,6 @@ describe("SettingsUsersPage", () => {
     await user.type(name, "Maya Updated");
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(mockedUpdateUser).toHaveBeenCalledWith("u1", { display_name: "Maya Updated" }));
-    expect(await screen.findByText("Access for Maya Chen was updated.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Access for Maya Chen was updated.")).toBeInTheDocument());
   });
 });

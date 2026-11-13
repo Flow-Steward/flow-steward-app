@@ -540,6 +540,7 @@
     "core/application/monitoring/ingestion.py",
     "core/application/monitoring/processes.py",
     "core/application/monitoring/queries.py",
+    "core/application/monitoring/readiness_projection.py",
     "core/application/monitoring/repository.py",
     "core/application/monitoring/runs.py",
     "core/application/monitoring/runtime_composition.py",
@@ -1238,6 +1239,7 @@
     "core/entrypoints/cli/platform/__init__.py",
     "core/entrypoints/cli/platform/click_adapter.py",
     "core/entrypoints/cli/platform/command_help.py",
+    "core/entrypoints/cli/platform/command_names.py",
     "core/entrypoints/cli/platform/command_parameters.py",
     "core/entrypoints/cli/platform/confirmation.py",
     "core/entrypoints/cli/platform/errors.py",
@@ -1247,9 +1249,11 @@
     "core/entrypoints/cli/platform/interrupts.py",
     "core/entrypoints/cli/platform/modes.py",
     "core/entrypoints/cli/platform/operation_log.py",
+    "core/entrypoints/cli/platform/prompts.py",
     "core/entrypoints/cli/platform/redaction.py",
     "core/entrypoints/cli/platform/renderers.py",
     "core/entrypoints/cli/platform/result_presentation.py",
+    "core/entrypoints/cli/platform/result_view.py",
     "core/entrypoints/cli/platform/service_bindings/__init__.py",
     "core/entrypoints/cli/platform/service_bindings/clone.py",
     "core/entrypoints/cli/platform/service_bindings/common.py",
@@ -1265,11 +1269,10 @@
     "core/entrypoints/cli/platform/service_bindings/workflow_authoring.py",
     "core/entrypoints/cli/platform/service_bindings/workflows.py",
     "core/entrypoints/cli/platform/service_registry.py",
+    "core/entrypoints/cli/platform/step_progress.py",
     "core/entrypoints/cli/platform/theme.py",
     "core/entrypoints/cli/runtime.py",
     "core/entrypoints/cli/secret_input.py",
-    "core/entrypoints/cli/tui/__init__.py",
-    "core/entrypoints/cli/tui/form_app.py",
     "core/entrypoints/control/__init__.py",
     "core/entrypoints/control/api.py",
     "core/entrypoints/web/frontend_shell.py",
@@ -1523,6 +1526,7 @@
     "core/infrastructure/monitoring/runs_storage.py",
     "core/infrastructure/monitoring/system_diagnostics.py",
     "core/infrastructure/monitoring/system_storage.py",
+    "core/infrastructure/observability/exception_logging.py",
     "core/infrastructure/observability/logger_runtime.py",
     "core/infrastructure/observability/observability_metrics.py",
     "core/infrastructure/observability/otel_bootstrap.py",
@@ -1726,14 +1730,6 @@
     {
       "path": "core/entrypoints/cli/scripts/start_server.sh",
       "consumer": "app-runtime CMD HTTP server bootstrap"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme_monochrome.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
     },
     {
       "path": "core/infrastructure/config/flow_steward_env_manifest.json",

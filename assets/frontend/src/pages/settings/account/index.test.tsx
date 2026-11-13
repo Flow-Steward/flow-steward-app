@@ -110,7 +110,7 @@ describe("SettingsAccountPage", () => {
 
   it("renders the connected account tabs without legacy security controls", async () => {
     renderPage();
-    expect(await screen.findByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute("aria-selected", "true"));
     expect(screen.getByRole("tab", { name: "Sign-in" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Personal tokens" })).toBeInTheDocument();
     expect(screen.queryByText("platform-grid")).not.toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("SettingsAccountPage", () => {
     const panel = await screen.findByRole("tabpanel", { name: "Personal tokens" });
     const tables = await within(panel).findAllByRole("table");
     expect(tables.map((table) => table.getAttribute("aria-label"))).toEqual(["Personal access tokens", "Connected AI apps"]);
-    expect(await within(panel).findByText("No connected AI apps")).toBeInTheDocument();
+    await waitFor(() => expect(within(panel).getByText("No connected AI apps")).toBeInTheDocument());
   });
 
   it.each([
@@ -289,7 +289,7 @@ describe("SettingsAccountPage", () => {
     await user.click(screen.getByRole("option", { name: /Lietuvių \(Lithuanian\)/i }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
-    expect(await screen.findByText("Profilio pakeitimai išsaugoti.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Profilio pakeitimai išsaugoti.")).toBeInTheDocument());
     expect(screen.queryByText("Profile changes saved.")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Interface language" })).toHaveTextContent(/Lietuvių/);
     expect(screen.getByText("No unsaved changes")).toBeInTheDocument();
@@ -309,7 +309,7 @@ describe("SettingsAccountPage", () => {
     await user.click(screen.getByRole("option", { name: /Lietuvių \(Lithuanian\)/i }));
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
-    expect(await screen.findByText("Išsaugotas 1 laukas. display_name: Display name service unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Išsaugotas 1 laukas. display_name: Display name service unavailable")).toBeInTheDocument());
     expect(screen.getByDisplayValue("Admin Updated")).toBeInTheDocument();
     expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
@@ -325,7 +325,7 @@ describe("SettingsAccountPage", () => {
     });
     fireEvent.click(screen.getByRole("option", { name: "Europe/Paris" }));
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
-    expect(await screen.findByText(/Timezone service unavailable/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Timezone service unavailable/)).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Timezone" })).toHaveValue("Europe/Paris");
     expect(screen.getByText("1 unsaved change")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save changes" })).toBeEnabled();
@@ -334,7 +334,7 @@ describe("SettingsAccountPage", () => {
   it("offers an email change only when an email extension can send the verification", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: "Sign-in" }));
-    expect(await screen.findByRole("button", { name: "Send verification" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Send verification" })).toBeInTheDocument());
   });
 
   it("keeps a localized successful email request in the success state", async () => {
@@ -343,7 +343,7 @@ describe("SettingsAccountPage", () => {
     renderPage("/settings/account?tab=signin");
     fireEvent.change(await screen.findByPlaceholderText("name@company.com"), { target: { value: "new@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send verification" }));
-    expect(await screen.findByText("Patvirtinimo laiškas išsiųstas. Patvirtinkite nuorodą, kol ji galioja.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Patvirtinimo laiškas išsiųstas. Patvirtinkite nuorodą, kol ji galioja.")).toBeInTheDocument());
     expect(screen.getByRole("status")).toHaveTextContent("Email change");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -356,7 +356,7 @@ describe("SettingsAccountPage", () => {
     });
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: "Sign-in" }));
-    expect(await screen.findByText("Email is not set up")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Email is not set up")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Send verification" })).not.toBeInTheDocument();
   });
 
@@ -366,7 +366,7 @@ describe("SettingsAccountPage", () => {
       email_change_status: {},
     });
     renderPage("/settings/account?tab=signin");
-    expect(await screen.findByText("Sign-in is managed by your provider")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Sign-in is managed by your provider")).toBeInTheDocument());
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
   });
 
@@ -392,7 +392,7 @@ describe("SettingsAccountPage", () => {
     expect(copyButton).not.toHaveClass("fs-icon-button");
     await user.click(copyButton);
     await waitFor(() => expect(writeText).toHaveBeenCalledWith("fs_pat_test_secret"));
-    expect(await screen.findByText("Token copied to clipboard.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Token copied to clipboard.")).toBeVisible());
     expect(within(secretDialog).getByRole("button", { name: "I've saved it" })).toBeVisible();
   });
 
@@ -408,7 +408,7 @@ describe("SettingsAccountPage", () => {
     await user.click(within(createDialog).getByRole("button", { name: "Create token" }));
     const secretDialog = await screen.findByRole("dialog", { name: "Save your personal token" });
     await user.click(within(secretDialog).getByRole("button", { name: "Copy token" }));
-    expect(await screen.findByText("Token could not be copied. Select the value and copy it manually.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Token could not be copied. Select the value and copy it manually.")).toBeVisible());
   });
 
   describe("personal token expiry", () => {

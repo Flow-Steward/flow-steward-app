@@ -94,11 +94,3 @@
 .workflow-card[data-disabled="true"] .workflow-card-summary,
 .workflow-card[data-disabled="true"] .workflow-card-outcome { color: var(--fs-text-tertiary); }
 .workflow-card[data-disabled="true"] .workflow-card-icon { opacity: 0.55; }
-
-/* Inline loop: a For each drawn as one card that lists its body. */
-.workflow-inline-loop-body { display: grid; gap: 2px; margin: var(--fs-space-100) 0 0; padding: var(--fs-space-075) 0 0; border-top: 1px solid var(--fs-border-subtle); list-style: none; }
-.workflow-inline-loop-head { display: flex; justify-content: space-between; color: var(--fs-text-tertiary); font: 500 10px/14px var(--ff-body); text-transform: uppercase; letter-spacing: .06em; }
-.workflow-inline-loop-step { display: flex; gap: var(--fs-space-075); width: 100%; min-width: 0; padding: 2px var(--fs-space-050); border: 0; border-radius: var(--fs-radius-compact); background: transparent; color: var(--fs-text-primary); font: 400 12px/18px var(--ff-body); text-align: left; cursor: pointer; }
-.workflow-inline-loop-step:hover { background: var(--fs-bg-surface-muted); }
-.workflow-inline-loop-step:focus-visible { outline: var(--fs-focus-ring-width) solid var(--fs-focus-ring-color); outline-offset: -2px; }
-.workflow-inline-loop-step-summary { min-width: 0; overflow: hidden; color: var(--fs-text-secondary); font-family: var(--ff-code); text-overflow: ellipsis; white-space: nowrap; }

@@ -289,7 +289,7 @@ describe("AppShell", () => {
         expect(search).toHaveValue("Created");
         expect(search).toHaveFocus();
       } else {
-        expect(await screen.findByRole("alert")).toHaveTextContent("Workspace creation refused");
+        await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Workspace creation refused"));
         await user.click(screen.getByRole("button", { name: "Cancel" }));
       }
       expect(mounts).toBe(1);
@@ -298,7 +298,7 @@ describe("AppShell", () => {
       await user.click(screen.getByRole("button", { name: "Workspace" }));
       expect(screen.getByRole("menuitemradio", { name: "Default workspace" })).toBeChecked();
       if (createSucceeds) {
-        expect(await screen.findByRole("menuitemradio", { name: "Created workspace" })).not.toBeChecked();
+        await waitFor(() => expect(screen.getByRole("menuitemradio", { name: "Created workspace" })).not.toBeChecked());
       } else {
         expect(screen.queryByRole("menuitemradio", { name: "Created workspace" })).not.toBeInTheDocument();
       }
@@ -560,7 +560,7 @@ describe("AppShell", () => {
     expect(screen.queryByRole("button", { name: /assistant/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /chat|assistant/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /approvals/i }));
-    expect(await screen.findByText("No approvals are waiting.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No approvals are waiting.")).toBeInTheDocument());
   });
 
   it("keeps approval queue failures visible and reloads the queue on retry", async () => {
@@ -584,12 +584,12 @@ describe("AppShell", () => {
     await renderShell();
     fireEvent.click(screen.getByRole("button", { name: "Open approvals" }));
 
-    expect(await screen.findByText("Approval queue unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Approval queue unavailable")).toBeInTheDocument());
     expect(screen.queryByText("No approvals are waiting.")).not.toBeInTheDocument();
     approvalsAvailable = true;
     fireEvent.click(screen.getByRole("button", { name: "Retry approvals" }));
 
-    expect(await screen.findByRole("button", { name: "Review deployment" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Review deployment" })).toBeInTheDocument());
     expect(screen.queryByText("Approval queue unavailable")).not.toBeInTheDocument();
   });
 
@@ -974,7 +974,7 @@ describe("AppShell", () => {
     });
     await waitFor(() => expect(workspaceRequests).toBe(2));
     fireEvent.click(screen.getByRole("button", { name: "Workspace" }));
-    expect(await screen.findByText("Unable to load workspaces.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Unable to load workspaces.")).toBeVisible());
 
     await act(async () => {
       firstWorkspaceRequest.resolve(

@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from core.application.auth.enforce import require_roles
 from core.application.monitoring.health_query import HealthCountsQueryService
+from core.application.monitoring.readiness_projection import public_readiness_checks
 from core.entrypoints.admin import deps
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.config.version import APP_VERSION
@@ -100,7 +101,7 @@ def health_ready():
         "status": "ready" if bool(readiness.get("ready")) else "not_ready",
         "service": "platform-orchestrator",
         "ready": bool(readiness.get("ready")),
-        "checks": readiness.get("checks") or {},
+        "checks": public_readiness_checks(readiness.get("checks")),
         "time": datetime.now(UTC).isoformat(),
     }
     return JSONResponse(payload, status_code=200 if payload["ready"] else 503)

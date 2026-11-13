@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 
 import {
   canvasGraphFixture,
@@ -11,8 +11,6 @@ import {
   renderPage,
   workflowDetailFixture,
 } from "./index.test-helpers";
-
-vi.setConfig({ testTimeout: 15_000 });
 
 const PROTECTED = {
   extension_owned: true,
@@ -76,7 +74,7 @@ describe("the builder of a protected extension workflow", () => {
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
     const dialog = await screen.findByRole("dialog", { name: "Start a test run" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
-    expect(await within(dialog).findByText("Workflow inputs")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Workflow inputs")).toBeInTheDocument());
     expect(within(dialog).getByText(/customer/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Run workflow test run" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Run step test run" })).not.toBeInTheDocument();
@@ -97,7 +95,7 @@ describe("the licensed read-only builder of an installed workflow", () => {
     installProtectedWorkflow(LICENSED);
     renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
 
-    expect(await screen.findByTestId("structure-locked")).toHaveTextContent("Read-only");
+    await waitFor(() => expect(screen.getByTestId("structure-locked")).toHaveTextContent("Read-only"));
     expect(screen.getByRole("note", { name: "Structure read-only (extension)" })).toHaveTextContent(/cannot be edited/i);
     fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
     const drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
@@ -126,7 +124,7 @@ describe("the licensed read-only builder of an installed workflow", () => {
     } } as never);
     renderPage({ surface: "detail", embedded: false, initialEntry: "/registry/workflows/weekly_report?project_id=project_alpha" });
 
-    expect(await screen.findByText(/Validation: 1 errors \/ 0 warnings/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Validation: 1 errors \/ 0 warnings/)).toBeInTheDocument());
   });
 
   it("surfaces a licensed validation query error", async () => {
@@ -134,7 +132,7 @@ describe("the licensed read-only builder of an installed workflow", () => {
     mockedFetchWorkflowValidation.mockRejectedValue(new Error("Validation read unavailable"));
     renderPage({ surface: "detail", embedded: false, initialEntry: "/registry/workflows/weekly_report?project_id=project_alpha" });
 
-    expect(await screen.findByText("Workflow detail load failed")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow detail load failed")).toBeInTheDocument());
     expect(screen.getByText("Validation read unavailable")).toBeInTheDocument();
   });
 });

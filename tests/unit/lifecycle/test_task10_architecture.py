@@ -251,6 +251,8 @@ def _documented_command_offenders(
     source_root: Path = ROOT,
 ) -> list[str]:
     first_tokens = {path[0] for path in public_paths}
+    # Served by the launchers themselves, not by the command registry.
+    launcher_commands = {"completion", "shell"}
     command_pattern = re.compile(r"\./flow-steward(?P<arguments>[^\n`]*)")
     offenders: list[str] = []
     for path in docs:
@@ -262,6 +264,8 @@ def _documented_command_offenders(
                     tokens = match.group("arguments").split()
                 while tokens and tokens[0].startswith("-"):
                     tokens.pop(0)
+                if tokens and tokens[0] in launcher_commands:
+                    continue
                 if not tokens or tokens[0] not in first_tokens:
                     if not tokens:
                         continue

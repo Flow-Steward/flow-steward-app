@@ -1,6 +1,6 @@
 import { createElement } from "react";
 import type { ReactNode } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import type { AuthSession } from "@/lib/auth/AuthProvider";
@@ -188,7 +188,7 @@ describe("AppRouter", () => {
 
       render(createElement(AppRouter));
 
-      expect(await screen.findByText("This app is not supported")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("This app is not supported")).toBeInTheDocument());
       expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
     },
   );
@@ -216,7 +216,7 @@ describe("AppRouter", () => {
 
     render(createElement(AppRouter));
 
-    expect(await screen.findByText("Settings hub")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Settings hub")).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
   });
 
@@ -272,7 +272,7 @@ describe("AppRouter", () => {
 
     render(createElement(AppRouter));
 
-    expect(await screen.findByText("Project detail rendered")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project detail rendered")).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "Access denied" })).not.toBeInTheDocument();
   });
 

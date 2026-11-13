@@ -10,9 +10,10 @@ from typing import Any
 from core.application.extensions import artifact_presentation
 from core.application.extensions.operation_support import extension_operation_contract
 from core.application.extensions.secret_reflection import (
+    SecretExposureFinding,
     collect_secret_values,
+    find_secret_exposure,
     secret_exposure_invocation,
-    value_exposes_secret,
 )
 from core.application.orchestration.connector_connection import (
     _build_runtime_connection_target,
@@ -415,7 +416,9 @@ def _dispatch_extension_runtime(
         ]
     )
     if secret_budget_exceeded or protected_input_secret_budget_exceeded:
-        invocation = secret_exposure_invocation()
+        invocation = secret_exposure_invocation(
+            SecretExposureFinding.check_incomplete("secret_inventory")
+        )
         return {
             "handled": True,
             "ok": False,
@@ -785,9 +788,10 @@ def _dispatch_extension_runtime(
         )
 
         invocation = external_effect_spawn_exception_invocation()
-    secret_exposure = value_exposes_secret(invocation, hydrated_secrets)
-    if secret_exposure:
-        invocation = secret_exposure_invocation()
+    secret_finding = find_secret_exposure(invocation, hydrated_secrets)
+    secret_exposure = secret_finding is not None
+    if secret_finding is not None:
+        invocation = secret_exposure_invocation(secret_finding)
     _emit_connector_tool_event(
         bl,
         job_id=runtime_context.get("job_id"),

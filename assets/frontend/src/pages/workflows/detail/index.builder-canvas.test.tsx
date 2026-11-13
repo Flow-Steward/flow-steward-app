@@ -120,7 +120,7 @@ const UPDATE_NEW_STEP = /^(Update new step|Updated)$/;
 
 async function addRootStepFromCanvas(label: string, kind: string, discardParameters = false) {
   // The first journey of the file renders the page cold; under gate load that outlasts 1 s.
-  fireEvent.click(await screen.findByRole("button", { name: "Add step" }, { timeout: 5_000 }));
+  fireEvent.click(await screen.findByRole("button", { name: "Add step" }));
   const palette = await screen.findByRole("dialog", { name: "Add step" });
   fireEvent.click(within(palette).getByRole("option", { name: "Set variable" }));
 
@@ -204,12 +204,12 @@ function expectedRoutingStep(kind: RoutingKind, label: string, stepId: string, f
   };
 }
 
-describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
+describe("WorkflowsDetailPage canvas builder", () => {
   it("closes a discarded new step editor instead of treating its stale fields as another creation", async () => {
     installLinearWorkflow();
     renderPage({ surface: "builder" });
     await addRootStepFromCanvas("Discard me", "set_variable");
-    expect(await screen.findByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Step editor" })).not.toBeInTheDocument());
     expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
@@ -244,7 +244,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     installLinearWorkflow();
     renderPage({ surface: "builder" });
     await addRootStepFromCanvas("Tmp", "set_variable");
-    expect(await screen.findByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Delete step" }));
     // Not a "New step" form still filled with Tmp, whose "Add step to changes" could only fail.
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Step editor" })).not.toBeInTheDocument());
@@ -261,7 +261,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
 
     await addRootStepFromCanvas("Review draft", "set_variable");
     // The new step's Save says ✓ Updated for a moment after the helper's update.
-    expect(await screen.findByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: UPDATE_NEW_STEP })).toBeInTheDocument());
     // The editor carries no status chips; the unapplied structure is said by the canvas.
     expect(screen.queryByTestId("step-form-status")).not.toBeInTheDocument();
     expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 1 change(s)");
@@ -374,7 +374,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     await addRootStepFromCanvas("Review draft", "set_variable");
     fireEvent.click(await screen.findByRole("button", { name: "Apply changes" }));
 
-    expect(await screen.findByText(/Your unapplied changes are kept/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Your unapplied changes are kept/)).toBeInTheDocument());
     expect(screen.getByTestId("structure-status")).toHaveTextContent("Workflow changed elsewhere");
     // A conflict never retries on its own or overwrites anything.
     expect(postedChangeSets()).toHaveLength(1);
@@ -432,16 +432,16 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     fireEvent.change(label, { target: { value: "Plan the work" } });
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "Save the step parameters before running a test.",
-    );
+    ));
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
 
     await addRootStepFromCanvas("Review draft", "set_variable", true);
     fireEvent.click(await screen.findByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "This step exists only in the unapplied changes. Apply them before testing it.",
-    );
+    ));
   });
 
   it("routes each named outcome explicitly and replaces a taken one only after confirmation", async () => {
@@ -498,7 +498,7 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     expect(kind).toBeEnabled();
     expect(screen.queryByText("Saving replaces this step's settings with the new kind's defaults.")).not.toBeInTheDocument();
     fireEvent.change(kind, { target: { value: "stop_success" } });
-    expect(await screen.findByText("Saving replaces this step's settings with the new kind's defaults.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saving replaces this step's settings with the new kind's defaults.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
 
     // The kind change asks inline, in the editor's footer, naming the connections it removes.
@@ -591,23 +591,23 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     fireEvent.click(within(toolbar).getByRole("button", { name: "Add step" }));
     const palette = await screen.findByRole("listbox", { name: "Add step" });
     fireEvent.click(within(within(palette).getByRole("group", { name: "Flow" })).getByRole("option", { name: "For each" }));
-    expect(await screen.findByRole("heading", { name: "For each editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "For each editor" })).toBeInTheDocument());
     fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), { target: { value: "Per item" } });
     fireEvent.change(screen.getByLabelText("Loop source", { exact: true }), { target: { value: "state.items" } });
     fireEvent.click(screen.getByRole("button", { name: "Save For each" }));
 
     fireEvent.click(await screen.findByRole("button", { name: "Add step for each item" }));
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Add the new step to" })).toHaveTextContent("Per item");
     fireEvent.click(screen.getByRole("checkbox", { name: /Make it the entry of Per item/ }));
     fireEvent.change(screen.getByRole("textbox", { name: "Step label" }), { target: { value: "Approve item" } });
     fireEvent.change(screen.getByRole("combobox", { name: "Step kind" }), { target: { value: "approval" } });
-    expect(await screen.findByText("Approval request")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Approval request")).toBeInTheDocument());
     fireEvent.change(screen.getByRole("textbox", { name: "Message" }), { target: { value: "Ship it?" } });
     fireEvent.click(screen.getByRole("button", { name: "Add step to changes" }));
 
     // An Approval routes exactly its two decisions.
-    expect(await screen.findByRole("combobox", { name: "Next step for Approved" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Next step for Approved" })).toBeInTheDocument());
     expect(screen.getByRole("combobox", { name: "Next step for Rejected" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
@@ -776,15 +776,15 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: /Route by tier/ }));
-    expect(await screen.findByRole("combobox", { name: "Next step for gold" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Next step for gold" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "+ Add" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Case value 2" }), { target: { value: "silver" } });
     fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
 
-    expect(await screen.findByTestId("workflow-change-set-bar")).toHaveTextContent("Structure not applied: 1 change(s)");
+    await waitFor(() => expect(screen.getByTestId("workflow-change-set-bar")).toHaveTextContent("Structure not applied: 1 change(s)"));
     expect(postedChangeSets()).toEqual([]);
     // The new case is a port to route, named by its stable id.
-    expect(await screen.findByRole("combobox", { name: "Next step for silver" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Next step for silver" })).toBeInTheDocument());
   });
 
   it("marks scaffold-only workflows as scaffold only instead of valid", async () => {
@@ -828,8 +828,8 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
       initialEntry: "/registry/workflows/scaffold_only_workflow",
     });
 
-    expect(await screen.findByRole("heading", { name: "Scaffold Only Workflow" })).toBeInTheDocument();
-    expect(await screen.findByText("Validation: scaffold only")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Scaffold Only Workflow" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Validation: scaffold only")).toBeInTheDocument());
     expect(screen.queryByText("Validation: valid")).not.toBeInTheDocument();
     expect(screen.getByText("2 steps")).toBeInTheDocument();
   });
@@ -900,14 +900,14 @@ describe("WorkflowsDetailPage canvas builder", { timeout: 30_000 }, () => {
 
     renderPage();
 
-    expect(await screen.findByText("Validation overview")).toBeInTheDocument();
-    expect(await screen.findByText("2 grouped issues from 3 checks")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Validation overview")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("2 grouped issues from 3 checks")).toBeInTheDocument());
     expect(screen.getAllByText("Missing source step: analysis")).toHaveLength(1);
     expect(screen.getByText(/checks grouped/)).toBeInTheDocument();
     const childMapping = screen.getByRole("group", { name: "Child input is not mapped: item_summary" });
     fireEvent.click(within(childMapping).getByRole("button", { name: "Open step mapping" }));
     // The affected step's editor opens itself; no notice stays on screen (Panels › Save buttons).
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Process items");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Process items"));
     expect(screen.getByText("process_items", { exact: true })).toBeVisible();
   });
 
@@ -1157,7 +1157,7 @@ it("keeps actual ordinary-step marks updating with Results closed and resets the
     const mark = within(doneBeforeRun).getByTestId("workflow-runtime-mark");
     expect(mark).toHaveAttribute("data-run", "done");
     expect(within(mark).getByText("< 0.1 s", { exact: true })).toBeVisible();
-  }, { timeout: 5_000 });
+  });
   const terminalDoneMark = within(doneBeforeRun).getByTestId("workflow-runtime-mark");
   expect(terminalDoneMark).toHaveAttribute("data-job-id", firstJob);
   expect(within(terminalDoneMark).getByText("< 0.1 s", { exact: true })).toBeVisible();
@@ -1168,7 +1168,7 @@ it("keeps actual ordinary-step marks updating with Results closed and resets the
   fireEvent.click(within(await selectedRunBar(firstJob)).getByRole("button", { name: "Results" }));
   const completedResults = await screen.findByTestId("workflow-test-run-results");
   expect(completedResults).toHaveAttribute("data-job-id", firstJob);
-  expect(await within(completedResults).findByRole("heading", { name: /^Latest test run/ })).toHaveTextContent("Finished");
+  await waitFor(() => expect(within(completedResults).getByRole("heading", { name: /^Latest test run/ })).toHaveTextContent("Finished"));
   expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
   fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
   await waitFor(() => expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument());
@@ -1285,7 +1285,7 @@ describe("contextual Play uses the existing isolated Step Test Run", () => {
     clickCanvasCard(await screen.findByRole("group", { name: "Open step Plan work" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Step label" }), { target: { value: "Unfinished plan label" } });
     await user.click(await playFor("Plan work"));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent("Save the step parameters before running a test.");
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent("Save the step parameters before running a test."));
     expect(screen.getByRole("tab", { name: "Test Run" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
     await user.click(screen.getByRole("tab", { name: "Smart setup" }));
@@ -1301,7 +1301,7 @@ describe("contextual Play uses the existing isolated Step Test Run", () => {
     renderPage({ surface: "builder" });
     await addRootStepFromCanvas("Unapplied draft", "set_variable");
     fireEvent.click(await playFor("Unapplied draft"));
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent("This step exists only in the unapplied changes. Apply them before testing it.");
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent("This step exists only in the unapplied changes. Apply them before testing it."));
     expect(screen.getByRole("tab", { name: "Test Run" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
     expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();
@@ -1398,10 +1398,10 @@ it("refuses editor Delete before staging when a saved disabled step Automation r
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
 
   fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
-  expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
   fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
 
-  expect(await screen.findByText(/Guard plan/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Guard plan/)).toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Open Automation" })).toBeInTheDocument();
   expect(requests.some((url) => url.pathname === "/api/workflows/weekly_report/reactions")).toBe(true);
   expect(requests.some((url) => url.searchParams.get("project_id") === "project_alpha"
@@ -1432,7 +1432,7 @@ it("keeps editor Delete unstaged while Automation is loading and after a failed 
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
 
   fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
-  expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
   fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
   await waitFor(() => expect(requests.some((url) => url.searchParams.get("scope_id") === "plan")).toBe(true));
   expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
@@ -1445,7 +1445,7 @@ it("keeps editor Delete unstaged while Automation is loading and after a failed 
   expectOnlyPlanDeleteDryRuns();
   fireEvent.click(retry);
   await waitFor(() => expect(attempt).toBe(2));
-  expect(await screen.findByText(/Guard plan/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Guard plan/)).toBeInTheDocument());
   expect(screen.getByRole("button", { name: "Open Automation" })).toBeInTheDocument();
   expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
   expectOnlyPlanDeleteDryRuns();
@@ -1476,10 +1476,10 @@ it("uses the exact-operation dry run to refuse a foreign-account saved rule with
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
 
   fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
-  expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
   fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
 
-  expect(await screen.findByText(/saved Automation rule/i)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/saved Automation rule/i)).toBeInTheDocument());
   expect(ownAccountGets.some((url) => url.pathname === "/api/workflows/weekly_report/reactions"
     && url.searchParams.get("project_id") === "project_alpha"
     && url.searchParams.get("scope_kind") === "step"
@@ -1541,7 +1541,7 @@ it.each(["malformed_get", "failed_get", "malformed_dry_run", "failed_dry_run", "
     fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
     fireEvent.click(await screen.findByRole("button", { name: "Delete step" }));
 
-    expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument());
     expect(gets.some((url) => url.pathname === "/api/workflows/weekly_report/reactions"
       && url.searchParams.get("project_id") === "project_alpha"
       && url.searchParams.get("scope_kind") === "step"
@@ -1612,7 +1612,7 @@ it("routes selected Step More Delete through the exact saved-rule guard", async 
   fireEvent.click(await screen.findByRole("button", { name: "More actions for Plan work" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
 
-  expect(await screen.findByText(/Guard plan/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Guard plan/)).toBeInTheDocument());
   expect(gets.some((url) => url.pathname === "/api/workflows/weekly_report/reactions"
     && url.searchParams.get("project_id") === "project_alpha"
     && url.searchParams.get("scope_kind") === "step"
@@ -1693,7 +1693,7 @@ it("closes only the deleted Step editor after accepted More Delete, without show
   serveDeleteReactionGets((url) => stepRuleReply(url, []));
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
   fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
-  expect(await screen.findByRole("dialog", { name: "Step editor" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Step editor" })).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "More actions for Plan work" }));
   fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
   await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure not applied: 1 change(s)"));
@@ -1900,7 +1900,7 @@ it("proves two selected saved roots in one dry-run and stages one Undo intent", 
   act(() => done.focus());
   expect(done).toHaveFocus();
   fireEvent.keyDown(done, { key: "z", code: "KeyZ", ctrlKey: true });
-  expect(await screen.findByRole("group", { name: "Open step Plan work" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("group", { name: "Open step Plan work" })).toBeInTheDocument());
   expect(screen.getByRole("group", { name: "Open step Review work" })).toBeInTheDocument();
   expect(screen.getByTestId("structure-status")).toHaveTextContent("Structure applied");
   expect(postedChangeSets()).toEqual([]);
@@ -1964,7 +1964,7 @@ it("refuses the whole selected set when one member has a saved disabled Automati
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
   await selectBulkCards("Plan work", "Review work");
   bulkDelete();
-  expect(await screen.findByText(/Guard review/)).toBeVisible();
+  await waitFor(() => expect(screen.getByText(/Guard review/)).toBeVisible());
   expect(gets.map((url) => url.searchParams.get("scope_id"))).toEqual(expect.arrayContaining(["plan", "review"]));
   expect(dryRunChangeSets().filter((body) => JSON.stringify(body.operations).includes('"delete_step"'))).toEqual([]);
   expect(screen.getByRole("group", { name: "Open step Plan work" })).toBeInTheDocument();
@@ -2025,7 +2025,7 @@ it("keeps a newly opened unrelated Group editor when a held Step delete complete
   const gets = serveDeleteReactionGets((url) => url.searchParams.get("scope_id") === "plan" ? heldGet : stepRuleReply(url, []));
   renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?project_id=project_alpha" });
   fireEvent.click(await screen.findByRole("group", { name: "Open step Plan work" }));
-  expect(await screen.findByRole("dialog", { name: "Step editor" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Step editor" })).toBeInTheDocument());
   await waitFor(() => expect(bulkCanvasNode("Plan work")).toHaveClass("selected"));
   // One selected node shows no selection bar; Delete on the canvas acts on it at once.
   fireEvent.keyDown(bulkCanvasNode("Plan work"), { key: "Delete", code: "Delete" });
@@ -2160,7 +2160,7 @@ async function selectRunBarHistory(id: string) {
 }
 async function openSelectedRunBarResults(id: string) {
   fireEvent.click(within(await selectedRunBar(id)).getByRole("button", { name: "Results" }));
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id);
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id));
   expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", `/jobs/${id}`);
 }
 function expectRunBarReadOnly() {
@@ -2220,7 +2220,7 @@ describe("09A persistent selected Test Run identity (SOURCE proposal)", () => {
     // The foreign row is neither the shown latest run nor listed among the test runs.
     await selectedRunBar("bar-latest");
     await openSelectedRunBarResults("bar-latest");
-    expect(await screen.findByTestId("workflow-test-run-row:bar-older")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-row:bar-older")).toBeInTheDocument());
     expect(screen.getByTestId("workflow-test-run-row:bar-latest")).toHaveAttribute("aria-current", "true");
     expect(screen.queryByTestId("workflow-test-run-row:bar-foreign")).not.toBeInTheDocument();
     expect(fixture.detailRequests).not.toContain("bar-foreign");
@@ -2294,7 +2294,7 @@ describe("09A persistent selected Test Run identity (SOURCE proposal)", () => {
     await openSelectedRunBarResults("bar-latest");
     fireEvent.click(within(screen.getByRole("dialog", { name: "Test Run results" })).getByRole("button", { name: "Close" }));
     openStep("plan");
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved plan label");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved plan label"));
     expectRunBarReadOnly();
   });
   // Earlier runs are chosen in Results › Test runs, which a step editor with invalid input
@@ -2317,7 +2317,7 @@ it.each(["Results", "Back to latest"] as const)("preserves invalid input and sel
     const confirmation = await screen.findByRole("dialog", { name: "Discard invalid input?" });
     fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(initiatingControl).toHaveFocus());
-    expect(await screen.findByRole("textbox", { name: "Rows" })).toBe(rows);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Rows" })).toBe(rows));
     expect(rows).toHaveValue("[{");
     expect(rows).toHaveAttribute("aria-invalid", "true");
     await selectedRunBar("bar-older");
@@ -2558,7 +2558,7 @@ it("offers a plain Group and Parallel lanes under the toolbar's Group", async ()
   const group = within(toolbar).getByRole("menuitem", { name: "Parallel lanes" });
   expect(group).toBeEnabled();
   fireEvent.click(group);
-  expect(await screen.findByRole("dialog", { name: "Group editor" })).toBeVisible();
+  await waitFor(() => expect(screen.getByRole("dialog", { name: "Group editor" })).toBeVisible());
   expect(screen.queryByRole("dialog", { name: "For each editor" })).not.toBeInTheDocument();
   expect(postedChangeSets()).toEqual([]);
 });

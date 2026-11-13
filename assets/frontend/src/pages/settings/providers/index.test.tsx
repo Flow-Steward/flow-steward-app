@@ -82,7 +82,7 @@ describe("SettingsProvidersPage", () => {
 
   it("uses a noun translation for the provider Type column rather than the composer instruction", async () => {
     renderPage("lt");
-    expect(await screen.findByRole("columnheader", { name: "Tipas" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "Tipas" })).toBeInTheDocument());
     expect(screen.queryByRole("columnheader", { name: "Įveskite" })).not.toBeInTheDocument();
   });
 
@@ -106,9 +106,9 @@ describe("SettingsProvidersPage", () => {
     await user.type(screen.getByLabelText("Default model"), "claude-sonnet-5");
     await user.click(screen.getByRole("button", { name: "Create provider" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(
       "Provider saved, but model verification failed: The provider account has insufficient quota or credit.",
-    );
+    ));
     expect(
       screen.getByRole("heading", { name: "Edit provider" }),
     ).toBeInTheDocument();
@@ -121,9 +121,7 @@ describe("SettingsProvidersPage", () => {
       "provider-1",
       expect.objectContaining({ name: "Anthropic custom" }),
     );
-    expect(
-      await screen.findByText("Model provider updated."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Model provider updated.")).toBeInTheDocument());
   });
 
   it("marks required fields, uses a URL control and explains verification charges", async () => {
@@ -250,10 +248,8 @@ describe("SettingsProvidersPage", () => {
     // Read the rendered row: the safe message has to reach the operator, not
     // just the payload.
     const table = await screen.findByRole("table", { name: "Provider settings" });
-    expect(await within(table).findByText("failed")).toBeInTheDocument();
-    expect(
-      await within(table).findByText("The provider account has insufficient quota or credit."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("failed")).toBeInTheDocument());
+    await waitFor(() => expect(within(table).getByText("The provider account has insufficient quota or credit.")).toBeInTheDocument());
   });
 
   it("leaves the verification error empty for a passed provider", async () => {
@@ -270,7 +266,7 @@ describe("SettingsProvidersPage", () => {
     renderPage();
 
     const table = await screen.findByRole("table", { name: "Provider settings" });
-    expect(await within(table).findByText("passed")).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("passed")).toBeInTheDocument());
     // A provider that passed carries no error text at all.
     expect(
       within(table).queryByText(/insufficient quota|invalid api key|could not be reached/i),
@@ -297,9 +293,7 @@ describe("SettingsProvidersPage", () => {
     await waitFor(() => {
       expect(mockedReverifyModelProvider).toHaveBeenCalledWith("provider-1");
     });
-    expect(
-      await screen.findByText("Model provider verified."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Model provider verified.")).toBeInTheDocument());
   });
 
   it("invalidates global model selection consumers after a provider mutation", async () => {

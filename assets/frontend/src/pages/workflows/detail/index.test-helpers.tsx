@@ -240,6 +240,12 @@ export const fetchSpy = vi.fn<typeof fetch>(
     ),
 );
 
+// Authoring suites exercise the mounted editor. Compile its real lazy module
+// before interaction waits; index.shell-loading.test.tsx covers suspension.
+beforeAll(async () => {
+  await import("./detail-page-shell");
+});
+
 beforeEach(() => {
   mockedUseIsAdmin.mockReturnValue(true);
   mockedUseAuth.mockReturnValue({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"] } } } as ReturnType<typeof mockedUseAuth>);

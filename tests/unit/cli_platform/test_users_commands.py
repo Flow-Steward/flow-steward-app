@@ -187,11 +187,11 @@ def test_existing_user_help_declares_required_exactly_one_target(leaf: str) -> N
 
 
 @pytest.mark.parametrize(
-    ("arguments", "columns", "rows", "fallback_expected"),
+    ("arguments", "columns", "rows"),
     (
-        (("users", "force-reset", "--plain"), 80, 24, False),
-        (("users", "force-reset", "--tui"), 70, 22, True),
-        (("users", "force-reset"), 40, 10, False),
+        (("users", "force-reset", "--plain"), 80, 24),
+        (("users", "force-reset"), 70, 22),
+        (("users", "force-reset"), 40, 10),
     ),
 )
 def test_plain_user_wizard_collects_exactly_one_target(
@@ -199,7 +199,6 @@ def test_plain_user_wizard_collects_exactly_one_target(
     arguments: tuple[str, ...],
     columns: int,
     rows: int,
-    fallback_expected: bool,
 ) -> None:
     from core.entrypoints.cli.platform import click_adapter
 
@@ -227,7 +226,6 @@ def test_plain_user_wizard_collects_exactly_one_target(
     assert "Target — required, choose exactly one" in result.output
     assert "1. User ID" in result.output
     assert "2. Email" in result.output
-    assert ("using the plain interactive wizard" in result.output) is fallback_expected
     key, command = registry.calls[0]
     assert key == "users.force-reset"
     assert isinstance(command, UserSelectorInput)
@@ -426,14 +424,7 @@ def test_non_utf8_input_json_returns_validation_without_service_call(
 def test_users_list_executes_immediately_and_renders_plain_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from core.entrypoints.cli.platform import click_adapter
 
-    monkeypatch.setattr(
-        click_adapter,
-        "_run_textual_form",
-        lambda *_args, **_kwargs: pytest.fail("users list must not open Textual"),
-        raising=False,
-    )
     app, registry = _app()
 
     result = CliRunner().invoke(
@@ -465,9 +456,12 @@ def test_users_list_executes_immediately_and_renders_plain_fields(
     }
     assert "u_1" in result.output
     assert "operator@example.com" in result.output
-    assert "admin,viewer" in result.output
-    assert "active=true" in result.output
-    assert "reset=false" in result.output
+    assert "admin, viewer" in result.output
+    header, row = (
+        line.split() for line in result.output.splitlines() if "Email" in line or "u_1" in line
+    )
+    assert header[:2] == ["ID", "Email"]
+    assert row[-2:] == ["yes", "no"]
 
 
 def test_users_list_json_envelope_and_dependency_exit_code() -> None:
@@ -487,65 +481,6 @@ def test_users_list_json_envelope_and_dependency_exit_code() -> None:
     failure_payload = _payload(failure.output)
     assert failure_payload["error"]["code"] == "dependency_unavailable"
     assert failure_payload["error"]["retryable"] is True
-
-
-def test_users_create_incomplete_interactive_command_uses_shared_form(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform import click_adapter
-
-    captured: dict[str, object] = {}
-
-    def fake_form(**kwargs: object) -> SimpleNamespace:
-        captured.update(kwargs)
-        return SimpleNamespace(
-            status="confirmed",
-            values={
-                "email": "operator@example.com",
-                "password": "StrongPass_123!",
-                "roles": ["admin"],
-                "is_active": True,
-                "must_change_password": False,
-                "account_id": "acc.prod",
-                "account_ids": ["acc.prod", "acc.sandbox"],
-                "actor": "cli",
-            },
-        )
-
-    monkeypatch.setattr(click_adapter, "_run_textual_form", fake_form, raising=False)
-    monkeypatch.setattr(
-        click_adapter,
-        "_terminal_facts",
-        lambda: TerminalFacts(
-            stdin_isatty=True,
-            stdout_isatty=True,
-            columns=80,
-            rows=24,
-            term="xterm-256color",
-            no_color_env=False,
-        ),
-    )
-    app, registry = _app()
-
-    result = CliRunner().invoke(
-        app, ["--tui", "users", "create", "--email", "operator@example.com"]
-    )
-
-    assert result.exit_code == 0, result.output
-    initial_values = captured["initial_values"]
-    assert isinstance(initial_values, dict)
-    assert initial_values["email"] == "operator@example.com"
-    assert initial_values["roles"] == ["viewer"]
-    assert captured["terminal_size"] == (80, 24)
-    assert captured["color_enabled"] is True
-    assert captured["animation_enabled"] is True
-    assert len(registry.calls) == 1
-    key, command = registry.calls[0]
-    assert key == "users.create"
-    assert isinstance(command, UserCreateInput)
-    assert command.account_id == "acc.prod"
-    assert command.account_ids == ["acc.prod", "acc.sandbox"]
-    assert "StrongPass_123!" not in result.output
 
 
 def test_users_create_can_disable_default_true_boolean_with_no_flag() -> None:
@@ -679,53 +614,6 @@ def test_phase2_user_mutation_leaves_delegate_to_shared_request_models() -> None
         for field, value in expected_values.items():
             assert command.model_dump()[field] == value
         assert "StrongPass_123!" not in result.output
-
-
-def test_users_create_cancel_and_invalid_form_never_call_service(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from core.entrypoints.cli.platform import click_adapter
-
-    monkeypatch.setattr(
-        click_adapter,
-        "_terminal_facts",
-        lambda: TerminalFacts(
-            stdin_isatty=True,
-            stdout_isatty=True,
-            columns=80,
-            rows=24,
-            term="xterm-256color",
-            no_color_env=False,
-        ),
-    )
-    app, registry = _app()
-
-    monkeypatch.setattr(
-        click_adapter,
-        "_run_textual_form",
-        lambda **_kwargs: SimpleNamespace(status="cancelled", values={}),
-        raising=False,
-    )
-    cancelled = CliRunner().invoke(
-        app, ["--tui", "users", "create", "--email", "operator@example.com"]
-    )
-    assert cancelled.exit_code == 10
-    assert registry.calls == []
-
-    monkeypatch.setattr(
-        click_adapter,
-        "_run_textual_form",
-        lambda **_kwargs: SimpleNamespace(
-            status="confirmed",
-            values={"email": "bad", "password": "StrongPass_123!", "roles": ["viewer"]},
-        ),
-        raising=False,
-    )
-    invalid = CliRunner().invoke(
-        app, ["--tui", "users", "create", "--email", "operator@example.com"]
-    )
-    assert invalid.exit_code == 3
-    assert registry.calls == []
 
 
 def test_users_create_non_interactive_password_sources_succeed_and_stay_secret(

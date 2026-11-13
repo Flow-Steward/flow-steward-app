@@ -185,7 +185,7 @@ describe("RegistryMcpPage", () => {
     renderPage();
 
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByRole("table", { name: "MCP connectors" })).toHaveAttribute("aria-busy", "false"), { timeout: 5_000 });
+    await waitFor(() => expect(screen.getByRole("table", { name: "MCP connectors" })).toHaveAttribute("aria-busy", "false"));
     await user.click(await screen.findByRole("button", { name: /^Actions for / }));
 
     expect(screen.queryByText("Read only")).not.toBeInTheDocument();
@@ -193,7 +193,7 @@ describe("RegistryMcpPage", () => {
     expect(screen.getByRole("menuitem", { name: "Sync" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Health" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeInTheDocument();
-    expect(await screen.findByRole("menuitem", { name: "View" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "View" })).toBeInTheDocument());
   });
 
   it("marks only the running row action busy and ignores the other items meanwhile", async () => {
@@ -207,7 +207,9 @@ describe("RegistryMcpPage", () => {
     await waitFor(() => expect(mockedSyncMcpConnector).toHaveBeenCalledTimes(1));
 
     await user.click(opener);
-    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Sync" })).toHaveAttribute("aria-busy", "true"));
+    // After the loader delay the running item reads "Syncing…"; on a busy machine that
+    // delay has passed by now, so the item is found under either name.
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: /^Sync(ing…)?$/ })).toHaveAttribute("aria-busy", "true"));
     const health = screen.getByRole("menuitem", { name: "Health" });
     const remove = screen.getByRole("menuitem", { name: "Delete" });
     for (const item of [health, remove]) {
@@ -289,7 +291,7 @@ describe("RegistryMcpPage", () => {
     renderPage("/registry/mcp");
 
     await waitFor(() => expect(mockedFetchMcpConnectors).toHaveBeenCalledWith());
-    expect(await screen.findByRole("columnheader", { name: "Project" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("columnheader", { name: "Project" })).toBeInTheDocument());
     expect(screen.queryByRole("columnheader", { name: "Endpoint" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "Project scope" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add filter" })).toBeInTheDocument();
@@ -298,7 +300,7 @@ describe("RegistryMcpPage", () => {
   it("narrows the list to the project the URL filters to", async () => {
     renderPage("/registry/mcp?project_id=project-2");
 
-    expect(await screen.findByText("No MCP connectors match this search")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No MCP connectors match this search")).toBeInTheDocument());
     expect(mockedFetchMcpConnectors).toHaveBeenCalledWith();
   });
 
@@ -315,9 +317,7 @@ describe("RegistryMcpPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(
-      await screen.findByRole("heading", { name: "MCP" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "MCP" })).toBeInTheDocument());
     expect(
       screen.getByRole("columnheader", { name: "Name" }),
     ).toBeInTheDocument();
@@ -327,12 +327,12 @@ describe("RegistryMcpPage", () => {
     expect(
       screen.getByRole("columnheader", { name: "Allowed Tools" }),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Flow Steward MCP")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Flow Steward MCP")).toBeInTheDocument());
 
     // The standalone Open link became row-menu navigation; assert where it goes.
     await user.click(screen.getByRole("button", { name: "Actions for Flow Steward MCP" }));
     await user.click(await screen.findByRole("menuitem", { name: "View" }));
-    expect(await screen.findByText("mcp detail page")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("mcp detail page")).toBeInTheDocument());
   });
 
   it("submits the create modal without an allowlist payload", async () => {
@@ -414,7 +414,7 @@ describe("RegistryMcpPage", () => {
       },
     }));
 
-    expect(await within(dialog).findByText("Filled from the JSON: github. Check the fields before saving.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Filled from the JSON: github. Check the fields before saving.")).toBeInTheDocument());
     expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("github");
     expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("https://api.githubcopilot.com/mcp/");
     expect(within(dialog).getByRole("combobox", { name: "Auth Mode" })).toHaveTextContent("bearer");
@@ -452,7 +452,7 @@ describe("RegistryMcpPage", () => {
     await user.click(within(dialog).getByRole("textbox", { name: "Paste JSON configuration" }));
     await user.paste('{"mcpServers": {"files": {"command": "npx", "args": ["server-filesystem"]}}}');
 
-    expect(await within(dialog).findByText(/files runs as a local program/u)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(/files runs as a local program/u)).toBeInTheDocument());
     expect(within(dialog).getByRole("textbox", { name: "Endpoint" })).toHaveValue("");
   });
 
@@ -500,7 +500,7 @@ describe("RegistryMcpPage", () => {
     await user.type(within(dialog).getByRole("textbox", { name: "Authorization parameters value" }), "must-not-leak");
     await user.click(within(dialog).getByRole("button", { name: "Save MCP" }));
 
-    expect(await within(dialog).findByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible();
+    await waitFor(() => expect(within(dialog).getByText("Authorization parameters key is reserved and cannot be overridden.")).toBeVisible());
     expect(key).toHaveAttribute("aria-invalid", "true");
     expect(key).toHaveFocus();
     expect(mockedCreateMcpConnector).not.toHaveBeenCalled();
@@ -589,16 +589,16 @@ describe("RegistryMcpPage", () => {
     expect(screen.getByText("Endpoint", { selector: "label" })).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Save MCP" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Name is required.");
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Name is required."));
     expect(name).toHaveFocus();
     expect(mockedCreateMcpConnector).not.toHaveBeenCalled();
 
     await user.type(name, "Flow Steward MCP");
     await user.type(endpoint, "not-a-url");
     await user.click(screen.getByRole("button", { name: "Save MCP" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "Enter a valid HTTP(S) endpoint URL.",
-    );
+    ));
     expect(endpoint).toHaveFocus();
 
     await user.clear(endpoint);
@@ -650,9 +650,9 @@ describe("RegistryMcpPage", () => {
     await waitFor(() => {
       expect(mockedDeleteMcpConnector).toHaveBeenCalledWith("mcp_fs", "revision-1", "project-1");
     });
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Delete impact changed.",
-    );
+    ));
     expect(screen.getByRole("dialog", { name: "Delete MCP connector" })).toBeInTheDocument();
   });
 });

@@ -108,7 +108,7 @@ export function MarketplaceEntry({
         busy={install.phase === "installing"}
         busyLabel={action.kind === "update" ? updateLabel("installing", entry.version, t) : installLabel("installing", t)}
         data-marketplace-install={entry.extension_id}
-        disabled={action.disabled || install.phase === "awaiting_approval"}
+        disabled={action.disabled || install.phase === "awaiting_approval" || install.phase === "queued"}
         onClick={() => onInstall(entry)}
         type="button"
         variant="primary"

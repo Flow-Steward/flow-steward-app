@@ -37,14 +37,21 @@ def _sgr_codes(text: str) -> set[str]:
     return set(ANSI_RE.findall(text))
 
 
-def test_root_group_and_leaf_help_are_styled_when_color_is_enabled() -> None:
+def _terminal(monkeypatch, value: bool = True) -> None:
+    from core.entrypoints.cli.platform import command_help
+
+    monkeypatch.setattr(command_help, "_stdout_is_terminal", lambda: value)
+
+
+def test_root_group_and_leaf_help_are_styled_in_a_terminal(monkeypatch) -> None:
+    _terminal(monkeypatch)
     app = _app()
     runner = CliRunner()
     env = {"NO_COLOR": None, "TERM": "xterm-256color"}
 
-    root = runner.invoke(app, ["--tui", "--help"], color=True, env=env)
-    group = runner.invoke(app, ["users", "--tui", "--help"], color=True, env=env)
-    leaf = runner.invoke(app, ["users", "create", "--tui", "--help"], color=True, env=env)
+    root = runner.invoke(app, ["--help"], color=True, env=env)
+    group = runner.invoke(app, ["users", "--help"], color=True, env=env)
+    leaf = runner.invoke(app, ["users", "create", "--help"], color=True, env=env)
 
     for result in (root, group, leaf):
         assert result.exit_code == 0, result.output
@@ -58,13 +65,15 @@ def test_root_group_and_leaf_help_are_styled_when_color_is_enabled() -> None:
     assert "Secret input policy" in _strip_ansi(leaf.output)
 
 
-def test_default_help_is_plain_even_on_a_color_capable_terminal() -> None:
+def test_redirected_help_is_plain(monkeypatch) -> None:
+    _terminal(monkeypatch, False)
     app = _app()
     for args in (["--help"], ["users", "--help"], ["users", "create", "--help"]):
         result = CliRunner().invoke(app, args, color=True, env={"TERM": "xterm-256color"})
         assert result.exit_code == 0, result.output
         assert not ANSI_RE.search(result.output)
-        assert "--tui" in result.output
+        assert "--plain" in result.output
+        assert "--tui" not in result.output
 
 
 def test_required_optional_and_secret_policy_remain_explicit_without_color() -> None:
@@ -87,18 +96,18 @@ def test_required_optional_and_secret_policy_remain_explicit_without_color() -> 
 def test_help_color_is_suppressed_for_no_color_modes(
     monkeypatch,
 ) -> None:
+    _terminal(monkeypatch)
     app = _app()
     runner = CliRunner()
 
     cases = (
-        (["--help"], False, {}),
-        (["--tui", "--no-color", "--help"], True, {}),
-        (["--tui", "users", "--no-color", "--help"], True, {}),
-        (["--tui", "users", "create", "--no-color", "--help"], True, {}),
-        (["--tui", "--plain", "--help"], True, {}),
-        (["--tui", "--json", "--help"], True, {}),
-        (["--tui", "--help"], True, {"NO_COLOR": "1"}),
-        (["--tui", "--help"], True, {"TERM": "dumb"}),
+        (["--no-color", "--help"], True, {}),
+        (["users", "--no-color", "--help"], True, {}),
+        (["users", "create", "--no-color", "--help"], True, {}),
+        (["--plain", "--help"], True, {}),
+        (["--json", "--help"], True, {}),
+        (["--help"], True, {"NO_COLOR": "1"}),
+        (["--help"], True, {"TERM": "dumb"}),
     )
     for args, color, env in cases:
         result = runner.invoke(app, args, color=color, env=env)

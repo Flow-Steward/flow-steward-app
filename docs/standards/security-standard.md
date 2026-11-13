@@ -33,6 +33,22 @@ Rules:
 - `MUST` keep admin-only and write-capable paths clearly separated from read-only paths.
 - `SHOULD` keep role and scope checks centralized and reusable.
 
+### Shared Team Trust and Policy Boundaries
+
+Per [ADR 0066](../architecture/adr/0066-global-roles-and-secret-provider-boundary.md):
+
+- `MUST` use global human roles (`admin`, `operator`, `viewer`) for the current
+  open-source deployment; projects and workspaces do not assign human roles.
+- `MUST` preserve action permissions, account/resource ownership checks, token
+  scopes, machine grants and execution-reference authority. A shared team trust
+  domain does not grant unrestricted resource access or relax ADR 0020.
+- `MUST` keep sensitive authorization application-owned, with authenticated actor,
+  explicit operation and server-resolved resource context, so additional policies
+  can narrow access without rewriting transports or workflow definitions.
+- `MUST NOT` introduce per-secret human ACLs, project/workspace membership roles,
+  commercial-edition terminology or licensing/upgrade placeholders in the current
+  product. Separately supplied policies must preserve baseline security checks.
+
 ## Rate Limiting and Abuse Controls
 
 - `MUST` apply rate limiting or equivalent abuse controls to login and password-reset flows.
@@ -72,6 +88,16 @@ Rules:
 - `MUST` treat tokens, DSNs, credentials, and signing material as sensitive.
 - `SHOULD` separate secret values from non-secret feature toggles.
 - `SHOULD` rotate or replace credentials rather than expanding workaround hacks around compromised naming or storage.
+- `MUST` keep saved values write-only in UI and public APIs; resolve references
+  only at authorized server-side execution boundaries.
+- `MUST` put secret-provider selection and remote locators behind a host-owned
+  storage adapter boundary. Workflows retain opaque local references; remote
+  values must not be disguised as local ciphertext. See ADR 0066 for the
+  integration contract and current implementation limits.
+- `MUST` authorize before provider I/O and fail explicitly for unavailable or
+  forbidden secrets, without implicit name-based or cross-provider fallback.
+- `MUST NOT` let deletion of a local reference implicitly delete an externally
+  owned secret or let step parameters select provider authentication/endpoints.
 
 ## Dependency and Supply-Chain Hygiene
 

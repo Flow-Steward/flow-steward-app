@@ -207,9 +207,9 @@ describe("JobsDetailPage canonical rendering", () => {
 
     // Anchor on the element under test, not on the job's title: the class depends
     // only on `embedded`, and the title text changes with the product.
-    expect(await screen.findByTestId("job-detail-page")).not.toHaveClass(
+    await waitFor(() => expect(screen.getByTestId("job-detail-page")).not.toHaveClass(
       "fs-settings-portal",
-    );
+    ));
   });
 
   it("centers the page on the workflow and a readable run overview instead of the job UUID", async () => {
@@ -217,7 +217,7 @@ describe("JobsDetailPage canonical rendering", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Weekly Report" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Weekly Report" })).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: /Job #42 detail/i })).not.toBeInTheDocument();
     expect(screen.getByText("Investigate the migrated job detail page")).toBeInTheDocument();
     const overview = screen.getByTestId("job-run-overview");
@@ -243,7 +243,7 @@ describe("JobsDetailPage canonical rendering", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Fix the supplier mapping")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Fix the supplier mapping")).toBeInTheDocument());
     expect(screen.getByText("Catalog review decision")).toBeInTheDocument();
     expect(mockedFetchJobIncident).not.toHaveBeenCalled();
   });
@@ -264,7 +264,7 @@ describe("JobsDetailPage canonical rendering", () => {
     fireEvent.click(download);
 
     expect(download).toHaveAttribute("aria-busy", "true");
-    expect(await screen.findByRole("button", { name: "Preparing report…" })).toBe(download);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Preparing report…" })).toBe(download));
     expect(anchorClick).toHaveBeenCalledTimes(1);
     expect(downloadUrls[0]).toMatch(
       /^http:\/\/localhost(?::\d+)?\/api\/jobs\/42\/report\?download_token=[A-Za-z0-9_-]{16,64}$/,
@@ -487,7 +487,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText(/Status: Waiting for approval/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Status: Waiting for approval/i)).toBeInTheDocument());
     expect(screen.getByText(/Step: Approval Review/i)).toBeInTheDocument();
   });
 
@@ -508,7 +508,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
     renderPage();
 
     // The status group is the headline; its detailed label adds nothing here.
-    expect(await screen.findByText("Status: Waiting for approval")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status: Waiting for approval")).toBeInTheDocument());
     expect(screen.getByText(/Step: Approval Review/i)).toBeInTheDocument();
   });
 
@@ -533,7 +533,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText(/Status: In progress/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Status: In progress/i)).toBeInTheDocument());
     expect(screen.getByText(/Step: Analysis/i)).toBeInTheDocument();
 
     act(() => {
@@ -572,7 +572,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Stale section workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Stale section workspace")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -611,7 +611,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Gate A workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Gate A workspace")).toBeInTheDocument());
 
     act(() => {
       mockJobStream.latestOptions?.onMessage?.({
@@ -746,7 +746,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Lifecycle Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Lifecycle Step/i })).toBeInTheDocument());
     expect(screen.getByText("Lifecycle review workspace")).toBeInTheDocument();
   });
 
@@ -831,7 +831,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Section Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Section Step/i })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Stale Top Level Step/i })).not.toBeInTheDocument();
     expect(screen.getByText("Section review workspace")).toBeInTheDocument();
     const usage = screen.getByTestId("job-usage-breakdown");
@@ -872,7 +872,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByText("Projection-backed hero summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Projection-backed hero summary")).toBeInTheDocument());
     expect(screen.queryByText("Stale top-level hero summary")).not.toBeInTheDocument();
     expect(screen.getByText("Projection step")).toBeInTheDocument();
     expect(screen.getByText("Projection next action")).toBeInTheDocument();
@@ -897,7 +897,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByTestId("job-cancel-button")).toHaveTextContent("Cancel job");
+    await waitFor(() => expect(screen.getByTestId("job-cancel-button")).toHaveTextContent("Cancel job"));
   });
 
   it("prefers nested projection section data over stale top-level aliases when sections are absent", async () => {
@@ -1004,7 +1004,7 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Projection Step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Projection Step/i })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Stale Top Level Step/i })).not.toBeInTheDocument();
     expect(screen.getByText("Projection review workspace")).toBeInTheDocument();
   });
@@ -1046,10 +1046,10 @@ it("renders the selected workflow link and keeps raw payloads out of primary UI"
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Recent batch/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Recent batch/i })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: /Load earlier steps/i }));
 
-    expect(await screen.findByRole("button", { name: /Earlier batch/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Earlier batch/i })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /Recent batch/i })).toBeInTheDocument();
     expect(mockedFetchJobExecutionStepsPage).toHaveBeenCalledWith("42", "50:message-50");
   });
@@ -1153,7 +1153,7 @@ describe("Approval Review public context parity", () => {
     expect(body).toHaveTextContent("[REDACTED]");
     expect(body).not.toHaveTextContent("_flow_steward_projection");
     expect(within(body).getByText("Approve this synthetic audit item?")).toBeInTheDocument();
-    expect(await within(body).findByText("Archived approved destination")).toBeVisible();
+    await waitFor(() => expect(within(body).getByText("Archived approved destination")).toBeVisible());
     expect(within(body).getByText("Archived rejected destination")).toBeVisible();
     expect(within(body).getByText("Approved")).toBeInTheDocument();
     expect(within(body).getByText("Rejected")).toBeInTheDocument();
@@ -1182,7 +1182,7 @@ describe("Approval Review public context parity", () => {
     primeReview("canonical", "Owner review document", { ...archivedDefinition, ...patch });
     const body = await screen.findByTestId("job-review-workspace-body");
     await waitFor(() => expect(mockedFetchJobDefinition).toHaveBeenCalledWith("42"));
-    expect(await within(body).findAllByText("Not recorded")).toHaveLength(2);
+    await waitFor(() => expect(within(body).getAllByText("Not recorded")).toHaveLength(2));
     expect(within(body).queryByText("Archived approved destination")).not.toBeInTheDocument();
     expect(within(body).queryByText("Archived rejected destination")).not.toBeInTheDocument();
     expect(within(body).getByText("Owner review document")).toBeVisible();
@@ -1193,7 +1193,7 @@ describe("Approval Review public context parity", () => {
       edges: [...archivedDefinition.execution_graph.edges, { source: { kind: "step", id: "review" }, outcome: { name: "approved" }, target: { kind: "step", id: "declined" }, rework: false }],
     } });
     const body = await screen.findByTestId("job-review-workspace-body");
-    expect(await within(body).findByText("Not recorded")).toBeVisible();
+    await waitFor(() => expect(within(body).getByText("Not recorded")).toBeVisible());
     expect(within(body).queryByText("Archived approved destination")).not.toBeInTheDocument();
     expect(within(body).getByText("Archived rejected destination")).toBeVisible();
   });
@@ -1203,7 +1203,7 @@ describe("Approval Review public context parity", () => {
     const body = await screen.findByTestId("job-review-workspace-body");
     await waitFor(() => expect(body).toHaveTextContent("Review value"));
     fireEvent.click(within(body).getByTestId("approval-reject-button"));
-    expect(await within(body).findByRole("alert")).toHaveTextContent(/comment/i);
+    await waitFor(() => expect(within(body).getByRole("alert")).toHaveTextContent(/comment/i));
     expect(submitApprovalDecision).not.toHaveBeenCalled();
     fireEvent.change(within(body).getByTestId("approval-comment-input"), { target: { value: "Please check this item" } });
     fireEvent.click(within(body).getByTestId("approval-reject-button"));

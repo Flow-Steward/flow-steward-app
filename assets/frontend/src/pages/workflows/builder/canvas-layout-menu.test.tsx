@@ -6,6 +6,7 @@ import type { CanvasPosition, GraphEditNotice } from "./canvas-core";
 import { arrangeSnapshot, CanvasLayoutControl, loadArrangeMode, saveArrangeMode, useCanvasArrangeMode, useSavedCanvasLayout } from "./canvas-layout-menu";
 import type * as notesApi from "./canvas-notes-api";
 import { fetchCanvasLayout, saveCanvasLayout } from "./canvas-notes-api";
+import { asyncWaitMs } from "@/test/time-budget";
 
 vi.mock("./canvas-notes-api", async (importOriginal) => ({
   ...(await importOriginal<typeof notesApi>()),
@@ -101,7 +102,7 @@ describe("Saved canvas layout", () => {
     const { result } = renderSavedLayout({});
     await vi.waitFor(() => expect(result.current.positions).toEqual({ fetch: { x: 400, y: 64 } }));
     act(() => result.current.setPositions({ fetch: { x: 640, y: 320 } }));
-    await vi.waitFor(() => expect(mockedSaveLayout).toHaveBeenCalledWith("orders", { mode: "manual", positions: { fetch: { x: 640, y: 320 } } }), { timeout: 2000 });
+    await vi.waitFor(() => expect(mockedSaveLayout).toHaveBeenCalledWith("orders", { mode: "manual", positions: { fetch: { x: 640, y: 320 } } }), { timeout: asyncWaitMs() });
     expect(mockedSaveLayout).toHaveBeenCalledTimes(1);
   });
 
@@ -109,7 +110,7 @@ describe("Saved canvas layout", () => {
     mockedFetchLayout.mockResolvedValue({ layout: { mode: "auto", positions: {} }, saved: false });
     saveArrangeMode("orders", "manual");
     renderSavedLayout({ fetch: { x: 416, y: 80 } });
-    await vi.waitFor(() => expect(mockedSaveLayout).toHaveBeenCalledWith("orders", { mode: "manual", positions: { fetch: { x: 416, y: 80 } } }), { timeout: 2000 });
+    await vi.waitFor(() => expect(mockedSaveLayout).toHaveBeenCalledWith("orders", { mode: "manual", positions: { fetch: { x: 416, y: 80 } } }), { timeout: asyncWaitMs() });
 
     mockedSaveLayout.mockClear();
     mockedFetchLayout.mockResolvedValue({ layout: { mode: "auto", positions: {} }, saved: true });

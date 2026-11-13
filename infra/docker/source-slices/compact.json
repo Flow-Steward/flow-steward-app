@@ -562,6 +562,7 @@
     "core/application/monitoring/ingestion.py",
     "core/application/monitoring/processes.py",
     "core/application/monitoring/queries.py",
+    "core/application/monitoring/readiness_projection.py",
     "core/application/monitoring/repository.py",
     "core/application/monitoring/runs.py",
     "core/application/monitoring/runtime_composition.py",
@@ -1265,6 +1266,7 @@
     "core/entrypoints/cli/platform/__init__.py",
     "core/entrypoints/cli/platform/click_adapter.py",
     "core/entrypoints/cli/platform/command_help.py",
+    "core/entrypoints/cli/platform/command_names.py",
     "core/entrypoints/cli/platform/command_parameters.py",
     "core/entrypoints/cli/platform/confirmation.py",
     "core/entrypoints/cli/platform/errors.py",
@@ -1274,9 +1276,11 @@
     "core/entrypoints/cli/platform/interrupts.py",
     "core/entrypoints/cli/platform/modes.py",
     "core/entrypoints/cli/platform/operation_log.py",
+    "core/entrypoints/cli/platform/prompts.py",
     "core/entrypoints/cli/platform/redaction.py",
     "core/entrypoints/cli/platform/renderers.py",
     "core/entrypoints/cli/platform/result_presentation.py",
+    "core/entrypoints/cli/platform/result_view.py",
     "core/entrypoints/cli/platform/service_bindings/__init__.py",
     "core/entrypoints/cli/platform/service_bindings/backup.py",
     "core/entrypoints/cli/platform/service_bindings/clone.py",
@@ -1295,12 +1299,11 @@
     "core/entrypoints/cli/platform/service_bindings/workflow_authoring.py",
     "core/entrypoints/cli/platform/service_bindings/workflows.py",
     "core/entrypoints/cli/platform/service_registry.py",
+    "core/entrypoints/cli/platform/step_progress.py",
     "core/entrypoints/cli/platform/theme.py",
     "core/entrypoints/cli/platform_runtime.py",
     "core/entrypoints/cli/runtime.py",
     "core/entrypoints/cli/secret_input.py",
-    "core/entrypoints/cli/tui/__init__.py",
-    "core/entrypoints/cli/tui/form_app.py",
     "core/entrypoints/cli/worker_event_ingress.py",
     "core/entrypoints/cli/worker_process.py",
     "core/entrypoints/control/__init__.py",
@@ -1763,7 +1766,7 @@
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",
-      "consumer": "core/entrypoints/cli/platform_runtime.py:301 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
+      "consumer": "core/entrypoints/cli/platform_runtime.py:298 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
     },
     {
       "path": "core/entrypoints/cli/platform/service_bindings/config.py",
@@ -1812,20 +1815,28 @@
       "consumer": "worker-owned orchestration system prompt loading"
     },
     {
+      "path": "core/entrypoints/cli/completion/flow-steward-shell.bash",
+      "consumer": "infra/docker/compact/flow-steward shell"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.bash",
+      "consumer": "infra/docker/compact/flow-steward completion and /etc/bash.bashrc"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.fish",
+      "consumer": "infra/docker/compact/flow-steward completion"
+    },
+    {
+      "path": "core/entrypoints/cli/completion/flow-steward.zsh",
+      "consumer": "infra/docker/compact/flow-steward completion"
+    },
+    {
       "path": "core/entrypoints/cli/scripts/frontend_shell_freshness.sh",
       "consumer": "app-runtime frontend shell freshness check"
     },
     {
       "path": "core/entrypoints/cli/scripts/start_server.sh",
       "consumer": "app-runtime CMD HTTP server bootstrap"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
-    },
-    {
-      "path": "core/entrypoints/cli/tui/theme_monochrome.tcss",
-      "consumer": "core.entrypoints.cli.tui.form_app Textual stylesheet"
     },
     {
       "path": "core/infrastructure/config/flow_steward_env_manifest.json",

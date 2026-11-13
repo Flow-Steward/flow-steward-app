@@ -223,9 +223,9 @@ def test_linux_runner_records_exact_scenario_and_cleanup_evidence(tmp_path: Path
         for proof in evidence["cleanup_proofs"]
     )
     invocation = pytest_log.read_text(encoding="utf-8")
-    assert "production-textual-bundled" in invocation
-    assert "production-textual-external_s3" in invocation
-    assert "development-textual-bundled" not in invocation
+    assert "production-default-bundled" in invocation
+    assert "production-default-external_s3" in invocation
+    assert "development-default-bundled" not in invocation
     assert "--basetemp=" in invocation
     basetemp = next(
         Path(value.removeprefix("--basetemp="))

@@ -62,7 +62,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
   ])("uses backend provider name or a readable unnamed state (%s)", async (name, label) => {
     const http = installHttp(name);
     renderPage("general");
-    expect(await screen.findByText(label)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(label)).toBeInTheDocument());
     expect(document.body).not.toHaveTextContent(new RegExp(internalId));
     expect(http.providers[0]?.id).toBe(internalId);
     expect(http.requests.every(({ method }) => method === "GET")).toBe(true);
@@ -72,14 +72,14 @@ describe("Settings readable labels with internal IDs unchanged", () => {
   it("distinguishes loading provider inventory from an empty inventory", async () => {
     installHttp(undefined, undefined, "loading");
     renderPage("general");
-    expect(await screen.findByText("Loading model providers…")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Loading model providers…")).toBeInTheDocument());
     expect(screen.queryByText("No model providers configured yet.")).not.toBeInTheDocument();
   });
 
   it("distinguishes unavailable provider inventory from an empty inventory", async () => {
     installHttp(undefined, undefined, "unavailable");
     renderPage("general");
-    expect(await screen.findByText("Model providers unavailable.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Model providers unavailable.")).toBeInTheDocument());
     expect(screen.queryByText("No model providers configured yet.")).not.toBeInTheDocument();
   });
 
@@ -128,7 +128,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
   it("shows unavailable scope without leaking IDs or opening an editor", async () => {
     const http = installHttp(undefined, undefined, "unavailable");
     renderPage("notifications");
-    expect(await screen.findByText("Projects could not be loaded")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Projects could not be loaded")).toBeInTheDocument());
     const scope = screen.getByRole("combobox", { name: "Project scope" });
     expect(scope).toBeDisabled();
     expect(scope).toHaveAttribute("placeholder", "Projects unavailable");

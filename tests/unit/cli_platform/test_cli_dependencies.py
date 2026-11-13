@@ -96,7 +96,7 @@ def test_cli_requirements_are_independent_from_the_core_runtime_graph() -> None:
     requirements = (ROOT / "requirements-cli.txt").read_text(encoding="utf-8")
 
     assert "-r requirements-runtime.txt" not in requirements
-    for required in ("click==8.4.2", "textual==8.2.8", "rich==15.0.0", "pydantic==2.12.5"):
+    for required in ("click==8.4.2", "prompt-toolkit==3.0.52", "rich==15.0.0", "pydantic==2.12.5"):
         assert required in requirements
 
 
@@ -122,11 +122,12 @@ def test_localization_babel_is_owned_by_the_product_runtime() -> None:
     assert "babel==2.17.0" in runtime_lock.lower()
 
 
-def test_product_runtime_includes_presentation_dependencies_for_delegated_tui() -> None:
-    """Removing Textual from fs-app must break interactive product-command routing."""
+def test_product_runtime_includes_presentation_dependencies_for_delegated_prompts() -> None:
+    """Product commands ask their questions in fs-app, so it carries the prompt library."""
     requirements = (ROOT / "requirements-runtime.txt").read_text(encoding="utf-8")
 
-    assert "textual==8.2.8" in requirements
+    assert "prompt-toolkit==3.0.52" in requirements
+    assert "textual" not in requirements
     assert "rich==15.0.0" in requirements
 
 
@@ -193,7 +194,9 @@ def test_cli_dependency_files_exclude_alternate_prompt_frameworks() -> None:
         for filename in ("requirements-cli.txt", "requirements-cli.lock")
     ).lower()
 
-    for forbidden in ("questionary", "prompt-toolkit", "typer", "inquirer", "asciimatics"):
+    # prompt-toolkit is the one prompt library (ADR 0017 item 3), used only through
+    # core/entrypoints/cli/platform/prompts.py; the full-screen frameworks stay out.
+    for forbidden in ("questionary", "textual", "typer", "inquirer", "asciimatics"):
         assert forbidden not in dependency_text
 
 
@@ -216,7 +219,7 @@ def test_every_cli_direct_root_has_a_reachable_retained_consumer(tmp_path: Path)
         "click": ROOT / "core/entrypoints/cli/platform/click_adapter.py",
         "pydantic": ROOT / "core/entrypoints/cli/platform/service_bindings/common.py",
         "rich": ROOT / "core/entrypoints/cli/platform/renderers.py",
-        "textual": ROOT / "core/entrypoints/cli/tui/form_app.py",
+        "prompt-toolkit": ROOT / "core/entrypoints/cli/platform/prompts.py",
         "psycopg": ROOT / "core/infrastructure/lifecycle/preservation_repository.py",
         "boto3": ROOT / "core/infrastructure/lifecycle/storage_gateway.py",
         "botocore": ROOT / "core/infrastructure/lifecycle/configuration_gateway.py",
@@ -439,7 +442,10 @@ sys.meta_path.insert(0, BlockProductDependency())
         [
             sys.executable,
             "-c",
-            ("from core.entrypoints.cli.tui.form_app import CommandFormApp; assert CommandFormApp"),
+            (
+                "from core.entrypoints.cli.platform.prompts import ask_choice; "
+                "import prompt_toolkit.shortcuts; assert ask_choice"
+            ),
         ],
         cwd=tmp_path,
         env=environment,
@@ -545,48 +551,6 @@ def test_cli_image_can_answer_the_launchers_lifecycle_probe(tmp_path: Path) -> N
     )
 
     assert result.returncode == 3, result.stderr  # answered: nothing holds the lock
-
-
-def test_cli_image_can_open_an_interactive_form_in_both_themes(tmp_path: Path) -> None:
-    """AC17-R154: importing the form proved nothing. Textual reads the stylesheet only
-    when the app starts, so the image passed the import check above and every
-    interactive command failed with "unable to read CSS file ... theme.tcss"."""
-    pytest.importorskip("textual")
-    _materialize_cli_copy_inputs(tmp_path)
-    script = """
-import asyncio
-from core.application.management.command_specs.users import USERS_SET_PASSWORD_SPEC
-from core.entrypoints.cli.tui.form_app import CommandFormApp
-
-async def main():
-    for color_enabled in (True, False):
-        app = CommandFormApp(
-            spec=USERS_SET_PASSWORD_SPEC,
-            initial_values={},
-            choice_loader=lambda _key: (),
-            terminal_size=(100, 40),
-            color_enabled=color_enabled,
-        )
-        async with app.run_test(size=(100, 40)) as pilot:
-            await pilot.pause()
-        print("opened", color_enabled)
-
-asyncio.run(main())
-"""
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(tmp_path)
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        check=False,
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.split() == ["opened", "True", "opened", "False"]
 
 
 def test_docker_build_context_excludes_local_flow_steward_state() -> None:

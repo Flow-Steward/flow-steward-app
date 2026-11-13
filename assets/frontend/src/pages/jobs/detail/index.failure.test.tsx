@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 
 import { jobPayload, mockedFetchJobExecutionStepsPage, primeApi, renderPage } from "./index.test-helpers";
 
@@ -40,7 +40,7 @@ describe("JobsDetailPage failed-step overview", () => {
 
     // The link opens that step in the timeline's inspector.
     fireEvent.click(within(alert).getByRole("button", { name: "Show the step in the timeline" }));
-    expect(await screen.findByRole("button", { name: /Query saved stock levels/, pressed: true })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Query saved stock levels/, pressed: true })).toBeInTheDocument());
   });
 
   it.each([

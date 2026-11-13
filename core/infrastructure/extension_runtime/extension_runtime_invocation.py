@@ -13,6 +13,7 @@ from core.infrastructure.extension_runtime.progress_channel import (
     current_progress_sink,
     drain_progress,
 )
+from core.infrastructure.observability.exception_logging import redacted_exception_info
 
 from .extension_runtime_common import *  # NOSONAR
 from .extension_runtime_manifest import (
@@ -365,6 +366,34 @@ def _run_subprocess_capped(
     return proc.returncode, stdout_text, stderr_text, exceeded.is_set()
 
 
+def _host_runtime_failure(exc: Exception, *, release_selection: bool) -> dict[str, Any]:
+    code = "extension_release_unavailable" if release_selection else "extension_runtime_unavailable"
+    _log.warning(
+        "Extension host runtime failed",
+        extra={"extension_failure_code": code},
+        exc_info=redacted_exception_info(exc),
+    )
+    detail = code
+    message = (
+        "The extension release is unavailable. Reinstall it or retry after its update completes."
+        if release_selection
+        else "The extension runtime is unavailable. Check the extension installation."
+    )
+    # Preserve this existing validation contract without reflecting arbitrary exceptions.
+    missing_root = "Extension invocation requires a bundle root"
+    if release_selection and str(exc) == missing_root:
+        detail = message = missing_root
+    return {
+        "status": "failed",
+        "detail": detail,
+        "command": [],
+        "bundle_root": "",
+        # Later runtime failures cannot prove that no external effect occurred.
+        "response": {"definitely_no_external_effect": True} if release_selection else {},
+        "errors": [{"code": code, "message": message}],
+    }
+
+
 def run_extension_health(extension: dict) -> dict:
     from core.infrastructure.db.remote_extension_runtime import (
         is_remote_runtime_enabled,
@@ -395,12 +424,7 @@ def run_extension_health(extension: dict) -> dict:
 
         extension = InvocationReleaseSelection.capture(extension).runtime_extension()
     except (OSError, ValueError) as exc:
-        return {
-            "status": "failed",
-            "detail": str(exc),
-            "command": [],
-            "bundle_root": str(extension.get("bundle_root") or "").strip(),
-        }
+        return _host_runtime_failure(exc, release_selection=True)
 
     health = _normalize_healthcheck(extension.get("healthcheck"))
     command = _normalize_command(health.get("command"))
@@ -443,6 +467,11 @@ def run_extension_health(extension: dict) -> dict:
             "exit_code": returncode,
             "stdout": stdout,
             "stderr": stderr,
+        }
+    except OSError as exc:
+        return {
+            **_host_runtime_failure(exc, release_selection=False),
+            "timeout_seconds": timeout_seconds,
         }
     except Exception as exc:
         return {
@@ -560,13 +589,7 @@ def run_extension_invocation(
 
         extension = InvocationReleaseSelection.capture(extension).runtime_extension()
     except (OSError, ValueError) as exc:
-        return {
-            "status": "failed",
-            "detail": str(exc),
-            "command": [],
-            "bundle_root": str(extension.get("bundle_root") or "").strip(),
-            "response": {"definitely_no_external_effect": True},
-        }
+        return _host_runtime_failure(exc, release_selection=True)
 
     entrypoint = _normalize_entrypoint(
         extension.get("entrypoint") or extension.get("entrypoint_jsonb")
@@ -782,6 +805,11 @@ def run_extension_invocation(
             "timeout_seconds": timeout,
             "response": {},
             "errors": [{"code": "extension_timeout", "message": message}],
+        }
+    except OSError as exc:
+        return {
+            **_host_runtime_failure(exc, release_selection=False),
+            "timeout_seconds": timeout,
         }
     except Exception as exc:
         return {

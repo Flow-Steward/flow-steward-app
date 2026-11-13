@@ -98,7 +98,7 @@ describe("RegistryEntityChangelogPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Entry #123/i }));
     fireEvent.click(screen.getByRole("button", { name: /Restore this revision/i }));
 
-    expect(await screen.findByRole("dialog", { name: "Restore saved revision" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Restore saved revision" })).toBeInTheDocument());
     expect(mockedRestore).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     await waitFor(() => {
@@ -121,7 +121,7 @@ describe("RegistryEntityChangelogPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Entry #selected-event/i }));
 
-    expect(await screen.findByRole("heading", { name: "Lifecycle event" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Lifecycle event" })).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "Revision diff" })).not.toBeInTheDocument();
     expect(screen.getByText(/not a content revision/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Restore this revision/i })).not.toBeInTheDocument();
@@ -142,7 +142,7 @@ describe("RegistryEntityChangelogPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Entry #content-after-marker/i }));
 
-    expect(await screen.findByText(/not a content comparison/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/not a content comparison/i)).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "Revision diff" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Restore this revision" })).toBeEnabled();
     expect(screen.queryByText(/total: 0|No explicit diff rows/u)).not.toBeInTheDocument();
@@ -162,7 +162,7 @@ describe("RegistryEntityChangelogPanel", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: /Entry #new-content/i }));
 
-    expect(await screen.findByText("display_name")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("display_name")).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Revision diff" })).toBeInTheDocument();
     expect(fetchChangelogDiff).toHaveBeenCalledWith({
       entityType: "tool", entityId: "demo_entity", fromEntryId: "old-content", toEntryId: "new-content",
@@ -176,7 +176,7 @@ describe("RegistryEntityChangelogPanel", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: /Entry #unknown-kind/i }));
 
-    expect(await screen.findByText(/revision type is unavailable/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/revision type is unavailable/i)).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Restore this revision/i })).not.toBeInTheDocument();
     expect(fetchChangelogDiff).not.toHaveBeenCalled();
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe("RegistryEntityChangelogPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Revision 2/u }));
 
-    expect(await screen.findByText("Comparing Revision 1 to Revision 2")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Comparing Revision 1 to Revision 2")).toBeVisible());
     expect(screen.getByRole("button", { name: /Revision 2/u })).toHaveTextContent("Entry #history-new");
     expect(screen.getByRole("button", { name: /Revision 1/u })).toHaveTextContent("Entry #history-old");
     expect(fetchChangelogDiff).toHaveBeenCalledWith({
@@ -300,7 +300,7 @@ describe("RegistryEntityChangelogPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Revision 2/u }));
 
-    expect(await screen.findByText(label)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(label)).toBeVisible());
     expect(screen.getByText(path)).toBeInTheDocument();
     expect(screen.getByText(/from:\s*Before\s*• to:\s*After/u)).toBeVisible();
   });
@@ -348,7 +348,7 @@ describe("RegistryEntityChangelogPanel", () => {
     const revision = screen.getByRole("button", { name: /Versija 2/u });
     expect(revision).toHaveTextContent("Atnaujinta");
     fireEvent.click(revision);
-    expect(await screen.findByText("Pavadinimas")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Pavadinimas")).toBeVisible());
     expect(screen.getByText("Išvestys · Rezultatas 1 · Žyma")).toBeVisible();
     expect(screen.getByText("settings.callable.expected_outputs[0].label")).toBeInTheDocument();
 
@@ -357,7 +357,7 @@ describe("RegistryEntityChangelogPanel", () => {
     expect(confirmation).toHaveTextContent("Atkurti Versija 2 kaip naują versiją?");
     expect(confirmation).toHaveTextContent("Paskirtis: workflow/demo_entity.");
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
-    expect(await screen.findByText("Atkurta Versija 2 kaip nauja versija.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Atkurta Versija 2 kaip nauja versija.")).toBeVisible());
   });
 
   it("confirms the selected workflow revision as a new revision and reports the exact target", async () => {
@@ -374,7 +374,7 @@ describe("RegistryEntityChangelogPanel", () => {
     expect(restoreChangelogEntry).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
 
-    expect(await screen.findByText("Restored Revision 2 as a new revision.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Restored Revision 2 as a new revision.")).toBeVisible());
     expect(restoreChangelogEntry).toHaveBeenCalledTimes(1);
     expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "workflow", entityId: "demo_entity", entryId: "restore-entry", expectedRevision: 7,
@@ -397,7 +397,7 @@ describe("RegistryEntityChangelogPanel", () => {
     expect(confirmation).toHaveTextContent("Entry #legacy-ref");
     expect(confirmation).not.toHaveTextContent("Historical title only");
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
-    expect(await screen.findByText("Restored this saved revision.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Restored this saved revision.")).toBeVisible());
     expect(restoreChangelogEntry).toHaveBeenCalledWith({
       entityType: "tool", entityId: "demo_entity", entryId: "legacy-ref", expectedRevision: undefined,
     });
@@ -413,7 +413,7 @@ describe("RegistryEntityChangelogPanel", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: /Entry #fallback-new/u }));
 
-    expect(await screen.findByText(path)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(path)).toBeVisible());
     expect(screen.getByText("provider_delta")).toBeVisible();
     expect(screen.getByText(/from:\s*old\s*• to:\s*new/u)).toBeVisible();
     expect(fetchChangelogDiff).toHaveBeenCalledWith({
@@ -436,7 +436,7 @@ describe("RegistryEntityChangelogPanel", () => {
     ]);
     fireEvent.click(screen.getByRole("button", { name: /Entry #value-new/u }));
 
-    expect(await screen.findByText(expected)).toBeVisible();
+    await waitFor(() => expect(screen.getByText(expected)).toBeVisible());
   });
 
 });

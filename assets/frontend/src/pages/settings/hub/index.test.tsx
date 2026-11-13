@@ -85,7 +85,7 @@ describe("SettingsHubPage", () => {
     mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [{ key: "records", title: "Fixture records", list_path: "/private/fixture", item_path: "/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Name", type: "text", required: true }] }] } }] } });
     const messages: Record<string, string> = { "react.settings.records_count": "Įrašų: {count}" };
     render(<I18nContext.Provider value={{ ...fallbackContext, locale: "lt", messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}><MemoryRouter initialEntries={["/settings/fixture"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter></I18nContext.Provider>);
-    expect(await screen.findByText("Įrašų: 2")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Įrašų: 2")).toBeInTheDocument());
     expect(screen.queryByText("2 records")).not.toBeInTheDocument();
   });
 
@@ -299,7 +299,7 @@ describe("SettingsHubPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Workforce Directory")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workforce Directory")).toBeInTheDocument());
     expect(screen.getByText("example.com")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add" })).toHaveLength(2);
     expect(screen.queryByText(/dedicated React screen/i)).not.toBeInTheDocument();
@@ -362,7 +362,7 @@ describe("SettingsHubPage", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Source A")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Source A")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     expect(screen.getByLabelText(/^Key/)).toHaveAttribute("id", "settings-sources-key-new");
@@ -561,7 +561,7 @@ describe("SettingsHubPage", () => {
     const config = await editJsonResource();
     fireEvent.change(config, { target: { value: "{" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(await screen.findByRole("alert")).not.toBeEmptyDOMElement();
+    await waitFor(() => expect(screen.getByRole("alert")).not.toBeEmptyDOMElement());
     expect(state.writes).toEqual([]);
     expect(state.reads).toBe(1);
     expect(state.record.config).toEqual(originalConfig);

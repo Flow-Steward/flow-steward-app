@@ -53,7 +53,7 @@ skills:
   examples: []
   tags: []
   expected_inputs:
-  - name: messages
+  - name: mail_records
     type: json
     required: true
   expected_outputs:

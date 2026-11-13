@@ -147,7 +147,7 @@ describe("RegistryAgentsDetailPage", () => {
     } as never);
 
     renderPage("lt");
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     for (const label of ["Identifikatorius", "Įjungta", "Versija", "Atnaujinta"]) {
@@ -188,7 +188,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
     fireEvent.click(screen.getByRole("checkbox", { name: new RegExp("Brand Voice") }));
     fireEvent.click(screen.getByRole("button", { name: "Save skills" }));
@@ -201,7 +201,7 @@ describe("RegistryAgentsDetailPage", () => {
       );
     });
     expect(mockedPatchRegistryEntity).not.toHaveBeenCalled();
-    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
   });
 
   it("reverts an unpersisted skill selection after a relationship save fails", async () => {
@@ -227,14 +227,14 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
     const secondary = screen.getByRole("checkbox", { name: new RegExp("Brand Voice") });
     fireEvent.click(secondary);
     expect(secondary).toBeChecked();
     fireEvent.click(screen.getByRole("button", { name: "Save skills" }));
 
-    expect(await screen.findByText("Skill is incompatible with this agent.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Skill is incompatible with this agent.")).toBeInTheDocument());
     expect(screen.getByRole("checkbox", { name: new RegExp("Brand Voice") })).not.toBeChecked();
     // A rejected save is an error: announced, in the danger alert under the
     // header, with the server's full reason. It used to be a neutral badge in
@@ -268,7 +268,7 @@ describe("RegistryAgentsDetailPage", () => {
     );
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
     expect(screen.queryByLabelText("Secondary skill Copywriting")).not.toBeInTheDocument();
     // SingleCombobox is a text input plus a listbox, so the option is chosen by
@@ -298,9 +298,9 @@ describe("RegistryAgentsDetailPage", () => {
     } as never);
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
-    expect(await screen.findByText("Could not load model options.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Could not load model options.")).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Retry model options" })).toBeInTheDocument();
     expect(screen.queryByText(/agent's model isn't verified/i)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save config" })).toBeDisabled();
@@ -327,7 +327,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
     fireEvent.click(screen.getByRole("checkbox", { name: new RegExp("Sheet Operations") }));
     fireEvent.click(screen.getByRole("button", { name: "Save tools" }));
@@ -340,7 +340,7 @@ describe("RegistryAgentsDetailPage", () => {
       );
     });
     expect(mockedPatchRegistryEntity).not.toHaveBeenCalled();
-    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
   });
 
   it("shows virtual tools as unavailable and prevents new assignment", async () => {
@@ -383,7 +383,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
     const projected = screen.getByRole("checkbox", {
       name: /Catalog Tool.*unavailable for assignment/i,
@@ -434,7 +434,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage(locale);
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
     const connectorOnly = await screen.findByRole("checkbox", { name: /Numbers.*unavailable for assignment/i });
     expect(connectorOnly).toBeDisabled();
@@ -490,7 +490,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Tools" }));
     const projected = screen.getByRole("checkbox", {
       name: /Catalog Tool.*unavailable for assignment/i,
@@ -538,7 +538,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
     // A disabled catalog entry is not offered as a base skill and not offered as
     // a secondary one either.
@@ -583,7 +583,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Builder" }));
 
     fireEvent.change(
@@ -652,7 +652,7 @@ describe("RegistryAgentsDetailPage", () => {
     });
 
     const view = renderPage();
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: ` ${configPatchFixture.display_name} ` },
@@ -683,7 +683,7 @@ describe("RegistryAgentsDetailPage", () => {
     expect(agent._tools).toEqual([]);
     view.unmount();
     renderPage();
-    expect(await screen.findByText(configPatchFixture.display_name)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(configPatchFixture.display_name)).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
     expect(screen.getByLabelText("Display Name")).toHaveValue(configPatchFixture.display_name);
     expect(screen.getByLabelText("Description")).toHaveValue(configPatchFixture.description);
@@ -722,7 +722,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Writer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Writer")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
     const requirementsDoc = await screen.findByText("summary_doc");
@@ -769,16 +769,16 @@ describe("RegistryAgentsDetailPage", () => {
     });
 
     renderPage();
-    expect(await screen.findByText("Writer")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Writer")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "I/O" }));
 
     // Inherited fields are shown with their source and cannot be edited here.
-    expect(await screen.findByText("request")).toHaveClass("fs-signature-name");
+    await waitFor(() => expect(screen.getByText("request")).toHaveClass("fs-signature-name"));
     expect(screen.getByText("summary")).toHaveClass("fs-signature-name");
     expect(screen.getAllByText("From skill").length).toBe(2);
     expect(screen.queryByDisplayValue("request")).not.toBeInTheDocument();
     // The own input is edited in place.
-    expect(await screen.findByDisplayValue("tone")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByDisplayValue("tone")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "+ Add Output" }));
     const names = screen.getAllByPlaceholderText("Name");
@@ -800,7 +800,7 @@ describe("RegistryAgentsDetailPage", () => {
     expect(JSON.parse(String(saved?.init?.body))).toEqual([
       { description: "", name: "confidence", required: true, type: "text" },
     ]);
-    expect(await screen.findByText("Saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Saved.")).toBeInTheDocument());
     // Neither the shared skill nor the older skill-writing endpoints are called.
     expect(
       calls.filter(
@@ -840,7 +840,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     chooseOption("Provider", "anthropic");
@@ -887,7 +887,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     chooseOption("Provider", "anthropic");
@@ -918,7 +918,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
     chooseOption("Provider", "Project default");
     fireEvent.click(screen.getByRole("button", { name: "Save config" }));
@@ -955,7 +955,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     expect(optionLabels("Provider")).toContain("DeepSeek (Acme LLM)");
@@ -994,7 +994,7 @@ describe("RegistryAgentsDetailPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
     // Only the project-default entry: no explicit model is offered.
     expect(optionLabels("Model")).toEqual(["Project default"]);
@@ -1020,7 +1020,7 @@ describe("RegistryAgentsDetailPage", () => {
     });
 
     renderPage();
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     expect(optionLabels("Model")).toContain("gpt-4o (unavailable)");
@@ -1049,7 +1049,7 @@ describe("RegistryAgentsDetailPage", () => {
     });
 
     renderPage();
-    expect(await screen.findByText("Launch Copywriter")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Launch Copywriter")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("tab", { name: "Config" }));
 
     expect(optionLabels("Provider")).toContain("Acme LLM (unavailable)");

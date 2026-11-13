@@ -906,7 +906,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-app:0.9.15",
+      "default": "flow-steward-app:0.9.16",
       "owner": "images"
     },
     {
@@ -1711,6 +1711,23 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_CLI_INVOCATION",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "api",
+      "notes": "Launcher-injected name the operator ran (./flow-steward or a path to it); commands shown in hints are rewritten to it. Unset in the Compact image, where the command is flow-steward."
+    },
+    {
       "name": "FS_CLI_OPERATION_LOG_HOST_ROOT",
       "groups": [
         "core_runtime"
@@ -2260,7 +2277,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-control:0.9.15",
+      "default": "flow-steward-control:0.9.16",
       "owner": "images"
     },
     {
@@ -3393,7 +3410,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-frontend:0.9.15",
+      "default": "flow-steward-frontend:0.9.16",
       "owner": "images",
       "notes": "Optional development frontend image; production application images already contain the built frontend shell."
     },
@@ -6595,7 +6612,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-worker:0.9.15",
+      "default": "flow-steward-worker:0.9.16",
       "owner": "images"
     },
     {
@@ -6990,7 +7007,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-mcp:0.9.15",
+      "default": "flow-steward-mcp:0.9.16",
       "owner": "images"
     },
     {

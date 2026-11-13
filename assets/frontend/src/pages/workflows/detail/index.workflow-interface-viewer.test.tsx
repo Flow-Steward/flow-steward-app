@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import { mockedUseIsAdmin, mockedUseAuth, canvasGraphFixture, fetchSpy, mockedFetchWorkflowCanvasGraph, mockedFetchWorkflowDetail, mockedFetchWorkflowContract, renderPage, workflowDetailFixture } from "./index.test-helpers";
 
 // jsdom has no canvas hit testing; interaction targets are explicit nodes.
@@ -22,9 +22,9 @@ it("lets a viewer inspect public Start and Stop contracts without edit controls 
   mockedFetchWorkflowCanvasGraph.mockResolvedValue(canvasGraphFixture({ entry: { kind: "step", id: "done" }, steps: [{ id: "done", step_id: "done", kind: "stop_success", display_name: "Done", config_summary: "", ports: [] }], edges: [] }));
   renderPage({ surface: "builder" });
   fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
-  expect(await screen.findByRole("heading", { name: "Workflow interface" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow interface" })).toBeInTheDocument());
   let drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("tab", { name: "Inputs" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Inputs" })).toHaveAttribute("aria-selected", "true"));
   expect(within(drawer).getByRole("combobox", { name: "Input mode" })).toBeDisabled();
   expect(within(drawer).getByDisplayValue("login")).toBeDisabled();
   expect(within(drawer).getByPlaceholderText("Enter a new value to replace")).toHaveValue("");
@@ -34,7 +34,7 @@ it("lets a viewer inspect public Start and Stop contracts without edit controls 
   fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
   fireEvent.click(screen.getByRole("group", { name: "Open step Done" }));
   drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true");
+  await waitFor(() => expect(within(drawer).getByRole("tab", { name: "Outputs" })).toHaveAttribute("aria-selected", "true"));
   expect(within(drawer).queryByRole("combobox", { name: "Output mode" })).not.toBeInTheDocument();
   expect(within(drawer).getByDisplayValue("result")).toBeDisabled();
   expect(fetchSpy.mock.calls.filter(([, init]) => init?.method && init.method !== "GET")).toHaveLength(0);
@@ -51,7 +51,7 @@ it("shows a viewer the inactive contract without any activation action or write"
   renderPage({ surface: "builder" });
   fireEvent.click(await screen.findByRole("button", { name: "Start — workflow inputs" }));
   const drawer = await screen.findByRole("dialog", { name: "Workflow interface" });
-  expect(await within(drawer).findByText("Workflow interface is off")).toBeVisible();
+  await waitFor(() => expect(within(drawer).getByText("Workflow interface is off")).toBeVisible());
   expect(within(drawer).queryByRole("button", { name: "Open workflow settings" })).not.toBeInTheDocument();
   expect(within(drawer).queryByRole("switch", { name: "Enable workflow interface" })).not.toBeInTheDocument();
   expect(within(drawer).queryByRole("button", { name: "Save workflow settings" })).not.toBeInTheDocument();

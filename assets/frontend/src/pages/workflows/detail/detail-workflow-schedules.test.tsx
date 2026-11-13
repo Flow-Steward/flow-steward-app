@@ -253,7 +253,7 @@ it("does not create or activate a schedule when selecting its trigger or saving 
 
 it("explains the missing project context without offering a global schedule", async () => {
   renderSettings({ projectId: "" });
-  expect(await screen.findByText(/Schedule requires a linked project context/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/Schedule requires a linked project context/)).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   expect(fetchProjectScheduledJobs).not.toHaveBeenCalled();
 });
@@ -268,7 +268,7 @@ it("lists and edits only the current workflow and reopens persisted inputs and c
     return { job: { ...row } };
   });
   renderSettings();
-  expect(await screen.findByText("Every day at 02:00 (Europe/Vilnius)")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Every day at 02:00 (Europe/Vilnius)")).toBeInTheDocument());
   // The other workflow's schedule is not listed: one row, one Edit.
   expect(screen.getAllByRole("button", { name: EDIT_SCHEDULE })).toHaveLength(1);
   expect(screen.getByText("0 2 * * *")).toBeInTheDocument();
@@ -321,7 +321,7 @@ it("creates a paused schedule with required inputs only on explicit save", async
   renderSettings();
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
-  expect(await screen.findByText(/region.*required/i)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/region.*required/i)).toBeInTheDocument());
   expect(createProjectScheduledJob).not.toHaveBeenCalled();
   await user.type(screen.getByLabelText(/^region/), "eu");
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
@@ -340,7 +340,7 @@ it("shows the next runs while the timing changes and keeps save errors visible w
   expect(screen.getByTestId("schedule-next-runs")).toHaveTextContent(/^Next: .*07:30/);
   expect(previewProjectCron).not.toHaveBeenCalled();
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
-  expect(await screen.findByText("Invalid cron expression")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Invalid cron expression")).toBeInTheDocument());
   expect(screen.getByRole("form", { name: "Schedule editor" })).toBeInTheDocument();
 });
 
@@ -363,7 +363,7 @@ it("reads a custom cron on the client and refuses an expression without five fie
 it("does not load schedules or offer editing for an unlinked project", async () => {
   vi.mocked(fetchProjectWorkflowBindings).mockResolvedValue({ workflow_ids: ["wf-other"], project_workflows: [{ workflow_id: "wf-other" }] } as never);
   renderSettings();
-  expect(await screen.findByText(/not linked to the selected project/)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/not linked to the selected project/)).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   expect(fetchProjectScheduledJobs).not.toHaveBeenCalled();
 });
@@ -390,8 +390,8 @@ it("explains a turned-off Schedule channel and offers Turn on Schedule instead o
   render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <WorkflowSchedules projectId="project-1" projectName="Order operations" workflowId="wf-1" onTurnOnScheduleChannel={turnOn} />
   </QueryClientProvider>);
-  expect(await screen.findByText("Schedule is turned off for this workflow")).toBeInTheDocument();
-  expect(await screen.findByText("No schedules for this workflow in Order operations yet.")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Schedule is turned off for this workflow")).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText("No schedules for this workflow in Order operations yet.")).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Turn on Schedule" }));
   expect(turnOn).toHaveBeenCalledOnce();
@@ -405,7 +405,7 @@ it("turns a listed schedule on in place and deletes it only after the named conf
   vi.mocked(deleteProjectScheduledJob).mockResolvedValue({});
   renderSettings();
   const title = "Every Monday at 09:00 (UTC)";
-  expect(await screen.findByText(title)).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(title)).toBeInTheDocument());
   await user.click(screen.getByRole("switch", { name: `Enabled: ${title}` }));
   await waitFor(() => expect(toggleProjectScheduledJob).toHaveBeenCalledWith("project-1", "schedule-1", true));
   await user.click(screen.getByRole("button", { name: `Delete schedule: ${title}` }));

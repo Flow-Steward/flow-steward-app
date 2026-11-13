@@ -54,7 +54,7 @@ it("shows a mapped Batch contract requirement while allowing an intentional miss
   await user.click(screen.getByRole("button", { name: "Run step test run" }));
   await waitFor(() => expect(mockedTestRunWorkflowStep).toHaveBeenCalledTimes(1));
   expect(mockedTestRunWorkflowStep).toHaveBeenCalledWith(expect.objectContaining({ stepId: "batch_collected_items", expectedRevision: 7, inputs: {}, inputBindings: [] }));
-  expect(await screen.findByText("batch source_path must resolve to a bounded array or dataset result")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("batch source_path must resolve to a bounded array or dataset result")).toBeInTheDocument());
   expect(screen.getByText("This step has no inputs.")).toBeInTheDocument();
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
 });

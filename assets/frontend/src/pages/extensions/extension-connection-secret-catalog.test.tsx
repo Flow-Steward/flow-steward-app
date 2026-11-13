@@ -132,7 +132,7 @@ describe("ConnectionSecretApprovalStatus", () => {
     mockedApprove.mockResolvedValue(approval({ status: "approved" }));
     renderWithClient(<ConnectionSecretApprovalStatus projectId="p1" row={boundRow} />);
 
-    expect(await screen.findByText("stored secrets need approval")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("stored secrets need approval")).toBeInTheDocument());
     expect(screen.getByText("api_token → Shop token")).toBeInTheDocument();
     expect(screen.getByText("https://api.example.test:443")).toBeInTheDocument();
 
@@ -145,7 +145,7 @@ describe("ConnectionSecretApprovalStatus", () => {
     mockedStatus.mockResolvedValue(approval({ status: "approved" }));
     renderWithClient(<ConnectionSecretApprovalStatus projectId="p1" row={boundRow} />);
 
-    expect(await screen.findByText("stored secrets approved")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("stored secrets approved")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: /Approve use of secrets/ })).not.toBeInTheDocument();
   });
 
@@ -156,7 +156,7 @@ describe("ConnectionSecretApprovalStatus", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Approve use of secrets/ }));
 
-    expect(await screen.findByText("The connection changed after it was shown")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The connection changed after it was shown")).toBeInTheDocument());
     await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(2));
   });
 });
@@ -199,11 +199,11 @@ describe("connection form with stored secrets", () => {
       </>,
     );
 
-    expect(await screen.findByText("stored secrets need approval")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("stored secrets need approval")).toBeInTheDocument());
     expect(screen.getByTestId("connection-secret-binding-api_token")).toBeInTheDocument();
     expect(screen.queryByTestId("connection-secret-binding-display_name")).not.toBeInTheDocument();
     // The bound secret is shown as the field's choice; switching to typing is a form change.
-    expect(await screen.findByText("Shop token")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Shop token")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Stop using the stored secret for API token" }));
     expect(onFieldChange).toHaveBeenCalledWith("shop", "__stored_secret__:api_token", "");
   });

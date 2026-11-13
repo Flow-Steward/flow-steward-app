@@ -45,7 +45,7 @@ it.each([
 it("lists For each in Flow, a loop, and Groups as a plain Group first, then Parallel lanes", () => {
   renderPalette();
   const flow = within(screen.getByRole("group", { name: "Flow" }));
-  expect(flow.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual(["If", "Switch", "Approval", "Wait", "For each", "Inline loop", "Batch"]);
+  expect(flow.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual(["If", "Switch", "Approval", "Wait", "For each", "Batch"]);
   const groups = within(screen.getByRole("group", { name: "Groups" }));
   expect(groups.getAllByRole("option").map((option) => option.getAttribute("aria-label"))).toEqual(["Group", "Parallel lanes"]);
   const data = within(screen.getByRole("group", { name: "Data" }));
@@ -72,7 +72,7 @@ it("ends with Canvas › Note, which search finds by its name", () => {
   expect(view.onChoose).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ nodeKind: "note", catalogKey: "canvas:note" }));
 });
 
-it("creates a plain Group, Parallel lanes, For each and an Inline loop through the container choice", () => {
+it("creates a plain Group, Parallel lanes and For each through the container choice", () => {
   const view = renderPalette();
   fireEvent.click(screen.getByRole("option", { name: "Group" }));
   expect(view.onChoose).toHaveBeenLastCalledWith(expect.objectContaining({ nodeKind: "group", catalogKey: "container:group", containerDefaults: { containerKind: "group", bodyKind: "sequence" } }));
@@ -80,8 +80,6 @@ it("creates a plain Group, Parallel lanes, For each and an Inline loop through t
   expect(view.onChoose).toHaveBeenLastCalledWith(expect.objectContaining({ nodeKind: "for_each", family: "Flow", containerDefaults: { containerKind: "for_each" } }));
   fireEvent.click(screen.getByRole("option", { name: "Parallel lanes" }));
   expect(view.onChoose).toHaveBeenLastCalledWith(expect.objectContaining({ nodeKind: "group", containerDefaults: { containerKind: "group", bodyKind: "lanes" } }));
-  fireEvent.click(screen.getByRole("option", { name: "Inline loop" }));
-  expect(view.onChoose).toHaveBeenLastCalledWith(expect.objectContaining({ nodeKind: "for_each", presentation: "inline" }));
 });
 
 it("does not turn search into individual-agent or child-tool discovery", () => {
@@ -216,7 +214,7 @@ it("disables every lane-forbidden palette choice and preserves all accepted lane
   const onDragStart = vi.fn();
   const laneScope = { laneId: "lane_a", sequenceForEach: false, allowGroup: false, allowForEach: false, onDragStart } as unknown as Partial<Parameters<typeof CanvasAddStepPalette>[0]>;
   const view = renderPalette(laneScope);
-  const forbidden = ["If", "Switch", "Approval", "Wait", "Stop · success", "Stop · fail", "For each", "Inline loop"];
+  const forbidden = ["If", "Switch", "Approval", "Wait", "Stop · success", "Stop · fail", "For each"];
   for (const label of forbidden) {
     const option = screen.getByRole("option", { name: label });
     expect(option).toHaveAttribute("aria-disabled", "true");
@@ -234,7 +232,7 @@ it("disables every lane-forbidden palette choice and preserves all accepted lane
   expect(screen.queryByRole("option", { name: "Group" })).not.toBeInTheDocument();
 });
 
-it.each(["Approval", "For each", "Inline loop"])("does not keyboard-select the lane-forbidden %s choice", (label) => {
+it.each(["Approval", "For each"])("does not keyboard-select the lane-forbidden %s choice", (label) => {
   const laneScope = { laneId: "lane_a" } as unknown as Partial<Parameters<typeof CanvasAddStepPalette>[0]>;
   const view = renderPalette(laneScope);
   const search = screen.getByRole("combobox", { name: "Search steps" });

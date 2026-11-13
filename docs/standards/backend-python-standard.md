@@ -142,6 +142,19 @@ CREATE INDEX IF NOT EXISTS idx_project_connections_project
 - `MUST` keep CLI output formatting separate from business logic.
 - `SHOULD` reuse the same service paths that power API or operator flows when the use case matches.
 - `SHOULD` support both human-readable and machine-readable output where the command is operationally relevant.
+- `MUST NOT` print JSON without `--json`: a command's result goes through the shared
+  layout in `core/entrypoints/cli/platform/result_view.py` (result line, aligned facts,
+  tables, next steps). A command that needs a different layout extends that module;
+  it never falls back to `json.dumps` (`test_no_command_prints_json_without_the_json_flag`).
+- `MUST` write commands shown to the operator (hints, `next_steps`, remediation) as
+  `flow-steward <command> ...`; the presentation boundary rewrites them to the name the
+  operator ran (`command_names.py`). Never hard-code `./flow-steward`.
+- `MUST` report long operations as named steps through the progress sink; Docker and
+  tool output goes to the operation log, and to the terminal only with `--verbose`.
+- `MUST` ask missing input through `core/entrypoints/cli/platform/prompts.py` (one
+  question at a time); no full-screen forms, no command-specific `input()`.
+- `MUST` regenerate the Tab completion scripts after adding or changing a command:
+  `python -m core.entrypoints.cli.platform.completion write`.
 
 ## Migrations and Storage Evolution
 

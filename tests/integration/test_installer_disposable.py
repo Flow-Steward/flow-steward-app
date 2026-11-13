@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 INSTALL_MATRIX = [
     (environment, renderer, storage)
     for environment in ("production", "development")
-    for renderer in ("textual", "plain", "non_interactive")
+    for renderer in ("default", "plain", "non_interactive")
     for storage in ("bundled", "external_s3")
 ]
 
@@ -425,112 +425,7 @@ def test_external_s3_secret_never_appears_in_docker_argv(
     assert run_env["MINIO_ROOT_PASSWORD"] == secret
 
 
-def test_textual_launcher_fails_closed_without_review_interaction_marker(
-    tmp_path: Path,
-) -> None:
-    result = disposable_support._run_in_pty(
-        [sys.executable, "-c", "print('completed without the installer review screen')"],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color"},
-        textual=True,
-    )
-
-    assert result.returncode != 0
-    assert "interaction marker" in result.stderr.lower()
-
-
-def test_textual_launcher_rejects_plain_fallback_banner_even_with_ansi_review(
-    tmp_path: Path,
-) -> None:
-    script = (
-        "import sys,time; "
-        "sys.stdout.write('\\x1b[?1049hReview\\n'"
-        "+'Terminal is smaller than 80x24; using the plain interactive wizard.\\n'); "
-        "sys.stdout.flush(); time.sleep(2)"
-    )
-
-    result = disposable_support._run_in_pty(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color"},
-        textual=True,
-    )
-
-    assert result.returncode != 0
-    assert "plain fallback" in result.stderr.lower()
-
-
-def test_textual_launcher_rejects_plain_review_copy_without_terminal_evidence(
-    tmp_path: Path,
-) -> None:
-    script = (
-        "import sys,time; "
-        "sys.stdout.write('Review pending change:\\n'); "
-        "sys.stdout.flush(); time.sleep(2)"
-    )
-
-    result = disposable_support._run_in_pty(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color"},
-        textual=True,
-    )
-
-    assert result.returncode != 0
-    assert "terminal evidence" in result.stderr.lower()
-
-
-def test_textual_launcher_accepts_alternate_screen_review_interaction(
-    tmp_path: Path,
-) -> None:
-    script = (
-        "import os,sys; "
-        "sys.stdout.write('\\x1b[?1049hInstall or safely resume Flow Steward.\\n'); "
-        "sys.stdout.flush(); first=os.read(0,64); "
-        "sys.stdout.write('Review: Install or safely resume Flow Steward.\\n'); "
-        "sys.stdout.flush(); second=os.read(0,64); "
-        "raise SystemExit(0 if first == b'\\x1b[Z\\x1b[Z\\n' and second == b'\\n' else 2)"
-    )
-
-    result = disposable_support._run_in_pty(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color"},
-        textual=True,
-    )
-
-    assert result.returncode == 0, result.combined_output
-
-
-def test_textual_launcher_reaches_review_after_external_s3_required_fields(
-    tmp_path: Path,
-) -> None:
-    script = (
-        "import os,sys,time; "
-        "sys.stdout.write('\\x1b[?1049hInstall or safely resume Flow Steward.\\n'"
-        "+'S3 endpoint [Required]\\n'); "
-        "sys.stdout.flush(); time.sleep(1.5); "
-        "sys.stdout.write('Textual mount complete\\n'); sys.stdout.flush(); "
-        "settled=time.monotonic(); first=os.read(0,128); quiet=time.monotonic()-settled; "
-        "time.sleep(0.25); "
-        "sys.stdout.write('Review: Install or safely resume Flow Steward.\\n'); "
-        "sys.stdout.flush(); second=os.read(0,64); "
-        "expected=b'\\x1b[Z\\x1b[Z\\n'; "
-        "raise SystemExit(0 if quiet >= 0.4 and first == expected and second == b'\\n' else 2)"
-    )
-
-    result = disposable_support._run_in_pty(
-        [sys.executable, "-c", script],
-        cwd=tmp_path,
-        env={**os.environ, "TERM": "xterm-256color"},
-        textual=True,
-        timeout_seconds=5,
-    )
-
-    assert result.returncode == 0, result.combined_output
-
-
-def test_textual_launcher_terminates_child_group_when_parent_interaction_raises(
+def test_pty_launcher_terminates_child_group_when_parent_interaction_raises(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     child_pid_path = tmp_path / "pty-child.pid"
@@ -559,7 +454,6 @@ def test_textual_launcher_terminates_child_group_when_parent_interaction_raises(
                 ],
                 cwd=tmp_path,
                 env={**os.environ, "TERM": "xterm-256color"},
-                textual=True,
                 timeout_seconds=5,
             )
         child_pid = int(child_pid_path.read_text(encoding="utf-8"))
@@ -588,7 +482,6 @@ def test_plain_launcher_accepts_default_optional_prompts(tmp_path: Path) -> None
         [sys.executable, "-c", script],
         cwd=tmp_path,
         env={**os.environ, "TERM": "xterm-256color"},
-        textual=False,
         timeout_seconds=5,
     )
 
@@ -603,7 +496,7 @@ def test_pty_child_sets_terminal_size_before_parent_can_race(tmp_path: Path) -> 
         "from tests.support.disposable_installer import _run_in_pty; "
         "os.register_at_fork(after_in_parent=lambda: time.sleep(0.5)); "
         f"result=_run_in_pty([{sys.executable!r},'-c',{child_script!r}],"
-        f"cwd=Path({str(tmp_path)!r}),env=dict(os.environ),textual=False); "
+        f"cwd=Path({str(tmp_path)!r}),env=dict(os.environ)); "
         "print(result.stdout,end='')"
     )
 
@@ -634,7 +527,6 @@ def test_pty_timeout_terminates_the_full_process_group(tmp_path: Path) -> None:
         [sys.executable, "-c", script],
         cwd=tmp_path,
         env={**os.environ, "TERM": "xterm-256color"},
-        textual=False,
         timeout_seconds=0.5,
     )
 

@@ -290,7 +290,7 @@ describe("RegistryDatasetsPage", () => {
     await user.click(await screen.findByRole("option", { name: /Warehouse A \(healthy\)/ }));
     await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The selected extension connection is unavailable.");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("The selected extension connection is unavailable."));
     await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
     await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
 
@@ -352,7 +352,7 @@ describe("RegistryDatasetsPage", () => {
     await user.click(within(dialog).getByRole("combobox", { name: "Data Connection" }));
     await user.click(await screen.findByRole("option", { name: /Warehouse B \(healthy\)/ }));
 
-    expect(await within(dialog).findByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true"));
     finishIntrospection({
       ok: false,
       result: {},
@@ -384,7 +384,7 @@ describe("RegistryDatasetsPage", () => {
     await user.type(within(dialog).getByLabelText("Display Name"), "Second session draft");
     expect(within(dialog).getByLabelText("Display Name")).toHaveValue("Second session draft");
 
-    expect(await within(dialog).findByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true");
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Loading schema…" })).toHaveAttribute("aria-busy", "true"));
     rejectIntrospection(new Error("Old session transport failure."));
 
     await waitFor(() => expect(within(dialog).getByRole("button", { name: "Introspect schema" })).toBeEnabled());
@@ -409,7 +409,7 @@ describe("RegistryDatasetsPage", () => {
     await user.click(await screen.findByRole("option", { name: /Warehouse \(healthy\)/ }));
     await user.click(within(dialog).getByRole("button", { name: "Introspect schema" }));
 
-    expect(await screen.findByText("Schema loaded, but no resources were returned.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Schema loaded, but no resources were returned.")).toBeInTheDocument());
     expect(within(dialog).getByText("No schema loaded yet")).toBeInTheDocument();
     expect(screen.queryByText("Failed to introspect data connection.")).not.toBeInTheDocument();
     expect(mockedCreateDataset).not.toHaveBeenCalled();
@@ -520,7 +520,7 @@ describe("RegistryDatasetsPage", () => {
   it("explains an empty catalog with the grid config's own copy", async () => {
     renderPage();
 
-    expect(await screen.findByText("No datasets yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No datasets yet")).toBeInTheDocument());
     expect(screen.getByText("Create one using the button above.")).toBeInTheDocument();
   });
 
@@ -529,7 +529,7 @@ describe("RegistryDatasetsPage", () => {
     mockedFetchDatasets.mockResolvedValue(DATASET_ROWS as never);
     renderPage();
 
-    expect(await screen.findByText("Orders daily")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Orders daily")).toBeInTheDocument());
     expect(screen.getByText("Events raw")).toBeInTheDocument();
 
     const searchField = screen.getByRole("searchbox", { name: "Search datasets" });
@@ -543,7 +543,7 @@ describe("RegistryDatasetsPage", () => {
 
     // Canon: keep the filter controls visible and explain the empty result
     // inside the table.
-    expect(await screen.findByText("No datasets match these filters")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No datasets match these filters")).toBeInTheDocument());
     expect(screen.getByRole("searchbox", { name: "Search datasets" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add filter" })).toBeInTheDocument();
   });
@@ -563,7 +563,7 @@ describe("RegistryDatasetsPage", () => {
     expect(screen.getByText("Events raw")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(await screen.findByText("Orders daily")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Orders daily")).toBeInTheDocument());
   });
 
   it("closes the create dialog on Escape", async () => {
@@ -571,7 +571,7 @@ describe("RegistryDatasetsPage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "New Dataset" }));
-    expect(await screen.findByRole("dialog", { name: "Create dataset" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Create dataset" })).toBeInTheDocument());
 
     await user.keyboard("{Escape}");
 
@@ -630,7 +630,7 @@ describe("RegistryDatasetsPage", () => {
       within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete" }),
     );
 
-    expect(await screen.findByText("Dataset moved to Trash.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dataset moved to Trash.")).toBeInTheDocument());
     await waitFor(() => expect(screen.queryByText("Orders daily")).not.toBeInTheDocument());
     expect(screen.getByText("Events raw")).toBeInTheDocument();
     expect(mockedDeleteDataset.mock.calls).toHaveLength(1);

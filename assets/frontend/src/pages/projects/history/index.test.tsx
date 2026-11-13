@@ -127,7 +127,7 @@ describe("ProjectHistoryPanel", () => {
 
     renderHistoryPage();
 
-    expect(await screen.findByRole("heading", { name: "History" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument());
     expect(screen.getByText(/revision diff/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /restore this revision/i })).not.toBeInTheDocument();
     expect(screen.getByText("Viewer mode is read-only on project history.")).toBeInTheDocument();
@@ -181,7 +181,7 @@ describe("ProjectHistoryPanel", () => {
       expect(mockedRestoreProjectHistoryRevision).toHaveBeenCalledWith("project-123", "rev-2");
     });
     expect(globalThis.confirm).toHaveBeenCalledWith("Restore revision #rev-2?");
-    expect(await screen.findByText("Project settings restored from revision #rev-2.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project settings restored from revision #rev-2.")).toBeInTheDocument());
   });
 
   it("renders the revision fields the endpoint returns and no placeholders for absent ones", async () => {

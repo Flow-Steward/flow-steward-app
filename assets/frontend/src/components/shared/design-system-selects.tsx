@@ -24,8 +24,8 @@ const FILTER_NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 function FilterMenuText({ option }: Readonly<{ option: Pick<DsOption, "label" | "description"> }>) {
   return (
     <span className="fs-filter-menu-text">
-      <span className="fs-filter-menu-label">{option.label}</span>
-      {option.description ? <span className="fs-filter-menu-description">{option.description}</span> : null}
+      <span className="fs-filter-menu-label" title={option.label}>{option.label}</span>
+      {option.description ? <span className="fs-filter-menu-description" title={option.description}>{option.description}</span> : null}
     </span>
   );
 }
@@ -309,7 +309,7 @@ export function DsSelect({
         role="combobox"
         type="button"
       >
-        <span className={`fs-select-value${selected ? "" : " placeholder"}`}>{selected?.icon ? <span className="fs-select-option-icon">{selected.icon}</span> : null}{selected?.label || placeholder}</span>
+        <span className={`fs-select-value${selected ? "" : " placeholder"}`} title={selected?.label || placeholder}>{selected?.icon ? <span className="fs-select-option-icon">{selected.icon}</span> : null}{selected?.label || placeholder}</span>
         <ChevronDown className="fs-select-chevron" aria-hidden="true" />
       </button>
       {open && !disabled ? createPortal(
@@ -354,7 +354,7 @@ export function DsSelect({
               tabIndex={!option.disabled && activeIndex === index ? 0 : -1}
               type="button"
             >
-              <span className="fs-select-option-title">{option.icon ? <span className="fs-select-option-icon">{option.icon}</span> : null}{option.label}</span><Check className="fs-select-check" aria-hidden="true" />
+              <span className="fs-select-option-title" title={option.label}>{option.icon ? <span className="fs-select-option-icon">{option.icon}</span> : null}{option.label}</span><Check className="fs-select-check" aria-hidden="true" />
             </button>
           ))}
           </div>
@@ -720,7 +720,7 @@ export function SingleCombobox({
           {loaderShown ? <ComboboxLoadingRow label={loadingLabel ?? ""} /> : null}
           {filtered.map((option, index) => (
             <button aria-selected={option.value === value} className="fs-combo-option" data-active={normalizedActiveIndex === index ? "true" : undefined} id={`${listboxId}-option-${index}`} key={option.value} onClick={() => choose(option)} onMouseDown={(event) => event.preventDefault()} role="option" tabIndex={-1} type="button">
-              <span>{option.label}</span><Check className="fs-select-check" aria-hidden="true" />
+              <span title={option.label}>{option.label}</span><Check className="fs-select-check" aria-hidden="true" />
             </button>
           ))}
           {filtered.length || busy ? null : <span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span>}
@@ -820,7 +820,7 @@ export function MultiCombobox({
           {loaderShown ? <ComboboxLoadingRow label={loadingLabel ?? ""} /> : null}
           {filtered.map((option, index) => (
             <button aria-selected={selected.includes(option.value)} className="fs-multi-option" data-active={normalizedActiveIndex === index ? "true" : undefined} id={`${listboxId}-option-${index}`} key={option.value} onClick={() => { toggle(option.value); inputRef.current?.focus(); }} onMouseDown={(event) => event.preventDefault()} role="option" tabIndex={-1} type="button">
-              <span>{option.label}{option.description ? <small className="fs-field-helper"> · {option.description}</small> : null}</span>
+              <span title={option.description ? `${option.label} · ${option.description}` : option.label}>{option.label}{option.description ? <small className="fs-field-helper"> · {option.description}</small> : null}</span>
               <Check className="fs-select-check" aria-hidden="true" />
             </button>
           ))}

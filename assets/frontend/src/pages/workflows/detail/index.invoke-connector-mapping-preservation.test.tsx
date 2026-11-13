@@ -14,7 +14,6 @@ import {
 } from "./index.test-helpers";
 
 // Existing full-page journeys use the same bounded per-case async allowance.
-const MAPPING_JOURNEY_TIMEOUT = 15_000;
 
 const acceptingParameters = [
   { name: "query", type: "string", required: true },
@@ -110,12 +109,12 @@ async function readFreshMapping(view: ReturnType<typeof renderPage>, boundary: R
     next = renderPage(); // A new QueryClient/provider/router/page owner, not Close/reopen.
     await waitFor(() => expect(read.started()).toBeGreaterThan(0));
     expect(read.completed).toEqual([]);
-    expect(await screen.findByText("Preparing the workflow")).toBeVisible(); // the page loader paints after its 400 ms delay
+    await waitFor(() => expect(screen.getByText("Preparing the workflow")).toBeVisible()); // the page loader paints after its 400 ms delay
     expect(screen.queryByDisplayValue("state.returned_summary")).not.toBeInTheDocument();
     read.release();
     await waitFor(() => expect(screen.queryByText("Preparing the workflow")).not.toBeInTheDocument());
     fireEvent.click(await screen.findByRole("button", { name: /Server returned mapping step/i }));
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Server returned mapping step");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Server returned mapping step"));
     fireEvent.click(screen.getByRole("button", { name: "Advanced mode" }));
     fireEvent.click(await screen.findByRole("tab", { name: "Advanced" }));
     const raw = await screen.findByRole("textbox", { name: "Override JSON" });
@@ -167,7 +166,7 @@ describe("actual page mapping preservation and fresh-owner readback", () => {
       expect(objectOrEmpty(fresh.connector).input_mapping).toEqual(expected);
       expect(postedChangeSets()).toHaveLength(1);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it("keeps the exact raw mapping on an unrelated Step-label Save", async () => {
     const initial = { query: "state.query", filter: null, note: "", zero: 0, flag: false, encoded_null: "literal:null" };
@@ -182,14 +181,14 @@ describe("actual page mapping preservation and fresh-owner readback", () => {
       expect(objectOrEmpty(objectOrEmpty(currentPatch(boundary).override).connector).input_mapping).toEqual(initial);
       expect(postedChangeSets()).toHaveLength(1);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it("hydrates an imported alias, saves an edit, then clears without reviving it", async () => {
     const boundary = installMappingPage("connector", { operation_id: "send_message", input_mapping_jsonb: { query: "literal:old" }, connection_binding: { connection_id: "mail-1" } }, { optionalQuery: true });
     const view = await openMappingPage();
     try {
       // This operation permits every input to be absent; a fully empty map is valid.
-      expect(await screen.findByLabelText("Parameter value 1")).toHaveValue("old");
+      await waitFor(() => expect(screen.getByLabelText("Parameter value 1")).toHaveValue("old"));
       fireEvent.change(screen.getByLabelText("Parameter value 1"), { target: { value: "new" } });
       fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
       await screen.findByText("Parameters saved");
@@ -205,7 +204,7 @@ describe("actual page mapping preservation and fresh-owner readback", () => {
       expect(objectOrEmpty(fresh.connector)).not.toHaveProperty("input_mapping_jsonb");
       expect(postedChangeSets()).toHaveLength(2);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it.each(["state.city", "literal:"])("clears an optional declared input from %s as omission and reads it back", async (city) => {
     const user = userEvent.setup();
@@ -222,19 +221,19 @@ describe("actual page mapping preservation and fresh-owner readback", () => {
       expect(objectOrEmpty(fresh.invoke_workflow).input_mapping).toEqual({ request: "state.request" });
       expect(postedChangeSets()).toHaveLength(1);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it.each(["literal:", "literal:null", "literal:0", "literal:false", " "])("keeps intentional optional selector %j through an unrelated Save", async (city) => {
     const boundary = installMappingPage("invoke_workflow", { workflow_id: "mapping_child", input_mapping: { request: "state.request", city }, output_mapping: {}, artifact_mapping: {} });
     const view = await openMappingPage();
     try {
-      expect(await screen.findByLabelText("Input mapping city")).toHaveValue(city);
+      await waitFor(() => expect(screen.getByLabelText("Input mapping city")).toHaveValue(city));
       fireEvent.change(screen.getByRole("textbox", { name: "Step label" }), { target: { value: "Unrelated label" } });
       fireEvent.click(screen.getByRole("button", { name: "Save parameters" }));
       await screen.findByText("Parameters saved");
       expect(objectOrEmpty(objectOrEmpty(objectOrEmpty(currentPatch(boundary).override).invoke_workflow).input_mapping)).toEqual({ request: "state.request", city });
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it("keeps required Clear as a disabled saved draft with server readiness issues", async () => {
     const user = userEvent.setup();
@@ -248,7 +247,7 @@ describe("actual page mapping preservation and fresh-owner readback", () => {
       expect(objectOrEmpty(objectOrEmpty(objectOrEmpty(currentPatch(boundary).override).invoke_workflow).input_mapping)).toEqual({ request: "" });
       expect(postedChangeSets()).toHaveLength(1);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 });
 
 // Direct Invoke has no Hook alternative in this branch. These journeys use the
@@ -275,7 +274,7 @@ describe("direct Invoke requiredness", () => {
         workflow_id: "mapping_child", input_mapping: { request: "state.request" }, output_mapping: {}, artifact_mapping: {},
       });
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it("exposes the required published child input in its name/state while leaving the optional input optional", async () => {
     const boundary = installMappingPage("invoke_workflow", { workflow_id: "mapping_child", input_mapping: { request: "state.request", city: "state.city" }, output_mapping: {}, artifact_mapping: {} });
@@ -291,7 +290,7 @@ describe("direct Invoke requiredness", () => {
       expect(optional).toHaveValue("state.city");
       expect(boundary.writes).toHaveLength(0);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 
   it.each(["none", "variables", "artifacts"])("does not derive inactive mapping requiredness from row.required when child output mode is %s", async (outputMode) => {
     const boundary = installMappingPage("invoke_workflow", { workflow_id: "mapping_child", input_mapping: { request: "state.request" }, output_mapping: {}, artifact_mapping: {} }, {
@@ -314,7 +313,7 @@ describe("direct Invoke requiredness", () => {
       }
       expect(boundary.writes).toHaveLength(0);
     } finally { view.unmount(); }
-  }, MAPPING_JOURNEY_TIMEOUT);
+  });
 });
 
 
@@ -337,9 +336,9 @@ it("blocks saving a required textarea after clearing or entering only whitespace
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
     fireEvent.change(prompt, { target: { value: "   " } });
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByRole("button", { name: "Run step test run" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled());
   } finally { view.unmount(); }
-}, MAPPING_JOURNEY_TIMEOUT);
+});
 
 it("blocks saving decimal and exponent spellings for an integer input", async () => {
   const initial = { query: "state.query", zero: "literal:1" };
@@ -361,7 +360,7 @@ it("blocks saving decimal and exponent spellings for an integer input", async ()
     fireEvent.change(count, { target: { value: "10" } });
     expect(screen.getByRole("button", { name: "Save parameters" })).toBeEnabled();
   } finally { view.unmount(); }
-}, MAPPING_JOURNEY_TIMEOUT);
+});
 
 it("saves and reopens a required nullable parameter as null", async () => {
   const initial = { query: "literal:null", note: 'literal:"before"' };
@@ -387,4 +386,4 @@ it("saves and reopens a required nullable parameter as null", async () => {
     const fresh = await readFreshMapping(view, boundary);
     expect(objectOrEmpty(fresh.connector).input_mapping).toEqual(expected);
   } finally { view.unmount(); }
-}, MAPPING_JOURNEY_TIMEOUT);
+});

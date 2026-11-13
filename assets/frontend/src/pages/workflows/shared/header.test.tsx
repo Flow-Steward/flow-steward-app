@@ -74,7 +74,7 @@ describe("WorkflowSummaryHeader authoring RBAC", () => {
     // row of eight buttons, so the menu has to be opened to see them. The enable
     // toggle and the builder stay visible: one is the only command on this
     // surface, the other the destination the screen exists to reach.
-    expect(await screen.findByRole("button", { name: "Disable workflow" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Disable workflow" })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: /open builder/i })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -143,7 +143,7 @@ describe("WorkflowSummaryHeader for a protected extension workflow", () => {
     } as unknown as Awaited<ReturnType<typeof fetchWorkflowExportPolicy>>);
     renderHeader(true);
 
-    expect(await screen.findByRole("link", { name: "View workflow (read-only)" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: "View workflow (read-only)" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Disable workflow" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -165,7 +165,7 @@ describe("WorkflowSummaryHeader for a protected extension workflow", () => {
     } as unknown as Awaited<ReturnType<typeof fetchWorkflowExportPolicy>>);
     renderHeader(true);
 
-    expect(await screen.findByText("Structure read-only (extension)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Structure read-only (extension)")).toBeInTheDocument());
     expect(screen.queryByText(/hidden/i)).not.toBeInTheDocument();
   });
 
@@ -235,10 +235,10 @@ describe("WorkflowSummaryHeader for a protected extension workflow", () => {
     } as unknown as Awaited<ReturnType<typeof fetchWorkflowExportPolicy>>);
     renderHeader(true);
 
-    expect(await screen.findByRole("link", { name: "acme.hook-sample" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("link", { name: "acme.hook-sample" })).toHaveAttribute(
       "href",
       "/extensions/acme.hook-sample",
-    );
+    ));
     expect(screen.queryByText(/4f054cc7/)).not.toBeInTheDocument();
   });
 
@@ -251,14 +251,14 @@ describe("WorkflowSummaryHeader for a protected extension workflow", () => {
     } as unknown as Awaited<ReturnType<typeof fetchWorkflowExportPolicy>>);
     renderHeader(true);
 
-    expect(await screen.findByText("Provided by extension")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Provided by extension")).toBeInTheDocument());
     expect(screen.queryByText(/4f054cc7/)).not.toBeInTheDocument();
   });
 
   it("keeps Open builder, and no View workflow, on an ordinary workflow", async () => {
     renderHeader(true);
 
-    expect(await screen.findByRole("link", { name: /open builder/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("link", { name: /open builder/i })).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: /View workflow/ })).not.toBeInTheDocument();
   });
 });
@@ -270,12 +270,12 @@ describe("summary graph counts and metadata isolation", () => {
     expect(screen.queryByText(/nodes.*edges/)).not.toBeInTheDocument();
     view.unmount();
     renderHeader(true, undefined, { activePage: "builder", nodeCount: 0, edgeCount: 0 });
-    expect(await screen.findByText("0 nodes / 0 edges")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("0 nodes / 0 edges")).toBeInTheDocument());
   });
 
   it("prefers the supplied current protected policy over a permissive independent policy read", async () => {
     renderHeader(true, undefined, { projectId: "p-explicit", portability: { extension_owned: true, protected: true, structure_change_allowed: false, reference_export_allowed: true } as WorkflowExportPolicy });
-    expect(await screen.findByText("Structure read-only (extension)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Structure read-only (extension)")).toBeInTheDocument());
     expect(mockedExportPolicy).not.toHaveBeenCalled();
     expect(mockedLinkedProject).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Disable workflow" })).not.toBeInTheDocument();
@@ -285,10 +285,10 @@ describe("summary graph counts and metadata isolation", () => {
   it("uses refreshed supplied protection instead of an old permissive policy cache", async () => {
     const ordinary = { clone_allowed: true, full_export_allowed: true, structure_change_allowed: true } as WorkflowExportPolicy;
     const view = renderHeader(true, undefined, { projectId: "p-explicit", portability: ordinary });
-    expect(await screen.findByRole("button", { name: "Disable workflow" })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Disable workflow" })).toBeEnabled());
     act(() => { view.queryClient.setQueryData(["workflows", "export-policy", "wf-1"], ordinary); });
     view.rerenderHeader({ projectId: "p-explicit", portability: { ...ordinary, extension_owned: true, protected: true, clone_allowed: false, full_export_allowed: false, reference_export_allowed: true, structure_change_allowed: false } });
-    expect(await screen.findByText("Structure read-only (extension)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Structure read-only (extension)")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Disable workflow" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View workflow (read-only)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -346,7 +346,7 @@ describe("summary graph counts and metadata isolation", () => {
   it("shows a context discovery failure and never clones with an invented empty fallback", async () => {
     mockedLinkedProject.mockRejectedValue(new Error("Project links unavailable"));
     const clone = vi.fn(); renderHeader(true, clone);
-    expect(await screen.findByText("Project links unavailable")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project links unavailable")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
     const item = within(await screen.findByRole("menu", { name: "Workflow actions" })).queryByRole("menuitem", { name: /clone workflow/i });
     if (item) { expect(item).toBeDisabled(); fireEvent.click(item); }
@@ -372,8 +372,8 @@ describe("summary graph counts and metadata isolation", () => {
     if (state === "pending") mockedLinkedProject.mockReturnValue(new Promise((finish) => { resolve = finish; }));
     else mockedLinkedProject.mockRejectedValue(new Error("Project context unavailable"));
     const view = renderHeader(true, undefined, { onWorkflowSettings: undefined, onWorkflowTestRun: undefined });
-    if (state === "pending") expect(await screen.findByRole("status")).toHaveTextContent("Loading workflow data");
-    else expect(await screen.findByText("Project context unavailable")).toBeInTheDocument();
+    if (state === "pending") await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Loading workflow data"));
+    else await waitFor(() => expect(screen.getByText("Project context unavailable")).toBeInTheDocument());
     await screen.findByRole("button", { name: "Disable workflow" });
     expect(screen.queryByRole("link", { name: /open builder/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -385,7 +385,7 @@ describe("summary graph counts and metadata isolation", () => {
     }
     if (state === "pending") {
       await act(async () => { resolve("p-first"); });
-      expect(await screen.findByRole("link", { name: /open builder/i })).toHaveAttribute("href", "/registry/workflows/wf-1/builder?project_id=p-first");
+      await waitFor(() => expect(screen.getByRole("link", { name: /open builder/i })).toHaveAttribute("href", "/registry/workflows/wf-1/builder?project_id=p-first"));
       for (const label of ["Workflow settings", "Test Run"]) expect(within(menu).getByRole("menuitem", { name: label })).toHaveAttribute("href", expect.stringContaining("project_id=p-first"));
     }
     view.unmount();
@@ -489,7 +489,7 @@ describe("WorkflowSummaryHeader availability and badge text", () => {
     mockedExportPolicy.mockResolvedValue(unavailablePolicy({ viewer_can_manage_extensions: false }));
     renderHeader(false);
 
-    expect(await screen.findByText("Ask your administrator to turn it on.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Ask your administrator to turn it on.")).toBeInTheDocument());
     expect(screen.queryByRole("link", { name: "Install" })).not.toBeInTheDocument();
   });
 
@@ -501,10 +501,10 @@ describe("WorkflowSummaryHeader availability and badge text", () => {
     }));
     renderHeader(true);
 
-    expect(await screen.findByRole("link", { name: "Turn on" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("link", { name: "Turn on" })).toHaveAttribute(
       "href",
       `/extensions/${encodeURIComponent(POSTGRES_ID)}`,
-    );
+    ));
   });
 
   it("keeps the space after the colon in Provided by extension", async () => {

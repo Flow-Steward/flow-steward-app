@@ -106,11 +106,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Run step test run" }));
 
-    expect(
-      await screen.findByText(
-        "Acme Workspace Developer Preview enrollment is required.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Acme Workspace Developer Preview enrollment is required.")).toBeInTheDocument());
     expect(screen.queryByText("The connector invocation failed.")).not.toBeInTheDocument();
     expect(
       screen.getByRole("region", { name: "Step test run result" }),
@@ -150,7 +146,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Run step test run" }));
 
-    expect(await screen.findByText("Template check")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Template check")).toBeInTheDocument());
     expect(screen.getByText("Spring")).toBeInTheDocument();
     expect(screen.queryByText("54ee3a1b-9fcf-4daa-8039-e5f8c96e3184")).not.toBeInTheDocument();
   });
@@ -194,7 +190,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
       target: { value: "Try the first step." },
     });
     fireEvent.click(screen.getByRole("button", { name: "Run step test run" }));
-    expect(await screen.findByText("the repeated value would be too large")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("the repeated value would be too large")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: /Second step/i }));
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
@@ -204,7 +200,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /First step/i }));
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
-    expect(await screen.findByText("the repeated value would be too large")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("the repeated value would be too large")).toBeInTheDocument());
   });
 
   it("labels an optional step input as optional and states a failure once", async () => {
@@ -254,7 +250,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Compose post/i }));
     fireEvent.click(screen.getByRole("tab", { name: "Test Run" }));
 
-    expect(await screen.findByText(/Optional · text/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Optional · text/)).toBeInTheDocument());
     expect(screen.getByText(/Required by step · text/)).toBeInTheDocument();
 
     fireEvent.change(await screen.findByLabelText("Step Test Run Summary"), {
@@ -263,7 +259,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
     fireEvent.change(screen.getByLabelText(/^header/), { target: { value: "Spring" } });
     fireEvent.click(screen.getByRole("button", { name: "Run step test run" }));
 
-    expect(await screen.findByText(failure)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(failure)).toBeInTheDocument());
     expect(screen.getAllByText(failure)).toHaveLength(1);
   });
 
@@ -285,7 +281,7 @@ describe("WorkflowsDetailPage test runs and header", () => {
       surface: "builder",
     });
 
-    expect(await screen.findByText(/project_name/i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/project_name/i)).toBeInTheDocument());
     expectTestRunEffectWarning();
     expect(
       screen.getByRole("button", { name: "Run workflow test run" }),
@@ -422,9 +418,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     }));
 
     expect(fetchSpy.mock.calls.some(([url]) => String(url).endsWith("/run"))).toBe(false);
-    expect(
-      await screen.findByRole("link", { name: "Open full Job Details" }),
-    ).toHaveAttribute("href", "/jobs/job-exact-test-run-123");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-exact-test-run-123"));
     expect(
       screen.getByTestId("workflow-test-run-results"),
     ).toHaveAttribute("data-job-id", "job-exact-test-run-123");
@@ -435,7 +429,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       initialEntry: "/registry/workflows/weekly_report/builder?drawer=workflow-test-run&project_id=project_alpha",
       surface: "builder",
     });
-    expect(await screen.findByRole("button", { name: "Run workflow test run" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Run workflow" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: /create external changes and use live credentials/i })).not.toBeChecked();
   });
@@ -505,9 +499,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     await waitFor(() => expect(runBar).toHaveAttribute("data-job-id", "job-restored-789"));
     fireEvent.click(within(runBar).getByRole("button", { name: "Results" }));
 
-    expect(
-      await screen.findByRole("link", { name: "Open full Job Details" }),
-    ).toHaveAttribute("href", "/jobs/job-restored-789");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-restored-789"));
     expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute(
       "data-job-id",
       "job-restored-789",
@@ -558,7 +550,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       surface: "builder",
     });
 
-    expect(await screen.findByLabelText("Test Run Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Test Run Summary")).toBeInTheDocument());
     expect(
       screen.getByRole("button", { name: "Run workflow test run" }),
     ).toBeEnabled();
@@ -663,7 +655,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
 
     renderPage({ embedded: false });
 
-    expect(await screen.findByText("Weekly Report")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Weekly Report")).toBeInTheDocument());
     expect(
       screen.getByText("Workflow-level description", { selector: "p" }),
     ).toBeInTheDocument();
@@ -677,10 +669,10 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     // Export is a secondary command, so it lives in the header's action menu
     // rather than as one more button in the row; the href is what matters here.
     fireEvent.click(await screen.findByRole("button", { name: "Workflow actions" }));
-    expect(await screen.findByRole("menuitem", { name: "Export YAML" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Export YAML" })).toHaveAttribute(
       "href",
       "/api/workflows/weekly_report/export.yaml",
-    );
+    ));
   });
 
   it("exposes the canvas builder from the workflow detail page", async () => {
@@ -706,7 +698,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
 
     renderPage({ embedded: false });
 
-    expect(await screen.findByText("Canvas builder beta")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Canvas builder beta")).toBeInTheDocument());
     expect(
       screen.getByRole("link", { name: "Open canvas builder" }),
     ).toHaveAttribute(
@@ -753,7 +745,7 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
     renderPage({ embedded: false });
 
     // The badge names the extension and links to it; the install id is not a name.
-    expect(await screen.findByRole("link", { name: "Acme Reports 2.1.0" })).toHaveAttribute("href", "/extensions/acme.reports");
+    await waitFor(() => expect(screen.getByRole("link", { name: "Acme Reports 2.1.0" })).toHaveAttribute("href", "/extensions/acme.reports"));
     expect(screen.queryByText(/inst-ext/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Workflow actions" }));
@@ -819,11 +811,11 @@ it("shows workflow test run outputs artifacts and per-step payload details", asy
       surface: "builder",
     });
 
-    expect(await screen.findByText("Protected extension workflow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Protected extension workflow")).toBeInTheDocument());
     expect(screen.getByText(/provided by an extension and protected/i)).toBeInTheDocument();
     expect(screen.queryByText("Workflow detail load failed")).not.toBeInTheDocument();
     // Read-only: no Add, no structure status or Apply; the lock is said once.
-    expect(await screen.findByTestId("structure-locked")).toHaveTextContent("Read-only");
+    await waitFor(() => expect(screen.getByTestId("structure-locked")).toHaveTextContent("Read-only"));
     expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply changes" })).not.toBeInTheDocument();
   });

@@ -37,6 +37,9 @@
 # (128x128 recommended), at most 100 KB. extensions validate, extensions bundle
 # and install refuse a bundle without a valid one; extensions create writes a
 # default. See x-validator-contract.bundle_icon.
+# Before publication, official artwork, provenance and visual review also follow
+# docs/standards/extension-publication-standard.md. PNG validation alone does not
+# establish official origin or visual fidelity.
 #
 # extension_id is canonical package identity, not a folder name. It must be a
 # lowercase dot-separated ID such as acme.notifier or com.acme.crm-sync.

@@ -262,7 +262,7 @@ describe("McpCatalogPanel", () => {
     await user.click(within(screen.getByRole("dialog", { name: "Gmail" })).getByRole("button", { name: "Cancel" }));
 
     await user.click(screen.getByRole("button", { name: "Catalog" }));
-    expect(await screen.findByRole("article", { name: "Notion" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("article", { name: "Notion" })).toBeInTheDocument());
   });
 
   it("links one Documentation: the page's own, else the vendor's evidence page", async () => {
@@ -313,7 +313,7 @@ describe("McpCatalogPanel", () => {
 
     await user.click(within(await screen.findByRole("article", { name: "Notion" })).getByRole("button", { name: "Notion" }));
 
-    expect(await screen.findByRole("heading", { name: "Notion", level: 2 })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Notion", level: 2 })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Notion" })).toHaveAttribute(
       "href",
       `/registry/mcp/mcp_a?project_id=${PROJECT}`,
@@ -726,7 +726,7 @@ describe("McpCatalogPanel", () => {
     const dialog = screen.getByRole("dialog", { name: "Notion" });
     await user.click(within(dialog).getByRole("button", { name: "Install" }));
 
-    expect(await within(dialog).findByText(/This catalog entry changed while the form was open/u)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(/This catalog entry changed while the form was open/u)).toBeInTheDocument());
     mockedInstall.mockResolvedValue(installResult("notion", "oauth_connect"));
     await user.click(within(dialog).getByRole("button", { name: "Install" }));
     await waitFor(() =>
@@ -737,7 +737,7 @@ describe("McpCatalogPanel", () => {
   it("says so when the catalog is not configured", async () => {
     mockedAvailability.mockResolvedValue({ configured: false, available: false });
     showPanel();
-    expect(await screen.findByText("The MCP catalog isn't set up on this server.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The MCP catalog isn't set up on this server.")).toBeInTheDocument());
     expect(mockedCatalog).not.toHaveBeenCalled();
   });
 });
@@ -780,11 +780,11 @@ describe("RegistryMcpPage catalog tab", () => {
   it("goes back to the list when the Catalog tab is clicked on a server's page", async () => {
     const user = userEvent.setup();
     showPage("&mcp_entry=google-gmail");
-    expect(await screen.findByRole("heading", { name: "Gmail" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Gmail" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("tab", { name: "Catalog" }));
 
-    expect(await screen.findByRole("article", { name: "Notion" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("article", { name: "Notion" })).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true");
   });
 
@@ -814,10 +814,10 @@ describe("RegistryMcpPage catalog tab", () => {
       </QueryClientProvider>,
     );
 
-    expect(await screen.findByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Catalog" })).toHaveAttribute("aria-selected", "true"));
     await user.click(within(await screen.findByRole("article", { name: "Notion" })).getByRole("button", { name: "Connect" }));
     await user.click(within(screen.getByRole("dialog", { name: "Notion" })).getByRole("button", { name: "Install" }));
 
-    expect(await screen.findByText("mcp detail page")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("mcp detail page")).toBeInTheDocument());
   });
 });

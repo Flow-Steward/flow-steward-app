@@ -133,10 +133,12 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
       stopFlight.current && current.selectedRun.isCurrent(stopFlight.current.proof)) return false;
     const flight = { proof };
     stopFlight.current = flight;
-    setPendingStop(flight);
     setNotice(null);
     try {
       if (!await current.confirmStop() || !currentStopOwner(proof)) return false;
+      // Busy only once the person confirmed: behind an open confirmation the button
+      // would otherwise read "Cancelling…" while nothing is being cancelled.
+      setPendingStop(flight);
       await cancelJob(proof.jobId);
       // Invalidate the captured job even if navigation retired the visible owner.
       ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: queryKeys.jobDetail(proof.jobId) }));

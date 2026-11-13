@@ -57,8 +57,7 @@ The guided installer asks how to run the application and how to publish its
 website. **Compact** keeps the app and background workers together and uses
 fewer resources. **Scalable** runs separate services so workers can scale
 independently. Both use included **SeaweedFS** by default; external S3 is optional.
-Technical settings stay behind `./install.sh --advanced` or the Textual Advanced
-section (`./install.sh --tui`).
+Technical settings stay behind `./install.sh --advanced`.
 
 If Nginx or Apache already serves the host, choose that option and the actual web
 server. HTTPS settings are derived automatically. At completion, the installer
@@ -69,7 +68,7 @@ remains a separate operator step.
 Use a full (not shallow) Git clone, then run:
 
 ```bash
-git clone --branch v0.9.15 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.16 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ./flow-steward status
@@ -92,8 +91,14 @@ or update a source installation. Switching it to official uses the reviewed
 
 The canonical database baseline lives in `db/schema/`, with canonical seed data in
 `db/seeds/`; post-1.0 SQL migrations live separately in `db/migrations/`.
-The plain questionnaire is the default; `--tui` opts into the full-screen interface.
+The installer asks one question at a time; pick a choice with the arrow keys and Enter.
 Choose your profile, public domain/IP, storage, ingress, and TLS during installation.
+
+Manage the installation with `./flow-steward`. Every command prints readable text
+(add `--json` when a script reads the output). For Tab completion add one line to
+your shell profile, for example `eval "$(/path/to/flow-steward completion zsh)"`
+(or `bash`, `fish`); `./flow-steward shell` opens an interactive prompt with Tab
+completion and history.
 
 **Open the one-time setup link printed at completion to create the first
 administrator.** Treat it as a secret and use it within 60 minutes. Core

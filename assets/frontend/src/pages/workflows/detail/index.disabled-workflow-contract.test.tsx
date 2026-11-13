@@ -7,7 +7,7 @@
  * make any future failure of that request visible again: the page stays usable
  * and the author can still reach their steps and groups.
  */
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 
 import {
   fetchSpy,
@@ -66,7 +66,7 @@ describe("the builder for a disabled workflow", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Draft step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Draft step/i })).toBeInTheDocument());
   });
 
   it("stays usable if the contract request fails", async () => {
@@ -82,6 +82,6 @@ describe("the builder for a disabled workflow", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("button", { name: /Draft step/i })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Draft step/i })).toBeInTheDocument());
   });
 });

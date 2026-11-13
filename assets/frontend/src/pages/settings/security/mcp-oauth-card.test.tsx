@@ -38,7 +38,7 @@ describe("McpOAuthCard", () => {
   it("shows readiness blockers other than the switch itself", async () => {
     mockedFetch.mockResolvedValue({ enabled: true, readiness: { ready: false, blockers: ["public_https_required", "forward_secret_missing"] } });
     renderCard();
-    expect(await screen.findByText("A public HTTPS address is required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("A public HTTPS address is required")).toBeInTheDocument());
     expect(screen.getByText("The MCP server is not linked to the application")).toBeInTheDocument();
   });
 
@@ -50,6 +50,6 @@ describe("McpOAuthCard", () => {
     await waitFor(() => expect(control).toBeChecked());
     fireEvent.click(control);
     await waitFor(() => expect(mockedSave).toHaveBeenCalledWith(false));
-    expect(await screen.findByText("Admin role required")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Admin role required")).toBeInTheDocument());
   });
 });

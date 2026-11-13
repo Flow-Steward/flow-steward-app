@@ -115,7 +115,7 @@ function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t
       busy={phase === "installing"}
       busyLabel={updateLabel("installing", entry.version, t)}
       data-extension-update-action={entry.extension_id}
-      disabled={phase === "awaiting_approval"}
+      disabled={phase === "awaiting_approval" || phase === "queued"}
       onClick={() => updates.onUpdate(entry)}
       size="sm"
       type="button"

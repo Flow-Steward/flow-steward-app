@@ -144,7 +144,7 @@ describe("SettingsSecurityPage", () => {
     const original = mockedFetchJson.getMockImplementation();
     mockedFetchJson.mockImplementation(async (input, init) => input === "/api/security/posture" ? { level, custom_owner_value: "OwnerOpaque123" } : original?.(input, init));
     renderPage("/settings/security", "lt");
-    expect(await screen.findByText(label)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(label)).toBeInTheDocument());
     expect(screen.getByText("OwnerOpaque123")).toBeInTheDocument();
   });
 
@@ -152,7 +152,7 @@ describe("SettingsSecurityPage", () => {
     const original = mockedFetchJson.getMockImplementation();
     mockedFetchJson.mockImplementation(async (input, init) => input === "/api/security/posture" ? { scan_mode: mode, enforcement_blocking: blocking, custom_owner_value: "OwnerOpaque123" } : original?.(input, init));
     renderPage("/settings/security", "lt");
-    expect(await screen.findByText("Tikrinimo režimas")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Tikrinimo režimas")).toBeInTheDocument());
     expect(screen.getByText(label)).toBeInTheDocument();
     expect(screen.getByText("Blokavimas vykdant politiką")).toBeInTheDocument();
     expect(screen.getByText(value)).toBeInTheDocument();
@@ -247,13 +247,13 @@ describe("SettingsSecurityPage", () => {
   it("uses project-scoped policy endpoints for project security routes", async () => {
     renderPage();
 
-    expect(await screen.findByText("Project security")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project security")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenCalledWith(
       "/api/security/projects/42/policy?include_sources=1",
     );
     expect(mockedFetchJson).not.toHaveBeenCalledWith("/api/security/policy");
 
-    expect(await screen.findByLabelText("Max Failed Login Attempts")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Max Failed Login Attempts")).toBeInTheDocument());
     expect(mockedFetchJson).not.toHaveBeenCalledWith("/api/auth/tokens?page=1&per_page=200");
 
     fireEvent.change(screen.getByLabelText("Max Failed Login Attempts"), {
@@ -293,7 +293,7 @@ describe("SettingsSecurityPage", () => {
     });
     renderPage();
 
-    expect(await screen.findByRole("combobox", { name: "Level" })).toHaveTextContent("Strict");
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Level" })).toHaveTextContent("Strict"));
     fireEvent.click(screen.getByRole("button", { name: "Inherit Level" }));
     expect(screen.getByRole("combobox", { name: "Level" })).toHaveTextContent("Standard");
     expect(screen.getByText("Pending override changes: level")).toBeInTheDocument();
@@ -312,7 +312,7 @@ describe("SettingsSecurityPage", () => {
   it("explains global posture and policy internals without rendering raw structured fields", async () => {
     renderPage("/settings/security");
 
-    expect(await screen.findByText("No posture snapshot yet.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No posture snapshot yet.")).toBeInTheDocument());
     expect(screen.getByText(/This page does not start a separate scan/i)).toBeInTheDocument();
     expect(screen.queryByText("100%")).not.toBeInTheDocument();
     expect(screen.queryByText("Hardened")).not.toBeInTheDocument();
@@ -331,7 +331,7 @@ describe("SettingsSecurityPage", () => {
   it("edits scanner settings, scan surfaces, and custom rules before saving", async () => {
     renderPage("/settings/security");
 
-    expect(await screen.findByLabelText("Secrets enabled")).toBeChecked();
+    await waitFor(() => expect(screen.getByLabelText("Secrets enabled")).toBeChecked());
     const removeExistingRule = screen.getByRole("button", { name: "Remove" });
     fireEvent.click(screen.getByLabelText("Secrets enabled"));
     expect(screen.getByRole("button", { name: "Remove" })).toBe(removeExistingRule);
@@ -351,7 +351,7 @@ describe("SettingsSecurityPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Add custom rule" }));
 
-    expect(await screen.findByText("custom.prompt")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("custom.prompt")).toBeInTheDocument());
     fireEvent.click(removeExistingRule);
     expect(screen.queryByText("custom.ssn")).not.toBeInTheDocument();
 

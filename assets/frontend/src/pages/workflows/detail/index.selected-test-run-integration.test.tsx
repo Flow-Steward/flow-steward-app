@@ -22,8 +22,6 @@ import {
 // Install the shared helper's API mocks before importing their real consumer.
 import { WorkflowsDetailPage } from "@/pages/workflows/detail";
 
-vi.setConfig({ testTimeout: 15_000 });
-
 // Match the shared renderer's admin baseline with the real context consumed by the page.
 const authValue: AuthContextValue = {
   error: null, isAuthenticated: true, status: "authenticated",
@@ -182,7 +180,7 @@ async function chooseHistory(id: string) {
 }
 async function results(id = "run-latest") {
   fireEvent.click(within(await bar(id)).getByRole("button", { name: "Results" }));
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id);
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", id));
   return screen.getByRole("dialog", { name: "Test Run results" });
 }
 async function launcher() {
@@ -239,7 +237,7 @@ it("verifies uncached history while Results remains open, then hands off exactly
   expect(barJobId()).not.toBe("run-older");
   expect(screen.queryByTestId("workflow-runtime-mark")).not.toBeInTheDocument();
   await act(async () => { pending.resolve(json(fixture.details.get("run-older"))); await pending.promise; });
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-older");
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-older"));
   expect(await bar("run-older")).toHaveTextContent("Run #1 · Test Run finished");
   expect(screen.queryByTestId("workflow-runtime-mark")).not.toBeInTheDocument();
   fireEvent.click(within(await bar("run-older")).getByRole("button", { name: "Back to latest" }));
@@ -265,7 +263,7 @@ it("holds ACK navigation until matching detail commits; pending verification nev
   expect(screen.queryByRole("dialog", { name: "Test Run results" })).not.toBeInTheDocument();
   expect(screen.getByText("Loading Test Run…")).toBeVisible();
   await act(async () => { pending.resolve(json(fixture.details.get("run-new"))); await pending.promise; });
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-new");
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-new"));
   expect(localStorage.getItem(ackKey)).toBe("run-new");
   expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
   noAuthoringWrite();
@@ -279,7 +277,7 @@ it("settles failed ACK detail verification with a scoped notice and no Results o
   renderPage({ surface: "builder", initialEntry: entry });
   const dialog = await launcher();
   fireEvent.click(within(dialog).getByRole("button", { name: "Run workflow test run" }));
-  expect(await screen.findByText("The Test Run was started, but its details could not be verified. Select a run from history to inspect it.")).toBeVisible();
+  await waitFor(() => expect(screen.getByText("The Test Run was started, but its details could not be verified. Select a run from history to inspect it.")).toBeVisible());
   expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
   expect(screen.queryByRole("dialog", { name: /^Start a test run$/ })).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
@@ -353,7 +351,7 @@ it("rechecks the selected owner after the actual drawer confirmation before any 
   await bar("run-beta");
   expect(screen.queryByRole("dialog", { name: "Test Run results" })).not.toBeInTheDocument();
   expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
-  expect(await screen.findByRole("textbox", { name: "Rows" })).toHaveValue("[{");
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Rows" })).toHaveValue("[{"));
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
   noAuthoringWrite();
 });
@@ -382,7 +380,7 @@ it.each(["Results", "Back to latest"])("keeps invalid input/selection on Cancel 
   expect(screen.getAllByRole("dialog", { name: "Discard invalid input?" })).toHaveLength(1);
   fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
   await waitFor(() => expect(initiator).toHaveFocus());
-  expect(await screen.findByRole("textbox", { name: "Rows" })).toHaveValue("[{");
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Rows" })).toHaveValue("[{"));
   expect(await bar("run-older")).toBeVisible();
   expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
@@ -444,7 +442,7 @@ it.each(["error", "foreign detail"] as const)("keeps a cached %s pending through
     expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Results" })).not.toBeInTheDocument();
     await act(async () => { fresh.resolve(json(real)); await fresh.promise; });
-    expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-new");
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-new"));
     expect(await bar("run-new")).toHaveTextContent("Test Run finished");
     expect(screen.queryByText("The Test Run was started, but its details could not be verified. Select a run from history to inspect it.")).not.toBeInTheDocument();
     expect(localStorage.getItem(ackKey)).toBe("run-new");
@@ -521,6 +519,8 @@ it("stops the verified active selected job only after the actual confirmation an
   fireEvent.click(within(row).getByRole("button", { name: "Stop" }));
   const confirmation = await screen.findByRole("dialog", { name: "Stop Test Run?" });
   expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith("/cancel"))).toEqual([]);
+  // Nothing is being cancelled yet, so the Stop behind the confirmation is not busy.
+  expect(within(await bar()).getByRole("button", { name: "Stop", hidden: true })).not.toHaveAttribute("aria-busy");
   fireEvent.click(within(confirmation).getByRole("button", { name: "Cancel" }));
   expect(fetchSpy.mock.calls.filter(([url]) => String(url).endsWith("/cancel"))).toEqual([]);
   fireEvent.click(within(await bar()).getByRole("button", { name: "Stop" }));
@@ -556,7 +556,7 @@ it("uses the active lower Running control to open the selected Results without r
   await bar();
   const toolbar = await screen.findByRole("toolbar", { name: "Canvas tools" });
   fireEvent.click(within(toolbar).getByRole("button", { name: "Running" }));
-  expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-latest");
+  await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-latest"));
   expect(screen.queryByRole("dialog", { name: /^Start a test run$/ })).not.toBeInTheDocument();
   expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
   expect(fixture.maximumConcurrentReads()).toBe(1);
@@ -614,7 +614,7 @@ it.each([4, 5])("opens a failed occurrence in the archive for rev %s unless the 
     await waitFor(() => expect(within(row).getByRole("button", { name: "Open step" })).toBeVisible());
     fireEvent.click(within(row).getByRole("button", { name: "Open step" }));
     if (revision === 5) {
-      expect(await screen.findByRole("dialog", { name: "Step editor" })).toBeVisible();
+      await waitFor(() => expect(screen.getByRole("dialog", { name: "Step editor" })).toBeVisible());
       expect(screen.queryByTestId("job-step-inspector-drawer")).not.toBeInTheDocument();
     } else {
       // The archived failure opens in Results at exactly its own pass, not an earlier one.
@@ -651,7 +651,7 @@ it("opens a pass in place, then Results Escape returns focus to the same Results
     const pointers = [localStorage.getItem(ackKey), localStorage.getItem(threadKey)];
     await user.click(opener);
     const resultsDrawer = await screen.findByRole("dialog", { name: "Test Run results" });
-    expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-latest");
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "run-latest"));
     expect(within(await bar()).getByRole("button", { name: "Results" })).toBe(opener);
     const [pass] = await within(resultsDrawer).findAllByTestId("workflow-run-pass");
     const selectedRow = within(pass).getByRole("button", { name: /Plan work/ });

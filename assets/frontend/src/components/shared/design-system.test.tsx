@@ -281,7 +281,7 @@ describe("shared design-system adapters", () => {
     expect(trigger).toBeRequired();
     trigger.focus();
     await user.keyboard("{ArrowDown}");
-    expect(await screen.findByRole("option", { name: "Salesforce" })).toHaveFocus();
+    await waitFor(() => expect(screen.getByRole("option", { name: "Salesforce" })).toHaveFocus());
     await user.keyboard("{ArrowDown}");
     await user.keyboard("{Enter}");
     expect(trigger).toHaveTextContent("Spreadsheet");
@@ -443,7 +443,7 @@ describe("shared design-system adapters", () => {
     render(<DialogHarness />);
     const trigger = screen.getByRole("button", { name: "Open dialog" });
     await user.click(trigger);
-    expect(await screen.findByRole("dialog", { name: "Edit settings" })).toBeVisible();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Edit settings" })).toBeVisible());
     expect(screen.getByRole("button", { name: "Close edit settings dialog" })).toBeVisible();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Edit settings" })).not.toBeInTheDocument();

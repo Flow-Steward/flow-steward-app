@@ -1,6 +1,6 @@
 import { createElement } from "react";
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
@@ -62,7 +62,7 @@ describe("SettingsGeneralPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("OpenAI")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("OpenAI")).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Auth mode" })).toBeInTheDocument();
     expect(screen.getByText("External sign-in")).toBeInTheDocument();
     expect(screen.queryByText(["S", "SO feature flag"].map((value) => stringFromUnknownValue(value)).join(""))).not.toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("SettingsGeneralPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Failed to load general settings")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Failed to load general settings")).toBeInTheDocument());
     expect(screen.getByText("bootstrap unavailable")).toBeInTheDocument();
   });
 });

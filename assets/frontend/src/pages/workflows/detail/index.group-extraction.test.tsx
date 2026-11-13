@@ -29,7 +29,7 @@ it("opens conversion for a saved group with its revision, but blocks unsaved gro
   fireEvent.click(convert);
   const dialog = await screen.findByRole("dialog", { name: "Convert group to child workflow" });
   // The dialog checks the conversion as it opens.
-  expect(await within(dialog).findByText("The group has no steps.")).toBeInTheDocument();
+  await waitFor(() => expect(within(dialog).getByText("The group has no steps.")).toBeInTheDocument());
   expect(within(dialog).getByRole("button", { name: "Create child workflow" })).toBeDisabled();
   fireEvent.change(within(dialog).getByRole("textbox", { name: "Child workflow name" }), { target: { value: "Edited Items" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
@@ -69,10 +69,10 @@ it("converts a plain Group from its right-click menu: preview, then create the c
   const dialog = await screen.findByRole("dialog", { name: "Convert group to child workflow" });
   expect(within(dialog).getByRole("textbox", { name: "Child workflow name" })).toHaveValue("Prepare order");
   // The dialog checks the conversion as it opens.
-  expect(await within(dialog).findByText("state.x")).toBeInTheDocument();
+  await waitFor(() => expect(within(dialog).getByText("state.x")).toBeInTheDocument());
   const detailCalls = mockedFetchWorkflowDetail.mock.calls.length;
   fireEvent.click(within(dialog).getByRole("button", { name: "Create child workflow" }));
-  expect(await within(dialog).findByText("Child workflow created.")).toBeInTheDocument();
+  await waitFor(() => expect(within(dialog).getByText("Child workflow created.")).toBeInTheDocument());
   expect(bodies).toEqual([
     { child_workflow_id: "weekly_report_prepare", display_name: "Prepare order", expected_revision: 5, dry_run: true },
     { child_workflow_id: "weekly_report_prepare", display_name: "Prepare order", expected_revision: 5, dry_run: false, preview_digest: "digest-1" },

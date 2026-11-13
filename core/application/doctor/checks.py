@@ -14,6 +14,7 @@ from typing import Protocol
 from core.application.doctor.contracts import DoctorCheck, DoctorFinding
 
 _RERUN = "./flow-steward doctor --fix {check_id}"
+_MAINTENANCE_DISABLE = "./flow-steward maintenance disable --confirm"
 
 
 @dataclass(frozen=True)
@@ -198,13 +199,23 @@ def _maintenance_left_enabled(probe: DoctorProbe) -> DoctorFinding:
             "info",
             cause=f"Maintenance mode is on while an operation runs ({running}).",
         )
+    if facts.owner_kind == "manual":
+        # Switched on by hand (`maintenance enable`), usually for an upgrade window that
+        # is still open. A warning keeps `doctor` at exit 0 (doctor.py), so a chained
+        # `... && doctor && maintenance disable` still reaches the disable.
+        return DoctorFinding(
+            "maintenance_left_enabled",
+            "warn",
+            cause=f"Maintenance mode was switched on by hand at {facts.since}: jobs wait "
+            "and changes are refused until it is turned off.",
+            next_step=_MAINTENANCE_DISABLE,
+        )
     return _fail(
         "maintenance_left_enabled",
         f"Maintenance mode has been on since {facts.since} ({facts.phase}, set by "
         f"{facts.owner_kind} {facts.owner_id}), and no operation is running: the "
         "installation refuses work.",
-        _RERUN.format(check_id="maintenance_left_enabled")
-        + " (or ./flow-steward maintenance disable)",
+        _RERUN.format(check_id="maintenance_left_enabled") + f" (or {_MAINTENANCE_DISABLE})",
     )
 
 

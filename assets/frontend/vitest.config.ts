@@ -1,8 +1,25 @@
+import os from "node:os";
 import path from "node:path";
 
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vitest/config";
+
+import { measureTestTimeScale, testTimeoutMs, testTimeScale, testWorkerCount, timeReferenceWork } from "./src/test/time-budget";
+
+// A test fails on a defect, never on the machine's speed. Waits end as soon as their
+// condition holds, so the limits below only stop a hung test; they stretch with how busy
+// and how fast this machine is right now, measured once here and handed to every worker.
+const cores = os.availableParallelism();
+const workers = testWorkerCount(cores, process.env.FS_TEST_WORKERS);
+const timeScale = process.env.FS_TEST_TIME_SCALE
+  ? testTimeScale(process.env.FS_TEST_TIME_SCALE)
+  : measureTestTimeScale({ cores, loadPerMinute: os.loadavg()[0], workMs: timeReferenceWork(), workers });
+process.env.FS_TEST_TIME_SCALE = String(timeScale);
+console.info(
+  `[vitest] ${cores} cores, load ${os.loadavg()[0].toFixed(1)}: time scale x${timeScale}, ` +
+    `${workers} workers, test timeout ${testTimeoutMs(timeScale)} ms (FS_TEST_TIME_SCALE / FS_TEST_WORKERS override)`,
+);
 
 const frontendExtensionManifest = resolveOptionalManifest(
   process.env.VITE_FRONTEND_EXTENSION_MANIFEST,
@@ -57,11 +74,14 @@ export default defineConfig({
     // The quality gate runs frontend-tests and backend-tests one after the other
     // (verify.py keeps Tier 3 serial), so the suite has the audit container to
     // itself. Four jsdom workers stay well inside its memory and cut the run
-    // roughly in three; a fixed count keeps the gate the same on any host.
-    maxWorkers: 4,
+    // roughly in three; four on any host with four cores, fewer only on a smaller one.
+    maxWorkers: workers,
     // Heavy page suites share the gate host with other stands and gates; 15 s still
     // failed them on load alone, and contributors' machines can be slower still.
-    testTimeout: 30_000,
+    // 60 s on a free machine, stretched by the measured time scale: a hang guard,
+    // not a speed check, and the one timeout every test runs on.
+    testTimeout: testTimeoutMs(timeScale),
+    hookTimeout: testTimeoutMs(timeScale),
     environment: "jsdom",
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/.git/**", "tests/e2e/**"],

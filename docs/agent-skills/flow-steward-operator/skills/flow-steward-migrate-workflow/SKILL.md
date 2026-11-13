@@ -1,6 +1,6 @@
 ---
 name: flow-steward-migrate-workflow
-description: Convert an exported n8n workflow into Flow Steward import YAML, assess Make or Activepieces exports, and report operation gaps or HTTP/child-workflow replacements. Use for migration from another workflow platform, rather than ordinary Flow Steward authoring or export.
+description: Use when migrating workflows from n8n, Make, Activepieces or another automation platform into Flow Steward, or assessing external B2B workflow catalogs for migration coverage and integration gaps. Not for ordinary Flow Steward authoring or export.
 ---
 
 # Migrate an external workflow
@@ -26,6 +26,11 @@ reports, prompts, test data or generated YAML. Read
 [format contracts and limits](references/source-formats.md) for the source in use.
 
 For B2B catalog selection, read the [operation qualification examples](references/b2b-patterns.md); they are not a verified popularity ranking.
+For a cross-platform campaign or integration backlog, read
+[catalog discovery and demand evidence](references/catalog-demand.md). It defines
+source-format support, deduplicated occurrence counts and the distinction between
+catalog signals and observed customer demand. Refresh source catalogs and export
+documentation as well as the target inventory; a gallery is not an export.
 
 ## Compose with Flow Steward primitives
 
@@ -44,6 +49,29 @@ checks. A source quirk or unknown installed argument schema is work to represent
 or disclose; it is not automatically a platform feature gap. Keep unavailable
 operations explicit: never replace a required step with a success/no-op or invent
 a catch-all connector that performs the untranslated source workflow.
+
+## Use the execution contract before assembling YAML
+
+Read [runtime contracts and fixture qualification](references/runtime-contracts.md)
+before full assembly. It covers typed state construction, array output projection,
+SQL, Sheets replacement semantics, empty agent fields and approval/child resume.
+Use the observed target version and the operation's actual released handler or
+schema; examples are qualified recipes, not a permanent inventory of capabilities.
+A local checkout, catalog release and installed operation can be different versions.
+Before catalog delivery, check the reference's
+[portable integration identity](references/runtime-contracts.md#portable-integration-identity-is-not-a-fixture-binding)
+and canonical export requirements. A fixture registry ID is not a portable
+extension dependency; retest the final exported bytes after changing bindings.
+
+Run the bundled authoring preflight on each assembled bundle:
+
+```bash
+python <skill-dir>/scripts/check_bundle.py candidate.yaml
+```
+
+Resolve its errors and review its warnings, then use the target validator and
+executor. A clean preflight does not establish correct provider arguments,
+connections, SQL behavior or execution. Keep provisional operations explicit.
 
 ## Inspect and map
 
@@ -160,6 +188,18 @@ draft/import preview and validation controls instead. Do not save or launch just
 to inspect validation. Report which checks that interface actually performed;
 catalog inspection alone does not validate the workflow.
 
+For offline qualification, use the **real target executor and released operation
+handlers**, substituting provider transports and explicitly documented host/test
+boundaries. Exercise a new representative workflow, not only previously repaired
+examples. Validate intermediate payloads and final effects, including update of a
+middle row, pagination boundaries, empty results, failure paths and actual approval
+resume when present. Unknown MCP contracts remain blocked; a success-shaped mock
+must not stand in for an undiscovered operation. Record per-bundle hashes and
+separate `structural`, `contract`, `fixture_engine` and `live_provider` evidence.
+If execution cannot be performed, deliver the draft and the precise unperformed
+checks without calling it fixture-verified. Offline success never proves live
+OAuth, project permissions, provider behavior or publication readiness.
+
 Return:
 
 - The full YAML artifact when representable, with source-to-target node mapping
@@ -173,6 +213,10 @@ Return:
   behavior, why existing solutions cannot cover it and the required contract.
   Include a dated inventory/evidence record; absence in an old report, cached
   inventory or one failed search is not evidence of a current capability gap.
+- For catalog campaigns, include the machine-readable source and operation ledger
+  described in [catalog demand](references/catalog-demand.md), with deduplicated
+  workflow/platform counts, actual popularity evidence or an explicit unknown,
+  and the additional complete workflows each missing operation would unlock.
 - Validation results and unperformed checks, separating structural validation,
   import, execution and live external verification.
 
@@ -181,5 +225,6 @@ reuse `workflow_draft_save` or `workflow_import` with the validated bundle to
 create disabled drafts. Inspect uncertain saves before retrying; follow the
 existing authoring skill's recovery contract. Honor prior authorization, but do
 not treat conversion as authorization to execute workflows, install extensions,
-change credentials or publish to a public catalog. Use the publishing skill
-when publication is requested and the actual validation/readiness permits it.
+change credentials or publish to a public catalog. Read [catalog delivery](references/catalog-delivery.md) for canonical export and
+publication evidence. Use the publishing skill when publication is requested and
+the actual validation/readiness permits it.

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 
 import { fallbackContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
@@ -112,7 +112,7 @@ describe("Lithuanian completed Schedule job", () => {
     renderLithuanianJob();
 
     const workspace = await screen.findByTestId("job-review-workspace");
-    expect(await within(workspace).findByRole("heading", { name: "Peržiūra" })).toBeInTheDocument();
+    await waitFor(() => expect(within(workspace).getByRole("heading", { name: "Peržiūra" })).toBeInTheDocument());
     expect(within(workspace).getByText("Šiam vykdymui laukiamas žmogaus sprendimas.")).toBeInTheDocument();
     expect(within(workspace).getByText("Owner review document.")).toBeInTheDocument();
   });
@@ -133,7 +133,7 @@ describe("Lithuanian completed Schedule job", () => {
     renderLithuanianJob();
 
     const workspace = await screen.findByTestId("job-review-workspace");
-    expect(await within(workspace).findByText("Šiam vykdymui laukiamas žmogaus sprendimas.")).toBeInTheDocument();
+    await waitFor(() => expect(within(workspace).getByText("Šiam vykdymui laukiamas žmogaus sprendimas.")).toBeInTheDocument());
     expect(within(workspace).getByText("Owner review title")).toBeInTheDocument();
     expect(within(workspace).getByText("Owner review document.")).toBeInTheDocument();
   });
@@ -172,7 +172,7 @@ describe("Lithuanian completed Schedule job", () => {
 
     const overview = await screen.findByTestId("job-run-overview");
     // A completed run reads as its status group, in Lithuanian.
-    expect(await within(overview).findByText("Užbaigta")).toBeInTheDocument();
+    await waitFor(() => expect(within(overview).getByText("Užbaigta")).toBeInTheDocument());
     expect(screen.getByTestId("job-trigger")).toHaveTextContent("Pradėjo: Tvarkaraštis (cron * * * * *)");
     expect(within(overview).getByText("Flow Steward atliko prašytą darbą.")).toBeInTheDocument();
     for (const label of ["Dabartinis žingsnis", "Pradėta", "Trukmė", "Paskutinis atnaujinimas"]) {
@@ -200,7 +200,7 @@ describe("Lithuanian completed Schedule job", () => {
 
     renderLithuanianJob();
 
-    expect(await screen.findByText("Owner-authored completion summary.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Owner-authored completion summary.")).toBeInTheDocument());
     expect(screen.getByText("Owner next action")).toBeInTheDocument();
     expect(screen.getByText("Inspect the provider-specific evidence.")).toBeInTheDocument();
   });

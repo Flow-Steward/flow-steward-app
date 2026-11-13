@@ -98,6 +98,17 @@ def test_policy_update_role_matrix(client, role, expected_status):
 - `SHOULD` keep runtime and worker tests deterministic.
 - `SHOULD` prove retry, failure, and degraded-mode behavior where it matters operationally.
 
+### Speed-independent frontend tests
+
+A frontend test `MUST` fail only on a defect, never on how fast or how busy the machine is. Contributors run the suite on machines of very different speed, and gates share hosts.
+
+- Every wait (`findBy*`, `waitFor`, `vi.waitFor`) ends as soon as its condition holds; its limit is a hang guard, not a speed check. Limits come from one budget, `assets/frontend/src/test/time-budget.ts`: 10 s per wait (Testing Library's `asyncUtilTimeout`, set in `src/test/setup.ts`) and the one 60 s test timeout, both multiplied by `FS_TEST_TIME_SCALE`.
+- `vitest.config.ts` measures the machine once per run (load per core, counting the run's own workers, and a fixed piece of CPU work), sets `FS_TEST_TIME_SCALE` (1 to 6) for every worker and prints it with the worker count and the test timeout. Workers stay at four, fewer only on a machine with fewer cores. `FS_TEST_TIME_SCALE` and `FS_TEST_WORKERS` override the measurement.
+- Tests `MUST NOT` hard-code wait limits (`{ timeout: 5_000 }` on `findBy*`/`waitFor`; `vi.waitFor`, whose own default is 1 s, takes `asyncWaitMs()`) or set their own test timeout (an `it()`/`test()` argument, a named constant, `vi.setConfig`, a `describe()` option). An ESLint rule for test files refuses hard-coded wait limits, and `src/test/test-timeout-policy.test.ts` refuses per-test, per-file and per-suite timeouts.
+- A found element and its state `MUST` be read together: `await waitFor(() => expect(screen.getBy…(…)).toHave…(…))`, not `expect(await screen.findBy…(…)).toHave…(…)`. A short-lived state (a save button's done label, a toast, an undo window) can change between the two reads. The same ESLint rule refuses the two-read form, `toBeInTheDocument` included: the found element can be replaced before the matcher reads it. Testing Library's `prefer-find-by` is off for test files because it asks for the opposite.
+- Time-driven UI (done labels, toasts, undo windows, loader delays) `SHOULD` be tested on fake timers (`vi.useFakeTimers()` and advancing time) when the test asserts the timing itself.
+- A speed-related failure is fixed in the test or the budget, not by rerunning it: the rule against reruns without a hypothesis (Failure and Retry Semantics) still applies.
+
 ## Verification Tiers
 
 Each executable quality check has one owning tier in

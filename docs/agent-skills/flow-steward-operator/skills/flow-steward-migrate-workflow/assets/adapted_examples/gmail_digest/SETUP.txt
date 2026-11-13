@@ -1,10 +1,7 @@
-FULL DISABLED UNBOUND DRAFT: 2722
-Not ready to import or run. Bind all connector symbols to documented installed operations, verify provisional arguments/result projections, configure required inputs/secrets and model integrations. No network/API/provider calls or source JavaScript execution occurred.
+DISABLED UNBOUND GMAIL DIGEST (n8n2722)
 
-BEHAVIOR CHANGES
-- Original query is sender/address text plus after:yesterday calendar date, not a rolling 24h interval. Draft preserves after:YYYY/MM/DD using the prior calendar date in configured IANA timezone; Gmail interprets the literal date using its provider search semantics. There is no fabricated rolling 24h or upper cutoff. Subject exposes query and run-start snapshot.
-- 07:00 schedule is preserved as setup requirement; schedules are not created offline. SMTP replaces Gmail send channel; from/reply-to belong to SMTP connection.
-- At most 100 messages and 200000 supplied characters; next_cursor/truncated/oversized inputs fail before summary/send. No silent truncation.
-- Subject exposes actual query and run-start snapshot instead of claiming a precise 07:00 cutoff on delayed/manual runs. Escaped native HTML Template replaces source raw HTML insertion.
+This replaces the earlier provisional example with the repaired complete bundle: real Gmail ID hydration, scoped error routes, mail_records agent input, native date actions, flat SMTP outputs and optional-cc branching. workflow.yaml includes definitions; definitions.yaml is the same registry provisioning companion, not an instruction to provision twice.
 
-See setup.json for exact dependency and query contracts. Schedule metadata is an installation instruction, not an installed schedule. All child workflows and inline agent/skill definitions are included. Unknown provider writes must be reconciled before retry.
+Fixture-qualified with core0.9.9/21601831, Workspace0.3.1 and SMTP0.3.1. Source hash and earlier exact receipt are in setup.json. No live account/OAuth/import/publish validation. Reinspect current releases before binding: this versioned example is not a permanent capability inventory.
+
+Configure required inputs/connections/model; resolve symbolic tools; preserve the declared bounded calendar-date search semantics and SMTP channel adaptation. Configure the schedule separately. Keep draft disabled until setup and real validation. Do not automatically retry uncertain writes.

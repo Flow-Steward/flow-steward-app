@@ -61,13 +61,16 @@ from .operation_targets import (
     _target_connection_id_for_external_effect,
 )
 from .secret_reflection import (
+    SecretExposureFinding as _SecretExposureFinding,
+)
+from .secret_reflection import (
     collect_secret_values as _collect_secret_values,
 )
 from .secret_reflection import (
-    secret_exposure_invocation as _secret_exposure_invocation,
+    find_secret_exposure as _find_secret_exposure,
 )
 from .secret_reflection import (
-    value_exposes_secret as _invocation_exposes_secret,
+    secret_exposure_invocation as _secret_exposure_invocation,
 )
 
 ERR_EXTENSION_DISABLED = "Extension is disabled"
@@ -783,7 +786,9 @@ class ExtensionOperationService:
             self._require_artifact_plane()
         hydrated_secrets, secret_budget_exceeded = _hydrated_action_secret_values(context)
         if secret_budget_exceeded:
-            invocation = _secret_exposure_invocation()
+            invocation = _secret_exposure_invocation(
+                _SecretExposureFinding.check_incomplete("secret_inventory")
+            )
             raise ServiceError(
                 _MESSAGE_EXTENSION_ACTION_FAILED,
                 status_code=self._extension_operation_failure_status(invocation),
@@ -811,10 +816,11 @@ class ExtensionOperationService:
 
             invocation = external_effect_spawn_exception_invocation()
         invocation["status"] = _canonical_action_status(invocation.get("status"))
-        secret_exposure = _invocation_exposes_secret(invocation, hydrated_secrets)
+        secret_finding = _find_secret_exposure(invocation, hydrated_secrets)
+        secret_exposure = secret_finding is not None
         finalized_grants = None
-        if secret_exposure:
-            invocation = _secret_exposure_invocation()
+        if secret_finding is not None:
+            invocation = _secret_exposure_invocation(secret_finding)
         else:
             try:
                 invocation, finalized_grants = self._finalize_action_grants(context, invocation)

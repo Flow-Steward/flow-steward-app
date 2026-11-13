@@ -1,7 +1,7 @@
 {
   "name": "@flow-steward/frontend",
   "private": true,
-  "version": "0.9.15",
+  "version": "0.9.16",
   "type": "module",
   "scripts": {
     "dev": "vite",

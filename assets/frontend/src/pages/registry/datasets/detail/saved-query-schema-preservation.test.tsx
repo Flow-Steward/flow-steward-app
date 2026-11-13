@@ -170,7 +170,7 @@ describe("Saved query page schema save and fresh readback", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Save query" }));
     await waitFor(() => expect(store.puts).toHaveLength(1));
     expect(store.puts[0]?.params_schema_jsonb).toEqual(original);
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Unsupported parameter schema field");
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent("Unsupported parameter schema field"));
     expect(store.read().display_name).toBe("Original query");
     expect(store.read().params_schema_jsonb).toEqual(original);
     const previousGets = store.getCount();
@@ -322,7 +322,7 @@ describe("Saved query honest controls and output preservation", () => {
     const { dispose: disposeSecond } = renderPage();
     dialog = await openEdit("Original query");
     expect(store.getCount()).toBeGreaterThan(previousGets);
-    expect(await within(dialog).findByRole("combobox", { name: "Output format for event" })).toHaveTextContent("Date and time");
+    await waitFor(() => expect(within(dialog).getByRole("combobox", { name: "Output format for event" })).toHaveTextContent("Date and time"));
     await userEvent.click(within(dialog).getByRole("button", { name: "Save query" }));
     await waitFor(() => expect(store.puts).toHaveLength(2));
     expect(store.puts[1]?.output_schema_jsonb).toEqual(expected);

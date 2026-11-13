@@ -16,8 +16,6 @@ import {
   workflowDetailFixture,
 } from "./index.test-helpers";
 
-vi.setConfig({ testTimeout: 15_000 });
-
 const builderEntry = "/registry/workflows/weekly_report/builder?project_id=project_alpha";
 
 async function openFromToolbar() {
@@ -88,7 +86,7 @@ describe("whole-workflow Test Run launch dialog", () => {
     expect(within(dialog).queryByLabelText("Step Test Run Summary")).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-    expect(await screen.findByRole("tab", { name: "Test Run", selected: true })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Test Run", selected: true })).toBeInTheDocument());
     expect(screen.getByLabelText("Step Test Run Summary")).toHaveValue("Retain the isolated step draft");
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeEnabled();
     expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
@@ -107,7 +105,7 @@ describe("whole-workflow Test Run launch dialog", () => {
     expect(within(dialog).getByRole("button", { name: "Run workflow test run" })).toBeDisabled();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved wait label");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Unsaved wait label"));
     expect(mockedTestRunWorkflow).not.toHaveBeenCalled();
   });
 
@@ -118,7 +116,7 @@ describe("whole-workflow Test Run launch dialog", () => {
     fireEvent.change(within(dialog).getByLabelText("Test Run Summary"), { target: { value: "Keep values after refusal" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Run workflow test run" }));
 
-    expect(await within(dialog).findByText("The applied workflow cannot be launched.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("The applied workflow cannot be launched.")).toBeInTheDocument());
     expect(within(dialog).getByLabelText("Test Run Summary")).toHaveValue("Keep values after refusal");
     expect(mockedTestRunWorkflow).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("workflow-test-run-results")).not.toBeInTheDocument();
@@ -165,8 +163,8 @@ describe("whole-workflow Test Run launch dialog", () => {
       acknowledge?.({ workflow_id: "weekly_report", project_id: "project_alpha", job_id: "job-launch-ack", status: "completed", final_status: "success", needs_user_approval: false, trace: [] });
     });
 
-    expect(await screen.findByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "job-launch-ack");
-    expect(await screen.findByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-launch-ack");
+    await waitFor(() => expect(screen.getByTestId("workflow-test-run-results")).toHaveAttribute("data-job-id", "job-launch-ack"));
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open full Job Details" })).toHaveAttribute("href", "/jobs/job-launch-ack"));
     expect(screen.queryByRole("dialog", { name: /^Start a test run$/ })).not.toBeInTheDocument();
     // The next start does not carry the last run's outcome: the run bar and Results say it.
     const reopened = await openFromToolbar();
@@ -483,7 +481,7 @@ it("refuses the published missing-channel issue before POST and accepts an expli
   const view = renderPage({ surface: "builder", initialEntry: builderEntry });
   try {
     const { dialog } = await openFromToolbar();
-    expect(await within(dialog).findByText("Choose at least one trigger channel before running a Test Run.")).toBeVisible();
+    await waitFor(() => expect(within(dialog).getByText("Choose at least one trigger channel before running a Test Run.")).toBeVisible());
     const start = within(dialog).getByRole("button", { name: "Run workflow test run" });
     expect(start).toBeDisabled();
     fireEvent.click(start);

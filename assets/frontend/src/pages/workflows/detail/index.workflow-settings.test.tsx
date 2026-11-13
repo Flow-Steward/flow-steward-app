@@ -144,7 +144,7 @@ describe("WorkflowsDetailPage workflow settings", () => {
 
   it("ignores retired AI drawer links and events without requesting an AI session", async () => {
     renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?drawer=build-ai" });
-    expect(await screen.findByRole("button", { name: "Start — workflow inputs" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Start — workflow inputs" })).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(new CustomEvent("platform:workflow-builder-action", {
         detail: { action: "build-ai" },
@@ -159,11 +159,11 @@ describe("WorkflowsDetailPage workflow settings", () => {
         detail: { action: "workflow-settings" },
       }));
     });
-    expect(await screen.findByRole("heading", { name: "Workflow settings" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow settings" })).toBeInTheDocument());
     expect(screen.getByRole("tab", { name: "Smart setup" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Display name" })).toHaveValue("Weekly Report");
     fireEvent.click(screen.getByRole("link", { name: "Test Run" }));
-    expect(await screen.findByLabelText("Test Run Summary")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Test Run Summary")).toBeInTheDocument());
     expect(fetchSpy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("/ai-builder/"))).toEqual([]);
   });
 
@@ -190,7 +190,7 @@ describe("WorkflowsDetailPage workflow settings", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -199,9 +199,7 @@ describe("WorkflowsDetailPage workflow settings", () => {
       );
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflow settings" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow settings" })).toBeInTheDocument());
     expect(
       screen.queryByRole("button", { name: "AI Builder" }),
     ).not.toBeInTheDocument();
@@ -294,7 +292,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
 
     renderPage();
 
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -303,13 +301,11 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
       );
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Workflow settings" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workflow settings" })).toBeInTheDocument());
     expect(screen.getByLabelText("Parent workflow")).toBeChecked();
     // Smart setup carries the input mode and the contract itself; what the
     // workflow returns follows from its outputs, so there is no Output mode.
-    expect(await screen.findByTestId("workflow-contract-returned-files")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("workflow-contract-returned-files")).toBeInTheDocument());
     expect(screen.queryByRole("combobox", { name: "Output mode" })).not.toBeInTheDocument();
   });
 
@@ -349,7 +345,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
 
     renderPage();
 
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -447,7 +443,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
 
     renderPage();
 
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -519,9 +515,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
         },
       },
     });
-    expect(
-      await screen.findByText("Workflow settings saved."),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow settings saved.")).toBeInTheDocument());
   });
 
   it("preserves workflow display name and expected input rows when saving multiple inputs", async () => {
@@ -577,7 +571,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
     });
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
 
     act(() => {
       globalThis.dispatchEvent(
@@ -588,7 +582,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
     });
 
     // No inputs yet: the block says so, and each Add input adds one row, open.
-    expect(await screen.findByText("No expected inputs. The workflow launches without data.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No expected inputs. The workflow launches without data.")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Add input" }));
     fireEvent.change(screen.getByLabelText("Name"), {
       target: { value: "email" },
@@ -651,7 +645,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
     });
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -668,11 +662,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
       await screen.findByRole("button", { name: "Save workflow settings" }),
     );
 
-    expect(
-      await screen.findByText(
-        "This platform workflow is read-only. Use “Clone Workflow” to create an editable copy for this account.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This platform workflow is read-only. Use “Clone Workflow” to create an editable copy for this account.")).toBeInTheDocument());
   });
 
   it("blocks a blank configured number before sending the settings PATCH", async () => {
@@ -713,7 +703,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
     } as never);
 
     renderPage();
-    expect(await screen.findByText("Workflow steps")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow steps")).toBeInTheDocument());
     act(() => {
       globalThis.dispatchEvent(
         new CustomEvent("platform:workflow-builder-action", {
@@ -725,9 +715,7 @@ it("hydrates workflow interface controls from the normalized contract endpoint",
     fireEvent.change(screen.getByDisplayValue("3"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Save workflow settings" }));
 
-    expect(
-      await screen.findByText(/Configured default for 'retries' must be a valid number/i),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Configured default for 'retries' must be a valid number/i)).toBeInTheDocument());
     expect(
       fetchSpy.mock.calls.some(
         ([url, init]) =>

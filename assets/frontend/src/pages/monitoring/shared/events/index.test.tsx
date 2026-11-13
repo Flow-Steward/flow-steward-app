@@ -205,7 +205,7 @@ describe("EventsAuditTrail", () => {
 
     renderPage();
 
-    expect(await screen.findByText("Workflow: weekly_report")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow: weekly_report")).toBeInTheDocument());
     expect(screen.queryByText("Workflow: Weekly Report")).not.toBeInTheDocument();
 
     await choose(user, /workflow filter/i, "weekly_report (1)");

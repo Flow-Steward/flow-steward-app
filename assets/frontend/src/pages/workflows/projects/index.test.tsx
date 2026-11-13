@@ -132,7 +132,7 @@ describe("WorkflowsProjectsPage", () => {
     await user.click(await screen.findByRole("checkbox", { name: "Toggle Project One" }));
     await user.click(screen.getByRole("checkbox", { name: "Toggle Project Two" }));
     await user.click(screen.getByRole("button", { name: "Save project bindings" }));
-    expect(await screen.findByText(/Project Two: Project not found/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Project Two: Project not found/)).toBeInTheDocument());
     expect(screen.getByText("1 linked")).toBeInTheDocument();
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     expect(screen.getAllByText("1 total")).toHaveLength(2);
@@ -165,7 +165,7 @@ describe("WorkflowsProjectsPage", () => {
     await user.click(await screen.findByRole("checkbox", { name: "Toggle Link-only Project" }));
     await user.click(screen.getByRole("button", { name: "Save project bindings" }));
     await waitFor(() => expect(mockedSaveProjectWorkflowBindings).toHaveBeenCalledWith("8", { workflow_ids: nextIds }));
-    expect(await screen.findByText("Project workflow bindings saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project workflow bindings saved.")).toBeInTheDocument());
     expect(ids).toEqual(nextIds);
     expect(operatorDefault).toBe(nextDefault);
     const savedToggle = screen.getByRole("checkbox", { name: "Toggle Link-only Project" });
@@ -202,7 +202,7 @@ describe("WorkflowsProjectsPage", () => {
     await user.click(await screen.findByRole("checkbox", { name: "Toggle Project One" }));
     await user.click(screen.getByRole("checkbox", { name: "Toggle Project Two" }));
     await user.click(screen.getByRole("button", { name: "Save project bindings" }));
-    expect(await screen.findByText(/Project Two: Binding denied/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/Project Two: Binding denied/)).toBeInTheDocument());
     expect(screen.queryByText("Project workflow bindings saved.")).not.toBeInTheDocument();
     const savedRow = screen.getByRole("row", { name: /Project One/ });
     const failedRow = screen.getByRole("row", { name: /Project Two/ });
@@ -215,7 +215,7 @@ describe("WorkflowsProjectsPage", () => {
     expect(screen.getByText("2 selected")).toBeInTheDocument();
     rejectSecond = false;
     await user.click(screen.getByRole("button", { name: "Save project bindings" }));
-    expect(await screen.findByText("Project workflow bindings saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project workflow bindings saved.")).toBeInTheDocument());
     expect(mockedSaveProjectWorkflowBindings.mock.calls.map(([id]) => id)).toEqual(["7", "8", "8"]);
     expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
   });
@@ -225,7 +225,7 @@ describe("WorkflowsProjectsPage", () => {
     mockedFetchProjectsList.mockResolvedValue({ projects: [{ id: 7, name }], page: 1, per_page: 200, total: 1, total_pages: 1 } as never);
     mockedFetchProjectWorkflowBindings.mockResolvedValue({ project_id: "7", operator_default_workflow_id: "", workflow_ids: ["wf_demo", "wf_other", "wf_third"].slice(0, count), project_workflows: [] });
     renderPage(locale);
-    expect(await screen.findByText(name)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(name)).toBeInTheDocument());
     expect(screen.getByText(locale === "lt" ? `Darbo eigų: ${count}` : `${count} workflows`)).toBeInTheDocument();
     const toggle = screen.getByRole("checkbox", { name: `${locale === "lt" ? "Perjungti" : "Toggle"} ${name}` });
     if (count > 0) expect(toggle).toBeChecked();
@@ -237,13 +237,13 @@ describe("WorkflowsProjectsPage", () => {
   it("renders project bindings in the workflow projects tab", async () => {
     renderPage();
 
-    expect(await screen.findByText("Workflow Demo")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workflow Demo")).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(await screen.findByRole("button", { name: "Save project bindings" })).toBeInTheDocument();
-    expect(await screen.findByText("Project One")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save project bindings" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Project One")).toBeInTheDocument());
     expect(screen.getByText("Project Two")).toBeInTheDocument();
 
     await waitFor(() => expect(mockedFetchProjectWorkflowBindings).toHaveBeenCalled());
@@ -320,7 +320,7 @@ describe("WorkflowsProjectsPage", () => {
 
     renderPage();
 
-    expect(await screen.findByRole("checkbox", { name: "Toggle Stale Project" })).not.toBeChecked();
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Toggle Stale Project" })).not.toBeChecked());
     expect(screen.getByText("0 linked")).toBeInTheDocument();
     expect(screen.getByText("0 selected")).toBeInTheDocument();
   });
@@ -347,7 +347,7 @@ describe("WorkflowsProjectsPage", () => {
     await user.click(toggle);
     await user.click(screen.getByRole("button", { name: "Save project bindings" }));
 
-    expect(await screen.findByText(/^Changes were not fully saved\..*unsaved changes remain\./i)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/^Changes were not fully saved\..*unsaved changes remain\./i)).toBeInTheDocument());
     expect(screen.getByText(/unknown workflow id/i)).toBeInTheDocument();
     expect(toggle).toBeChecked();
     expect(screen.queryByText("Project workflow bindings saved.")).not.toBeInTheDocument();
@@ -389,7 +389,7 @@ describe("WorkflowsProjectsPage", () => {
     expect(screen.queryByText("Project workflow bindings saved.")).not.toBeInTheDocument();
 
     resolveRefetch?.();
-    expect(await screen.findByText("Project workflow bindings saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Project workflow bindings saved.")).toBeInTheDocument());
     expect(toggle).toBeChecked();
   });
 });

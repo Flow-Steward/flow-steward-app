@@ -14,8 +14,6 @@ import {
   workflowDetailFixture,
 } from "./index.test-helpers";
 
-vi.setConfig({ testTimeout: 15_000 });
-
 const contextualPlayHitTestDescriptor = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
 beforeAll(() => Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [] }));
 afterAll(() => {
@@ -66,7 +64,7 @@ describe("the step Test Run of a protected extension workflow", () => {
     const user = userEvent.setup();
     renderPage({ surface: "builder" });
 
-    expect(await screen.findByTestId("structure-locked")).toHaveTextContent("Read-only");
+    await waitFor(() => expect(screen.getByTestId("structure-locked")).toHaveTextContent("Read-only"));
     expect(screen.getByRole("note", { name: "Structure read-only (extension)" })).not.toHaveTextContent(/cannot be edited or run one by one/i);
     expect(screen.queryByRole("button", { name: "Add step" })).not.toBeInTheDocument();
     const card = await screen.findByRole("group", { name: "Open step Plan work" });
@@ -88,7 +86,7 @@ describe("the step Test Run of a protected extension workflow", () => {
     renderPage({ surface: "builder", initialEntry: "/registry/workflows/weekly_report/builder?drawer=test-run" });
 
     // B28: "Run step test run" sat in this drawer's DOM, and the server answered 403.
-    expect(await screen.findByRole("button", { name: "Run workflow test run" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run workflow test run" })).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Run step test run" })).not.toBeInTheDocument();
   });
 
@@ -98,9 +96,9 @@ describe("the step Test Run of a protected extension workflow", () => {
     installWorkflow({ structure_change_allowed: true, step_test_run_allowed: false });
     await openStepTestRun();
 
-    expect(await screen.findByTestId("step-test-run-blocked")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByTestId("step-test-run-blocked")).toHaveTextContent(
       "A step of a protected workflow does not run on its own. Run the whole workflow with Test Run, or test your own workflow in the hook panel.",
-    );
+    ));
     expect(screen.getByRole("button", { name: "Run step test run" })).toBeDisabled();
   });
 
@@ -108,7 +106,7 @@ describe("the step Test Run of a protected extension workflow", () => {
     installWorkflow({ structure_change_allowed: true, step_test_run_allowed: true, full_export_allowed: true });
     await openStepTestRun();
 
-    expect(await screen.findByRole("button", { name: "Run step test run" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Run step test run" })).toBeInTheDocument());
     expect(screen.queryByTestId("step-test-run-blocked")).not.toBeInTheDocument();
   });
 });
@@ -143,7 +141,7 @@ describe("contextual Play follows public isolated permission separately from aut
       expect(within(drawer).queryByRole("button", { name: "Save parameters" })).not.toBeInTheDocument();
     } else {
       await user.click(within(drawer).getByRole("tab", { name: "Test Run" }));
-      expect(await within(drawer).findByTestId("step-test-run-blocked")).toHaveTextContent("A step of a protected workflow does not run on its own.");
+      await waitFor(() => expect(within(drawer).getByTestId("step-test-run-blocked")).toHaveTextContent("A step of a protected workflow does not run on its own."));
       expect(within(drawer).getByRole("button", { name: "Run step test run" })).toBeDisabled();
     }
     expect(mockedTestRunWorkflowStep).not.toHaveBeenCalled();

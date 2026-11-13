@@ -110,7 +110,7 @@ it("shows the action, its connection slot and its mappings", async () => {
     connections: {},
   });
 
-  expect(await screen.findByText("Create order with shipment")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("Create order with shipment")).toBeInTheDocument());
   expect(vi.mocked(fetchJson).mock.calls[0][0]).toContain("install_id=pi_addon&project_id=project-1");
   const connection = screen.getByRole("combobox", { name: "Connection: amazon" });
   expect(connection).toBeRequired();
@@ -152,7 +152,7 @@ it("says when the action is gone", async () => {
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("This extension action is no longer available.");
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("This extension action is no longer available."));
 });
 
 it("names a slot's connection by its extension, and by the slot when two share one", async () => {
@@ -181,7 +181,7 @@ it("names a slot's connection by its extension, and by the slot when two share o
     </QueryClientProvider>,
   );
 
-  expect(await screen.findByRole("combobox", { name: "Connection: Amazon (source)" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("combobox", { name: "Connection: Amazon (source)" })).toBeInTheDocument());
   expect(screen.getByRole("combobox", { name: "Connection: Amazon (target)" })).toBeInTheDocument();
   expect(screen.getByRole("combobox", { name: "Connection: Books" })).toBeInTheDocument();
 });

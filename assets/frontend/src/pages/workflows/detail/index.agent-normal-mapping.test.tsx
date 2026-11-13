@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fetchSpy, postedChangeSets, renderPage } from "./index.test-helpers";
 import { fetchWorkflowStepContractPreview } from "@/pages/workflows/shared/api";
@@ -9,7 +9,6 @@ const hitTestDescriptor = Object.getOwnPropertyDescriptor(document, "elementsFro
 beforeAll(() => Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [] }));
 afterAll(() => { if (hitTestDescriptor) Object.defineProperty(document, "elementsFromPoint", hitTestDescriptor); else Reflect.deleteProperty(document, "elementsFromPoint"); });
 
-const AGENT_JOURNEY_TIMEOUT = 15_000; // Source allowance only; no duration measured.
 async function open(surface: "detail" | "builder" = "detail") { const view = renderPage({ surface }); if (surface === "builder") fireEvent.click(await screen.findByRole("group", { name: "Open step Agent A" })); else await userEvent.click(await screen.findByRole("button", { name: /Agent A/i })); await screen.findByRole("button", { name: "Save parameters" }); return view; }
 async function choose(label: string, name: string) { await userEvent.click(screen.getByRole("combobox", { name: label })); await userEvent.click(await within(screen.getByRole("listbox", { name: `${label} options` })).findByRole("option", { name })); }
 function lastPatch() { const bodies = postedChangeSets(); const operations = bodies.at(-1)?.operations as Array<Record<string, unknown>>; return operations[0].patch as Record<string, unknown>; }
@@ -32,19 +31,19 @@ it("maps the selected Agent contract in normal mode and retains canonical values
     await userEvent.click(screen.getByRole("button", { name: "Save parameters" })); await screen.findByText("Parameters saved");
     expect(lastPatch()).toMatchObject({ participant_key: "reviewer", agent_id: "reviewer", input_mapping_jsonb: { ...input, request: "state.inputs.changed" }, output_mapping_jsonb: { ...output, result: "state.outputs.answer" } });
     view.unmount(); fresh = await open();
-    expect(await screen.findByRole("textbox", { name: "Input source: request" })).toHaveValue("state.inputs.changed");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Input source: request" })).toHaveValue("state.inputs.changed"));
     expect(screen.getByRole("textbox", { name: "Output target: result" })).toHaveValue("state.outputs.answer");
     expect(screen.getByRole("combobox", { name: "Agent" })).toHaveTextContent("Reviewer");
     expect(boundary.row().input_mapping_jsonb).toEqual({ ...input, request: "state.inputs.changed" });
   } finally { fresh?.unmount(); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});
 
 it("shows the selected Agent skill label in normal setup", async () => {
   install();
   vi.mocked(fetchWorkflowStepContractPreview).mockResolvedValue({ workflow_id: "weekly_report", skill: { id: "compose", label: "Compose report" }, locked_required: [], unresolved_required: [], optional: [], custom: [], outputs: [] });
   const view = await open();
-  try { expect(await screen.findByText("Compose report")).toBeVisible(); } finally { view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+  try { await waitFor(() => expect(screen.getByText("Compose report")).toBeVisible()); } finally { view.unmount(); }
+});
 it.each(["pointer", "accessible click"])("selects an agent file by %s, saves it, and reopens it", async (activation) => {
   const boundary = install();
   const ordinary = fetchSpy.getMockImplementation()!;
@@ -69,4 +68,4 @@ it.each(["pointer", "accessible click"])("selects an agent file by %s, saves it,
     expect(screen.getByRole("textbox", { name: "File label 1" })).toHaveValue("document");
     expect(screen.getByRole("combobox", { name: "File source 1" })).not.toHaveValue("");
   } finally { fresh?.unmount(); view.unmount(); }
-}, AGENT_JOURNEY_TIMEOUT);
+});

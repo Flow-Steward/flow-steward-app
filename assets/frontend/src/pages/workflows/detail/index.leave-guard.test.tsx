@@ -21,6 +21,6 @@ describe("builder route leave guard", () => {
     await act(async () => { if (navigation === "back") await router.navigate(-1);
       else await router.navigate("/previous"); });
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Leave the builder?" })).getByRole("button", { name: "Leave and discard" }));
-    expect(await screen.findByRole("heading", { name: "Previous page" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Previous page" })).toBeInTheDocument());
   });
 });

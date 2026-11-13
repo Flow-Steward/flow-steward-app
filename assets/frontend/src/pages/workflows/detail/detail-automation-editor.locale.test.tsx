@@ -169,7 +169,7 @@ it("shows the saved notification destination and localizes severity while preser
   const writes = mountAutomation([builtinSource]);
   const user = userEvent.setup();
   await openFirstRule();
-  expect(await screen.findByRole("radio", { name: /Route keys/ })).toBeChecked();
+  await waitFor(() => expect(screen.getByRole("radio", { name: /Route keys/ })).toBeChecked());
   expect(screen.getByRole("textbox", { name: /Route keys to notify/ })).toHaveValue("owner-channel");
   const severity = screen.getByRole("combobox", { name: "Severity" });
   expect(within(severity).getAllByRole("option").map((option) => [option.textContent, (option as HTMLOptionElement).value])).toEqual([

@@ -53,12 +53,16 @@ it("confirms Stop once and waits for authoritative readback rather than inventin
     vi.mocked(cancelJob).mockReturnValueOnce(pending.promise);
     let first!: Promise<boolean | void>;
     act(() => { first = Promise.resolve(result.current.bar.stopAction?.onInvoke()); });
-    await waitFor(() => expect(result.current.bar.stopAction?.busy).toBe(true));
+    await waitFor(() => expect(confirmStop).toHaveBeenCalledOnce());
+    // Nothing is being cancelled while the confirmation is open: Stop is not busy yet,
+    // and a second press is still ignored.
+    expect(result.current.bar.stopAction?.busy).toBe(false);
     await act(async () => { await result.current.bar.stopAction?.onInvoke(); });
     expect(confirmStop).toHaveBeenCalledOnce();
     expect(cancelJob).not.toHaveBeenCalled();
     await act(async () => { confirmation.resolve(true); await confirmation.promise; });
     await waitFor(() => expect(cancelJob).toHaveBeenCalledExactlyOnceWith("latest"));
+    await waitFor(() => expect(result.current.bar.stopAction?.busy).toBe(true));
     expect(result.current.bar.selection.kind === "verified" && result.current.bar.selection.run.title).not.toBe("Test Run stopped");
     await act(async () => { pending.resolve({ job_id: "latest", status: "cancelled" }); await first; });
     expect(result.current.selected.statusCode).toBe("running");

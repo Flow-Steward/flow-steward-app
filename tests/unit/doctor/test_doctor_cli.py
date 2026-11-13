@@ -1,6 +1,6 @@
 """The controller of `./flow-steward doctor`: which installation it reads, and what a
 plain run reports (the doctor task: an id, a status, a cause and a command for each
-finding; exit 4 when there is something to do)."""
+finding; exit 4 when something fails, 0 when only warnings remain)."""
 
 from __future__ import annotations
 
@@ -118,6 +118,34 @@ def test_no_fix_is_offered_while_an_operation_runs(
     assert "stack_stopped: Not running: fs-app." in out
     summary = out.strip().splitlines()[-1]
     assert summary == "1 problem: stack_stopped."  # and no fix offered while it runs
+
+
+def test_warnings_alone_are_reported_and_exit_0(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Demo upgrade 2026-11-12: `... && doctor && maintenance disable` must reach the
+    disable when doctor has only warnings (manual maintenance, an old backup)."""
+    monkeypatch.setattr(doctor, "runtime_env", {})
+    warned = DoctorService(
+        [
+            DoctorCheck(
+                "backup_freshness",
+                "Backup freshness",
+                lambda _p: DoctorFinding(
+                    "backup_freshness",
+                    "warn",
+                    cause="The newest verified backup is 7 days old.",
+                    next_step="./flow-steward backup create",
+                ),
+            )
+        ],
+        profile="compact",
+    )
+
+    code = doctor._diagnose(warned, _probe(), as_json=False)
+
+    assert code == 0
+    assert "backup_freshness" in capsys.readouterr().out  # still reported
 
 
 def test_a_clean_installation_exits_0(

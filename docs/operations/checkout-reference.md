@@ -282,7 +282,7 @@ Default Docker runtime data now lives in Docker named volumes (`fs-postgres`, `f
 
 The public post-install management entrypoint is the `./flow-steward` launcher.
 Installer completion prepares a private reusable `fs-cli` container, and the
-launcher exposes the schema-driven Click/Textual command tree through it. Every
+launcher exposes the schema-driven Click command tree through it. Every
 command still starts a fresh Python process; the container retains no imported
 application state between commands. The first call after Docker stops the
 container, or after a configuration or release change, may repair that runtime
@@ -572,19 +572,11 @@ Examples:
 ./flow-steward jobs restart job_123 --confirm
 ```
 
-The CLI and installer use plain, line-oriented prompts and output by default.
-Type an answer (or a numbered choice) and press Enter; no mouse or full-screen
-navigation is required. Use `--tui` to opt in to the existing full-screen forms
-and rich output where supported:
-
-```bash
-./install.sh
-./install.sh --tui
-./flow-steward users create --tui
-```
-
-`--plain` remains available and overrides `--tui`. JSON and non-interactive
-execution never open full-screen forms. Doctor diagnostics remain line-oriented.
+The CLI and installer print coloured, human-readable output in a terminal and
+ask for missing input one question at a time: type an answer, or pick a choice
+with the arrow keys, and press Enter. No mouse or full-screen navigation is
+needed. `--plain` prints the same text without colour; JSON and non-interactive
+execution never ask anything. Doctor diagnostics remain line-oriented.
 
 During a fresh interactive install, enter **Public host (domain or IP)** and
 **Public port** for the browser address. Keep `localhost` for local use without
@@ -592,7 +584,7 @@ a domain; use port `443` for a standard HTTPS domain. Installation generates
 `FS_PUBLIC_BASE_URL` from these answers before the first start. DNS and any
 external reverse proxy must already route this address to the server.
 
-Global presentation/runtime flags such as `--json`, `--plain`, `--tui`, `--no-color`,
+Global presentation/runtime flags such as `--json`, `--plain`, `--no-color`,
 `--verbose`, and `--non-interactive` may go before or after the command path.
 Command inputs such as `--input-json` belong to the executable leaf:
 

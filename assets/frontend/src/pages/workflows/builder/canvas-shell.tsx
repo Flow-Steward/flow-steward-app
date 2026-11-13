@@ -49,7 +49,7 @@ import { WorkflowMissingExtensionNotice } from "@/pages/workflows/shared/header"
 import { Link, useSearchParams } from "react-router";
 
 import type { WorkflowCanvasPort } from "@/pages/workflows/shared/api";
-import type { ForEachNodeData, GroupNodeData, StartNodeData, StepNodeData } from "@/pages/workflows/builder/layout";
+import type { GroupNodeData, StartNodeData, StepNodeData } from "@/pages/workflows/builder/layout";
 import {
   absoluteNodeCenter,
   consumeCanvasNodeClickSuppression,
@@ -269,7 +269,7 @@ export function WorkflowCanvasShell({
       const point = { x: parent.x + node.position.x, y: parent.y + node.position.y };
       world.set(id, point); return point;
     };
-    for (const node of nodesWithCanvasState) if ((isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer" || node.type === "inlineLoop") && !origin(node.id)) {
+    for (const node of nodesWithCanvasState) if ((isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer") && !origin(node.id)) {
       onClipboardSnapshotChange(null); return;
     }
     const ids = [...selectedNodeIds].sort(compareCanvasIds);
@@ -340,7 +340,7 @@ export function WorkflowCanvasShell({
       data.onAppendStep({ kind: "step", id: data.step.step_id || data.step.id }, { name: "success" });
     } else openNewStepFromCanvas({});
   }, [nodesWithCanvasState, openNewStepFromCanvas, selectedNodeIds]);
-  const selectedSource = onAppendAtSlot && selectedNodeIds.size === 1 ? nodesWithCanvasState.find((node) => selectedNodeIds.has(node.id) && (isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer" || node.type === "inlineLoop")) : undefined;
+  const selectedSource = onAppendAtSlot && selectedNodeIds.size === 1 ? nodesWithCanvasState.find((node) => selectedNodeIds.has(node.id) && (isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer")) : undefined;
   const selectedIds = [...selectedNodeIds].sort(compareCanvasIds);
   // The selected step's connections stand out (Connections › Kinds "Selected step").
   const shownNodes = useSelectedCanvasNodes(nodesWithCanvasState, selectedNodeIds);
@@ -350,17 +350,17 @@ export function WorkflowCanvasShell({
   const selectedNodes = nodesWithCanvasState.filter((node) => selectedNodeIds.has(node.id));
   const selectedCommandOwner = resolveCommandOwner(selectedIds);
   const selectedCanDelete = selectedNodes.length === selectedNodeIds.size && selectedNodes.every((node) => {
-    if (node.hidden || node.id.startsWith("visual:") || !isStepNode(node) && node.type !== "groupContainer" && node.type !== "forEachContainer" && node.type !== "inlineLoop") return false;
+    if (node.hidden || node.id.startsWith("visual:") || !isStepNode(node) && node.type !== "groupContainer" && node.type !== "forEachContainer") return false;
     const data = node.data as { readOnly?: boolean; group?: { hook?: unknown } };
     return !data.readOnly && !data.group?.hook;
   }) && Boolean(selectedCommandOwner) && selectedCommandOwner?.status !== "applying" && selectedCommandOwner?.status !== "conflict";
   const selectAllNodes = () => {
     setSelectedEdgeId(null);
-    setSelectedNodeIds(new Set(nodesWithCanvasState.filter((node) => !node.hidden && (isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer" || node.type === "inlineLoop")).filter((node) => !node.id.startsWith("visual:") && !(node.data as { group?: { hook?: unknown } }).group?.hook).map((node) => node.id)));
+    setSelectedNodeIds(new Set(nodesWithCanvasState.filter((node) => !node.hidden && (isStepNode(node) || node.type === "groupContainer" || node.type === "forEachContainer")).filter((node) => !node.id.startsWith("visual:") && !(node.data as { group?: { hook?: unknown } }).group?.hook).map((node) => node.id)));
   };
   const fitView = () => { onUserViewportInteraction?.(); if (viewportInstance) ignoreAsyncResult(fitCanvasToNodes(viewportInstance, canvasMotionDuration(), canvasMeasureRootRef.current?.getBoundingClientRect(), "fit")); };
   const menuHost: CanvasMenuHost = {
-    t, workflowId, nodes: nodesWithCanvasState, canvasGraph, structureLocked,
+    t, nodes: nodesWithCanvasState, canvasGraph, structureLocked,
     selectedIds,
     select: (ids) => setSelectedNodeIds(new Set(ids)),
     owner: resolveCommandOwner,
@@ -418,11 +418,6 @@ export function WorkflowCanvasShell({
     if (node.type === "groupContainer") {
       const data = node.data as GroupNodeData;
       data.onOpenGroup(data.group.id);
-      return;
-    }
-    if (node.type === "inlineLoop") {
-      const data = node.data as ForEachNodeData;
-      data.onOpenForEach(data.forEach.id);
     }
   }, []);
   /** A paste lands at the pointer over the canvas, else one grid step on from the middle of the view each time. */
@@ -863,7 +858,7 @@ export function WorkflowCanvasShell({
               openCanvasNode(node);
             }}
             onNodeDragStart={(_, node) => {
-              if (isStepNode(node) || node.type === "groupContainer" || node.type === "inlineLoop") {
+              if (isStepNode(node) || node.type === "groupContainer") {
                 suppressCanvasNodeClick(1200);
                 setSelectedEdgeId(null);
               }

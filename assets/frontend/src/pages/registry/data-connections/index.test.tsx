@@ -279,9 +279,7 @@ describe("RegistryDataConnectionsPage", () => {
     ).not.toBeInTheDocument();
     // The connection is listed; only the action column is gone, which is how
     // the published table says "read only" — an empty column is not rendered.
-    expect(
-      await screen.findByText("Flow Steward App Database"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Flow Steward App Database")).toBeInTheDocument());
     expect(
       screen.queryByRole("button", {
         name: "Actions for Flow Steward App Database",
@@ -311,9 +309,7 @@ describe("RegistryDataConnectionsPage", () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText("Workspace one database"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workspace one database")).toBeInTheDocument());
     expect(screen.getByText("Workspace two database")).toBeInTheDocument();
     // No workspace filter is applied, so the published filter bar shows no
     // active chip for it and the query stays unscoped.
@@ -342,9 +338,7 @@ describe("RegistryDataConnectionsPage", () => {
 
     renderPage();
 
-    expect(
-      await screen.findByText("Workspace one database"),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Workspace one database")).toBeInTheDocument());
     expect(screen.getByText("Workspace two database")).toBeInTheDocument();
     // No workspace filter is applied, so the published filter bar shows no
     // active chip for it and the query stays unscoped.
@@ -423,7 +417,7 @@ describe("RegistryDataConnectionsPage", () => {
     })) {
       fireEvent.change(within(dialog).getByLabelText(new RegExp(`^${label}`)), { target: { value } });
     }
-    expect(await within(dialog).findByText("Certificate is required. Jis yra papildomuose nustatymuose.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Certificate is required. Jis yra papildomuose nustatymuose.")).toBeInTheDocument());
     expect(within(dialog).queryByText(/It is under Additional settings\./)).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Create connection" })).toBeDisabled();
     expect(mockedCreateDataConnection).not.toHaveBeenCalled();
@@ -459,9 +453,7 @@ describe("RegistryDataConnectionsPage", () => {
       within(dialog).getByRole("button", { name: "Create connection" }),
     ).toBeDisabled();
 
-    expect(
-      await screen.findAllByText(/Certificate is required\./),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText(/Certificate is required\./)).not.toHaveLength(0));
     expect(
       screen.getByText(/It is under Additional settings\./),
     ).toBeInTheDocument();
@@ -659,9 +651,7 @@ describe("RegistryDataConnectionsPage", () => {
     renderPage();
 
     await waitFor(
-      () => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveAttribute("aria-busy", "false"),
-      { timeout: 5_000 },
-    );
+      () => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveAttribute("aria-busy", "false"));
     await clickRowAction("MariaDB reporting", "Edit");
     const dialog = screen.getByRole("dialog");
     await waitFor(() => {
@@ -836,11 +826,7 @@ describe("RegistryDataConnectionsPage", () => {
 
     await clickRowAction("Flow Steward App Database", "Test");
 
-    expect(
-      await screen.findByText(
-        "connection failed: password authentication failed",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("connection failed: password authentication failed")).toBeInTheDocument());
     await waitFor(() => {
       expect(screen.queryByText(/"error"/)).not.toBeInTheDocument();
     });
@@ -859,11 +845,7 @@ describe("RegistryDataConnectionsPage", () => {
 
     await clickRowAction("Flow Steward App Database", "Test");
 
-    expect(
-      await screen.findByText(
-        "Unable to test the data connection. Please try again or contact an administrator.",
-      ),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Unable to test the data connection. Please try again or contact an administrator.")).toBeInTheDocument());
   });
 
   it("keeps Test and Introspect pending states on the invoked connection only", async () => {
@@ -930,9 +912,7 @@ describe("RegistryDataConnectionsPage", () => {
   it("keeps actions reachable and opens editing from the connection name", async () => {
     renderPage();
 
-    expect(
-      await screen.findByRole("table", { name: "Connection registry" }),
-    ).toHaveClass("fs-table");
+    await waitFor(() => expect(screen.getByRole("table", { name: "Connection registry" })).toHaveClass("fs-table"));
 
     await openRowMenu("Flow Steward App Database");
     for (const action of ["Edit", "Test", "Introspect", "Disable", "Delete"]) {
@@ -997,9 +977,7 @@ describe("RegistryDataConnectionsPage", () => {
       within(dialog).getByRole("button", { name: "Create connection" }),
     );
 
-    expect(
-      await screen.findAllByText("Port must be at most 65535."),
-    ).not.toHaveLength(0);
+    await waitFor(() => expect(screen.getAllByText("Port must be at most 65535.")).not.toHaveLength(0));
     expect(mockedCreateDataConnection).not.toHaveBeenCalled();
   });
 

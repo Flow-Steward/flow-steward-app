@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 
@@ -59,14 +59,14 @@ describe.each([
     renderAt(path);
 
     // B26: "disabled · 0 steps · 0 nodes / 0 edges · Validation 0 errors" flashed here.
-    expect(await screen.findByRole("status")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
     expect(screen.queryByText(/0 steps/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 nodes/)).not.toBeInTheDocument();
     expect(screen.queryByText("disabled")).not.toBeInTheDocument();
 
     resolve({ workflow_id: "wf", display_name: "Order flow", enabled: true, steps: [{ step_id: "a" }, { step_id: "b" }] });
 
-    expect(await screen.findByText("Order flow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Order flow")).toBeInTheDocument());
     expect(screen.getByText("2 steps")).toBeInTheDocument();
     expect(vi.mocked(fetchWorkflowDag)).not.toHaveBeenCalled();
     expect(screen.queryByText(/nodes.*edges/)).not.toBeInTheDocument();
@@ -75,7 +75,7 @@ describe.each([
   it("uses the current detail portability without a second policy read or graph initialization", async () => {
     mockedDetail.mockResolvedValue({ workflow_id: "wf", display_name: "Protected order flow", enabled: true, steps: [{ step_id: "a" }], portability: { extension_owned: true, protected: true, structure_change_allowed: false, reference_export_allowed: true } } as never);
     renderAt(path);
-    expect(await screen.findByText("Protected order flow")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Protected order flow")).toBeInTheDocument());
     expect(vi.mocked(fetchWorkflowExportPolicy)).not.toHaveBeenCalled();
     expect(vi.mocked(fetchWorkflowDag)).not.toHaveBeenCalled();
     expect(screen.getByText("Structure read-only (extension)")).toBeInTheDocument();

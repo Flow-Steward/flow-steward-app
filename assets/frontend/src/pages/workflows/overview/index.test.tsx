@@ -1,5 +1,5 @@
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, within, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 
@@ -112,8 +112,8 @@ describe("WorkflowsOverviewPage", () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", description: "", enabled: false } as never);
     mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 0, completed_count: 0, failed_count: 0, active_count: 0, cancelled_count: 0, success_rate: null, avg_duration_seconds: null, last_run_at: null });
     renderPage("/registry/workflows/wf_missing", "lt");
-    expect(await screen.findByText("Šios darbo eigos statistika ir naujausia veikla.")).toBeInTheDocument();
-    expect(await screen.findByText("Baigta: 0 / nepavyko: 0")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Šios darbo eigos statistika ir naujausia veikla.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Baigta: 0 / nepavyko: 0")).toBeInTheDocument());
     expect(screen.getByText("Tik baigti paleidimai")).toBeInTheDocument();
     expect(screen.getByText("Laukia, vykdoma arba laukia patvirtinimo")).toBeInTheDocument();
   });
@@ -122,8 +122,8 @@ describe("WorkflowsOverviewPage", () => {
     mockedFetchWorkflowDetail.mockResolvedValue({ workflow_id: "wf_missing", display_name: "Fixture workflow", description: "Owner-authored workflow description", enabled: true } as never);
     mockedFetchWorkflowStats.mockResolvedValue({ workflow_id: "wf_missing", total_runs: 4, completed_count: 2, failed_count: 1, active_count: 1, cancelled_count: 0, success_rate: 0.5, avg_duration_seconds: 60, last_run_at: null });
     renderPage("/registry/workflows/wf_missing", "lt");
-    expect(await screen.findByText("Owner-authored workflow description")).toBeInTheDocument();
-    expect(await screen.findByText("Dabar aktyvu: 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Owner-authored workflow description")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Dabar aktyvu: 1")).toBeInTheDocument());
     expect(screen.getByText("Baigta: 2 / nepavyko: 1")).toBeInTheDocument();
   });
   beforeEach(() => {

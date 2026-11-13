@@ -26,7 +26,7 @@ describe("WorkflowsDetailPage step routing and loops", () => {
       }], groups: [],
     } as never);
     renderPage({ initialEntry: "/registry/workflows/weekly_report/builder?drawer=step&step_id=check" });
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(screen.queryByText("Unsupported raw IF condition")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Apply fix" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Selector" })).toHaveValue("");
@@ -114,9 +114,7 @@ it("opens the requested step drawer from builder URL search params", async () =>
         "/registry/workflows/weekly_report/builder?drawer=step&step_id=berlin_continue",
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(screen.getByDisplayValue("Continue to request")).toBeInTheDocument();
     expect(screen.getByDisplayValue("state.weather_query")).toHaveValue(
       "state.weather_query",
@@ -151,9 +149,7 @@ it("opens the requested step drawer from builder URL search params", async () =>
     fireEvent.click(
       await screen.findByRole("button", { name: /Check city input/i }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(screen.getByText("Unsupported raw IF condition")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -222,18 +218,14 @@ it("opens the requested step drawer from builder URL search params", async () =>
     fireEvent.click(
       await screen.findByRole("button", { name: /Default to Berlin/i }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(screen.getByDisplayValue("state.inputs.city")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Berlin")).toBeInTheDocument();
 
     fireEvent.click(
       await screen.findByRole("button", { name: /Set Berlin coordinates/i }),
     );
-    expect(
-      await screen.findByRole("textbox", { name: "Assignment 1 target" }),
-    ).toHaveValue("Weather Query");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Assignment 1 target" })).toHaveValue("Weather Query"));
     const value = await screen.findByRole("textbox", { name: "Assignment 1 value" }) as HTMLInputElement;
     expect(JSON.parse(value.value)).toEqual({ city: "Berlin", latitude: 52.52, longitude: 13.41 });
     fireEvent.click(screen.getByRole("button", { name: "Advanced mode" }));
@@ -274,9 +266,7 @@ it("opens the requested step drawer from builder URL search params", async () =>
     fireEvent.click(
       await screen.findByRole("button", { name: /Copy current batch/i }),
     );
-    expect(
-      await screen.findByRole("heading", { name: "Step editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     expect(
       screen.queryByDisplayValue("[object Object]"),
     ).not.toBeInTheDocument();
@@ -334,9 +324,7 @@ it("opens the requested step drawer from builder URL search params", async () =>
       (globalThis as unknown as Window).openGroupDrawer?.("inspect_batches_loop", { defaultTab: "settings" });
     });
 
-    expect(
-      await screen.findByRole("heading", { name: "For each editor" }),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "For each editor" })).toBeInTheDocument());
     expect(screen.getByTestId("for-each-settings")).toBeInTheDocument();
     const loopSource = screen.getByRole("textbox", { name: "Loop source" });
     expect(loopSource).toHaveValue("catalog_batches");

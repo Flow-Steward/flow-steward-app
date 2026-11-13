@@ -22,6 +22,7 @@ from core.application.installer import (
     InstallRunResult,
     ReleaseIdentity,
 )
+from core.application.installer.classification import require_unambiguous_installation
 from core.application.installer.errors import InstallerFailure
 from core.application.installer.redaction import redact_installer_text
 from core.application.installer.service import InstallerService
@@ -104,8 +105,7 @@ def _field_option(field: FieldSpec) -> click.Option:
 def _params() -> list[click.Parameter]:
     return [
         click.Option(["--json"], is_flag=True, help="Emit one JSON document."),
-        click.Option(["--plain"], is_flag=True, help="Use line-oriented output (default)."),
-        click.Option(["--tui"], is_flag=True, help="Opt in to full-screen forms and rich output."),
+        click.Option(["--plain"], is_flag=True, help="Print without colour or animation."),
         click.Option(["--no-color"], is_flag=True, help="Disable color."),
         click.Option(["--verbose"], is_flag=True, help="Stream redacted technical output."),
         click.Option(["--non-interactive"], is_flag=True, help="Never prompt."),
@@ -123,7 +123,6 @@ def _params() -> list[click.Parameter]:
 def _callback(**values: Any) -> None:
     json_requested = bool(values.pop("json"))
     plain_requested = bool(values.pop("plain"))
-    tui_requested = bool(values.pop("tui"))
     no_color = bool(values.pop("no_color"))
     verbose = bool(values.pop("verbose"))
     non_interactive = bool(values.pop("non_interactive")) or json_requested
@@ -135,23 +134,24 @@ def _callback(**values: Any) -> None:
         terminal=terminal,
         json_requested=json_requested,
         plain_requested=plain_requested,
-        tui_requested=tui_requested,
         non_interactive=non_interactive,
         no_color_requested=no_color,
-        textual_eligible=True,
     )
     non_interactive = non_interactive or not decision.can_prompt
     renderer = _installer_renderer(
         json_requested=json_requested,
-        plain_requested=not tui_requested
-        or plain_requested
-        or decision.output_mode is OutputMode.PLAIN,
+        plain_requested=plain_requested or decision.output_mode is OutputMode.PLAIN,
         color_enabled=decision.color_enabled,
         animation_enabled=decision.animation_enabled,
     )
     try:
         service = _create_service(stream_output=verbose)
         classification = service.inspect()
+        require_unambiguous_installation(classification)  # before any image-policy refusal
+    except InstallerFailure as exc:
+        _render_failure(
+            renderer, exc.code, exc.cause, ExitCode(exc.exit_code), hint=exc.remediation
+        )
     except Exception as exc:
         log_path = _write_emergency_log(exc)
         _render_failure(
@@ -182,8 +182,6 @@ def _callback(**values: Any) -> None:
             normalized, form_confirmed = _collect_interactive(
                 supplied,
                 renderer=renderer,
-                decision=decision,
-                terminal=terminal,
                 advanced=advanced,
                 from_source=from_source,
             )
@@ -340,21 +338,39 @@ def _callback(**values: Any) -> None:
     if json_requested:
         renderer.render_result(INSTALLER_SPEC, execution)
     else:
-        click.echo("Flow Steward is installed.")
-        if result.product_url:
-            click.echo(f"Website: {result.product_url}")
-        for warning in result.warnings:
-            click.echo(f"Warning: {warning}")
-        if result.log_path:
-            click.echo(f"Log: {result.log_path}")
+        _render_installed(result)
     if not json_requested:
-        _announce_update(result)
         _announce_changes(result)
         announce_proxy_setup(proxy_setup)
     _announce_setup_link(result)
 
 
-def _announce_update(result: InstallRunResult) -> None:
+def _render_installed(result: InstallRunResult) -> None:
+    """The closing block: what happened, where it is, what to look at."""
+    updated = bool(result.updated_to_revision)
+    click.echo()
+    click.secho(
+        "✓ Flow Steward is updated." if updated else "✓ Flow Steward is installed.",
+        fg="green",
+        bold=True,
+    )
+    if result.product_url:
+        click.echo(f"  Website: {result.product_url}")
+    # The update sentence travels in warnings for the JSON result; on screen it is the
+    # update note, said once, not a warning.
+    update_note = ""
+    for warning in result.warnings:
+        if updated and warning.startswith(("Updated from ", "Updated to ")):
+            update_note = warning
+            continue
+        click.secho(f"  Warning: {warning}", fg="yellow")
+    if updated:
+        _announce_update(result, note=update_note)
+    if result.log_path:
+        click.secho(f"  Log: {result.log_path}", dim=True)
+
+
+def _announce_update(result: InstallRunResult, *, note: str = "") -> None:
     """Say in a sentence that the running version changed, and from what to what.
 
     AC17-R141: the defect was an update reported and not applied with nothing on the
@@ -363,7 +379,9 @@ def _announce_update(result: InstallRunResult) -> None:
     """
     if not result.updated_to_revision:
         return
-    click.echo()
+    if note:
+        click.echo(f"  {note}")
+        return
     if not result.updated_from_revision:
         click.echo(
             f"Updated to {result.updated_to_revision}; the runtime was not running, so the "
@@ -454,17 +472,11 @@ installer_command = click.Command(
 
 
 def _recorded_installation_values(root: Path) -> dict[str, Any]:
-    """Recover the configuration an existing installation was installed with.
+    """Recover the configuration an existing installation was installed with (AC17-R93).
 
-    AC17-R93: on a non-fresh installation the installer skipped the review form and
-    fell straight through to the spec defaults, so a bare rerun silently proposed
-    `scalable`/`development` for an installation recorded as `compact`/`production`
-    and then refused its own combination as invalid. That made the R88 remediation
-    ("Run ./install.sh instead") impossible to follow literally.
-
-    Prefer the canonical active deployment record so a bare rerun cannot reset ports,
-    ingress, storage, or TLS to installer defaults. Anything supplied on the command
-    line still wins over the recorded values.
+    A bare rerun must not fall back to spec defaults (scalable/development) for an
+    installation recorded as compact/production, nor reset ports, ingress, storage or TLS.
+    Prefer the active deployment record; command-line values still win.
     """
     try:
         active = LifecycleConfigurationStore(

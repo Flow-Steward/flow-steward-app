@@ -88,7 +88,7 @@ describe("dashboard attention queue links", () => {
     // While loading the card is named by its label alone; the count arrives with the answer.
     // The loader rules hold a shown Loading state for 500 ms after a 400 ms delay, so
     // the answer can land after the default 1 s wait when the suite is busy.
-    await screen.findByRole("link", { name: /^Failed \/ Stuck: / }, { timeout: 5000 });
+    await screen.findByRole("link", { name: /^Failed \/ Stuck: / });
     return () => { view.unmount(); client.clear(); };
   }
 

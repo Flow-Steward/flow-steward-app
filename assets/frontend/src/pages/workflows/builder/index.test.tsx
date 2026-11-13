@@ -58,6 +58,11 @@ const mockedFetchWorkflowDetail = vi.mocked(fetchWorkflowDetail);
 const mockedFetchWorkflowExportPolicy = vi.mocked(fetchWorkflowExportPolicy);
 const mockedFetchWorkflowValidation = vi.mocked(fetchWorkflowValidation);
 
+// Keep first-import compilation outside these interaction assertions.
+beforeAll(async () => {
+  await import("@/pages/workflows/detail/detail-page-shell");
+});
+
 const emptySummary = { rule_count: 0, enabled_count: 0, issue_count: 0, error_count: 0, warning_count: 0 };
 
 function graph(partial: Partial<WorkflowCanvasGraph>): WorkflowCanvasGraph {
@@ -469,10 +474,10 @@ describe("WorkflowsBuilderPage", () => {
     fireEvent.change(search, { target: { value: "Wait" } });
     fireEvent.keyDown(search, { key: "ArrowDown", code: "ArrowDown" });
     fireEvent.keyDown(search, { key: "Enter", code: "Enter" });
-    expect(await screen.findByRole("group", { name: "Open step Wait" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Wait" })).toBeInTheDocument());
     expect(screen.queryByRole("dialog", { name: "Add step" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("structure-status")).toHaveTextContent(/Structure not applied/));
-    expect(await screen.findByRole("textbox", { name: "Step label" })).toHaveValue("Wait");
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Step label" })).toHaveValue("Wait"));
   });
 
   it("uses the physical A shortcut inside the canvas while keeping search input editing native", async () => {
@@ -542,9 +547,7 @@ describe("WorkflowsBuilderPage", () => {
         "/registry/workflows/sample_content_campaign_router/builder?project_id=project_alpha",
     });
 
-    expect(
-      await screen.findByText((content) => content.includes("Canvas") && content.includes("beta")),
-    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText((content) => content.includes("Canvas") && content.includes("beta"))).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Back" })).toHaveAttribute(
       "href",
       "/registry/workflows/sample_content_campaign_router?project_id=project_alpha",
@@ -910,7 +913,7 @@ describe("WorkflowsBuilderPage", () => {
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
     expect(within(toolbar).getByRole("button", { name: "Add note" })).toBeVisible();
     fireEvent.click(within(moreMenu).getByRole("button", { name: "History" }));
-    expect(await screen.findByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true"));
   });
 
   it("preserves separate note persistence from the canvas toolbar", async () => {
@@ -936,7 +939,7 @@ describe("WorkflowsBuilderPage", () => {
     await waitFor(() => expect(writes).toHaveLength(1));
     expect(writes).toEqual([{ expected_revision: 4, expected_annotations_revision: 0, annotation: expect.objectContaining({ text: "# Saved note\nCheck the customer data.", width: 256, height: 160 }) }]);
     expect(screen.getByRole("button", { name: "Apply changes" })).toBeDisabled();
-    expect(await screen.findByRole("heading", { name: "Saved note" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Saved note" })).toBeInTheDocument());
     expect(screen.queryByRole("textbox", { name: "Note text" })).not.toBeInTheDocument();
   });
 
@@ -970,7 +973,7 @@ describe("WorkflowsBuilderPage", () => {
     expect(screen.queryByRole("group", { name: "Note: Packing" })).not.toBeInTheDocument();
     expect(deletes).toEqual([]);
     fireEvent.click(undo);
-    expect(await screen.findByRole("group", { name: "Note: Packing" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Note: Packing" })).toBeInTheDocument());
   });
 
   it("drops a new note left empty without writing it", async () => {
@@ -1017,7 +1020,7 @@ describe("WorkflowsBuilderPage", () => {
     });
     expect(screen.getByRole("button", { name: "Apply changes" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Discard changes" })).toBeInTheDocument();
-    expect(await screen.findByRole("group", { name: "Open step Review draft" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("group", { name: "Open step Review draft" })).toBeInTheDocument());
     // The server judges the exact local set without writing: the issues come from its dry run.
     const kept = await screen.findByTestId("change-check-kept");
     expect(kept).toHaveTextContent("Issues the saved definition keeps:");
@@ -1072,7 +1075,7 @@ describe("WorkflowsBuilderPage", () => {
     renderPage();
     await addReviewDraftStep();
 
-    expect(await screen.findByText("The server check is unavailable; these issues are a local estimate.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("The server check is unavailable; these issues are a local estimate.")).toBeInTheDocument());
     expect(screen.getByTestId("change-check-kept")).toHaveTextContent(/leads nowhere/);
   });
 
@@ -1081,7 +1084,7 @@ describe("WorkflowsBuilderPage", () => {
     dryRunFetch(() => jsonResponse({ workflow_id: "wf_router", revision: 4, valid: true, applied: false, issues: [], blocking_issues: [], workflow: {} }));
     renderPage();
     // Before the step exists nothing is focused; adding it is one new request.
-    expect(await screen.findByRole("button", { name: "Add step" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add step" })).toBeInTheDocument());
     expect(canvasFocusRequests.every((item) => item.nonce === 0)).toBe(true);
     await addReviewDraftStep();
 
@@ -1124,7 +1127,7 @@ describe("WorkflowsBuilderPage", () => {
     }));
     // The outcome is taken now, so its + is gone; the new step offers its own.
     await waitFor(() => expect(screen.queryByRole("button", { name: "Add a step after Plan · Next, not connected" })).not.toBeInTheDocument());
-    expect(await screen.findByRole("button", { name: "Add a step after Store plan · Next, not connected" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add a step after Store plan · Next, not connected" })).toBeInTheDocument());
     // The canvas centres on it; a connected step keeps its place in the layout.
     expect(canvasFocusRequests.at(-1)).toMatchObject({ id: "set_variable", place: false });
   });

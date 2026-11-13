@@ -58,9 +58,7 @@ it("refetches notification project scope when the workspace changes", async () =
   );
   // The subject of this test is the refetch. The editor stays closed until a
   // project is chosen, so assert that rather than the old implicit selection.
-  expect(
-    await screen.findByText(/select a project to configure/i),
-  ).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText(/select a project to configure/i)).toBeInTheDocument());
   expect(screen.queryByText("routes:project-default")).not.toBeInTheDocument();
 });
 
@@ -91,7 +89,7 @@ it("does not open notification routing for a project nobody chose", async () => 
   const scope = await screen.findByRole("combobox", { name: "Project scope" });
   await waitFor(() => expect(scope).toBeEnabled());
   await user.click(scope);
-  expect(await screen.findByRole("option", { name: "First project" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("option", { name: "First project" })).toBeInTheDocument());
   expect(screen.queryByText("routes:project-first")).not.toBeInTheDocument();
   // Nothing is chosen: the field is empty and no project option is selected.
   expect(scope).toHaveValue("");
@@ -125,5 +123,5 @@ it("opens routing for the project the operator picks", async () => {
   await user.click(scope);
   await user.click(await screen.findByRole("option", { name: "Second project" }));
 
-  expect(await screen.findByText("routes:project-second")).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByText("routes:project-second")).toBeInTheDocument());
 });

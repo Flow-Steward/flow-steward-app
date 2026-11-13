@@ -246,6 +246,33 @@ def test_maintenance_left_on_with_nothing_running_is_a_fix() -> None:
     assert "op-9" in finding.cause
 
 
+def test_the_fail_hint_disables_with_confirm() -> None:
+    finding = _diagnose("maintenance_left_enabled", _Probe(maintenance_facts=_FACTS))
+
+    assert "./flow-steward maintenance disable --confirm" in finding.next_step
+
+
+_MANUAL = MaintenanceFacts(
+    phase="enabled",
+    owner_kind="manual",
+    owner_id="manual-maintenance",
+    since="2026-11-12T10:24:23Z",
+)
+
+
+def test_maintenance_switched_on_by_hand_is_a_warning_not_a_failure() -> None:
+    """Demo upgrade 2026-11-12: `maintenance enable && release upgrade && doctor &&
+    maintenance disable` stopped at doctor (exit 4 on this FAIL), so maintenance stayed on."""
+    probe = _Probe(maintenance_facts=_MANUAL)
+    finding = _diagnose("maintenance_left_enabled", probe)
+
+    assert finding.status == "warn"
+    assert finding.needs_attention
+    assert "2026-11-12T10:24:23Z" in finding.cause
+    assert finding.next_step == "./flow-steward maintenance disable --confirm"
+    assert DoctorService(checks.p1_checks(), profile="scalable").diagnose(probe).clean
+
+
 def test_maintenance_during_a_running_operation_is_only_information() -> None:
     finding = _diagnose(
         "maintenance_left_enabled", _Probe(maintenance_facts=_FACTS, running="lifecycle op-9")

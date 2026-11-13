@@ -3151,10 +3151,7 @@ def test_live_docs_and_tooling_reference_db_schema_and_seeds_not_migrations():
     )
 
 
-_CLI_PLATFORM_PACKAGE_ROOTS = (
-    ROOT / "core" / "entrypoints" / "cli" / "platform",
-    ROOT / "core" / "entrypoints" / "cli" / "tui",
-)
+_CLI_PLATFORM_PACKAGE_ROOTS = (ROOT / "core" / "entrypoints" / "cli" / "platform",)
 
 
 def test_cli_platform_packages_do_not_use_command_specific_prompts():

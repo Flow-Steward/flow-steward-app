@@ -576,7 +576,8 @@ def test_rich_progress_sink_emits_structured_stable_redirected_lines_and_logs(ca
             )
         )
 
-    assert "running: Indexing project (2/4): scanning" in capsys.readouterr().out
+    # The terminal reads as steps; the operation log keeps the machine-oriented line.
+    assert "→ Indexing project (2/4) — scanning" in capsys.readouterr().out
     assert logs == ["running: Indexing project (2/4): scanning"]
 
 
@@ -620,7 +621,7 @@ def test_rich_no_color_mode_disables_console_color_and_terminal_animation(
         "color_system": None,
         "force_interactive": False,
     }
-    assert "running: Indexing project: scanning" in capsys.readouterr().out
+    assert "→ Indexing project — scanning" in capsys.readouterr().out
     assert logs == ["running: Indexing project: scanning"]
 
 
@@ -647,7 +648,7 @@ def test_animated_rich_progress_waits_for_real_event_before_task_creation(
         def start(self) -> None:
             pass
 
-        def add_task(self, description: str, *, total: int | None = None) -> int:
+        def add_task(self, description: str, *, total: int | None = None, **_fields: object) -> int:
             del total
             added_tasks.append(description)
             return len(added_tasks)
@@ -674,7 +675,7 @@ def test_animated_rich_progress_waits_for_real_event_before_task_creation(
             )
         )
 
-    assert added_tasks == ["running: Linting"]
+    assert added_tasks == ["Linting"]
 
 
 def test_json_renderer_emits_one_normalized_envelope_without_secret(capsys) -> None:
@@ -740,9 +741,10 @@ def test_rich_renderer_uses_semantic_color_for_success_and_error(capsys) -> None
     output = capsys.readouterr().out
 
     assert "\x1b[" in output
-    assert "quality.lint" in output
-    assert "stdout" in output
-    assert "Hint" in output
+    assert "Quality" in output
+    assert "Stdout" in output
+    assert "Fix: Fix the value." in output
+    assert "{" not in output
 
 
 def test_rich_renderer_uses_semantic_color_for_destructive_impact_plan(capsys) -> None:
@@ -801,9 +803,9 @@ def test_rich_renderer_skips_duplicate_operation_status_fields(capsys) -> None:
     )
     output = capsys.readouterr().out
 
-    assert "quality.lint completed" in output
+    assert "completed" in output
+    assert "Operation" not in output
     assert "operation:" not in output
-    assert "status:" not in output
     assert "[red]literal[/red]" in output
     assert "\x1b[" not in output
 
@@ -921,11 +923,12 @@ def test_default_rich_renderer_preserves_domain_payload_fields(capsys) -> None:
     )
     output = capsys.readouterr().out
 
-    assert "projects.dispatch-notification" in output
-    assert "project_id: proj_123" in output
-    assert "notification_deliveries" in output
-    assert '"id": "delivery_1"' in output
-    assert '"status": "sent"' in output
+    assert "projects dispatch-notification" in output
+    assert "Project ID: proj_123" in output
+    assert "Notification deliveries (1)" in output
+    assert "delivery_1" in output
+    assert "sent" in output
+    assert "{" not in output
     assert "\x1b[" not in output
 
 
@@ -942,7 +945,7 @@ def test_rich_renderer_respects_no_color_for_result_output(capsys) -> None:
     output = capsys.readouterr().out
 
     assert "\x1b[" not in output
-    assert "Error: failed" in output
+    assert "✗ failed" in output
 
 
 def test_plain_renderer_renders_error_remediation_and_log_path(capsys) -> None:
@@ -959,7 +962,7 @@ def test_plain_renderer_renders_error_remediation_and_log_path(capsys) -> None:
     )
     output = capsys.readouterr().out
 
-    assert "Error: failed" in output
+    assert "✗ failed" in output
     assert "Code: operation_failed" in output
     assert "Retry safely." in output
     assert "users.list-op-1.log" in output

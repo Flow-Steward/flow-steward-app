@@ -166,7 +166,7 @@ describe("notification route authoring", () => {
     await user.type(screen.getByRole("textbox", { name: "Display name" }), "Owned retry route");
     await fillTarget(user);
     await user.click(screen.getByRole("button", { name: "Create route" }));
-    expect(await within(screen.getByRole("dialog")).findByRole("alert")).toHaveTextContent("Owned retry refusal");
+    await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("alert")).toHaveTextContent("Owned retry refusal"));
     expect(screen.getByRole("textbox", { name: /route key/i })).toHaveValue(key);
     await user.click(screen.getByRole("button", { name: "Create route" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -333,7 +333,7 @@ describe("notification route authoring", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Workflow" })).toBeEnabled());
     await act(async () => { resolveOld(new Response(JSON.stringify({ workflows: [{ workflow_id: "wf-old", display_name: "Old project workflow" }] }), { status: 200, headers: { "Content-Type": "application/json" } })); });
     await user.click(screen.getByRole("combobox", { name: "Workflow" }));
-    expect(await screen.findByRole("option", { name: "New project workflow" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("option", { name: "New project workflow" })).toBeInTheDocument());
     expect(screen.queryByRole("option", { name: "Old project workflow" })).not.toBeInTheDocument();
     expect(save).not.toHaveBeenCalled();
   });

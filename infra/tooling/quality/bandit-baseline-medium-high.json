@@ -10415,32 +10415,6 @@
       "nosec": 0,
       "skipped_tests": 0
     },
-    "core/entrypoints/cli/tui/__init__.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 3,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
-    "core/entrypoints/cli/tui/form_app.py": {
-      "CONFIDENCE.HIGH": 0,
-      "CONFIDENCE.LOW": 0,
-      "CONFIDENCE.MEDIUM": 0,
-      "CONFIDENCE.UNDEFINED": 0,
-      "SEVERITY.HIGH": 0,
-      "SEVERITY.LOW": 0,
-      "SEVERITY.MEDIUM": 0,
-      "SEVERITY.UNDEFINED": 0,
-      "loc": 708,
-      "nosec": 0,
-      "skipped_tests": 0
-    },
     "core/entrypoints/cli/warm_runtime.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,

@@ -287,7 +287,7 @@ def test_apply_requires_review_emits_progress_and_preserves_lifecycle_metadata()
 
     assert refused.exit_code == 10
     assert applied.exit_code == 0, applied.output
-    assert "Impact plan for config.apply" in applied.output
+    assert "Impact plan: config apply" in applied.output
     assert "exact previous configuration and runtime" in applied.output
     assert "Verify runtime health" in applied.output
     assert [call[0] for call in runtime.configuration_service.calls] == [

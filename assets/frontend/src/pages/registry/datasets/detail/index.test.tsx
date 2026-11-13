@@ -273,7 +273,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     await userEvent.click(await screen.findByRole("tab", { name: "Saved queries" }));
 
     await openRowMenu("Disabled query");
-    expect(await screen.findByRole("menuitem", { name: "Preview" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Preview" })).toBeDisabled());
     expect(screen.getByRole("menuitem", { name: "Validate" })).toBeDisabled();
   });
 
@@ -676,9 +676,9 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
       within(dialog).getByRole("button", { name: "Save query" }),
     );
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Query name is already in use.",
-    );
+    ));
   });
 
   it("sends preview parameter values from the preview dialog", async () => {
@@ -866,10 +866,10 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     renderPage("/registry/datasets/events?tab=saved-queries");
 
     // Deep-linked: the saved-queries tab is selected on first render.
-    expect(await screen.findByRole("tab", { name: "Saved queries" })).toHaveAttribute(
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Saved queries" })).toHaveAttribute(
       "aria-selected",
       "true",
-    );
+    ));
     expect(screen.getAllByRole("tabpanel")).toHaveLength(1);
 
     await user.click(screen.getByRole("tab", { name: "Dataset scope" }));
@@ -904,7 +904,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     mockedFetchDatasetQueryTemplates.mockResolvedValue([]);
     renderPage("/registry/datasets/events?tab=saved-queries");
 
-    expect(await screen.findByText("No saved queries yet")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No saved queries yet")).toBeInTheDocument());
     expect(
       screen.getByText("Add one to reference this dataset from a dataset_query workflow step."),
     ).toBeInTheDocument();
@@ -939,17 +939,17 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     renderPage("/registry/datasets/events?tab=saved-queries");
 
     await user.click(await screen.findByRole("button", { name: "Add query" }));
-    expect(await screen.findByRole("dialog", { name: "Add query" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Add query" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await clickRowAction("Escape me", "Preview");
-    expect(await screen.findByRole("dialog", { name: "Escape me" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("dialog", { name: "Escape me" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 
     await clickRowAction("Escape me", "Delete");
-    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("alertdialog")).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   });

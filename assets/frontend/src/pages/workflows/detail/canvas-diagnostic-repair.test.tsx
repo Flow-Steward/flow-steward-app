@@ -74,7 +74,7 @@ describe("canvas diagnostic repair navigation", () => {
     const view = renderPage({ surface: "builder" });
     fireEvent.click(await screen.findByTitle("Open canvas validation issues"));
     fireEvent.click(await screen.findByRole("button", { name: /Normalize IF condition/ }));
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     const drawer = screen.getByRole("dialog", { name: "Step editor" });
     expect(within(drawer).getByDisplayValue("Check city")).toBeInTheDocument();
     expect(within(drawer).getByText("Unsupported raw IF condition")).toBeInTheDocument();
@@ -103,7 +103,7 @@ describe("canvas diagnostic repair navigation", () => {
 
     view.unmount();
     renderPage({ initialEntry: "/registry/workflows/weekly_report/builder?drawer=step&step_id=check_city" });
-    expect(await screen.findByRole("heading", { name: "Step editor" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Step editor" })).toBeInTheDocument());
     const operator = screen.getByRole("combobox", { name: "Operator" });
     expect(operator).toHaveTextContent("always true");
     fireEvent.click(operator);

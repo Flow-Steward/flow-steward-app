@@ -73,14 +73,14 @@ describe("Monitoring stuck job navigation", () => {
     expect(screen.getByText(/26 persisted stuck job/)).toBeInTheDocument();
     fireEvent.click(link);
 
-    expect(await screen.findByText("Status · Stuck")).toBeInTheDocument();
-    expect(await screen.findByText("Persisted stuck job 1")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Stuck")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Persisted stuck job 1")).toBeInTheDocument());
     // The link opens the Stuck status group, which holds stuck and orphaned runs.
     await waitFor(() => expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
       "/api/v2/jobs?page=1&per_page=25&status=stuck&status=orphaned&workspace_id=workspace-own",
     ));
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
-    expect(await screen.findByText("Persisted stuck job 2")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Persisted stuck job 2")).toBeInTheDocument());
     expect(screen.queryByText("Persisted stuck job 1")).not.toBeInTheDocument();
     expect(screen.getByText("Status · Stuck")).toBeInTheDocument();
     expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
@@ -99,8 +99,8 @@ describe("Monitoring stuck job navigation", () => {
     renderMonitoring();
 
     fireEvent.click(await screen.findByRole("link", { name: "View persisted stuck jobs" }));
-    expect(await screen.findByText("Status · Stuck")).toBeInTheDocument();
-    expect(await screen.findByRole("table", { name: "Jobs" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Stuck")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument());
     expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
       "/api/v2/jobs?page=1&per_page=25&status=stuck&status=orphaned&workspace_id=workspace-own",
     );

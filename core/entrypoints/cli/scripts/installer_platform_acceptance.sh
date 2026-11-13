@@ -151,8 +151,8 @@ else
   case "$scenario" in
     production)
       test_nodes=(
-        "${positive_test}[production-textual-bundled]"
-        "${positive_test}[production-textual-external_s3]"
+        "${positive_test}[production-default-bundled]"
+        "${positive_test}[production-default-external_s3]"
         "${positive_test}[production-plain-bundled]"
         "${positive_test}[production-plain-external_s3]"
         "${positive_test}[production-non_interactive-bundled]"
@@ -162,8 +162,8 @@ else
       ;;
     development)
       test_nodes=(
-        "${positive_test}[development-textual-bundled]"
-        "${positive_test}[development-textual-external_s3]"
+        "${positive_test}[development-default-bundled]"
+        "${positive_test}[development-default-external_s3]"
         "${positive_test}[development-plain-bundled]"
         "${positive_test}[development-plain-external_s3]"
         "${positive_test}[development-non_interactive-bundled]"
@@ -191,14 +191,14 @@ else
         "tests/integration/test_installer_disposable.py::test_ambiguous_owned_state_refuses_without_adoption"
       )
       expected_node_ids=(
-        "${positive_test}[production-textual-bundled]"
-        "${positive_test}[production-textual-external_s3]"
+        "${positive_test}[production-default-bundled]"
+        "${positive_test}[production-default-external_s3]"
         "${positive_test}[production-plain-bundled]"
         "${positive_test}[production-plain-external_s3]"
         "${positive_test}[production-non_interactive-bundled]"
         "${positive_test}[production-non_interactive-external_s3]"
-        "${positive_test}[development-textual-bundled]"
-        "${positive_test}[development-textual-external_s3]"
+        "${positive_test}[development-default-bundled]"
+        "${positive_test}[development-default-external_s3]"
         "${positive_test}[development-plain-bundled]"
         "${positive_test}[development-plain-external_s3]"
         "${positive_test}[development-non_interactive-bundled]"

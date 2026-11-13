@@ -194,7 +194,7 @@ def test_switch_requires_review_and_supports_plain_json_noninteractive_progress(
 
     assert refused.exit_code == 10
     assert plain.exit_code == 0, plain.output
-    assert "Impact plan for environment.switch" in plain.output
+    assert "Impact plan: environment switch" in plain.output
     assert "4.8.2 (unchanged)" in plain.output
     assert "Verify target runtime health" in plain.output
     assert machine.exit_code == 0, machine.output
@@ -307,7 +307,7 @@ def test_interactive_decision_prompt_follows_rendered_source_inventory(
     )
 
     assert result.exit_code == 0, result.output
-    assert result.output.index('"source_storage_inventory"') < result.output.index(
+    assert result.output.index("Source storage inventory") < result.output.index(
         "Existing artifact decision"
     )
     request = runtime.environment_service.calls[-1][1]

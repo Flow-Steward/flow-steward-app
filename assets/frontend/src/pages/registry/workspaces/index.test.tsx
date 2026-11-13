@@ -134,7 +134,7 @@ describe("RegistryWorkspacesPage", () => {
     mockedUseHasCapability.mockReturnValue(false);
     renderPage();
 
-    expect(await screen.findByText("Read only")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Read only")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "New workspace" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Move to trash" })).not.toBeInTheDocument();
   });
@@ -142,7 +142,7 @@ describe("RegistryWorkspacesPage", () => {
   it("names the page once, in its header, with no title on the table card", async () => {
     renderPage();
 
-    expect(await screen.findByRole("table", { name: "Workspace registry" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("table", { name: "Workspace registry" })).toBeInTheDocument());
     expect(screen.queryByRole("heading", { name: "Workspace registry" })).not.toBeInTheDocument();
   });
 
@@ -168,14 +168,14 @@ describe("RegistryWorkspacesPage", () => {
     expect(mockedCreateWorkspace.mock.calls[0]?.[0]).toEqual({
       workspace_key: "", display_name: "Name without description", description: "",
     });
-    expect(await screen.findByText("Workspace created.")).toBeVisible();
+    await waitFor(() => expect(screen.getByText("Workspace created.")).toBeVisible());
   });
 
   it("submits workspace creation without the unsupported status field", async () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("table", { name: "Workspace registry" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("table", { name: "Workspace registry" })).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "New workspace" }));
     await user.type(screen.getByRole("textbox", { name: "Workspace name" }), "Audit Workspace");
@@ -205,9 +205,9 @@ describe("RegistryWorkspacesPage", () => {
     await user.type(nameInput, "Release");
     await user.click(screen.getByRole("button", { name: /^Create$/ }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(
       "workspace_key 'release' already exists",
-    );
+    ));
     expect(nameInput).toHaveAttribute("aria-invalid", "true");
     expect(nameInput).toHaveAttribute("aria-describedby", "workspace-name-error");
   });
@@ -215,7 +215,7 @@ describe("RegistryWorkspacesPage", () => {
   it("renders friendly updated timestamps instead of raw ISO strings", async () => {
     renderPage();
 
-    expect(await screen.findByText("May 20, 2026, 6:00 AM")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("May 20, 2026, 6:00 AM")).toBeInTheDocument());
     expect(screen.queryByText("2026-05-20T06:00:00Z")).not.toBeInTheDocument();
   });
 
@@ -226,7 +226,7 @@ describe("RegistryWorkspacesPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("table", { name: "Workspace registry" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("table", { name: "Workspace registry" })).toBeInTheDocument());
     await waitFor(() => {
       expect(mockedFetchWorkspaces).toHaveBeenLastCalledWith({ search: "" });
     });
@@ -243,8 +243,8 @@ describe("RegistryWorkspacesPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    expect(await screen.findByRole("table", { name: "Workspace registry" })).toBeInTheDocument();
-    expect(await screen.findByText("Default workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("table", { name: "Workspace registry" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Default workspace")).toBeInTheDocument());
 
     await user.click(screen.getByRole("button", { name: "Actions for Default workspace" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move to trash" }));
@@ -252,7 +252,7 @@ describe("RegistryWorkspacesPage", () => {
     await waitFor(() => {
       expect(mockedFetchWorkspaceDeletePlan).toHaveBeenCalledWith("ws-1");
     });
-    expect(await screen.findByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument());
     expect(screen.getByText("Project One")).toBeInTheDocument();
     expect(screen.getByText("Workspace Dataset")).toBeInTheDocument();
     expect(screen.getByText("Workspace Connection")).toBeInTheDocument();
@@ -323,14 +323,14 @@ describe("RegistryWorkspacesPage", () => {
     try {
       renderPage();
 
-      expect(await screen.findByText("Audit Workspace")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText("Audit Workspace")).toBeInTheDocument());
       await user.click(screen.getByRole("button", { name: "Actions for Audit Workspace" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move to trash" }));
 
       await waitFor(() => {
         expect(mockedFetchWorkspaceDeletePlan).toHaveBeenCalledWith("ws-audit");
       });
-      expect(await screen.findByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument());
 
       await user.click(screen.getByRole("combobox", { name: "Delete action" }));
       await user.click(await screen.findByRole("option", { name: "Keep project by moving" }));
@@ -403,7 +403,7 @@ describe("RegistryWorkspacesPage", () => {
 
     await user.click(await screen.findByRole("button", { name: "Actions for Default workspace" }));
     await user.click(await screen.findByRole("menuitem", { name: "Move to trash" }));
-    expect(await screen.findByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Workspace delete plan" })).toBeInTheDocument());
 
     // Neither role is written by hand: `warning` resolves to status and `danger`
     // to alert, from DsAlert's own tone mapping.
@@ -446,11 +446,11 @@ describe("RegistryWorkspacesPage", () => {
     );
     renderPage();
 
-    expect(await screen.findByText("Release workspace")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Release workspace")).toBeInTheDocument());
 
     await user.type(screen.getByRole("searchbox", { name: "Search workspaces" }), "zzz");
 
-    expect(await screen.findByText("No workspaces match this search")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("No workspaces match this search")).toBeInTheDocument());
     expect(screen.getByText("Change or clear the search.")).toBeInTheDocument();
   });
 });

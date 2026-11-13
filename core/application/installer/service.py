@@ -9,7 +9,10 @@ from time import monotonic, sleep
 from uuid import uuid4
 
 from core.application.installer import profile_switch
-from core.application.installer.classification import classify_installation
+from core.application.installer.classification import (
+    classify_installation,
+    require_unambiguous_installation,
+)
 from core.application.installer.contracts import (
     BootstrapVerification,
     ImageCurrency,
@@ -152,34 +155,14 @@ class InstallerService:
         classification = classify_installation(evidence)
         operation_id = uuid4().hex
 
-        if classification.kind is InstallationKind.AMBIGUOUS:
-            detail = " ".join(classification.reasons)
-            if classification.resources:
-                detail += " Detected resources: " + ", ".join(classification.resources) + "."
+        try:
+            require_unambiguous_installation(classification)
+        except InstallerFailure as failure:
             log = self._open_log(operation_id)
-            remediation = (
-                "The existing pre-Phase3 stack was preserved. Do not delete its volumes or "
-                "configuration; continue managing it with ./flow-steward. Automatic adoption "
-                "is intentionally unsupported in Phase 3, so use a clean checkout and distinct "
-                "Compose project identity for a new installation."
-                if any(
-                    "no Phase 3 installer journal" in reason for reason in classification.reasons
-                )
-                else "The detected resources were preserved. Run ./flow-steward doctor and "
-                "resolve the reported identity or secret mismatch without deleting volumes."
-            )
-            failure = InstallerFailure(
-                code="ambiguous_installation_state",
-                cause=detail,
-                remediation=remediation,
-                exit_code=9,
-                retryable=False,
-                step="classification",
-                log_path=str(log.path),
-            )
+            failure.log_path = str(log.path)
             log.write(f"REFUSED {failure.code}: {failure.cause}")
             log.close()
-            raise failure
+            raise
 
         existing = self.state.load_journal()
         if existing is not None and existing.status == "recovery_required":
