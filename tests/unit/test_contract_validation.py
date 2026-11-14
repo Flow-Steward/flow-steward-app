@@ -2853,6 +2853,34 @@ def test_invoke_workflow_step_without_override_is_rejected_for_readiness_parity(
     ]
 
 
+def test_action_invoke_without_workflow_id_is_valid_and_keeps_action_rules():
+    """An extension workflow calls its own action by extension and action only: the
+    install comes from the run's connection slots (ADR 0068), so no workflow id."""
+    from core.application.registry.contract_validation_invoke import validate_invoke_workflow_step
+
+    action_step = {
+        "step_id": "build",
+        "step_kind": "invoke_workflow",
+        "override": {
+            "invoke_workflow": {"action": {"extension_id": "acme.store", "action_id": "build_index"}}
+        },
+    }
+    result = validate_invoke_workflow_step(
+        None, workflow_id="parent_wf", step=action_step, path_prefix="workflow.steps.build"
+    )
+    assert result == {"valid": True, "errors": [], "warnings": []}
+
+    malformed = {
+        **action_step,
+        "override": {"invoke_workflow": {"action": "build_index"}},
+    }
+    refused = validate_invoke_workflow_step(
+        None, workflow_id="parent_wf", step=malformed, path_prefix="workflow.steps.build"
+    )
+    assert refused["valid"] is False
+    assert refused["errors"][0]["code"] == "workflow.action.ref_invalid"
+
+
 def test_non_invoke_step_without_invoke_override_stays_valid():
     from core.application.registry.contract_validation_invoke import validate_invoke_workflow_step
 

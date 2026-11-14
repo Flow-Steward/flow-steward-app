@@ -57,6 +57,10 @@ def validate_invoke_workflow_step(
         HOOK_CONFIG_KEY,
         invoke_config_issues,
     )
+    from core.application.workflows.workflow_action_contract import (
+        ACTION_CONFIG_KEY,
+        action_config_issues,
+    )
 
     if HOOK_CONFIG_KEY in spec:
         # A hook names no child here: each project's binding does, and the
@@ -76,6 +80,24 @@ def validate_invoke_workflow_step(
         }
 
     child_workflow_id = str(spec.get("workflow_id") or "").strip()
+    if not child_workflow_id and ACTION_CONFIG_KEY in spec:
+        # An extension action named by extension and action only (ADR 0065,
+        # ADR 0068): the install comes from the run's pinned connection slots
+        # or the caller's action context, so there is no workflow id to check
+        # here. The action's own shape rules still apply.
+        action_issues = action_config_issues(spec)
+        return {
+            "valid": not action_issues,
+            "errors": [
+                _issue(
+                    code=issue["code"],
+                    message=issue["message"],
+                    path=f"{path_prefix}.{issue['path']}",
+                )
+                for issue in action_issues
+            ],
+            "warnings": [],
+        }
     if not child_workflow_id:
         errors.append(
             _issue(
