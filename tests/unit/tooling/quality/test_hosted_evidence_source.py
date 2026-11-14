@@ -57,7 +57,7 @@ select({github, owner: 'Flow-Steward', repo: 'flow-steward-app', repositoryId: 9
 
 def test_any_branch_of_this_history_is_imported_newest_first() -> None:
     release = _run(10, "a" * 40, "claude/release-batch-0.9.18")
-    verify = _run(11, "b" * 40, "codex/verify-release/release-batch-0.9.18")
+    verify = _run(11, "b" * 40, "verify/release-batch-0.9.18")
     sibling = _run(12, "c" * 40, "feature/elsewhere")
     artifacts = [
         _artifact(100, "quality", release, "2026-11-14T08:00:00Z"),

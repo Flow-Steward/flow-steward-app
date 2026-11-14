@@ -133,7 +133,9 @@ def read_recorded_run(directory: Path) -> RecordedRun:
         result = {}
     # A vitest result carries no map: vitest follows its own module graph.
     maps_expected = result.get("maps", True) is not False
-    if result.get("recorded") is not True or (maps_expected and not shards):
+    workers = result.get("workers", 0)
+    expected_shards = workers if isinstance(workers, int) and workers > 0 else 1
+    if result.get("recorded") is not True or (maps_expected and len(shards) < expected_shards):
         complete = False
     exitstatus = result.get("exitstatus")
     return RecordedRun(

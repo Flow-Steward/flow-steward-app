@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from core.application.tooling.quality.impact_map import ImpactMap, RecordedRun, read_recorded_run
 from core.application.tooling.quality.impact_plan_filter import planned_partition
 from core.application.tooling.quality.impact_vitest_result import failed_test_files
@@ -64,7 +66,8 @@ def test_an_unreadable_map_is_no_map(tmp_path: Path) -> None:
     assert ImpactMap.load(tmp_path / "missing.json") is None
 
 
-def test_recorder_maps_each_module_to_the_files_it_used(tmp_path: Path) -> None:
+@pytest.mark.parametrize("workers", [0, 2])
+def test_recorder_maps_each_module_to_the_files_it_used(tmp_path: Path, workers: int) -> None:
     project = tmp_path / "project"
     (project / "pkg").mkdir(parents=True)
     (project / "tests").mkdir()
@@ -101,6 +104,7 @@ def test_recorder_maps_each_module_to_the_files_it_used(tmp_path: Path) -> None:
             "core.application.tooling.quality.impact_recorder",
             "--fs-test-impact-output",
             str(output),
+            *(("-n", str(workers)) if workers else ("-p", "no:xdist")),
             "tests",
         ),
         cwd=project,
