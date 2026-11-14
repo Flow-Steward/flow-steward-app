@@ -2431,10 +2431,11 @@ run_check_unit_tests_with_coverage() {
     # ADR 0068: verify.py hands a selected Tier 3 suite its plan. The suite then
     # runs only the planned modules of its partition and records, per module, the
     # repository files they used, which the next plan reads.
-    local impact_args=()
+    # Workers then load rewritten test bytecode instead of each rewriting all of it.
+    local impact_args=(-p core.application.tooling.quality.assert_cache_warmup)
     local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
     if [[ -n "${selection_plan}" && -f "${selection_plan}" ]]; then
-      impact_args=(-p core.application.tooling.quality.impact_recorder
+      impact_args+=(-p core.application.tooling.quality.impact_recorder
         --fs-test-impact-output "$(dirname -- "${selection_plan}")/run")
       local planned_modules=""
       planned_modules="$("${PYTHON_BIN}" -m core.application.tooling.quality.impact_plan_filter \
@@ -2459,9 +2460,7 @@ run_check_unit_tests_with_coverage() {
     local selection_shell="" workspace_args_shell="" coverage_dir_shell=""
     printf -v selection_shell "%q " "${selection[@]}"
     local impact_args_shell=""
-    if [[ ${#impact_args[@]} -gt 0 ]]; then
-      printf -v impact_args_shell "%q " "${impact_args[@]}"
-    fi
+    printf -v impact_args_shell "%q " "${impact_args[@]}"
     if [[ ${#workspace_args[@]} -gt 0 ]]; then
       printf -v workspace_args_shell "%q " "${workspace_args[@]}"
     fi
