@@ -12,6 +12,7 @@ from core.application.jobs.workflow_run_projection import (
     ArtifactResolverUnavailable,
     build_public_result,
 )
+from core.application.jobs.workflow_result_links import with_artifact_downloads
 from core.application.management.errors import ACCESS_DENIED_MESSAGE
 from core.application.management.query_services_approval import ApprovalQueryService
 from core.application.observability_vocabulary import job_status_filter_statuses
@@ -650,7 +651,9 @@ class JobQueryServiceCoreMixin:
             except ArtifactResolverUnavailable as exc:
                 raise ServiceUnavailableError("Public workflow result is unavailable") from exc
             workflow_result = (
-                PublicWorkflowResultV1.model_validate(redact(public_result.model_dump(mode="json")))
+                PublicWorkflowResultV1.model_validate(
+                    with_artifact_downloads(redact(public_result.model_dump(mode="json")), job_id)
+                )
                 if public_result is not None
                 else None
             )

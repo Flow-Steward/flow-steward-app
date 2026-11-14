@@ -376,6 +376,20 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
   );
 }
 
+/**
+ * The run's final files as file items. The server adds each file's download
+ * address on this job; the page never builds one itself. A returned collection
+ * shows each of its files.
+ */
+function resultArtifactFiles(artifacts: Record<string, unknown>): Entity[] {
+  return Object.entries(artifacts).flatMap(([key, raw]) =>
+    (Array.isArray(raw) ? raw : [raw]).map((item) => {
+      const file = objectOrEmpty(item) as Entity;
+      return { ...file, filename: firstReadableText(file.filename, key) };
+    }),
+  );
+}
+
 function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
   const reportLabels = useReportLabels();
@@ -401,7 +415,7 @@ function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryCont
       {hasArtifacts ? (
         <section aria-label={t("react.workflows.final_artifacts", "Final artifacts")} className="mt-3 space-y-2">
           <h3 className="text-sm font-semibold fs-ink-primary">{t("react.workflows.final_artifacts", "Final artifacts")}</h3>
-          <ReadableDataFields value={artifacts} />
+          <ReadableFileList files={resultArtifactFiles(artifacts)} />
         </section>
       ) : null}
     </DsCard>
