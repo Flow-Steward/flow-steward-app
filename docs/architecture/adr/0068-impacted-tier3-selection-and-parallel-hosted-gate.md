@@ -48,8 +48,10 @@ commit, and nothing is accepted that the policy would not accept locally.
   (following importers no test used up to used ones); failing modules of the base
   run again; a non-Python file also selects tests naming it. Gate tooling, declared
   `full_run_paths`, removed modules, shared files and the root conftest run the
-  whole suite, as does a selection above 60% of the suite. A full run replaces the
-  map, a selected run refreshes the modules it ran.
+  whole suite, as does a selection above 60% of the suite. Only a whole-suite run
+  records the map (recording cost about a third of a hosted whole run); a selected
+  run reports its failing modules only, and test modules added or changed since the
+  map was recorded run every time until the next whole-suite run records them.
 - `vitest-related` (frontend-tests): `vitest related` on the changed frontend
   sources and the base's failing test files; any other input change runs it whole.
 
