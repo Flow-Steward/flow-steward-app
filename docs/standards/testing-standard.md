@@ -307,7 +307,7 @@ number of pytest-xdist workers with `--dist loadgroup` (ADR 0037). Tier 1
 ## Verification Evidence
 
 - Evidence reuse `MUST` match check ID, owner tier, input fingerprint, runtime identity, status, and required trust level.
-- `pip-audit` acceptance evaluation and evidence fingerprints `MUST` use the same UTC calendar day. An acceptance remains valid through its documented expiry date; a new UTC day invalidates prior-day `pip-audit` evidence even for the same commit. Callers `MUST NOT` override this clock identity, and the registry `MUST` fingerprint the acceptance evaluator source.
+- `pip-audit` acceptance evaluation and evidence fingerprints `MUST` use the same UTC calendar day. An acceptance remains valid through its documented expiry date; a new UTC day invalidates prior-day `pip-audit` evidence even for the same commit. Callers `MUST NOT` override this clock identity, and the registry `MUST` fingerprint the acceptance evaluator source. A `--full` gate that crosses UTC midnight `MUST` re-evaluate Tier 2 for the new day before its final cumulative read, rather than fail it on prior-day `pip-audit` evidence.
 - `pip-audit` `MUST` audit every lock file a product image installs exactly as pinned (hashed, no resolution), in addition to resolving the unpinned requirements; a lock added to `infra/docker/Dockerfile` `MUST` join `product_locks` in `run_pip_audit`. Findings are labelled by lock (`runtime-lock`, `compact-lock`, …) and accepted per label like any other.
 - Missing, corrupt, failed, incomplete, or infrastructure-failed evidence `MUST NOT` be reused as a pass.
 - `--evidence-mode off` `MAY` be used for diagnosis, but its results `MUST NOT` be presented as retained reusable release evidence.

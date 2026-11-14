@@ -484,32 +484,45 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
     def bind_connection_field(
         self, connection_id: Any, scope: ScopeContext, *, field: Any, secret_id: Any
     ) -> dict[str, Any]:
+        self.bind_connection_fields(connection_id, scope, bindings={field: secret_id})
+        return self.connection_approval_status(connection_id, scope)
+
+    def bind_connection_fields(
+        self, connection_id: Any, scope: ScopeContext, *, bindings: dict[Any, Any]
+    ) -> None:
+        """Bind stored secrets to credential fields of one connection, all or none.
+
+        A binding never approves anything: a connection that uses a stored secret
+        stays unapproved until a person approves it.
+        """
         require_secret_bind(scope)
-        validated_field = _validated_field(field)
+        validated = {_validated_field(field): secret_id for field, secret_id in bindings.items()}
+        if not validated:
+            raise ServiceValidationError("bindings: choose at least one stored secret")
         _kind, actor = actor_identity(scope)
         with self._transaction() as (_conn, cur):
             connection = self._locked_connection(cur, scope, connection_id)
-            secret = self._secret_in_scope(cur, scope, secret_id, lock=True)
-            repository.bind_connection_field(
-                cur,
-                account_id=scope.account_id,
-                secret_id=secret["id"],
-                connection_id=connection["connection_id"],
-                field_name=validated_field,
-                actor=actor,
-            )
+            for field, secret_id in sorted(validated.items()):
+                secret = self._secret_in_scope(cur, scope, secret_id, lock=True)
+                repository.bind_connection_field(
+                    cur,
+                    account_id=scope.account_id,
+                    secret_id=secret["id"],
+                    connection_id=connection["connection_id"],
+                    field_name=field,
+                    actor=actor,
+                )
+                self._audit(
+                    cur,
+                    scope,
+                    "bind",
+                    {
+                        "secret_id": secret["id"],
+                        "connection_id": connection["connection_id"],
+                        "field": field,
+                    },
+                )
             self._write_projection(cur, connection)
-            self._audit(
-                cur,
-                scope,
-                "bind",
-                {
-                    "secret_id": secret["id"],
-                    "connection_id": connection["connection_id"],
-                    "field": validated_field,
-                },
-            )
-        return self.connection_approval_status(connection_id, scope)
 
     def unbind_connection_field(
         self, connection_id: Any, scope: ScopeContext, *, field: Any

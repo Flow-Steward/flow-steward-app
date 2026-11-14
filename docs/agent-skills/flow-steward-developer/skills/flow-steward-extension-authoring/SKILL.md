@@ -69,6 +69,33 @@ Declare the extension's outbound network access under `egress` (an extension
 that makes no outbound calls declares `egress: {}`); without it, installation
 warns `egress_undeclared`.
 
+### Pages that read through a connection
+
+When the extension's data lives in its own remote service behind a project
+connection, show it on a page with connection queries instead of a connection
+form with buttons (ADR 0067; host contract 1.7.0, SDK 0.5.0):
+
+- In `ui/queries/queries.yaml`, give each such query
+  `connection: {connection_type_ids: [<own type>, ...]}` and
+  `handler.mode: extension`; never name it in `external_effects`. Set
+  `runtime.compatibility.platform_min: 1.7.0`.
+- Give every page that shows one the same `connection` key (types accepted by
+  each of its connection queries); optionally `refresh_seconds` (10..3600).
+  Keep the `connection_form` on its own page. The host renders the connection
+  selector and sends the selected connection with the page's queries and
+  actions.
+- Read it with `connection_from_payload(payload)` from
+  `flowsteward_extension_sdk` (0.5.0); it returns the connection of an action
+  or a query, or `None`.
+- A connection query only reads, runs at most 30 seconds, must not echo a
+  secret, and reports an unreachable service as a domain failure (exit 2).
+  Commands, events and project-state updates from it are refused.
+- A detail page takes URL page parameters: `p.<name>` keys of the page URL
+  arrive in every query's `params` (validate them; they are untrusted).
+
+See `docs/extension-authoring-agent-playbook.md` "Pages That Read Through A
+Connection" for the full example.
+
 ### Task ingress
 
 Declare these reserved action/query contracts and implement their runtime

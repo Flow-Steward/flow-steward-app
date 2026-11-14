@@ -113,6 +113,7 @@ Per [ADR 0066](../architecture/adr/0066-global-roles-and-secret-provider-boundar
 - `MUST` keep allowlists, auth, and scope checks explicit for external integrations.
 - `MUST` treat extension and webhook payloads as untrusted input.
 - `MUST` treat every extension the same way: no system / official / third-party tier and no host policy file naming extensions. Runtime grants come only from the extension's manifest `runtime_grants`, accepted by `own_runtime_grants` (scope `owning_extension`, provider key equal to the extension's own id); a declaration over another extension's namespace fails validation (2026-10-01).
+- `MUST` resolve a project connection for an extension operation (action, resource query, page query) only through the host's one connection resolver, from `target.connection_id` alone, after project access, account, project, extension, install, enabled state, connection type and the approval of the connection's configuration (ADR 0057) are checked; the browser never supplies connection config or secret values. A query that runs with a connection is operator or admin only, passes the reflected-secret guard before its result is logged or returned, and cannot emit commands, events or project-state updates (ADR 0067).
 - `MUST` validate or constrain tool execution inputs before execution on sensitive paths.
 - `SHOULD` design new integrations as deny-by-default.
 - `SHOULD` keep security-relevant integration behavior documented in standards or ADRs.

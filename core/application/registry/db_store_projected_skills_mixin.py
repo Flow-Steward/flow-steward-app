@@ -9,7 +9,8 @@ from typing import Any
 from core.application.registry.db_store_common import json
 
 
-def _projected_skill_contract_rows(value: Any, *, default_required: bool) -> list[dict[str, Any]]:
+def projected_skill_contract_rows(value: Any, *, default_required: bool) -> list[dict[str, Any]]:
+    """Normalize a bundle skill's declared inputs or outputs to registry I/O rows."""
     rows: list[dict[str, Any]] = []
     for item in value if isinstance(value, list) else []:
         if not isinstance(item, dict):
@@ -48,10 +49,8 @@ class RegistryDBStoreProjectedSkillsMixin:
         ):
             raise ValueError("An active projected skill identity is required")
 
-        inputs = _projected_skill_contract_rows(data.get("expected_inputs"), default_required=False)
-        outputs = _projected_skill_contract_rows(
-            data.get("expected_outputs"), default_required=True
-        )
+        inputs = projected_skill_contract_rows(data.get("expected_inputs"), default_required=False)
+        outputs = projected_skill_contract_rows(data.get("expected_outputs"), default_required=True)
         with self._transaction() as cur:
             cur.execute(
                 """SELECT release_id FROM extension_installs

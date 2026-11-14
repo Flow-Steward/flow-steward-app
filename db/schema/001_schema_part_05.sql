@@ -63,7 +63,7 @@ CREATE TABLE public.workflow_entrypoints (
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT workflow_entrypoints_auth_mode_check CHECK ((auth_mode = ANY (ARRAY['shared_secret_header'::text, 'bearer_token'::text, 'basic_auth'::text, 'hmac_sha256'::text]))),
+    CONSTRAINT workflow_entrypoints_auth_mode_check CHECK ((auth_mode = ANY (ARRAY['shared_secret_header'::text, 'bearer_token'::text, 'basic_auth'::text, 'hmac_sha256'::text, 'webhook_signature'::text]))),
     CONSTRAINT workflow_entrypoints_entry_kind_check CHECK ((entry_kind = ANY (ARRAY['webhook'::text, 'mcp'::text, 'api'::text]))),
     CONSTRAINT workflow_entrypoints_idempotency_mode_check CHECK ((idempotency_mode = ANY (ARRAY['none'::text, 'header'::text]))),
     CONSTRAINT workflow_entrypoints_max_body_bytes_check CHECK (

@@ -558,6 +558,7 @@ def run_extension_invocation(
     artifact_outputs: list[dict] | None = None,
     dataset_inputs: list[dict] | None = None,
     dataset_outputs: list[dict] | None = None,
+    timeout_ceiling_seconds: int | None = None,
 ) -> dict:
     """Run an extension in an isolated subprocess.
 
@@ -623,6 +624,10 @@ def run_extension_invocation(
         }
 
     timeout = _resolved_entrypoint_timeout(entrypoint, timeout_seconds)
+    if timeout_ceiling_seconds is not None:
+        # A caller's upper bound wins over any timeout_policy (a page query that
+        # holds a connection runs at most 30 seconds, ADR 0067).
+        timeout = min(timeout, max(1, int(timeout_ceiling_seconds)))
 
     breaker_identity = _breaker_identity(extension, ctx) if extension_key else ("", "")
     if breaker_identity is None:

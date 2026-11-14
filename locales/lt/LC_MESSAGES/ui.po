@@ -26982,6 +26982,9 @@ msgstr "Slaptų duomenų saugykla nepasiekiama. Bandykite dar kartą, o jei prob
 msgid "react.extensions.secret_storage_failed"
 msgstr "Slapta reikšmė neišsaugota. Bandykite dar kartą, o jei problema kartojasi, kreipkitės į administratorių."
 
+msgid "react.extensions.connection_secrets_not_approved"
+msgstr "Šis ryšys naudoja saugomas paslaptis, kurios jam dar nepatvirtintos. Pakeitus ryšį, patvirtinimo reikia iš naujo. Ryšio kortelėje pasirinkite „Patvirtinti paslapčių naudojimą“, tada paleiskite veiksmą dar kartą."
+
 msgid "react.extensions.connection_storage_unavailable"
 msgstr "Ryšio nepavyko išsaugoti. Bandykite dar kartą, o jei problema kartojasi, kreipkitės į administratorių."
 
@@ -30849,3 +30852,33 @@ msgstr "Generuojama iš naujo…"
 
 msgid "react.workflows.rotating_credential"
 msgstr "Keičiama…"
+
+msgid "react.extensions.page_connection.operator_only"
+msgstr "Šio puslapio duomenis gali įkelti tik operatorius arba administratorius."
+
+msgid "react.extensions.page_connection.none"
+msgstr "Šiame projekte nėra ryšio „{type}“."
+
+msgid "react.extensions.page_connection.none_help"
+msgstr "Sukurkite jį ir grįžkite į šį puslapį."
+
+msgid "react.extensions.page_connection.open_setup"
+msgstr "Atidaryti ryšius"
+
+msgid "react.extensions.page_connection.label"
+msgstr "Ryšys"
+
+msgid "react.extensions.page_connection.select"
+msgstr "Pasirinkite ryšį"
+
+msgid "react.extensions.page_connection.help"
+msgstr "Šis puslapis duomenis gauna per pasirinktą ryšį."
+
+msgid "react.extensions.page_connection.choose"
+msgstr "Pasirinkite ryšį, per kurį šis puslapis gauna duomenis."
+
+msgid "react.extensions.page_refresh.refresh"
+msgstr "Atnaujinti"
+
+msgid "react.extensions.page_refresh.stopped"
+msgstr "Automatinis atnaujinimas sustabdytas po nepavykusio įkėlimo. Spauskite „Atnaujinti“, kad bandytumėte dar kartą."

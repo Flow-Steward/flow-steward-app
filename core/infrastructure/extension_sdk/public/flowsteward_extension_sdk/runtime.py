@@ -216,3 +216,55 @@ def runtime_context_from_payload(payload: dict[str, Any] | None) -> RuntimeConte
         artifact_storage=artifact_storage,
         raw=dict(context),
     )
+
+
+@dataclass(frozen=True)
+class RuntimeConnection:
+    """The project connection the host resolved for this action or query.
+
+    ``secrets`` holds the connection's secret values (or the extension-owned
+    OAuth access token); ``repr`` never shows them.
+    """
+
+    connection_id: str = ""
+    connection_type: str = ""
+    display_name: str = ""
+    environment: str = ""
+    credential_revision: int = 0
+    config: dict[str, Any] = field(default_factory=dict)
+    secrets: dict[str, Any] = field(default_factory=dict, repr=False)
+
+
+def _connection_target(root: dict[str, Any]) -> dict[str, Any]:
+    action = root.get("action")
+    if root.get("mode") == "action" and isinstance(action, dict):
+        target = action.get("target")
+    else:
+        target = root.get("target")
+    return target if isinstance(target, dict) else {}
+
+
+def connection_from_payload(payload: dict[str, Any] | None) -> RuntimeConnection | None:
+    """The connection of an action (``action.target``) or a query (root ``target``).
+
+    ``None`` when the host gave the invocation no resolved connection.
+    """
+    root = payload if isinstance(payload, dict) else {}
+    connection = _connection_target(root).get("connection")
+    if not isinstance(connection, dict) or not _text(connection.get("connection_id")):
+        return None
+    try:
+        revision = int(connection.get("credential_revision") or 0)
+    except (TypeError, ValueError):
+        revision = 0
+    config = connection.get("config")
+    secrets = connection.get("secrets")
+    return RuntimeConnection(
+        connection_id=_text(connection.get("connection_id")),
+        connection_type=_text(connection.get("connection_type")),
+        display_name=_text(connection.get("display_name")),
+        environment=_text(connection.get("environment")),
+        credential_revision=revision,
+        config=dict(config) if isinstance(config, dict) else {},
+        secrets=dict(secrets) if isinstance(secrets, dict) else {},
+    )

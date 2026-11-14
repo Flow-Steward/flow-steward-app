@@ -24,11 +24,11 @@ UPSTREAM_DIGESTS = frozenset(
 )
 DEPENDENCY_PATCH = {
     "mcp==1.29.0": "mcp==1.30.0",
-    "opentelemetry-api~=1.37.0": "opentelemetry-api==1.45.1",
-    "opentelemetry-sdk~=1.37.0": "opentelemetry-sdk==1.45.1",
-    "opentelemetry-exporter-otlp-proto-http~=1.37.0": "opentelemetry-exporter-otlp-proto-http==1.45.1",
-    "opentelemetry-instrumentation-requests~=0.58b0": "opentelemetry-instrumentation-requests==0.66b1",
-    "opentelemetry-instrumentation-threading~=0.58b0": "opentelemetry-instrumentation-threading==0.66b1",
+    "opentelemetry-api~=1.37.0": "opentelemetry-api==1.45.2",
+    "opentelemetry-sdk~=1.37.0": "opentelemetry-sdk==1.45.2",
+    "opentelemetry-exporter-otlp-proto-http~=1.37.0": "opentelemetry-exporter-otlp-proto-http==1.45.2",
+    "opentelemetry-instrumentation-requests~=0.58b0": "opentelemetry-instrumentation-requests==0.66b2",
+    "opentelemetry-instrumentation-threading~=0.58b0": "opentelemetry-instrumentation-threading==0.66b2",
 }
 
 

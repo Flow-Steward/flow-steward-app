@@ -23,6 +23,31 @@ insufficient: the release must implement this execution scope and its grants.
 Published extension and SDK artifacts require their own compatible releases;
 upgrading the platform does not modify installed extension bundles.
 
+## Reading the connection
+
+An action, and a page query that declares `connection` (host contract 1.7.0,
+ADR 0067), runs with the project connection the host resolved for it. The host
+puts it at `action.target.connection` for an action and at the envelope's root
+`target.connection` for a query; `connection_from_payload` reads either:
+
+```python
+from flowsteward_extension_sdk import connection_from_payload
+
+connection = connection_from_payload(payload)
+if connection is None:
+    ...  # no connection for this invocation
+base_url = connection.config["base_url"]
+token = connection.secrets["service_token"]
+```
+
+`RuntimeConnection` carries `connection_id`, `connection_type`, `display_name`,
+`environment`, `credential_revision`, `config` and `secrets` (secret values or
+the extension-owned OAuth access token; `repr` never shows them). A query that
+holds a connection only reads: the host refuses commands, events and
+project-state updates from it, checks its result for echoed secret values, and
+stops it after 30 seconds. Report an unreachable service as a domain failure
+(exit code 2, `ok: false`) so the install's circuit breaker is not tripped.
+
 ## Reporting progress
 
 A long operation can tell the person watching the run what it is doing.

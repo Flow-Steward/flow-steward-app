@@ -703,6 +703,8 @@ export function ExtensionsHubPage() {
             projectOptions={projectOptions}
             projectState={projectStateQuery.data || []}
             pageRequiresProject={activePageRequiresProject}
+            pageConnection={hubState.pageConnection}
+            pageRefresh={hubState.pageRefresh}
             projectsQuery={projectsQuery}
             rememberedProjectId={rememberedProjectId}
             selectedProjectId={activePageProjectId}

@@ -21,6 +21,8 @@ export type ExtensionActionResult = {
   ok: boolean;
   payload: unknown;
   scopeKey?: string;
+  /** The page component whose control ran the action; its result shows beside it. */
+  componentId?: string;
 };
 
 export type ExtensionEffectRecovery = {

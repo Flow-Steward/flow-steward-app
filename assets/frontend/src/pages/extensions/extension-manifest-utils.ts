@@ -285,6 +285,9 @@ export function manifestPageRequiresProject(
   if (page?.project_scoped === false) {
     return false;
   }
+  if (objectOrEmpty(page?.connection).connection_type_ids) {
+    return true;
+  }
   if (!extensionProjectRequired) {
     return false;
   }

@@ -23,9 +23,6 @@ from core.application.management.errors import (
 )
 from core.application.management.guards import require_project_access
 from core.application.management.scope import ScopeContext, normalize_scope, scope_audit_fields
-from core.infrastructure.extension_runtime.extension_invocation_audit import (
-    log_host_extension_invocation,
-)
 
 from .lifecycle_ports import ERR_EXTENSION_NOT_FOUND
 from .operation_audit import _log_action_invocation
@@ -53,12 +50,13 @@ from .operation_support import (
     process_extension_response_envelope,
 )
 from .operation_targets import (
-    _direct_action_connection_target,
     _direct_action_project_id,
     _load_direct_action_connection_row,
     _require_direct_action_project_access,
     _target_connection_id,
     _target_connection_id_for_external_effect,
+    operation_install_id,
+    resolve_operation_connection,
 )
 from .secret_reflection import (
     SecretExposureFinding as _SecretExposureFinding,
@@ -428,12 +426,7 @@ class ExtensionOperationService:
             )
             raise ServiceValidationError(message)
         self._require_action_project_access(context, project_id)
-        extension_install_id = str(
-            context.extension.get("extension_install_id")
-            or context.extension.get("install_id")
-            or ""
-        ).strip()
-        if not extension_install_id:
+        if not operation_install_id(context.extension):
             raise ServiceValidationError("extension_install_id is required for extension actions")
         if declaration:
             connection_id = _target_connection_id_for_external_effect(context.target)
@@ -441,40 +434,28 @@ class ExtensionOperationService:
                 raise ServiceValidationError(
                     "target.connection_id is required for external-effect actions"
                 )
-        runtime_connection = _direct_action_connection_target(
+        resolved = resolve_operation_connection(
             context.bl,
             connection_id=connection_id,
+            project_id=project_id,
+            scope=context.resolved_scope,
+            extension=context.extension,
+            extension_id=context.extension_id,
             account_id=str(context.audit.get("account_id") or DEFAULT_ACCOUNT_ID).strip()
             or DEFAULT_ACCOUNT_ID,
-            project_id=project_id,
-            extension_id=context.extension_id,
-            extension_install_id=extension_install_id,
             required_connection_type_ids=context.required_connection_type_ids,
             required_oauth_scopes=context.required_oauth_scopes,
             browser_safe=context.browser_bootstrap,
             get_project_by_id=self._get_project_by_id,
+            authorized_project_ids=context.authorized_project_ids,
         )
         context.target = {
             **context.target,
-            "connection_id": runtime_connection["connection_id"],
-            "connection": runtime_connection,
+            "connection_id": resolved.connection_id,
+            "connection": resolved.connection,
         }
-        context.audit = {
-            **context.audit,
-            "project_id": project_id,
-            "connection_id": runtime_connection["connection_id"],
-        }
-        context.runtime_ctx.update(
-            {
-                "project_id": project_id,
-                "connection_id": runtime_connection["connection_id"],
-                "extension_install_id": extension_install_id,
-                "oauth_configuration_id": str(
-                    runtime_connection.get("oauth_configuration_id") or ""
-                ).strip(),
-                "oauth_provider_id": str(runtime_connection.get("oauth_provider_id") or "").strip(),
-            }
-        )
+        context.audit = {**context.audit, **resolved.audit_fields()}
+        context.runtime_ctx.update(resolved.runtime_context())
 
     def _require_action_project_access(
         self,
@@ -866,76 +847,9 @@ class ExtensionOperationService:
         *,
         scope: ScopeContext | None = None,
     ) -> ExtensionQueryResultView:
-        _ = normalize_scope(scope)
-        extension, bl = self._resolve_extension_runtime_record(extension_id)
-        if not extension:
-            raise ServiceNotFoundError(ERR_EXTENSION_NOT_FOUND)
-        self._assert_operation_within_extension_scope(
-            extension, operation_type="query", operation_id=query_id
-        )
+        from .operation_query import execute_extension_query
 
-        handler_mode = self._extension_operation_handler_mode(
-            extension, operation_type="query", operation_id=query_id
-        )
-        if extension.get("enabled") is False and handler_mode == "extension":
-            raise ServiceConflictError(ERR_EXTENSION_DISABLED)
-
-        from core.infrastructure.extension_runtime import extension_runtime
-
-        runtime_facade = cast(Any, extension_runtime)
-        run_extension_query = cast(
-            Callable[..., dict[str, Any]], runtime_facade.run_extension_query
-        )
-
-        audit = scope_audit_fields(scope)
-        runtime_ctx: dict[str, Any] = {**audit}
-        if bl is not None:
-            runtime_ctx["logger"] = bl
-        invocation = run_extension_query(
-            extension,
-            query_id=query_id,
-            page_id=body.page_id,
-            component_id=body.component_id,
-            context=body.context,
-            params=body.params,
-            timeout_seconds=body.timeout_seconds,
-            runtime_context=runtime_ctx,
-            scope=scope,
-        )
-        log_host_extension_invocation(
-            bl=bl,
-            extension=extension,
-            extension_id=extension_id,
-            invocation_type=f"query:{query_id}",
-            request=body.model_dump(),
-            invocation=invocation,
-            runtime_context=runtime_ctx,
-            request_context={"source": "extension_binding_service.execute_query"},
-            query_id=query_id,
-        )
-        if invocation.get("status") != "succeeded":
-            raise ServiceError(
-                "Extension query failed",
-                status_code=self._extension_operation_failure_status(invocation),
-                payload={"extension_id": extension_id, "query_id": query_id, "query": invocation},
-            )
-
-        # Host contract v1.1 — normalize response and process commands/events
-        process_extension_response_envelope(
-            invocation,
-            extension,
-            extension_id,
-            scope=scope,
-            audit=audit,
-            bl=bl,
-            get_logger=self._get_operation_store,
-            event_command_service_factory=self._event_command_service_factory,
-            command_dispatch_service_factory=self._command_dispatch_service_factory,
-        )
-
-        return ExtensionQueryResultView(
-            extension_id=extension_id, query_id=query_id, query=invocation
-        )
+        return execute_extension_query(self, extension_id, query_id, body, scope=scope)
 
 
 __all__ = ["ExtensionOperationService"]

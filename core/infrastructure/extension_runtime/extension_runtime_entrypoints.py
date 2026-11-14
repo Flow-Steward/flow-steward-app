@@ -234,6 +234,7 @@ def run_extension_query(
     timeout_seconds: int | None = None,
     runtime_context: dict | None = None,
     scope: ScopeContext | None = None,
+    timeout_ceiling_seconds: int | None = None,
 ) -> dict:
     availability_failure = extension_runtime_availability_failure(extension)
     if availability_failure is not None:
@@ -328,6 +329,7 @@ def run_extension_query(
         request_payload=request_payload,
         timeout_seconds=timeout_seconds,
         runtime_context=runtime_context,
+        timeout_ceiling_seconds=timeout_ceiling_seconds,
     )
     invocation["operation_type"] = "query"
     invocation["operation_id"] = normalized_query_id

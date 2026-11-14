@@ -6153,3 +6153,89 @@ def test_inline_python_entrypoint_is_reviewed_like_a_file(tmp_path):
     inline_compiled = compile_extension_bundle(inline)
     assert _code_issue_codes(inline_compiled) == ["extension_code_forbidden"]
     assert "<entrypoint -c>" in inline_compiled["validation_errors"][0]["message"]
+
+
+def _resource_query_with_connection(query_response: dict) -> tuple[dict, MagicMock]:
+    from types import SimpleNamespace
+
+    from core.infrastructure.extension_runtime import extension_runtime_helpers as helpers
+
+    extension = {
+        "extension_key": "acme.notifier",
+        "query_definitions": [{"query_id": "list_channels", "handler": {"mode": "extension"}}],
+    }
+    with (
+        patch.object(
+            helpers, "resolve_extension_runtime_record", return_value=(extension, MagicMock())
+        ),
+        patch.object(helpers, "build_extension_compiled_manifest", return_value={}),
+        patch(
+            "core.application.extensions.operation_support.extension_operation_contract",
+            return_value=SimpleNamespace(
+                connection_type_ids=["acme_api"], required_oauth_scopes=[]
+            ),
+        ),
+        patch(
+            "core.application.extensions.operation_targets._direct_action_connection_target",
+            return_value={"connection_id": "conn-1", "secrets": {"api_token": "tok-9f8e7d6c5b4a3"}},
+        ),
+        patch(
+            "core.infrastructure.extension_runtime.extension_runtime.run_extension_query",
+            return_value={"status": "succeeded", "response": query_response},
+        ) as run_query,
+    ):
+        provider = helpers.get_extension_query_provider("install-1", get_logger_only=lambda: None)
+        result = provider(
+            {
+                "query_id": "list_channels",
+                "scope": {"account_id": "acct-1", "project_id": "7", "connection_id": "conn-1"},
+                "query_manifest": {
+                    "operation_id": "list_channels",
+                    "connection_type_id": "acme_api",
+                },
+            }
+        )
+    return result, run_query
+
+
+def test_resource_query_with_a_connection_refuses_a_result_that_echoes_its_secret():
+    result, run_query = _resource_query_with_connection(
+        {"ok": True, "result": {"items": [{"id": "c1", "label": "token tok-9f8e7d6c5b4a3"}]}}
+    )
+
+    assert run_query.call_count == 1
+    assert run_query.call_args.kwargs["target"]["connection_id"] == "conn-1"
+    assert result["items"] == []
+    assert result["error_code"] == "extension_secret_exposure_blocked"
+    assert "tok-9f8e7d6c5b4a3" not in json.dumps(result)
+
+
+def test_resource_query_with_a_connection_returns_a_clean_result():
+    result, _ = _resource_query_with_connection(
+        {"ok": True, "result": {"items": [{"id": "c1", "label": "General"}], "total": 1}}
+    )
+
+    assert result == {"items": [{"id": "c1", "label": "General"}], "next_cursor": "", "total": 1}
+
+
+def test_execute_resource_query_reports_a_withheld_result_as_failed():
+    from core.application.extensions.extension_projection_v2 import execute_resource_query
+
+    result = execute_resource_query(
+        contract={"resource_query_manifest": [{"query_id": "list_channels"}]},
+        query_id="list_channels",
+        provider=lambda _request: {
+            "items": [],
+            "next_cursor": "",
+            "total": 0,
+            "error": "Extension output was blocked.",
+            "error_code": "extension_secret_exposure_blocked",
+        },
+        account_id="acct-1",
+        project_id="7",
+        connection_id="conn-1",
+    )
+
+    assert result["ok"] is False
+    assert result["error_code"] == "extension_secret_exposure_blocked"
+    assert result["items"] == []

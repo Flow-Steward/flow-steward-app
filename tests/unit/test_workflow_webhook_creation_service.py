@@ -157,6 +157,81 @@ def test_create_command_rejects_unsupported_auth_mode_in_application_layer() -> 
         )
 
 
+@pytest.mark.parametrize("value", ["client_key", "body", "HEADERS"])
+def test_create_command_rejects_an_unknown_idempotency_mode_naming_the_allowed_values(
+    value: str,
+) -> None:
+    with pytest.raises(WorkflowWebhookValidationError, match="allowed values: none, header") as err:
+        WorkflowWebhookCreateCommand.from_request(
+            workflow_id="workflow-1",
+            project_id="project-1",
+            entry_key="incoming",
+            request={"auth_mode": "bearer_token", "idempotency_mode": value},
+            expected_input_names=set(),
+        )
+
+    assert err.value.code == "workflow_entrypoint_validation_failed"
+    assert err.value.status_code == 400
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(None, "none"), ("", "none"), ("header", "header"), ("Header", "header")],
+)
+def test_create_command_normalizes_a_supported_idempotency_mode(
+    value: object, expected: str
+) -> None:
+    command = WorkflowWebhookCreateCommand.from_request(
+        workflow_id="workflow-1",
+        project_id="project-1",
+        entry_key="incoming",
+        request={"auth_mode": "bearer_token", "idempotency_mode": value},
+        expected_input_names=set(),
+    )
+
+    assert command.fields["idempotency_mode"] == expected
+
+
+def test_update_command_rejects_an_unknown_idempotency_mode() -> None:
+    with pytest.raises(WorkflowWebhookValidationError, match="allowed values: none, header"):
+        WorkflowWebhookUpdateCommand.from_request(
+            workflow_id="workflow-1",
+            entry_key="incoming",
+            existing={**_fields(), "project_id": "project-1"},
+            request={"idempotency_mode": "client_key"},
+            expected_input_names=set(),
+        )
+
+
+def test_update_command_keeps_the_stored_idempotency_mode_when_not_sent() -> None:
+    command = WorkflowWebhookUpdateCommand.from_request(
+        workflow_id="workflow-1",
+        entry_key="incoming",
+        existing={**_fields(), "project_id": "project-1", "idempotency_mode": "header"},
+        request={"description": "changed"},
+        expected_input_names=set(),
+    )
+
+    assert command.fields["idempotency_mode"] == "header"
+
+
+def test_create_command_clamps_file_limits_to_the_schema_maximums() -> None:
+    command = WorkflowWebhookCreateCommand.from_request(
+        workflow_id="workflow-1",
+        project_id="project-1",
+        entry_key="incoming",
+        request={
+            "auth_mode": "bearer_token",
+            "max_file_bytes": 10**10,
+            "max_files": 1000,
+        },
+        expected_input_names=set(),
+    )
+
+    assert command.fields["max_file_bytes"] == 104857600
+    assert command.fields["max_files"] == 32
+
+
 def test_update_keeps_rotated_secret_and_entrypoint_in_one_transaction(monkeypatch) -> None:
     state = {"entered": False, "rolled_back": False}
 

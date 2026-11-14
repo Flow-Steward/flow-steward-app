@@ -264,7 +264,8 @@ export function extensionActionFailureMessage(error: unknown, fallback: string, 
     return detail;
   }
   const payload = objectOrEmpty(error.payload);
-  return stringFrom(payload.detail || payload.message || error.message, fallback);
+  const message = stringFrom(payload.detail || payload.message || error.message, fallback);
+  return translatedExtensionActionErrorGuidance(t, message) || message;
 }
 
 export function browserAuthorityApprovalFromError(error: unknown): BrowserAuthorityApproval | null {

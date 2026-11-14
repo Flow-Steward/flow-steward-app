@@ -205,6 +205,56 @@ action_manifest: ui/actions/actions.yaml
 # exported; the action cannot be called outside a workflow. Marking a workflow
 # as an implementation needs a Development environment.
 
+# A query that runs with a project connection (ADR 0067). In
+# ui/queries/queries.yaml:
+#
+#   - query_id: runs.list
+#     title: Runs
+#     connection:
+#       connection_type_ids: [service_profile]   # this extension's own types
+#     handler:
+#       mode: extension
+#
+# The host resolves one connection of those types exactly as for an action
+# target (project access, account, project, extension, install, enabled state,
+# type, and the approval of a configuration that uses stored secrets) and gives
+# it to the query at the envelope's root target.connection (config, secret_refs,
+# secrets); the SDK reads it with connection_from_payload. The browser sends
+# only target: {connection_id}. Rules, checked when the release is built:
+#   - connection holds exactly connection_type_ids: a non-empty list of unique
+#     ids declared in connection_types; no singular alias, no optional form;
+#   - handler.mode is extension, and external_effects does not name the query;
+#   - runtime.compatibility.platform_min is 1.7.0 or later.
+# A connection query MUST only read the remote service; effects belong to
+# actions. A response with commands, events or project_state_updates fails and
+# nothing is applied. It runs at most 30 seconds, its result passes the
+# reflected-secret check, and only an operator or admin can run it (as every
+# query). An unreachable service MUST be reported as a domain failure (exit 2,
+# ok: false), so the install's circuit breaker is not tripped by outages.
+# Remote runtime installs cannot run connection queries.
+#
+# A page that shows connection queries declares the same key; the host renders a
+# connection selector beside the project selector and sends the selected
+# connection with every connection query and every action of the page. In
+# ui/pages/<page>.yaml:
+#
+#   page_id: runs
+#   title: Runs
+#   connection:
+#     connection_type_ids: [service_profile]
+#   refresh_seconds: 30        # optional, 10..3600; reloads while visible
+#   components:
+#     - ref: ../components/runs_grid.yaml
+#
+#   - every connection query the page references (query_id, load_query, query
+#     buttons, row/bulk/toolbar queries) accepts every page type;
+#   - a connection query on a page without connection is refused;
+#   - a page with connection is project-scoped (project_scoped: false refused);
+#   - refresh_seconds needs at least one query on the page.
+# URL page parameters: p.<name> keys of the page URL (extension_page=run_detail
+# &p.run_id=42) are merged into the params of every query on that page; they
+# are untrusted input the extension validates.
+
 machine_auth:
   service_account_key: svc_ext_example
   required_scopes:
@@ -338,6 +388,10 @@ runtime:
     #   1.6.0  OAuth refresh_token_import flow. Providers declaring it require
     #          runtime.compatibility.platform_min 1.6.0. Product 0.9.12 ships
     #          host 1.6.0; product versions are not host compatibility versions.
+    #   1.7.0  Page queries may declare a project connection (query and page
+    #          connection, page refresh_seconds; ADR 0067). A bundle declaring a
+    #          connection query requires runtime.compatibility.platform_min 1.7.0.
+    #          Product 0.9.17 ships host 1.7.0.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
@@ -823,6 +877,24 @@ x-validator-contract:
     - schemas/*.schema.json
     - contracts/*.json
     - locales/*.json
+  query_connection:
+    adr: docs/architecture/adr/0067-extension-page-queries-with-connection.md
+    query_field: connection
+    page_field: connection
+    shape: "{connection_type_ids: [<own connection type id>, ...]}"
+    platform_min: 1.7.0
+    handler_mode: extension
+    external_effects: forbidden
+    request_target: "{connection_id}"
+    envelope_location: target.connection
+    platform_effects: forbidden (commands, events, project_state_updates)
+    timeout_seconds_max: 30
+    roles: [operator, admin]
+    remote_runtime: unsupported
+    page_refresh_seconds: 10..3600
+    page_url_parameters: "p.<name>; merged into every query's params on the page"
+    compile_error_codes: [query_connection_invalid, query_connection_type_unknown, query_connection_handler_mode, query_connection_external_effect, query_connection_host_minimum, page_connection_invalid, page_connection_requires_project, page_connection_type_mismatch, page_connection_missing, page_refresh_invalid]
+    request_error_codes: [query_connection_required, query_target_invalid, query_connection_runtime_unsupported, query_connection_effects_forbidden, secret_configuration_unapproved]
   egress:
     optional: true
     enforced: false
@@ -943,7 +1015,7 @@ x-validator-contract:
   external_effects:
     field: external_effects
     item_shape:
-      operation_id: action/query operation id
+      operation_id: action/query operation id (never a query that declares connection)
       effect_kind: non-empty effect category
       channel: non-empty delivery channel
       idempotency: required

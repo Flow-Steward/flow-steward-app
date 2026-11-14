@@ -96,10 +96,22 @@ function configuredConnectionFields(
     });
 }
 
+function isEmptyFormValue(value: unknown): boolean {
+  return value === undefined || value === null || value === "";
+}
+
+/**
+ * Write the form's values into the connection config. Only a field the form shows
+ * is written: a declared field hidden by `visible_if` keeps its stored value, since
+ * its input holds no entry (in edit mode an empty string), and a typed hidden field
+ * would then fail the connection schema. A value outside the form's fields is
+ * written only when the form supplies one, never as an empty string.
+ */
 function applyConnectionConfigValues({
   config,
   configuredFields,
   data,
+  declaredPaths,
   fields,
   fieldValues,
   secretFields,
@@ -107,17 +119,22 @@ function applyConnectionConfigValues({
   config: Record<string, unknown>;
   configuredFields: string[];
   data: Record<string, unknown>;
+  declaredPaths: Set<string>;
   fields: Record<string, unknown>[];
   fieldValues: Record<string, unknown>;
   secretFields: Set<string>;
 }) {
   for (const path of configuredFields) {
-    const raw = fieldValues[path] ?? choose(path === "provider", data.provider, undefined);
     const field = fields.find((item) => manifestFieldPath(item) === path);
-    const value = choose(Boolean(field), manifestFieldValue(field ?? {}, { [path]: raw }), raw);
+    const raw = fieldValues[path] ?? choose(path === "provider", data.provider, undefined);
+    if (!field) {
+      if (!declaredPaths.has(path) && !isEmptyFormValue(raw)) config[path] = raw;
+      continue;
+    }
+    const value = manifestFieldValue(field, { [path]: raw });
     if (value !== undefined) {
       config[path] = value;
-    } else if (allTrue([Boolean(field), raw === "", !manifestFieldIsSecret(field ?? {}, secretFields)])) {
+    } else if (raw === "" && !manifestFieldIsSecret(field, secretFields)) {
       delete config[path];
     }
   }
@@ -200,7 +217,9 @@ export function prepareConnectionSave({
 }, t: I18nContextValue["t"] = fallbackContext.t): ConnectionSavePreparation {
   const data = connectionDataForValues(component, values);
   const fieldValues = { ...connectionDefaultsForValues(component, values), ...values };
-  const fields = listFromUnknown(component.fields).filter((field) =>
+  const declaredFields = listFromUnknown(component.fields);
+  const declaredPaths = new Set(declaredFields.map(manifestFieldPath).filter(Boolean));
+  const fields = declaredFields.filter((field) =>
     manifestFieldVisibleForValues(field, fieldValues));
   const selectedId = stringFrom(fieldValues.connection_id);
   const rows = Array.isArray(projectConnections) ? projectConnections : [];
@@ -222,7 +241,7 @@ export function prepareConnectionSave({
   const existingRefs = connectionSecretRefs(existing?.secret_refs);
   const fieldByPath = new Map(fields.map((field) => [manifestFieldPath(field), field]));
   const configuredFields = configuredConnectionFields(configFields, fields, fieldByPath, secretFields);
-  applyConnectionConfigValues({ config, configuredFields, data, fields, fieldValues, secretFields });
+  applyConnectionConfigValues({ config, configuredFields, data, declaredPaths, fields, fieldValues, secretFields });
   const choices = storedSecretChoices(fields, fieldValues, secretFields);
   const secrets = collectConnectionSecrets(fields, fieldValues, secretFields, existingRefs, choices);
   validateRequiredConnectionFields({
@@ -432,9 +451,25 @@ export function connectionPayloadForSave({
     extension_id: extensionKey,
     ...choose(Boolean(extensionInstallId), { extension_install_id: extensionInstallId }, {}),
     connection_config: preparation.config,
-    secret_refs: { refs: preparation.existingRefs },
+    secret_refs: connectionSecretRefsForSave(preparation),
     tags: stringListFromUnknown(preparation.data.tags),
   };
+}
+
+/**
+ * A new connection carries the stored secrets chosen for it, so the platform checks
+ * its required secrets with them and binds them as it creates the connection. An
+ * existing connection changes its bindings through the secret catalog instead.
+ */
+function connectionSecretRefsForSave(preparation: ConnectionSavePreparation): Record<string, unknown> {
+  const catalog = Object.fromEntries(
+    Object.entries(preparation.storedSecretChoices).filter(([, secretId]) => Boolean(secretId)),
+  );
+  return choose(
+    !preparation.existing && Object.keys(catalog).length > 0,
+    { refs: preparation.existingRefs, catalog },
+    { refs: preparation.existingRefs },
+  );
 }
 
 async function saveConnectionSecretsWhenPresent(
@@ -500,8 +535,8 @@ export async function persistPreparedConnection({
   const connectionId = stringFrom(created.connection_id);
   if (!connectionId) throw new Error(t("react.extensions.connection_was_created_without_a_connection_id", "Connection was created without a connection id."));
   onConnectionCreated(connectionId);
+  // The stored secrets chosen in the form were bound by the create itself.
   await saveConnectionSecretsWhenPresent(projectId, connectionId, preparation.secrets);
-  await applyStoredSecretChoices(projectId, connectionId, preparation);
   await updateProjectConnection(projectId, connectionId, { enabled: true });
   const oauthIntent = stringFrom(preparation.data.oauth_intent);
   if (preparation.oauthConnection && oauthIntent) {

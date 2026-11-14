@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from typing import Any
 
 from core.application.management.command_services_common import _json_schema_validate_value
 from core.application.management.errors import ServiceValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectConnectionContract:
@@ -110,6 +114,102 @@ class ProjectConnectionContract:
         if errors:
             raise ServiceValidationError("; ".join(errors[:8]))
         return {"refs": sanitized} if sanitized else {}
+
+    def _requested_catalog_bindings(
+        self,
+        value: Any,
+        *,
+        platform_secret_ref_names: set[str] | None = None,
+    ) -> dict[str, str]:
+        """Stored secrets a create request chose for its credential fields (ADR 0057).
+
+        `secret_refs.catalog` maps a field to a catalog secret id. The request never
+        writes it into the stored refs: the catalog binds it right after the
+        connection is created, and only then does the refs projection name it.
+        """
+        normalized = self._normalize_secret_refs(value)
+        catalog = normalized.get("catalog")
+        if catalog is None:
+            return {}
+        if not isinstance(catalog, dict):
+            raise ServiceValidationError("secret_refs.catalog: expected object")
+        refs = normalized.get("refs")
+        typed_fields = set(refs) if isinstance(refs, dict) else set()
+        platform_names = {
+            self._normalize_text(name)
+            for name in (platform_secret_ref_names or set())
+            if self._normalize_text(name)
+        }
+        choices: dict[str, str] = {}
+        errors: list[str] = []
+        for raw_field, raw_secret_id in catalog.items():
+            field = self._normalize_text(raw_field)
+            secret_id = (
+                self._normalize_text(raw_secret_id) if isinstance(raw_secret_id, str) else ""
+            )
+            if not field or not secret_id:
+                errors.append("secret_refs.catalog: each field needs a stored secret id")
+            elif self._is_internal_secret_ref_name(field) or field in platform_names:
+                errors.append(
+                    f"secret_refs.catalog.{field}: platform-owned OAuth secret refs are read-only"
+                )
+            elif field in typed_fields:
+                errors.append(
+                    f"secret_refs.catalog.{field}: choose a stored secret or type a value, not both"
+                )
+            else:
+                choices[field] = secret_id
+        if errors:
+            raise ServiceValidationError("; ".join(errors[:8]))
+        return choices
+
+    @staticmethod
+    def _refs_with_catalog_choices(
+        sanitized_secret_refs: dict[str, Any], catalog_bindings: dict[str, str], *, scope: Any
+    ) -> dict[str, Any]:
+        """The refs a create is validated with: a stored secret chosen in it provides its field.
+
+        Choosing stored secrets needs bind authority, checked here, before the insert,
+        so a caller who may not choose them never leaves a connection behind.
+        """
+        refs = dict(sanitized_secret_refs.get("refs") or {})
+        if catalog_bindings:
+            from core.application.secrets.authority import require_secret_bind
+
+            require_secret_bind(scope)
+            refs.update({field: field for field in catalog_bindings})
+        return {"refs": refs} if refs else {}
+
+    @staticmethod
+    def _bind_catalog_choices(
+        bl: Any,
+        connection_id: str,
+        scope: Any,
+        bindings: dict[str, str],
+        *,
+        remove_connection: Callable[[], None],
+    ) -> None:
+        """Bind the stored secrets chosen at creation, or remove the new connection.
+
+        The contract was validated with these secrets; a connection whose binding
+        failed would lack a required secret, so it does not outlive the request.
+        The binding approves nothing (ADR 0057): the connection starts unapproved.
+        """
+        from core.application.secrets.service import SecretCatalogService
+
+        try:
+            SecretCatalogService(lambda: bl).bind_connection_fields(
+                connection_id, scope, bindings=bindings
+            )
+        except Exception:
+            try:
+                remove_connection()
+            except Exception:
+                logger.exception(
+                    "Could not remove connection %s after its stored secrets failed to bind",
+                    connection_id,
+                )
+            raise
 
     def _merge_existing_internal_secret_refs(
         self,

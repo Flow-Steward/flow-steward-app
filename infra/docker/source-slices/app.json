@@ -232,6 +232,7 @@
     "core/application/extensions/operation_context.py",
     "core/application/extensions/operation_effects.py",
     "core/application/extensions/operation_projection.py",
+    "core/application/extensions/operation_query.py",
     "core/application/extensions/operation_service.py",
     "core/application/extensions/operation_service_resources.py",
     "core/application/extensions/operation_support.py",
@@ -251,6 +252,7 @@
     "core/application/extensions/provider_runtime.py",
     "core/application/extensions/provider_webhook_security.py",
     "core/application/extensions/query_catalog.py",
+    "core/application/extensions/query_connection_contract.py",
     "core/application/extensions/query_detail.py",
     "core/application/extensions/query_detail_projection.py",
     "core/application/extensions/query_list.py",
@@ -1761,6 +1763,10 @@
     },
     {
       "path": "db/migrations/20261109150000_user_date_time_format.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261113073401_webhook_signature_auth_mode.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

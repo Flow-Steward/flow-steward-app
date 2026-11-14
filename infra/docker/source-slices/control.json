@@ -103,6 +103,7 @@
     "core/application/extensions/projection_dependency_availability.py",
     "core/application/extensions/provider_runtime.py",
     "core/application/extensions/provider_webhook_security.py",
+    "core/application/extensions/query_connection_contract.py",
     "core/application/extensions/release_membership_lock.py",
     "core/application/extensions/remote_runtime_protocol_v2.py",
     "core/application/extensions/response_envelope.py",
@@ -678,6 +679,10 @@
     },
     {
       "path": "db/migrations/20261109150000_user_date_time_format.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261113073401_webhook_signature_auth_mode.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

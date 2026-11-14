@@ -110,7 +110,7 @@ def create_workflow_operator_router(
                                     "workflow_id": "release-report",
                                     "enabled": True,
                                     "allowed_methods": ["POST"],
-                                    "idempotency_mode": "client_key",
+                                    "idempotency_mode": "header",
                                     "response_mode": "accepted",
                                     "requires_secret": True,
                                     "input_mapping_keys": ["release_version", "requested_by"],

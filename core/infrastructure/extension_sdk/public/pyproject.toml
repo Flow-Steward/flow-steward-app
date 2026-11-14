@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "flowsteward-extension-sdk"
-version = "0.4.0"
+version = "0.5.0"
 description = "Public SDK surface for Flow Steward extension subprocesses."
 requires-python = ">=3.11"
 readme = "README.md"

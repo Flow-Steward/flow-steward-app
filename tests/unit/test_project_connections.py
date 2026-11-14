@@ -1496,3 +1496,118 @@ class TestProjectConnectionService:
 
         save_secrets.assert_not_called()
         update_row.assert_not_called()
+
+
+def _interactive_scope() -> ScopeContext:
+    return ScopeContext(
+        account_id=DEFAULT_ACCOUNT_ID,
+        actor_id="person-1",
+        principal_type="operator",
+        auth_source="local",
+    )
+
+
+def _catalog_choice_input(**secret_refs: object) -> ProjectConnectionCreateInput:
+    return ProjectConnectionCreateInput(
+        extension_id="acme.notifier",
+        connection_kind="mcp_connector",
+        connection_config={"parse_mode": "HTML"},
+        secret_refs=secret_refs or {"refs": {}, "catalog": {"bot_token": "secret-1"}},
+    )
+
+
+def test_create_connection_accepts_a_required_secret_chosen_from_the_catalog():
+    svc, bl = _make_service()
+    bound_refs = {
+        "refs": {"bot_token": "catalog_secret:secret-1"},
+        "catalog": {"bot_token": "secret-1"},
+    }
+    svc._get_connection_row = MagicMock(
+        side_effect=lambda _bl, _connection_id: {
+            **bl.create_project_connection.call_args.args[0],
+            "secret_refs": bound_refs,
+        }
+    )
+    scope = _interactive_scope()
+
+    with patch(
+        "core.application.secrets.service.SecretCatalogService.bind_connection_fields"
+    ) as bind:
+        result = svc.create_connection(1, _catalog_choice_input(), scope=scope)
+
+    persisted = bl.create_project_connection.call_args.args[0]
+    # The request names the choice; only the catalog binding writes it into the refs.
+    assert persisted["secret_refs"] == {}
+    bind.assert_called_once()
+    (connection_id, bind_scope), kwargs = bind.call_args
+    assert connection_id == persisted["connection_id"]
+    assert (bind_scope.account_id, bind_scope.actor_id, bind_scope.project_id) == (
+        scope.account_id,
+        scope.actor_id,
+        "1",
+    )
+    assert kwargs == {"bindings": {"bot_token": "secret-1"}}
+    assert result.secret_refs == bound_refs
+
+
+def test_create_connection_refuses_a_catalog_choice_without_bind_authority():
+    svc, bl = _make_service()
+
+    with pytest.raises(ServiceForbiddenError, match="secrets:bind"):
+        svc.create_connection(1, _catalog_choice_input(), scope=_trusted_scope())
+
+    bl.create_project_connection.assert_not_called()
+
+
+def test_create_connection_removes_the_connection_when_its_secret_cannot_be_bound():
+    svc, bl = _make_service()
+    svc._delete_connection_row = MagicMock()
+
+    with (
+        patch(
+            "core.application.secrets.service.SecretCatalogService.bind_connection_fields",
+            side_effect=ServiceNotFoundError("Secret not found"),
+        ),
+        pytest.raises(ServiceNotFoundError, match="Secret not found"),
+    ):
+        svc.create_connection(1, _catalog_choice_input(), scope=_interactive_scope())
+
+    persisted = bl.create_project_connection.call_args.args[0]
+    svc._delete_connection_row.assert_called_once_with(bl, persisted["connection_id"])
+
+
+@pytest.mark.parametrize(
+    ("secret_refs", "message"),
+    [
+        (
+            {"refs": {"bot_token": "bot_token"}, "catalog": {"bot_token": "secret-1"}},
+            "not both",
+        ),
+        ({"catalog": {"bot_token": ""}}, "needs a stored secret id"),
+        ({"catalog": {"access_token": "secret-1"}}, "read-only"),
+        ({"catalog": ["bot_token"]}, "expected object"),
+        ({"catalog": {"other_token": "secret-1"}}, "missing required secret 'bot_token'"),
+    ],
+)
+def test_create_connection_rejects_an_invalid_catalog_choice(secret_refs, message):
+    svc, bl = _make_service()
+
+    with pytest.raises(ServiceValidationError, match=message):
+        svc.create_connection(1, _catalog_choice_input(**secret_refs), scope=_interactive_scope())
+
+    bl.create_project_connection.assert_not_called()
+
+
+def test_create_connection_without_a_catalog_choice_binds_nothing():
+    svc, _ = _make_service()
+
+    with patch(
+        "core.application.secrets.service.SecretCatalogService.bind_connection_fields"
+    ) as bind:
+        svc.create_connection(
+            1,
+            _catalog_choice_input(refs={"bot_token": "bot_token"}),
+            scope=_interactive_scope(),
+        )
+
+    bind.assert_not_called()

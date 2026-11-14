@@ -515,6 +515,93 @@ Treat action ids, query ids, trigger ids, operation ids, connection type ids,
 resource query ids, and artifact ids as public contracts. Renaming them is a
 breaking change unless the task explicitly approves a migration.
 
+## Pages That Read Through A Connection
+
+An extension whose data lives in its own remote service shows it on a page
+with queries that run with a project connection (ADR 0067, host contract
+1.7.0, SDK 0.5.0). Use this instead of a connection form with buttons whose
+answers land in the action-result panel.
+
+1. Declare the query's connection in `ui/queries/queries.yaml`:
+
+   ```yaml
+   queries:
+     - query_id: runs.list
+       title: Runs
+       connection:
+         connection_type_ids: [service_profile]   # this extension's own types
+       handler:
+         mode: extension
+   ```
+
+   The types are the extension's own `connection_types`; the list is plural
+   even for one type. Such a query always runs with a connection; a query that
+   also works without one is a separate ordinary query. It has
+   `handler.mode: extension` and is never named in `external_effects`.
+
+2. Set `runtime.compatibility.platform_min: 1.7.0`. An older host would run
+   the query without its connection; the minimum makes it refuse the bundle.
+
+3. Declare the same key on every page that shows such a query:
+
+   ```yaml
+   page_id: runs
+   title: Runs
+   connection:
+     connection_type_ids: [service_profile]
+   refresh_seconds: 30          # optional, 10..3600
+   components:
+     - ref: ../components/runs_grid.yaml
+   ```
+
+   Every connection query the page uses must accept every page type, the page
+   is project-scoped, and `refresh_seconds` needs at least one query on the
+   page. The host renders the connection selector beside the project selector,
+   picks the only connection automatically, keeps a choice in the URL, and
+   sends the selected connection with every connection query, query button,
+   action and grid row action of the page. Keep the `connection_form` that
+   creates and edits connections on its own page; the selector links to it
+   when the project has none.
+
+4. Read the connection in the handler with the SDK:
+
+   ```python
+   from flowsteward_extension_sdk import connection_from_payload
+
+   connection = connection_from_payload(payload)   # None without a connection
+   base_url = connection.config["base_url"]
+   token = connection.secrets["service_token"]
+   ```
+
+   The same accessor reads an action's connection (`action.target.connection`)
+   and a query's (root `target.connection`).
+
+Rules the host enforces, so design for them:
+
+- A connection query only reads. A response with `commands`, `events` or
+  `project_state_updates` fails with `query_connection_effects_forbidden` and
+  nothing is applied; writes to the remote service belong to actions, which
+  carry the external-effect ledger.
+- It runs at most 30 seconds. Page the remote data (`limit`, `cursor`) rather
+  than returning everything.
+- Its result passes the reflected-secret check: never echo a secret value.
+- Report an unreachable or failing remote service as a domain failure (exit
+  code 2, `ok: false`, `error_code`, `errors`), so the install's circuit breaker
+  is not tripped by service outages.
+- Only an operator or administrator loads the page data; a viewer sees a note.
+  A connection whose stored secrets are not approved fails with
+  `secret_configuration_unapproved`, and the page shows the approval control.
+- Remote runtime installs cannot run connection queries.
+
+Links to a detail page: query-string keys `p.<name>` of an extension page URL
+are merged into the `params` of every query on that page (they override the
+component's declared params; paging and filter state override them). A
+markdown cell can link to
+`/extensions/<extension_id>?project_id=<project>&extension_connection=<connection>&extension_page=run_detail&p.run_id=<id>`;
+the handler receives `params.run_id`. Names are lowercase identifiers (at most
+20 parameters, 1024 characters each) and the values are untrusted input the
+handler validates. The parameters are dropped when the person switches pages.
+
 ## Runtime Handler Pattern
 
 Copy the reference extension's runtime shape unless there is a concrete reason not to:

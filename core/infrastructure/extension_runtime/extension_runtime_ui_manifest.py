@@ -2,6 +2,8 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import copy
+
 from .extension_browser_picker_contract import _validate_external_resource_picker
 from .extension_runtime_common import *  # NOSONAR
 from .extension_runtime_manifest import _resolve_object_ref
@@ -457,6 +459,10 @@ def _resolve_ui_manifest(
             "project_scoped": bool(page.get("project_scoped", True)),
             "components": resolved_components,
         }
+        # ADR 0067: kept as declared; the compiled-manifest check validates them.
+        for page_key in ("connection", "refresh_seconds"):
+            if page_key in page:
+                resolved_page[page_key] = copy.deepcopy(page[page_key])
 
         components = page.get("components")
         if not isinstance(components, list):

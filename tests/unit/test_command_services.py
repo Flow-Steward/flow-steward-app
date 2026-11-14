@@ -10026,6 +10026,7 @@ class TestExtensionCommandServices:
 
     def test_execute_query_allows_platform_handler_when_disabled(self):
         bl = MagicMock()
+        bl.get_project.return_value = {"id": "7", "account_id": DEFAULT_ACCOUNT_ID}
         extension = {
             "extension_key": "fixture.notification-provider",
             "enabled": False,
@@ -16392,8 +16393,77 @@ class TestExtensionAuditContextThreading:
         assert log_kwargs["request_context"]["source"] == "extension_binding_service.execute_action"
         assert log_kwargs["request_context"]["project_id"] == "7"
 
+    def _query_service(self, bl):
+        extension = {
+            "extension_key": "acme.notifier",
+            "extension_install_id": "install-acme-notifier",
+            "enabled": True,
+            "query_definitions": [],
+        }
+        return ExtensionBindingService(
+            get_logger=lambda: bl,
+            get_operation_store=lambda: bl,
+            resolve_extension_runtime_record=lambda eid: (extension, bl),
+            extension_identifier=lambda p: str((p or {}).get("extension_key") or ""),
+            extension_operation_handler_mode=lambda *a, **kw: "extension",
+            extension_operation_failure_status=lambda inv: 502,
+        )
+
+    def test_execute_query_refuses_a_project_of_another_account_before_the_runtime(self):
+        """Runtime resources such as provider secrets are resolved for the named project."""
+        bl = MagicMock()
+        bl.get_project.return_value = {"id": "8", "account_id": "acct_other"}
+        body = ExtensionQueryRequest(context={"project_id": "8"})
+        scope = ScopeContext(account_id="acct_42", actor_id="jane", principal_type="admin")
+
+        with (
+            patch(
+                "core.infrastructure.extension_runtime.extension_runtime.run_extension_query"
+            ) as run_query,
+            pytest.raises(ServiceForbiddenError),
+        ):
+            self._query_service(bl).execute_query("acme.notifier", "list", body, scope=scope)
+
+        run_query.assert_not_called()
+        bl.get_provider_secret.assert_not_called()
+
+    def test_execute_query_checks_a_context_project_that_differs_from_the_scope(self):
+        bl = MagicMock()
+        projects = {"7": {"id": "7", "account_id": "acct_42"}}
+        bl.get_project.side_effect = projects.get
+        body = ExtensionQueryRequest(context={"project_id": "9"})
+
+        with (
+            patch(
+                "core.infrastructure.extension_runtime.extension_runtime.run_extension_query"
+            ) as run_query,
+            pytest.raises(ServiceNotFoundError),
+        ):
+            self._query_service(bl).execute_query(
+                "acme.notifier", "list", body, scope=self._make_scope()
+            )
+
+        run_query.assert_not_called()
+
+    def test_execute_query_runs_for_a_project_the_caller_reaches(self):
+        bl = MagicMock()
+        bl.get_project.return_value = {"id": "7", "account_id": "acct_42"}
+        body = ExtensionQueryRequest(context={"project_id": "7"})
+
+        with patch(
+            "core.infrastructure.extension_runtime.extension_runtime.run_extension_query",
+            return_value={"status": "succeeded", "response": {"ok": True}},
+        ) as run_query:
+            self._query_service(bl).execute_query(
+                "acme.notifier", "list", body, scope=self._make_scope()
+            )
+
+        run_query.assert_called_once()
+        bl.get_project.assert_called_with("7")
+
     def test_execute_query_threads_audit_fields(self):
         bl = MagicMock()
+        bl.get_project.return_value = {"id": "7", "account_id": "acct_42"}
         extension = {
             "extension_key": "fixture.notification-provider",
             "extension_install_id": "install-fixture-notifications",
