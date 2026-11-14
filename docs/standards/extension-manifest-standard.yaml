@@ -391,7 +391,7 @@ runtime:
     #   1.7.0  Page queries may declare a project connection (query and page
     #          connection, page refresh_seconds; ADR 0067). A bundle declaring a
     #          connection query requires runtime.compatibility.platform_min 1.7.0.
-    #          Product 0.9.17 ships host 1.7.0.
+    #          Product 0.9.18 ships host 1.7.0.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
