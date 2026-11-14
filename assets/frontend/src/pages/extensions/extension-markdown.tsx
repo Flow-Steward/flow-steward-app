@@ -1,8 +1,6 @@
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
-import { useInRouterContext, useNavigate } from "react-router";
+import type { ReactNode } from "react";
 
-import { ignoreAsyncResult } from "@/lib/utils/async";
-import { appRouterPath } from "@/pages/extensions/extension-grid-links";
+import { MarkdownAppLink } from "@/pages/extensions/extension-markdown-link";
 
 /**
  * Safe Markdown rendering for the declarative extension UI.
@@ -114,22 +112,6 @@ export function safeMarkdownHref(raw: string): string {
     return href.startsWith("/\\") ? "" : href;
   }
   return /^https:\/\/\S+$/i.test(href) ? href : "";
-}
-
-function RoutedMarkdownLink({ children, href }: Readonly<{ children: ReactNode; href: string }>) {
-  const navigate = useNavigate();
-  const follow = (event: ReactMouseEvent<HTMLAnchorElement>) => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    event.preventDefault();
-    ignoreAsyncResult(navigate(appRouterPath(href)));
-  };
-  return <a className="fs-link fs-markdown-link" href={href} onClick={follow}>{children}</a>;
-}
-
-function MarkdownAppLink({ children, href }: Readonly<{ children: ReactNode; href: string }>) {
-  return useInRouterContext()
-    ? <RoutedMarkdownLink href={href}>{children}</RoutedMarkdownLink>
-    : <a className="fs-link fs-markdown-link" href={href}>{children}</a>;
 }
 
 type MarkdownParseState = {

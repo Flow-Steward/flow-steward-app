@@ -23,7 +23,6 @@ import {
   jobStatusesOfGroups,
   jobStatusGroup,
   jobStatusGroupLabel,
-  jobStatusGroupsFromValues,
   jobStatusGroupTone,
 } from "@/pages/jobs/status-groups";
 import {
@@ -37,6 +36,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { JOB_SKELETON_ROWS, JOB_SKELETON_WIDTHS } from "@/pages/jobs/list/job-skeleton";
+import { jobFiltersFromUrl, normalizeStatusList } from "@/pages/jobs/list/job-filters";
 import {
   AdvancedTableFilters,
   BulkActionBar,
@@ -125,19 +125,6 @@ function normalizeJobRows(payload: unknown): JobListItem[] {
 
 function normalizeStatus(value: unknown): string {
   return firstStringFromUnknownValue([value, ""]).trim().toLowerCase();
-}
-
-/**
- * The status filter is a comma list of status group keys; the URL repeats
- * `status` once per group. A stored status from an older link means its group.
- */
-function normalizeStatusList(values: readonly string[]): string {
-  return jobStatusGroupsFromValues(values).join(",");
-}
-
-/** `hide_acknowledged=1` (or `true`) in the URL turns the toggle on. */
-function hideAcknowledgedFromUrl(value: string | null): boolean {
-  return ["1", "true"].includes(String(value || "").trim().toLowerCase());
 }
 
 function periodFromUrl(params: URLSearchParams): PeriodValue {
@@ -248,36 +235,14 @@ export function JobsListPage() {
   const [searchParams, setSearchParams] = useFilterSearchParams("jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
-  const urlWorkflowFilter = firstStringFromUnknownValue([searchParams.get("workflow_id"), ""]).trim();
-  // Dashboard metric cards deep-link here with a status, the same way workflow
-  // links already do. The URL owns the current choice, including Back and Clear.
-  const urlStatusFilter = normalizeStatusList(searchParams.getAll("status"));
-
-  // Filter state, not DOM reads: the published filter and search controls are
-  // controlled. The option lists never come from the loaded jobs alone: the
-  // server already narrowed those to the applied filters, so a filter would
-  // shrink its own menu (and the others) to what it selected.
-  const search = searchParams.get("search") || "";
-  const setSearch = (value: string) => setJobFilter("search", value);
+  // Filter state lives in the URL (job-filters.ts): the published filter and
+  // search controls are controlled, and the option lists never come from the
+  // loaded jobs alone, so a filter never shrinks its own menu.
+  const {
+    urlWorkflowFilter, search, setSearch, projectFilter, setProjectFilter, statusFilter,
+    setStatusFilter, hideAcknowledged, setHideAcknowledged, workflowFilter, setWorkflowFilter,
+  } = jobFiltersFromUrl(searchParams, setSearchParams);
   const deferredSearch = useDeferredValue(search);
-  const projectFilter = searchParams.get("project_id") || "";
-  const setProjectFilter = (value: string) => setJobFilter("project_id", value);
-  const statusFilter = urlStatusFilter;
-  const setStatusFilter = (value: string) => setJobFilter("status", value, true);
-  const hideAcknowledged = hideAcknowledgedFromUrl(searchParams.get("hide_acknowledged"));
-  const setHideAcknowledged = (value: boolean) => setJobFilter("hide_acknowledged", value ? "1" : "");
-  const workflowFilter = urlWorkflowFilter;
-  const setWorkflowFilter = (value: string) => setJobFilter("workflow_id", value);
-
-  function setJobFilter(key: string, value: string, multiple = false) {
-    setSearchParams((latest) => {
-      const next = new URLSearchParams(latest);
-      next.delete(key);
-      if (multiple) jobStatusParams(value).forEach((status) => next.append(key, status));
-      else if (value) next.set(key, value);
-      return next;
-    }, { replace: true });
-  }
   const [filterOptions, setFilterOptions] = useState<{
     projects: DsOption[];
     statuses: DsOption[];

@@ -39,7 +39,9 @@ describe("grid links", () => {
     }
     expect(gridLinkHref({ path_field: "job" }, { job: "/jobs/7" }, { extensionId: "e", search: "" })).toBe("/jobs/7");
     // The app's own base belongs to the router.
+    vi.stubEnv("BASE_URL", "/app/");
     expect(inAppPath("/app/jobs/7")).toBe("/jobs/7");
+    vi.unstubAllEnvs();
   });
 
   it("reads a link column without a link declaration as an in-app path column", () => {
@@ -108,7 +110,7 @@ const GRID = {
   ],
 };
 
-function renderGrid(renderContext: ManifestRenderContext, entry = "/extensions/acme.store?project_id=p-1&extension_page=runs") {
+function mountGrid(renderContext: ManifestRenderContext, entry = "/extensions/acme.store?project_id=p-1&extension_page=runs") {
   const router = createMemoryRouter(
     [
       { path: "/extensions/:extensionId", element: <>{renderManifestComponent(GRID, renderContext)}</> },
@@ -123,7 +125,7 @@ function renderGrid(renderContext: ManifestRenderContext, entry = "/extensions/a
 
 describe("grid with links and filters", () => {
   it("links a cell to another page of the extension and opens it in the app", () => {
-    const router = renderGrid(context());
+    const router = mountGrid(context());
 
     const link = screen.getByRole("link", { name: "First run" });
     expect(link).toHaveAttribute("href", expect.stringContaining("extension_page=run_detail"));
@@ -133,14 +135,14 @@ describe("grid with links and filters", () => {
   });
 
   it("opens the row's target when the row is clicked outside its links", () => {
-    const router = renderGrid(context());
+    const router = mountGrid(context());
 
-    fireEvent.click(screen.getByText("First run").closest("td")!);
+    fireEvent.click(screen.getByRole("cell", { name: "First run" }));
     expect(router.state.location.search).toContain("extension_page=run_detail");
   });
 
   it("follows a row's in-app path without leaving the app", () => {
-    const router = renderGrid(context());
+    const router = mountGrid(context());
 
     fireEvent.click(screen.getByRole("link", { name: "/jobs/9" }));
     expect(router.state.location.pathname).toBe("/jobs/9");
@@ -148,7 +150,7 @@ describe("grid with links and filters", () => {
 
   it("keeps a filter in the address and returns the grid to its first page", () => {
     const onComponentQueryParamsChange = vi.fn();
-    const router = renderGrid(context({ onComponentQueryParamsChange }));
+    const router = mountGrid(context({ onComponentQueryParamsChange }));
 
     fireEvent.click(screen.getByRole("combobox", { name: "Status" }));
     fireEvent.click(screen.getByRole("option", { name: "Done" }));
