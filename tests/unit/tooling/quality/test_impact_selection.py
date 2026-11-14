@@ -338,3 +338,18 @@ def test_tests_added_or_changed_since_the_map_always_run(repo: Path) -> None:
     plan = _plan(repo, head, [_record(base)], impact_map=impact)
 
     assert plan.modules == ("tests/unit/test_docs.py", "tests/unit/test_new.py")
+
+
+def test_vitest_related_runs_whole_when_the_gate_tooling_changes(repo: Path) -> None:
+    """lint.sh lies outside the suite's inputs but decides how vitest runs."""
+    _write(repo, "assets/frontend/src/page.tsx", "export const page = 1;\n")
+    _write(repo, "core/entrypoints/cli/scripts/lint.sh", "echo one\n")
+    base = _commit(repo, "base")
+    _write(repo, "core/entrypoints/cli/scripts/lint.sh", "echo two\n")
+    head = _commit(repo, "gate")
+    check = _check("vitest-related", ()).model_copy(update={"inputs": ("assets/**",)})
+
+    plan = _plan(repo, head, [_record(base)], check=check, impact_map=None)
+
+    assert plan.full
+    assert "changes how the suite runs" in plan.reason

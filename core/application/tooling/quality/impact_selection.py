@@ -212,12 +212,14 @@ def _related_plan(
     }
     for change in changes:
         path = PurePosixPath(change.path)
+        # Gate tooling (lint.sh, verify.py, ...) lies outside the suite's inputs
+        # but decides how it runs: check it before skipping outside paths.
+        if matches_any_pattern(change.path, GATE_INPUTS + full_run_paths):
+            raise _FullRun(f"{change.path} changes how the suite runs")
         if not matches_any_pattern(change.path, inputs.check.inputs) or matches_any_pattern(
             change.path, inputs.check.input_excludes
         ):
             continue  # Outside the suite's inputs: it cannot change a result.
-        if matches_any_pattern(change.path, GATE_INPUTS + full_run_paths):
-            raise _FullRun(f"{change.path} changes how the suite runs")
         if FRONTEND_SOURCES not in path.parents:
             raise _FullRun(f"{change.path} is outside the frontend sources")
         if change.status == "D":
