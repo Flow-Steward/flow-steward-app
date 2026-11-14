@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { stepNumericFieldErrors } from "./detail-step-numeric-fields";
 import { WaitEventSetup } from "./detail-wait-event-setup";
 
-const t = (_key: string, fallback: string) => fallback;
+const t = (key: string, defaultText?: string) => defaultText ?? key;
 
 const CONFIG = {
   event: { source: "acme.crawler", event_types: ["run_completed"], correlation_key: "state.run.run_id" },

@@ -125,7 +125,7 @@ def mcp_client(monkeypatch: pytest.MonkeyPatch) -> type[_RecordingClient]:
         ("stuck", ("stuck", "orphaned")),
         ("failed", ("failed", "max_iterations", "triage_needed")),
         ("failed,stuck", ("failed", "max_iterations", "triage_needed", "stuck", "orphaned")),
-        ("waiting", ("awaiting_timer", "awaiting_child", "external_wait")),
+        ("waiting", ("awaiting_timer", "awaiting_child", "awaiting_event", "external_wait")),
         ("acknowledged,pending", ("acknowledged", "pending")),
     ],
 )

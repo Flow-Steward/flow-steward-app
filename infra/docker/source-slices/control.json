@@ -153,6 +153,7 @@
     "core/application/jobs/task_scheduling.py",
     "core/application/jobs/terminal_persistence.py",
     "core/application/jobs/workflow_definition_snapshot_repository.py",
+    "core/application/jobs/workflow_event_wait_repository.py",
     "core/application/jobs/workflow_identity.py",
     "core/application/jobs/workflow_knowledge_sync_requests.py",
     "core/application/jobs/workflow_pause_persistence.py",
@@ -163,6 +164,7 @@
     "core/application/jobs/workflow_run_projection.py",
     "core/application/jobs/workflow_timer_dispatcher.py",
     "core/application/jobs/workflow_wait_contract.py",
+    "core/application/jobs/workflow_wait_event_delivery.py",
     "core/application/jobs/workflow_wait_projection.py",
     "core/application/lifecycle/__init__.py",
     "core/application/lifecycle/contracts.py",
@@ -413,6 +415,7 @@
     "core/application/workflows/workflow_step_kinds.py",
     "core/application/workflows/workflow_trigger_guards.py",
     "core/application/workflows/workflow_trigger_lifecycle.py",
+    "core/application/workflows/workflow_wait_event_rules.py",
     "core/application/workflows/workflow_where_used.py",
     "core/entrypoints/cli/__init__.py",
     "core/entrypoints/cli/control_process.py",
@@ -692,6 +695,10 @@
     },
     {
       "path": "db/migrations/20261114090000_workflow_connection_slot_choices.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114160000_workflow_wait_events.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

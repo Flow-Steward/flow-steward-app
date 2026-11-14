@@ -321,7 +321,9 @@ def test_mark_finalizing_keeps_repeated_approval_gate_unfinished() -> None:
 
     assert updated is True
     sql, params = connection.calls[0]
-    parked = "WHEN %s IN ('awaiting_approval', 'awaiting_timer', 'awaiting_child')"
+    parked = (
+        "WHEN %s IN ('awaiting_approval', 'awaiting_timer', 'awaiting_child', 'awaiting_event')"
+    )
     assert sql.count(parked) == 2
     assert params[:3] == (
         "awaiting_approval",

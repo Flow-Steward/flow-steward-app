@@ -86,8 +86,8 @@ export function WaitEventSetup({ config, errorId, errors, inputClass, onChange }
           className={inputClass}
           onChange={(change) => {
             const target = change.target.value;
-            const next = { ...mapping, payload: target };
-            if (!target) delete next.payload;
+            const others = Object.fromEntries(Object.entries(mapping).filter(([name]) => name !== "payload"));
+            const next = target ? { ...others, payload: target } : others;
             onChange({ output_mapping: Object.keys(next).length ? next : undefined });
           }}
           placeholder="state.event_payload"

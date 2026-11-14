@@ -166,7 +166,7 @@ def test_dashboard_group_counts_are_not_limited_to_triage_preview() -> None:
                     "jobs": [],
                     "total": {
                         ("in_progress", "pending", "resume_pending"): 5,
-                        ("awaiting_timer", "awaiting_child", "external_wait"): 18,
+                        ("awaiting_timer", "awaiting_child", "awaiting_event", "external_wait"): 18,
                     }[tuple(kwargs["status"])],
                 }
             return super().list_jobs(**kwargs)
