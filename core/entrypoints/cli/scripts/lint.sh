@@ -1536,6 +1536,11 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
     needs_test_infra=0
     if [[ ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
       needs_test_infra=1
+      # A parallel part without a backend suite (frontend, external) does not
+      # use the disposable database or broker; external checks bring their own.
+      if [[ -n "${tier3_only}" && ! ",${tier3_only}," =~ ,(backend-tests|backend-frontend-contracts|runtime-heartbeat-cross-profile), ]]; then
+        needs_test_infra=0
+      fi
     fi
     if [[ ${#REQUESTED_CHECKS[@]} -gt 0 ]]; then
       for requested_check in "${REQUESTED_CHECKS[@]}"; do

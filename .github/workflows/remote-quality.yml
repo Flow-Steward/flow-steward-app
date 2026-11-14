@@ -296,6 +296,10 @@ jobs:
             fi
           done
       - uses: ./.github/actions/prepare-quality
+        with:
+          # PostgreSQL comes from the build-push step or the run's prebuilt image.
+          postgres: 'false'
+          cache-to: 'true'
       - name: Prove scoped diagnostic reuse without running any full gate or product suite
         if: env.QUALITY_MODE == 'reuse-smoke'
         env:
@@ -485,6 +489,10 @@ jobs:
             echo 'Cold producer: no scanner cache or prior gate evidence is restored.'
           fi
       - uses: ./.github/actions/prepare-quality
+        with:
+          # PostgreSQL comes from the build-push step or the run's prebuilt image.
+          postgres: 'false'
+          cache-to: 'false'
       - name: Measure only the canonical file detector
         env:
           SCANNER_SOURCE_RUN_ID: ${{ steps.scanner-source.outputs.run_id }}
@@ -594,6 +602,10 @@ jobs:
           name: quality-stage-${{ github.sha }}-${{ github.run_attempt }}
           path: logs
       - uses: ./.github/actions/prepare-quality
+        with:
+          # PostgreSQL comes from the build-push step or the run's prebuilt image.
+          postgres: 'false'
+          cache-to: 'false'
       - name: Download the PostgreSQL image built once for this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
@@ -674,6 +686,10 @@ jobs:
           merge-multiple: true
           path: logs
       - uses: ./.github/actions/prepare-quality
+        with:
+          # PostgreSQL comes from the build-push step or the run's prebuilt image.
+          postgres: 'false'
+          cache-to: 'false'
       - name: Download the PostgreSQL image built once for this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
@@ -735,6 +751,10 @@ jobs:
       - name: Recheck candidate before expensive analysis
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - uses: ./.github/actions/prepare-quality
+        with:
+          # PostgreSQL comes from the build-push step or the run's prebuilt image.
+          postgres: 'false'
+          cache-to: 'false'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
           name: ${{ (env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full') && 'quality-stage' || 'quality' }}-${{ github.sha }}-${{ github.run_attempt }}
