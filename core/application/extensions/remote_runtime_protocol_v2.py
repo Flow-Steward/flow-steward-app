@@ -792,6 +792,9 @@ def _normalize_response(status_code: int, payload: Any) -> dict[str, Any]:
     }
     retry_payload["http_status"] = int(status_code)
     normalized.update(normalize_retry_signal(retry_payload))
+    if ok and isinstance(payload, dict) and isinstance(payload.get("resume_waits"), list):
+        # Events for waiting runs (ADR 0071); the host checks every item.
+        normalized["resume_waits"] = list(payload["resume_waits"])
     return normalized
 
 

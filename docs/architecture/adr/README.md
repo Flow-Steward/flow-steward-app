@@ -115,6 +115,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0068](0068-connection-slots-for-extension-workflows.md) | Connection slots for extension workflows | Accepted (amends 0065) |
 | [0069](0069-browser-local-list-filter-preferences.md) | Browser-local list filter preferences | Accepted |
 | [0070](0070-impacted-tier3-selection-and-parallel-hosted-gate.md) | Impacted Tier 3 selection and a parallel hosted release gate | Accepted |
+| [0071](0071-wait-for-an-event.md) | Wait for an event | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

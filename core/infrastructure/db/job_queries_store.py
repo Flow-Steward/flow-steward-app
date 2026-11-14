@@ -412,7 +412,7 @@ def get_workflow_stats(
                 SUM(CASE WHEN LOWER(COALESCE(j.status,'')) IN
                     ('in_progress','pending','blocked','retryable_interrupted_step',
                      'external_wait','awaiting_approval','awaiting_timer','awaiting_child',
-                     'resume_pending')
+                     'awaiting_event','resume_pending')
                     THEN 1 ELSE 0 END)                                            AS active_count,
                 SUM(CASE WHEN LOWER(COALESCE(j.status,'')) = 'cancelled' THEN 1 ELSE 0 END)
                                                                                   AS cancelled_count,

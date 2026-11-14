@@ -46,6 +46,7 @@ _NORMAL_TERMINAL_STATUSES = frozenset(
         "awaiting_approval",
         "awaiting_timer",
         "awaiting_child",
+        "awaiting_event",
         "max_iterations",
         "cancelled",
     }

@@ -30,7 +30,7 @@ def get_active_jobs(*, conn) -> list[dict]:
             JOIN projects p ON p.id = j.project_id
             WHERE j.status IN (
                 'pending', 'resume_pending', 'in_progress',
-                'awaiting_approval', 'awaiting_timer', 'awaiting_child'
+                'awaiting_approval', 'awaiting_timer', 'awaiting_child', 'awaiting_event'
             )
             ORDER BY
                 j.heartbeat_at DESC NULLS LAST,

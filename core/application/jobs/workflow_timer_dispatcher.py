@@ -1,4 +1,4 @@
-"""Wake parked runs: due Wait timers and finished child jobs.
+"""Wake parked runs: due Wait timers, finished child jobs and event waits.
 
 One durable resume intent per wake.
 
@@ -108,11 +108,55 @@ def dispatch_finished_children(
     return publish_claimed_resumes(repository, publish, claimed)
 
 
+def dispatch_event_waits(
+    repository: Any,
+    publish: Callable[..., Any],
+    *,
+    now_epoch_ms: int | None = None,
+    limit: int = WORKFLOW_TIMER_BATCH_LIMIT,
+    retention_days: int | None = None,
+) -> dict[str, int]:
+    """Wake event waits (ADR 0071): delivered events first, then deadlines.
+
+    Matching runs before the deadline claim, so an event that arrived before
+    the deadline wins even when both are due in one pass. Expired deliveries
+    are deleted in the same pass, a bounded batch at a time.
+    """
+    from core.application.jobs.workflow_wait_contract import WAIT_EVENT_RETENTION_DAYS
+
+    now_ms = int(time.time() * 1000) if now_epoch_ms is None else int(now_epoch_ms)
+    batch = max(1, int(limit))
+    events = publish_claimed_resumes(
+        repository, publish, repository.claim_delivered_events(limit=batch)
+    )
+    timeouts = publish_claimed_resumes(
+        repository,
+        publish,
+        repository.claim_timed_out_event_waits(now_epoch_ms=now_ms, limit=batch),
+    )
+    expired = 0
+    with suppress(Exception):
+        expired = int(
+            repository.delete_expired_events(
+                retention_days=retention_days or WAIT_EVENT_RETENTION_DAYS, limit=batch
+            )
+        )
+    return {
+        "claimed": events["claimed"] + timeouts["claimed"],
+        "published": events["published"] + timeouts["published"],
+        "failed": events["failed"] + timeouts["failed"],
+        "events": events["claimed"],
+        "timeouts": timeouts["claimed"],
+        "expired": expired,
+    }
+
+
 __all__ = [
     "WORKFLOW_TIMER_BATCH_LIMIT",
     "WORKFLOW_TIMER_SCAN_INTERVAL_SECONDS",
     "WorkflowTimerRepository",
     "dispatch_due_timers",
+    "dispatch_event_waits",
     "dispatch_finished_children",
     "publish_claimed_resumes",
 ]

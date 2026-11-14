@@ -5,7 +5,7 @@ The checkpoint owns the pause: the graph's pending interrupt carries the
 for a timer, ``due_epoch_ms``). The job row only mirrors it so the control
 process can find due timers with an index and the UI can show what the run
 waits for: status ``awaiting_timer`` / ``awaiting_approval`` /
-``awaiting_child`` and ``jobs.meta.workflow_wait``. The projection can always
+``awaiting_child`` / ``awaiting_event`` and ``jobs.meta.workflow_wait``. The projection can always
 be rebuilt from the checkpoint; it is not a second state machine.
 
 A gate without a recorded wait (a recovery or autonomy approval) is an
@@ -21,9 +21,11 @@ from core.application.jobs.workflow_wait_contract import (
     DURABLE_WAIT_STATUSES,
     STATUS_AWAITING_APPROVAL,
     STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_EVENT,
     STATUS_AWAITING_TIMER,
     WAIT_KIND_APPROVAL,
     WAIT_KIND_CHILD,
+    WAIT_KIND_EVENT,
     WAIT_KIND_TIMER,
     WAIT_STATUS_BY_KIND,
 )
@@ -31,7 +33,7 @@ from core.application.orchestration.active_step import ActiveStep
 
 PENDING_WAIT_KEY = "pending_wait"
 
-#: Checkpoint marker of the timer wake already applied, written in the same
+#: Checkpoint marker of the recorded-wait wake (timer, child, event) already applied, written in the same
 #: update as the wake so a redelivery never reaches a later pause.
 WAIT_RESUME_APPLIED_KEY = "wait_resume_applied_id"
 
@@ -52,6 +54,10 @@ _WAIT_FIELDS = (
     "child_job_id",
     "invocation_key",
     "child_revision",
+    "source",
+    "event_types",
+    "correlation_key",
+    "timeout_ms",
 )
 
 
@@ -155,6 +161,23 @@ def pause_projection(state: Any) -> tuple[str, dict[str, Any] | None] | None:
     return wait_status(wait), wait
 
 
+def event_wait_line(wait: Mapping[str, Any] | None) -> str:
+    """ "Waiting for <types> (key …) since …, times out at …" for an event wait."""
+    wait = wait if isinstance(wait, Mapping) else {}
+    types = [str(item) for item in wait.get("event_types") or [] if str(item or "").strip()]
+    line = f"Waiting for {' or '.join(types) if types else 'an event'}"
+    key = str(wait.get("correlation_key") or "").strip()
+    if key:
+        line += f" (key {key})"
+    started_at = str(wait.get("started_at") or "").strip()
+    if started_at:
+        line += f" since {started_at}"
+    due_at = str(wait.get("due_at") or "").strip()
+    if due_at:
+        line += f", times out at {due_at}"
+    return line
+
+
 def interrupt_matches_wait(state: Any, wait_id: str) -> bool:
     """Whether the checkpoint is paused on exactly this timer wait."""
     target = str(wait_id or "").strip()
@@ -171,13 +194,16 @@ __all__ = [
     "DURABLE_WAIT_STATUSES",
     "STATUS_AWAITING_APPROVAL",
     "STATUS_AWAITING_CHILD",
+    "STATUS_AWAITING_EVENT",
     "STATUS_AWAITING_TIMER",
     "WAIT_KIND_APPROVAL",
     "WAIT_KIND_CHILD",
+    "WAIT_KIND_EVENT",
     "WAIT_KIND_TIMER",
     "WAIT_RESUME_APPLIED_KEY",
     "WAIT_STATUS_BY_KIND",
     "durable_wait_from_state",
+    "event_wait_line",
     "interrupt_matches_wait",
     "pause_projection",
     "pending_interrupt_payloads",

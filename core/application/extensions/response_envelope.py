@@ -423,6 +423,49 @@ def process_project_state_updates(
     actor_id: str | None = None,
     extension_install_id: str | None = None,
 ) -> dict[str, Any]:
+    """Apply a response's project-state updates and host mutations, then store
+    its ``resume_waits`` for waiting runs (ADR 0071) once both succeeded."""
+    result = _apply_project_state_updates(
+        invocation,
+        extension=extension,
+        extension_id=extension_id,
+        db=db,
+        account_id=account_id,
+        project_id=project_id,
+        connection_id=connection_id,
+        actor_id=actor_id,
+        extension_install_id=extension_install_id,
+    )
+    if invocation.get("status") != "failed":
+        from core.application.jobs.workflow_wait_event_delivery import deliver_wait_events
+
+        deliver_wait_events(
+            invocation,
+            db=db,
+            extension_id=extension_id,
+            account_id=account_id,
+            project_id=project_id,
+            extension_install_id=(
+                _text(extension_install_id)
+                or _text((extension or {}).get("install_id"))
+                or _text((extension or {}).get("extension_install_id"))
+            ),
+        )
+    return result
+
+
+def _apply_project_state_updates(
+    invocation: dict[str, Any],
+    *,
+    extension: dict[str, Any] | None,
+    extension_id: str,
+    db: Any,
+    account_id: str,
+    project_id: str,
+    connection_id: str | None = None,
+    actor_id: str | None = None,
+    extension_install_id: str | None = None,
+) -> dict[str, Any]:
     updates = _response_project_state_updates(invocation)
     if not updates:
         process_host_mutations(

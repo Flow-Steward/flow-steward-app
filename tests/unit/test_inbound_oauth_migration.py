@@ -150,5 +150,6 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         "20261109150000_user_date_time_format.sql",
         "20261113073401_webhook_signature_auth_mode.sql",
         "20261114090000_workflow_connection_slot_choices.sql",
+        "20261114160000_workflow_wait_events.sql",
     ]
     assert status["needs_upgrade"] is True

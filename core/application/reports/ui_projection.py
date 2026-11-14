@@ -380,6 +380,8 @@ def _derive_next_action(status: str, runtime: dict[str, Any]) -> str:
         return "Paused on a Wait step; the run resumes by itself when it is due."
     if status == "awaiting_child":
         return "Waiting for the child workflow to finish before the run continues."
+    if status == "awaiting_event":
+        return "Waiting for an event; the run resumes when it arrives or fails at the timeout."
     if status in ("failed", "max_iterations"):
         return "Review the failure reason and restart or acknowledge."
     if status == "retryable_interrupted_step":

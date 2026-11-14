@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 #: The longest a query that holds a connection may run, below any timeout_policy.
 QUERY_CONNECTION_TIMEOUT_SECONDS = 30
 _PROJECT_SCOPED_PRINCIPALS = frozenset({"operator", "viewer", "service_account"})
-_PLATFORM_EFFECT_KEYS = ("commands", "events", "project_state_updates")
+_PLATFORM_EFFECT_KEYS = ("commands", "events", "project_state_updates", "resume_waits")
 
 
 def _refusal(error: type[ServiceError], code: str, message: str) -> ServiceError:

@@ -402,13 +402,22 @@ def _restore_pause_projection(bl, job_id: str, job: dict) -> str | None:
 
 
 def workflow_timer_scan(bl, cfg: ControlConfig | None = None) -> dict:
-    """Wake runs whose authored Wait is due (every second, at most 100 per pass)."""
+    """Wake runs whose authored Wait is due, or whose awaited event arrived or
+    timed out (every second, at most 100 of each per pass)."""
     del cfg
-    from core.application.jobs.workflow_timer_dispatcher import dispatch_due_timers
+    from core.application.jobs.workflow_event_wait_repository import (
+        WorkflowEventWaitRepository,
+    )
+    from core.application.jobs.workflow_timer_dispatcher import (
+        dispatch_due_timers,
+        dispatch_event_waits,
+    )
     from core.infrastructure.db.worker import WorkflowResumeRepositoryAdapter
     from core.infrastructure.runtime.worker.queue_publisher import enqueue_workflow_resume
 
-    return dispatch_due_timers(WorkflowResumeRepositoryAdapter(bl), enqueue_workflow_resume)
+    timers = dispatch_due_timers(WorkflowResumeRepositoryAdapter(bl), enqueue_workflow_resume)
+    events = dispatch_event_waits(WorkflowEventWaitRepository(bl), enqueue_workflow_resume)
+    return {**timers, "event_waits": events}
 
 
 def workflow_child_scan(bl, cfg: ControlConfig | None = None) -> dict:

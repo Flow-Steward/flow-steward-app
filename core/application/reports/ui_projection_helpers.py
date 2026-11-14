@@ -17,6 +17,7 @@ from core.application.jobs.job_artifact_access import (
 )
 from core.application.jobs.workflow_wait_projection import (
     STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_EVENT,
     STATUS_AWAITING_TIMER,
 )
 from core.application.orchestration.active_step import ActiveStep, active_step
@@ -44,7 +45,9 @@ _TOOL_KIND_LABEL_KEYS = {
     "system": "react.jobs.kind_system_tool",
 }
 #: Pauses that are the active step still running (not a review gate).
-_SELF_RESUMING_WAIT_STATUSES = frozenset({STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD})
+_SELF_RESUMING_WAIT_STATUSES = frozenset(
+    {STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD, STATUS_AWAITING_EVENT}
+)
 _SPECIAL_WORDS = _common._SPECIAL_WORDS
 _STEP_STATUS_META = _common._STEP_STATUS_META
 NOT_RECORDED = _common.NOT_RECORDED

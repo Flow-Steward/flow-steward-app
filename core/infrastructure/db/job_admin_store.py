@@ -8,7 +8,7 @@ from uuid import UUID
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 from core.infrastructure.db.job_scope_contract import JOB_PROJECT_IDENTITY_CONDITIONS
 
-#: Durable waits (approval, timer, child) are active: the run is not finished.
+#: Durable waits (approval, timer, child, event) are active: the run is not finished.
 _ACTIVE_JOB_STATUSES = {
     "pending",
     "resume_pending",
@@ -16,6 +16,7 @@ _ACTIVE_JOB_STATUSES = {
     "awaiting_approval",
     "awaiting_timer",
     "awaiting_child",
+    "awaiting_event",
 }
 _JOB_CHILD_TABLES = (
     "platform_events",

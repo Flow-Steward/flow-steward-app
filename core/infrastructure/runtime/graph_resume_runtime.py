@@ -13,7 +13,7 @@ from core.application.jobs.execution_contracts import (
     terminal_failure_context,
 )
 from core.application.jobs.invoke_child_link_repository import InvokeCancellationFenceUnavailable
-from core.application.jobs.workflow_resume_state import RESUME_REASON_CHILD, RESUME_REASON_TIMER
+from core.application.jobs.workflow_resume_state import RECORDED_WAIT_RESUME_REASONS
 from core.application.jobs.workflow_wait_projection import (
     DURABLE_WAIT_STATUSES,
     durable_wait_from_state,
@@ -621,12 +621,12 @@ def run_graph_resume(
             test_mode_token = set_runtime_test_mode(resume_test_mode)
             pre_resume_snapshot = graph.get_state(config)
             pre_resume_values = getattr(pre_resume_snapshot, "values", {}) or {}
-            # Timer and child wakes name the recorded wait they end; either is
-            # delivered only to that wait, never to another pause.
+            # Timer, child and event wakes name the recorded wait they end; each
+            # is delivered only to that wait, never to another pause.
             timer_wait_id = (
                 str(resume_value.get("wait_id") or "").strip()
                 if isinstance(resume_value, Mapping)
-                and resume_value.get("reason") in (RESUME_REASON_TIMER, RESUME_REASON_CHILD)
+                and resume_value.get("reason") in RECORDED_WAIT_RESUME_REASONS
                 else ""
             )
             if timer_wait_id:

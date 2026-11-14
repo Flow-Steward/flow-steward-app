@@ -763,7 +763,8 @@ class WorkflowResumeRepositoryAdapter:
                                    'cancelled',
                                    'awaiting_approval',
                                    'awaiting_timer',
-                                   'awaiting_child'
+                                   'awaiting_child',
+                                   'awaiting_event'
                                )
                                AND COALESCE(
                                    candidate.meta->'workflow_resume'->>'state',

@@ -160,7 +160,7 @@ class WorkflowResumeFinalizationRepository:
                 UPDATE jobs
                    SET status = %s,
                        finished_at = CASE
-                           WHEN %s IN ('awaiting_approval', 'awaiting_timer', 'awaiting_child')
+                           WHEN %s IN ('awaiting_approval', 'awaiting_timer', 'awaiting_child', 'awaiting_event')
                            THEN NULL
                            ELSE NOW()
                        END,

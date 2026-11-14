@@ -20,6 +20,7 @@ PublicStepStatus = Literal[
     "awaiting_approval",
     "awaiting_timer",
     "awaiting_child",
+    "awaiting_event",
     "external_wait",
     "completed",
     "failed",

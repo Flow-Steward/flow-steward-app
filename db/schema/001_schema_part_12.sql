@@ -291,3 +291,35 @@ CREATE INDEX idx_workflow_connection_slot_choices_install
     ON public.workflow_connection_slot_choices (account_id, source_install_id);
 CREATE INDEX idx_workflow_connection_slot_choices_connection
     ON public.workflow_connection_slot_choices (connection_id);
+
+-- Events delivered to Wait steps (ADR 0071): one resume_waits item of an
+-- extension response, kept until a run of the same account and project that waits
+-- for that source, key and type takes it, and deleted 7 days after it arrived.
+CREATE TABLE public.workflow_wait_events (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    source text NOT NULL CHECK (btrim(source) <> ''::text),
+    extension_install_id text DEFAULT ''::text NOT NULL,
+    correlation_key text NOT NULL CHECK (char_length(correlation_key) BETWEEN 1 AND 256),
+    event_type text NOT NULL CHECK (event_type ~ '^[a-z0-9][a-z0-9_.:-]{0,127}$'::text),
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'::text),
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    consumed_at timestamp with time zone,
+    consumed_job_id uuid,
+    consumed_wait_id text,
+    CONSTRAINT workflow_wait_events_delivery_key
+        UNIQUE (project_id, source, correlation_key, event_type)
+);
+
+CREATE INDEX idx_workflow_wait_events_open
+    ON public.workflow_wait_events (project_id, source, correlation_key)
+    WHERE consumed_at IS NULL;
+CREATE INDEX idx_workflow_wait_events_received
+    ON public.workflow_wait_events (received_at);
+CREATE INDEX idx_jobs_workflow_wait_event_key
+    ON public.jobs USING btree (((meta -> 'workflow_wait'::text) ->> 'correlation_key'::text))
+    WHERE (status = 'awaiting_event'::text);
+CREATE INDEX idx_jobs_workflow_wait_event_due
+    ON public.jobs USING btree (((((meta -> 'workflow_wait'::text) ->> 'due_epoch_ms'::text))::bigint), id)
+    WHERE (status = 'awaiting_event'::text);

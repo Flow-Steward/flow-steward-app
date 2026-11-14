@@ -86,3 +86,39 @@ def test_a_checkpoint_paused_on_a_wait_rebuilds_its_projection() -> None:
 def test_a_checkpoint_without_an_interrupt_has_no_pause() -> None:
     assert pause_projection(_snapshot()) is None
     assert pause_projection(None) is None
+
+
+EVENT = {
+    **{key: TIMER[key] for key in ("step_id", "step_execution_id", "attempt", "started_at")},
+    "wait_id": "w-event",
+    "kind": "event",
+    "source": "acme.crawler",
+    "event_types": ["run_completed", "run_failed"],
+    "correlation_key": "run-42",
+    "timeout_ms": 86_400_000,
+    "due_at": "2026-10-13T10:00:00+00:00",
+    "due_epoch_ms": 1_760_349_600_000,
+}
+
+
+def test_an_event_wait_projects_as_awaiting_event_with_its_key_and_deadline() -> None:
+    from core.application.jobs.workflow_wait_projection import STATUS_AWAITING_EVENT
+
+    status, wait = pause_projection(_snapshot({**EVENT, "gate_kind": "wait"}))
+    assert status == STATUS_AWAITING_EVENT
+    meta = workflow_wait_meta(wait, thread_id="thread-1")
+    assert meta["correlation_key"] == "run-42"
+    assert meta["event_types"] == ["run_completed", "run_failed"]
+    assert meta["source"] == "acme.crawler"
+    assert meta["due_epoch_ms"] == 1_760_349_600_000
+    assert "gate_kind" not in meta
+
+
+def test_the_event_wait_line_names_what_when_and_until_when() -> None:
+    from core.application.jobs.workflow_wait_projection import event_wait_line
+
+    assert event_wait_line(EVENT) == (
+        "Waiting for run_completed or run_failed (key run-42) since "
+        "2026-10-12T10:00:00+00:00, times out at 2026-10-13T10:00:00+00:00"
+    )
+    assert event_wait_line(None) == "Waiting for an event"

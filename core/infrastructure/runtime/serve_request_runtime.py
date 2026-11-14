@@ -581,6 +581,12 @@ def compute_wait_reason(
         return "Paused on a Wait step until it is due"
     if status == "awaiting_child":
         return "Waiting for a child workflow to finish"
+    if status == "awaiting_event":
+        from core.application.jobs.workflow_wait_projection import event_wait_line
+
+        meta = to_json_obj(job.get("meta"))
+        wait = meta.get("workflow_wait") if isinstance(meta, dict) else None
+        return event_wait_line(wait if isinstance(wait, dict) else None)
     if status == retryable_interrupted_step_status:
         return "Interrupted in-flight step detected — manual Retry Step is required"
     if status == "in_progress":
