@@ -38,6 +38,7 @@ _GATE_INPUTS = (
     "core/application/tooling/quality/impact_selection.py",
     "core/application/tooling/quality/impact_plan_filter.py",
     "core/application/tooling/quality/impact_vitest_result.py",
+    "core/application/tooling/quality/assert_cache_warmup.py",
     "core/entrypoints/cli/scripts/lint.sh",
     "core/entrypoints/cli/scripts/run-core-only-tests.sh",
     # The audit image pins the tool versions. Evidence reused across commits
