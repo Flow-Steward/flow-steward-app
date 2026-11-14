@@ -33,7 +33,12 @@ class RuntimeRecordResolver(Protocol):
 
 
 class RuntimeRecordLister(Protocol):
-    def __call__(self, *, account_id: str) -> list[dict[str, Any]]: ...
+    def __call__(
+        self,
+        *,
+        account_id: str,
+        exclude_extension_ids: frozenset[str] = frozenset(),
+    ) -> list[dict[str, Any]]: ...
 
 
 class ProjectRecordLister(Protocol):
@@ -162,19 +167,27 @@ class ExtensionPresentationQuery:
             scope=scope,
         )
 
-    def runtime_summaries(self, *, scope: ScopeContext | None) -> list[ExtensionSummaryView]:
+    def runtime_summaries(
+        self,
+        *,
+        scope: ScopeContext | None,
+        exclude_extension_ids: frozenset[str] = frozenset(),
+    ) -> list[ExtensionSummaryView]:
         if self._list_runtime_records is None:
             return []
         account_id = scope.account_id if scope is not None else ""
         summaries: list[ExtensionSummaryView] = []
-        for runtime in self._list_runtime_records(account_id=account_id):
+        for runtime in self._list_runtime_records(
+            account_id=account_id,
+            exclude_extension_ids=exclude_extension_ids,
+        ):
             extension_id = str(
                 runtime.get("extension_id")
                 or runtime.get("extension_key")
                 or runtime.get("id")
                 or ""
             ).strip()
-            if not extension_id:
+            if not extension_id or extension_id in exclude_extension_ids:
                 continue
             if runtime_has_no_manifest(runtime):
                 # A folder without a manifest is named after the folder; no

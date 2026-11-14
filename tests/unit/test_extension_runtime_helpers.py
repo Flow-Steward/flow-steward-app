@@ -1394,3 +1394,91 @@ def _dataset_audit_errors(count: int) -> list[dict]:
         }
         for index in range(count)
     ]
+
+
+def test_runtime_listing_skips_persisted_canonical_bundles_but_keeps_copied_bundles(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+        list_extension_runtime_records,
+    )
+    from tests.support.synthetic_extension_bundle import write_bundle
+
+    installed = tmp_path / "acme_installed"
+    installed.mkdir()
+    # A matching declaration uses the persisted DB summary without compilation.
+    # An explicit scan still reports the incomplete runtime contract.
+    (installed / "extension.yaml").write_text("extension_id: acme.installed\n", encoding="utf-8")
+    write_bundle(tmp_path)
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime_compile.default_extensions_root",
+        lambda: str(tmp_path),
+    )
+    rows = list_extension_runtime_records(
+        account_id="account-a",
+        exclude_extension_ids=frozenset({"acme.installed"}),
+    )
+    assert [row["extension_key"] for row in rows] == ["acme.showcase"]
+    assert rows[0]["status"] == "valid"
+
+    from core.application.extensions.install import ExtensionInstallStore
+    from core.application.extensions.query_service import ExtensionQueryService
+    from core.application.extensions.runtime_store import ExtensionRuntimeStore
+    from core.application.management.scope import ScopeContext
+
+    installs = ExtensionInstallStore()
+    installs.install(extension_id="acme.installed", version="1.0.0", account_id="account-a")
+    service = ExtensionQueryService(
+        get_logger=lambda: None,
+        get_install_store=lambda: installs,
+        get_runtime_store=ExtensionRuntimeStore,
+        list_extension_runtime_records=list_extension_runtime_records,
+    )
+    listing = service.list_extensions(scope=ScopeContext(account_id="account-a"))
+    assert {row.extension_id for row in listing.extensions} == {
+        "acme.installed",
+        "acme.showcase",
+    }
+    from core.infrastructure.extension_runtime.extension_runtime_compile import scan_extensions
+
+    assert len(scan_extensions()) == 2
+
+
+@pytest.mark.parametrize("state", ["active", "disabled"])
+def test_runtime_listing_preserves_distinct_ids_with_the_same_folder_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    from core.application.extensions.install import ExtensionInstallStore
+    from core.application.extensions.query_service import ExtensionQueryService
+    from core.application.extensions.runtime_store import ExtensionRuntimeStore
+    from core.application.management.scope import ScopeContext
+    from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+        list_extension_runtime_records,
+    )
+    from tests.support.synthetic_extension_bundle import write_bundle
+
+    copied = write_bundle(tmp_path, extension_id="acme.sample.tools")
+    copied.rename(tmp_path / "acme_sample_tools")
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime_compile.default_extensions_root",
+        lambda: str(tmp_path),
+    )
+    installs = ExtensionInstallStore()
+    installs.install(extension_id="acme.sample-tools", version="1.0.0", account_id="account-a")
+    installs.set_state(extension_id="acme.sample-tools", account_id="account-a", state=state)
+    service = ExtensionQueryService(
+        get_logger=lambda: None,
+        get_install_store=lambda: installs,
+        get_runtime_store=ExtensionRuntimeStore,
+        list_extension_runtime_records=list_extension_runtime_records,
+    )
+
+    listing = service.list_extensions(scope=ScopeContext(account_id="account-a"))
+
+    assert {row.extension_id for row in listing.extensions} == {
+        "acme.sample-tools",
+        "acme.sample.tools",
+    }

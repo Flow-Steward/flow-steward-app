@@ -156,17 +156,37 @@ class PlatformLoggerExtensionsAccountsQueryMixin:
         if not normalized_key:
             return None
         normalized_account_id = str(account_id or "").strip()
-        rows = self.list_extensions(enabled_only=False)
-        for row in rows:
-            if str(row.get("extension_key") or "").strip() != normalized_key:
-                continue
-            if (
-                normalized_account_id
-                and str(row.get("account_id") or "").strip() != normalized_account_id
-            ):
-                continue
-            return row
-        return None
+        if not self._table_exists("extension_bundles"):
+            return None
+        predicates = ["eb.extension_key = %s"]
+        parameters = [normalized_key]
+        if normalized_account_id:
+            if self._column_exists("extension_bundles", "account_id"):
+                predicates.append("eb.account_id = %s")
+                parameters.append(normalized_account_id)
+            elif normalized_account_id != _default_account_id():
+                return None
+        select_columns = self._extension_base_select_columns()
+        select_columns.append(self._enabled_extension_config_select_column())
+        select_columns.extend(self._extension_version_select_columns())
+        select_columns.append(self._extension_bundle_account_select_column())
+        with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT {", ".join(select_columns)}
+                FROM extension_bundles eb
+                LEFT JOIN extension_versions ev
+                    ON ev.bundle_id = eb.id
+                   AND ev.version = eb.latest_version
+                LEFT JOIN enabled_extensions ee ON ee.bundle_id = eb.id
+                WHERE {" AND ".join(predicates)}
+                ORDER BY eb.kind, eb.extension_key
+                LIMIT 1
+                """,
+                tuple(parameters),
+            )
+            row = cur.fetchone()
+        return self._normalize_extension_row(dict(row)) if row is not None else None
 
     def get_extension_by_install_id(
         self,

@@ -301,12 +301,26 @@ def _overlay_canonical_install_enabled_state(
         record["enabled"] = state == "active"
 
 
-def list_extension_runtime_records(*, account_id: str) -> list[dict[str, Any]]:
-    """List deployment runtime bundles without reading tenant-owned install state."""
+def list_extension_runtime_records(
+    *,
+    account_id: str,
+    exclude_extension_ids: frozenset[str] = frozenset(),
+) -> list[dict[str, Any]]:
+    """Discover uncatalogued bundles; installed packages already have DB summaries.
+
+    This exclusion is for the read-only hub list. Installation, explicit scans
+    and execution still validate their bundles through the full compiler.
+    """
     _ = account_id
+    from core.application.extensions.identity import is_canonical_extension_id
     from core.infrastructure.extension_runtime.extension_runtime_compile import scan_extensions
 
-    return [dict(row) for row in scan_extensions()]
+    installed_ids = frozenset(
+        extension_id
+        for extension_id in exclude_extension_ids
+        if is_canonical_extension_id(extension_id)
+    )
+    return [dict(row) for row in scan_extensions(excluded_extension_ids=installed_ids)]
 
 
 def build_extension_compiled_manifest(extension: dict | None) -> dict:

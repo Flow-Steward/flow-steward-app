@@ -433,3 +433,25 @@ def test_step_extension_id_names_only_a_canonical_extension(
     from core.application.workflows.extension_connection_validation import step_extension_id
 
     assert step_extension_id(step) == expected
+
+
+def test_installed_logo_does_not_depend_on_release_projection_reads(
+    installed: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable_release(_release_id: str):
+        raise RuntimeError("The detail release store must not be read for a logo")
+
+    monkeypatch.setattr(
+        installed.service._listings.runtime_store(),
+        "get_release",
+        unavailable_release,
+    )
+
+    assert (
+        installed.service.get_extension_icon(
+            EXTENSION_ID,
+            scope=ScopeContext(account_id=ACCOUNT),
+        )
+        == EXTENSION_ICON_PNG
+    )
