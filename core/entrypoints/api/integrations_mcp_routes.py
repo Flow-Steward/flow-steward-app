@@ -41,7 +41,7 @@ def register_mcp_routes(
         if not _valid_project_id(normalized_project_id):
             raise ServiceValidationError("MCP connector project_id is invalid")
         scope = request_scope(request, project_id=normalized_project_id)
-        project_query_service().get_project_detail(normalized_project_id, scope=scope)
+        project_query_service().assert_project_access(normalized_project_id, scope=scope)
         return scope
 
     @router.get("/api/mcp")

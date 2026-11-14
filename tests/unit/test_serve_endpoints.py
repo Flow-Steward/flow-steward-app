@@ -4723,7 +4723,7 @@ class TestLocalAuthEndpoints:
         }
         svc = MagicMock()
         svc.list_connectors.return_value = payload
-        project_svc = MagicMock()
+        project_svc = MagicMock(spec=["assert_project_access"])
 
         with (
             patch(

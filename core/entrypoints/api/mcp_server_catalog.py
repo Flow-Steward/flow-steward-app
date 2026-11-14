@@ -71,7 +71,7 @@ def create_mcp_server_catalog_router(
         except (TypeError, ValueError):
             raise ServiceValidationError("MCP connector project_id is invalid") from None
         scope = request_scope(request, project_id=normalized)
-        project_query_service().get_project_detail(normalized, scope=scope)
+        project_query_service().assert_project_access(normalized, scope=scope)
         return scope
 
     def _project_scopes(request: Request, project_id: str) -> list[Any]:

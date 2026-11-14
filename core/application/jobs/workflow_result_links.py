@@ -11,6 +11,7 @@ def with_artifact_downloads(result: dict, job_id: str) -> dict:
     ``build_public_result`` keeps only artifacts that belong to the job, and the
     job's artifact route authorizes the same ownership, so the address is real.
     """
+
     def _linked(item: object) -> object:
         if not isinstance(item, dict) or not item.get("artifact_id"):
             return item
