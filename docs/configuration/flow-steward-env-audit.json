@@ -9157,6 +9157,26 @@
     "variable_name": "FS_QUALITY_RUNTIME_DELEGATED"
   },
   {
+    "canonical_name": "FS_QUALITY_TEST_SELECTION",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/lint.sh"
+    ],
+    "conditional_groups": [
+      "quality_tools"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "local_development"
+    ],
+    "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0068). Set only by the quality gate; never configure it.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "quality",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_QUALITY_TEST_SELECTION"
+  },
+  {
     "canonical_name": "FS_RABBITMQ_HEARTBEAT_SECONDS",
     "code_read_locations": [
       "core/infrastructure/runtime/worker/queue_broker.py"
@@ -15632,6 +15652,7 @@
       "tests/unit/test_retired_executor_absence.py",
       "tests/unit/test_retry_architecture.py",
       "tests/unit/tooling/quality/test_hosted_quality.py",
+      "tests/unit/tooling/quality/test_impact_map.py",
       "tests/unit/tooling/quality/test_release_gate.py",
       "tests/unit/tooling/quality/test_reuse_smoke.py"
     ],

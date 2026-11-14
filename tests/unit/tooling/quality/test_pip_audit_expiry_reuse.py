@@ -28,7 +28,7 @@ class AcceptanceRunner:
         self.report = report
         self.calls: list[str] = []
 
-    def run(self, check, *, timeout_seconds: int) -> int:
+    def run(self, check, *, timeout_seconds: int, extra_env=None) -> int:
         del timeout_seconds
         self.calls.append(check.id)
         if check.id != "pip-audit":

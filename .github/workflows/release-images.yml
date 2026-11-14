@@ -299,7 +299,7 @@ jobs:
           name: native-${{ matrix.architecture }}
           path: ${{ runner.temp }}/native/
           compression-level: 0
-          retention-days: 30
+          retention-days: 3
           if-no-files-found: error
   publish:
     needs: [resolve, quality, native]

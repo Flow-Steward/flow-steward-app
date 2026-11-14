@@ -43,7 +43,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `provider_defaults` | Provider-neutral model defaults and AI chunk sizing. | `9` |
 | `provider_google` | Google provider credentials. | `0` |
 | `provider_openai` | OpenAI provider credentials. | `0` |
-| `quality_tools` | Quality and SonarQube helpers. | `16` |
+| `quality_tools` | Quality and SonarQube helpers. | `17` |
 | `release_discovery` | Official GitHub repository used for stable release discovery. | `2` |
 | `release_publication` | CI and manual tooling for publishing official release images. | `2` |
 | `static_catalogs` | Read-only Git-hosted static catalogs for workflow templates and extensions. | `3` |
@@ -51,11 +51,11 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `827`
-- Cataloged variables from `.env.example*` or manifest: `605`
+- Raw env-like names discovered by audit: `828`
+- Cataloged variables from `.env.example*` or manifest: `606`
 - Raw audit-only names outside examples/manifest: `222`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `515`
+- Variables in canonical manifest: `516`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
@@ -63,7 +63,7 @@ Cataloged variables by scope:
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
-- Tooling Internal: `80`
+- Tooling Internal: `81`
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
@@ -929,6 +929,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_QUALITY_BACKEND_PARTITION` | quality_tools | local_development | no | no | `all` | - | Tests (2) | Transient core-only test workspace selection set by the canonical runner: all or independent. Independent selection omits unused global workflow/DB test bootstrap; tests needing it remain in the contract group. | `tests/conftest.py`<br>`tests/unit/conftest.py` |
 | `FS_QUALITY_CACHE_ROOT` | quality_tools | local_development | no | no | - | - | Docker Compose (1) | Derived per-job package-cache bind directory for disposable hosted quality runners; not a product or persisted installation setting. | `infra/docker/docker-compose.quality-hosted.yaml` |
 | `FS_QUALITY_EVIDENCE_MODE` | quality_tools | local_development | no | no | `reuse` | - | CLI scripts (1) | Controls local quality evidence behavior: reuse, report, or off. CLI flags take precedence. | `core/entrypoints/cli/scripts/lint.sh` |
+| `FS_QUALITY_TEST_SELECTION` | quality_tools | local_development | no | no | - | - | CLI scripts (1) | Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0068). Set only by the quality gate; never configure it. | `core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG` | - | local_development | no | no | `0` | .env.example.quality | CLI scripts (1) | SonarQube (optional quality profile) | `core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG_INPUT_CSV` | - | local_development | no | no | - | .env.example.quality | CLI scripts (1), Tooling (1) | SonarQube (optional quality profile) | `core/application/tooling/quality/sonar_generate_backlog.py`<br>`core/entrypoints/cli/scripts/lint.sh` |
 | `SONAR_BACKLOG_MAX_P0` | - | local_development | no | no | `60` | .env.example.quality | CLI scripts (1), Tooling (1) | SonarQube (optional quality profile) | `core/application/tooling/quality/sonar_generate_backlog.py`<br>`core/entrypoints/cli/scripts/lint.sh` |
@@ -979,6 +980,6 @@ These names were found by broad env-read scanning, but they are not in shipped `
 |---|---|---|
 | Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `127` | CLI scripts (193), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
-| Test Only | `44` | Tests (78), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
+| Test Only | `44` | Tests (79), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
 | Uncategorized | `40` | Docker Compose (35), Tooling (9), Infrastructure (4), Database (4), Security (3) |

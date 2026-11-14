@@ -128,13 +128,19 @@ Tier 2 runs first, Tier 3 is not selected, and Sonar analyzes all canonical sour
 without test coverage. The bootstrap runtime-pilot branch selects this mode.
 It cannot qualify a release; use `release-sonar` for cumulative release evidence.
 
-The `parallel-diagnostic` mode measures frontend-tests and backend-tests on
-separate standard VMs after Tier 2. Each VM reads its actual command from the
-canonical check registry and runs it through lint.sh and fs-audit. Worker counts,
-timeouts, and test scope are unchanged. Both jobs finish even if one fails.
-This runtime comparison does not replace cumulative `--full`: cross-profile and
-external acceptance checks, and final evidence validation still belong to the
-release route. The bootstrap parallel-pilot branch selects this measurement mode.
+Release modes run Tier 3 on parallel VMs (ADR 0068). The `tier3` job runs four
+parts after Tier 2 — backend, contracts with the cross-profile heartbeat, frontend,
+external — each through `lint.sh --full --tier3-only`, with the Tier 2 evidence
+and the PostgreSQL image the quality job built once for the run. Selected suites
+run only the tests the change reaches since an earlier result. `release_gate`
+then runs the cumulative `--full` over all parts' evidence and runs nothing again;
+it is skipped when a part failed. `release-full` (and the Sunday schedule on main)
+runs every selected suite whole and rebuilds the impact maps.
+
+Every run imports the evidence and impact maps of the latest runs of its branch,
+then main. Fingerprints decide reuse as before, so a commit that leaves a check's
+inputs unchanged does not run it again; a retry after a failed part runs that
+part's failing modules and what the fix reaches.
 
 The Sonar job starts a fresh, disposable SonarQube server, rotates the bootstrap
 admin password and creates a masked per-run token. It runs `lint.sh --sonar-full`
@@ -158,7 +164,7 @@ measured before declaring the transition complete.
 For a secret-scanner measurement without a full quality tier, dispatch mode
 `secret-scan-only`. The dedicated `codex/secret-scan-live` measurement ref always
 selects only that scanner job, including when an older dispatch form still shows
-`tier2`. It cannot select the normal quality, parallel Tier 3 or Sonar jobs.
+`tier2`. It cannot select the normal quality, Tier 3 or Sonar jobs.
 The first run with an empty `reuse_run_id` starts with no per-file passes. After
 it completes, dispatch the same ref with its run ID in `reuse_run_id`; this mode
 validates and imports only the exact source's dedicated scanner manifest.

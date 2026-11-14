@@ -1,9 +1,13 @@
 name: Remote quality pilot
-run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
+run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
 
 on:
   push:
     branches: ['**']
+  # Weekly backstop for impacted-test selection (ADR 0068): main's Tier 3
+  # suites run whole and rebuild their impact maps.
+  schedule:
+    - cron: '30 1 * * 0'
   workflow_dispatch:
     inputs:
       mode:
@@ -11,7 +15,7 @@ on:
         type: choice
         required: true
         default: tier2
-        options: [tier2, release, release-sonar, single-check, sonar-diagnostic, parallel-diagnostic, reuse-smoke, secret-scan-only]
+        options: [tier2, release, release-sonar, release-full, single-check, sonar-diagnostic, reuse-smoke, secret-scan-only]
       check:
         description: Registry check id that single-check runs alone (a diagnostic, not release evidence)
         type: string
@@ -33,7 +37,7 @@ concurrency:
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || inputs.mode || (github.ref_name == 'codex/parallel-quality-pilot' && 'parallel-diagnostic') || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
+  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
 
 jobs:
   quality:
@@ -228,6 +232,60 @@ jobs:
               break
             fi
           done
+      - name: Find earlier evidence and impact maps of this branch and main
+        id: earlier-evidence
+        if: env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check' && steps.restore-source-evidence.outcome != 'success'
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
+        with:
+          script: |
+            const fs = require('fs');
+            const select = require(`${process.env.GITHUB_WORKSPACE}/core/application/tooling/quality/hosted_evidence_source.cjs`);
+            const {data: workflow} = await github.rest.actions.getWorkflow({
+              ...context.repo, workflow_id: 'remote-quality.yml',
+            });
+            const sources = await select({github, ...context.repo,
+              repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
+              workflowId: workflow.id, branch: context.ref.replace(/^refs\/heads\//, ''),
+              currentRunId: Number(process.env.GITHUB_RUN_ID)});
+            const root = `${process.env.RUNNER_TEMP}/earlier-quality`;
+            fs.mkdirSync(root, {recursive: true});
+            let index = 0;
+            for (const source of sources) {
+              const {data} = await github.rest.actions.downloadArtifact({
+                ...context.repo, artifact_id: source.artifact_id, archive_format: 'zip',
+              });
+              fs.writeFileSync(`${root}/${String(index++).padStart(3, '0')}-${source.name}.zip`, Buffer.from(data));
+              core.info(`${source.name} from run ${source.run_id} (${source.branch})`);
+            }
+            core.setOutput('count', String(sources.length));
+      - name: Import earlier evidence and impact maps without accepting a result
+        if: steps.earlier-evidence.outputs.count != '' && steps.earlier-evidence.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          # Newest first and never replacing what is already here: fingerprints decide
+          # reuse, and a selection trusts only results of this candidate's ancestors.
+          for archive in "$RUNNER_TEMP"/earlier-quality/*.zip; do
+            target="${archive%.zip}"
+            unzip -q -o "$archive" -d "$target"
+            if [[ -d "$target/quality/evidence" ]]; then
+              mkdir -p logs/quality/evidence
+              cp -R --update=none "$target/quality/evidence/." logs/quality/evidence/
+            fi
+            for map in "$target"/quality/test-impact/*/map.json; do
+              [[ -f "$map" ]] || continue
+              check="$(basename "$(dirname "$map")")"
+              [[ "$check" =~ ^[a-z0-9-]+$ && ! -f "logs/quality/test-impact/$check/map.json" ]] || continue
+              mkdir -p "logs/quality/test-impact/$check"
+              cp "$map" "logs/quality/test-impact/$check/map.json"
+            done
+          done
+          for output in logs/quality/evidence logs/quality/test-impact; do
+            if [[ -d "$output" ]]; then
+              sudo chgrp -R 1000 "$output"
+              sudo chmod -R g+rwX "$output"
+            fi
+          done
       - uses: ./.github/actions/prepare-quality
       - name: Prove scoped diagnostic reuse without running any full gate or product suite
         if: env.QUALITY_MODE == 'reuse-smoke'
@@ -269,11 +327,8 @@ jobs:
           ./core/entrypoints/cli/scripts/lint.sh --fast \
             --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
             2>&1 | tee logs/quality/hosted/tier2.log
-      - name: Recheck current main before starting Tier 3
-        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
-        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Build the canonical disposable PostgreSQL image
-        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'single-check'
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full' || env.QUALITY_MODE == 'single-check'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0 (Node 24)
         with:
           context: .
@@ -283,13 +338,21 @@ jobs:
           tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
           cache-from: type=gha,scope=quality-postgres-amd64
           cache-to: type=gha,scope=quality-postgres-amd64,mode=min
-      - name: Run cumulative gate with Tier 3
-        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'
+      - name: Save the exact PostgreSQL image for the Tier 3 jobs
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full'
         run: |
-          set -o pipefail
-          ./core/entrypoints/cli/scripts/lint.sh --full \
-            --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
-            2>&1 | tee logs/quality/hosted/full.log
+          # Backend evidence binds the service image ID. One build shared by every
+          # Tier 3 job keeps their results readable by the cumulative release job.
+          docker save fs-postgres-extended:0.1.0-pgvector-0.8.5 | zstd -T0 -3 -q -o "$RUNNER_TEMP/postgres-image.tar.zst"
+      - name: Hand the PostgreSQL image to the Tier 3 jobs
+        if: env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
+        with:
+          name: postgres-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/postgres-image.tar.zst
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
       - name: Run one requested check alone
         if: env.QUALITY_MODE == 'single-check'
         env:
@@ -335,11 +398,13 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
-          name: quality-${{ github.sha }}-${{ github.run_attempt }}
+          # Release modes finish in release_gate, which owns quality-<sha>-<attempt>.
+          name: ${{ (env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full') && 'quality-stage' || 'quality' }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             logs/quality/evidence
             logs/quality/hosted
             logs/quality/file-results
+            logs/quality/test-impact/*/map.json
             logs/coverage
           retention-days: 3
           if-no-files-found: warn
@@ -475,16 +540,38 @@ jobs:
           retention-days: 3
           if-no-files-found: ignore
 
-  parallel_tier_three:
-    name: Tier 3 runtime pilot / ${{ matrix.check }}
+  tier3:
+    # Tier 3 on parallel VMs (ADR 0068): each part reads Tier 2 and earlier evidence
+    # from the quality job, runs its suites (impacted tests only, unless a weekly
+    # or release-full run asks for the whole suites) and returns its evidence.
+    name: Tier 3 / ${{ matrix.part }}
     needs: quality
-    if: github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' && github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' && (inputs.mode == 'parallel-diagnostic' || (github.event_name == 'push' && github.ref_name == 'codex/parallel-quality-pilot'))
+    if: >-
+      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
+      github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
+      needs.quality.result == 'success' &&
+      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule' ||
+       (github.event_name == 'push' && (github.ref_name == 'codex/remote-quality-pilot' ||
+        startsWith(github.ref_name, 'codex/verify-sonar/') || startsWith(github.ref_name, 'codex/verify-release/'))))
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 150
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       matrix:
-        check: [frontend-tests, backend-tests]
+        include:
+          - part: backend
+            checks: backend-tests
+          - part: contracts
+            checks: backend-frontend-contracts,runtime-heartbeat-cross-profile
+          - part: frontend
+            checks: frontend-tests
+          - part: external
+            checks: external
+    env:
+      FULL_SUITE_FLAG: ${{ (inputs.mode == 'release-full' || github.event_name == 'schedule') && '--full-suite' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
@@ -492,59 +579,133 @@ jobs:
           persist-credentials: false
       - name: Require a clean candidate including current main
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
-      - uses: ./.github/actions/prepare-quality
-      - name: Build the canonical disposable PostgreSQL image
-        if: matrix.check == 'backend-tests'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0 (Node 24)
+      - name: Restore Tier 2 and earlier evidence from the quality job
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          context: .
-          file: infra/docker/postgres-extended/Dockerfile
-          load: true
-          push: false
-          tags: fs-postgres-extended:0.1.0-pgvector-0.8.5
-          cache-from: type=gha,scope=quality-postgres-amd64
-          cache-to: type=gha,scope=quality-postgres-amd64,mode=min
-      - name: Run the registry-owned suite on its own VM
+          name: quality-stage-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs
+      - uses: ./.github/actions/prepare-quality
+      - name: Download the PostgreSQL image built once for this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
+        with:
+          name: postgres-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/postgres-image
+      - name: Load the exact PostgreSQL image of this run
+        run: zstd -dc "$RUNNER_TEMP/postgres-image/postgres-image.tar.zst" | docker load
+      - name: Run this part of Tier 3
         env:
-          CHECK_ID: ${{ matrix.check }}
+          TIER3_CHECKS: ${{ matrix.checks }}
+          TIER3_PART: ${{ matrix.part }}
         run: |
           set -o pipefail
-          python3 - <<'PYCODE' 2>&1 | tee logs/quality/hosted/parallel-suite.log
-          import json, os, shlex, subprocess, sys
-          from pathlib import Path
-          registry = json.loads(Path("infra/tooling/quality/check-registry.json").read_text())
-          check = next(row for row in registry["checks"] if row["id"] == os.environ["CHECK_ID"])
-          assert check["owner_tier"] == 3 and check.get("execution", "orchestrator") == "orchestrator"
-          command = [*check["command"], "--fingerprint-source", "commit", "--commit-sha", os.environ["GITHUB_SHA"]]
-          print("Runtime diagnostic only; not cumulative release evidence.", flush=True)
-          print(shlex.join(command), flush=True)
-          sys.exit(subprocess.run(command, check=False).returncode)
-          PYCODE
-      - name: Reject stale candidate after the suite
+          # shellcheck disable=SC2086 # FULL_SUITE_FLAG is empty or one flag.
+          ./core/entrypoints/cli/scripts/lint.sh --full \
+            --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
+            --tier3-only "$TIER3_CHECKS" $FULL_SUITE_FLAG \
+            2>&1 | tee "logs/quality/hosted/tier3-$TIER3_PART.log"
+      - name: Reject results if main advanced beyond the candidate
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
       - name: Collect bounded diagnostics
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
-      - name: Remove this VM's disposable stack
+      - name: Remove this job's disposable stack
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
       - name: Return generated reports to the artifact uploader
         if: always() && env.FS_QUALITY_CACHE_ROOT != ''
         run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
-      - name: Retain runtime diagnostics
+      - name: Retain this part's evidence, impact map and coverage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
-          name: parallel-${{ matrix.check }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: tier3-${{ matrix.part }}-${{ github.sha }}-${{ github.run_attempt }}
           path: |
+            logs/quality/evidence
             logs/quality/hosted
+            logs/quality/test-impact/*/map.json
+            logs/quality/test-impact/*/plan.json
+            logs/coverage
+          retention-days: 3
+          if-no-files-found: warn
+
+  release_gate:
+    # The cumulative read: every Tier 2 and Tier 3 result for this exact SHA, as
+    # one --full gate that finds them all reusable and runs nothing again.
+    name: Cumulative release gate
+    needs: [quality, tier3]
+    if: >-
+      always() && !cancelled() &&
+      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
+      github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
+      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule' ||
+       (github.event_name == 'push' && (github.ref_name == 'codex/remote-quality-pilot' ||
+        startsWith(github.ref_name, 'codex/verify-sonar/') || startsWith(github.ref_name, 'codex/verify-release/')))) &&
+      needs.quality.result == 'success' && needs.tier3.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require a clean candidate including current main
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Restore Tier 2 evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
+        with:
+          name: quality-stage-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs
+      - name: Restore every Tier 3 part's evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
+        with:
+          pattern: tier3-*-${{ github.sha }}-${{ github.run_attempt }}
+          merge-multiple: true
+          path: logs
+      - uses: ./.github/actions/prepare-quality
+      - name: Download the PostgreSQL image built once for this run
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
+        with:
+          name: postgres-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/postgres-image
+      - name: Load the exact PostgreSQL image of this run
+        run: zstd -dc "$RUNNER_TEMP/postgres-image/postgres-image.tar.zst" | docker load
+      - name: Run cumulative gate over all parts
+        run: |
+          set -o pipefail
+          ./core/entrypoints/cli/scripts/lint.sh --full \
+            --fingerprint-source commit --commit-sha "$GITHUB_SHA" \
+            2>&1 | tee logs/quality/hosted/full.log
+      - name: Reject results if main advanced beyond the candidate
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh check-candidate
+      - name: Collect bounded diagnostics
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh diagnostics
+      - name: Remove this job's disposable stack
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh cleanup
+      - name: Return generated reports to the artifact uploader
+        if: always() && env.FS_QUALITY_CACHE_ROOT != ''
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-artifacts
+      - name: Retain the cumulative evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
+        with:
+          name: quality-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            logs/quality/evidence
+            logs/quality/hosted
+            logs/quality/test-impact/*/map.json
             logs/coverage
           retention-days: 3
           if-no-files-found: warn
 
   sonar:
     name: Full SonarQube pilot (fresh baseline)
-    needs: quality
+    # Runs beside release_gate: coverage comes from the Tier 3 parts of this run.
+    needs: [quality, tier3]
     if: >-
       always() && !cancelled() &&
       github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
@@ -553,7 +714,8 @@ jobs:
       (needs.quality.result == 'success' || needs.quality.result == 'failure') &&
       (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic' ||
        (github.event_name == 'push' &&
-        (github.ref_name == 'codex/sonar-runtime-pilot' || github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/'))))
+        (github.ref_name == 'codex/sonar-runtime-pilot' || github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')))) &&
+      needs.tier3.result != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -566,10 +728,17 @@ jobs:
       - uses: ./.github/actions/prepare-quality
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: quality-${{ github.sha }}-${{ github.run_attempt }}
+          name: ${{ (env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full') && 'quality-stage' || 'quality' }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: logs
+      - name: Restore Tier 3 coverage from this run's parts
+        if: needs.tier3.result == 'success' || needs.tier3.result == 'failure'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
+        with:
+          pattern: tier3-*-${{ github.sha }}-${{ github.run_attempt }}
+          merge-multiple: true
           path: logs
       - name: Identify diagnostic analysis after failed tests
-        if: needs.quality.result == 'failure'
+        if: needs.quality.result == 'failure' || needs.tier3.result == 'failure'
         run: |
           echo '::warning::Diagnostic Sonar analysis: preceding quality gate failed; coverage may be incomplete. This run cannot qualify a release.'
           echo 'Sonar runs diagnostically after a failed quality gate. Coverage may be incomplete. The failed gate remains failed; this run is not release evidence.' >> "$GITHUB_STEP_SUMMARY"

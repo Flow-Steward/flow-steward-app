@@ -39,6 +39,15 @@ class EvidenceRecord(BaseModel):
     duration_seconds: float = Field(ge=0)
     report_paths: tuple[str, ...] = ()
     report_checksums: dict[str, str] = Field(default_factory=dict)
+    # Impacted-test selection (ADR 0068). An empty base means the whole suite
+    # ran; otherwise only the tests a change since that passed ancestor reaches.
+    selection_base_sha: str = ""
+    selected_modules: int | None = Field(default=None, ge=0)
+    # Test modules that failed; a later selection reruns them (ADR 0068).
+    failed_modules: tuple[str, ...] = ()
+    # Runtime the suite ran in, without disposable image IDs; a selection base
+    # must share it, so a dependency or interpreter change runs everything.
+    runtime_digest: str = ""
 
     @model_validator(mode="after")
     def validate_timing(self) -> Self:
@@ -169,6 +178,25 @@ class EvidenceStore:
             self.last_error = "read_failed"
             return None
         return record
+
+    def records(self, check_id: str) -> tuple[EvidenceRecord, ...]:
+        """Every intact record of ``check_id``, whatever its fingerprint."""
+        if _CHECK_ID.fullmatch(check_id) is None:
+            raise ValueError(f"invalid check id: {check_id!r}")
+        found: dict[str, EvidenceRecord] = {}
+        roots = [root for root in (self.root, self.shared_root) if root is not None]
+        for root in roots:
+            check_root = root / check_id
+            if not check_root.is_dir():
+                continue
+            for directory in sorted(check_root.iterdir()):
+                if directory.name in found or _FINGERPRINT.fullmatch(directory.name) is None:
+                    continue
+                record = self._read_from(root, check_id, directory.name)
+                if record is not None:
+                    found[directory.name] = record
+        self.last_error = ""
+        return tuple(found.values())
 
     def _read_from(self, root: Path, check_id: str, fingerprint: str) -> EvidenceRecord | None:
         destination = root / self.path_for(check_id, fingerprint).relative_to(self.root)

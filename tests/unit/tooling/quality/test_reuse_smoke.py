@@ -17,7 +17,7 @@ class ObservedRegression:
     def __init__(self) -> None:
         self.calls = 0
 
-    def run(self, check, *, timeout_seconds: int) -> int:
+    def run(self, check, *, timeout_seconds: int, extra_env=None) -> int:
         del timeout_seconds
         assert check.id == CHECK_ID
         self.calls += 1
@@ -179,17 +179,18 @@ def test_smoke_workflow_skips_all_full_tiers_and_imports_the_real_source_artifac
     assert tier_two["if"] == (
         "env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check'"
     )
+    # Tier 3 runs in the tier3 and release_gate jobs (ADR 0068), never in this one.
+    assert not any("lint.sh --full" in step.get("run", "") for step in steps)
+    release_modes = (
+        "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"
+        " || env.QUALITY_MODE == 'release-full'"
+    )
     for step in steps:
-        if "lint.sh --full" in step.get("run", ""):
-            assert (
-                step["if"] == "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"
-            )
-        if "PostgreSQL image" in step.get("name", ""):
-            assert step["if"] == (
-                "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"
-                " || env.QUALITY_MODE == 'single-check'"
-            )
-    for job_id in ("parallel_tier_three", "sonar"):
+        if step.get("name") == "Build the canonical disposable PostgreSQL image":
+            assert step["if"] == release_modes + " || env.QUALITY_MODE == 'single-check'"
+        if "PostgreSQL image" in step.get("name", "") and "Tier 3" in step.get("name", ""):
+            assert step["if"] == release_modes
+    for job_id in ("tier3", "release_gate", "sonar"):
         condition = workflow["jobs"][job_id]["if"]
         assert "github.ref_name != 'codex/quality-reuse-live'" in condition
         assert "inputs.mode != 'reuse-smoke'" in condition

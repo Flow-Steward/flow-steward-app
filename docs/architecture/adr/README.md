@@ -112,6 +112,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0065](0065-composite-extension-actions.md) | Composite extension actions | Accepted |
 | [0066](0066-global-roles-and-secret-provider-boundary.md) | Global Roles, Shared Team Trust and Secret Provider Boundary | Accepted |
 | [0067](0067-extension-page-queries-with-connection.md) | Extension page queries with a project connection | Accepted |
+| [0068](0068-impacted-tier3-selection-and-parallel-hosted-gate.md) | Impacted Tier 3 selection and a parallel hosted release gate | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

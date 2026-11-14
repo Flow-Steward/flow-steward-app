@@ -460,7 +460,8 @@
       "inputs": [
         "assets/**"
       ],
-      "reuse_scope": "inputs"
+      "reuse_scope": "inputs",
+      "selection": {"kind": "vitest-related", "full_run_paths": ["assets/frontend/package.json", "assets/frontend/package-lock.json", "assets/frontend/*.config.*", "assets/frontend/tsconfig*.json", "assets/frontend/src/test/**"]}
     },
     {
       "id": "backend-tests",
@@ -476,6 +477,7 @@
       "inputs": ["**"],
       "input_excludes": ["assets/**"],
       "reuse_scope": "inputs",
+      "selection": {"kind": "pytest-impact", "full_run_paths": ["db/**", "requirements*.txt", "requirements*.lock", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json"]},
       "prerequisites": [
         "ruff",
         "mypy"
@@ -487,6 +489,7 @@
       "command": ["bash", "core/entrypoints/cli/scripts/lint.sh", "--checks", "backend-frontend-contracts", "--quality-owner-tier", "3"],
       "inputs": ["**"],
       "reuse_scope": "inputs",
+      "selection": {"kind": "pytest-impact", "full_run_paths": ["db/**", "requirements*.txt", "requirements*.lock", "pyproject.toml", "pytest.ini", "package.json", "package-lock.json", "assets/frontend/package*.json", "assets/frontend/*.config.*"]},
       "prerequisites": ["ruff", "mypy"]
     },
     {

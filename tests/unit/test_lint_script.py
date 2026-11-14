@@ -184,6 +184,8 @@ def test_every_host_flag_reaches_the_container(tmp_path: Path) -> None:
         ("--fingerprint-source", "${FINGERPRINT_SOURCE}"),
         ("--trust", "${evidence_trust}"),
         ("--commit-sha", "${candidate_commit_sha}"),
+        ("--tier3-only", "${tier3_only}"),
+        ("--full-suite", None),
     ):
         assert flag in block, f"{flag} is never forwarded into the container"
         if variable is not None:

@@ -17,6 +17,8 @@ evidence_trust="local"
 commit_sha=""
 permission_preflight=0
 quality_owner_tier=""
+tier3_only=""
+full_suite=0
 audit_image_checked=0
 extension_root=""
 extension_id=""
@@ -112,6 +114,11 @@ Modes:
   --fingerprint-source  worktree, index, or commit (default: worktree).
   --trust  local or trusted_ci; trusted_ci is accepted only in exact-SHA GitHub Actions.
   --commit-sha  Commit identity required with trusted_ci commit fingerprints.
+  --tier3-only  With --full: run only these Tier 3 check ids (comma-separated; `external` names
+                the external checks) and skip the final release read. One parallel hosted job
+                runs each part; the cumulative --full reads all of them afterwards (ADR 0068).
+  --full-suite  With --full: run the selected Tier 3 suites whole instead of the tests the
+                change reaches, and rebuild their impact maps (the weekly backstop, ADR 0068).
   --audit-toolchain-digest  Print the canonical audit image toolchain digest; no Docker execution.
 
 Notes:
@@ -245,6 +252,16 @@ while [[ $# -gt 0 ]]; do
     --permission-preflight)
       permission_preflight=1
       ;;
+    --tier3-only)
+      shift
+      tier3_only="${1:-}"
+      ;;
+    --tier3-only=*)
+      tier3_only="${1#*=}"
+      ;;
+    --full-suite)
+      full_suite=1
+      ;;
     --quality-owner-tier)
       shift
       if [[ $# -eq 0 ]]; then
@@ -279,6 +296,14 @@ export FS_QUALITY_EVIDENCE_MODE="${EVIDENCE_MODE}"
 case "${FINGERPRINT_SOURCE}" in worktree|index|commit) ;; *) echo "[lint] Invalid fingerprint source: ${FINGERPRINT_SOURCE}" >&2; exit 2 ;; esac
 case "${evidence_trust}" in local|trusted_ci) ;; *) echo "[lint] Invalid evidence trust: ${evidence_trust}" >&2; exit 2 ;; esac
 case "${quality_owner_tier}" in ""|1|2|3) ;; *) echo "[lint] Invalid quality owner tier: ${quality_owner_tier}" >&2; exit 2 ;; esac
+if [[ ( -n "${tier3_only}" || "${full_suite}" -eq 1 ) && ( "${MODE}" != "full" || ${#REQUESTED_CHECKS[@]} -gt 0 ) ]]; then
+  echo "[lint] --tier3-only and --full-suite apply only to a --full gate." >&2
+  exit 2
+fi
+if [[ -n "${tier3_only}" && ! "${tier3_only}" =~ ^[a-z0-9-]+(,[a-z0-9-]+)*$ ]]; then
+  echo "[lint] Invalid --tier3-only list: ${tier3_only}" >&2
+  exit 2
+fi
 if [[ -n "${quality_owner_tier}" && ${#REQUESTED_CHECKS[@]} -eq 0 ]]; then
   echo "[lint] --quality-owner-tier requires --checks." >&2
   exit 2
@@ -1419,6 +1444,14 @@ if [[ "${INSIDE}" -eq 0 && "${_in_container}" -eq 0 ]]; then
     local_inside_args+=(--evidence-mode "${EVIDENCE_MODE}")
     local_inside_args+=(--fingerprint-source "${FINGERPRINT_SOURCE}")
     local_inside_args+=(--trust "${evidence_trust}")
+    # Delivered like the flags above (AC17-R89): a parallel Tier 3 part that ran the
+    # whole tier, or a weekly backstop that ran a selection, would not say so.
+    if [[ -n "${tier3_only}" ]]; then
+      local_inside_args+=(--tier3-only "${tier3_only}")
+    fi
+    if [[ "${full_suite}" -eq 1 ]]; then
+      local_inside_args+=(--full-suite)
+    fi
     if [[ -n "${candidate_commit_sha}" ]]; then
       local_inside_args+=(--commit-sha "${candidate_commit_sha}")
     fi
@@ -1581,7 +1614,8 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
     if [[ "${needs_test_infra}" -eq 1 ]] && ! assert_audit_test_infra_removed; then
       audit_exit_code=2
     fi
-    if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
+    if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" \
+      && ( -z "${tier3_only}" || ",${tier3_only}," == *",external,"* ) ]]; then
       external_verify_args=(
         --evidence-mode "${EVIDENCE_MODE}"
         --fingerprint-source commit
@@ -1599,7 +1633,8 @@ print("\n".join(seen))' "${ROOT_DIR}/infra/tooling/quality/check-registry.json" 
       echo "[lint] The UTC day changed during the gate; re-evaluating Tier 2 for $(date -u +%F)."
       run_final_tier_two || audit_exit_code=$?
     done
-    if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" ]]; then
+    if [[ "${audit_exit_code}" -eq 0 && ${#REQUESTED_CHECKS[@]} -eq 0 && "${MODE}" == "full" \
+      && -z "${tier3_only}" ]]; then
       # External checks write 0600 evidence as root; the final reader must be
       # able to validate both those records and the ordinary fs-owned records.
       fs_compose run --no-deps --rm -T --user 0:0 "${lint_container_env_args[@]}" "${lint_container_volume_args[@]}" fs-audit \
@@ -2393,6 +2428,29 @@ run_check_unit_tests_with_coverage() {
       fi
       coverage_dir+="/${partition}"
     fi
+    # ADR 0068: verify.py hands a selected Tier 3 suite its plan. The suite then
+    # runs only the planned modules of its partition and records, per module, the
+    # repository files they used, which the next plan reads.
+    local impact_args=()
+    local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
+    if [[ -n "${selection_plan}" && -f "${selection_plan}" ]]; then
+      impact_args=(-p core.application.tooling.quality.impact_recorder
+        --fs-test-impact-output "$(dirname -- "${selection_plan}")/run")
+      local planned_modules=""
+      planned_modules="$("${PYTHON_BIN}" -m core.application.tooling.quality.impact_plan_filter \
+        "${selection_plan}" "${selection[@]}")" || return $?
+      if [[ "${planned_modules}" != "@full" ]]; then
+        selection=()
+        while IFS= read -r selected_module; do
+          [[ -n "${selected_module}" ]] && selection+=("${selected_module}")
+        done <<< "${planned_modules}"
+        echo "[lint] Impacted-test selection: ${#selection[@]} test modules of this suite (${selection_plan})."
+        if [[ ${#selection[@]} -eq 0 ]]; then
+          echo "[lint] The change reaches no test module of this suite; nothing to run."
+          return 0
+        fi
+      fi
+    fi
     if [[ "${partition}" == independent ]]; then
       workspace_args+=(--without-assets)
     else
@@ -2400,6 +2458,10 @@ run_check_unit_tests_with_coverage() {
     fi
     local selection_shell="" workspace_args_shell="" coverage_dir_shell=""
     printf -v selection_shell "%q " "${selection[@]}"
+    local impact_args_shell=""
+    if [[ ${#impact_args[@]} -gt 0 ]]; then
+      printf -v impact_args_shell "%q " "${impact_args[@]}"
+    fi
     if [[ ${#workspace_args[@]} -gt 0 ]]; then
       printf -v workspace_args_shell "%q " "${workspace_args[@]}"
     fi
@@ -2446,7 +2508,7 @@ run_check_unit_tests_with_coverage() {
       bash -lc "set -o pipefail; \
         PYTHONHASHSEED=${unit_test_hash_seed} ./core/entrypoints/cli/scripts/run-core-only-tests.sh \
           --coverage-export-dir ${coverage_dir_shell} ${workspace_args_shell}\
-          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}${selection_shell}\
+          \"${PYTHON_BIN}\" -u -m pytest -q -ra ${pytest_parallel_args}${pytest_fail_fast_arg}${selection_shell}${impact_args_shell}\
           ${coverage_args_shell}\
           --durations=30 --durations-min=1.0 \
           --cov-report=term-missing \
@@ -2919,7 +2981,46 @@ run_check_frontend_test_build() {
   prepare_frontend_workspace "${ROOT_DIR}/assets" "${workspace_dir}/assets"
 
   run_step "Frontend workspace install" bash -lc "cd '${frontend_dir}' && npm ci --include=optional"
-  run_step "Frontend workspace tests" bash -lc "cd '${frontend_dir}' && npm run test"
+  # ADR 0068: with a selection plan from verify.py the suite runs `vitest related`
+  # on the changed sources (and earlier failing files) and records which test
+  # files failed, so a later selection reruns them.
+  local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
+  local vitest_command="npm run test"
+  local vitest_reporting=""
+  local impact_dir=""
+  local planned_sources=""
+  local planned_args=""
+  local tests_status=0
+  if [[ -n "${selection_plan}" && -f "${selection_plan}" ]]; then
+    impact_dir="$(dirname -- "${selection_plan}")/run"
+    mkdir -p "${impact_dir}"
+    planned_sources="$("${PYTHON_BIN}" -m core.application.tooling.quality.impact_plan_filter "${selection_plan}" src)"
+    if [[ "${planned_sources}" != "@full" ]]; then
+      while IFS= read -r planned_source; do
+        [[ -n "${planned_source}" ]] && planned_args+=" $(printf '%q' "${planned_source}")"
+      done <<< "${planned_sources}"
+      vitest_command="npx --no-install vitest related --run${planned_args}"
+      echo "[lint] Impacted-test selection: vitest related to $(grep -c . <<< "${planned_sources}" || true) sources (${selection_plan})."
+    fi
+    vitest_reporting=" --reporter=default --reporter=json --outputFile.json=$(printf '%q' "${impact_dir}/vitest.json")"
+    if [[ "${vitest_command}" == "npm run test" ]]; then
+      vitest_command+=" --"
+    fi
+    vitest_command+="${vitest_reporting}"
+  fi
+  if [[ -n "${impact_dir}" && "${planned_sources}" != "@full" && -z "${planned_args}" ]]; then
+    echo "[lint] The change reaches no frontend source; no frontend test to run."
+  else
+    run_step "Frontend workspace tests" bash -lc "cd '${frontend_dir}' && ${vitest_command}" \
+      || tests_status=$?
+    if [[ -n "${impact_dir}" ]]; then
+      "${PYTHON_BIN}" -m core.application.tooling.quality.impact_vitest_result \
+        "${impact_dir}/vitest.json" "${frontend_dir}" "${tests_status}" "${impact_dir}"
+    fi
+    if [[ "${tests_status}" -ne 0 ]]; then
+      return "${tests_status}"
+    fi
+  fi
   run_step "Frontend workspace build" bash -lc "cd '${frontend_dir}' && npm run build"
   run_step \
     "Publish frontend shell for backend tests" \
@@ -3047,6 +3148,15 @@ else
   )
   if [[ -n "${commit_sha}" ]]; then
     quality_verify_args+=(--commit-sha "${commit_sha}")
+  fi
+  if [[ "${tier}" == 3 && -n "${tier3_only}" ]]; then
+    IFS=',' read -r -a tier3_only_ids <<< "${tier3_only}"
+    for tier3_only_id in "${tier3_only_ids[@]}"; do
+      quality_verify_args+=(--check "${tier3_only_id}")
+    done
+  fi
+  if [[ "${tier}" == 3 && "${full_suite}" -eq 1 ]]; then
+    quality_verify_args+=(--full-suite)
   fi
   "${PYTHON_BIN}" -m core.application.tooling.quality.verify "${quality_verify_args[@]}"
 fi
