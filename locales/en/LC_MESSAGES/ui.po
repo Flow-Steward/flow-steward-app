@@ -30524,3 +30524,12 @@ msgstr "Filters"
 
 msgid "react.extensions.grid_filter_any"
 msgstr "Any"
+
+msgid "react.system.core_installed_version"
+msgstr "Installed version: {version}"
+
+msgid "react.system.core_release_notes"
+msgstr "Release notes"
+
+msgid "react.system.core_update_available"
+msgstr "Flow Steward {version} is available"

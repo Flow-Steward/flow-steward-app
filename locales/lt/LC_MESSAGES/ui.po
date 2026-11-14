@@ -30942,3 +30942,12 @@ msgstr "Filtrai"
 
 msgid "react.extensions.grid_filter_any"
 msgstr "Bet kuris"
+
+msgid "react.system.core_installed_version"
+msgstr "Įdiegta versija: {version}"
+
+msgid "react.system.core_release_notes"
+msgstr "Laidos naujienos"
+
+msgid "react.system.core_update_available"
+msgstr "Pasiekiama „Flow Steward“ {version} versija"

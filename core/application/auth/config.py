@@ -159,6 +159,7 @@ METRICS_TOKEN = str(_runtime_env.get("FS_METRICS_TOKEN", "") or "").strip()
 # Admin-only route patterns
 # ---------------------------------------------------------------------------
 AUTH_ADMIN_ONLY_PATTERNS = (
+    re.compile(r"^/api/system/core-updates$"),
     re.compile(r"^/admin(?:/|$)"),
     re.compile(r"^/api/agents(?:/|$)"),
     re.compile(r"^/api/catalog-categories(?:/|$)"),

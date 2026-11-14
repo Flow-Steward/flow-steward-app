@@ -559,6 +559,12 @@ describe("AppShell", () => {
     mockedUseIsAdmin.mockReturnValue(role === "admin");
     const fallbackFetch = globalThis.fetch;
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (stringFromUnknownValue(input) === "/api/system/core-updates") {
+        return new Response(JSON.stringify({
+          status: "update_available", current_version: "0.9.17", latest_version: "0.9.18",
+          release_url: "https://github.com/Flow-Steward/flow-steward-app/releases/tag/v0.9.18",
+        }), { headers: { "content-type": "application/json" } });
+      }
       if (stringFromUnknownValue(input) === "/api/extensions/catalog/updates") {
         return new Response(JSON.stringify({ count: 2, items: [], checked: true }), {
           headers: { "content-type": "application/json" },
@@ -575,9 +581,11 @@ describe("AppShell", () => {
     if (role === "admin") {
       await waitFor(() => expect(screen.getByRole("link", { name: "Extensions, 2 updates available" })).toBeVisible());
       expect(screen.getByRole("link", { name: "Extensions, 2 updates available" })).toHaveAttribute("href", "/extensions");
+      await waitFor(() => expect(screen.getByText("Flow Steward 0.9.18 is available")).toBeVisible());
     } else {
       expect(screen.queryByRole("link", { name: /Extensions/ })).not.toBeInTheDocument();
       expect(vi.mocked(globalThis.fetch).mock.calls.some(([input]) => String(input).startsWith("/api/extensions/catalog/updates"))).toBe(false);
+      expect(vi.mocked(globalThis.fetch).mock.calls.some(([input]) => String(input).startsWith("/api/system/core-updates"))).toBe(false);
     }
   });
 

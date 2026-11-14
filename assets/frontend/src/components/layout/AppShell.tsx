@@ -40,6 +40,7 @@ import { breadcrumbsForPath } from "@/components/layout/app-shell-breadcrumbs";
 import { AppShellHeader } from "@/components/layout/app-shell-header";
 import { ShellLayout } from "@/components/layout/app-shell-layout";
 import { MaintenanceBanner } from "@/components/layout/maintenance-banner";
+import { CoreUpdateBanner } from "@/components/layout/core-update-banner";
 import {
   readSidebarRailState,
   toggleSidebarRailState,
@@ -654,7 +655,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     <div className="app-shell-root" data-shell-theme={themeMode}>
       <ShellLayout
         header={header}
-        maintenance={<MaintenanceBanner />}
+        maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}</>}
         railState={railState}
         sidebar={sidebar}
       >

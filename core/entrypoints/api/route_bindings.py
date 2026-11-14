@@ -33,6 +33,7 @@ from core.entrypoints.api.projects import create_api_projects_router
 from core.entrypoints.api.reactions_extensions import create_reactions_extensions_router
 from core.entrypoints.api.reports import create_api_reports_router
 from core.entrypoints.api.search import create_api_search_router
+from core.entrypoints.api.system_core_updates import create_system_core_updates_router
 from core.entrypoints.api.system_maintenance import create_system_maintenance_router
 from core.entrypoints.api.system_monitoring import create_api_system_monitoring_router
 from core.entrypoints.api.tabular_feed import create_api_tabular_feed_router
@@ -271,6 +272,9 @@ def register_api_routes(
     )
     app.include_router(api_app_bootstrap_router)
     app.include_router(create_system_maintenance_router())
+    app.include_router(
+        create_system_core_updates_router(require_authenticated_user=require_authenticated_user)
+    )
 
     project_integrations_router = create_project_integrations_router(
         get_logger_only=get_integration_store,
