@@ -1,3 +1,5 @@
+import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
@@ -38,13 +40,28 @@ function renderPage(locale: "en" | "lt" = "en") {
     },
   });
   return render(
-    <I18nContext.Provider value={{ ...fallbackContext, locale, messages: {}, t: (key, text = "", params) => interpolate(locale === "lt" ? ({ "trash.columns.type": "Tipas", "dashboard.composer.commands_hint_prefix": "Įveskite" } as Record<string, string>)[key] || text : text, params) }}><QueryClientProvider client={queryClient}>
+    <AuthContext.Provider value={{ session: { user: { id: "user-1", account_id: "account-1" } } } as AuthContextValue}><I18nContext.Provider value={{ ...fallbackContext, locale, messages: {}, t: (key, text = "", params) => interpolate(locale === "lt" ? ({ "trash.columns.type": "Tipas", "dashboard.composer.commands_hint_prefix": "Įveskite" } as Record<string, string>)[key] || text : text, params) }}><QueryClientProvider client={queryClient}>
       <TrashPage />
-    </QueryClientProvider></I18nContext.Provider>,
+    </QueryClientProvider></I18nContext.Provider></AuthContext.Provider>,
   );
 }
 
 describe("TrashPage", () => {
+  it.each(["entity_type=registry_tool", "entity_type=all", "entity_id=tool-1", "project_id=project-1"])("uses a complete explicit selection for Trash links: %s", async (query) => {
+    localStorage.setItem(filterStorageKey("account-1", "user-1", "trash/search"), JSON.stringify("old-tool"));
+    localStorage.setItem(filterStorageKey("account-1", "user-1", "trash/type"), JSON.stringify("project"));
+    globalThis.history.replaceState(null, "", `/trash?${query}`);
+    try {
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Tool One")).toBeVisible());
+      if (query.startsWith("entity_id")) {
+        expect(mockedFetchTrashList).toHaveBeenCalledWith(expect.objectContaining({ entityType: "" }));
+      }
+    } finally {
+      globalThis.history.replaceState(null, "", "/");
+    }
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedFetchTrashList.mockResolvedValue({

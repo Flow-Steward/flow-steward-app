@@ -1,3 +1,4 @@
+import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -5,7 +6,7 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { RefreshCw, Search } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
@@ -244,24 +245,39 @@ export function JobsListPage() {
   const userTimezone = useUserTimezone();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useFilterSearchParams("jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
   const urlWorkflowFilter = firstStringFromUnknownValue([searchParams.get("workflow_id"), ""]).trim();
   // Dashboard metric cards deep-link here with a status, the same way workflow
-  // links already do. It seeds the filter once; the user's own choice wins after.
+  // links already do. The URL owns the current choice, including Back and Clear.
   const urlStatusFilter = normalizeStatusList(searchParams.getAll("status"));
 
   // Filter state, not DOM reads: the published filter and search controls are
   // controlled. The option lists never come from the loaded jobs alone: the
   // server already narrowed those to the applied filters, so a filter would
   // shrink its own menu (and the others) to what it selected.
-  const [search, setSearch] = useState("");
+  const search = searchParams.get("search") || "";
+  const setSearch = (value: string) => setJobFilter("search", value);
   const deferredSearch = useDeferredValue(search);
-  const [projectFilter, setProjectFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState(urlStatusFilter);
-  const [hideAcknowledged, setHideAcknowledged] = useState(() => hideAcknowledgedFromUrl(searchParams.get("hide_acknowledged")));
-  const [workflowFilter, setWorkflowFilter] = useState(urlWorkflowFilter);
+  const projectFilter = searchParams.get("project_id") || "";
+  const setProjectFilter = (value: string) => setJobFilter("project_id", value);
+  const statusFilter = urlStatusFilter;
+  const setStatusFilter = (value: string) => setJobFilter("status", value, true);
+  const hideAcknowledged = hideAcknowledgedFromUrl(searchParams.get("hide_acknowledged"));
+  const setHideAcknowledged = (value: boolean) => setJobFilter("hide_acknowledged", value ? "1" : "");
+  const workflowFilter = urlWorkflowFilter;
+  const setWorkflowFilter = (value: string) => setJobFilter("workflow_id", value);
+
+  function setJobFilter(key: string, value: string, multiple = false) {
+    setSearchParams((latest) => {
+      const next = new URLSearchParams(latest);
+      next.delete(key);
+      if (multiple) jobStatusParams(value).forEach((status) => next.append(key, status));
+      else if (value) next.set(key, value);
+      return next;
+    }, { replace: true });
+  }
   const [filterOptions, setFilterOptions] = useState<{
     projects: DsOption[];
     statuses: DsOption[];
@@ -859,7 +875,6 @@ export function JobsListPage() {
       return;
     }
     setPage(1);
-    setWorkflowFilter(urlWorkflowFilter);
   }, [urlWorkflowFilter]);
 
   function handleJobRowAction(actionId: string, row: Record<string, unknown>) {

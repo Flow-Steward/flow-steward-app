@@ -1,9 +1,12 @@
+import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
 
 import { type DsFilterField, type DsTableSort } from "@/components/shared/design-system";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
@@ -53,7 +56,7 @@ export function useMcpListState() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useFilterSearchParams("mcp", ["project_id", "health", "credentials"]);
   // The grid's filters live in the URL: project, health, credentials. An empty
   // project shows every project the caller may see.
   const projectId = searchParams.get("project_id")?.trim() || "";
@@ -68,7 +71,7 @@ export function useMcpListState() {
   const [modalErrorField, setModalErrorField] = useState<
     "project" | "name" | "endpoint" | "headers" | "requested_scopes" | "authorization_parameters" | "refresh_token_required" | ""
   >("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useFilterState("mcp/search", textFilterSchema, "");
   const [busyConnector, setBusyConnector] = useState<McpRowBusy | null>(null);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   /* Deleting needs the revision the plan reports, so a connector that changed

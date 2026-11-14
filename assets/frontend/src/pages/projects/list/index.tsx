@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import {
@@ -179,8 +181,8 @@ export function ProjectsListPage() {
   const [listLoading, setListLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
-  const [search, setSearch] = useState("");
-  const [jobsFilter, setJobsFilter] = useState("");
+  const [search, setSearch] = useFilterState("projects/search", textFilterSchema, "");
+  const [jobsFilter, setJobsFilter] = useFilterState("projects/jobsFilter", textFilterSchema, "");
   const [sort, setSort] = useState<DsTableSort | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);

@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useMemo, useState } from "react";
 
@@ -50,7 +52,7 @@ export function ProjectDatasetsEditor({ projectId }: Readonly<ProjectDatasetsEdi
   const queryClient = useQueryClient();
   const [localDatasetIds, setLocalDatasetIds] = useState<string[]>([]);
   const [selectionDirty, setSelectionDirty] = useState(false);
-  const [datasetSearch, setDatasetSearch] = useState("");
+  const [datasetSearch, setDatasetSearch] = useFilterState(`projects/${projectId}/datasetSearch`, textFilterSchema, "");
   const [message, setMessage] = useState("");
 
   const datasetsQuery = useQuery({
@@ -123,7 +125,7 @@ export function ProjectDatasetsEditor({ projectId }: Readonly<ProjectDatasetsEdi
     ],
     [selectorRows, t],
   );
-  const [datasetFilter, setDatasetFilter] = useState("all");
+  const [datasetFilter, setDatasetFilter] = useFilterState(`projects/${projectId}/datasetFilter`, textFilterSchema, "all");
 
   const saveMutation = useMutation({
     mutationFn: () => updateProjectDatasets(projectId, selectedDatasetIds),

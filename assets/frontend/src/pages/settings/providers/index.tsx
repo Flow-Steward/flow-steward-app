@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import {
@@ -288,7 +290,7 @@ export function SettingsProvidersPage() {
   const [form, setForm] = useState<ProviderFormState>(() => emptyProviderForm());
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const [filter, setFilter] = useState("");
+  const [filter, setFilter] = useFilterState("providers/filter", textFilterSchema, "");
   const [addOpen, setAddOpen] = useState(false);
 
   function buildProvidersGridConfig(): Record<string, unknown> {

@@ -113,6 +113,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0066](0066-global-roles-and-secret-provider-boundary.md) | Global Roles, Shared Team Trust and Secret Provider Boundary | Accepted |
 | [0067](0067-extension-page-queries-with-connection.md) | Extension page queries with a project connection | Accepted |
 | [0068](0068-connection-slots-for-extension-workflows.md) | Connection slots for extension workflows | Accepted (amends 0065) |
+| [0069](0069-browser-local-list-filter-preferences.md) | Browser-local list filter preferences | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

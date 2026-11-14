@@ -1,3 +1,6 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { z } from "zod";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useQueryClient, useQuery, useQueries } from "@tanstack/react-query";
 import { useParams, useLocation, useNavigate } from "react-router";
 import { useHasCapability } from "@/lib/auth/capabilities";
@@ -121,9 +124,9 @@ export function useExtensionsHubState() {
   const [activeTab, setActiveTab] = useState<"installed" | "marketplace">(
     normalizeActiveTab(location.hash),
   );
-  const [viewFilter, setViewFilter] = useState<ExtensionsViewFilter>("active");
-  const [extensionSearch, setExtensionSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [viewFilter, setViewFilter] = useFilterState<ExtensionsViewFilter>("extensions/view", z.enum(["active", "disabled", "all"]), "active");
+  const [extensionSearch, setExtensionSearch] = useFilterState("extensions/extensionSearch", textFilterSchema, "");
+  const [categoryFilter, setCategoryFilter] = useFilterState("extensions/categoryFilter", textFilterSchema, "all");
   const [busyById, setBusyById] = useState<Record<string, ExtensionBusyAction | false>>({});
   const [statusById, setStatusById] = useState<ExtensionHealthStatus>({});
   const [toggleErrorById, setToggleErrorById] = useState<ExtensionHealthStatus>({});

@@ -1,3 +1,5 @@
+import { stringFiltersSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { RegistryCreateDialog } from "./catalog-create-dialog";
@@ -129,10 +131,9 @@ export function RegistryCatalogSurface({
   /* The running action by name, so only the pressed button shows it; one runs at a time. */
   const [pending, setPending] = useState<CatalogPendingAction | null>(null);
   const [displayRows, setDisplayRows] = useState<GridEntityRow[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useFilterState(`registry/${endpoint}/search`, textFilterSchema, "");
   const deferredSearch = useDeferredValue(search);
-  const [filtersByEndpoint, setFiltersByEndpoint] = useState<Record<string, Record<string, string>>>({});
-  const activeFilters = filtersByEndpoint[endpoint] || EMPTY_CATALOG_FILTERS;
+  const [activeFilters, setActiveFilters] = useFilterState(`registry/${endpoint}/filters`, stringFiltersSchema, EMPTY_CATALOG_FILTERS);
   const statusFilter = activeFilters.status || "";
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -665,14 +666,8 @@ export function RegistryCatalogSurface({
             <AdvancedTableFilters
               disabled={listQuery.isLoading}
               fields={catalogFilters}
-              onChange={(key, value) => setFiltersByEndpoint((current) => ({
-                ...current,
-                [endpoint]: { ...current[endpoint], [key]: value },
-              }))}
-              onClear={() => setFiltersByEndpoint((current) => ({
-                ...current,
-                [endpoint]: {},
-              }))}
+              onChange={(key, value) => setActiveFilters((current) => ({ ...current, [key]: value }))}
+              onClear={() => setActiveFilters({})}
               values={activeFilters}
             />
             <label className="fs-search">

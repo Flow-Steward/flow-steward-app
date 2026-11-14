@@ -16,7 +16,7 @@ import { DsAlert } from "@/components/shared/design-system";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useCompactCatalog } from "@/lib/react/use-compact-catalog";
-import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
+import { useLatestFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { CATALOG_TABLE_PAGE_SIZES, clearFacetValues, currentTime, toggleFacetValue } from "@/lib/utils/catalog-facets";
 import {
@@ -117,7 +117,7 @@ export function ExtensionMarketplaceCatalog({
   const countLabel = (count: number) => count === 1
     ? t("react.extensions.catalog_extension_count_one", "{count} extension", { count })
     : t("react.extensions.catalog_extension_count_many", "{count} extensions", { count });
-  const [params, updateParams] = useLatestSearchParams();
+  const [params, updateParams] = useLatestFilterSearchParams("extension-marketplace", ["mk_q", "mk_category", "mk_capability", "mk_status"], active);
   const navigate = useNavigate();
   const urlState = useMemo(() => readMarketplaceUrl(params), [params]);
   const { filters } = urlState;

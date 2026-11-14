@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useMemo, useRef, useState } from "react";
@@ -197,7 +199,7 @@ export function RegistryWorkspacesPage() {
   const queryClient = useQueryClient();
   const userTimezone = useUserTimezone();
   const createNameRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useFilterState("workspaces/search", textFilterSchema, "");
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<WorkspaceDraft>(EMPTY_DRAFT);

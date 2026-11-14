@@ -1,5 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { interpolate } from "@/lib/i18n/interpolate";
 
@@ -102,13 +104,14 @@ function renderJobsListPage(entry = "/jobs", locale: "en" | "lt" = "en", overrid
   } : {}), ...overrides };
   return render(
     <QueryClientProvider client={client}>
+    <AuthContext.Provider value={{ session: { user: { id: "user-1", account_id: "account-1" } } } as AuthContextValue}>
     <I18nContext.Provider value={{ ...fallbackContext, locale, messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}>
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route element={<><JobsListPage /><LocationProbe /></>} path="/jobs" />
         <Route element={<div>job detail page</div>} path="/jobs/:jobId" />
       </Routes>
-    </MemoryRouter></I18nContext.Provider></QueryClientProvider>,
+    </MemoryRouter></I18nContext.Provider></AuthContext.Provider></QueryClientProvider>,
   );
 }
 
@@ -358,6 +361,22 @@ describe("JobsListPage", () => {
       expect(mockedFetchJson).toHaveBeenCalledWith(expect.stringContaining("page=1&per_page=50"));
     });
     await waitFor(() => expect(screen.getByText("1–26 of 26")).toBeInTheDocument());
+  });
+
+  it("restores the complete remembered selection into the first jobs request and clears it", async () => {
+    mockFilteredJobsServer();
+    localStorage.setItem(filterStorageKey("account-1", "user-1", "query/jobs"), JSON.stringify("project_id=project-1&workflow_id=workflow-one&status=failed&hide_acknowledged=1&search=Broken&from_date=2026-03-01&to_date=2026-03-05"));
+    renderJobsListPage();
+    await waitFor(() => expect(jobsRequests()[0]).toBeDefined());
+    const request = jobsRequests()[0];
+    expect(request.get("project_id")).toBe("project-1");
+    expect(request.get("workflow_id")).toBe("workflow-one");
+    expect(request.getAll("status")).toContain("failed");
+    expect(request.get("search")).toBe("Broken");
+    expect(request.get("from_date")).toBe("2026-03-01");
+    expect(request.get("to_date")).toBe("2026-03-05");
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Workflow filter" }));
+    expect(new URLSearchParams(screen.getByTestId("location-search").textContent || "").has("workflow_id")).toBe(false);
   });
 
   it("seeds the status filter from the URL so dashboard metric cards deep-link into a filtered queue", async () => {

@@ -1,3 +1,4 @@
+import { useLatestFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import {
@@ -12,13 +13,12 @@ import {
 
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { HttpError } from "@/lib/http/errors";
 import { queryKeys } from "@/lib/query/keys";
 import { appHref } from "@/lib/routing/app-href";
-import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import {
   AdvancedTableFilters,
   DsAlert,
@@ -300,7 +300,10 @@ export function WorkflowsListPage() {
   const navigate = useNavigate();
   const userTimezone = useUserTimezone();
   const [rowMenu, setRowMenu] = useState<string | null>(null);
-  const [searchParams, updateSearchParams] = useLatestSearchParams();
+  const location = useLocation();
+  const routeParams = new URLSearchParams(location.search);
+  const showingCatalog = routeParams.get("tab") === "catalog" || routeParams.get("create") === "template";
+  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id"], !showingCatalog);
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.

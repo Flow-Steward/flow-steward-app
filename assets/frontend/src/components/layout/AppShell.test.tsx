@@ -548,6 +548,39 @@ describe("AppShell", () => {
     expect(requestedUrls.some((url) => url.startsWith("/api/workspaces"))).toBe(false);
   });
 
+  it.each(["admin", "operator", "viewer"])("checks and announces extension updates only for an administrator (%s)", async (role) => {
+    mockAuthenticatedSession({
+      switchAccount: vi.fn(async () => undefined),
+      sessionOverrides: {
+        roles: [role],
+        user: { id: "7", account_id: "acct-primary", roles: [role] },
+      },
+    });
+    mockedUseIsAdmin.mockReturnValue(role === "admin");
+    const fallbackFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (stringFromUnknownValue(input) === "/api/extensions/catalog/updates") {
+        return new Response(JSON.stringify({ count: 2, items: [], checked: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return fallbackFetch(input, init);
+    }));
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><AppShell>content</AppShell></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalledWith("/api/jobs/awaiting-approval", expect.anything()));
+    if (role === "admin") {
+      await waitFor(() => expect(screen.getByRole("link", { name: "Extensions, 2 updates available" })).toBeVisible());
+      expect(screen.getByRole("link", { name: "Extensions, 2 updates available" })).toHaveAttribute("href", "/extensions");
+    } else {
+      expect(screen.queryByRole("link", { name: /Extensions/ })).not.toBeInTheDocument();
+      expect(vi.mocked(globalThis.fetch).mock.calls.some(([input]) => String(input).startsWith("/api/extensions/catalog/updates"))).toBe(false);
+    }
+  });
+
   it("keeps product navigation and approvals accessible without an assistant surface", async () => {
     const switchAccount = vi.fn(async () => undefined);
     mockAuthenticatedSession({ switchAccount });

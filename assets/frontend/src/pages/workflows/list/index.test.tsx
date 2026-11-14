@@ -1,3 +1,5 @@
+import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import type * as HttpClient from "@/lib/http/client";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -590,4 +592,17 @@ describe("WorkflowsListPage RBAC and create parity", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/registry/workflows/import");
     });
   });
+});
+
+
+it("restores remembered workflow filters into the first catalog request", async () => {
+  mockedUseIsAdmin.mockReturnValue(true);
+  mockedUseCanReadWorkflowRegistry.mockReturnValue(true);
+  mockedFetchWorkflows.mockReset();
+  mockedFetchWorkflows.mockResolvedValue([]);
+  localStorage.setItem(filterStorageKey("account-1", "user-1", "query/workflows"), JSON.stringify("search=nightly&enabled=1"));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<AuthContext.Provider value={{ session: { user: { id: "user-1", account_id: "account-1" } } } as AuthContextValue}><QueryClientProvider client={queryClient}><MemoryRouter initialEntries={["/registry/workflows"]}><WorkflowsListPage /></MemoryRouter></QueryClientProvider></AuthContext.Provider>);
+  await waitFor(() => expect(screen.getByRole("searchbox", { name: "Search workflows" })).toHaveValue("nightly"));
+  await waitFor(() => expect(mockedFetchWorkflows).toHaveBeenNthCalledWith(1, { search: "nightly", enabledOnly: true }));
 });

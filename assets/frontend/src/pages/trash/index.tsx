@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -326,14 +328,15 @@ function outcomeMessage(kind: TrashAction, outcomes: TrashOutcome[], t: I18nCont
 export function TrashPage() {
   const { t } = useI18n();
   const initialQuery = useMemo(() => new URLSearchParams(globalThis.location?.search || ""), []);
-  const [search, setSearch] = useState(() => initialQuery.get("entity_id") || "");
-  const [typeFilter, setTypeFilter] = useState(() => {
+  const hasExplicitFilters = ["entity_id", "entity_type", "project_id"].some((key) => initialQuery.has(key));
+  const [search, setSearch] = useFilterState("trash/search", textFilterSchema, () => initialQuery.get("entity_id") || "", hasExplicitFilters);
+  const [typeFilter, setTypeFilter] = useFilterState("trash/type", textFilterSchema, () => {
     const requested = initialQuery.get("entity_type") || "";
     return requested === "all" ? "" : requested;
-  });
+  }, hasExplicitFilters);
   const projectId = initialQuery.get("project_id") || "";
   const userTimezone = useUserTimezone();
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useFilterState("trash/category", textFilterSchema, "", hasExplicitFilters);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState<number>(PER_PAGE_OPTIONS[0]);
   const [actionError, setActionError] = useState("");
@@ -414,10 +417,10 @@ export function TrashPage() {
       .map(([value, label]) => ({ value, label }));
   }, [rows]);
   useEffect(() => {
-    if (categoryFilter && !categoryOptions.some((option) => option.value === categoryFilter)) {
+    if (!trashQuery.isPending && !trashQuery.isError && categoryFilter && !categoryOptions.some((option) => option.value === categoryFilter)) {
       setCategoryFilter("");
     }
-  }, [categoryOptions, categoryFilter]);
+  }, [categoryOptions, categoryFilter, trashQuery.isPending, trashQuery.isError, setCategoryFilter]);
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return rows.filter((row) => {
