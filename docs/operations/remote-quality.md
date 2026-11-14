@@ -137,10 +137,16 @@ then runs the cumulative `--full` over all parts' evidence and runs nothing agai
 it is skipped when a part failed. `release-full` (and the Sunday schedule on main)
 runs every selected suite whole and rebuilds the impact maps.
 
-Every run imports the evidence and impact maps of the latest runs of its branch,
-then main. Fingerprints decide reuse as before, so a commit that leaves a check's
-inputs unchanged does not run it again; a retry after a failed part runs that
-part's failing modules and what the fix reaches.
+Every run imports the evidence and impact maps of the latest runs whose commit
+is an ancestor of its own, whatever branch ran them. Fingerprints decide reuse as
+before, so a commit that leaves a check's inputs unchanged does not run it again;
+a retry after a failed part runs that part's failing modules and what the fix
+reaches.
+
+Measured on the 0.9.18 batch: 0.9.17's release run took about 90 minutes with
+Tier 3 serial on one VM. With parallel parts a whole run takes about an hour, the
+contracts part (25,000 tests) being the longest; a run after a change that leaves
+`assets/` alone reuses Tier 2 in under a minute and the frontend suite entirely.
 
 The Sonar job starts a fresh, disposable SonarQube server, rotates the bootstrap
 admin password and creates a masked per-run token. It runs `lint.sh --sonar-full`
