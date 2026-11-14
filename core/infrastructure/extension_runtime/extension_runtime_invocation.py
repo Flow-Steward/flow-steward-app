@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import contextlib
+import select
+import time
 
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.config.size_limits import clamp_size_limit_bytes
@@ -227,6 +229,31 @@ def _breaker_identity(extension: dict, runtime_context: dict) -> tuple[str, str]
     )
 
 
+def _wait_for_exit(proc: subprocess.Popen, timeout: float) -> None:
+    """Wait for *proc* and wake the moment it exits.
+
+    ``Popen.wait(timeout=...)`` polls with sleeps of up to 50 ms, which every
+    query paid after its process had already ended. A pidfd is readable once
+    the process exits; where there is none, the polling wait stays.
+    """
+    pidfd_open = getattr(os, "pidfd_open", None)
+    if pidfd_open is None:
+        proc.wait(timeout=timeout)
+        return
+    try:
+        pidfd = pidfd_open(proc.pid)
+    except OSError:
+        proc.wait(timeout=timeout)
+        return
+    try:
+        ready, _, _ = select.select([pidfd], [], [], max(0.0, float(timeout)))
+    finally:
+        os.close(pidfd)
+    if not ready:
+        raise subprocess.TimeoutExpired(proc.args, timeout)
+    proc.wait()
+
+
 def _run_subprocess_capped(
     command: list,
     *,
@@ -340,7 +367,7 @@ def _run_subprocess_capped(
         thread.start()
 
     try:
-        proc.wait(timeout=timeout)
+        _wait_for_exit(proc, timeout)
     except subprocess.TimeoutExpired:
         kill_process_group(proc.pid)
         proc.kill()
@@ -713,6 +740,7 @@ def run_extension_invocation(
         }
     stdin_text = json.dumps(_json_safe_subprocess_value(payload))
     breaker_outcome: bool | None = False
+    process_started = time.perf_counter()
     try:
         returncode, stdout_raw, stderr_raw, exceeded = _run_subprocess_capped(
             command,
@@ -765,6 +793,8 @@ def run_extension_invocation(
             "response": response,
             "stdout": stdout,
             "stderr": stderr,
+            # Wall time of the extension process, start to exit, for the host timings.
+            "process_ms": round((time.perf_counter() - process_started) * 1000, 1),
         }
         # S3 — attach audit context when available
         if ctx:

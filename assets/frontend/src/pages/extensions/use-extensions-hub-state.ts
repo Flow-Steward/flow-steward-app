@@ -32,6 +32,11 @@ import {
   fetchExtensionExternalEffects,
   executeExtensionQuery,
 } from "@/pages/extensions/api";
+import {
+  cachedExtensionPageData,
+  extensionPageDataKey,
+  rememberExtensionComponentData,
+} from "@/pages/extensions/extension-page-data-cache";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   normalizeWorkspaceId,
@@ -719,57 +724,64 @@ export function useExtensionsHubState() {
     let disposed = false;
     let failed = false;
     const pageParameters = JSON.parse(pageParametersKey) as Record<string, string>;
+    const dataKey = extensionPageDataKey([extensionKey, activePageId, activePageProjectId, pageConnectionId, pageParametersKey]);
+    // Coming back to a page shows what it last showed at once; the load below refreshes it.
+    const cached = cachedExtensionPageData(dataKey);
+    if (cached) setComponentQueryData((current) => (Object.keys(current).length ? current : cached));
+    const loadComponent = async (component: Record<string, unknown>) => {
+      const queryId = componentQueryId(component);
+      const componentId = stringFrom(component.component_id || component.id || component.key);
+      if (!queryId || !componentId) {
+        return;
+      }
+      try {
+        const queryParams = {
+          ...componentQueryParamsForComponent(component),
+          ...pageParameters,
+          ...objectOrEmpty(componentQueryParams[componentId]),
+        };
+        const payload = await executeExtensionQuery(extensionKey, queryId, {
+          component_id: componentId,
+          context: activePageProjectId ? { project_id: activePageProjectId } : {},
+          page_id: activePageId,
+          params: queryParams,
+          ...queryConnectionTarget(manifestQuery.data, queryId, pageConnectionId),
+        });
+        if (disposed) {
+          return;
+        }
+        const normalized =
+          payload && typeof payload === "object" && !Array.isArray(payload)
+            ? normalizeComponentPayload(payload)
+            : {};
+        rememberExtensionComponentData(dataKey, componentId, normalized);
+        setComponentQueryData((current) => ({ ...current, [componentId]: normalized }));
+        setComponentErrors((current) => {
+          if (!current[componentId]) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[componentId];
+          return next;
+        });
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+        failed = true;
+        setComponentErrors((current) => ({
+          ...current,
+          [componentId]: {
+            message: queryFailureMessage(error, t, t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data.")),
+            fieldPath: "",
+          },
+        }));
+      }
+    };
     const run = async () => {
       pageLoadStarted();
-      for (const component of queryComponents) {
-        const queryId = componentQueryId(component);
-        const componentId = stringFrom(component.component_id || component.id || component.key);
-        if (!queryId || !componentId) {
-          continue;
-        }
-        try {
-          const queryParams = {
-            ...componentQueryParamsForComponent(component),
-            ...pageParameters,
-            ...objectOrEmpty(componentQueryParams[componentId]),
-          };
-          const payload = await executeExtensionQuery(extensionKey, queryId, {
-            component_id: componentId,
-            context: activePageProjectId ? { project_id: activePageProjectId } : {},
-            page_id: activePageId,
-            params: queryParams,
-            ...queryConnectionTarget(manifestQuery.data, queryId, pageConnectionId),
-          });
-          if (disposed) {
-            return;
-          }
-          const normalized =
-            payload && typeof payload === "object" && !Array.isArray(payload)
-              ? normalizeComponentPayload(payload)
-              : {};
-          setComponentQueryData((current) => ({ ...current, [componentId]: normalized }));
-          setComponentErrors((current) => {
-            if (!current[componentId]) {
-              return current;
-            }
-            const next = { ...current };
-            delete next[componentId];
-            return next;
-          });
-        } catch (error) {
-          if (disposed) {
-            return;
-          }
-          failed = true;
-          setComponentErrors((current) => ({
-            ...current,
-            [componentId]: {
-              message: queryFailureMessage(error, t, t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data.")),
-              fieldPath: "",
-            },
-          }));
-        }
-      }
+      // The page's queries run side by side; each component shows its data as it arrives.
+      await Promise.all(queryComponents.map((component) => loadComponent(component)));
     };
     ignoreAsyncResult(run().finally(() => {
       if (!disposed) pageLoadFinished(failed);

@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { useInRouterContext, useNavigate } from "react-router";
+
+import { ignoreAsyncResult } from "@/lib/utils/async";
+import { appRouterPath } from "@/pages/extensions/extension-grid-links";
 
 /**
  * Safe Markdown rendering for the declarative extension UI.
@@ -110,6 +114,22 @@ export function safeMarkdownHref(raw: string): string {
     return href.startsWith("/\\") ? "" : href;
   }
   return /^https:\/\/\S+$/i.test(href) ? href : "";
+}
+
+function RoutedMarkdownLink({ children, href }: Readonly<{ children: ReactNode; href: string }>) {
+  const navigate = useNavigate();
+  const follow = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    ignoreAsyncResult(navigate(appRouterPath(href)));
+  };
+  return <a className="fs-link fs-markdown-link" href={href} onClick={follow}>{children}</a>;
+}
+
+function MarkdownAppLink({ children, href }: Readonly<{ children: ReactNode; href: string }>) {
+  return useInRouterContext()
+    ? <RoutedMarkdownLink href={href}>{children}</RoutedMarkdownLink>
+    : <a className="fs-link fs-markdown-link" href={href}>{children}</a>;
 }
 
 type MarkdownParseState = {
@@ -356,6 +376,12 @@ export function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode
         const href = safeMarkdownHref(link.destination);
         const label = link.label || href || link.destination;
         if (href) {
+          const children = link.label ? renderInlineMarkdown(link.label, key) : label;
+          if (href.startsWith("/")) {
+            // A link into this app opens in place, through the router: no new tab,
+            // no full page load, and Back returns to the page as it was.
+            return <MarkdownAppLink href={href} key={key}>{children}</MarkdownAppLink>;
+          }
           return (
             <a
               className="fs-link fs-markdown-link"
@@ -364,7 +390,7 @@ export function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode
               rel="noreferrer"
               target="_blank"
             >
-              {link.label ? renderInlineMarkdown(link.label, key) : label}
+              {children}
             </a>
           );
         }
