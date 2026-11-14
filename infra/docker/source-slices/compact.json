@@ -372,6 +372,7 @@
     "core/application/jobs/workflow_knowledge_sync_requests.py",
     "core/application/jobs/workflow_knowledge_sync_runtime.py",
     "core/application/jobs/workflow_pause_persistence.py",
+    "core/application/jobs/workflow_result_links.py",
     "core/application/jobs/workflow_resume_execution_service.py",
     "core/application/jobs/workflow_resume_finalization_repository.py",
     "core/application/jobs/workflow_resume_repository.py",
