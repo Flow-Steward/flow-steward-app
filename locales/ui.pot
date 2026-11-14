@@ -6030,6 +6030,9 @@ msgstr ""
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr ""
 
+msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
+msgstr ""
+
 msgid "react.jobs.waiting_until_value0"
 msgstr ""
 
@@ -13009,6 +13012,9 @@ msgid "react.shared.badge_awaiting_approval"
 msgstr ""
 
 msgid "react.shared.badge_awaiting_child"
+msgstr ""
+
+msgid "react.shared.badge_awaiting_event"
 msgstr ""
 
 msgid "react.shared.badge_awaiting_review"
@@ -20755,6 +20761,9 @@ msgstr ""
 msgid "react.workflows.value0_test_run_is_waiting_for_a_child_workflow"
 msgstr ""
 
+msgid "react.workflows.value0_test_run_is_waiting_for_an_event"
+msgstr ""
+
 msgid "react.workflows.value0_test_run_is_waiting_for_approval"
 msgstr ""
 
@@ -20924,6 +20933,9 @@ msgid "react.workflows.wait_for_project_context_to_resolve_before_updating_provi
 msgstr ""
 
 msgid "react.workflows.wait_mapped_duration"
+msgstr ""
+
+msgid "react.workflows.wait_until_event"
 msgstr ""
 
 msgid "react.workflows.we_couldn_t_check_this_template"
@@ -25866,6 +25878,27 @@ msgstr ""
 msgid "react.workflows.wait_duration_source_invalid"
 msgstr ""
 
+msgid "react.workflows.wait_event_correlation_key"
+msgstr ""
+
+msgid "react.workflows.wait_event_hint"
+msgstr ""
+
+msgid "react.workflows.wait_event_payload_target"
+msgstr ""
+
+msgid "react.workflows.wait_event_source"
+msgstr ""
+
+msgid "react.workflows.wait_event_timeout_invalid"
+msgstr ""
+
+msgid "react.workflows.wait_event_timeout_ms"
+msgstr ""
+
+msgid "react.workflows.wait_event_types"
+msgstr ""
+
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.http_timeout_positive"
 msgstr ""
@@ -29101,6 +29134,9 @@ msgid "react.jobs.report"
 msgstr ""
 
 msgid "react.jobs.all_runs"
+msgstr ""
+
+msgid "react.jobs.an_event"
 msgstr ""
 
 msgid "react.jobs.job_period"

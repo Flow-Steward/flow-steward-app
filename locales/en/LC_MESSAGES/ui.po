@@ -6023,6 +6023,9 @@ msgstr "Waiting for approval"
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr "Waiting for the child workflow run"
 
+msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
+msgstr "Waiting for {value0} (key {value1}) since {value2}, times out at {value3}"
+
 msgid "react.jobs.waiting_until_value0"
 msgstr "Waiting until {value0}"
 
@@ -20733,6 +20736,9 @@ msgstr "{value0} test run is still {value1}."
 msgid "react.workflows.value0_test_run_is_waiting_for_a_child_workflow"
 msgstr "{value0} test run is waiting for a child workflow."
 
+msgid "react.workflows.value0_test_run_is_waiting_for_an_event"
+msgstr "{value0} test run is waiting for an event."
+
 msgid "react.workflows.value0_test_run_is_waiting_for_approval"
 msgstr "{value0} test run is waiting for approval."
 
@@ -20817,6 +20823,9 @@ msgstr "Wait for project context to resolve before updating provider triggers."
 
 msgid "react.workflows.wait_mapped_duration"
 msgstr "Duration from a variable"
+
+msgid "react.workflows.wait_until_event"
+msgstr "Until an event"
 
 msgid "react.workflows.we_couldn_t_check_this_template"
 msgstr "We couldn't check this template"
@@ -26008,6 +26017,9 @@ msgstr "Awaiting Approval"
 msgid "react.shared.badge_awaiting_child"
 msgstr "Awaiting Child"
 
+msgid "react.shared.badge_awaiting_event"
+msgstr "Waiting for event"
+
 msgid "react.shared.badge_awaiting_review"
 msgstr "Waiting for review"
 
@@ -26717,6 +26729,27 @@ msgstr "Enter a whole number from 0 to 31536000000."
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.wait_duration_source_invalid"
 msgstr "Choose exactly one duration source."
+
+msgid "react.workflows.wait_event_correlation_key"
+msgstr "Correlation key"
+
+msgid "react.workflows.wait_event_hint"
+msgstr "The run waits until the extension reports one of these events for this key. At the timeout the step fails; connect its error edge to handle it."
+
+msgid "react.workflows.wait_event_payload_target"
+msgstr "Save the event payload to"
+
+msgid "react.workflows.wait_event_source"
+msgstr "Extension that sends the event"
+
+msgid "react.workflows.wait_event_timeout_invalid"
+msgstr "Enter a whole number from 1 to 31536000000."
+
+msgid "react.workflows.wait_event_timeout_ms"
+msgstr "Timeout, milliseconds"
+
+msgid "react.workflows.wait_event_types"
+msgstr "Event types (comma separated)"
 
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.http_timeout_positive"
@@ -30117,6 +30150,9 @@ msgstr "Report"
 
 msgid "react.jobs.all_runs"
 msgstr "All runs"
+
+msgid "react.jobs.an_event"
+msgstr "an event"
 
 msgid "react.jobs.job_period"
 msgstr "Job period"

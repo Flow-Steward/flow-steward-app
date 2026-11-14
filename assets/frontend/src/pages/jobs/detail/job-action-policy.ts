@@ -7,6 +7,6 @@ export function canMutateJob(roles: readonly unknown[]): boolean {
 }
 
 export function isCancellableJobStatus(status: unknown): boolean {
-  return ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child", "running"]
+  return ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child", "awaiting_event", "running"]
     .includes(firstStringFromUnknownValue([status, ""]).trim().toLowerCase());
 }

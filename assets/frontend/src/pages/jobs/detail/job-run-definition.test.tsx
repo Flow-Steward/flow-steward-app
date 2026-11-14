@@ -90,6 +90,32 @@ describe("JobsDetailPage executed definition", () => {
     await waitFor(() => expect(screen.getByTestId("job-wait-child-link")).toHaveAttribute("href", "/jobs/77"));
   });
 
+  it("says which event a run waits for, under which key, since when and until when", async () => {
+    primeApi(
+      jobPayload({
+        status: "awaiting_event",
+        runtime: {
+          workflow_wait: {
+            kind: "event",
+            wait_id: "w-4",
+            step_id: "wait_for_crawl",
+            source: "acme.crawler",
+            event_types: ["run_completed", "run_failed"],
+            correlation_key: "run-42",
+            started_at: "2026-11-14T08:00:00Z",
+            due_at: "2026-11-15T08:00:00Z",
+          },
+          active_steps: [],
+        },
+      }),
+    );
+    renderPage();
+
+    const line = await screen.findByTestId("job-wait-event");
+    expect(line).toHaveTextContent("Waiting for run_completed / run_failed (key run-42) since");
+    expect(line).toHaveTextContent("times out at");
+  });
+
   it("names the For each and the item a paused step is at", async () => {
     primeApi(
       jobPayload({

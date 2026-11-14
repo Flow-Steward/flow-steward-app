@@ -1,6 +1,6 @@
 import type { I18nContextValue } from "@/lib/i18n/context";
 
-export type StepNumericField = "duration_ms" | "duration_source" | "row_limit" | "timeout_seconds" | "max_response_bytes";
+export type StepNumericField = "duration_ms" | "duration_source" | "timeout_ms" | "row_limit" | "timeout_seconds" | "max_response_bytes";
 export type StepNumericFieldErrors = Partial<Record<StepNumericField, string>>;
 
 /** Only an edited, complete finite number becomes a JSON number. Blank input stays blank. */
@@ -64,7 +64,12 @@ export function stepNumericFieldErrors(
   t: I18nContextValue["t"],
 ): StepNumericFieldErrors {
   const errors: StepNumericFieldErrors = {};
-  if (kind === "wait") {
+  if (kind === "wait" && Object.hasOwn(config, "event")) {
+    const timeout = config.timeout_ms;
+    if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout < 1 || timeout > 31_536_000_000) {
+      errors.timeout_ms = t("react.workflows.wait_event_timeout_invalid", "Enter a whole number from 1 to 31536000000.");
+    }
+  } else if (kind === "wait") {
     const literal = Object.hasOwn(config, "duration_ms");
     const mapped = Object.hasOwn(record(config.input_mapping), "duration_ms");
     if (literal === mapped) {

@@ -152,6 +152,9 @@ function JobRunDefinitionFacts({
   const waitKind = firstReadableText(workflowWait.kind);
   const dueAt = firstReadableText(workflowWait.due_at);
   const childJobId = firstReadableText(workflowWait.child_job_id);
+  const eventTypes = Array.isArray(workflowWait.event_types)
+    ? workflowWait.event_types.map((item) => firstReadableText(item)).filter(Boolean)
+    : [];
   const lanes = activeSteps.filter((step) => firstReadableText(step.lane_id));
   // The innermost For each of the running step: its item position and bounded counts.
   const forEachProgress = activeSteps
@@ -187,6 +190,16 @@ function JobRunDefinitionFacts({
       {waitKind === "timer" && dueAt ? (
         <p className="text-sm fs-ink-primary" data-testid="job-wait-due-at">
           {t("react.jobs.waiting_until_value0", "Waiting until {value0}", { value0: normalizeTimestamp(dueAt, userTimezone) })}
+        </p>
+      ) : null}
+      {waitKind === "event" ? (
+        <p className="text-sm fs-ink-primary" data-testid="job-wait-event">
+          {t("react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3", "Waiting for {value0} (key {value1}) since {value2}, times out at {value3}", {
+            value0: eventTypes.join(" / ") || t("react.jobs.an_event", "an event"),
+            value1: firstReadableText(workflowWait.correlation_key),
+            value2: normalizeTimestamp(firstReadableText(workflowWait.started_at), userTimezone),
+            value3: normalizeTimestamp(dueAt, userTimezone),
+          })}
         </p>
       ) : null}
       {waitKind === "child" && childJobId ? (

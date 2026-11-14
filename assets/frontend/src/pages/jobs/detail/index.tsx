@@ -275,6 +275,7 @@ export function JobsDetailPage({
         "awaiting_approval",
         "awaiting_timer",
         "awaiting_child",
+        "awaiting_event",
       ].includes(
         firstReadableText(step.status, step.status_code).toLowerCase(),
       ),

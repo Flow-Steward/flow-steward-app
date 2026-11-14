@@ -9,7 +9,7 @@ it.each([
 
 it.each([
   ["pending", true], ["running", true], ["in_progress", true], ["resume_pending", true],
-  ["awaiting_approval", true], ["awaiting_timer", true], ["awaiting_child", true],
+  ["awaiting_approval", true], ["awaiting_timer", true], ["awaiting_child", true], ["awaiting_event", true],
   ["completed", false], ["failed", false], ["cancelled", false], ["external_wait", false],
   ["unknown", false], [null, false],
 ])("preserves cancellability for recorded status %s", (status, expected) => {

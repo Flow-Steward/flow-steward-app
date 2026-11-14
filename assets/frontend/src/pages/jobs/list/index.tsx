@@ -327,7 +327,7 @@ export function JobsListPage() {
         action_id: "cancel",
         label: t("common.cancel", "Cancel"),
         variant: "danger",
-        visible_if: { field: "status", in: ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child"] },
+        visible_if: { field: "status", in: ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child", "awaiting_event"] },
       });
     }
     const bulkActions: Record<string, unknown>[] = [];
@@ -372,6 +372,7 @@ export function JobsListPage() {
             in_progress: "accent",
             awaiting_timer: "accent",
             awaiting_child: "accent",
+            awaiting_event: "accent",
             resume_pending: "accent",
             pending: "accent",
             completed: "green",

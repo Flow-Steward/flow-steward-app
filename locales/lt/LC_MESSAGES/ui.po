@@ -6123,6 +6123,9 @@ msgstr "Laukiama patvirtinimo"
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr "Laukiama antrinės darbo eigos vykdymo"
 
+msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
+msgstr "Laukiama {value0} (raktas {value1}) nuo {value2}, laukimas baigiasi {value3}"
+
 msgid "react.jobs.waiting_until_value0"
 msgstr "Laukiama iki {value0}"
 
@@ -21021,6 +21024,9 @@ msgstr "{value0} bandomojo vykdymo būsena vis dar {value1}."
 msgid "react.workflows.value0_test_run_is_waiting_for_a_child_workflow"
 msgstr "{value0} bandomasis vykdymas laukia antrinio darbo eigos."
 
+msgid "react.workflows.value0_test_run_is_waiting_for_an_event"
+msgstr "{value0} bandomasis vykdymas laukia įvykio."
+
 msgid "react.workflows.value0_test_run_is_waiting_for_approval"
 msgstr "{value0} bandomasis vykdymas laukia patvirtinimo."
 
@@ -21122,6 +21128,9 @@ msgstr ""
 
 msgid "react.workflows.wait_mapped_duration"
 msgstr "Trukmė iš kintamojo"
+
+msgid "react.workflows.wait_until_event"
+msgstr "Iki įvykio"
 
 msgid "react.workflows.we_couldn_t_check_this_template"
 msgstr "Nepavyko patikrinti šio šablono"
@@ -26385,6 +26394,9 @@ msgstr "Laukiama patvirtinimo"
 msgid "react.shared.badge_awaiting_child"
 msgstr "Laukiama antrinės darbo eigos"
 
+msgid "react.shared.badge_awaiting_event"
+msgstr "Laukiama įvykio"
+
 msgid "react.shared.badge_awaiting_review"
 msgstr "Laukiama peržiūros"
 
@@ -27133,6 +27145,27 @@ msgstr "Įveskite sveikąjį skaičių nuo 0 iki 31536000000."
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.wait_duration_source_invalid"
 msgstr "Pasirinkite tik vieną trukmės šaltinį."
+
+msgid "react.workflows.wait_event_correlation_key"
+msgstr "Susiejimo raktas"
+
+msgid "react.workflows.wait_event_hint"
+msgstr "Vykdymas laukia, kol plėtinys praneš apie vieną iš šių įvykių šiam raktui. Pasibaigus laukimo ribai žingsnis nepavyksta; prijunkite jo klaidos kraštą, kad tai apdorotumėte."
+
+msgid "react.workflows.wait_event_payload_target"
+msgstr "Įvykio duomenis įrašyti į"
+
+msgid "react.workflows.wait_event_source"
+msgstr "Plėtinys, kuris siunčia įvykį"
+
+msgid "react.workflows.wait_event_timeout_invalid"
+msgstr "Įveskite sveikąjį skaičių nuo 1 iki 31536000000."
+
+msgid "react.workflows.wait_event_timeout_ms"
+msgstr "Laukimo riba, milisekundės"
+
+msgid "react.workflows.wait_event_types"
+msgstr "Įvykių tipai (atskirti kableliais)"
 
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.http_timeout_positive"
@@ -30535,6 +30568,9 @@ msgstr "Ataskaita"
 
 msgid "react.jobs.all_runs"
 msgstr "Visi vykdymai"
+
+msgid "react.jobs.an_event"
+msgstr "įvykio"
 
 msgid "react.jobs.job_period"
 msgstr "Užduočių laikotarpis"
