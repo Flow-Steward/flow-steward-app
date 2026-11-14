@@ -58,13 +58,13 @@ class RecordingRunner:
             "tests/unit/test_library.py": ["core/library.py"],
             "tests/unit/test_other.py": ["core/other.py"],
         }
-        (run / "map-main.json").write_text(
-            json.dumps({"complete": True, "modules": sorted(contexts), "contexts": contexts})
-        )
+        if plan["full"]:  # Only a whole-suite run records the map.
+            (run / "map-main.json").write_text(
+                json.dumps({"complete": True, "modules": sorted(contexts), "contexts": contexts})
+            )
         status = 1 if self.failed else 0
-        (run / "result.json").write_text(
-            json.dumps({"exitstatus": status, "failed": list(self.failed), "recorded": True})
-        )
+        result = {"exitstatus": status, "failed": list(self.failed), "recorded": True}
+        (run / "result.json").write_text(json.dumps({**result, "maps": plan["full"]}))
         return status
 
 

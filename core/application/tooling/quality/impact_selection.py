@@ -243,6 +243,7 @@ def _select(
     assert impact_map is not None  # _usable_base guarantees it
     graph: ImportGraph | None = None
     selected = {module for module in base.failed_modules if module in suite.modules}
+    selected |= _unmapped_tests(inputs, impact_map, suite)
     for change in changes:
         reason = _full_run_reason(inputs, change, impact_map)
         if reason:
@@ -272,6 +273,21 @@ def _select(
             graph = graph or ImportGraph(inputs.root)
             selected.update(_through_importers(graph, path, impact_map, suite))
     return selected
+
+
+def _unmapped_tests(inputs: SelectionInputs, impact_map: ImpactMap, suite: _Suite) -> set[str]:
+    """Test modules added or changed since the map was recorded: their use is unknown.
+
+    Only whole-suite runs record the map, so these run every time until the next
+    whole-suite run records them.
+    """
+    if not impact_map.commit:
+        raise _FullRun("the impact map names no commit")
+    return {
+        change.path
+        for change in _changes(inputs.root, impact_map.commit, inputs.head_sha)
+        if change.status in {"A", "M"} and change.path in suite.modules
+    }
 
 
 def _through_importers(

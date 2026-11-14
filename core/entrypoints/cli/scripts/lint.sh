@@ -2428,11 +2428,11 @@ run_check_unit_tests_with_coverage() {
       fi
       coverage_dir+="/${partition}"
     fi
-    # ADR 0068: verify.py hands a selected Tier 3 suite its plan. The suite then
-    # runs only the planned modules of its partition and records, per module, the
-    # repository files they used, which the next plan reads.
     # Workers then load rewritten test bytecode instead of each rewriting all of it.
     local impact_args=(-p core.application.tooling.quality.assert_cache_warmup)
+    # ADR 0068: verify.py hands a selected Tier 3 suite its plan. The suite then
+    # runs only the planned modules of its partition and reports which failed; a
+    # whole-suite run also records the files each module used, for later plans.
     local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
     # The plan is for this suite, not for the tests: a test that runs lint.sh
     # itself must not inherit it (the 0.9.18 hosted run failed four that way).
@@ -2443,7 +2443,11 @@ run_check_unit_tests_with_coverage() {
       local planned_modules=""
       planned_modules="$("${PYTHON_BIN}" -m core.application.tooling.quality.impact_plan_filter \
         "${selection_plan}" "${selection[@]}")" || return $?
-      if [[ "${planned_modules}" != "@full" ]]; then
+      if [[ "${planned_modules}" == "@full" ]]; then
+        # Only a whole-suite run records the per-module map; it costs a third
+        # of a hosted run, so selected runs report their failures only.
+        impact_args+=(--fs-test-impact-map)
+      else
         selection=()
         while IFS= read -r selected_module; do
           [[ -n "${selected_module}" ]] && selection+=("${selected_module}")

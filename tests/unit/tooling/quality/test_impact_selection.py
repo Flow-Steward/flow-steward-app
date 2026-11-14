@@ -133,13 +133,15 @@ def _map() -> ImpactMap:
 def _plan(
     repo: Path, head: str, records: list[EvidenceRecord], **overrides: object
 ) -> SelectionPlan:
+    impact = _map()
+    impact.commit = records[0].commit_sha if records else ""
     values: dict[str, object] = {
         "check": _check(),
         "root": repo,
         "head_sha": head,
         "runtime_digest": RUNTIME,
         "records": records,
-        "impact_map": _map(),
+        "impact_map": impact,
         "trusted_ci_required": False,
     }
     values.update(overrides)
@@ -315,9 +317,24 @@ def test_a_frontend_change_reaches_backend_tests_that_used_the_built_shell(repo:
     _write(repo, "assets/frontend/src/page.tsx", "export const page = 2;\n")
     head = _commit(repo, "page")
     impact = _map()
+    impact.commit = base
     impact.modules["tests/unit/test_api.py"] = frozenset({"assets/frontend/dist/index.html"})
 
     plan = _plan(repo, head, [_record(base)], impact_map=impact)
 
     assert not plan.full
     assert plan.modules == ("tests/unit/test_api.py",)
+
+
+def test_tests_added_or_changed_since_the_map_always_run(repo: Path) -> None:
+    mapped = _commit(repo, "mapped")
+    _write(repo, "tests/unit/test_new.py", "from core.library import triple\n")
+    base = _commit(repo, "new test, passed selected run")
+    _write(repo, "docs/guide.md", "changed\n")
+    head = _commit(repo, "docs")
+    impact = _map()
+    impact.commit = mapped
+
+    plan = _plan(repo, head, [_record(base)], impact_map=impact)
+
+    assert plan.modules == ("tests/unit/test_docs.py", "tests/unit/test_new.py")
