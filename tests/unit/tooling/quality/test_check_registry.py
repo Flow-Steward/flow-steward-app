@@ -426,3 +426,43 @@ def test_ui_i18n_fingerprint_changes_with_sources_locales_metadata_and_checker(t
         current = fingerprint_check(check, context)
         assert current != previous, path
         previous = current
+
+
+def test_external_acceptance_reruns_for_code_not_for_documentation(tmp_path: Path) -> None:
+    """ADR 0068: external Tier 3 checks are input-scoped, so a run whose change
+    leaves their inputs alone reuses them instead of rebuilding the stack."""
+    import subprocess
+
+    from core.application.tooling.quality.fingerprint import (
+        FingerprintContext,
+        fingerprint_check,
+    )
+
+    registry = load_check_registry(REGISTRY_PATH)
+    external = [
+        check
+        for check in registry.checks
+        if check.owner_tier == 3 and check.execution == "external"
+    ]
+    repo = tmp_path / "repo"
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for relative in (
+        "docs/guide.md",
+        "core/application/clone/service.py",
+        "core/application/extensions/oauth_flow.py",
+    ):
+        path = repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("baseline\n", encoding="utf-8")
+    context = FingerprintContext(root=repo, source="worktree")
+    baseline = {check.id: fingerprint_check(check, context) for check in external}
+
+    (repo / "docs/guide.md").write_text("changed\n", encoding="utf-8")
+    assert {check.id: fingerprint_check(check, context) for check in external} == baseline
+    assert all(check.reuse_scope == "inputs" for check in external)
+
+    (repo / "core/application/clone/service.py").write_text("changed\n", encoding="utf-8")
+    changed = {
+        check.id for check in external if fingerprint_check(check, context) != baseline[check.id]
+    }
+    assert {"clone-volume-disposable", "extension-oauth-browser"} <= changed

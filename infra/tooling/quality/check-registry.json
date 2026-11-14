@@ -88,6 +88,7 @@
         "core/application/tooling/quality/release_gate.py",
         "tests/integration/test_quality_evidence_uid_contract.py"
       ],
+      "reuse_scope": "inputs",
       "execution": "external"
     },
     {
@@ -102,10 +103,15 @@
         "tests/integration/test_clone_volume_disposable.py"
       ],
       "inputs": [
-        "core/application/clone/**",
-        "core/infrastructure/clone/**",
+        "core/**",
+        "requirements*.txt",
+        "requirements*.lock",
+        "tests/conftest.py",
+        "tests/integration/conftest.py",
         "tests/integration/test_clone_volume_disposable.py"
       ],
+      "input_excludes": ["**/*.md"],
+      "reuse_scope": "inputs",
       "execution": "external"
     },
     {
@@ -509,27 +515,22 @@
         "extension-oauth-browser"
       ],
       "inputs": [
-        "assets/frontend/package.json",
-        "assets/frontend/package-lock.json",
-        "assets/frontend/playwright.config.ts",
-        "assets/frontend/src/pages/extensions/**",
-        "assets/frontend/tests/e2e/extension-oauth.spec.ts",
-        "core/application/extensions/oauth_*.py",
-        "core/entrypoints/api/extension_*.py",
-        "core/entrypoints/cli/scripts/check-oauth-browser-exit.sh",
-        "core/entrypoints/cli/scripts/run-extension-oauth-browser-acceptance.sh",
-        "core/infrastructure/extension_runtime/oauth_*.py",
-        "db/migrations/**",
-        "db/schema/**",
-        "extensions/*/tests/e2e/*oauth*.spec.ts",
-        "extensions/*/tests/oauth-boundary-policy.json",
-        "infra/docker/Dockerfile",
-        "infra/docker/docker-compose.oauth-browser.yaml",
-        "requirements-audit.txt",
-        "tests/fixtures/extensions/fixture_extension_oauth/**",
-        "tests/fixtures/oauth_provider.py",
-        "tests/fixtures/seed_extension_oauth_browser.py"
+        "assets/**",
+        "core/**",
+        "db/**",
+        "extensions/**",
+        "infra/docker/**",
+        "pyproject.toml",
+        "requirements*.txt",
+        "requirements*.lock",
+        "tests/fixtures/**"
       ],
+      "input_excludes": [
+        "**/*.md",
+        "assets/frontend/src/**/*.test.ts",
+        "assets/frontend/src/**/*.test.tsx"
+      ],
+      "reuse_scope": "inputs",
       "prerequisites": [
         "frontend-tests",
         "backend-tests",
