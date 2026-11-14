@@ -232,7 +232,7 @@ jobs:
               break
             fi
           done
-      - name: Find earlier evidence and impact maps of this branch and main
+      - name: Find earlier evidence and impact maps of this candidate's history
         id: earlier-evidence
         if: env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check' && steps.restore-source-evidence.outcome != 'success'
         continue-on-error: true
@@ -244,10 +244,19 @@ jobs:
             const {data: workflow} = await github.rest.actions.getWorkflow({
               ...context.repo, workflow_id: 'remote-quality.yml',
             });
+            const {execFileSync} = require('child_process');
+            // Only results of this candidate's own history, whatever branch ran them.
+            const isAncestor = sha => {
+              try {
+                execFileSync('git', ['merge-base', '--is-ancestor', sha, 'HEAD'], {stdio: 'ignore'});
+                return true;
+              } catch (_) {
+                return false;
+              }
+            };
             const sources = await select({github, ...context.repo,
               repositoryId: Number(process.env.GITHUB_REPOSITORY_ID),
-              workflowId: workflow.id, branch: context.ref.replace(/^refs\/heads\//, ''),
-              currentRunId: Number(process.env.GITHUB_RUN_ID)});
+              workflowId: workflow.id, currentRunId: Number(process.env.GITHUB_RUN_ID), isAncestor});
             const root = `${process.env.RUNNER_TEMP}/earlier-quality`;
             fs.mkdirSync(root, {recursive: true});
             let index = 0;
