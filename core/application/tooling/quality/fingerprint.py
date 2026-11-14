@@ -32,7 +32,7 @@ _GATE_INPUTS = (
     "core/application/tooling/quality/runtime_receipt.py",
     "core/application/tooling/quality/evidence.py",
     "core/application/tooling/quality/verify.py",
-    # Tier 3 impacted-test selection (ADR 0068) decides what a suite runs.
+    # Tier 3 impacted-test selection (ADR 0070) decides what a suite runs.
     "core/application/tooling/quality/impact_recorder.py",
     "core/application/tooling/quality/impact_map.py",
     "core/application/tooling/quality/impact_selection.py",

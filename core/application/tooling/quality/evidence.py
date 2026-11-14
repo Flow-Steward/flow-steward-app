@@ -39,11 +39,11 @@ class EvidenceRecord(BaseModel):
     duration_seconds: float = Field(ge=0)
     report_paths: tuple[str, ...] = ()
     report_checksums: dict[str, str] = Field(default_factory=dict)
-    # Impacted-test selection (ADR 0068). An empty base means the whole suite
+    # Impacted-test selection (ADR 0070). An empty base means the whole suite
     # ran; otherwise only the tests a change since that passed ancestor reaches.
     selection_base_sha: str = ""
     selected_modules: int | None = Field(default=None, ge=0)
-    # Test modules that failed; a later selection reruns them (ADR 0068).
+    # Test modules that failed; a later selection reruns them (ADR 0070).
     failed_modules: tuple[str, ...] = ()
     # Runtime the suite ran in, without disposable image IDs; a selection base
     # must share it, so a dependency or interpreter change runs everything.

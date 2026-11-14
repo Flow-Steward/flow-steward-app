@@ -1,7 +1,7 @@
 "use strict";
 
 // Earlier official runs whose check evidence and impact maps a new run imports
-// (ADR 0068): runs of any branch whose commit is an ancestor of this candidate,
+// (ADR 0070): runs of any branch whose commit is an ancestor of this candidate,
 // newest first, so a release branch, its verify ref and main share results.
 // Imported records are candidates only: verify.py reuses one only when its
 // fingerprint matches. A miss costs a run, never a false pass.

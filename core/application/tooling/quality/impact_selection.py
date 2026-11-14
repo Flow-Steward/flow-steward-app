@@ -1,4 +1,4 @@
-"""Choose the Tier 3 tests a change reaches since a passed ancestor (ADR 0068).
+"""Choose the Tier 3 tests a change reaches since a passed ancestor (ADR 0070).
 
 A Tier 3 suite with a ``selection`` runs only the tests its change reaches when
 an earlier result of the same check vouches for the rest:

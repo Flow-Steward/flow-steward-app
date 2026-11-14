@@ -5068,7 +5068,7 @@
       "preserve_existing": true,
       "default": "",
       "owner": "quality",
-      "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0068). Set only by the quality gate; never configure it."
+      "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0070). Set only by the quality gate; never configure it."
     },
     {
       "name": "FS_READY_DRAIN_MAX_MESSAGES",

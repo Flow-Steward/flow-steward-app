@@ -1,4 +1,4 @@
-"""Pytest plugin recording which repository files each test module uses (ADR 0068).
+"""Pytest plugin recording which repository files each test module uses (ADR 0070).
 
 Loaded by the Tier 3 backend suites with ``-p``. It records, per test module,
 the repository files whose functions ran (``sys.monitoring``, first call per
@@ -71,7 +71,7 @@ class _ImpactRecorder:
         processes = config.getoption("numprocesses", default=None) if self.is_controller else None
         self.workers = processes if isinstance(processes, int) and processes > 0 else 0
         # Recording costs about a third of a whole backend run on hosted runners,
-        # so selected runs only report their failures (ADR 0068).
+        # so selected runs only report their failures (ADR 0070).
         self.mapping = bool(config.getoption(_MAP_OPTION))
         if self.mapping and not self.workers:
             self.tool_id = self._start_monitoring()

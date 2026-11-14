@@ -1497,7 +1497,7 @@ def test_unavailable_borrowed_audit_image_stops_without_build(
 
 
 def test_a_selection_plan_never_reaches_the_tests_it_selects() -> None:
-    """ADR 0068: tests that run lint.sh themselves inherited the suite's plan and
+    """ADR 0070: tests that run lint.sh themselves inherited the suite's plan and
     took its selection path; the hosted 0.9.18 run failed four of them that way."""
     source = LINT_SCRIPT.read_text(encoding="utf-8")
     backend = _shell_function(

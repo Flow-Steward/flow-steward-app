@@ -9169,7 +9169,7 @@
     "environments": [
       "local_development"
     ],
-    "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0068). Set only by the quality gate; never configure it.; used but undocumented in .env.example surfaces",
+    "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0070). Set only by the quality gate; never configure it.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "quality",
     "required": false,
     "retired_alias_names": [],

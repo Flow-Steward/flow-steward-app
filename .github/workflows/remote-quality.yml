@@ -4,7 +4,7 @@ run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-sc
 on:
   push:
     branches: ['**']
-  # Weekly backstop for impacted-test selection (ADR 0068): main's Tier 3
+  # Weekly backstop for impacted-test selection (ADR 0070): main's Tier 3
   # suites run whole and rebuild their impact maps.
   schedule:
     - cron: '30 1 * * 0'
@@ -558,7 +558,7 @@ jobs:
           if-no-files-found: ignore
 
   tier3:
-    # Tier 3 on parallel VMs (ADR 0068): each part reads Tier 2 and earlier evidence
+    # Tier 3 on parallel VMs (ADR 0070): each part reads Tier 2 and earlier evidence
     # from the quality job, runs its suites (impacted tests only, unless a weekly
     # or release-full run asks for the whole suites) and returns its evidence.
     name: Tier 3 / ${{ matrix.part }}

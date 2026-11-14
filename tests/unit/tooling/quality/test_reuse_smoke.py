@@ -179,7 +179,7 @@ def test_smoke_workflow_skips_all_full_tiers_and_imports_the_real_source_artifac
     assert tier_two["if"] == (
         "env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check'"
     )
-    # Tier 3 runs in the tier3 and release_gate jobs (ADR 0068), never in this one.
+    # Tier 3 runs in the tier3 and release_gate jobs (ADR 0070), never in this one.
     assert not any("lint.sh --full" in step.get("run", "") for step in steps)
     release_modes = (
         "env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar'"

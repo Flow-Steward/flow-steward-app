@@ -1,4 +1,4 @@
-"""Recording and carrying the per-module test impact map (ADR 0068)."""
+"""Recording and carrying the per-module test impact map (ADR 0070)."""
 
 from __future__ import annotations
 

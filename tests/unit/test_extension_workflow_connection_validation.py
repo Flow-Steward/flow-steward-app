@@ -749,7 +749,7 @@ def test_a_connection_bound_operation_requires_its_binding(production_contract) 
 
 
 def test_a_step_reading_a_slot_is_not_asked_for_a_connection(production_contract) -> None:
-    """The slot is filled when the run starts (ADR 0065 action, ADR 0068 workflow)."""
+    """The slot is filled when the run starts (ADR 0065 action, ADR 0070 workflow)."""
     production_contract["value"] = _multi_type_contract("mail_account")
 
     step = _step()

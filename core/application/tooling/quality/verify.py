@@ -57,7 +57,7 @@ EvidenceMode = Literal["off", "report", "reuse"]
 # frontend-tests publishes, and both suites are memory-heavy.
 DEFAULT_JOBS_BY_TIER: dict[int, int] = {1: 1, 2: 4, 3: 1}
 
-# The selected run's plan reaches the nested suite through this variable (ADR 0068).
+# The selected run's plan reaches the nested suite through this variable (ADR 0070).
 SELECTION_PLAN_ENV = "FS_QUALITY_TEST_SELECTION"
 IMPACT_DIRECTORY = "test-impact"
 # Disposable image IDs change on a rebuild of the same Dockerfile; the selection
@@ -283,7 +283,7 @@ class _TierRun:
         return fingerprint
 
     def _plan(self, check: CheckDefinition) -> SelectionPlan | None:
-        """Narrow a selected Tier 3 suite to the tests its change reaches (ADR 0068)."""
+        """Narrow a selected Tier 3 suite to the tests its change reaches (ADR 0070)."""
         if check.selection is None or not self.request.commit_sha:
             return None
         paths = _impact_paths(self.request.evidence_root, check.id)
@@ -475,7 +475,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--full-suite",
         action="store_true",
-        help="Run selected Tier 3 suites whole and rebuild their impact maps (ADR 0068).",
+        help="Run selected Tier 3 suites whole and rebuild their impact maps (ADR 0070).",
     )
     args = parser.parse_args(argv)
     if args.trust == "trusted_ci" and not (

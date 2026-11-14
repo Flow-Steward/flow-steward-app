@@ -1,4 +1,4 @@
-"""Narrow one pytest partition to the modules of a selection plan (ADR 0068).
+"""Narrow one pytest partition to the modules of a selection plan (ADR 0070).
 
 Usage: ``python -m ...impact_plan_filter PLAN SELECTION...`` where SELECTION is
 the partition's pytest arguments: module paths, or directories with

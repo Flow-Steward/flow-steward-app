@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class TestSelection(BaseModel):
-    """How a Tier 3 suite narrows itself to the tests a change reaches (ADR 0068)."""
+    """How a Tier 3 suite narrows itself to the tests a change reaches (ADR 0070)."""
 
     __test__ = False  # A pydantic model, not a pytest test class.
     model_config = ConfigDict(extra="forbid", frozen=True)

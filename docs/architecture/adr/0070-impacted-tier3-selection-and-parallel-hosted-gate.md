@@ -1,4 +1,4 @@
-# ADR 0068: Impacted Tier 3 selection and a parallel hosted release gate
+# ADR 0070: Impacted Tier 3 selection and a parallel hosted release gate
 
 - Status: Accepted
 - Date: 2026-11-14

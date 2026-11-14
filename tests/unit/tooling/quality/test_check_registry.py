@@ -429,7 +429,7 @@ def test_ui_i18n_fingerprint_changes_with_sources_locales_metadata_and_checker(t
 
 
 def test_external_acceptance_reruns_for_code_not_for_documentation(tmp_path: Path) -> None:
-    """ADR 0068: external Tier 3 checks are input-scoped, so a run whose change
+    """ADR 0070: external Tier 3 checks are input-scoped, so a run whose change
     leaves their inputs alone reuses them instead of rebuilding the stack."""
     import subprocess
 

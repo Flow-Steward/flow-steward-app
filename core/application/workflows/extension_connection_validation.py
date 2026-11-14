@@ -254,7 +254,7 @@ def validate_extension_connector_step(
     if not connection_id and _text(binding.get("slot")):
         # The connection comes from a declared slot when the run starts: the
         # action context (ADR 0065) or the project's choice pinned at submission
-        # (ADR 0068). Whether the slot is declared is the workflow's check.
+        # (ADR 0070). Whether the slot is declared is the workflow's check.
         return []
     if operation.requires_connection and not connection_id:
         return [

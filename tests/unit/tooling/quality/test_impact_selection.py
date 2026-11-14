@@ -1,4 +1,4 @@
-"""Impacted-test selection for Tier 3 suites (ADR 0068)."""
+"""Impacted-test selection for Tier 3 suites (ADR 0070)."""
 
 from __future__ import annotations
 

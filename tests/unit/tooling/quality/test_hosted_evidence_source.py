@@ -1,4 +1,4 @@
-"""Hosted runs import the evidence of their own history (ADR 0068)."""
+"""Hosted runs import the evidence of their own history (ADR 0070)."""
 
 from __future__ import annotations
 

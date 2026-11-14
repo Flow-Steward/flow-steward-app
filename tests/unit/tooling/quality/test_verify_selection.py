@@ -1,4 +1,4 @@
-"""verify.py narrows a selected Tier 3 suite and records what vouches for it (ADR 0068)."""
+"""verify.py narrows a selected Tier 3 suite and records what vouches for it (ADR 0070)."""
 
 from __future__ import annotations
 

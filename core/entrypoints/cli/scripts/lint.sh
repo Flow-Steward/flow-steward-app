@@ -116,9 +116,9 @@ Modes:
   --commit-sha  Commit identity required with trusted_ci commit fingerprints.
   --tier3-only  With --full: run only these Tier 3 check ids (comma-separated; `external` names
                 the external checks) and skip the final release read. One parallel hosted job
-                runs each part; the cumulative --full reads all of them afterwards (ADR 0068).
+                runs each part; the cumulative --full reads all of them afterwards (ADR 0070).
   --full-suite  With --full: run the selected Tier 3 suites whole instead of the tests the
-                change reaches, and rebuild their impact maps (the weekly backstop, ADR 0068).
+                change reaches, and rebuild their impact maps (the weekly backstop, ADR 0070).
   --audit-toolchain-digest  Print the canonical audit image toolchain digest; no Docker execution.
 
 Notes:
@@ -2435,7 +2435,7 @@ run_check_unit_tests_with_coverage() {
     fi
     # Workers then load rewritten test bytecode instead of each rewriting all of it.
     local impact_args=(-p core.application.tooling.quality.assert_cache_warmup)
-    # ADR 0068: verify.py hands a selected Tier 3 suite its plan. The suite then
+    # ADR 0070: verify.py hands a selected Tier 3 suite its plan. The suite then
     # runs only the planned modules of its partition and reports which failed; a
     # whole-suite run also records the files each module used, for later plans.
     local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
@@ -2992,7 +2992,7 @@ run_check_frontend_test_build() {
   prepare_frontend_workspace "${ROOT_DIR}/assets" "${workspace_dir}/assets"
 
   run_step "Frontend workspace install" bash -lc "cd '${frontend_dir}' && npm ci --include=optional"
-  # ADR 0068: with a selection plan from verify.py the suite runs `vitest related`
+  # ADR 0070: with a selection plan from verify.py the suite runs `vitest related`
   # on the changed sources (and earlier failing files) and records which test
   # files failed, so a later selection reruns them.
   local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"

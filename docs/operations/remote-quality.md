@@ -128,7 +128,7 @@ Tier 2 runs first, Tier 3 is not selected, and Sonar analyzes all canonical sour
 without test coverage. The bootstrap runtime-pilot branch selects this mode.
 It cannot qualify a release; use `release-sonar` for cumulative release evidence.
 
-Release modes run Tier 3 on parallel VMs (ADR 0068). The `tier3` job runs four
+Release modes run Tier 3 on parallel VMs (ADR 0070). The `tier3` job runs four
 parts after Tier 2 — backend, contracts with the cross-profile heartbeat, frontend,
 external — each through `lint.sh --full --tier3-only`, with the Tier 2 evidence
 and the PostgreSQL image the quality job built once for the run. Selected suites

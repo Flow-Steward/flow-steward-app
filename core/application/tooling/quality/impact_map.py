@@ -1,4 +1,4 @@
-"""Per-module map of the repository files each Tier 3 test module used (ADR 0068).
+"""Per-module map of the repository files each Tier 3 test module used (ADR 0070).
 
 Built from the ``impact_recorder`` output of a run and carried to the next run
 next to the check's evidence. A full run replaces the map; a selected run

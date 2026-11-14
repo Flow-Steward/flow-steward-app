@@ -1,4 +1,4 @@
-"""Record a vitest run for impacted-test selection (ADR 0068).
+"""Record a vitest run for impacted-test selection (ADR 0070).
 
 Usage: ``python -m ...impact_vitest_result REPORT FRONTEND_DIR EXIT_STATUS OUTPUT_DIR``.
 Reads vitest's JSON report and writes the ``result.json`` that
