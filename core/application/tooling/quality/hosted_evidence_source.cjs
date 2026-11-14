@@ -1,15 +1,16 @@
 "use strict";
 
 // Earlier official runs whose check evidence and impact maps a new run imports
-// (ADR 0068). Imported records are candidates only: verify.py reuses one only
-// when its fingerprint matches, and a selection base only when its commit is an
-// ancestor of this candidate. A miss costs a run, never a false pass.
+// (ADR 0068): runs of any branch whose commit is an ancestor of this candidate,
+// newest first, so a release branch, its verify ref and main share results.
+// Imported records are candidates only: verify.py reuses one only when its
+// fingerprint matches. A miss costs a run, never a false pass.
 const NAME = /^(?:quality|quality-stage|tier3-[a-z0-9-]+)-([0-9a-f]{40})-([1-9][0-9]*)$/;
 const MAX_RUNS = 3;
 const MAX_CANDIDATES = 60;
 
 module.exports = async function selectHostedEvidenceSources({
-  github, owner, repo, repositoryId, workflowId, branch, currentRunId,
+  github, owner, repo, repositoryId, workflowId, currentRunId, isAncestor,
 }) {
   const positive = value => Number.isSafeInteger(value) && value > 0;
   if (owner !== "Flow-Steward" || repo !== "flow-steward-app" ||
@@ -22,15 +23,18 @@ module.exports = async function selectHostedEvidenceSources({
   } catch (_) {
     return [];
   }
-  if (!Array.isArray(artifacts)) return [];
-  const rank = artifact => artifact.workflow_run.head_branch === branch ? 0 : 1;
+  if (!Array.isArray(artifacts) || typeof isAncestor !== "function") return [];
+  const ancestry = new Map();
+  const ancestor = sha => {
+    if (!ancestry.has(sha)) ancestry.set(sha, Boolean(isAncestor(sha)));
+    return ancestry.get(sha);
+  };
   const candidates = artifacts.filter(artifact => {
     const match = typeof artifact?.name === "string" && artifact.name.match(NAME);
     return match && positive(artifact.id) && artifact.expired === false &&
       positive(artifact.workflow_run?.id) && artifact.workflow_run.id !== Number(currentRunId) &&
-      artifact.workflow_run.head_sha === match[1] &&
-      [branch, "main"].includes(artifact.workflow_run.head_branch);
-  }).sort((left, right) => rank(left) - rank(right) ||
+      artifact.workflow_run.head_sha === match[1] && ancestor(match[1]);
+  }).sort((left, right) =>
     String(right.created_at || "").localeCompare(String(left.created_at || "")) ||
     right.id - left.id).slice(0, MAX_CANDIDATES);
 
