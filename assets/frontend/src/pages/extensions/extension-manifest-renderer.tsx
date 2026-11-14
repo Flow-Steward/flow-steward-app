@@ -24,6 +24,8 @@ import {
   type ManifestAction,
 } from "@/pages/extensions/extension-manifest-utils";
 import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
+import { GridCellLink, GridFilters, GridRow } from "@/pages/extensions/extension-grid-controls";
+import { gridColumnLink } from "@/pages/extensions/extension-grid-links";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -679,6 +681,13 @@ export function renderManifestComponent(
     return (
       <div className="fs-manifest-block" key={componentId}>
         <p className="fs-manifest-title">{title}</p>
+        <GridFilters
+          extensionId={context.extensionId}
+          filters={listFromUnknown(component.filters)}
+          onFiltered={() => context.onComponentQueryParamsChange(componentId, { ...queryMeta, page: 1, page_size: pageSize })}
+          projectId={context.projectId}
+          t={t}
+        />
         {componentError ? <DsAlert title={componentError} tone="danger" /> : null}
         {visibleRows.length ? (
           <>
@@ -696,12 +705,22 @@ export function renderManifestComponent(
                 </thead>
                 <tbody>
                   {visibleRows.map((row, index) => (
-                    <tr key={`${componentId}:${index}`}>
+                    <GridRow extensionId={context.extensionId} key={`${componentId}:${index}`} link={component.row_link} row={objectOrEmpty(row)}>
                       {columns.map((column) => {
                         const columnKey = columnIdentity(column);
                         const rawValue = valueAtPath(objectOrEmpty(row), columnKey);
                         const columnType = stringFrom(column.type || "text").toLowerCase();
                         const monospace = Boolean(column.monospace || columnType === "id");
+                        const cellLink = gridColumnLink(column);
+                        if (cellLink) {
+                          return (
+                            <td key={`${componentId}:${index}:${columnKey}`}>
+                              <GridCellLink extensionId={context.extensionId} link={cellLink} row={objectOrEmpty(row)}>
+                                {formatGridValue(rawValue, column, t)}
+                              </GridCellLink>
+                            </td>
+                          );
+                        }
                         return (
                           <td key={`${componentId}:${index}:${columnKey}`}>
                             {columnType === "badge" ? (
@@ -761,7 +780,7 @@ export function renderManifestComponent(
                           </div>
                         </td>
                       ) : null}
-                    </tr>
+                    </GridRow>
                   ))}
                 </tbody>
               </table>

@@ -29457,3 +29457,9 @@ msgstr ""
 
 msgid "react.workflows.connection_slot_chosen"
 msgstr ""
+
+msgid "react.extensions.grid_filters"
+msgstr ""
+
+msgid "react.extensions.grid_filter_any"
+msgstr ""

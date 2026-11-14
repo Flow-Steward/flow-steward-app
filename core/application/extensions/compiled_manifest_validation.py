@@ -62,6 +62,7 @@ from .compiled_manifest_policies import (
     _validate_project_state_declaration,
     _validate_runtime_grants,
 )
+from .grid_link_contract import validate_grid_link_contract
 from .query_connection_contract import validate_query_connection_contract
 
 
@@ -710,6 +711,7 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
     validate_query_connection_contract(
         compiled_manifest, issues=issues, manifest_path=manifest_path
     )
+    validate_grid_link_contract(compiled_manifest, issues=issues, manifest_path=manifest_path)
 
     errors, warnings = _split_issues(issues)
     return {

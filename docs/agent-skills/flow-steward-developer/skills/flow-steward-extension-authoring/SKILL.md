@@ -93,8 +93,17 @@ form with buttons (ADR 0067; host contract 1.7.0, SDK 0.5.0):
 - A detail page takes URL page parameters: `p.<name>` keys of the page URL
   arrive in every query's `params` (validate them; they are untrusted).
 
+- A grid links cells or rows without markdown: a column `type: link` with
+  `link: {page: <page_id>, params: {<name>: "{row.<field>}"}}` (another page of
+  the extension, `p.<name>` filled from the row) or `link: {path_field:
+  <field>}` (an in-app path the row holds); `row_link` takes the same shape for
+  a clickable row; fields a link reads are column keys or `row_fields`.
+- A grid declares `filters` above the table, each bound to `p.<param>`: a
+  select with `options` or `options_query: {query_id, value_field,
+  label_field}` (an ordinary query), or `type: text`.
+
 See `docs/extension-authoring-agent-playbook.md` "Pages That Read Through A
-Connection" for the full example.
+Connection" and "Grid links and filters" for the full example.
 
 ### Workflows that use a project connection
 

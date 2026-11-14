@@ -181,6 +181,7 @@
     "core/application/extensions/external_effect_resolution.py",
     "core/application/extensions/external_effect_resolution_repository.py",
     "core/application/extensions/external_effects.py",
+    "core/application/extensions/grid_link_contract.py",
     "core/application/extensions/health_gate.py",
     "core/application/extensions/host_contract.py",
     "core/application/extensions/identity.py",

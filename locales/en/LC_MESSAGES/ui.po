@@ -30518,3 +30518,9 @@ msgstr "Chosen automatically"
 
 msgid "react.workflows.connection_slot_chosen"
 msgstr "Chosen"
+
+msgid "react.extensions.grid_filters"
+msgstr "Filters"
+
+msgid "react.extensions.grid_filter_any"
+msgstr "Any"

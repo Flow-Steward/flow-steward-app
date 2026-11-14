@@ -205,6 +205,28 @@ action_manifest: ui/actions/actions.yaml
 # exported; the action cannot be called outside a workflow. Marking a workflow
 # as an implementation needs a Development environment.
 
+# Grid links and filters (ui components of type grid):
+#
+#   columns:
+#     - {key: name, label: Run, type: link,
+#        link: {page: run_detail, params: {run_id: "{row.run_id}"}}}
+#     - {key: job_path, label: Job, type: link}   # the value is an in-app path
+#   row_fields: [run_id]                # row fields links read beside column keys
+#   row_link: {page: run_detail, params: {run_id: "{row.run_id}"}}
+#   filters:
+#     - {param: status, label: Status, options: [{value: open, label: Open}]}
+#     - {param: owner, label: Owner,
+#        options_query: {query_id: owners.list, value_field: id, label_field: name}}
+#     - {param: q, label: Search, type: text}
+#
+# A link is {page, params} (a page of this extension; params are p.<name>
+# values with {row.<field>} placeholders) or {path_field} (a row field holding
+# an in-app path starting with /). The host builds and encodes every address;
+# no scheme, host or external URL is possible. A filter sets p.<param> in the
+# page address and reloads the page's queries. The compiler refuses an unknown
+# page, row field or query, a connection query for options, a malformed name
+# and a repeated filter parameter.
+
 # Connection slots of a workflow a person runs (ADR 0068). A published,
 # read-only workflow whose connector steps need a project connection declares
 # the connections in its settings, in the same shape as an action's slots plus

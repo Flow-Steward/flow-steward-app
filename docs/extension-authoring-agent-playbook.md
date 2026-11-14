@@ -602,6 +602,57 @@ the handler receives `params.run_id`. Names are lowercase identifiers (at most
 20 parameters, 1024 characters each) and the values are untrusted input the
 handler validates. The parameters are dropped when the person switches pages.
 
+### Grid links and filters
+
+A grid links its cells, or whole rows, to another page of the extension or to
+a page of the app, and filters its rows through page parameters. The host builds
+every address: only same-app links, values URL-encoded, opened in the app
+without a full page load. Declare it in the grid component:
+
+```yaml
+component_id: runs
+type: grid
+query_id: runs.list
+columns:
+  - key: name                          # the visible text
+    label: Run
+    type: link
+    link:
+      page: run_detail                 # another page of this extension
+      params: {run_id: "{row.run_id}"} # p.run_id filled from the row
+  - key: job_path                      # a type: link column without link holds an
+    label: Job                         # in-app path itself, e.g. /jobs/42
+    type: link
+row_fields: [run_id]                   # fields the query returns beside the columns
+row_link: {page: run_detail, params: {run_id: "{row.run_id}"}}   # optional
+filters:
+  - param: status                      # bound to p.status
+    label: Status
+    options: [{value: open, label: Open}, {value: done, label: Done}]
+  - param: owner
+    label: Owner
+    options_query: {query_id: owners.list, value_field: id, label_field: name}
+  - param: q
+    label: Search
+    type: text
+```
+
+- A link is either `{page, params}` (a page of this extension; each param is
+  text with `{row.<field>}` placeholders) or `{path_field}` (a row field that
+  holds an in-app path starting with `/`). A row that cannot fill it shows
+  plain text; a value that is not a same-app path is never a link.
+- `row_link` makes a click anywhere in the row (outside its links and buttons)
+  open the same kind of target.
+- Every row field a link reads is a column `key` or listed in `row_fields`.
+- A filter is a select (static `options`, or `options_query` of an ordinary
+  query without a connection) or a `type: text` box. Changing it sets
+  `p.<param>` in the address, returns the grid to its first page and loads the
+  page's queries again; the handler reads `params.<param>`. An empty choice
+  removes the parameter.
+- The compiler refuses an unknown page, an unknown row field, a malformed
+  parameter name or template, an unknown or connection query for options and a
+  repeated filter parameter (`grid_link_*`, `grid_filter_*`).
+
 ## Runtime Handler Pattern
 
 Copy the reference extension's runtime shape unless there is a concrete reason not to:

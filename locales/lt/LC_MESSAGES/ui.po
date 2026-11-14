@@ -30936,3 +30936,9 @@ msgstr "Pasirinkta automatiškai"
 
 msgid "react.workflows.connection_slot_chosen"
 msgstr "Pasirinkta"
+
+msgid "react.extensions.grid_filters"
+msgstr "Filtrai"
+
+msgid "react.extensions.grid_filter_any"
+msgstr "Bet kuris"
