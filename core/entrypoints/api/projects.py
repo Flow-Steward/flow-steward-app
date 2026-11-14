@@ -186,7 +186,7 @@ def create_api_projects_router(
             500: {"description": "Internal server error"},
         },
     )
-    async def api_projects_list(
+    def api_projects_list(
         request: Request,
         page: Annotated[int, Query()] = 1,
         per_page: Annotated[int, Query()] = 25,
@@ -286,7 +286,7 @@ def create_api_projects_router(
             503: {"description": "Service unavailable"},
         },
     )
-    async def api_project_detail(request: Request, project_id: str):
+    def api_project_detail(request: Request, project_id: str):
         try:
             payload = project_query_service().get_project_edit_form(
                 project_id,
@@ -476,7 +476,7 @@ def create_api_projects_router(
             500: {"description": "Internal server error"},
         },
     )
-    async def api_project_jobs_list(
+    def api_project_jobs_list(
         request: Request,
         project_id: str,
         page: Annotated[int, Query()] = 1,
@@ -548,7 +548,7 @@ def create_api_projects_router(
             500: {"description": "Internal server error"},
         },
     )
-    async def api_project_queue(request: Request, project_id: str):
+    def api_project_queue(request: Request, project_id: str):
         """Return queue + scheduler status for a project."""
         try:
             payload = project_query_service().get_project_queue(

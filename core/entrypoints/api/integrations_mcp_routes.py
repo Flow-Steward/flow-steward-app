@@ -45,7 +45,7 @@ def register_mcp_routes(
         return scope
 
     @router.get("/api/mcp")
-    async def api_mcp_connectors_list(request: Request, project_id: str = ""):
+    def api_mcp_connectors_list(request: Request, project_id: str = ""):
         """One project's connectors, or with no project_id every project the caller may see."""
         try:
             from core.application.management.mcp_connector_common import accessible_project_ids
@@ -100,7 +100,7 @@ def register_mcp_routes(
         return payload.dump()
 
     @router.get("/api/mcp/{connector_id}")
-    async def api_mcp_connector_get(request: Request, connector_id: str, project_id: str):
+    def api_mcp_connector_get(request: Request, connector_id: str, project_id: str):
         try:
             from core.application.management.mcp_connector_services import McpConnectorQueryService
 
@@ -171,7 +171,7 @@ def register_mcp_routes(
         return result
 
     @router.get("/api/mcp/{connector_id}/delete-plan")
-    async def api_mcp_connector_delete_plan(request: Request, connector_id: str, project_id: str):
+    def api_mcp_connector_delete_plan(request: Request, connector_id: str, project_id: str):
         try:
             from core.application.management.mcp_connector_services import (
                 McpConnectorCommandService,
@@ -340,7 +340,7 @@ def register_mcp_routes(
             return api_error_response(e)
 
     @router.get("/api/mcp/{connector_id}/oauth/status")
-    async def api_mcp_connector_oauth_status(request: Request, connector_id: str, project_id: str):
+    def api_mcp_connector_oauth_status(request: Request, connector_id: str, project_id: str):
         try:
             from core.application.auth.mcp_connector_oauth import mcp_connector_oauth_status
             from core.application.management.mcp_connector_services import McpConnectorStore
@@ -406,7 +406,7 @@ def register_mcp_routes(
         return {"status": "disconnected", "connector_id": connector_id}
 
     @router.get("/api/mcp/oauth/client-metadata/{connector_id}.json")
-    async def api_mcp_connector_oauth_client_metadata(connector_id: str):
+    def api_mcp_connector_oauth_client_metadata(connector_id: str):
         try:
             from core.application.auth.mcp_connector_oauth import mcp_client_metadata_document
 

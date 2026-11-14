@@ -95,7 +95,7 @@ def create_reactions_extensions_router(
     router = APIRouter(tags=["reactions-extensions"])
 
     @router.get("/api/workflows/{workflow_id}/reactions")
-    async def api_workflow_reactions(
+    def api_workflow_reactions(
         request: Request,
         workflow_id: str,
         scope_kind: Annotated[str, Query()] = "workflow",
@@ -161,7 +161,7 @@ def create_reactions_extensions_router(
         return payload.dump()
 
     @router.get("/api/jobs/{job_id}/reactions")
-    async def api_job_reactions(request: Request, job_id: str):
+    def api_job_reactions(request: Request, job_id: str):
         try:
             payload = job_query_service().list_reactions(
                 job_id,
@@ -215,7 +215,7 @@ def create_reactions_extensions_router(
         return payload.dump()
 
     @router.get("/api/extensions/capabilities/archive-lifecycle")
-    async def api_extension_archive_lifecycle_capability(request: Request):
+    def api_extension_archive_lifecycle_capability(request: Request):
         try:
             payload = extension_binding_service().archive_lifecycle_availability()
         except ServiceError as e:
@@ -238,7 +238,7 @@ def create_reactions_extensions_router(
         return payload.dump()
 
     @router.get("/api/extensions/{extension_id}/preview")
-    async def api_extension_preview(request: Request, extension_id: str):
+    def api_extension_preview(request: Request, extension_id: str):
         try:
             return extension_query_service().get_preview(
                 extension_id,
@@ -250,7 +250,7 @@ def create_reactions_extensions_router(
             return api_error_response(e, request=request)
 
     @router.get("/api/extensions/{extension_id}/compiled-manifest")
-    async def api_extension_compiled_manifest(request: Request, extension_id: str):
+    def api_extension_compiled_manifest(request: Request, extension_id: str):
         try:
             query_service = extension_query_service()
             scope = request_scope(request)
@@ -265,7 +265,7 @@ def create_reactions_extensions_router(
             return api_error_response(e, request=request)
 
     @router.get("/api/extensions/{extension_id}/icon")
-    async def api_extension_icon(request: Request, extension_id: str):
+    def api_extension_icon(request: Request, extension_id: str):
         """The installed extension's logo (its bundle's icon.png), for whoever may see it."""
         try:
             data = extension_query_service().get_extension_icon(
@@ -287,7 +287,7 @@ def create_reactions_extensions_router(
         )
 
     @router.get("/api/extensions/{extension_id}/assets/{asset_ref:path}")
-    async def api_extension_browser_asset(
+    def api_extension_browser_asset(
         request: Request,
         extension_id: str,
         asset_ref: str,
@@ -330,7 +330,7 @@ def create_reactions_extensions_router(
         )
 
     @router.get("/api/extensions/{extension_id}/health")
-    async def api_extension_health(request: Request, extension_id: str):
+    def api_extension_health(request: Request, extension_id: str):
         try:
             payload = extension_query_service().get_health(
                 extension_id,
@@ -343,7 +343,7 @@ def create_reactions_extensions_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/extensions/{install_id}/external-effects")
-    async def api_direct_external_effects(request: Request, project_id: str, install_id: str):
+    def api_direct_external_effects(request: Request, project_id: str, install_id: str):
         try:
             payload = extension_binding_service().list_external_effects(
                 install_id,

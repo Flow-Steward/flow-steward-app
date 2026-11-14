@@ -148,7 +148,7 @@ def register_extension_routes(
         return payload.dump()
 
     @router.get("/api/extensions")
-    async def api_extensions_list(request: Request):
+    def api_extensions_list(request: Request):
         try:
             raw_filters = ExtensionListQueryRequest(
                 q=str(request.query_params.get("q") or ""),
@@ -207,7 +207,7 @@ def register_extension_routes(
         return payload.dump()
 
     @router.get("/api/extensions/marketplace")
-    async def api_extensions_marketplace(request: Request):
+    def api_extensions_marketplace(request: Request):
         try:
             raw_filters = ExtensionMarketplaceQueryRequest(
                 q=str(request.query_params.get("q") or ""),
@@ -287,7 +287,7 @@ def register_extension_routes(
         return payload.dump()
 
     @router.get("/api/extensions/installs/{install_id}")
-    async def api_extension_install_detail(request: Request, install_id: str):
+    def api_extension_install_detail(request: Request, install_id: str):
         try:
             payload = extension_query_service().get_install_detail(
                 install_id, scope=request_scope(request)
@@ -299,7 +299,7 @@ def register_extension_routes(
         return payload.dump()
 
     @router.get("/api/extensions/{extension_id}")
-    async def api_extension_detail(request: Request, extension_id: str):
+    def api_extension_detail(request: Request, extension_id: str):
         try:
             query_service = extension_query_service()
             scope = request_scope(request)
@@ -441,7 +441,7 @@ def register_extension_routes(
         return payload.dump()
 
     @router.get("/api/extensions/{extension_id}/uninstall-plan")
-    async def api_extension_uninstall_plan(request: Request, extension_id: str):
+    def api_extension_uninstall_plan(request: Request, extension_id: str):
         try:
             return _extension_lifecycle_service().preview_extension_uninstall(
                 extension_id, scope=request_scope(request)

@@ -16,6 +16,7 @@ from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from core.application.management import ServiceError
 from core.application.management.command_models import (
@@ -196,7 +197,7 @@ def create_api_contracts_v2_router(
         response_model=ApiV2JobsEnvelopeView,
         response_description="Versioned jobs list envelope for API v2 consumers.",
     )
-    async def api_v2_jobs(
+    def api_v2_jobs(
         request: Request,
         group_by: Annotated[str, Query()] = "",
         project_id: Annotated[str, Query()] = "",
@@ -303,7 +304,7 @@ def create_api_contracts_v2_router(
         response_model=ApiV2ProjectsEnvelopeView,
         response_description="Versioned projects list envelope for API v2 consumers.",
     )
-    async def api_v2_projects(
+    def api_v2_projects(
         request: Request,
         page: Annotated[int, Query()] = 1,
         per_page: Annotated[int, Query()] = 25,
@@ -335,7 +336,7 @@ def create_api_contracts_v2_router(
         response_model=ApiV2ProjectJobsEnvelopeView,
         response_description="Versioned project-jobs list envelope for API v2 consumers.",
     )
-    async def api_v2_project_jobs(
+    def api_v2_project_jobs(
         request: Request,
         project_id: str,
         page: Annotated[int, Query()] = 1,
@@ -410,7 +411,9 @@ def create_api_contracts_v2_router(
         try:
             # api_dashboard_summary is usually synchronous, but tests and future
             # adapters may provide an async-compatible implementation.
-            payload = dashboard_metrics_api.api_dashboard_summary(request=request, range=range)
+            payload = await run_in_threadpool(
+                dashboard_metrics_api.api_dashboard_summary, request=request, range=range
+            )
             if inspect.isawaitable(payload):
                 payload = await payload
         except ServiceError as exc:
