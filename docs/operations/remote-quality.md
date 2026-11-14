@@ -71,8 +71,13 @@ explicit paths in the current frontend wrapper. Add consumers outside the import
 graph manually. These checks stop at the first failure and collect no coverage.
 They neither run Tier 2/Tier 3 nor certify a release. Do not push each fix to a
 `codex/verify-release/` or `codex/verify-sonar/` ref: those refs request a full run.
-Do not use **Re-run failed jobs** for this cycle: one failed `quality` job owns
-the whole cumulative gate, not just its failed test cases.
+**Re-run failed jobs** on a release run is for a failure that needs no code
+change (a runner-load flake): it repeats only the failed Tier 3 parts, then the
+cumulative release gate and Sonar. The parts after `quality` read its artifacts
+by the attempt that produced them (`needs.quality.outputs.attempt`), and
+`hosted-quality.sh merge-tier3` takes each Tier 3 part from its newest attempt,
+so an earlier failure never overlays the passing re-run. A code fix needs a new
+commit and a new run.
 
 A later rerun of the same GitHub run/SHA can restore its previous attempt's
 evidence and coverage artifact. The gate validates fingerprints and checksums;

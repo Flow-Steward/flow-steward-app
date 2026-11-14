@@ -215,6 +215,79 @@ def test_artifact_ownership_handoff_is_limited_to_owned_outputs(
     ]
 
 
+def test_each_tier3_part_is_restored_from_its_newest_attempt(
+    candidate: tuple[Path, dict[str, str]],
+) -> None:
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    sha = env["GITHUB_SHA"]
+    downloads = root / "runner-temp/tier3"
+    # "Re-run failed jobs": backend passed in attempt 1, contracts failed there
+    # and passed in attempt 2; another commit's part must never be read.
+    for name, verdict in (
+        (f"tier3-backend-{sha}-1", "backend passed"),
+        (f"tier3-contracts-{sha}-1", "contracts failed"),
+        (f"tier3-contracts-{sha}-2", "contracts passed"),
+        (f"tier3-frontend-{'0' * 40}-3", "other commit"),
+    ):
+        evidence = downloads / name / "quality/evidence"
+        evidence.mkdir(parents=True)
+        part = name.split("-")[1]
+        (evidence / f"{part}.json").write_text(verdict)
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "merge-tier3", str(downloads)],
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    restored = root / "logs/quality/evidence"
+    assert sorted(path.name for path in restored.iterdir()) == ["backend.json", "contracts.json"]
+    assert (restored / "contracts.json").read_text() == "contracts passed"
+    assert (restored / "backend.json").read_text() == "backend passed"
+
+
+def test_tier3_merge_without_a_part_of_this_commit_fails(
+    candidate: tuple[Path, dict[str, str]],
+) -> None:
+    _, env = candidate
+    downloads = Path(env["GITHUB_WORKSPACE"]) / "runner-temp/tier3"
+    (downloads / f"tier3-backend-{'0' * 40}-1").mkdir(parents=True)
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "merge-tier3", str(downloads)],
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "No Tier 3 part" in result.stderr
+
+
+def test_jobs_after_quality_read_its_artifacts_by_the_attempt_that_made_them() -> None:
+    """Re-running failed jobs skips the quality job: its artifacts keep its attempt."""
+    workflow = _remote_quality_workflow()
+    jobs = workflow["jobs"]
+    assert jobs["quality"]["outputs"]["attempt"] == "${{ github.run_attempt }}"
+    for job in ("tier3", "release_gate", "sonar"):
+        for step in jobs[job]["steps"]:
+            name = str(step.get("with", {}).get("name", ""))
+            pattern = str(step.get("with", {}).get("pattern", ""))
+            if name.startswith(("quality-stage-", "postgres-image-")) or "'quality-stage'" in name:
+                assert name.endswith("-${{ needs.quality.outputs.attempt }}"), (job, name)
+            if pattern.startswith("tier3-"):
+                # Parts may come from different attempts: every attempt is
+                # downloaded and merge-tier3 keeps each part's newest.
+                assert pattern == "tier3-*-${{ github.sha }}-*", (job, pattern)
+                assert "merge-multiple" not in step["with"], job
+        assert any("merge-tier3" in str(step.get("run", "")) for step in jobs[job]["steps"]) or (
+            job == "tier3"
+        ), job
+
+
 def test_sonar_bootstrap_does_not_trip_the_secret_scanner() -> None:
     from detect_secrets import SecretsCollection
     from detect_secrets.settings import default_settings
