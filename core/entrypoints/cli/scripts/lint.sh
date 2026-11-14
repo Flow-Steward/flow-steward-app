@@ -2434,6 +2434,9 @@ run_check_unit_tests_with_coverage() {
     # Workers then load rewritten test bytecode instead of each rewriting all of it.
     local impact_args=(-p core.application.tooling.quality.assert_cache_warmup)
     local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
+    # The plan is for this suite, not for the tests: a test that runs lint.sh
+    # itself must not inherit it (the 0.9.18 hosted run failed four that way).
+    unset FS_QUALITY_TEST_SELECTION
     if [[ -n "${selection_plan}" && -f "${selection_plan}" ]]; then
       impact_args+=(-p core.application.tooling.quality.impact_recorder
         --fs-test-impact-output "$(dirname -- "${selection_plan}")/run")
@@ -2984,6 +2987,7 @@ run_check_frontend_test_build() {
   # on the changed sources (and earlier failing files) and records which test
   # files failed, so a later selection reruns them.
   local selection_plan="${FS_QUALITY_TEST_SELECTION:-}"
+  unset FS_QUALITY_TEST_SELECTION
   local vitest_command="npm run test"
   local vitest_reporting=""
   local impact_dir=""
