@@ -222,6 +222,8 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("request_idempotency", "key_digest"),
     ("request_idempotency", "lease_expires_at"),
     ("workflow_entrypoints", "project_id"),
+    # A schedule's name titles the jobs it starts (migration 20261114150000).
+    ("scheduled_jobs", "name"),
     ("external_effect_rate_windows", "scope_hash"),
     ("external_effect_rate_windows", "scope_type"),
     ("external_effect_rate_windows", "account_id"),

@@ -224,12 +224,13 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
     (!viewState.selectedStepKey && Object.keys(selectedStepProjection).length ? selectedStepProjection : null);
   // A step that ran another workflow, or an extension action behind one, links to that run.
   const selectedStepExecutionId = String(selectedStepRow?.step_execution_id || "");
-  const selectedStepChildJobId = selectedStepExecutionId
+  const selectedStepChild = selectedStepExecutionId
     ? (executionStepHistoryQuery.data?.pages[0]?.child_invocations || [])
-        .find((invocation) => invocation.step_execution_id === selectedStepExecutionId)?.child_job_id || ""
-    : "";
+        .find((invocation) => invocation.step_execution_id === selectedStepExecutionId)
+    : undefined;
+  const selectedStepChildJobId = selectedStepChild?.child_job_id || "";
   const selectedStep = selectedStepRow && selectedStepChildJobId
-    ? { ...selectedStepRow, child_job_id: selectedStepChildJobId }
+    ? { ...selectedStepRow, child_job_id: selectedStepChildJobId, child_run_title: selectedStepChild?.child_run_title || "" }
     : selectedStepRow;
 
   const decisionHistory: Entity[] = (() => {

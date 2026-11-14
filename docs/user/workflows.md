@@ -57,6 +57,30 @@ selecting **Stop · success** opens Outputs. Start represents the graph entry,
 not an executable step. Every successful branch shares the workflow's output
 contract.
 
+### Naming each run
+
+When one workflow runs for several purposes, give each run a name people can
+tell apart in Jobs:
+
+- **Schedules** have a **Name** (required in the schedule form, for example
+  "Supplier A daily import"). The schedule list shows it, and every job the
+  schedule starts is titled with it. A schedule created before 0.9.18 shows its
+  timing until it is named on its next save.
+- An **incoming webhook**'s description titles the jobs it starts.
+- **Run title** in the workflow's settings is a template over its inputs, for
+  example `{{ inputs.site_url }}`. It titles every run: from the UI, a
+  schedule, a webhook, an Invoke step, MCP or the API. Only
+  `{{ inputs.<name> }}` placeholders are read; a secret input is never shown,
+  and saving refuses a template that reads one or an input that is not
+  declared.
+- When both exist, the title is `<schedule or webhook name> · <run title>`,
+  for example `Supplier A · https://a.example`.
+
+The title shows in the Jobs list (and Jobs search finds it), as the heading of
+the job page, on an Invoke step's link to the run it started, and in
+monitoring. It is fixed when the job is created; changing the template later
+does not rename earlier runs.
+
 ### Returning files from a workflow
 
 A step that saves a file — **Save file from base64**, an **HTTP request** whose

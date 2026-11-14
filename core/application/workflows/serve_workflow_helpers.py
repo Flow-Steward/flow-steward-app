@@ -793,6 +793,8 @@ def build_rerun_workflow_selection(
         "input_contract",
         "task_envelope_id",
         "idempotency_key_digest",
+        # A restart of a scheduled or webhook run keeps that run's name (A56).
+        "run_label",
     ):
         correlation_value = meta.get(correlation_key)
         if correlation_value not in (None, ""):

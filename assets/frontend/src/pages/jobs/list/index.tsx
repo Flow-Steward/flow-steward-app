@@ -419,6 +419,7 @@ export function JobsListPage() {
       const workflowId = normalizeWorkflowId(job);
       if (searchQuery) {
         const haystack = [
+          job.run_title || "",
           job.display_summary || job.task_summary || "",
           job.task_summary || "",
           job.project_name || "",
@@ -463,15 +464,22 @@ export function JobsListPage() {
         : undefined;
       const generatedWorkflowRun = job.task_summary_key === "react.jobs.generated_workflow_run_summary"
         && typeof generatedWorkflowId === "string" && generatedWorkflowId.length > 0;
+      // A run title (schedule or webhook name, the workflow's run title) says what this run was for.
+      const runTitle = firstStringFromUnknownValue([job.run_title, ""]).trim();
+      let taskDisplay = firstStringFromUnknownValue([job.display_summary, job.task_summary, ""]);
+      let taskFull = firstStringFromUnknownValue([job.task_summary, job.display_summary, ""]);
+      if (runTitle) {
+        taskDisplay = runTitle;
+        taskFull = runTitle;
+      } else if (generatedWorkflowRun) {
+        taskDisplay = t("react.jobs.generated_workflow_run_label", "Workflow run");
+        taskFull = t("react.jobs.generated_workflow_run_summary", "Workflow run: {workflow_id}", { workflow_id: generatedWorkflowId });
+      }
       return {
         ...job,
         _duration: durationLabel(job, t),
-        _task_display: generatedWorkflowRun
-          ? t("react.jobs.generated_workflow_run_label", "Workflow run")
-          : firstStringFromUnknownValue([job.display_summary, job.task_summary, ""]),
-        _task_full: generatedWorkflowRun
-          ? t("react.jobs.generated_workflow_run_summary", "Workflow run: {workflow_id}", { workflow_id: generatedWorkflowId })
-          : firstStringFromUnknownValue([job.task_summary, job.display_summary, ""]),
+        _task_display: taskDisplay,
+        _task_full: taskFull,
         _workflow_display: workflowDisplayName(job, workflowDisplayNamesRef.current, workflowSourceRef.current),
         _workflow_tooltip: workflowId,
         // Unknown or legacy codes have no group; only Job details shows them raw.

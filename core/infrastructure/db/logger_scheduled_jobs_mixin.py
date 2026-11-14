@@ -19,6 +19,9 @@ from core.infrastructure.db.logger_scheduled_providers_common import (
     _truncate_text,
 )
 
+#: The longest schedule name stored; the API refuses a longer one first.
+SCHEDULED_JOB_NAME_MAX_CHARS = 120
+
 
 class PlatformLoggerScheduledJobsMixin:
     conn: Any
@@ -61,6 +64,7 @@ class PlatformLoggerScheduledJobsMixin:
         payload["account_id"] = str(payload.get("account_id") or "").strip()
         payload["workflow_id"] = str(payload.get("workflow_id") or "").strip()
         payload["cron_expr"] = str(payload.get("cron_expr") or "").strip()
+        payload["name"] = str(payload.get("name") or "").strip()
         payload["inputs"] = _json_object(payload.get("inputs"))
         payload["enabled"] = _coerce_bool(payload.get("enabled"), True)
         payload["status"] = PlatformLoggerScheduledJobsMixin._normalize_scheduled_job_status(
@@ -256,6 +260,7 @@ class PlatformLoggerScheduledJobsMixin:
         workflow_id: str,
         account_id: str,
         cron_expr: str,
+        name: str = "",
         enabled: bool = True,
         status: str | None = None,
         inputs: dict[str, Any] | None = None,
@@ -272,6 +277,7 @@ class PlatformLoggerScheduledJobsMixin:
         clean_account_id = _truncate_text(account_id, 255) or ""
         clean_workflow_id = str(workflow_id or "").strip()
         clean_cron_expr = _truncate_text(cron_expr, 255) or ""
+        clean_name = _truncate_text(str(name or "").strip(), SCHEDULED_JOB_NAME_MAX_CHARS) or ""
         clean_inputs = _json_object(inputs)
         clean_enabled = _coerce_bool(enabled, True)
         clean_status = self._normalize_scheduled_job_status(status, enabled=clean_enabled)
@@ -293,6 +299,7 @@ class PlatformLoggerScheduledJobsMixin:
                     project_id,
                     workflow_id,
                     cron_expr,
+                    name,
                     enabled,
                     status,
                     inputs,
@@ -303,7 +310,7 @@ class PlatformLoggerScheduledJobsMixin:
                     admission_workflow_revision,
                     admission_checked_at,
                     created_by
-                ) VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s)
+                ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s,%s,%s)
                 RETURNING *
                 """,
                 (
@@ -311,6 +318,7 @@ class PlatformLoggerScheduledJobsMixin:
                     str(project_id),
                     clean_workflow_id,
                     clean_cron_expr,
+                    clean_name,
                     clean_enabled,
                     clean_status,
                     _json_dumps(clean_inputs),
@@ -333,6 +341,7 @@ class PlatformLoggerScheduledJobsMixin:
         *,
         workflow_id=_UNSET,
         cron_expr=_UNSET,
+        name=_UNSET,
         inputs=_UNSET,
         schedule_timezone=_UNSET,
         enabled=_UNSET,
@@ -366,6 +375,11 @@ class PlatformLoggerScheduledJobsMixin:
                 raise ValueError("cron_expr is required")
             fields.append("cron_expr = %s")
             values.append(clean_cron)
+        if name is not _UNSET:
+            fields.append("name = %s")
+            values.append(
+                _truncate_text(str(name or "").strip(), SCHEDULED_JOB_NAME_MAX_CHARS) or ""
+            )
         if inputs is not _UNSET:
             fields.append("inputs = %s::jsonb")
             values.append(_json_dumps(inputs if isinstance(inputs, dict) else {}))
@@ -551,7 +565,8 @@ class PlatformLoggerScheduledJobsMixin:
                 f"""
                 SELECT
                     r.*,
-                    j.status AS job_status
+                    j.status AS job_status,
+                    j.meta ->> 'run_title' AS job_run_title
                 FROM scheduled_job_runs r
                 LEFT JOIN jobs j ON j.id = r.job_id
                 WHERE {SQL_AND.join(where)}

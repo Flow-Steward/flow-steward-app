@@ -257,6 +257,21 @@ action_manifest: ui/actions/actions.yaml
 # activated only when every project that links the workflow has a connection
 # for it. Export and import never carry the chosen connection ids.
 
+# Run title of a workflow (A56). A workflow that runs for several purposes
+# names each run from its inputs:
+#
+#   settings:
+#     run_title: "{{ inputs.site_url }}"
+#
+# Rules: only {{ inputs.<name> }} placeholders, at most 300 characters; never a
+# secret input (type secret, or a credential-like name); in fields mode only a
+# declared input. Readiness refuses anything else with workflow.run_title.*.
+# The host renders it once per new job (UI, schedule, webhook, Invoke, MCP,
+# API) into jobs.meta.run_title, prefixed by the schedule's name or the
+# webhook's description ("<name> · <rendered>"); a secret reference, object or
+# list renders as nothing, each value is bounded to 120 characters and the
+# title to 160. An older host ignores the setting, so no platform_min is needed.
+
 # A query that runs with a project connection (ADR 0067). In
 # ui/queries/queries.yaml:
 #

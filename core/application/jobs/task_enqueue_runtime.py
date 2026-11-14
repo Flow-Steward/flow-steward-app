@@ -424,8 +424,26 @@ def enqueue_job(**kwargs) -> int:
     if meta is not None or pinned:
         meta = pinned
         kwargs = {**kwargs, "meta": meta}
+    titled = _stamp_run_title(meta, extra_state, workflow_id=workflow_id, account_id=account_id)
+    if meta is not None or titled:
+        meta = titled
+        kwargs = {**kwargs, "meta": meta}
     with admit_public_submission(task_source=task_source, meta=meta):
         return _enqueue_job_unadmitted(**kwargs)
+
+
+def _stamp_run_title(
+    meta: dict | None, extra_state: Any, *, workflow_id: Any, account_id: Any
+) -> dict[str, Any]:
+    """The job's run title from its schedule/webhook label and the workflow's template."""
+    from core.application.workflows.workflow_run_title import stamp_run_title
+
+    return stamp_run_title(
+        dict(meta or {}),
+        workflow_id=workflow_id,
+        account_id=account_id,
+        inputs=extra_state.get("inputs") if isinstance(extra_state, dict) else None,
+    )
 
 
 def enqueue_task(

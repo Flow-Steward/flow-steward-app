@@ -189,6 +189,10 @@ export function detailTaskSummary(detailEntity: Entity, detail?: JobDetail): str
   );
 }
 
+export function detailRunTitle(detailEntity: Entity): string {
+  return firstReadableText(detailJob(detailEntity).run_title, detailEntity.run_title);
+}
+
 export function detailStartedAt(detailEntity: Entity, detail?: JobDetail): string {
   return firstReadableText(detailJob(detailEntity).started_at, detailEntity.started_at, detail?.started_at);
 }
@@ -346,6 +350,8 @@ export type CanonicalJobDetailView = {
   isTerminal: boolean;
   jobId: string;
   taskSummary: string;
+  /** What this run is for (schedule or webhook name, the workflow's run title), or "". */
+  runTitle: string;
   startedAt: string;
   finishedAt: string;
   selectedWorkflowId: string;
@@ -389,6 +395,7 @@ export function buildCanonicalJobDetailView({
     isTerminal: detailIsTerminal(detailEntity, detail),
     jobId: detailJobId(detailEntity, detail),
     taskSummary: detailTaskSummary(detailEntity, detail),
+    runTitle: detailRunTitle(detailEntity),
     startedAt: detailStartedAt(detailEntity, detail),
     finishedAt: detailFinishedAt(detailEntity, detail),
     selectedWorkflowId: detailSelectedWorkflowId(detailEntity, runtimeEntity),

@@ -125,6 +125,7 @@ def get_awaiting_approval_jobs(
             SELECT
                 j.id,
                 LEFT(COALESCE(j.task_summary, ''), 512) AS task_summary,
+                j.meta ->> 'run_title' AS run_title,
                 j.project_id,
                 j.tenant_id,
                 j.workspace_id,

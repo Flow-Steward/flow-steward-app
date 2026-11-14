@@ -294,6 +294,18 @@ describe("JobsListPage", () => {
     expect(within(table).queryByText("owner-workflow-id")).not.toBeInTheDocument();
   });
 
+  it("titles each run of one workflow with what it was for, and finds it by that title", async () => {
+    mockedFetchJson.mockResolvedValue({ jobs: [
+      { job_id: "run-a", selected_workflow: "scrape", selected_workflow_display_name: "Scrape a site", display_summary: "Supplier A · https://a.example", run_title: "Supplier A · https://a.example", task_summary: "Workflow run: scrape", task_summary_key: "react.jobs.generated_workflow_run_summary", task_summary_params: { workflow_id: "scrape" }, status: "pending" },
+      { job_id: "run-b", selected_workflow: "scrape", selected_workflow_display_name: "Scrape a site", display_summary: "Supplier B", run_title: "Supplier B", task_summary: "Workflow run: scrape", task_summary_key: "react.jobs.generated_workflow_run_summary", task_summary_params: { workflow_id: "scrape" }, status: "pending" },
+    ] } as never);
+    renderJobsListPage();
+    const table = await screen.findByRole("table", { name: "Jobs" });
+    expect(await within(table).findByText("Supplier A · https://a.example")).toHaveAttribute("title", "Supplier A · https://a.example");
+    expect(within(table).getByText("Supplier B")).toBeInTheDocument();
+    expect(within(table).queryByText("Workflow run")).not.toBeInTheDocument();
+  });
+
   it("prioritizes workflow context and shows when each job started and completed", async () => {
     renderJobsListPage();
 

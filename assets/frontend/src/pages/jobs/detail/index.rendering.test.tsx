@@ -226,6 +226,15 @@ describe("JobsDetailPage canonical rendering", () => {
     expect(screen.getByTestId("job-download-report")).toHaveTextContent("Download full report");
   });
 
+  it("titles the page with the run title and names the workflow it ran", async () => {
+    primeApi(jobPayload({ status: "completed", finished_at: "2026-04-25T10:02:00Z", run_title: "Supplier A · https://a.example" }));
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Supplier A · https://a.example" })).toBeInTheDocument());
+    expect(screen.getByText("A run of Weekly Report.")).toBeInTheDocument();
+  });
+
   it("restores durable approval decisions after a compact terminal-job reload", async () => {
     primeApi(jobPayload({ status: "completed", finished_at: "2026-04-25T10:02:00Z" }));
     mockedFetchJobApprovalHistory.mockResolvedValue({

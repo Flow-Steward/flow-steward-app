@@ -511,6 +511,10 @@ def _run_scheduled_job_once(
         "scheduled_for": scheduled_for_utc.isoformat(),
         "scheduled_cron_expr": cron_expr,
     }
+    schedule_name = str(scheduled_job.get("name") or "").strip()
+    if schedule_name:
+        # The schedule's name titles its runs (meta.run_title, see workflow_run_title).
+        meta["run_label"] = schedule_name
 
     extra_state["inputs"] = workflow_inputs
 

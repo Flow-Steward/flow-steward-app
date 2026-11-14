@@ -255,7 +255,11 @@ export function JobsDetailPage({
     selectedWorkflow,
     selectedWorkflowLabel,
   );
-  const pageDescription = t("react.jobs.execution_summary_and_step_by_step_debugging_for_this_workflow_run", "Execution summary and step-by-step debugging for this workflow run.");
+  // A run title says which run this is; the workflow it ran then describes it.
+  const runTitle = canonicalDetail.runTitle;
+  const pageDescription = runTitle
+    ? t("react.jobs.run_of_workflow", "A run of {workflow}.", { workflow: workflowTitle })
+    : t("react.jobs.execution_summary_and_step_by_step_debugging_for_this_workflow_run", "Execution summary and step-by-step debugging for this workflow run.");
   const reportDownloadUrl = jobId
     ? `/api/jobs/${encodeURIComponent(jobId)}/report`
     : "";
@@ -419,7 +423,7 @@ export function JobsDetailPage({
         action={<JobPageActions acknowledged={Boolean(canonicalDetail.job.acknowledged_at)} acknowledgePending={acknowledgeMutation.isPending} canAcknowledge={ACKNOWLEDGEABLE_GROUPS.has(jobStatusGroup(canonicalDetail.statusCode) || "")} requestAcknowledgeJob={requestAcknowledgeJob} canMutate={canMutate} cancelPending={cancelMutation.isPending} isCancellable={isCancellable} isTerminal={isTerminal} reportDownload={reportDownload} requestCancelJob={requestCancelJob} requestRestartJob={requestRestartJob} restartAllowed={!isActionRun(canonicalDetail.job)} restartPending={restartMutation.isPending} />}
         description={pageDescription}
         eyebrow={t("jobs.page_title", "Jobs")}
-        title={workflowTitle}
+        title={runTitle || workflowTitle}
         />
       )}
 

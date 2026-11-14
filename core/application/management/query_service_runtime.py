@@ -21,6 +21,7 @@ from core.application.observability_vocabulary import (
 )
 from core.application.workflows.workflow_action_contract import action_run_label
 from core.application.workflows.workflow_hook_contract import hook_run_label
+from core.application.workflows.workflow_run_title import job_run_title
 from core.application.workflows.workflow_start_runtime import WORKFLOW_RUN_SUMMARY_KEY
 
 
@@ -58,14 +59,18 @@ def serialize_attention_job_row(
     build_display_summary_fn,
 ) -> dict[str, Any]:
     task_summary = truncate_text_fn(row.get("task_summary"), max_len=512)
-    display_summary = build_display_summary_fn(task_summary)
+    run_title = job_run_title(row)
+    # A run title names this run; it replaces the generated "Workflow run" label.
+    display_summary = run_title or build_display_summary_fn(task_summary)
     status = _opt_str(row.get("status")) or ""
     status_meta = job_status_meta(status)
     summary_params = row.get("task_summary_params")
     workflow_id = summary_params.get("workflow_id") if isinstance(summary_params, dict) else None
     summary_workflow_id = workflow_id.strip() if isinstance(workflow_id, str) else ""
-    generated_summary = row.get("task_summary_key") == WORKFLOW_RUN_SUMMARY_KEY and bool(
-        summary_workflow_id
+    generated_summary = (
+        not run_title
+        and row.get("task_summary_key") == WORKFLOW_RUN_SUMMARY_KEY
+        and bool(summary_workflow_id)
     )
     return {
         "job_id": _opt_str(row.get("id")),
@@ -78,6 +83,7 @@ def serialize_attention_job_row(
         "task_summary_key": WORKFLOW_RUN_SUMMARY_KEY if generated_summary else None,
         "task_summary_params": {"workflow_id": summary_workflow_id} if generated_summary else {},
         "display_summary": display_summary,
+        "run_title": run_title or None,
         "status": status_meta["code"],
         "status_label": str(status_meta.get("label") or ""),
         "status_tone": str(status_meta.get("tone") or "gray"),
@@ -129,7 +135,8 @@ def serialize_awaiting_approval_job_row(
     build_display_summary_fn,
 ) -> dict[str, Any]:
     task_summary = truncate_text_fn(row.get("task_summary"), max_len=512)
-    display_summary = build_display_summary_fn(task_summary) or task_summary
+    run_title = job_run_title(row)
+    display_summary = run_title or build_display_summary_fn(task_summary) or task_summary
     status = _opt_str(row.get("status") or "awaiting_approval") or "awaiting_approval"
     status_meta = job_status_meta(status)
     return {
@@ -138,6 +145,7 @@ def serialize_awaiting_approval_job_row(
         "project_name": _opt_str(row.get("project_name")),
         "task_summary": display_summary,
         "display_summary": display_summary,
+        "run_title": run_title or None,
         "selected_workflow": _opt_str(row.get("selected_workflow") or row.get("workflow_id")),
         "started_at": row["started_at"].isoformat() if row.get("started_at") else None,
         "thread_id": _opt_str(row.get("thread_id")),

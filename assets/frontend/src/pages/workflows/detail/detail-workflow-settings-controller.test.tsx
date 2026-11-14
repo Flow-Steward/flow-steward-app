@@ -163,3 +163,57 @@ it("keeps, clears and refuses a stale report output selection", async () => {
   expect(posted).toHaveLength(2);
   expect(setSaveError).toHaveBeenLastCalledWith(expect.stringContaining("is no longer a required output of type object"));
 });
+
+it("saves, keeps and clears the workflow's run title in settings", async () => {
+  const workflow = { workflow_id: "scrape", display_name: "Scrape a site", description: "", enabled: false, revision: 3, settings: {
+    callable: { enabled: true, trigger_channels: ["ui"], input_mode: "fields", expected_inputs: [{ name: "site_url", type: "string", required: true }] },
+    run_title: "{{ inputs.site_url }}",
+  } as Record<string, unknown> };
+  const posted: Array<{ settings: Record<string, unknown> }> = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    if (String(input) !== "/api/workflows/scrape" || init?.method !== "PATCH") throw new Error("Unexpected request");
+    posted.push(JSON.parse(String(init.body)) as { settings: Record<string, unknown> });
+    return new Response(JSON.stringify({ revision: 3 + posted.length }), { headers: { "content-type": "application/json" } });
+  });
+  const contract = { data: { interface: (workflow.settings as { callable: unknown }).callable } };
+  const { result } = renderHook(() => {
+    const settings = useWorkflowSettingsController({ workflowId: "scrape", workflowRecord: workflow, drawerMode: "workflow-settings",
+      workflowInterfaceControlIdPrefix: "scrape", setDrawerTab: vi.fn(), setSaveError: vi.fn(), setSaveNotice: vi.fn(),
+      setSavingWorkflowSurface: vi.fn(), refetchWorkflowSurfaces: async () => undefined });
+    useWorkflowSettingsHydration({ ...settings, workflow, workflowContractQuery: contract, workflowId: "scrape", savingWorkflowSurface: "" });
+    return settings;
+  });
+  await waitFor(() => expect(result.current.workflowRunTitleDraft).toBe("{{ inputs.site_url }}"));
+
+  act(() => result.current.setWorkflowRunTitleDraft("  Scrape {{ inputs.site_url }}  "));
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  expect(posted[0].settings.run_title).toBe("Scrape {{ inputs.site_url }}");
+
+  workflow.revision = 4;
+  act(() => result.current.setWorkflowRunTitleDraft(""));
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  // Settings merge on the server, so a cleared title is sent empty rather than left out.
+  expect(posted[1].settings.run_title).toBe("");
+});
+
+it("leaves run_title out of the settings of a workflow that never had one", async () => {
+  const workflow = { workflow_id: "plain", display_name: "Plain", description: "", enabled: false, revision: 2, settings: {
+    callable: { enabled: false, trigger_channels: [], input_mode: "fields", expected_inputs: [] },
+  } };
+  const posted: Array<{ settings: Record<string, unknown> }> = [];
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (_input, init) => {
+    posted.push(JSON.parse(String(init?.body)) as { settings: Record<string, unknown> });
+    return new Response(JSON.stringify({ revision: 3 }), { headers: { "content-type": "application/json" } });
+  });
+  const contract = { data: { interface: workflow.settings.callable } };
+  const { result } = renderHook(() => {
+    const settings = useWorkflowSettingsController({ workflowId: "plain", workflowRecord: workflow, drawerMode: "workflow-settings",
+      workflowInterfaceControlIdPrefix: "plain", setDrawerTab: vi.fn(), setSaveError: vi.fn(), setSaveNotice: vi.fn(),
+      setSavingWorkflowSurface: vi.fn(), refetchWorkflowSurfaces: async () => undefined });
+    useWorkflowSettingsHydration({ ...settings, workflow, workflowContractQuery: contract, workflowId: "plain", savingWorkflowSurface: "" });
+    return settings;
+  });
+  await waitFor(() => expect(result.current.workflowDisplayNameDraft).toBe("Plain"));
+  await act(async () => result.current.handleSaveWorkflowSettings());
+  expect(posted[0].settings).not.toHaveProperty("run_title");
+});

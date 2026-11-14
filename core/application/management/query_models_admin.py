@@ -49,6 +49,13 @@ class AttentionJobView(ViewModel):
         default=None,
         description="Short display label for the job when one is available.",
     )
+    run_title: str | None = Field(
+        default=None,
+        description=(
+            "What this run is for: the name of the schedule or webhook that started it "
+            "and the workflow's run title over its inputs, joined by ' · '."
+        ),
+    )
     status: str | None = Field(default=None, description="Current lifecycle status for the job.")
     task_source: str | None = None
     duration_ms: int | None = None
@@ -73,6 +80,7 @@ class AwaitingApprovalJobView(ViewModel):
     project_name: str | None = None
     task_summary: str | None = None
     display_summary: str | None = None
+    run_title: str | None = None
     selected_workflow: str | None = None
     started_at: str | None = None
     thread_id: str | None = None
@@ -165,6 +173,7 @@ class ProjectJobRowView(ViewModel):
     task_id: str | None = None
     task_summary: str | None = None
     display_summary: str | None = None
+    run_title: str | None = None
     task_source: str | None = None
     status: str | None = None
     queued_at: str | None = None

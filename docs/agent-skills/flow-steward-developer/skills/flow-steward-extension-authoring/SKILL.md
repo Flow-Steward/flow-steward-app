@@ -149,6 +149,23 @@ receives the external service's completion:
 
 See `docs/extension-authoring-agent-playbook.md` "Resuming Waiting Runs".
 
+### Naming each run of a workflow
+
+A workflow that runs for several purposes (one schedule per supplier site)
+declares `settings.run_title: "{{ inputs.site_url }}"` so each job says what it
+was for:
+
+- Only `{{ inputs.<name> }}` placeholders, at most 300 characters. A secret
+  input (type `secret` or a credential-like name), an undeclared input or any
+  other expression is refused by readiness (`workflow.run_title.*`).
+- The host renders it when the job is created; a schedule's name or a webhook's
+  description comes first (`Supplier A · https://a.example`). Values are plain
+  text, bounded, and a secret reference, object or list renders as nothing.
+- Consider an optional "Run name" input for runs started from the UI.
+- No `platform_min` is needed; an older host ignores the setting.
+
+See `docs/extension-authoring-agent-playbook.md` "Naming Each Run Of A Workflow".
+
 ### Task ingress
 
 Declare these reserved action/query contracts and implement their runtime

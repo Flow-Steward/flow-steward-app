@@ -1086,6 +1086,7 @@
     "core/application/workflows/workflow_reaction_events.py",
     "core/application/workflows/workflow_reaction_scope_repository.py",
     "core/application/workflows/workflow_reaction_sources.py",
+    "core/application/workflows/workflow_run_title.py",
     "core/application/workflows/workflow_sample_file_service.py",
     "core/application/workflows/workflow_secret_default_service.py",
     "core/application/workflows/workflow_start_runtime.py",

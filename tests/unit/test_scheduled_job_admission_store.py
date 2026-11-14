@@ -700,3 +700,42 @@ def _unit_schedule_owner_fence(monkeypatch):
         "core.application.management.command_services_project_run_requests_mixin.workflow_trigger_transaction",
         lambda *_args, **_kwargs: nullcontext(),
     )
+
+
+def test_create_scheduled_job_stores_its_trimmed_bounded_name() -> None:
+    store = _Store()
+
+    store.create_scheduled_job(
+        account_id="account-1",
+        project_id="project-1",
+        workflow_id="wf-1",
+        cron_expr="0 2 * * *",
+        name="  Supplier A " + "x" * 200,
+    )
+
+    sql, params = store.cursor.executions[-1]
+    assert "cron_expr, name, enabled" in sql
+    stored_name = params[4]
+    assert stored_name.startswith("Supplier A x")
+    assert len(stored_name) <= 120
+
+
+def test_schedule_edit_renames_only_when_a_name_is_given() -> None:
+    store = _Store()
+    store.update_scheduled_job(
+        "project-1", "schedule-1", account_id="account-1", name=" Supplier B "
+    )
+    sql, params = store.cursor.executions[-1]
+    assert "name = %s" in sql
+    assert params[0] == "Supplier B"
+
+    store.update_scheduled_job("project-1", "schedule-1", account_id="account-1", enabled=True)
+    sql, _params = store.cursor.executions[-1]
+    assert "name = %s" not in sql
+
+
+def test_schedule_run_history_reads_the_title_of_the_job_each_run_started() -> None:
+    store = _Store()
+    store.list_scheduled_job_runs("project-1", account_id="account-1")
+    sql, _params = store.cursor.executions[-1]
+    assert "j.meta ->> 'run_title' AS job_run_title" in sql

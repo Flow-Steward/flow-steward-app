@@ -37,6 +37,8 @@ type SchedulesProps = Scope & {
 };
 
 const NEXT_RUN_COUNT = 3;
+/** The API refuses a longer schedule name. */
+const SCHEDULE_NAME_MAX = 120;
 
 export function WorkflowSchedules({ projectId, workflowId, projectName, onTurnOnScheduleChannel }: Readonly<SchedulesProps>) {
   const { t } = useI18n();
@@ -109,11 +111,14 @@ function ProjectWorkflowSchedules({ projectId, workflowId, projectName, onTurnOn
   else if (jobs.length) list = <ul className="workflow-schedule-list">{jobs.map((job) => {
     const expression = textOrEmpty(job.cron_expr);
     const timezone = textOrEmpty(job.schedule_timezone) || browserTimezone();
-    const title = scheduleSummary(expression, timezone, t);
+    const summary = scheduleSummary(expression, timezone, t);
+    // The name tells schedules of one workflow apart; an unnamed one reads as its timing.
+    const name = textOrEmpty(job.name).trim();
+    const title = name || summary;
     return <li className="workflow-schedule-row" data-enabled={job.enabled ? "true" : "false"} key={String(job.id)}>
       <div className="workflow-schedule-row-main">
         <span className="workflow-schedule-row-title">{title}</span>
-        <span className="workflow-schedule-row-sub"><code>{expression}</code> · {scheduleRowState(job, expression, timezone, t, locale)}</span>
+        <span className="workflow-schedule-row-sub">{name ? `${summary} · ` : null}<code>{expression}</code> · {scheduleRowState(job, expression, timezone, t, locale)}</span>
       </div>
       <DsSwitch
         checked={Boolean(job.enabled)}
@@ -191,6 +196,8 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
   const [cron, setCron] = useState(textOrEmpty(job?.cron_expr) || "0 9 * * *");
   const [timezone, setTimezone] = useState(() => job ? textOrEmpty(job.schedule_timezone) || browserTimezone() : userTimezone);
   const [enabled, setEnabled] = useState(job?.enabled ?? false);
+  const [name, setName] = useState(textOrEmpty(job?.name));
+  const [nameAttempted, setNameAttempted] = useState(false);
   const [notice, setNotice] = useState("");
   const [inputValues, setInputValues] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(objectOrEmpty(job?.inputs)).map(([name, value]) => [name, typeof value === "string" ? value : JSON.stringify(value)])));
   const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
@@ -205,6 +212,7 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
   const monthDayNumber = Number(monthDay);
   const monthDayInvalid = mode === "monthly" && !(Number.isInteger(monthDayNumber) && monthDayNumber >= 1 && monthDayNumber <= 31);
   const timingInvalid = cronInvalid || monthDayInvalid;
+  const nameMissing = !name.trim();
   const save = useMutation({ mutationFn: (input: ScheduledJobCreateInput) => job?.id ? updateProjectScheduledJob(projectId, String(job.id), input) : createProjectScheduledJob(projectId, input), onSuccess: onSaved, onError: (error) => setNotice(error.message) });
   // Next runs follow every change, read on the schedule's own timezone.
   const nextRuns = timingInvalid ? null : nextCronRuns(expression, timezone, NEXT_RUN_COUNT);
@@ -235,6 +243,12 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
 
   function submit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (nameMissing) {
+      // The field says what is missing; the form stays open.
+      setNameAttempted(true);
+      setNotice("");
+      return;
+    }
     if (draftError) {
       setNotice(draftError);
       return;
@@ -252,7 +266,7 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
     setNotice("");
     const declaredNames = new Set(fields.map((field) => field.name));
     const extraInputs = Object.fromEntries(Object.entries(objectOrEmpty(job?.inputs)).filter(([name]) => !declaredNames.has(name)));
-    save.mutate({ workflow_id: workflowId, cron_expr: expression, schedule_timezone: timezone, enabled,
+    save.mutate({ workflow_id: workflowId, cron_expr: expression, name: name.trim(), schedule_timezone: timezone, enabled,
       inputs: { ...extraInputs, ...parsed.inputs } });
   }
 
@@ -267,12 +281,22 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
   const cronHelpId = `${formId}-cron-help`;
   const cronErrorId = `${formId}-cron-error`;
   const enabledHelpId = `${formId}-enabled-help`;
+  const nameHelpId = `${formId}-name-help`;
+  const nameInvalid = nameAttempted && nameMissing;
 
   return <form aria-label={t("react.workflows.schedule_editor", "Schedule editor")} className="workflow-schedules" id={formId} onSubmit={submit}>
     <div>
       <p className="fs-drawer-label">{job ? t("react.workflows.edit_schedule", "Edit schedule") : t("react.workflows.new_schedule", "New schedule")}</p>
       <p className="fs-field-helper">{t("react.workflows.schedule_runs_in_project", "Runs this workflow in {project}.", { project: place })}</p>
     </div>
+    <label className="fs-field">
+      <span className="fs-field-label">{t("react.workflows.schedule_name", "Name")}</span>
+      <input aria-describedby={nameHelpId} aria-invalid={nameInvalid || undefined} aria-required="true" autoComplete="off" className="fs-input"
+        maxLength={SCHEDULE_NAME_MAX} onChange={(event) => setName(event.target.value)} placeholder={t("react.workflows.schedule_name_placeholder", "Supplier A daily import")} value={name} />
+      <span className={nameInvalid ? "fs-field-helper error" : "fs-field-helper"} id={nameHelpId}>{nameInvalid
+        ? t("react.workflows.schedule_name_required", "Give the schedule a name, so its runs can be told apart.")
+        : t("react.workflows.schedule_name_help", "Jobs this schedule starts are titled with this name.")}</span>
+    </label>
     <div className="fs-field">
       <span className="fs-field-label" id={repeatLabelId}>{t("react.projects.repeat", "Repeat")}</span>
       <div aria-labelledby={repeatLabelId} className="fs-seg workflow-schedule-repeat" role="group">

@@ -8,6 +8,7 @@ from typing import Any
 from core.application.jobs.workflow_run_models import PublicWorkflowResultV1
 from core.application.reports.job_detail_payloads import _payload_nested_dict
 from core.application.reports.job_trigger import job_trigger
+from core.application.workflows.workflow_run_title import job_run_title
 
 from .ui_projection_common import _bounded_diagnostic_value, _redact_for_ui
 
@@ -62,6 +63,11 @@ def _build_job_bucket(
             job_bucket[key] = status_payload.get(key)
         elif key in job and job.get(key) is not None:
             job_bucket[key] = job.get(key)
+    run_title = job_run_title(job)
+    if run_title:
+        # What this run is for (schedule, webhook, workflow run title); the header shows it.
+        job_bucket["run_title"] = run_title
+        job_bucket["display_summary"] = run_title
     acknowledged_at = job_bucket.get("acknowledged_at")
     if isinstance(acknowledged_at, datetime):
         job_bucket["acknowledged_at"] = acknowledged_at.isoformat()

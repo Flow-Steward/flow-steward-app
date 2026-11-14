@@ -22,6 +22,7 @@ export function CanvasScheduleSummary({ workflowId, projectHint = "" }: Readonly
   return <div className="space-y-1">
     <p>{project?.name || projectId}</p>
     {jobs.length ? jobs.map((job, index) => <p className="break-words" key={job.id || index}>
+      {typeof job.name === "string" && job.name.trim() ? `${job.name.trim()} · ` : null}
       {typeof job.cron_expr === "string" ? job.cron_expr : ""}{" · "}
       {typeof job.schedule_timezone === "string" && job.schedule_timezone ? job.schedule_timezone : t("react.workflows.project_timezone", "Project timezone")}{" · "}
       {job.enabled ? t("settings.mcp.status.enabled", "Enabled") : t("react.workflows.paused", "Paused")}

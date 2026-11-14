@@ -826,6 +826,7 @@ class _WorkflowEntrypointHttpController:
             fallback_body=transport.fallback_body,
             staged_files=tuple(transport.staged_files),
             request_context=dict(transport.request_context),
+            entry_label=str(preparation.entrypoint.get("description") or "").strip(),
         )
         result = await run_in_threadpool(self._service.execute, command)
         if result.outcome.operator_error:

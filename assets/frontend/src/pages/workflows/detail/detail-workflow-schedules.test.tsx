@@ -24,6 +24,12 @@ const EDIT_SCHEDULE = /^Edit schedule: /;
 
 const saved = vi.fn();
 
+/** Every schedule is named; its runs are titled with the name. */
+async function nameSchedule(user: ReturnType<typeof userEvent.setup>, name = "Supplier A") {
+  await user.clear(screen.getByLabelText("Name"));
+  await user.type(screen.getByLabelText("Name"), name);
+}
+
 it("creates a workflow schedule without a separate task summary", async () => {
   const user = userEvent.setup();
   vi.mocked(createProjectScheduledJob).mockResolvedValue({ scheduled_job_id: "new" });
@@ -31,10 +37,11 @@ it("creates a workflow schedule without a separate task summary", async () => {
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
   expect(screen.queryByLabelText("Task summary")).not.toBeInTheDocument();
   await user.type(screen.getByLabelText(/^region/), "eu");
+  await nameSchedule(user, "  Supplier A daily  ");
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(createProjectScheduledJob).toHaveBeenCalledOnce());
   const input = vi.mocked(createProjectScheduledJob).mock.calls[0][1];
-  expect(input).toMatchObject({ workflow_id: "wf-1", inputs: { region: "eu" }, enabled: false });
+  expect(input).toMatchObject({ workflow_id: "wf-1", name: "Supplier A daily", inputs: { region: "eu" }, enabled: false });
   expect(input).not.toHaveProperty("task_summary");
 });
 
@@ -98,6 +105,7 @@ it("creates and updates a paused two-key object schedule and reopens both edited
   await user.click(screen.getByRole("button", { name: "Add row" }));
   await user.type(screen.getByLabelText("payload key 2"), "second");
   await user.type(screen.getByLabelText("payload value 2"), "new");
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(createProjectScheduledJob).toHaveBeenCalledWith("project-1", expect.objectContaining({
@@ -207,10 +215,13 @@ it("retains manual and saved timezones across profile changes, save, reopen and 
   view.rerender(<QueryClientProvider client={client}>{timezoneSettings("Asia/Tokyo")}</QueryClientProvider>);
   expect(screen.getByRole("combobox", { name: "Timezone" })).toHaveTextContent("Europe/Vilnius");
   await user.type(screen.getByLabelText(/^region/), "eu");
+  await nameSchedule(user, "Vilnius morning");
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(jobs[0]).toMatchObject({ schedule_timezone: "Europe/Vilnius" });
-  await user.click(screen.getByRole("button", { name: "Edit schedule: Every day at 09:00 (Europe/Vilnius)" }));
+  // The row is titled with the name and keeps the timing on its second line.
+  expect(screen.getByText(/^Every day at 09:00 \(Europe\/Vilnius\) ·/)).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Edit schedule: Vilnius morning" }));
   expect(screen.getByRole("combobox", { name: "Timezone" })).toHaveTextContent("Europe/Vilnius");
   view.rerender(<QueryClientProvider client={client}>{timezoneSettings("UTC")}</QueryClientProvider>);
   expect(screen.getByRole("combobox", { name: "Timezone" })).toHaveTextContent("Europe/Vilnius");
@@ -283,10 +294,16 @@ it("lists and edits only the current workflow and reopens persisted inputs and c
   expect(screen.getByRole("switch", { name: "Enabled" })).not.toBeChecked();
   await user.clear(screen.getByLabelText(/^region/));
   await user.type(screen.getByLabelText(/^region/), "us");
+  // A schedule saved before names existed is named on its next save.
+  await user.click(screen.getByRole("button", { name: "Save schedule" }));
+  expect(screen.getByText("Give the schedule a name, so its runs can be told apart.")).toBeInTheDocument();
+  expect(screen.getByLabelText("Name")).toHaveAttribute("aria-invalid", "true");
+  expect(updateProjectScheduledJob).not.toHaveBeenCalled();
+  await nameSchedule(user, "Nightly US");
   await user.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(screen.queryByLabelText(/^region/)).not.toBeInTheDocument());
   expect(updateProjectScheduledJob).toHaveBeenCalledWith("project-1", "schedule-1", expect.objectContaining({
-    workflow_id: "wf-1", enabled: false, inputs: { region: "us" },
+    workflow_id: "wf-1", enabled: false, inputs: { region: "us" }, name: "Nightly US",
     schedule_timezone: "Europe/Vilnius",
   }));
   await user.click(screen.getByRole("button", { name: EDIT_SCHEDULE }));
@@ -308,6 +325,7 @@ it("clears a saved optional input without losing passthrough extras when reopene
   renderSettings();
   await user.click(await screen.findByRole("button", { name: EDIT_SCHEDULE }));
   await user.clear(screen.getByLabelText(/^region/));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   await user.click(screen.getByRole("button", { name: EDIT_SCHEDULE }));
@@ -320,6 +338,7 @@ it("creates a paused schedule with required inputs only on explicit save", async
   vi.mocked(createProjectScheduledJob).mockResolvedValue({ scheduled_job_id: "new" });
   renderSettings();
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.getByText(/region.*required/i)).toBeInTheDocument());
   expect(createProjectScheduledJob).not.toHaveBeenCalled();
@@ -339,6 +358,7 @@ it("shows the next runs while the timing changes and keeps save errors visible w
   fireEvent.change(screen.getByLabelText("Time"), { target: { value: "07:30" } });
   expect(screen.getByTestId("schedule-next-runs")).toHaveTextContent(/^Next: .*07:30/);
   expect(previewProjectCron).not.toHaveBeenCalled();
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.getByText("Invalid cron expression")).toBeInTheDocument());
   expect(screen.getByRole("form", { name: "Schedule editor" })).toBeInTheDocument();
@@ -377,6 +397,7 @@ it.each([
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
   await user.type(screen.getByLabelText(/^region/), "eu");
   await user.click(within(screen.getByRole("group", { name: "Repeat" })).getByRole("button", { name: repeat }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(createProjectScheduledJob).toHaveBeenCalledWith("project-1", expect.objectContaining({ cron_expr: expression, workflow_id: "wf-1", enabled: false })));
 });
@@ -429,4 +450,30 @@ it("keeps required inputs in view and folds optional ones with how many are set"
   expect(screen.getByText("None set")).toBeInTheDocument();
   await user.type(screen.getByLabelText(/^note/), "hello");
   expect(screen.getByText("1 of 1 set")).toBeInTheDocument();
+});
+
+it("titles a named schedule with its name and keeps an unnamed one titled by its timing", async () => {
+  const user = userEvent.setup();
+  const named = { id: "schedule-a", name: "Supplier A", workflow_id: "wf-1", enabled: false, cron_expr: "0 9 * * *", schedule_timezone: "UTC", inputs: { region: "eu" } };
+  const unnamed = { id: "schedule-b", workflow_id: "wf-1", enabled: false, cron_expr: "0 10 * * *", schedule_timezone: "UTC", inputs: { region: "us" } };
+  vi.mocked(fetchProjectScheduledJobs).mockResolvedValue({ project_id: "project-1", timezone_context: {}, jobs: [named, unnamed], runs: [] });
+  renderSettings();
+  expect(await screen.findByRole("button", { name: "Edit schedule: Supplier A" })).toBeInTheDocument();
+  expect(screen.getByText(/^Every day at 09:00 \(UTC\) ·/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Edit schedule: Every day at 10:00 (UTC)" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Edit schedule: Supplier A" }));
+  expect(screen.getByLabelText("Name")).toHaveValue("Supplier A");
+  expect(screen.getByLabelText("Name")).toHaveAttribute("maxlength", "120");
+});
+
+it("refuses a new schedule without a name and says why on the field", async () => {
+  const user = userEvent.setup();
+  renderSettings();
+  await user.click(await screen.findByRole("button", { name: "New schedule" }));
+  await user.type(screen.getByLabelText(/^region/), "eu");
+  await user.type(screen.getByLabelText("Name"), "   ");
+  await user.click(screen.getByRole("button", { name: "Create schedule" }));
+  expect(screen.getByText("Give the schedule a name, so its runs can be told apart.")).toBeInTheDocument();
+  expect(createProjectScheduledJob).not.toHaveBeenCalled();
+  expect(screen.getByRole("form", { name: "Schedule editor" })).toBeInTheDocument();
 });

@@ -808,6 +808,21 @@ def test_canonical_schema_persists_workflow_revision_and_schedule_admission() ->
     assert "admission_reason text DEFAULT 'not_evaluated'::text NOT NULL" in schedule_table
     assert "admission_workflow_revision integer" in schedule_table
     assert "admission_checked_at timestamp with time zone" in schedule_table
+    assert "name text DEFAULT ''::text NOT NULL" in schedule_table
+
+
+def test_runtime_contract_requires_the_schedule_name_its_migration_adds() -> None:
+    from core.infrastructure.db.schema_contract import REQUIRED_RUNTIME_COLUMNS
+
+    migration = (
+        Path(__file__)
+        .resolve()
+        .parents[2]
+        .joinpath("db/migrations/20261114150000_scheduled_job_name.sql")
+        .read_text(encoding="utf-8")
+    )
+    assert ("scheduled_jobs", "name") in REQUIRED_RUNTIME_COLUMNS
+    assert "ADD COLUMN IF NOT EXISTS name text DEFAULT ''::text NOT NULL" in migration
 
 
 def test_required_runtime_tables_include_project_execution_slots():

@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { ContractReadOnly, ContractRequiredLegend } from "./detail-contract-block";
 import { reportOutputCandidates, staleReportOutput } from "./detail-report-output";
+import { RUN_TITLE_TEMPLATE_MAX, runTitleInputNames, runTitleIssues, type RunTitleIssue } from "./detail-run-title";
 import { DrawerFooter, DrawerFooterSpacer } from "./detail-drawer-footer";
 import { SaveStateButton } from "./detail-save-button";
 import { WorkflowSecretApprovalPanel } from "./detail-workflow-secret-catalog";
@@ -29,6 +30,50 @@ function updatedTriggerChannels(
 ): string[] {
   if (checked) return [...current, channel];
   return current.filter((value) => value !== channel);
+}
+
+function runTitleIssueText(issue: RunTitleIssue, t: I18nContextValue["t"]): string {
+  if (issue.kind === "too_long") return t("react.workflows.run_title_too_long", "The run title is longer than {max} characters.", { max: RUN_TITLE_TEMPLATE_MAX });
+  if (issue.kind === "placeholder") return t("react.workflows.run_title_placeholder_invalid", "{placeholder} is not an input; write {example}.", { placeholder: `{{ ${issue.expression} }}`, example: "{{ inputs.<name> }}" });
+  if (issue.kind === "secret") return t("react.workflows.run_title_secret_input", "The run title cannot show the secret input {name}.", { name: issue.name });
+  return t("react.workflows.run_title_unknown_input", "{name} is not a declared input.", { name: issue.name });
+}
+
+/** settings.run_title: names each run from its inputs in Jobs, on the job page and on Invoke links. */
+function WorkflowRunTitleField({ ctx, t }: Readonly<{ ctx: WorkflowSettingsSmartSetupContext; t: I18nContextValue["t"] }>) {
+  const inputId = `${ctx.workflowInterfaceControlIdPrefix}-workflow-run-title`;
+  const helpId = `${inputId}-help`;
+  const issuesId = `${inputId}-issues`;
+  const rows = ctx.workflowInterfaceInputsDraft || [];
+  const value = String(ctx.workflowRunTitleDraft || "");
+  const issues = runTitleIssues(value, rows, { inputMode: ctx.workflowInterfaceInputModeDraft });
+  const names = runTitleInputNames(rows);
+  return (
+    <div className="block text-xs text-[var(--fs-text-secondary)]">
+      <label htmlFor={inputId}>{t("react.workflows.run_title", "Run title")}</label>
+      <input
+        aria-describedby={issues.length ? `${helpId} ${issuesId}` : helpId}
+        aria-invalid={issues.length ? true : undefined}
+        autoComplete="off"
+        className="fs-input fs-code-value mt-1 w-full"
+        id={inputId}
+        maxLength={RUN_TITLE_TEMPLATE_MAX}
+        name="workflow_run_title"
+        onChange={(event) => ctx.setWorkflowRunTitleDraft?.(event.target.value)}
+        placeholder="{{ inputs.site_url }}"
+        value={value}
+      />
+      <p className="fs-field-helper mt-1" id={helpId}>
+        {t("react.workflows.run_title_help", "Names each run in Jobs from its inputs, so runs of this workflow can be told apart. A schedule's or webhook's name comes first. Secret inputs are never shown.")}
+        {names.length ? ` ${t("react.workflows.run_title_inputs", "Inputs: {names}.", { names: names.map((name) => `{{ inputs.${name} }}`).join(", ") })}` : null}
+      </p>
+      {issues.length ? (
+        <ul className="fs-field-helper error mt-1" id={issuesId}>
+          {issues.map((issue, index) => <li key={`${issue.kind}-${index}`}>{runTitleIssueText(issue, t)}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 function shouldExplainHiddenInputModes(advancedMode: boolean, inputMode: string): boolean {
@@ -597,6 +642,7 @@ export function WorkflowSettingsSmartSetup({
                     value={workflowDescriptionDraft}
                   />
                 </label>
+                <WorkflowRunTitleField ctx={ctx} t={t} />
                 <label className="block text-xs text-[var(--fs-text-secondary)]">
                   <span>{t("extensions.runtime.status", "Status")}</span>
                   <select

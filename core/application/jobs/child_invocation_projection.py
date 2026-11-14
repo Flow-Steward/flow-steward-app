@@ -9,6 +9,7 @@ from typing import Any
 from core.application.management.errors import ServiceForbiddenError, ServiceNotFoundError
 from core.application.management.guards import require_workflow_access
 from core.application.management.scope import ScopeContext
+from core.application.workflows.workflow_run_title import job_run_title
 
 _MAX_CHILD_INVOCATIONS = 100
 _INVOCATION_FIELDS = (
@@ -61,5 +62,7 @@ def project_child_invocations(
             or str(child_meta.get("invoke_parent_step_id") or "") != row["step_id"]
         ):
             continue
-        projected.append(row)
+        # What the child run is for, so a link to it can say so (A56).
+        run_title = job_run_title(child)
+        projected.append({**row, "child_run_title": run_title} if run_title else row)
     return {"invocations": projected, "truncated": len(links) > _MAX_CHILD_INVOCATIONS}

@@ -821,6 +821,7 @@ CREATE TABLE public.scheduled_jobs (
     admission_reason text DEFAULT 'not_evaluated'::text NOT NULL,
     admission_workflow_revision integer,
     admission_checked_at timestamp with time zone,
+    name text DEFAULT ''::text NOT NULL,
     CONSTRAINT chk_scheduled_jobs_status CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'error'::text]))),
     CONSTRAINT scheduled_jobs_status_check CHECK ((status = ANY (ARRAY['active'::text, 'paused'::text, 'error'::text])))
 );

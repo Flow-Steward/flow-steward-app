@@ -292,6 +292,9 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
     warnings: list[dict] = []
     errors.extend(validate_workflow_state_selectors(wf))
     workflow_interface = _workflow_interface_from_definition(wf)
+    from core.application.workflows.workflow_run_title import run_title_issues
+
+    errors.extend(run_title_issues(wf.get("settings"), workflow_interface))
     callable_enabled = bool(workflow_interface.enabled)
     callable_inputs_raw = [row.dump() for row in workflow_interface.expected_inputs]
     callable_outputs_raw = [row.dump() for row in workflow_interface.expected_outputs]

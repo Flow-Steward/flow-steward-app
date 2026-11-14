@@ -1032,6 +1032,38 @@ with `release_id`). Changing a label never blocks. Removing a slot drops the
 choices made for it. Uninstalling the extension or deleting the connection
 removes the choice; export and import never carry connection ids.
 
+## Naming Each Run Of A Workflow
+
+When one workflow runs for several purposes (a scraper scheduled once per
+supplier site, say), every job would carry the same title. Declare a run title
+over the workflow's inputs so each job says what it was for:
+
+```yaml
+settings:
+  run_title: "{{ inputs.run_name }} {{ inputs.site_url }}"
+```
+
+- Only `{{ inputs.<name> }}` placeholders are read; text around them is kept
+  as written. Nothing is evaluated.
+- An input that is secret (type `secret`, or a name such as `api_key`,
+  `password`, `token`) can never be shown, and a secret reference, an object
+  or a list renders as nothing. Release validation and readiness refuse a
+  template that reads a secret input, an undeclared input (in fields mode) or
+  anything other than `inputs.<name>`.
+- The template is at most 300 characters, each value at most 120, and the
+  rendered title at most 160; longer text is cut with "…". A title whose
+  values are all empty is left out.
+- A run started by a schedule is titled `<schedule name> · <rendered title>`;
+  by a webhook, `<webhook description> · <rendered title>`. UI, MCP, API and
+  Invoke runs use the rendered title alone.
+- The title shows in Jobs, on the job page, on an Invoke step's link to its
+  child run and in a schedule's run history. It is written once, when the job
+  is created, so later edits of the template do not rename earlier runs.
+- An optional free-text input (for example `run_name`, "Run name") lets a
+  person name a run started from the UI.
+
+`settings.run_title` needs no `platform_min`: a host before 0.9.18 ignores it.
+
 ## Callbacks And Ingress
 
 Use callbacks for provider webhooks routed through Flow Steward into an action.

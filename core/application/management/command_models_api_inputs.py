@@ -704,6 +704,8 @@ class ProjectScheduledJobCreateInput(ViewModel):
 
     workflow_id: str
     cron_expr: str
+    #: Tells schedules of one workflow apart and titles the jobs it starts.
+    name: str = ""
     schedule_timezone: str = ""
     inputs: dict[str, Any] = Field(default_factory=dict)
     enabled: Any = True
@@ -715,6 +717,7 @@ class ProjectScheduledJobUpdateInput(ViewModel):
 
     workflow_id: str
     cron_expr: str
+    name: str | None = None
     schedule_timezone: str | None = None
     inputs: dict[str, Any] | None = None
     enabled: bool | None = None
