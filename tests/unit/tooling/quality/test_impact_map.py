@@ -104,6 +104,7 @@ def test_recorder_maps_each_module_to_the_files_it_used(tmp_path: Path, workers:
             "core.application.tooling.quality.impact_recorder",
             "--fs-test-impact-output",
             str(output),
+            "--fs-test-impact-map",
             *(("-n", str(workers)) if workers else ("-p", "no:xdist")),
             "tests",
         ),
@@ -169,3 +170,44 @@ def test_vitest_failures_are_named_relative_to_the_workspace(tmp_path: Path) -> 
         is None
     )
     assert failed_test_files({}, tmp_path) is None
+
+
+def test_without_a_map_request_the_run_reports_failures_only(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    (project / "tests").mkdir(parents=True)
+    (project / "pytest.ini").write_text("[pytest]\n")
+    (project / "tests/test_failing.py").write_text("def test_fails():\n    assert False\n")
+    output = tmp_path / "impact"
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if not key.startswith(("PYTEST_", "COV_", "COVERAGE_"))
+    }
+    environment["PYTHONPATH"] = f"{project}{os.pathsep}{SOURCE_ROOT}"
+    subprocess.run(
+        (
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-p",
+            "no:xdist",
+            "-p",
+            "core.application.tooling.quality.impact_recorder",
+            "--fs-test-impact-output",
+            str(output),
+            "tests",
+        ),
+        cwd=project,
+        env=environment,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    run = read_recorded_run(output)
+
+    assert run.reported and run.usable_failures and not run.complete
+    assert run.failed == ("tests/test_failing.py",) and not run.modules

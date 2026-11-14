@@ -99,16 +99,17 @@ class ImpactMap:
 class RecordedRun:
     """What one pytest run reported through ``impact_recorder``."""
 
-    complete: bool
+    complete: bool  # every worker's map shard arrived
     exitstatus: int | None
     failed: tuple[str, ...]
     modules: dict[str, frozenset[str]]
     shared: frozenset[str]
+    reported: bool = False  # the controller wrote its result
 
     @property
     def usable_failures(self) -> bool:
         """Test failures only (exit 1) with every failing module named."""
-        return self.complete and self.exitstatus == 1 and bool(self.failed)
+        return self.reported and self.exitstatus == 1 and bool(self.failed)
 
 
 def read_recorded_run(directory: Path) -> RecordedRun:
@@ -131,19 +132,21 @@ def read_recorded_run(directory: Path) -> RecordedRun:
     result = _read_json(directory / RESULT_FILE)
     if not isinstance(result, dict):
         result = {}
-    # A vitest result carries no map: vitest follows its own module graph.
-    maps_expected = result.get("maps", True) is not False
+    # A map is recorded only when the run asked for one (whole-suite runs);
+    # otherwise, and for vitest, the result names failures only.
     workers = result.get("workers", 0)
     expected_shards = workers if isinstance(workers, int) and workers > 0 else 1
-    if result.get("recorded") is not True or (maps_expected and len(shards) < expected_shards):
-        complete = False
     exitstatus = result.get("exitstatus")
+    reported = result.get("recorded") is True and isinstance(exitstatus, int)
+    if not reported or result.get("maps") is not True or len(shards) < expected_shards:
+        complete = False
     return RecordedRun(
         complete=complete,
         exitstatus=exitstatus if isinstance(exitstatus, int) else None,
         failed=tuple(sorted(str(item) for item in result.get("failed", ()))),
         modules={module: frozenset(files) for module, files in modules.items()},
         shared=frozenset(shared),
+        reported=reported,
     )
 
 

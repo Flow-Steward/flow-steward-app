@@ -33,12 +33,18 @@ _TOOL_NAME = "flow-steward-test-impact"
 _BROAD_SCOPES = frozenset({"session", "package"})
 _OPEN_IGNORED_SUFFIXES = (".py", ".pyc", ".pyi", ".so")
 _OPTION = "--fs-test-impact-output"
+_MAP_OPTION = "--fs-test-impact-map"
 # sys.monitoring exists from Python 3.12 (the gate's runtime); the tools check 3.11.
 _MONITORING: Any = getattr(sys, "monitoring", None)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(_OPTION, default="", help="Directory for the per-module file map.")
+    parser.addoption(_OPTION, default="", help="Directory for the run's result (and map).")
+    parser.addoption(
+        _MAP_OPTION,
+        action="store_true",
+        help="Also record the per-module file map (whole-suite runs; it slows a run).",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -64,7 +70,10 @@ class _ImpactRecorder:
         # each of its workers writes one map shard.
         processes = config.getoption("numprocesses", default=None) if self.is_controller else None
         self.workers = processes if isinstance(processes, int) and processes > 0 else 0
-        if not self.workers:
+        # Recording costs about a third of a whole backend run on hosted runners,
+        # so selected runs only report their failures (ADR 0068).
+        self.mapping = bool(config.getoption(_MAP_OPTION))
+        if self.mapping and not self.workers:
             self.tool_id = self._start_monitoring()
             sys.addaudithook(self._audit)
 
@@ -197,8 +206,8 @@ class _ImpactRecorder:
             result = {
                 "exitstatus": int(exitstatus),
                 "failed": sorted(self.failed),
-                # A passive xdist controller records through its workers' shards.
-                "recorded": self.tool_id is not None or self.workers > 0,
+                "maps": self.mapping,
+                "recorded": True,
                 "testscollected": session.testscollected,
                 "workers": self.workers,
             }
