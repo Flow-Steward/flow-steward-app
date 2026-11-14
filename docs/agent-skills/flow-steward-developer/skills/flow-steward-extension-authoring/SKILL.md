@@ -128,6 +128,27 @@ copy only to set a connection:
 See `docs/extension-authoring-agent-playbook.md` "Workflows That Use A Project
 Connection".
 
+### Resuming waiting runs
+
+A workflow Wait step can wait for an event of this extension (`override.wait.event:
+{source: <extension_id>, event_types, correlation_key}`, ADR 0071). Resume it
+from any successful action response, typically the callback action that
+receives the external service's completion:
+
+- Return `resume_waits: [{correlation_key, event_type, payload}]` next to
+  `events`. The host fixes extension, account and project from the invocation;
+  never put them in an item.
+- `correlation_key` is exact text (at most 256 characters), usually the id your
+  start action returned; `event_type` is lowercase (`run_completed`); `payload`
+  is a JSON object of at most 64 KiB, redacted, no secrets.
+- Delivery is stored and matched every second; an early event waits for the
+  run to park; a repeated key and type is a duplicate and ignored (retries are
+  safe). Malformed items are listed in the invocation's `wait_events.rejected`;
+  a storage failure fails the action (`wait_event_delivery_failed`).
+- Document the event types and the key for workflow authors.
+
+See `docs/extension-authoring-agent-playbook.md` "Resuming Waiting Runs".
+
 ### Task ingress
 
 Declare these reserved action/query contracts and implement their runtime

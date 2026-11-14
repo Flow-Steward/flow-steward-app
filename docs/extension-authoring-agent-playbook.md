@@ -1046,6 +1046,85 @@ Checklist:
 - Return fields such as `result.ingress_type` and `result.normalized`.
 - Add tests for representative inbound payloads.
 
+## Resuming Waiting Runs
+
+A workflow can pause on a Wait step until your extension reports an event
+(`override.wait.event`, [ADR 0071](architecture/adr/0071-wait-for-an-event.md)):
+for example "start a crawl, wait for *this* crawl to finish, process its result".
+The workflow names your extension as `source`, the event types it accepts, and a
+correlation key, usually the id your start action returned. Your extension
+resumes it by returning `resume_waits` next to `events` in a **successful**
+response of any action: a callback's action, a workflow step's action, a page
+action.
+
+```json
+{
+  "ok": true,
+  "result": {"accepted": true},
+  "resume_waits": [
+    {
+      "correlation_key": "run-42",
+      "event_type": "run_completed",
+      "payload": {"rows": 120, "result_file": "crawl-42.csv"}
+    }
+  ]
+}
+```
+
+A callback handler (`handlers/actions.py`) that turns the service's completion
+POST into a resume:
+
+```python
+def crawl_finished(request: dict) -> dict:
+    """Callback action: the crawler posts {run_id, status, rows} when a run ends."""
+    body = request.get("request", {}).get("json") or {}
+    run_id = str(body.get("run_id") or "").strip()
+    if not run_id:
+        return fail("invalid_payload", "run_id is required")
+    event_type = "run_completed" if body.get("status") == "done" else "run_failed"
+    return {
+        "ok": True,
+        "result": {"run_id": run_id},
+        "events": [],
+        "resume_waits": [
+            {
+                "correlation_key": run_id,
+                "event_type": event_type,
+                "payload": {"rows": int(body.get("rows") or 0)},
+            }
+        ],
+    }
+```
+
+Rules the host enforces:
+
+- The host takes your extension id, the account and the project from the
+  invocation (the callback's registration, the step's run); anything you put in
+  an item about them is ignored. Only a run of that project that waits for your
+  extension as `source` can be resumed.
+- `correlation_key`: non-empty text or integer, at most 256 characters,
+  compared exactly. `event_type`: lowercase letters, digits, `_`, `.`, `:`, `-`,
+  and one of the wait's `event_types`. `payload`: a JSON object of at most 64 KiB;
+  it is redacted like action results, so never put secrets in it. At most 100
+  items per response.
+- Delivery is stored, never immediate: the control process matches stored events
+  to waiting runs every second. An event that arrives before the run reaches its
+  Wait is kept and taken when the run parks, so you do not have to wait for the
+  workflow before reporting.
+- Each project, extension, key and type is delivered once; a repeated item is
+  reported as a duplicate and ignored, so a provider's retried callback is safe.
+  Events are kept 7 days.
+- A malformed item is refused without failing your action; the invocation's
+  `wait_events` result lists `stored`, `duplicates` and `rejected` (with a code
+  such as `resume_wait_payload_too_large`). If the host cannot store the events,
+  the action fails with `wait_event_delivery_failed` and a callback answers 502,
+  so the provider delivers again.
+- A query that runs with a connection must not return `resume_waits`
+  (`query_connection_effects_forbidden`).
+
+Document the event types and the key your extension uses on its workflow page or
+README, so workflow authors can fill `event_types` and `correlation_key`.
+
 ## Testing And Verification
 
 Every real extension should have both a smoke script and pytest coverage.

@@ -278,10 +278,10 @@ action_manifest: ui/actions/actions.yaml
 #   - handler.mode is extension, and external_effects does not name the query;
 #   - runtime.compatibility.platform_min is 1.7.0 or later.
 # A connection query MUST only read the remote service; effects belong to
-# actions. A response with commands, events or project_state_updates fails and
-# nothing is applied. It runs at most 30 seconds, its result passes the
-# reflected-secret check, and only an operator or admin can run it (as every
-# query). An unreachable service MUST be reported as a domain failure (exit 2,
+# actions. A response with commands, events, project_state_updates or
+# resume_waits fails and nothing is applied. It runs at most 30 seconds, its
+# result passes the reflected-secret check, and only an operator or admin can
+# run it (as every query). An unreachable service MUST be reported as a domain failure (exit 2,
 # ok: false), so the install's circuit breaker is not tripped by outages.
 # Remote runtime installs cannot run connection queries.
 #
@@ -943,7 +943,7 @@ x-validator-contract:
     external_effects: forbidden
     request_target: "{connection_id}"
     envelope_location: target.connection
-    platform_effects: forbidden (commands, events, project_state_updates)
+    platform_effects: forbidden (commands, events, project_state_updates, resume_waits)
     timeout_seconds_max: 30
     roles: [operator, admin]
     remote_runtime: unsupported

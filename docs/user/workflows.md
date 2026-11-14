@@ -571,8 +571,9 @@ and [ADR 0026](../architecture/adr/0026-provider-neutral-operation-retry.md).
 
 ## Wait Steps
 
-A `wait` step postpones the rest of the run. It has one `success` edge, no
-outputs, and does not change business state.
+A `wait` step postpones the rest of the run. It has one `success` edge and does
+not change business state. A duration Wait has no outputs; an event Wait (below)
+returns the event.
 
 | Config key (`override.wait`) | Meaning |
 |---|---|
@@ -591,6 +592,57 @@ that. This is not a real-time guarantee. After downtime, an overdue timer is
 eligible as soon as the control process runs again. A Wait never approves
 anything on a person's behalf.
 
+### Waiting for an event
+
+A Wait can also end when an extension reports that something happened outside,
+for example that a crawl it started has finished ([ADR 0071](../architecture/adr/0071-wait-for-an-event.md)).
+In the builder choose **Until an event**; in a definition, give the Wait an
+`event` instead of a duration:
+
+```yaml
+step_kind: wait
+override:
+  wait:
+    event:
+      source: acme.crawler                 # the extension that reports the event
+      event_types: [run_completed, run_failed]
+      correlation_key: state.crawl.run_id  # a state path, a {{template}} or a literal
+    timeout_ms: 86400000                   # required: 1 ms to 365 days
+    output_mapping:                        # optional
+      payload: state.crawl_result
+      event_type: state.crawl_outcome
+```
+
+| Config key (`override.wait`) | Meaning |
+|---|---|
+| `event.source` | The id of the extension that delivers the event. Only that extension, installed for this run's account and serving this project, can end the wait. |
+| `event.event_types` | 1 to 20 event types that end the wait (lowercase letters, digits, `_`, `.`, `:`, `-`). |
+| `event.correlation_key` | Which event this run waits for, compared as exact text. Usually the id the previous step returned (`state.crawl.run_id`). Resolved once, when the step is entered; it must be a non-empty text or integer of at most 256 characters, otherwise the step fails with `workflow.wait.correlation_key_invalid` under its error policy (not retried). |
+| `timeout_ms` | Required. When no event arrived by then, the step fails with `workflow.wait.event_timed_out`. Its error policy decides what happens: fail the run (default), continue, go to the step on its error edge (the timeout route) or retry (wait again with a new deadline). |
+| `output_mapping` | Copies the event to state: `payload`, `payload.<field>`, `event_type`, `correlation_key`, `received_at`, `source`. |
+
+The event is the step's result whether or not it is mapped. While it waits, the
+job status is `awaiting_event` ("Waiting for event"), the run holds no worker, and
+the job shows "Waiting for run_completed or run_failed (key run-42) since …, times
+out at …". Cancel works as for any waiting run.
+
+How an event reaches the run:
+
+- The extension stores it; the run is not resumed inside the extension's request.
+  The control process checks every second and resumes at most 100 runs per pass.
+- An event that arrives before the run reaches its Wait (a very fast service) is
+  kept and taken as soon as the run parks.
+- One event resumes one waiting run, once. A second delivery of the same key and
+  type is ignored; with two runs waiting on the same key, the one that parked
+  first takes it.
+- An event that arrives after the timeout or a cancel is not delivered to any
+  later step. Undelivered events are deleted after 7 days.
+- When both the event and the deadline are due in the same pass, the event wins.
+
+Workflow webhooks still only start runs; a service that should resume a waiting
+run posts to the extension's callback, which reports the event (see the
+[extension authoring playbook](../extension-authoring-agent-playbook.md#resuming-waiting-runs)).
+
 ## Step Kinds
 
 Supported step kinds:
@@ -608,7 +660,7 @@ Supported step kinds:
 | `if` | Branch on a condition. | `condition`; routes `true`/`false` edges. |
 | `switch` | Branch on a selector. | `selector`, `cases[]` with a stable `case_id` and `when`; routes one `case` edge per case and `default`. |
 | `approval` | Wait for a human decision. | `message`, `show_outputs`, `output_mapping`, `response_mapping`; routes `approved`/`rejected`. See [Approval Steps](#approval-steps). |
-| `wait` | Postpone the run for a duration. | `duration_ms` or `input_mapping.duration_ms`. See [Wait Steps](#wait-steps). |
+| `wait` | Postpone the run for a duration, or until an extension reports an event. | `duration_ms` or `input_mapping.duration_ms`; or `event` with `timeout_ms`. See [Wait Steps](#wait-steps). |
 | `set_variable` | Write values into workflow state. | Assignments, source selectors, target paths. |
 | `collect` | Add one value to an existing array or object variable. | `target`, `source`, `mode` (`append` or `set_key`), `key`. Sequence For each body only. |
 | `continue` | End the current For each item. | None. Sequence For each body only. |
@@ -1400,7 +1452,7 @@ launches, including MCP `workflow_trigger`, require the workflow to be enabled.
 The POST request validates the workflow, project binding, inputs, and caller scope,
 then returns `202 Accepted` with the job and thread identity. The builder polls the
 test-run GET endpoint until the worker reaches a terminal or waiting state
-(`awaiting_approval`, `awaiting_timer` or `awaiting_child`). A
+(`awaiting_approval`, `awaiting_timer`, `awaiting_child` or `awaiting_event`). A
 workflow dry run remains synchronous and returns `200` without creating a job.
 Execution failures are reported as durable terminal state by the GET endpoint;
 cancel and approval actions use the same job/thread identity as normal jobs.
@@ -1443,6 +1495,7 @@ Job Details shows that executed definition, not the current workflow:
   `unavailable_reason: definition_snapshot_unavailable`. The current definition
   is never shown as the one that ran.
 - A run parked on a Wait step shows the time it waits until; a run waiting for
+  an event shows the event types, the key, since when and when it times out; a run waiting for
   a child workflow links to the child job; a parallel group lists its active
   lanes with their step and status.
 
