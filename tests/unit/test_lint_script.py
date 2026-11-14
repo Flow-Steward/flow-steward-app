@@ -1494,3 +1494,18 @@ def test_unavailable_borrowed_audit_image_stops_without_build(
     assert "status=2" in completed.stdout
     assert "building" not in completed.stdout
     assert not any("fs_compose build" in call for call in calls)
+
+
+def test_a_selection_plan_never_reaches_the_tests_it_selects() -> None:
+    """ADR 0068: tests that run lint.sh themselves inherited the suite's plan and
+    took its selection path; the hosted 0.9.18 run failed four of them that way."""
+    source = LINT_SCRIPT.read_text(encoding="utf-8")
+    backend = _shell_function(
+        source, "run_check_unit_tests_with_coverage", "assert_audit_test_isolation"
+    )
+    frontend = _shell_function(
+        source, "run_check_frontend_test_build", "run_check_frontend_dependency_audit"
+    )
+    for body, runner in ((backend, "-m pytest"), (frontend, "Frontend workspace tests")):
+        read = body.index('selection_plan="${FS_QUALITY_TEST_SELECTION:-}"')
+        assert read < body.index("unset FS_QUALITY_TEST_SELECTION") < body.index(runner)
