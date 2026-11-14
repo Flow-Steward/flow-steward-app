@@ -149,14 +149,24 @@ def _descriptor_with_bundle_runtime(
 
     compiled_runtime = compiled_manifest.get("runtime")
     descriptor_runtime = descriptor.get("runtime")
+    descriptor_runtime = dict(descriptor_runtime) if isinstance(descriptor_runtime, dict) else {}
+    # A normalized artifact descriptor supplies None for an undeclared runtime
+    # contract. Preserve the owning bundle's validated executable declaration.
+    inherit_contract = descriptor_runtime.get("extension_contract_v2") is None
+    if inherit_contract:
+        descriptor_runtime.pop("extension_contract_v2", None)
     merged_runtime = {
         **(dict(compiled_runtime) if isinstance(compiled_runtime, dict) else {}),
-        **(dict(descriptor_runtime) if isinstance(descriptor_runtime, dict) else {}),
+        **descriptor_runtime,
     }
     runtime_descriptor = dict(descriptor)
     for field in _RUNTIME_DESCRIPTOR_FIELDS:
         if field in compiled_manifest:
             runtime_descriptor[field] = compiled_manifest[field]
+    if inherit_contract and "oauth_providers" in compiled_manifest:
+        # Release upgrades consume the compiled fingerprints, not raw provider
+        # references. Keep that same contract after artifact import/persistence.
+        runtime_descriptor["oauth_providers"] = compiled_manifest["oauth_providers"]
     runtime_descriptor["runtime"] = merged_runtime
     from core.application.extensions.composite_actions import composite_action_descriptor_issues
     from core.application.extensions.workflow_connection_slot_bundle import (
