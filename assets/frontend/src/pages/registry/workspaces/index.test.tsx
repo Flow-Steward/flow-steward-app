@@ -56,6 +56,18 @@ function renderPage() {
 }
 
 describe("RegistryWorkspacesPage", () => {
+  it.each(["/", "/app/"])("uses the standard green link for an accessible workspace detail at %s", async (base) => {
+    vi.stubEnv("BASE_URL", base);
+    try {
+      renderPage();
+      const link = await screen.findByRole("link", { name: "Default workspace" });
+      expect(link).toHaveAttribute("href", `${base}registry/workspaces/ws-1`);
+      expect(link).toHaveClass("fs-link");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   beforeEach(() => {
     mockedUseHasCapability.mockReturnValue(true);
     globalThis.localStorage.clear();

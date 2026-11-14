@@ -27,6 +27,7 @@ import {
   DsTable,
   DsTabs,
   PageContainer,
+  Pagination,
   RowActionMenu,
   Search,
   type DsFilterField,
@@ -386,6 +387,11 @@ export function WorkflowsListPage() {
     [projectFilter.projectsByWorkflow, userTimezone, workflows, t],
   );
   const refetchWorkflows = workflowsQuery.refetch;
+  const requestedPerPage = Number(searchParams.get("per_page"));
+  const perPage = [10, 25, 50].includes(requestedPerPage) ? requestedPerPage : 25;
+  const requestedPage = Math.max(1, Math.floor(Number(searchParams.get("page")) || 1));
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(workflowRows.length / perPage)));
+  const pageRows = workflowRows.slice((page - 1) * perPage, page * perPage);
 
   // `WorkflowCloneDialog` asks for the name and performs the request; this decides
   // where a clone lands, which differs by caller — the list opens the builder.
@@ -474,6 +480,7 @@ export function WorkflowsListPage() {
   function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string }) {
     startTransition(() => {
       updateSearchParams((params) => {
+        params.delete("page");
         if (next.search !== undefined) {
           const value = next.search.trim();
           if (value) params.set("search", value);
@@ -657,9 +664,28 @@ export function WorkflowsListPage() {
             columns={workflowColumns}
             onRowClick={(row) => handleWorkflowAction("detail", row)}
             rowKey={(row) => firstStringFromUnknownValue([row.workflow_id, ""])}
-            rows={workflowRows}
+            rows={pageRows}
             state={workflowTableState}
           />
+          {!restricted && !workflowsLoading ? (
+            <Pagination
+              page={page}
+              perPage={perPage}
+              total={workflowRows.length}
+              perPageOptions={[10, 25, 50]}
+              onPageChange={(next) => updateSearchParams((params) => {
+                if (next > 1) params.set("page", String(next));
+                else params.delete("page");
+                return params;
+              })}
+              onPerPageChange={(next) => updateSearchParams((params) => {
+                if (next === 25) params.delete("per_page");
+                else params.set("per_page", String(next));
+                params.delete("page");
+                return params;
+              })}
+            />
+          ) : null}
   
           {projectFilter.error ? (
             <DsAlert title={t("react.workflows.project_filter_failed", "Project filter unavailable")} tone="danger">

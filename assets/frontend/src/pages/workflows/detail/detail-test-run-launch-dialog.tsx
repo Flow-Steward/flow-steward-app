@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import type { WorkflowNormalRunController } from "./detail-normal-run-controller";
 import { useEffect, useId, useRef, type ChangeEvent, type ReactNode } from "react";
-import { DsAlert, DsDialog, RequiredLabel } from "@/components/shared/design-system";
+import { DsAlert, DsCheckbox, DsDialog, RequiredLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -177,7 +177,7 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
                   <option value="">{t("extensions.repeater.select_placeholder", "Select…")}</option>
                   {(row.options.length ? row.options : ["true", "false"]).map((value) => <option key={value} value={value}>{value}</option>)}
                 </select>
-                : inputSupportsJson(row.type) || inputSupportsParagraph(row.type) ? <textarea {...shared} rows={4} />
+                : inputSupportsJson(row.type) || inputSupportsParagraph(row.type) ? <textarea {...shared} className="fs-textarea w-full" rows={4} />
                 : <input {...shared} type={row.type === "secret" ? "password" : "text"} inputMode={inputSupportsNumber(row.type) ? "decimal" : undefined} autoComplete={row.type === "secret" ? "off" : undefined} />}
               {hasDescription ? <p id={`${controlId}-help`} className="fs-field-helper">{row.description}</p> : null}
               {error ? <p id={`${controlId}-error`} className="fs-field-helper error" role="alert">{error}</p> : null}
@@ -186,7 +186,7 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
         </fieldset> : null}
         <div className="fs-field">
           <label htmlFor={`${id}-summary`}><RequiredLabel>{t("react.workflows.test_run_summary", "Test Run Summary")}</RequiredLabel></label>
-          <textarea id={`${id}-summary`} className="fs-input w-full" rows={3} required aria-required="true" aria-label={t("react.workflows.test_run_summary", "Test Run Summary")} aria-invalid={Boolean(ctx.workflowTestRunFieldErrors.task_summary)} aria-describedby={ctx.workflowTestRunFieldErrors.task_summary ? `${id}-summary-error` : undefined} disabled={busy || applying} value={ctx.workflowTestRunSummary} onBlur={() => ctx.touchWorkflowTestRunField("task_summary")} onChange={(event) => ctx.updateWorkflowTestRunSummary(event.target.value)} />
+          <textarea id={`${id}-summary`} className="fs-textarea w-full" rows={3} required aria-required="true" aria-label={t("react.workflows.test_run_summary", "Test Run Summary")} aria-invalid={Boolean(ctx.workflowTestRunFieldErrors.task_summary)} aria-describedby={ctx.workflowTestRunFieldErrors.task_summary ? `${id}-summary-error` : undefined} disabled={busy || applying} value={ctx.workflowTestRunSummary} onBlur={() => ctx.touchWorkflowTestRunField("task_summary")} onChange={(event) => ctx.updateWorkflowTestRunSummary(event.target.value)} />
           {ctx.workflowTestRunFieldErrors.task_summary ? <p id={`${id}-summary-error`} className="fs-field-helper error" role="alert">{ctx.workflowTestRunFieldErrors.task_summary}</p> : null}
         </div>
         {normalRun ? <fieldset className="fs-form-section">
@@ -195,14 +195,12 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
             <label className="fs-field-label" htmlFor={`${id}-actual-${String(field.name)}`}>
               {t("react.workflows.normal_run_actual_file", "Actual file for {name}", { name: String(field.label || field.name) })}
             </label>
-            <input key={`${normalRun.fileOwner}-${normalRun.jobId}-${String(field.name)}`} id={`${id}-actual-${String(field.name)}`} type="file" disabled={busy || applying} required={Boolean(field.required)}
+            <input key={`${normalRun.fileOwner}-${normalRun.jobId}-${String(field.name)}`} id={`${id}-actual-${String(field.name)}`} className="workflow-run-file" type="file" disabled={busy || applying} required={Boolean(field.required)}
               onChange={(event) => normalRun!.setFile(String(field.name), event.target.files?.[0])} />
           </div>)}
-          <label className="fs-field-label">
-            <input type="checkbox" checked={normalRun.acknowledged} disabled={busy || applying}
-              onChange={(event) => normalRun!.setAcknowledged(event.target.checked)} />
+          <DsCheckbox checked={normalRun.acknowledged} disabled={busy || applying} onChange={normalRun.setAcknowledged}>
             {t("react.workflows.normal_run_acknowledgement", "I understand this workflow run can create external changes and use live credentials.")}
-          </label>
+          </DsCheckbox>
           <p className="fs-field-helper">{t("react.workflows.normal_run_help", "Uses the saved workflow and actual files. Test files and kept test outputs are not used.")}</p>
           {normalRun.message ? <DsAlert tone="danger" title={normalRun.message} /> : null}
           {normalRun.jobId ? <Link to={`/jobs/${encodeURIComponent(normalRun.jobId)}`}>{t("react.workflows.normal_run_job", "Open workflow Job Details")}</Link> : null}

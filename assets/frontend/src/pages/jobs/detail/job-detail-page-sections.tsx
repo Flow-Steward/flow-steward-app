@@ -1,6 +1,7 @@
 import type { DrawerGeometry } from "@/components/shared/design-system-overlays";
 import { StepInspectorPanel } from "./job-step-inspector-panel";
 import { ReadableDataFields, ReadableFileList } from "./readable-data-fields";
+import { usageAgentLabel } from "./job-usage-label";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useState, type ReactNode, type Ref } from "react";
@@ -841,12 +842,8 @@ function JobUsageBreakdownCard({
                   }
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span>
-                      {firstStringFromUnknownValue([
-                        row.agent_label,
-                        row.agent,
-                        "agent",
-                      ])}
+                    <span title={firstReadableText(row.agent_id, row.agent) || undefined}>
+                      {usageAgentLabel(row, t)}
                     </span>
                   </div>
                   <p className="mt-1 fs-ink-tertiary">

@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
@@ -45,6 +46,7 @@ import {
   DsCheckbox,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   Pagination,
   PageContainer,
   RowActionMenu,
@@ -220,7 +222,9 @@ function jobWorkflowCell(row: Record<string, unknown>) {
   const fullRequest = firstStringFromUnknownValue([row._task_full, row.task_summary, request]);
   return (
     <span className="fs-job-workflow-copy">
-      <strong title={workflowId || workflowName}>{workflowName}</strong>
+      <DsTableLink href={appHref(`/jobs/${encodeURIComponent(firstStringFromUnknownValue([row.job_id, row.id, ""]))}`)}>
+        <span title={workflowId || workflowName}>{workflowName}</span>
+      </DsTableLink>
       {request ? <span title={fullRequest}>{request}</span> : null}
     </span>
   );
@@ -1016,6 +1020,7 @@ export function JobsListPage() {
           </label>
         </div>
         <DsTable
+          rowClickFocusable={false}
           ariaLabel={t("jobs.page_title", "Jobs")}
           columns={jobColumns}
           onRowClick={(row) => {

@@ -29471,3 +29471,15 @@ msgstr ""
 
 msgid "react.system.core_update_available"
 msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_processing"
+msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_routing"
+msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_agent"
+msgstr ""

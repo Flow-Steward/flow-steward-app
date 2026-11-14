@@ -6,13 +6,14 @@ import { useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
-import { Link } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import {
   DsAlert,
   DsDialog,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   PageContainer,
   RequiredLabel,
   RowActionMenu,
@@ -73,7 +74,7 @@ function buildWorkspaceColumns(
       header: t("react.registry.workspace_name", "Workspace name"),
       cell: (row) =>
         actions.canAdministerPlatform ? (
-          <Link to={`/registry/workspaces/${row.id}`}>{row.display_name}</Link>
+          <DsTableLink href={appHref(`/registry/workspaces/${encodeURIComponent(row.id)}`)}>{row.display_name}</DsTableLink>
         ) : (
           row.display_name
         ),

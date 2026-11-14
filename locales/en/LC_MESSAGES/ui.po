@@ -30533,3 +30533,15 @@ msgstr "Release notes"
 
 msgid "react.system.core_update_available"
 msgstr "Flow Steward {version} is available"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_processing"
+msgstr "Model processing"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_routing"
+msgstr "Workflow routing"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_agent"
+msgstr "Agent"

@@ -16,6 +16,7 @@ import {
 import { Plus } from "lucide-react";
 
 import { useNavigate, type NavigateFunction } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import {
   persistWorkspaceSelection,
@@ -30,6 +31,7 @@ import {
   DsFormSelect,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   Pagination,
   PageContainer,
   RowActionMenu,
@@ -96,7 +98,7 @@ function buildProjectColumns({
       sortable: true,
       truncate: "20rem",
       tooltip: (row) => firstStringFromUnknownValue([row.name, ""]) || undefined,
-      cell: (row) => <strong>{firstStringFromUnknownValue([row.name, "—"])}</strong>,
+      cell: (row) => <DsTableLink href={appHref(`/projects/${encodeURIComponent(firstStringFromUnknownValue([row.id, row.project_id, ""]))}`)}>{firstStringFromUnknownValue([row.name, "—"])}</DsTableLink>,
     },
     {
       key: "operator_default_workflow_id",
@@ -492,6 +494,7 @@ export function ProjectsListPage() {
           <span aria-live="polite" className="fs-management-result-announcement">{t("monitoring.badge.projects", "{count} projects", { count: total })}</span>
         </div>
         <DsTable
+          rowClickFocusable={false}
           ariaLabel={t("react.projects.projects_inventory", "Projects inventory")}
           busy={listLoading}
           columns={projectColumns}

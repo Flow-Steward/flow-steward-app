@@ -116,6 +116,18 @@ function renderJobsListPage(entry = "/jobs", locale: "en" | "lt" = "en", overrid
 }
 
 describe("JobsListPage", () => {
+  it.each(["/", "/app/"])("exposes the job name as the standard green detail link at %s", async (base) => {
+    vi.stubEnv("BASE_URL", base);
+    try {
+      renderJobsListPage();
+      const link = await screen.findByRole("link", { name: "Inventory Import" });
+      expect(link).toHaveAttribute("href", `${base}jobs/job-1`);
+      expect(link).toHaveClass("fs-link");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps the current period and selection when a previous-scope deletion finishes", async () => {
     const confirm = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
     let rejectDelete: (error: Error) => void = () => undefined;

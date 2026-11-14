@@ -29,6 +29,18 @@ export function choose<T>(condition: boolean, yes: T, no: T): T {
   return condition ? yes : no;
 }
 
+/** A header teaser only; the original catalog and manifest copy stays intact. */
+export function extensionHeaderDescription(summary: unknown, description: string): string {
+  const text = (typeof summary === "string" && summary.trim() ? summary : description)
+    .replace(/\s+/gu, " ").trim();
+  const sentence = text.match(/^.*?[.!?](?:\s|$)/u)?.[0].trim() || text;
+  const characters = Array.from(sentence);
+  if (characters.length <= 180) return sentence;
+  const prefix = characters.slice(0, 179).join("");
+  const wordBoundary = prefix.lastIndexOf(" ");
+  return `${wordBoundary > 0 ? prefix.slice(0, wordBoundary) : prefix}…`;
+}
+
 export function renderWhen(condition: boolean, content: ReactNode): ReactNode {
   return condition ? content : null;
 }

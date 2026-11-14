@@ -1230,8 +1230,13 @@ describe("canonical workflow-level result artifacts", () => {
     renderPage();
     const panel = await screen.findByTestId("job-result-panel");
     const artifacts = within(panel).getByRole("region", { name: "Final artifacts" });
-    expect(within(artifacts).getByRole("link", { name: /result\.jsonl/ })).toHaveAttribute("href", expect.stringContaining("/api/jobs/job-1/artifacts/art-1"));
-    expect(within(artifacts).getByRole("link", { name: /result\.csv/ })).toHaveAttribute("href", expect.stringContaining("/api/jobs/job-1/artifacts/art-2"));
+    expect(within(artifacts).getByText("result.jsonl")).toBeVisible();
+    expect(within(artifacts).getByText("result.csv")).toBeVisible();
+    const files = within(artifacts).getAllByRole("listitem");
+    const jsonl = files.find((file) => within(file).queryByText("result.jsonl"));
+    const csv = files.find((file) => within(file).queryByText("result.csv"));
+    expect(within(jsonl!).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-1");
+    expect(within(csv!).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-2");
   });
 
   it.each([false, true])("preserves validated artifact metadata with artifact-only=%s without step attribution or invented links", async (artifactOnly) => {

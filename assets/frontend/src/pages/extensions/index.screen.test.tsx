@@ -6008,4 +6008,22 @@ describe("ExtensionsHubPage", () => {
     expect(preSpawnFailureKey).not.toBe(replayFailureKey);
     expect(mockedExecuteExtensionAction.mock.calls[3]?.[3]).not.toBe(preSpawnFailureKey);
   });
+  it.each([undefined, "Search records and manage a music library."])("keeps the internal header brief and the full About copy intact (summary=%s)", async (summary) => {
+    const brief = "Research music releases from workflows.";
+    const details = "Detailed marketplace, inventory, collection and account coverage stays in the About page.";
+    const description = `${brief} ${details}`;
+    mockedFetchExtension.mockResolvedValue({
+      extension_id: "smoke.guardrail.enforcement", display_name: "Music Catalog", active: true, state: "active", vendor_name: "Flow Steward", description, summary,
+    });
+    mockedFetchExtensionCompiledManifest.mockResolvedValue({ ui_manifest: { pages: [{
+      page_id: "about", title: "About", project_scoped: false, components: [{ component_id: "full-description", type: "markdown", content: description }],
+    }] } });
+    renderPage("/extensions/smoke.guardrail.enforcement?extension_page=about");
+    await screen.findByText(description, { exact: true });
+    const header = screen.getByRole("banner");
+    expect(header).toHaveTextContent(summary || brief);
+    expect(header).not.toHaveTextContent(details);
+    expect(screen.getByText(description, { exact: true })).toBeVisible();
+  });
+
 });

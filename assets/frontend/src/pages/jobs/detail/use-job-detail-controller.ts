@@ -293,7 +293,8 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
       const prompt = row.tokens_prompt == null ? null : finiteNumberOrNull(row.tokens_prompt);
       const completion = row.tokens_completion == null ? null : finiteNumberOrNull(row.tokens_completion);
       return {
-        agent_label: row.agent || "agent",
+        ...row,
+        agent_label: row.agent_label || row.agent || "agent",
         model: row.model_used || "model",
         tokens: recordedTotal ?? (prompt !== null && completion !== null ? prompt + completion : 0),
         calls: row.calls || 0,

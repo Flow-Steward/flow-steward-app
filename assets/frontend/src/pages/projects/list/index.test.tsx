@@ -80,6 +80,18 @@ function renderProjectsListPage(messages: Record<string, string> = {}, role: Rol
  * reports the current value.
  */
 describe("ProjectsListPage", () => {
+  it.each(["/", "/app/"])("exposes the project name as the standard green detail link at %s", async (base) => {
+    vi.stubEnv("BASE_URL", base);
+    try {
+      renderProjectsListPage();
+      const link = await screen.findByRole("link", { name: "Audit Project" });
+      expect(link).toHaveAttribute("href", `${base}projects/project-1`);
+      expect(link).toHaveClass("fs-link");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   beforeEach(() => {
     globalThis.localStorage.clear();
     mockedFetchProjectsList.mockReset();

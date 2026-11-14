@@ -30951,3 +30951,15 @@ msgstr "Laidos naujienos"
 
 msgid "react.system.core_update_available"
 msgstr "Pasiekiama „Flow Steward“ {version} versija"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_processing"
+msgstr "Modelio apdorojimas"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_routing"
+msgstr "Darbo eigos maršruto parinkimas"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_agent"
+msgstr "Agentas"
