@@ -17,6 +17,7 @@ from core.application.extensions.json_schema_subset import unsupported_schema_ke
 NATIVE_DATASET_PLATFORM_MIN = "1.5.0"
 OAUTH_IMPORT_PLATFORM_MIN = "1.6.0"
 QUERY_CONNECTION_PLATFORM_MIN = "1.7.0"
+WORKFLOW_CONNECTION_SLOTS_PLATFORM_MIN = "1.8.0"
 
 ARTIFACT_ENTRY_ID_FIELDS = (
     "workflow_id",

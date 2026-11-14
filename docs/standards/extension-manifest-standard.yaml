@@ -205,6 +205,36 @@ action_manifest: ui/actions/actions.yaml
 # exported; the action cannot be called outside a workflow. Marking a workflow
 # as an implementation needs a Development environment.
 
+# Connection slots of a workflow a person runs (ADR 0068). A published,
+# read-only workflow whose connector steps need a project connection declares
+# the connections in its settings, in the same shape as an action's slots plus
+# a label people see:
+#
+#   settings:
+#     connection_slots:
+#       - slot: store                         # lowercase id, unique in the workflow
+#         extension_id: acme.store            # this extension or a required dependency
+#         connection_type_ids: [api_token]    # empty list = any type of that extension
+#         label: Store account                # "This workflow needs: Store account"
+#
+# and every connector step that needs it binds connection_binding: {slot: store}.
+# An action Invoke inside the workflow may pass the slot on:
+# connections: {<its slot>: {slot: store}}. Each project chooses one of its
+# connections per slot on the workflow's Overview; with exactly one usable
+# connection of an accepted type the host picks it. The choice is pinned into
+# every new run (UI, webhook, schedule, Invoke); a workflow without a connection
+# for a slot is not ready in that project and its runs are refused before they
+# start. Rules, checked when the release is built:
+#   - the declaration has only slot, extension_id, connection_type_ids, label;
+#   - every slot a step or an action Invoke reads is declared, and a step never
+#     carries a fixed connection id next to its slot;
+#   - an action implementation keeps its slots in action_implementation, never
+#     in connection_slots;
+#   - runtime.compatibility.platform_min is 1.8.0 or later.
+# A release that adds a slot, or changes its extension or connection types, is
+# activated only when every project that links the workflow has a connection
+# for it. Export and import never carry the chosen connection ids.
+
 # A query that runs with a project connection (ADR 0067). In
 # ui/queries/queries.yaml:
 #
@@ -392,6 +422,10 @@ runtime:
     #          connection, page refresh_seconds; ADR 0067). A bundle declaring a
     #          connection query requires runtime.compatibility.platform_min 1.7.0.
     #          Product 0.9.17 ships host 1.7.0.
+    #   1.8.0  A workflow may declare settings.connection_slots, which each
+    #          project fills with one of its connections (ADR 0068). A bundle
+    #          declaring them requires runtime.compatibility.platform_min 1.8.0.
+    #          Product 0.9.18 ships host 1.8.0.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:

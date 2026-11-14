@@ -795,6 +795,27 @@ At run time:
 Invoke step and hook binding that calls a workflow. A change that would break
 one of them is refused with the caller and the reason.
 
+## Connections An Extension Workflow Needs
+
+A workflow an extension provides may need a connection of the project, for
+example "Store account". Its Overview shows a **Connections** card: "This
+workflow needs: Store account" with a selector of the project's connections of
+the right extension and type. With several linked projects, choose the project
+first; each project chooses its own connection.
+
+- With exactly one usable connection, it is chosen automatically.
+- With none, or with several and no choice, the workflow is **not ready** in
+  that project. Runs, webhooks, schedules and Invoke steps that start it are
+  refused before they start, and the card says what to do: create a connection
+  of that kind, or choose one.
+- A connection that was chosen and later disabled or failing is not replaced by
+  another one; choose again.
+- Each run keeps the connection it started with.
+- An update of the extension that needs a new connection is refused until every
+  project that links the workflow has one; deleting the connection or
+  uninstalling the extension removes the choice. Exported workflows never carry
+  connection ids.
+
 ## Tabular Feed Steps
 
 `tabular_feed` is for bulk tabular workloads backed by artifact and dataset

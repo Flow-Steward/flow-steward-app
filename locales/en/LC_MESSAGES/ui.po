@@ -30464,3 +30464,57 @@ msgstr "Refresh"
 
 msgid "react.extensions.page_refresh.stopped"
 msgstr "Automatic refresh stopped after a failed load. Press Refresh to try again."
+
+msgid "react.workflows.connection_slots"
+msgstr "Connections"
+
+msgid "react.workflows.connection_slots_description"
+msgstr "Connections this workflow reads. Each project chooses its own."
+
+msgid "react.workflows.connection_slots_in_project"
+msgstr "Connections in project {project}."
+
+msgid "react.workflows.connection_slots_project"
+msgstr "Project for connections"
+
+msgid "react.workflows.connection_slots_loading"
+msgstr "Loading connections…"
+
+msgid "react.workflows.connection_slots_load_failed"
+msgstr "The connections could not be loaded"
+
+msgid "react.workflows.connection_slots_not_ready"
+msgstr "This workflow is not ready in this project"
+
+msgid "react.workflows.connection_slots_not_ready_detail"
+msgstr "Runs, webhooks and schedules are refused until every connection below is chosen."
+
+msgid "react.workflows.connection_slot_needed"
+msgstr "Needed"
+
+msgid "react.workflows.connection_slot_connection"
+msgstr "Connection"
+
+msgid "react.workflows.connection_slot_needs"
+msgstr "This workflow needs: {label}"
+
+msgid "react.workflows.connection_slot_select"
+msgstr "Connection for {label}"
+
+msgid "react.workflows.connection_slot_choose"
+msgstr "Choose a connection"
+
+msgid "react.workflows.connection_slot_no_connections"
+msgstr "The project has no connection of this kind"
+
+msgid "react.workflows.connection_slot_save_failed"
+msgstr "The connection was not saved"
+
+msgid "react.workflows.connection_slot_not_ready"
+msgstr "Not ready"
+
+msgid "react.workflows.connection_slot_automatic"
+msgstr "Chosen automatically"
+
+msgid "react.workflows.connection_slot_chosen"
+msgstr "Chosen"

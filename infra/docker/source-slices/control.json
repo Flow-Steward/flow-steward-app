@@ -376,6 +376,10 @@
     "core/application/workflows/workflow_canvas_annotation_contract.py",
     "core/application/workflows/workflow_catalog_identity.py",
     "core/application/workflows/workflow_change_authorization.py",
+    "core/application/workflows/workflow_connection_slot_launch.py",
+    "core/application/workflows/workflow_connection_slot_repository.py",
+    "core/application/workflows/workflow_connection_slot_service.py",
+    "core/application/workflows/workflow_connection_slots.py",
     "core/application/workflows/workflow_consumer_guard.py",
     "core/application/workflows/workflow_contract_summary.py",
     "core/application/workflows/workflow_credential_retirement.py",
@@ -683,6 +687,10 @@
     },
     {
       "path": "db/migrations/20261113073401_webhook_signature_auth_mode.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114090000_workflow_connection_slot_choices.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

@@ -15,6 +15,9 @@ from core.application.management.query_models import (
     PublicProjectWorkflowCatalogView,
     WorkflowContractResultView,
 )
+from core.entrypoints.api.workflow_operator_connection_slots import (
+    register_workflow_connection_slot_routes,
+)
 from core.entrypoints.api.workflow_operator_hooks import register_workflow_hook_routes
 from core.entrypoints.api.workflow_operator_portability import (
     register_workflow_portability_routes,
@@ -259,7 +262,11 @@ def create_workflow_operator_router(
         except Exception as exc:
             return api_error_response(exc)
 
-    for register in (register_workflow_hook_routes, register_workflow_portability_routes):
+    for register in (
+        register_workflow_hook_routes,
+        register_workflow_connection_slot_routes,
+        register_workflow_portability_routes,
+    ):
         register(
             router,
             workflow_operator_service=workflow_operator_service,

@@ -70,6 +70,7 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "catalog_secrets",
     "catalog_secret_bindings",
     "catalog_secret_approvals",
+    "workflow_connection_slot_choices",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",

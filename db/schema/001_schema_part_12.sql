@@ -266,3 +266,28 @@ CREATE TABLE public.platform_upgrade_phases (
 
 CREATE INDEX idx_catalog_secrets_scope ON public.catalog_secrets (account_id, workspace_id, project_id);
 CREATE INDEX idx_catalog_secret_bindings_secret ON public.catalog_secret_bindings (secret_id);
+
+-- Connection slots of extension workflows (ADR 0068): one connection a project
+-- chose per declared slot, keyed by install and local workflow id.
+CREATE TABLE public.workflow_connection_slot_choices (
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    source_install_id text NOT NULL CHECK (btrim(source_install_id) <> ''::text),
+    local_workflow_id text NOT NULL CHECK (btrim(local_workflow_id) <> ''::text),
+    slot text NOT NULL CHECK (slot ~ '^[a-z][a-z0-9_]{0,62}$'::text),
+    connection_id text NOT NULL,
+    chosen_by text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT workflow_connection_slot_choices_pkey
+        PRIMARY KEY (account_id, project_id, source_install_id, local_workflow_id, slot),
+    CONSTRAINT workflow_connection_slot_choices_connection_fkey
+        FOREIGN KEY (connection_id, project_id, account_id)
+        REFERENCES public.project_connections(connection_id, project_id, account_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_workflow_connection_slot_choices_install
+    ON public.workflow_connection_slot_choices (account_id, source_install_id);
+CREATE INDEX idx_workflow_connection_slot_choices_connection
+    ON public.workflow_connection_slot_choices (connection_id);

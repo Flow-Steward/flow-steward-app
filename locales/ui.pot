@@ -29403,3 +29403,57 @@ msgstr ""
 
 msgid "react.workflows.rotating_credential"
 msgstr ""
+
+msgid "react.workflows.connection_slots"
+msgstr ""
+
+msgid "react.workflows.connection_slots_description"
+msgstr ""
+
+msgid "react.workflows.connection_slots_in_project"
+msgstr ""
+
+msgid "react.workflows.connection_slots_project"
+msgstr ""
+
+msgid "react.workflows.connection_slots_loading"
+msgstr ""
+
+msgid "react.workflows.connection_slots_load_failed"
+msgstr ""
+
+msgid "react.workflows.connection_slots_not_ready"
+msgstr ""
+
+msgid "react.workflows.connection_slots_not_ready_detail"
+msgstr ""
+
+msgid "react.workflows.connection_slot_needed"
+msgstr ""
+
+msgid "react.workflows.connection_slot_connection"
+msgstr ""
+
+msgid "react.workflows.connection_slot_needs"
+msgstr ""
+
+msgid "react.workflows.connection_slot_select"
+msgstr ""
+
+msgid "react.workflows.connection_slot_choose"
+msgstr ""
+
+msgid "react.workflows.connection_slot_no_connections"
+msgstr ""
+
+msgid "react.workflows.connection_slot_save_failed"
+msgstr ""
+
+msgid "react.workflows.connection_slot_not_ready"
+msgstr ""
+
+msgid "react.workflows.connection_slot_automatic"
+msgstr ""
+
+msgid "react.workflows.connection_slot_chosen"
+msgstr ""

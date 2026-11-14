@@ -96,6 +96,29 @@ form with buttons (ADR 0067; host contract 1.7.0, SDK 0.5.0):
 See `docs/extension-authoring-agent-playbook.md` "Pages That Read Through A
 Connection" for the full example.
 
+### Workflows that use a project connection
+
+A read-only workflow the bundle publishes reads the project's connection
+through connection slots (ADR 0068; host contract 1.8.0); never ship a project
+copy only to set a connection:
+
+- Declare `settings.connection_slots: [{slot, extension_id,
+  connection_type_ids, label}]` on the workflow (this extension or a required
+  dependency; an empty type list accepts any type of that extension).
+- Each connector step that needs it binds `connection_binding_jsonb: {slot:
+  <slot>}` and names the extension by package id; an action Invoke passes it on
+  with `connections: {<their slot>: {slot: <slot>}}`. No `connection_id` or
+  `connector_install_id` in the bundle.
+- Set `runtime.compatibility.platform_min: 1.8.0`. An action implementation
+  keeps its slots in `action_implementation`, never in `connection_slots`.
+- Each project picks a connection per slot on the workflow's Overview; the only
+  usable one is picked automatically. Without one the workflow is not ready and
+  its runs are refused before start. A release adding a slot or changing its
+  types activates only when every linked project can fill it.
+
+See `docs/extension-authoring-agent-playbook.md` "Workflows That Use A Project
+Connection".
+
 ### Task ingress
 
 Declare these reserved action/query contracts and implement their runtime

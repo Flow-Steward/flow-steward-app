@@ -230,6 +230,14 @@ class ExtensionUninstallService:
             cleanup = getattr(registry_store, "delete_projected_skill_anchors", None)
             if callable(cleanup):
                 cleanup(account_id=context.account_id, install_id=resolved_install_id)
+            from core.application.workflows.workflow_connection_slot_service import (
+                delete_install_slot_choices,
+            )
+
+            # ADR 0068: the projects' connection choices of the install's workflows.
+            delete_install_slot_choices(
+                registry_store, account_id=context.account_id, install_id=resolved_install_id
+            )
 
     def _reconcile_committed_bundle_cleanup(
         self,

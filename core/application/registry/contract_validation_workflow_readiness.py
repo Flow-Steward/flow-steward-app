@@ -18,6 +18,7 @@ from core.application.workflows.workflow_step_config_contracts import (
 from core.application.workflows.extension_connection_validation import (
     validate_extension_connector_step,
 )
+from core.application.workflows.workflow_connection_slots import undeclared_slot_issues
 from core.application.registry.active_workflow_dependencies import workflow_registry_tool_issues
 from core.application.orchestration.state_path_guards import is_reserved_state_target
 from core.application.orchestration.workflow_state_selector_contract import (
@@ -581,6 +582,7 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
                     account_id=str(wf.get("account_id") or "").strip(),
                 )
             )
+            errors.extend(undeclared_slot_issues(wf, step=step, step_path=step_path))
             continue
 
         if step_kind == "invoke_workflow":

@@ -159,9 +159,16 @@ def _descriptor_with_bundle_runtime(
             runtime_descriptor[field] = compiled_manifest[field]
     runtime_descriptor["runtime"] = merged_runtime
     from core.application.extensions.composite_actions import composite_action_descriptor_issues
+    from core.application.extensions.workflow_connection_slot_bundle import (
+        connection_slot_descriptor_issues,
+    )
 
-    # An action implemented by a workflow needs both halves of the bundle (ADR 0065).
-    return runtime_descriptor, composite_action_descriptor_issues(runtime_descriptor)
+    # An action implemented by a workflow needs both halves of the bundle (ADR 0065);
+    # a workflow's connector steps read only the slots it declares (ADR 0068).
+    return runtime_descriptor, [
+        *composite_action_descriptor_issues(runtime_descriptor),
+        *connection_slot_descriptor_issues(runtime_descriptor),
+    ]
 
 
 class InstallReleaseCallback(Protocol):

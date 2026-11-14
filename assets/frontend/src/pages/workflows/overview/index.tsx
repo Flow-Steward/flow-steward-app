@@ -25,6 +25,8 @@ import { WorkflowSummaryHeader } from "@/pages/workflows/shared/header";
 import type { ProjectListItem } from "@/pages/projects/list/api";
 import { fetchWorkflowLinkedProjects } from "@/pages/workflows/shared/project-context";
 import { declaredWorkflowHooks, useWorkflowHookStates, type WorkflowHookState } from "@/pages/workflows/shared/workflow-hooks";
+import { declaresConnectionSlots } from "@/pages/workflows/shared/connection-slot-api";
+import { WorkflowConnectionSlotsPanel } from "@/pages/workflows/overview/workflow-connection-slots-panel";
 import {
   isWorkflowSettingsTab,
   savedWorkflowChannelState,
@@ -386,8 +388,25 @@ export function WorkflowsOverviewPage() {
   // A failed refresh may retain old data; it cannot authorize a Hook read or link.
   const hookProjects = hookProjectsQuery.isSuccess ? hookProjectsQuery.data : [];
   const hookProjectId = canAuthor && hookProjects.some((project) => project.id === projectId) ? projectId : "";
+  // ADR 0068: an extension workflow's connection slots, chosen per linked project.
+  const hasConnectionSlots = canAuthor && declaresConnectionSlots(detailQuery.data?.settings);
+  const slotProjectsQuery = useQuery({
+    queryKey: ["workflows", workflowId, "hook-projects"],
+    queryFn: () => fetchWorkflowLinkedProjects(workflowId),
+    enabled: canReadRegistry && hasConnectionSlots && !activeTab && Boolean(workflowId),
+    retry: false,
+  });
+  const slotProjects = slotProjectsQuery.isSuccess ? slotProjectsQuery.data : [];
+  let slotProjectId = slotProjects.some((project) => project.id === projectId) ? projectId : "";
+  if (!slotProjectId && slotProjects.length === 1) slotProjectId = slotProjects[0].id;
   const selectHookProject = (id: string) => {
     if (!hookProjects.some((project) => project.id === id)) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("project_id", id);
+    setSearchParams(next, { replace: true });
+  };
+  const selectSlotProject = (id: string) => {
+    if (!slotProjects.some((project) => project.id === id)) return;
     const next = new URLSearchParams(searchParams);
     next.set("project_id", id);
     setSearchParams(next, { replace: true });
@@ -470,6 +489,7 @@ export function WorkflowsOverviewPage() {
 
           {activeTab === "hooks" ? <WorkflowHooksPanel canAuthor={canAuthor} projectId={hookProjectId} projects={hookProjects} projectsPending={hookProjectsQuery.isPending} projectsError={hookProjectsQuery.error} onProjectChange={selectHookProject} steps={detailQuery.data?.steps} workflowId={workflowId} /> : null}
           {activeTab ? null : <>
+            {hasConnectionSlots ? <WorkflowConnectionSlotsPanel onProjectChange={selectSlotProject} projectId={slotProjectId} projects={slotProjects} projectsError={slotProjectsQuery.error} projectsPending={slotProjectsQuery.isPending} workflowId={workflowId} /> : null}
             <WorkflowStatsPanel error={statsQuery.error} isError={statsQuery.isError} isLoading={statsQuery.isLoading} jobsLink={jobsLink} stats={stats} userTimezone={userTimezone} />
             <WorkflowQuickLinks canAuthor={canAuthor} jobsLink={jobsLink} projectId={projectId} workflowId={workflowId} />
           </>}

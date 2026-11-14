@@ -251,6 +251,11 @@ def validate_extension_connector_step(
         if output_issues:
             return output_issues
     connection_path = f"{step_path}.connection_binding_jsonb.connection_id"
+    if not connection_id and _text(binding.get("slot")):
+        # The connection comes from a declared slot when the run starts: the
+        # action context (ADR 0065) or the project's choice pinned at submission
+        # (ADR 0068). Whether the slot is declared is the workflow's check.
+        return []
     if operation.requires_connection and not connection_id:
         return [
             _issue(

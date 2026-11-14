@@ -927,6 +927,60 @@ of the account calls the action and the release removes the action, removes a
 mapped input or output, adds a required input, a connection slot or a
 dependency. Add an optional input, or ship a new action, instead.
 
+## Workflows That Use A Project Connection
+
+A read-only workflow your bundle publishes (people run it from the UI, a
+webhook, a schedule or an Invoke, and add their own steps only in its hooks)
+gets the project's connection through connection slots (ADR 0068; host contract
+1.8.0). Do not ship a copy the project edits just to set a connection.
+
+1. Declare the connections the workflow needs, with the label people see:
+
+   ```yaml
+   settings:
+     connection_slots:
+       - slot: store
+         extension_id: acme.store          # this extension or a required dependency
+         connection_type_ids: [api_token]  # empty list = any type of that extension
+         label: Store account
+   ```
+
+2. In each connector step that needs it, name the slot, exactly as in a
+   composite action. An action Invoke may pass it on with
+   `connections: {<their slot>: {slot: store}}`.
+
+   ```yaml
+   connector_id: extension.acme.store       # package id, never an install id
+   connection_binding_jsonb: {slot: store}
+   ```
+
+3. Set `runtime.compatibility.platform_min: 1.8.0`.
+
+While you build the workflow in a Development environment, a step may name the
+slot and a connection of yours to test with; strip every `connection_id` and
+`connector_install_id` before packaging. Release validation refuses a step that
+reads an undeclared slot, a fixed connection next to a slot, a slot of an
+extension that is neither yours nor a required dependency, and
+`connection_slots` on an action implementation (it keeps its slots in
+`action_implementation`).
+
+What the person sees: the workflow's Overview says "This workflow needs: Store
+account" with a connection selector for each linked project. With exactly one
+usable connection of an accepted type, it is chosen automatically. Without one
+the workflow is not ready in that project, and runs, webhooks and schedules are
+refused before they start with the reason. The choice is pinned into each run;
+a child workflow of your extension started by an Invoke gets the parent run's
+connection for a slot of the same name when it fits.
+
+What an update may change: a release that adds a slot, or changes a slot's
+extension or connection types, activates only when every project that links the
+workflow has a usable connection for it; otherwise the update is refused with
+the workflow, the project and the reason, and the project chooses first
+(`PUT /api/projects/{project_id}/workflows/{workflow_id}/connection-slots/{slot}`
+with `release_id`). Changing a label never blocks. Removing a slot drops the
+choices made for it. Uninstalling the extension or deleting the connection
+removes the choice; export and import never carry connection ids.
+
 ## Callbacks And Ingress
 
 Use callbacks for provider webhooks routed through Flow Steward into an action.

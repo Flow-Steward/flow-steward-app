@@ -30882,3 +30882,57 @@ msgstr "Atnaujinti"
 
 msgid "react.extensions.page_refresh.stopped"
 msgstr "Automatinis atnaujinimas sustabdytas po nepavykusio įkėlimo. Spauskite „Atnaujinti“, kad bandytumėte dar kartą."
+
+msgid "react.workflows.connection_slots"
+msgstr "Ryšiai"
+
+msgid "react.workflows.connection_slots_description"
+msgstr "Ryšiai, kuriuos naudoja ši darbo eiga. Kiekvienas projektas pasirenka savo."
+
+msgid "react.workflows.connection_slots_in_project"
+msgstr "Projekto {project} ryšiai."
+
+msgid "react.workflows.connection_slots_project"
+msgstr "Ryšių projektas"
+
+msgid "react.workflows.connection_slots_loading"
+msgstr "Įkeliami ryšiai…"
+
+msgid "react.workflows.connection_slots_load_failed"
+msgstr "Nepavyko įkelti ryšių"
+
+msgid "react.workflows.connection_slots_not_ready"
+msgstr "Ši darbo eiga šiame projekte neparengta"
+
+msgid "react.workflows.connection_slots_not_ready_detail"
+msgstr "Paleidimai, webhook ir tvarkaraščiai atmetami, kol nepasirinkti visi toliau nurodyti ryšiai."
+
+msgid "react.workflows.connection_slot_needed"
+msgstr "Reikia"
+
+msgid "react.workflows.connection_slot_connection"
+msgstr "Ryšys"
+
+msgid "react.workflows.connection_slot_needs"
+msgstr "Šiai darbo eigai reikia: {label}"
+
+msgid "react.workflows.connection_slot_select"
+msgstr "Ryšys: {label}"
+
+msgid "react.workflows.connection_slot_choose"
+msgstr "Pasirinkite ryšį"
+
+msgid "react.workflows.connection_slot_no_connections"
+msgstr "Projekte nėra tokio ryšio"
+
+msgid "react.workflows.connection_slot_save_failed"
+msgstr "Ryšys neišsaugotas"
+
+msgid "react.workflows.connection_slot_not_ready"
+msgstr "Neparengta"
+
+msgid "react.workflows.connection_slot_automatic"
+msgstr "Pasirinkta automatiškai"
+
+msgid "react.workflows.connection_slot_chosen"
+msgstr "Pasirinkta"
