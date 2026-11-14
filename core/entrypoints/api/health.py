@@ -108,7 +108,7 @@ def health_ready():
 
 
 @router.get("/health/deep")
-async def health_deep(request: Request):
+def health_deep(request: Request):
     if not _operations_request_authorized(request):
         return JSONResponse({"error": "Operator or admin role required"}, status_code=403)
 
@@ -151,7 +151,7 @@ async def health_deep(request: Request):
 
 
 @router.get("/metrics")
-async def metrics(request: Request):
+def metrics(request: Request):
     if not _metrics_request_authorized(request):
         return JSONResponse({"error": "Metrics token required"}, status_code=401)
 

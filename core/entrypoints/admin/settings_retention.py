@@ -88,7 +88,7 @@ def create_settings_retention_router(
             return None
 
     @router.get("/api/settings/retention")
-    async def api_retention_settings(request: Request):
+    def api_retention_settings(request: Request):
         auth_user = _ensure_admin_api(request)
         if auth_user is None:
             return JSONResponse({"error": "Admin role required."}, status_code=403)

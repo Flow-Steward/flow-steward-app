@@ -110,7 +110,7 @@ def register_workflow_portability_routes(
             "The workflow's YAML bundle.",
         ),
     )
-    async def api_workflow_export(
+    def api_workflow_export(
         request: Request,
         project_id: _ProjectId,
         workflow_id: _WorkflowId,
@@ -156,9 +156,7 @@ def register_workflow_portability_routes(
             "The workflow's run statistics.",
         ),
     )
-    async def api_workflow_stats(
-        request: Request, project_id: _ProjectId, workflow_id: _WorkflowId
-    ):
+    def api_workflow_stats(request: Request, project_id: _ProjectId, workflow_id: _WorkflowId):
         try:
             command = WorkflowTargetCommandInput(project_id=project_id, workflow_id=workflow_id)
         except ValidationError as exc:

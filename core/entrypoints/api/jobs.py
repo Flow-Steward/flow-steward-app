@@ -188,7 +188,7 @@ def create_api_jobs_router(
             }
         },
     )
-    async def api_jobs(
+    def api_jobs(
         request: Request,
         group_by: Annotated[
             str, Query(description="Internal grouping mode for operator surfaces.")
@@ -523,7 +523,7 @@ def create_api_jobs_router(
         )
 
     @router.get("/api/jobs/{job_id}/runtime-journal")
-    async def api_job_runtime_journal(request: Request, job_id: str):
+    def api_job_runtime_journal(request: Request, job_id: str):
         """Return runtime recovery journal entries stored in jobs.meta.runtime_journal."""
         try:
             payload = job_query_service().get_runtime_journal(
@@ -537,7 +537,7 @@ def create_api_jobs_router(
         return payload.dump()
 
     @router.get("/api/jobs/{job_id}/decision-overrides")
-    async def api_job_decision_overrides(
+    def api_job_decision_overrides(
         request: Request,
         job_id: str,
         active_only: bool = False,
@@ -589,7 +589,7 @@ def create_api_jobs_router(
         return {"job_id": payload.job_id, "override": payload.override}
 
     @router.get("/api/jobs/{job_id}/errors")
-    async def api_job_errors(request: Request, job_id: str, limit: int = 200):
+    def api_job_errors(request: Request, job_id: str, limit: int = 200):
         """Return structured runtime errors for a job (newest first)."""
         try:
             payload = job_query_service().list_errors(
@@ -604,7 +604,7 @@ def create_api_jobs_router(
         return payload.dump()
 
     @router.get("/api/jobs/{job_id}/definition")
-    async def api_job_definition(request: Request, job_id: str):
+    def api_job_definition(request: Request, job_id: str):
         """Return the workflow definition the job pinned (its snapshot), not the live one."""
         try:
             payload = job_query_service().get_job_definition(
@@ -618,7 +618,7 @@ def create_api_jobs_router(
         return payload.dump()
 
     @router.get("/api/jobs/{job_id}/causal-chain")
-    async def api_job_causal_chain(request: Request, job_id: str):
+    def api_job_causal_chain(request: Request, job_id: str):
         """Return message lineage + Mermaid graph for runtime causal-chain visualization."""
         try:
             payload = job_query_service().get_causal_chain(
@@ -833,7 +833,7 @@ def create_api_jobs_router(
     )
 
     @router.get("/api/jobs/{job_id}/replay-step")
-    async def api_job_replay_step(
+    def api_job_replay_step(
         request: Request, job_id: str, message_id: str = "", correlation_id: str = ""
     ):
         """Return causal replay trace for one step message (routing + prompt/response)."""
@@ -851,7 +851,7 @@ def create_api_jobs_router(
         return JSONResponse(payload.dump())
 
     @router.get("/api/jobs/{job_id}/step-replays")
-    async def api_job_step_replays(
+    def api_job_step_replays(
         request: Request,
         job_id: str,
         limit: int = 25,
@@ -924,7 +924,7 @@ def create_api_jobs_router(
         )
 
     @router.get("/api/jobs/{job_id}/logs")
-    async def api_job_logs(
+    def api_job_logs(
         request: Request,
         job_id: str,
         since_id: str = "",
@@ -953,7 +953,7 @@ def create_api_jobs_router(
         response_model=ApprovalGateView,
         operation_id="getJobApproval",
     )
-    async def api_job_approval(request: Request, job_id: str):
+    def api_job_approval(request: Request, job_id: str):
         """Return the current interrupt payload for a job awaiting approval."""
         try:
             scope = request_scope(request)
@@ -972,7 +972,7 @@ def create_api_jobs_router(
         return payload.dump()
 
     @router.get("/api/jobs/{job_id}/approvals")
-    async def api_job_approvals(request: Request, job_id: str):
+    def api_job_approvals(request: Request, job_id: str):
         """Return approval history for a job."""
         try:
             payload = approval_query_service().list_history(

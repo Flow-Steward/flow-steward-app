@@ -172,7 +172,7 @@ def test_job_artifact_route_redirects_to_signed_storage_without_reading_body(
         if getattr(route, "path", "") == "/api/jobs/{job_id}/artifacts/{artifact_id}"
     )
 
-    response = asyncio.run(endpoint(SimpleNamespace(), "job-a", "art-1"))
+    response = endpoint(SimpleNamespace(), "job-a", "art-1")
 
     assert isinstance(response, RedirectResponse)
     assert response.status_code == 307

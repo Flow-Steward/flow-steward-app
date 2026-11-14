@@ -7,10 +7,8 @@ assertion checks response ordering, never a machine-dependent latency limit.
 from __future__ import annotations
 
 import asyncio
-import threading
 from types import SimpleNamespace
 
-import httpx
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import JSONResponse
@@ -26,25 +24,13 @@ from core.entrypoints.api.integrations_mcp_routes import register_mcp_routes
 from core.entrypoints.api.projects import create_api_projects_router
 from core.entrypoints.api.reactions_extensions import create_reactions_extensions_router
 from core.entrypoints.api.trash import create_api_trash_router
+from tests.support.api_read_probe import (
+    BlockedRead as _BlockedRead,
+)
+from tests.support.api_read_probe import (
+    probe_while_read_waits as _probe_while_read_waits,
+)
 from tests.support.extension_icon import EXTENSION_ICON_PNG
-
-
-class _BlockedRead:
-    def __init__(self):
-        self.started = threading.Event()
-        self.release = threading.Event()
-        self.finished = threading.Event()
-
-    def returning(self, value):
-        def read(*_args, **_kwargs):
-            self.started.set()
-            # Only a deadlock escape for the broken handler: the heartbeat
-            # releases a correctly offloaded read without waiting this long.
-            self.release.wait(timeout=1.0)
-            self.finished.set()
-            return value
-
-        return read
 
 
 def _error(exc, *_args, **_kwargs):
@@ -182,9 +168,9 @@ def _legacy_projects_app(reader):
             api_error_response=_error,
             err_admin_role_required="Admin role required",
             err_database_not_configured="Database not configured",
-            default_agent_models=lambda: {},
-            available_providers=lambda: [],
-            available_models=lambda: [],
+            default_agent_models=dict,
+            available_providers=list,
+            available_models=list,
         )
     )
     return app
@@ -221,7 +207,7 @@ def _trash_app(reader):
             require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
             auth_admin_roles={"admin"},
             get_logger_only=reader.returning(None),
-            real_dict_cursor_kwargs=lambda: {},
+            real_dict_cursor_kwargs=dict,
             request_scope=_scope,
             trash_lifecycle_service=lambda: None,
             service_error_response=_error,
@@ -231,28 +217,6 @@ def _trash_app(reader):
         )
     )
     return app
-
-
-async def _probe_while_read_waits(app, path, reader):
-    @app.get("/test-heartbeat")
-    async def heartbeat():
-        read_finished = reader.finished.is_set()
-        reader.release.set()
-        return {"read_finished": read_finished}
-
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        pending = asyncio.create_task(client.get(path))
-        try:
-            assert await asyncio.to_thread(reader.started.wait, 5.0), "Read did not start"
-            heartbeat_response = await client.get("/test-heartbeat")
-            response = await pending
-        finally:
-            reader.release.set()
-            if not pending.done():
-                await pending
-    return heartbeat_response, response
 
 
 @pytest.mark.parametrize(

@@ -75,7 +75,7 @@ def create_integrations_connectors_router(
         return install_id
 
     @router.get("/api/projects/{project_id}/connections")
-    async def api_project_connections_list(request: Request, project_id: str):
+    def api_project_connections_list(request: Request, project_id: str):
         try:
             if not _valid_project_id(project_id):
                 return JSONResponse({"error": err_not_found}, status_code=404)
@@ -142,7 +142,7 @@ def create_integrations_connectors_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/connections/{connection_id}")
-    async def api_project_connection_get(request: Request, project_id: str, connection_id: str):
+    def api_project_connection_get(request: Request, project_id: str, connection_id: str):
         try:
             if not _valid_project_id(project_id):
                 return JSONResponse({"error": err_not_found}, status_code=404)
@@ -294,7 +294,7 @@ def create_integrations_connectors_router(
         return payload
 
     @router.get("/api/projects/{project_id}/connections/{connection_id}/oauth/status")
-    async def api_project_connection_oauth_status(
+    def api_project_connection_oauth_status(
         request: Request,
         project_id: str,
         connection_id: str,
@@ -378,7 +378,7 @@ def create_integrations_connectors_router(
         return payload
 
     @router.get("/api/projects/{project_id}/extension-state/{extension_id}")
-    async def api_project_extension_state_list(
+    def api_project_extension_state_list(
         request: Request,
         project_id: str,
         extension_id: str,
@@ -736,7 +736,7 @@ def create_integrations_connectors_router(
     )
 
     @router.get("/api/projects/{project_id}/workflows")
-    async def api_project_workflows(request: Request, project_id: str):
+    def api_project_workflows(request: Request, project_id: str):
         try:
             payload = project_query_service().get_workflow_bindings(
                 project_id,
@@ -749,7 +749,7 @@ def create_integrations_connectors_router(
         return payload.dump()
 
     @router.get("/api/workflows/{workflow_id}/linked-projects")
-    async def api_workflow_linked_projects(request: Request, workflow_id: str):
+    def api_workflow_linked_projects(request: Request, workflow_id: str):
         """The projects that link this workflow, in one read.
 
         The workflow pages used to read every project's bindings to find these.
@@ -789,7 +789,7 @@ def create_integrations_connectors_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/policy")
-    async def api_project_policy(request: Request, project_id: str):
+    def api_project_policy(request: Request, project_id: str):
         try:
             payload = project_query_service().get_policy(
                 project_id,

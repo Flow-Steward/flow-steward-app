@@ -66,7 +66,7 @@ def create_workflow_operator_router(
             }
         },
     )
-    async def api_project_workflow_catalog(
+    def api_project_workflow_catalog(
         request: Request,
         project_id: Annotated[str, Path(description="Provisioned project identifier.")],
         enabled_only: Annotated[
@@ -125,7 +125,7 @@ def create_workflow_operator_router(
             }
         },
     )
-    async def api_project_workflow_entrypoints(
+    def api_project_workflow_entrypoints(
         request: Request,
         project_id: Annotated[str, Path(description="Provisioned project identifier.")],
         enabled_only: Annotated[
@@ -146,7 +146,7 @@ def create_workflow_operator_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/workflows/{workflow_id}/validate")
-    async def api_project_workflow_validate(request: Request, project_id: str, workflow_id: str):
+    def api_project_workflow_validate(request: Request, project_id: str, workflow_id: str):
         try:
             payload = workflow_operator_service().project_workflow_validate(
                 project_id,
@@ -201,7 +201,7 @@ def create_workflow_operator_router(
             }
         },
     )
-    async def api_project_workflow_contract(
+    def api_project_workflow_contract(
         request: Request,
         project_id: Annotated[str, Path(description="Provisioned project identifier.")],
         workflow_id: Annotated[
@@ -221,7 +221,7 @@ def create_workflow_operator_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/workflows/{workflow_id}/suggestions")
-    async def api_project_workflow_suggestions(request: Request, project_id: str, workflow_id: str):
+    def api_project_workflow_suggestions(request: Request, project_id: str, workflow_id: str):
         try:
             payload = workflow_operator_service().project_workflow_suggestions(
                 project_id,
@@ -235,7 +235,7 @@ def create_workflow_operator_router(
         return payload.dump()
 
     @router.get("/api/workflows/{workflow_id}/validate")
-    async def api_workflow_validate(request: Request, workflow_id: str):
+    def api_workflow_validate(request: Request, workflow_id: str):
         try:
             scope = request_scope(request, workflow_id=workflow_id)
             require_workflow_access(scope, workflow_id)
@@ -252,7 +252,7 @@ def create_workflow_operator_router(
     # contract lookup is the project-scoped route above, which stays gated.
 
     @router.get("/api/workflows/{workflow_id}/suggestions")
-    async def api_workflow_suggestions(request: Request, workflow_id: str):
+    def api_workflow_suggestions(request: Request, workflow_id: str):
         try:
             scope = request_scope(request, workflow_id=workflow_id)
             require_workflow_access(scope, workflow_id)

@@ -21,7 +21,7 @@ def create_api_messages_router(
     router = APIRouter(tags=["api-messages"])
 
     @router.get("/api/messages/{message_id}")
-    async def api_message_detail(request: Request, message_id: str):
+    def api_message_detail(request: Request, message_id: str):
         """Return one AgentMessageV1 row by id."""
         try:
             payload = job_query_service().get_message_detail(

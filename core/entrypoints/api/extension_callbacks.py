@@ -345,7 +345,7 @@ def create_extension_callbacks_router(
         return None
 
     @router.get("/api/extensions/{extension_id}/callbacks")
-    async def list_extension_callbacks(request: Request, extension_id: str):
+    def list_extension_callbacks(request: Request, extension_id: str):
         bl = get_callback_store()
         if not bl:
             return _error(err_database_not_configured, 503)

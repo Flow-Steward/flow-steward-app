@@ -24,7 +24,7 @@ def create_project_history_router(
     router = APIRouter(tags=["project-history"])
 
     @router.get("/api/projects/{project_id}/history")
-    async def api_project_settings_history(
+    def api_project_settings_history(
         request: Request,
         project_id: str,
         limit: Annotated[int, Query(ge=1, le=500)] = 50,
@@ -42,7 +42,7 @@ def create_project_history_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/history/{revision_id}/diff")
-    async def api_project_settings_history_diff(
+    def api_project_settings_history_diff(
         request: Request,
         project_id: str,
         revision_id: str,

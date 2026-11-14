@@ -75,7 +75,7 @@ def register_secret_approval_routes(
         return SecretCatalogService(get_logger)
 
     @router.get("/api/projects/{project_id}/connections/{connection_id}/secret-approval")
-    async def api_connection_secret_approval(request: Request, project_id: str, connection_id: str):
+    def api_connection_secret_approval(request: Request, project_id: str, connection_id: str):
         if not _valid_project_id(project_id):
             return JSONResponse({"error": err_not_found}, status_code=404)
         try:
@@ -109,7 +109,7 @@ def register_secret_approval_routes(
             return api_error_response(e)
 
     @router.get("/api/projects/{project_id}/secret-approvals")
-    async def api_project_secret_approvals(
+    def api_project_secret_approvals(
         request: Request, project_id: str, extension_install_id: str = ""
     ):
         if not _valid_project_id(project_id):
@@ -127,7 +127,7 @@ def register_secret_approval_routes(
             return api_error_response(e)
 
     @router.get("/api/projects/{project_id}/workflow-secret-approvals")
-    async def api_project_workflow_secret_approvals(request: Request, project_id: str):
+    def api_project_workflow_secret_approvals(request: Request, project_id: str):
         """Linked workflows with secret inputs and their approval status (viewer and up)."""
         if not _valid_project_id(project_id):
             return JSONResponse({"error": err_not_found}, status_code=404)
@@ -161,7 +161,7 @@ def register_secret_approval_routes(
             return api_error_response(e)
 
     @router.get("/api/projects/{project_id}/workflows/{workflow_id}/secret-approval")
-    async def api_workflow_secret_approval(request: Request, project_id: str, workflow_id: str):
+    def api_workflow_secret_approval(request: Request, project_id: str, workflow_id: str):
         if not _valid_project_id(project_id):
             return JSONResponse({"error": err_not_found}, status_code=404)
         try:
@@ -279,7 +279,7 @@ def register_secret_approval_routes(
         return request_scope(request, project_id=project_id or None)
 
     @router.get("/api/secrets")
-    async def api_secrets_list(request: Request):
+    def api_secrets_list(request: Request):
         try:
             # A secret belongs to the installation: every project sees the same list.
             return {"secrets": _service().list_secrets(_catalog_scope(request))}
@@ -303,7 +303,7 @@ def register_secret_approval_routes(
             return api_error_response(e)
 
     @router.get("/api/secrets/{secret_id}")
-    async def api_secret_get(request: Request, secret_id: str):
+    def api_secret_get(request: Request, secret_id: str):
         try:
             return _service().get_secret(secret_id, _catalog_scope(request))
         except ServiceError as e:
@@ -332,7 +332,7 @@ def register_secret_approval_routes(
             return api_error_response(e)
 
     @router.get("/api/secrets/{secret_id}/delete-plan")
-    async def api_secret_delete_plan(request: Request, secret_id: str):
+    def api_secret_delete_plan(request: Request, secret_id: str):
         try:
             return _service().delete_plan(secret_id, _catalog_scope(request))
         except ServiceError as e:

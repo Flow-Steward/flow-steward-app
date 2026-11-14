@@ -24,7 +24,7 @@ router = APIRouter(tags=["workload"])
 
 
 @router.get("/api/workload")
-async def workload_signal(request: Request):
+def workload_signal(request: Request):
     """Return the current workload recommendation and underlying metrics.
 
     The ``active_jobs`` metric is scoped to the caller's account_id so
