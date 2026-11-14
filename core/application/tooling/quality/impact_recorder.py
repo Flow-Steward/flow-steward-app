@@ -60,8 +60,11 @@ class _ImpactRecorder:
         self.failed: set[str] = set()
         self.ran: set[str] = set()
         self.tool_id: int | None = None
-        # An xdist controller runs no tests; it only collects the reports.
-        if not (self.is_controller and config.getoption("numprocesses", default=None)):
+        # An xdist controller runs no tests; it only collects the reports, and
+        # each of its workers writes one map shard.
+        processes = config.getoption("numprocesses", default=None) if self.is_controller else None
+        self.workers = processes if isinstance(processes, int) and processes > 0 else 0
+        if not self.workers:
             self.tool_id = self._start_monitoring()
             sys.addaudithook(self._audit)
 
@@ -194,8 +197,10 @@ class _ImpactRecorder:
             result = {
                 "exitstatus": int(exitstatus),
                 "failed": sorted(self.failed),
-                "recorded": self.tool_id is not None,
+                # A passive xdist controller records through its workers' shards.
+                "recorded": self.tool_id is not None or self.workers > 0,
                 "testscollected": session.testscollected,
+                "workers": self.workers,
             }
             _write_json(self.output / RESULT_FILE, result)
 
