@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
 
@@ -81,7 +82,14 @@ class _ObservedRunner:
         self.require_reuse = require_reuse
         self.calls = 0
 
-    def run(self, check: CheckDefinition, *, timeout_seconds: int) -> int:
+    def run(
+        self,
+        check: CheckDefinition,
+        *,
+        timeout_seconds: int,
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int:
+        del extra_env  # The smoke regression has no test selection.
         self.calls += 1
         if self.require_reuse:
             print("Consumer cache miss: refusing to execute an unexpected regression.", flush=True)

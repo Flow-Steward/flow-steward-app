@@ -36,7 +36,7 @@ class RecordingRunner:
         self.calls: list[str] = []
         self.results = results or {}
 
-    def run(self, check, *, timeout_seconds: int) -> int:
+    def run(self, check, *, timeout_seconds: int, extra_env=None) -> int:
         self.calls.append(check.id)
         return self.results.get(check.id, 0)
 

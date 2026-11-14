@@ -1,0 +1,89 @@
+name: Actions storage cleanup
+run-name: Actions storage cleanup · ${{ github.event_name }}
+
+# Keeps the repository's Actions cache and artifact storage small. Cache storage
+# above the 10 GB repository limit is evicted rather than billed unless that limit
+# is raised; this keeps the working set under it so eviction never removes the
+# caches the next gate needs, and drops multi-GB release archives once a release
+# can no longer be retried from them. Push to the cleanup ref to run it at once.
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: ['claude/actions-storage-cleanup']
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: actions-storage-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.repository == 'Flow-Steward/flow-steward-app'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Delete stale caches and expired release archives
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
+        env:
+          CACHE_BUDGET_BYTES: '7516192768' # 7 GiB, under the 10 GB repository limit
+          BRANCH_CACHE_IDLE_DAYS: '2'
+          MAIN_CACHE_IDLE_DAYS: '5'
+          ARCHIVE_MAX_AGE_DAYS: '3'
+        with:
+          script: |
+            const day = 24 * 60 * 60 * 1000;
+            const now = Date.now();
+            const repo = context.repo;
+            const idle = (cache) => (now - Date.parse(cache.last_accessed_at)) / day;
+            const branches = await github.paginate(github.rest.repos.listBranches, {...repo, per_page: 100});
+            const live = new Set(branches.map(branch => `refs/heads/${branch.name}`));
+            const caches = await github.paginate(github.rest.actions.getActionsCacheList, {...repo, per_page: 100});
+            const doomed = new Map();
+            for (const cache of caches) {
+              const main = cache.ref === 'refs/heads/main';
+              if (cache.ref.startsWith('refs/heads/') && !live.has(cache.ref)) {
+                doomed.set(cache.id, ['branch deleted', cache]);
+              } else if (idle(cache) > Number(main ? process.env.MAIN_CACHE_IDLE_DAYS : process.env.BRANCH_CACHE_IDLE_DAYS)) {
+                doomed.set(cache.id, ['idle', cache]);
+              }
+            }
+            // Over budget: drop the least recently used, branch caches before main.
+            const kept = caches.filter(cache => !doomed.has(cache.id)).sort((left, right) =>
+              (left.ref === 'refs/heads/main') - (right.ref === 'refs/heads/main') ||
+              Date.parse(left.last_accessed_at) - Date.parse(right.last_accessed_at));
+            let total = kept.reduce((sum, cache) => sum + cache.size_in_bytes, 0);
+            while (total > Number(process.env.CACHE_BUDGET_BYTES) && kept.length) {
+              const cache = kept.shift();
+              doomed.set(cache.id, ['over budget', cache]);
+              total -= cache.size_in_bytes;
+            }
+            let freed = 0;
+            for (const [id, [reason, cache]] of doomed) {
+              try {
+                await github.rest.actions.deleteActionsCacheById({...repo, cache_id: id});
+                freed += cache.size_in_bytes;
+                core.info(`cache ${cache.key} (${cache.ref}, ${reason})`);
+              } catch (error) {
+                core.warning(`cache ${id} not deleted: ${error.message}`);
+              }
+            }
+            const artifacts = await github.paginate(github.rest.actions.listArtifactsForRepo, {...repo, per_page: 100});
+            let archives = 0;
+            for (const artifact of artifacts) {
+              const old = (now - Date.parse(artifact.created_at)) / day > Number(process.env.ARCHIVE_MAX_AGE_DAYS);
+              if (!artifact.expired && old && artifact.name.startsWith('native-')) {
+                await github.rest.actions.deleteArtifact({...repo, artifact_id: artifact.id});
+                archives += artifact.size_in_bytes;
+                core.info(`artifact ${artifact.name} from run ${artifact.workflow_run?.id}`);
+              }
+            }
+            const gb = (bytes) => (bytes / 1e9).toFixed(2);
+            const summary = `Caches: deleted ${doomed.size} (${gb(freed)} GB), ${gb(total)} GB kept. ` +
+              `Release archives: ${gb(archives)} GB deleted.`;
+            core.info(summary);
+            await core.summary.addRaw(summary).write();

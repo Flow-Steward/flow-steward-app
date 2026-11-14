@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
+import shutil
 import subprocess
 import sys
 import threading
 import time
+from collections.abc import Mapping
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -33,8 +37,15 @@ from core.application.tooling.quality.evidence import (
 from core.application.tooling.quality.fingerprint import (
     FingerprintContext,
     FingerprintSource,
+    check_runtime_identity,
     committed_candidate_sha,
     fingerprint_check,
+)
+from core.application.tooling.quality.impact_map import ImpactMap, read_recorded_run
+from core.application.tooling.quality.impact_selection import (
+    SelectionInputs,
+    SelectionPlan,
+    plan_selection,
 )
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
@@ -45,6 +56,13 @@ EvidenceMode = Literal["off", "report", "reuse"]
 # container. Tier 3 stays serial: backend-tests reads the frontend shell that
 # frontend-tests publishes, and both suites are memory-heavy.
 DEFAULT_JOBS_BY_TIER: dict[int, int] = {1: 1, 2: 4, 3: 1}
+
+# The selected run's plan reaches the nested suite through this variable (ADR 0068).
+SELECTION_PLAN_ENV = "FS_QUALITY_TEST_SELECTION"
+IMPACT_DIRECTORY = "test-impact"
+# Disposable image IDs change on a rebuild of the same Dockerfile; the selection
+# base needs the same runtime, not the same container image instance.
+_VOLATILE_RUNTIME_KEYS = frozenset({"backend_services", "backend_audit_image"})
 
 
 class VerificationRequest(BaseModel):
@@ -61,10 +79,20 @@ class VerificationRequest(BaseModel):
     execution: Literal["orchestrator", "external"] = "orchestrator"
     jobs: int = Field(default=1, ge=1)
     shared_evidence_root: Path | None = None
+    # Only these check ids run; empty means every check the tier owns.
+    only_checks: tuple[str, ...] = ()
+    # The weekly backstop: selected suites run whole and rebuild their maps.
+    full_suite: bool = False
 
 
 class CheckRunner(Protocol):
-    def run(self, check: CheckDefinition, *, timeout_seconds: int) -> int: ...
+    def run(
+        self,
+        check: CheckDefinition,
+        *,
+        timeout_seconds: int,
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int: ...
 
 
 class SubprocessCheckRunner:
@@ -79,13 +107,21 @@ class SubprocessCheckRunner:
         self.capture_output = capture_output
         self._output_lock = threading.Lock()
 
-    def run(self, check: CheckDefinition, *, timeout_seconds: int) -> int:
+    def run(
+        self,
+        check: CheckDefinition,
+        *,
+        timeout_seconds: int,
+        extra_env: Mapping[str, str] | None = None,
+    ) -> int:
+        env = {**os.environ, **extra_env} if extra_env else None
         if not self.capture_output:
             result = subprocess.run(
                 check.command,
                 cwd=self.repository_root,
                 check=False,
                 timeout=timeout_seconds,
+                env=env,
             )
             return result.returncode
         try:
@@ -94,6 +130,7 @@ class SubprocessCheckRunner:
                 cwd=self.repository_root,
                 check=False,
                 timeout=timeout_seconds,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
             )
@@ -122,6 +159,7 @@ class VerificationSummary:
     would_reuse: tuple[str, ...]
     invalidated: dict[str, str] = field(default_factory=dict)
     blocked: dict[str, str] = field(default_factory=dict)
+    selected: dict[str, str] = field(default_factory=dict)
 
 
 _Outcome = tuple[EvidenceStatus, datetime, datetime, float]
@@ -155,6 +193,8 @@ class _TierRun:
         self.order = {check.id: index for index, check in enumerate(selected)}
         self.pending = list(selected)
         self.running: dict[Future[_Outcome], tuple[CheckDefinition, str]] = {}
+        self.plans: dict[str, SelectionPlan] = {}
+        self.selected: dict[str, str] = {}
         self.stop_scheduling = False
         self.known_status: dict[str, bool] = {}
         self.executed: list[str] = []
@@ -179,6 +219,7 @@ class _TierRun:
             would_reuse=tuple(self.would_reuse),
             invalidated=self.invalidated,
             blocked=self.blocked,
+            selected=self.selected,
         )
 
     def _schedule(self, pool: ThreadPoolExecutor) -> None:
@@ -241,12 +282,63 @@ class _TierRun:
             self.would_reuse.append(check.id)
         return fingerprint
 
+    def _plan(self, check: CheckDefinition) -> SelectionPlan | None:
+        """Narrow a selected Tier 3 suite to the tests its change reaches (ADR 0068)."""
+        if check.selection is None or not self.request.commit_sha:
+            return None
+        paths = _impact_paths(self.request.evidence_root, check.id)
+        shutil.rmtree(paths.run, ignore_errors=True)
+        try:
+            plan = plan_selection(
+                SelectionInputs(
+                    check=check,
+                    root=self.request.repository_root,
+                    head_sha=self.request.commit_sha,
+                    runtime_digest=self._runtime_digest(check),
+                    records=self.store.records(check.id),
+                    impact_map=ImpactMap.load(paths.map),
+                    trusted_ci_required=self.request.trust == "trusted_ci",
+                    forced_full=self.request.full_suite,
+                )
+            )
+        except (OSError, ValueError, SyntaxError, subprocess.SubprocessError) as exc:
+            # A selection that cannot be computed never narrows the suite.
+            plan = SelectionPlan(check_id=check.id, full=True, reason=f"selection failed: {exc}")
+        plan.dump(paths.plan)
+        self.plans[check.id] = plan
+        scope = "whole suite" if plan.full else f"{len(plan.modules)} test modules"
+        self.selected[check.id] = f"{scope}: {plan.reason}"
+        print(f"[verify] {check.id}: {scope} ({plan.reason})", flush=True)
+        return plan
+
+    def _runtime_digest(self, check: CheckDefinition) -> str:
+        identity = check_runtime_identity(check, self.context)
+        if (
+            any(key.endswith("_candidate") for key in identity)
+            or "unavailable" in identity.values()
+        ):
+            return ""
+        stable = {
+            key: value for key, value in identity.items() if key not in _VOLATILE_RUNTIME_KEYS
+        }
+        encoded = json.dumps({"check": check.id, **stable}, sort_keys=True).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
     def _execute(self, check: CheckDefinition) -> _Outcome:
         started_at = datetime.now(UTC)
         started = time.monotonic()
         status: EvidenceStatus = "incomplete"
+        plan = self._plan(check) if self.request.evidence_mode != "off" else None
         try:
-            exit_code = self.runner.run(check, timeout_seconds=self.request.timeout_seconds)
+            if plan is None:
+                exit_code = self.runner.run(check, timeout_seconds=self.request.timeout_seconds)
+            else:
+                plan_path = _impact_paths(self.request.evidence_root, check.id).plan
+                exit_code = self.runner.run(
+                    check,
+                    timeout_seconds=self.request.timeout_seconds,
+                    extra_env={SELECTION_PLAN_ENV: str(plan_path)},
+                )
             status = "passed" if exit_code == 0 else "failed"
         except (OSError, subprocess.SubprocessError):
             status = "infrastructure_failed"
@@ -269,25 +361,64 @@ class _TierRun:
                 status = "infrastructure_failed"
         self.executed.append(check.id)
         self.known_status[check.id] = status == "passed"
+        selection = self._selection_outcome(check, status)
         if self.request.evidence_mode != "off":
-            self.store.write(
-                EvidenceRecord(
-                    check_id=check.id,
-                    owner_tier=check.owner_tier,
-                    fingerprint=fingerprint,
-                    status=status,
-                    trust=self.request.trust,
-                    commit_sha=self.request.commit_sha,
-                    command=check.command,
-                    started_at=started_at,
-                    completed_at=completed_at,
-                    duration_seconds=duration_seconds,
-                )
+            record = EvidenceRecord(
+                check_id=check.id,
+                owner_tier=check.owner_tier,
+                fingerprint=fingerprint,
+                status=status,
+                trust=self.request.trust,
+                commit_sha=self.request.commit_sha,
+                command=check.command,
+                started_at=started_at,
+                completed_at=completed_at,
+                duration_seconds=duration_seconds,
             )
+            if selection:
+                record = EvidenceRecord.model_validate({**record.model_dump(), **selection})
+            self.store.write(record)
         # Tier 3 runs every check to the end so one run reports the whole batch of
         # failures; a check whose prerequisite failed is still blocked above.
         if status != "passed" and self.request.tier != 3:
             self.stop_scheduling = True
+
+    def _selection_outcome(
+        self, check: CheckDefinition, status: EvidenceStatus
+    ) -> dict[str, object]:
+        """Evidence fields of a selected suite, and its refreshed impact map."""
+        plan = self.plans.get(check.id)
+        if plan is None:
+            return {}
+        paths = _impact_paths(self.request.evidence_root, check.id)
+        run = read_recorded_run(paths.run)
+        pytest_impact = check.selection is not None and check.selection.kind == "pytest-impact"
+        if run.complete and pytest_impact:
+            previous = ImpactMap.load(paths.map) or ImpactMap()
+            previous.updated(run, commit=self.request.commit_sha, full=plan.full).dump(paths.map)
+        outcome: dict[str, object] = {
+            "runtime_digest": self._runtime_digest(check),
+            "selection_base_sha": "" if plan.full else plan.base_sha,
+            "selected_modules": None if plan.full else len(plan.modules),
+        }
+        if status == "failed" and run.usable_failures:
+            outcome["failed_modules"] = run.failed
+        return outcome
+
+
+@dataclass(frozen=True)
+class _ImpactPaths:
+    plan: Path
+    run: Path
+    map: Path
+
+
+def _impact_paths(evidence_root: Path, check_id: str) -> _ImpactPaths:
+    # Beside the evidence (logs/quality/test-impact in a checkout), never in the tree.
+    directory = evidence_root.parent / IMPACT_DIRECTORY / check_id
+    return _ImpactPaths(
+        plan=directory / "plan.json", run=directory / "run", map=directory / "map.json"
+    )
 
 
 def verify(
@@ -309,7 +440,9 @@ def verify(
     selected = tuple(
         check
         for check in registry.checks
-        if check.owner_tier == request.tier and check.execution == request.execution
+        if check.owner_tier == request.tier
+        and check.execution == request.execution
+        and (not request.only_checks or check.id in request.only_checks)
     )
     return _TierRun(request, selected, runner).run()
 
@@ -332,6 +465,17 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=0,
         help="Checks run at once; 0 picks the tier default (Tier 2 runs 4, others 1).",
+    )
+    parser.add_argument(
+        "--check",
+        action="append",
+        default=[],
+        help="Run only this check id of the tier (repeatable); a parallel Tier 3 job uses it.",
+    )
+    parser.add_argument(
+        "--full-suite",
+        action="store_true",
+        help="Run selected Tier 3 suites whole and rebuild their impact maps (ADR 0068).",
     )
     args = parser.parse_args(argv)
     if args.trust == "trusted_ci" and not (
@@ -356,6 +500,8 @@ def main(argv: list[str] | None = None) -> int:
             execution=args.execution,
             jobs=jobs,
             shared_evidence_root=shared_evidence_root(),
+            only_checks=tuple(args.check),
+            full_suite=args.full_suite,
         ),
         registry=load_check_registry(repository_root / "infra/tooling/quality/check-registry.json"),
         runner=SubprocessCheckRunner(repository_root, capture_output=jobs > 1),

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+
+from core.application.tooling.quality import verify as verify_module
 from core.application.tooling.quality.check_registry import (
     CheckDefinition,
     CheckRegistry,
@@ -17,17 +19,15 @@ from core.application.tooling.quality.evidence import (
     EvidenceRecord,
     EvidenceStore,
 )
+from core.application.tooling.quality.fingerprint import (
+    FingerprintContext,
+    fingerprint_check,
+)
 from core.application.tooling.quality.verify import (
     SubprocessCheckRunner,
     VerificationRequest,
     main,
     verify,
-)
-
-from core.application.tooling.quality import verify as verify_module
-from core.application.tooling.quality.fingerprint import (
-    FingerprintContext,
-    fingerprint_check,
 )
 
 
@@ -36,7 +36,7 @@ class FakeCheckRunner:
         self.results = results
         self.calls: list[str] = []
 
-    def run(self, check: CheckDefinition, *, timeout_seconds: int) -> int:
+    def run(self, check: CheckDefinition, *, timeout_seconds: int, extra_env=None) -> int:
         del timeout_seconds
         self.calls.append(check.id)
         return self.results[check.id]
@@ -479,7 +479,7 @@ class TimelineRunner:
         self._meet = meet
         self._barrier = threading.Barrier(len(meet), timeout=10) if meet else None
 
-    def run(self, check: CheckDefinition, *, timeout_seconds: int) -> int:
+    def run(self, check: CheckDefinition, *, timeout_seconds: int, extra_env=None) -> int:
         del timeout_seconds
         with self._lock:
             self.events.append(f"start:{check.id}")

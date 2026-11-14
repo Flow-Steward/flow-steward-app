@@ -32,6 +32,12 @@ _GATE_INPUTS = (
     "core/application/tooling/quality/runtime_receipt.py",
     "core/application/tooling/quality/evidence.py",
     "core/application/tooling/quality/verify.py",
+    # Tier 3 impacted-test selection (ADR 0068) decides what a suite runs.
+    "core/application/tooling/quality/impact_recorder.py",
+    "core/application/tooling/quality/impact_map.py",
+    "core/application/tooling/quality/impact_selection.py",
+    "core/application/tooling/quality/impact_plan_filter.py",
+    "core/application/tooling/quality/impact_vitest_result.py",
     "core/entrypoints/cli/scripts/lint.sh",
     "core/entrypoints/cli/scripts/run-core-only-tests.sh",
     # The audit image pins the tool versions. Evidence reused across commits
@@ -109,6 +115,14 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
         _feed(digest, f"gate:{path.as_posix()}", content)
     for path, content in context.iter_matching_content(check.inputs, exclude=check.input_excludes):
         _feed(digest, path.as_posix(), content if check.input_mode == "content" else b"")
+    runtime_identity = check_runtime_identity(check, context)
+    for key, value in sorted(runtime_identity.items()):
+        _feed(digest, f"runtime:{key}", value.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def check_runtime_identity(check: CheckDefinition, context: FingerprintContext) -> dict[str, str]:
+    """Secret-free identity of the runtime a check executes in."""
     runtime_identity = dict(context.runtime_identity)
     if check.id in {"backend-tests", "backend-frontend-contracts"}:
         runtime_identity.update(backend_runtime_identity(context.commit_sha))
@@ -191,9 +205,7 @@ def fingerprint_check(check: CheckDefinition, context: FingerprintContext) -> st
                 if installed.is_file()
                 else "unavailable"
             )
-    for key, value in sorted(runtime_identity.items()):
-        _feed(digest, f"runtime:{key}", value.encode("utf-8"))
-    return digest.hexdigest()
+    return runtime_identity
 
 
 def _feed(hasher: _Hash, label: str, value: bytes) -> None:
@@ -203,6 +215,14 @@ def _feed(hasher: _Hash, label: str, value: bytes) -> None:
     update(encoded_label)
     update(len(value).to_bytes(8, "big"))
     update(value)
+
+
+GATE_INPUTS = _GATE_INPUTS
+
+
+def matches_any_pattern(path: str, patterns: tuple[str, ...]) -> bool:
+    """Whether a repository-relative path matches one of the quality input patterns."""
+    return _matches_any_pattern(path, _validated_patterns(patterns))
 
 
 def _validated_patterns(patterns: tuple[str, ...]) -> tuple[str, ...]:

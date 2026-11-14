@@ -9,6 +9,18 @@ from typing import Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class TestSelection(BaseModel):
+    """How a Tier 3 suite narrows itself to the tests a change reaches (ADR 0068)."""
+
+    __test__ = False  # A pydantic model, not a pytest test class.
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    kind: Literal["pytest-impact", "vitest-related"]
+    # A change to any of these runs the whole suite: the selection cannot see
+    # what they influence (dependencies, schema, runner configuration).
+    full_run_paths: tuple[str, ...] = ()
+
+
 class CheckDefinition(BaseModel):
     """One independently fingerprintable quality check."""
 
@@ -32,6 +44,7 @@ class CheckDefinition(BaseModel):
     # checks whose `inputs` name every file the tool reads, so the fingerprint is
     # the whole proof; a later commit that leaves them untouched skips the run.
     reuse_scope: Literal["commit", "inputs"] = "commit"
+    selection: TestSelection | None = None
 
     @model_validator(mode="after")
     def validate_repetition(self) -> Self:
