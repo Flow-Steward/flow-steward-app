@@ -238,6 +238,45 @@ def test_host_probe_rejects_untrusted_certificate(tmp_path, tls_context):
         assert requests == []
 
 
+def test_probe_deadline_bounds_the_network_probe_not_reading_its_request(monkeypatch, capsys):
+    """A slow writer of the ~0.3 MB CA bundle must not use up the network deadline.
+
+    A loaded test worker fed the bundle slowly and the probe reported its
+    wall-clock deadline instead of the certificate it was checking.
+    """
+    events: list[object] = []
+    request = {
+        "url": "https://flow.example.test/health",
+        "authority": "flow.example.test",
+        "dial_host": "127.0.0.1",
+        "dial_port": 443,
+        "server_hostname": None,
+        "ca_certificates": None,
+    }
+
+    class Stdin:
+        def read(self, _limit):
+            events.append("read")
+            return json.dumps(request)
+
+    def probe(data, context):
+        events.append("probe")
+        assert data == request and context is None
+        return {"status": 200, "body": ""}
+
+    monkeypatch.setattr(sys, "stdin", Stdin())
+    monkeypatch.setattr(public_probe.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(
+        public_probe.signal, "alarm", lambda seconds: events.append(("alarm", seconds))
+    )
+    monkeypatch.setattr(public_probe, "_probe_once", probe)
+
+    public_probe.main()
+
+    assert events == ["read", ("alarm", 15), "probe", ("alarm", 0)]
+    assert json.loads(capsys.readouterr().out) == {"status": 200, "body": ""}
+
+
 def test_host_probe_keeps_http_failure_visible_to_doctor(tmp_path):
     with listening_server(status=503) as (port, _requests):
         gateway = host_gateway(tmp_path)
