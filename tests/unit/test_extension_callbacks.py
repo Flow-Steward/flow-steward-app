@@ -2246,7 +2246,7 @@ def test_raw_body_hmac_callback_rejects_invalid_verification_query(monkeypatch, 
     }
     if invalid.startswith("missing-"):
         params.pop(name[invalid.removeprefix("missing-")])
-    elif invalid.startswith("duplicate-"):
+    elif invalid in {"duplicate-token", "duplicate-challenge", "duplicate-mode"}:
         field = name[invalid.removeprefix("duplicate-")]
         params[field] = [params[field], params[field]]
     elif invalid == "wrong-token":
