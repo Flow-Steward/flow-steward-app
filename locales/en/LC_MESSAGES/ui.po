@@ -5815,6 +5815,9 @@ msgstr "Open the current workflow"
 msgid "react.jobs.open_the_run_behind_this_step"
 msgstr "Open the run behind this step"
 
+msgid "react.jobs.open_the_run_behind_this_step_titled"
+msgstr "Open the run behind this step: {title}"
+
 msgid "react.jobs.operation_kind"
 msgstr "operation kind"
 
@@ -5879,6 +5882,9 @@ msgstr ""
 
 msgid "react.jobs.review_workspace"
 msgstr "Review workspace"
+
+msgid "react.jobs.run_of_workflow"
+msgstr "A run of {workflow}."
 
 msgid "react.jobs.run_overview"
 msgstr "Run overview"
@@ -14116,6 +14122,39 @@ msgstr "Run in progress"
 
 msgid "react.workflows.run_bar_live_stopped"
 msgstr "Run stopped"
+
+msgid "react.workflows.run_title"
+msgstr "Run title"
+
+msgid "react.workflows.run_title_help"
+msgstr "Names each run in Jobs from its inputs, so runs of this workflow can be told apart. A schedule's or webhook's name comes first. Secret inputs are never shown."
+
+msgid "react.workflows.run_title_inputs"
+msgstr "Inputs: {names}."
+
+msgid "react.workflows.run_title_placeholder_invalid"
+msgstr "{placeholder} is not an input; write {example}."
+
+msgid "react.workflows.run_title_secret_input"
+msgstr "The run title cannot show the secret input {name}."
+
+msgid "react.workflows.run_title_too_long"
+msgstr "The run title is longer than {max} characters."
+
+msgid "react.workflows.run_title_unknown_input"
+msgstr "{name} is not a declared input."
+
+msgid "react.workflows.schedule_name"
+msgstr "Name"
+
+msgid "react.workflows.schedule_name_help"
+msgstr "Jobs this schedule starts are titled with this name."
+
+msgid "react.workflows.schedule_name_placeholder"
+msgstr "Supplier A daily import"
+
+msgid "react.workflows.schedule_name_required"
+msgstr "Give the schedule a name, so its runs can be told apart."
 
 msgid "react.workflows.snapshot_mode"
 msgstr "Comparison purpose"

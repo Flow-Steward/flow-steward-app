@@ -5751,6 +5751,9 @@ msgstr ""
 msgid "react.jobs.open_the_run_behind_this_step"
 msgstr ""
 
+msgid "react.jobs.open_the_run_behind_this_step_titled"
+msgstr ""
+
 msgid "react.jobs.operation_kind"
 msgstr ""
 
@@ -5815,6 +5818,9 @@ msgid "react.jobs.review_job_status_filter_active_runs_and_jump_straight_into_th
 msgstr ""
 
 msgid "react.jobs.review_workspace"
+msgstr ""
+
+msgid "react.jobs.run_of_workflow"
 msgstr ""
 
 msgid "react.jobs.run_overview"
@@ -16472,6 +16478,39 @@ msgid "react.workflows.run_bar_live_running"
 msgstr ""
 
 msgid "react.workflows.run_bar_live_stopped"
+msgstr ""
+
+msgid "react.workflows.run_title"
+msgstr ""
+
+msgid "react.workflows.run_title_help"
+msgstr ""
+
+msgid "react.workflows.run_title_inputs"
+msgstr ""
+
+msgid "react.workflows.run_title_placeholder_invalid"
+msgstr ""
+
+msgid "react.workflows.run_title_secret_input"
+msgstr ""
+
+msgid "react.workflows.run_title_too_long"
+msgstr ""
+
+msgid "react.workflows.run_title_unknown_input"
+msgstr ""
+
+msgid "react.workflows.schedule_name"
+msgstr ""
+
+msgid "react.workflows.schedule_name_help"
+msgstr ""
+
+msgid "react.workflows.schedule_name_placeholder"
+msgstr ""
+
+msgid "react.workflows.schedule_name_required"
 msgstr ""
 
 msgid "react.workflows.step_saved_with_connection_repair"

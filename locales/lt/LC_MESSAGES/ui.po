@@ -5909,6 +5909,9 @@ msgstr "Atidaryti dabartinę darbo eigą"
 msgid "react.jobs.open_the_run_behind_this_step"
 msgstr "Atidaryti šio žingsnio vykdymą"
 
+msgid "react.jobs.open_the_run_behind_this_step_titled"
+msgstr "Atidaryti šio žingsnio vykdymą: {title}"
+
 msgid "react.jobs.operation_kind"
 msgstr "operacijos rūšis"
 
@@ -5973,6 +5976,9 @@ msgstr ""
 
 msgid "react.jobs.review_workspace"
 msgstr "Peržiūros darbo sritis"
+
+msgid "react.jobs.run_of_workflow"
+msgstr "Darbo eigos {workflow} vykdymas."
 
 msgid "react.jobs.run_overview"
 msgstr "Vykdymo apžvalga"
@@ -14314,6 +14320,39 @@ msgstr "Vyksta vykdymas"
 
 msgid "react.workflows.run_bar_live_stopped"
 msgstr "Vykdymas sustabdytas"
+
+msgid "react.workflows.run_title"
+msgstr "Vykdymo pavadinimas"
+
+msgid "react.workflows.run_title_help"
+msgstr "Pavadina kiekvieną vykdymą užduočių sąraše pagal jo įvestis, kad šios darbo eigos vykdymus būtų galima atskirti. Pirmiausia rodomas tvarkaraščio ar webhook pavadinimas. Slaptos įvestys niekada nerodomos."
+
+msgid "react.workflows.run_title_inputs"
+msgstr "Įvestys: {names}."
+
+msgid "react.workflows.run_title_placeholder_invalid"
+msgstr "{placeholder} nėra įvestis; rašykite {example}."
+
+msgid "react.workflows.run_title_secret_input"
+msgstr "Vykdymo pavadinime negalima rodyti slaptos įvesties {name}."
+
+msgid "react.workflows.run_title_too_long"
+msgstr "Vykdymo pavadinimas ilgesnis nei {max} simbolių."
+
+msgid "react.workflows.run_title_unknown_input"
+msgstr "{name} nėra deklaruota įvestis."
+
+msgid "react.workflows.schedule_name"
+msgstr "Pavadinimas"
+
+msgid "react.workflows.schedule_name_help"
+msgstr "Šio tvarkaraščio paleistos užduotys pavadinamos šiuo pavadinimu."
+
+msgid "react.workflows.schedule_name_placeholder"
+msgstr "Tiekėjo A kasdienis importas"
+
+msgid "react.workflows.schedule_name_required"
+msgstr "Suteikite tvarkaraščiui pavadinimą, kad jo vykdymus būtų galima atskirti."
 
 msgid "react.workflows.snapshot_mode"
 msgstr "Palyginimo paskirtis"
