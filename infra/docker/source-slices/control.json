@@ -47,6 +47,7 @@
     "core/application/extensions/artifact_storage.py",
     "core/application/extensions/browser_assets.py",
     "core/application/extensions/browser_authority_approval.py",
+    "core/application/extensions/callback_protocol.py",
     "core/application/extensions/compiled_manifest_policies.py",
     "core/application/extensions/compiled_manifest_validation.py",
     "core/application/extensions/composite_actions.py",
@@ -704,6 +705,10 @@
     },
     {
       "path": "db/migrations/20261114160000_workflow_wait_events.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

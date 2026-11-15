@@ -127,6 +127,7 @@
     "core/application/extensions/browser_authority_status.py",
     "core/application/extensions/browser_manifest_projection.py",
     "core/application/extensions/callback_contract.py",
+    "core/application/extensions/callback_protocol.py",
     "core/application/extensions/callback_registration.py",
     "core/application/extensions/callbacks.py",
     "core/application/extensions/command_context.py",
@@ -1545,6 +1546,7 @@
     "core/infrastructure/monitoring/runs_storage.py",
     "core/infrastructure/monitoring/system_diagnostics.py",
     "core/infrastructure/monitoring/system_storage.py",
+    "core/infrastructure/observability/callback_access_redaction.py",
     "core/infrastructure/observability/exception_logging.py",
     "core/infrastructure/observability/logger_runtime.py",
     "core/infrastructure/observability/observability_metrics.py",
@@ -1797,6 +1799,10 @@
     },
     {
       "path": "db/migrations/20261114160000_workflow_wait_events.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {
