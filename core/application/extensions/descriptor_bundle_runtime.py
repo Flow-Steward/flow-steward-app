@@ -17,7 +17,7 @@ from .service_support import _normalize_text
 _RUNTIME_DESCRIPTOR_FIELD_NAMES = (
     "manifest_version kind display_name description features "
     "entrypoint healthcheck required_scopes supported_events "
-    "supported_url_schemes event_subscriptions schemas query_definitions action_definitions "
+    "supported_url_schemes event_subscriptions schemas ui_manifest query_definitions action_definitions "
     "machine_auth account_scope callbacks operation_manifest connection_types workflow_triggers "
     "external_effects artifact_policies project_state"
 )

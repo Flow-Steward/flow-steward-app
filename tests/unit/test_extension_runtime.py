@@ -152,6 +152,60 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
     }
 
 
+def test_descriptor_enrichment_preserves_oauth_return_page_ownership(tmp_path) -> None:
+    import yaml
+
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
+    from core.application.extensions.oauth_authorization import OAuthAuthorizationService
+    from core.application.extensions.oauth_contract import declared_ui_page_ids
+
+    bundle = tmp_path / "acme_provider"
+    _write_minimal_extension(bundle, extension_id="acme.provider")
+    ui = {
+        "version": "1",
+        "pages": [
+            {
+                "page_id": "setup",
+                "title": "Setup",
+                "components": [
+                    {
+                        "component_id": "account",
+                        "type": "connection_form",
+                        "data": {
+                            "oauth_provider_id": "example",
+                            "connection_type": "example_account",
+                            "oauth_intent": "connect",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    (bundle / "ui/ui_manifest.yaml").write_text(yaml.safe_dump(ui))
+
+    descriptor, errors = descriptor_with_bundle_runtime(
+        descriptor_path=bundle / "extension-descriptor.yaml",
+        normalized_descriptor={"extension_id": "acme.provider", "release_version": "1.0.0"},
+    )
+
+    assert errors == [], errors
+    assert "setup" in declared_ui_page_ids(descriptor)
+    assert OAuthAuthorizationService._return_page_owns_intent(
+        descriptor,
+        page_id="setup",
+        provider_id="example",
+        connection_type="example_account",
+        intent_id="connect",
+    )
+    assert not OAuthAuthorizationService._return_page_owns_intent(
+        descriptor,
+        page_id="setup",
+        provider_id="example",
+        connection_type="example_account",
+        intent_id="other",
+    )
+
+
 @pytest.mark.parametrize(
     ("extension_id", "version", "expected_code"),
     [
