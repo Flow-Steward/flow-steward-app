@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import pytest
 
 from core.application.jobs.workflow_event_wait_repository import (
     EventWaitCandidate,
+    WorkflowEventWaitRepository,
     match_events_to_waits,
 )
 from core.application.jobs.workflow_wait_contract import WAIT_EVENT_PAYLOAD_MAX_BYTES
@@ -207,3 +210,54 @@ def test_one_event_wakes_one_wait_and_a_wait_takes_one_event() -> None:
     matched = match_events_to_waits(candidates)
 
     assert [(m.event_id, m.job_id) for m in matched] == [("e1", "job-a"), ("e2", "job-b")]
+
+
+class _ClaimCursor:
+    """Returns one stored event paired with a parked job; records the writes."""
+
+    def __init__(self, received_at: object) -> None:
+        self.received_at = received_at
+        self.calls: list[tuple[str, tuple]] = []
+
+    def __enter__(self) -> _ClaimCursor:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
+
+    def execute(self, sql: str, params: tuple = ()) -> None:
+        self.calls.append((sql, params))
+
+    def fetchall(self) -> list[tuple]:
+        wait = json.dumps({"wait_id": "w-1", "kind": "event"})
+        return [("e1", "job-1", "w-1", "done", "k", "{}", self.received_at, wait, 0)]
+
+    def fetchone(self) -> None:
+        return None  # the run left awaiting_event meanwhile: nothing is published
+
+
+def _claimed_received_at(received_at: object) -> str:
+    cursor = _ClaimCursor(received_at)
+    conn = SimpleNamespace(cursor=lambda: cursor, commit=lambda: None, rollback=lambda: None)
+    WorkflowEventWaitRepository(SimpleNamespace(conn=conn)).claim_delivered_events(limit=10)
+    update = next(params for sql, params in cursor.calls if "UPDATE jobs" in sql)
+    return json.loads(update[0])["resume_value"]["received_at"]
+
+
+@pytest.mark.parametrize(
+    ("received_at", "expected"),
+    [
+        (
+            datetime(2026, 11, 15, 9, 20, 45, 56343, tzinfo=UTC),
+            "2026-11-15T09:20:45.056343+00:00",
+        ),
+        (
+            datetime(2026, 11, 15, 11, 20, 45, tzinfo=timezone(timedelta(hours=2))),
+            "2026-11-15T09:20:45+00:00",
+        ),
+    ],
+    ids=["utc", "session-time-zone"],
+)
+def test_the_event_received_time_is_iso_8601_utc(received_at, expected) -> None:
+    # PostgreSQL text ('2026-11-15 09:20:45.056343+00') is not what the run shows.
+    assert _claimed_received_at(received_at) == expected

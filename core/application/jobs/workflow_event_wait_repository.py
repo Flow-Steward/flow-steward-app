@@ -80,11 +80,19 @@ def _candidate(values: list[Any]) -> EventWaitCandidate:
             "event_type": event_type,
             "correlation_key": key,
             "payload": _json_object(payload),
-            "received_at": received_at,
+            "received_at": _iso_utc(received_at),
         },
         wait=_json_object(wait),
         revision=int(revision or 0),
     )
+
+
+def _iso_utc(value: Any) -> str:
+    """ISO 8601 UTC, like every other run timestamp (never PostgreSQL text)."""
+    if isinstance(value, datetime):
+        moment = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return moment.astimezone(UTC).isoformat()
+    return str(value or "")
 
 
 def _json_object(value: Any) -> dict[str, Any]:
@@ -157,7 +165,7 @@ class WorkflowEventWaitRepository(WorkflowResumeRepositoryAdapter):
                 cur.execute(
                     """
                     SELECT e.id, j.id, j.meta->'workflow_wait'->>'wait_id',
-                           e.event_type, e.correlation_key, e.payload, e.received_at::text,
+                           e.event_type, e.correlation_key, e.payload, e.received_at,
                            j.meta->'workflow_wait',
                            COALESCE((j.meta->'workflow_resume'->>'revision')::int, 0)
                       FROM workflow_wait_events e

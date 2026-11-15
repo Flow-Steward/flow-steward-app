@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import threading
 import uuid
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -143,6 +144,9 @@ def test_a_delivered_event_wakes_its_wait_with_the_payload(connect):
     assert intent["resume_value"]["event_type"] == "run_completed"
     assert intent["resume_value"]["correlation_key"] == "run-42"
     assert intent["resume_value"]["payload"] == {"rows": 120}
+    received_at = datetime.fromisoformat(intent["resume_value"]["received_at"])
+    assert received_at.utcoffset() == timedelta(0)
+    assert "T" in intent["resume_value"]["received_at"]
     # Claimed once: a second pass finds nothing.
     assert _repository(conn).claim_delivered_events(limit=100) == []
 
