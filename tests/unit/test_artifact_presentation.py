@@ -511,7 +511,7 @@ def test_local_failed_publication_leaves_no_final_key_or_temporary_file(tmp_path
 def test_unauthorized_production_readers_never_read_presentation_sidecar(tmp_path, monkeypatch):
     from core.application.jobs.workflow_run_projection import _safe_artifact
     from core.application.management.errors import ServiceNotFoundError
-    from core.application.reports.ui_projection_helpers import _artifact_descriptors
+    from core.application.reports.ui_projection_artifacts import _artifact_descriptors
 
     plane, storage, prepared, _, receipt, invocation = _prepared(tmp_path, monkeypatch)
     assert (

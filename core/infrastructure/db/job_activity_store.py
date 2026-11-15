@@ -15,6 +15,7 @@ def get_active_jobs(*, conn) -> list[dict]:
                 p.name AS project_name,
                 j.task_id,
                 j.task_summary,
+                j.meta ->> 'run_title' AS run_title,
                 j.status,
                 j.started_at,
                 j.queued_at,
@@ -30,7 +31,7 @@ def get_active_jobs(*, conn) -> list[dict]:
             JOIN projects p ON p.id = j.project_id
             WHERE j.status IN (
                 'pending', 'resume_pending', 'in_progress',
-                'awaiting_approval', 'awaiting_timer', 'awaiting_child'
+                'awaiting_approval', 'awaiting_timer', 'awaiting_child', 'awaiting_event'
             )
             ORDER BY
                 j.heartbeat_at DESC NULLS LAST,

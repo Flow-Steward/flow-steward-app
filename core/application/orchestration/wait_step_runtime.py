@@ -9,7 +9,9 @@ dispatcher resumes it with ``{reason: "timer", wait_id, timer_elapsed: true}``
 once the deadline has passed. A zero wait completes without pausing.
 
 An authored Approval records its ``pending_wait`` the same way (kind
-``approval``) so every durable pause has one shape in the checkpoint.
+``approval``) so every durable pause has one shape in the checkpoint. A Wait
+with ``event`` waits for an extension's event instead (kind ``event``, see
+``wait_event_runtime``).
 """
 
 from __future__ import annotations
@@ -25,6 +27,7 @@ from core.application.jobs.workflow_wait_projection import (
     PENDING_WAIT_KEY,
     WAIT_KIND_APPROVAL,
     WAIT_KIND_CHILD,
+    WAIT_KIND_EVENT,
     WAIT_KIND_TIMER,
     pending_wait_for,
 )
@@ -152,10 +155,11 @@ def _result_message(
 ) -> dict[str, Any]:
     from core.application.orchestration.active_step import step_message_fields
     from core.application.orchestration.agent_messages import build_agent_message
+    from core.application.orchestration.agents.common import publish_agent_message
     from core.application.orchestration.step_hub_support import HUB_NODE, WAIT_NODE
 
     timestamp = datetime.now(UTC).isoformat()
-    return build_agent_message(
+    message = build_agent_message(
         from_agent=WAIT_NODE,
         to_agent=HUB_NODE,
         skill="wait",
@@ -170,6 +174,8 @@ def _result_message(
             "duration_ms": pending.get("duration_ms"),
             "started_at": pending.get("started_at"),
             "due_at": pending.get("due_at"),
+            "summary_key": "react.jobs.step_wait_finished",
+            "summary_params": {"due_at": str(pending.get("due_at") or "")},
             "_outcome": {"name": "success"},
         },
         summary=f"Wait step '{current.step_id}' finished",
@@ -179,10 +185,23 @@ def _result_message(
         published_at=timestamp,
         **step_message_fields(state),
     )
+    # Persisted like every other step's result: the run view shows the Wait.
+    publish_agent_message(dict(state), message)
+    return message
+
+
+def wait_input_error_code(step: Mapping[str, Any]) -> str:
+    """The code of a Wait that cannot be entered: its key or its duration."""
+    from core.application.orchestration.wait_event_runtime import (
+        WAIT_CORRELATION_KEY_INVALID,
+        is_event_wait,
+    )
+
+    return WAIT_CORRELATION_KEY_INVALID if is_event_wait(step) else WAIT_DURATION_INVALID
 
 
 def wait_step_node(state: Mapping[str, Any]) -> dict[str, Any]:
-    """Pause until the recorded deadline; resume only on a valid timer wake."""
+    """Pause until the recorded deadline or event; resume only on a valid wake."""
     from langgraph.types import interrupt
 
     from core.application.orchestration.active_step import active_step
@@ -191,6 +210,10 @@ def wait_step_node(state: Mapping[str, Any]) -> dict[str, Any]:
     if current is None:
         return {}
     pending = pending_wait_for(state, current)
+    if pending is not None and pending.get("kind") == WAIT_KIND_EVENT:
+        from core.application.orchestration.wait_event_runtime import event_wait_update
+
+        return event_wait_update(state, current, pending)
     if pending is None or pending.get("kind") != WAIT_KIND_TIMER:
         # The hub records the wait before dispatch; without it there is no
         # deadline to honour, and the step returns no result (a contract failure).
@@ -217,6 +240,7 @@ __all__ = [
     "WAIT_DURATION_INVALID",
     "WAIT_KIND_APPROVAL",
     "WAIT_KIND_CHILD",
+    "WAIT_KIND_EVENT",
     "WAIT_KIND_TIMER",
     "approval_id_for_execution",
     "approval_pending_wait",
@@ -225,5 +249,6 @@ __all__ = [
     "resolve_wait_duration",
     "timer_pending_wait",
     "timer_wake_is_valid",
+    "wait_input_error_code",
     "wait_step_node",
 ]

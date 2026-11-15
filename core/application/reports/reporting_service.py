@@ -188,6 +188,11 @@ class ReportingService:
             return "No action is required: the run resumes by itself when its Wait step is due."
         if normalized == "awaiting_child":
             return "No action is required: the run resumes when its child workflow finishes."
+        if normalized == "awaiting_event":
+            return (
+                "No action is required: the run resumes when its event arrives or fails "
+                "when the Wait step times out."
+            )
         if normalized in {"pending", "resume_pending", "in_progress"}:
             return "Wait for the run to finish or open the live logs for more detail."
         if normalized == "completed":
@@ -440,6 +445,7 @@ class ReportingService:
             "awaiting_approval",
             "awaiting_timer",
             "awaiting_child",
+            "awaiting_event",
         }:
             summary_lines.append("Root cause: No explicit failure reason was recorded.")
         summary_text = "\n".join(summary_lines)

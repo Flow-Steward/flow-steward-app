@@ -72,8 +72,10 @@ def test_a_valid_declaration_passes():
     assert _codes(_manifest()) == []
 
 
-def test_the_host_speaks_contract_1_7_0():
-    assert DEFAULT_FS_RUNTIME_VERSION == "1.7.0"
+def test_the_host_speaks_contract_1_7_0_or_later():
+    from core.application.extensions.semver import compare_semver
+
+    assert compare_semver(DEFAULT_FS_RUNTIME_VERSION, "1.7.0", field_name="host") >= 0
 
 
 @pytest.mark.parametrize(

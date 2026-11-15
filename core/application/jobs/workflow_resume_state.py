@@ -17,13 +17,20 @@ WORKFLOW_RESUME_PUBLISH_LEASE_SECONDS = 60
 WORKFLOW_RESUME_MAX_ATTEMPTS = 3
 WORKFLOW_RESUME_RETRY_DELAY_SECONDS = 30
 
-# Why a paused run continues. One durable intent shape carries all three; only
-# an approval carries a human decision, timer and child wakes come from the
-# internal dispatcher.
+# Why a paused run continues. One durable intent shape carries all of them; only
+# an approval carries a human decision, timer, child and event wakes come from
+# the internal dispatcher.
 RESUME_REASON_APPROVAL = "approval"
 RESUME_REASON_TIMER = "timer"
 RESUME_REASON_CHILD = "child"
-RESUME_REASONS = frozenset({RESUME_REASON_APPROVAL, RESUME_REASON_TIMER, RESUME_REASON_CHILD})
+RESUME_REASON_EVENT = "event"
+RESUME_REASONS = frozenset(
+    {RESUME_REASON_APPROVAL, RESUME_REASON_TIMER, RESUME_REASON_CHILD, RESUME_REASON_EVENT}
+)
+#: Reasons the control process issues for a recorded wait; each names its ``wait_id``.
+RECORDED_WAIT_RESUME_REASONS = frozenset(
+    {RESUME_REASON_TIMER, RESUME_REASON_CHILD, RESUME_REASON_EVENT}
+)
 
 
 @dataclass(frozen=True)

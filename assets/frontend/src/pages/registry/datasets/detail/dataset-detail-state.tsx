@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { isInstallOwned } from "../dataset-ownership";
 import { projectedQueryConnector } from "./projected-query-connector";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -108,8 +110,8 @@ export function useDatasetDetailState() {
     resourceSearch, setResourceSearch, selectedResources, setSelectedResources,
     filteredResources, toggleResource, setAllColumns, toggleColumn, selectedResourceCount,
   } = useResourceSelection(schemaSnapshot);
-  const [projectSearch, setProjectSearch] = useState("");
-  const [projectFilter, setProjectFilter] = useState("all");
+  const [projectSearch, setProjectSearch] = useFilterState(`datasets/${datasetId}/projectSearch`, textFilterSchema, "");
+  const [projectFilter, setProjectFilter] = useFilterState(`datasets/${datasetId}/projectFilter`, textFilterSchema, "all");
   const [selectedProjectIdsDraft, setSelectedProjectIdsDraft] = useState<string[] | null>(null);
 
   const detailQuery = useQuery({
@@ -259,8 +261,6 @@ export function useDatasetDetailState() {
       setSelectedResources(scopeSelectionFromDataset(dataset));
       setResourceSearch("");
       setSelectedProjectIdsDraft(null);
-      setProjectSearch("");
-      setProjectFilter("all");
     }, 0);
     return () => globalThis.clearTimeout(handle);
   }, [dataset, setResourceSearch, setSelectedResources]);

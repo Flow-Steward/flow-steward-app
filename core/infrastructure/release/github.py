@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from http.client import HTTPSConnection
+from http.client import HTTPException, HTTPSConnection
+from time import monotonic
 from urllib.error import URLError
 from urllib.parse import urlsplit
 
@@ -14,6 +15,10 @@ GITHUB_API_VERSION = "2026-03-10"
 DEFAULT_HTTP_TIMEOUT_SECONDS = 10
 DEFAULT_MAX_RESPONSE_BYTES = 1024 * 1024
 GITHUB_API_ORIGIN = "https://api.github.com"
+# The shared transport times out each HTTPS request after ten seconds. Do not
+# start further page/tag requests after this budget: total discovery is bounded
+# by this budget plus the final in-flight request's transport timeout.
+DISCOVERY_START_BUDGET_SECONDS = 10
 
 
 class GitHubHTTPError(ReleaseDiscoveryError):
@@ -63,6 +68,24 @@ class GitHubJSONFetcher:
             ) from exc
         authorization = f"Bearer {token}" if token else None
         return fetch_json_url(url, authorization=authorization)
+
+
+def budgeted_public_fetcher(
+    start_budget_seconds: float = DISCOVERY_START_BUDGET_SECONDS,
+) -> Callable[[str], object]:
+    """Fetch public GitHub metadata without credentials within a start budget."""
+    deadline = monotonic() + start_budget_seconds
+    fetcher = GitHubJSONFetcher(token_loader=lambda: None)
+
+    def fetch(url: str) -> object:
+        if monotonic() >= deadline:
+            raise ReleaseDiscoveryError("Core release metadata check exceeded its time budget")
+        try:
+            return fetcher.fetch(url)
+        except HTTPException as exc:
+            raise ReleaseDiscoveryError("Core release metadata response is unavailable") from exc
+
+    return fetch
 
 
 def fetch_json_url(url: str, *, authorization: str | None = None) -> object:
@@ -182,4 +205,9 @@ def _http_get_bytes(url: str, *, authorization: str | None = None) -> tuple[int,
         connection.close()
 
 
-__all__ = ["GitHubHTTPError", "GitHubJSONFetcher", "fetch_json_url"]
+__all__ = [
+    "GitHubHTTPError",
+    "GitHubJSONFetcher",
+    "budgeted_public_fetcher",
+    "fetch_json_url",
+]

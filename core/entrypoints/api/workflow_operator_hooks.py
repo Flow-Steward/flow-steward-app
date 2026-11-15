@@ -166,9 +166,7 @@ def register_workflow_hook_routes(
             "Hooks with their project bindings.",
         ),
     )
-    async def api_workflow_hooks(
-        request: Request, project_id: _ProjectId, workflow_id: _WorkflowId
-    ):
+    def api_workflow_hooks(request: Request, project_id: _ProjectId, workflow_id: _WorkflowId):
         return _call(request, project_id, "hooks_list", workflow_id=workflow_id)
 
     @router.get(
@@ -179,7 +177,7 @@ def register_workflow_hook_routes(
         description="The hook's contract and its binding in the project.",
         responses=_json(_HOOK_EXAMPLE, "The hook and its project binding."),
     )
-    async def api_workflow_hook(
+    def api_workflow_hook(
         request: Request, project_id: _ProjectId, workflow_id: _WorkflowId, hook_id: _HookId
     ):
         return _call(request, project_id, "hook_get", workflow_id=workflow_id, hook_id=hook_id)
@@ -313,7 +311,7 @@ def register_workflow_hook_routes(
             "Consumers of the workflow.",
         ),
     )
-    async def api_workflow_where_used(
+    def api_workflow_where_used(
         request: Request,
         project_id: _ProjectId,
         workflow_id: _WorkflowId,

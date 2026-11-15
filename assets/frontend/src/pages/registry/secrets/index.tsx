@@ -1,4 +1,6 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import { useFilterState } from "@/lib/filters/use-filter-state";
+import { z } from "@/lib/validation/zod";
 import { formatUserDateTime } from "@/lib/time/user-timezone";
 import { useState } from "react";
 
@@ -39,6 +41,7 @@ import {
 type SecretFilters = { search: string; usage: string };
 
 const EMPTY_FILTERS: SecretFilters = { search: "", usage: "" };
+const secretFiltersSchema = z.object({ search: z.string(), usage: z.enum(["", "used", "unused"]) });
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : "";
@@ -117,7 +120,7 @@ function SecretRow({
 export function RegistrySecretsPage() {
   const { t } = useI18n();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<SecretFilters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useFilterState<SecretFilters>("secrets/filters", secretFiltersSchema, EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [menuFor, setMenuFor] = useState("");

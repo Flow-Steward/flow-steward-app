@@ -1,5 +1,14 @@
 name: Prepare hosted Docker quality gate
 description: Build the canonical audit toolchain with bounded remote caches
+inputs:
+  postgres:
+    description: Also build the PostgreSQL image; jobs that load the run's prebuilt image pass 'false'
+    required: false
+    default: 'true'
+  cache-to:
+    description: Write the audit image layers back to the Actions cache; one job per run is enough
+    required: false
+    default: 'true'
 runs:
   using: composite
   steps:
@@ -33,7 +42,8 @@ runs:
         cache-from: type=gha,scope=quality-audit-amd64
         # Keep frontend intermediate stages too: mode=min rebuilt npm/TypeScript
         # even when only backend/tooling source changed in the measured pilot.
-        cache-to: type=gha,scope=quality-audit-amd64,mode=max
+        cache-to: ${{ inputs.cache-to == 'true' && 'type=gha,scope=quality-audit-amd64,mode=max' || '' }}
     - name: Build canonical PostgreSQL image for disposable test infrastructure
+      if: inputs.postgres == 'true'
       shell: bash
       run: ./core/entrypoints/cli/scripts/hosted-quality.sh prepare-postgres

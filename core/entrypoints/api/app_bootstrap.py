@@ -162,7 +162,7 @@ def create_api_app_bootstrap_router(
     router = APIRouter(tags=["api-app-bootstrap"])
 
     @router.get("/api/app/bootstrap")
-    async def api_app_bootstrap(request: Request):
+    def api_app_bootstrap(request: Request):
         try:
             auth_user = getattr(request.state, "auth_user", None)
             principal = request_principal(request)

@@ -27,6 +27,7 @@ import { TemplateStepSetup } from "@/pages/workflows/detail/detail-template-step
 import { WorkflowTransformBuilder } from "@/pages/workflows/detail/detail-transform-builder";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { numericDraftFromInput, numericInputValue, stepNumericFieldErrors } from "./detail-step-numeric-fields";
+import { WaitEventSetup } from "./detail-wait-event-setup";
 import { toggledReturnedFiles, type ReturnedFileEntry, type StepFileResult } from "./detail-returned-files";
 
 type WorkflowStepSmartSetupContext = Record<string, any>;
@@ -724,19 +725,22 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
     }
     function renderWaitSetup() {
       const mapping = objectOrEmpty(stepKindConfig.input_mapping);
-      const mapped = "duration_ms" in mapping;
+      const eventMode = "event" in stepKindConfig;
+      const mapped = !eventMode && "duration_ms" in mapping;
       const errors = stepNumericFieldErrors("wait", stepKindConfig, t);
+      const noEvent = { event: undefined, timeout_ms: undefined, output_mapping: undefined };
       return (
         <div className="space-y-3 rounded-xl border border-[var(--fs-border-default)] bg-[var(--fs-bg-surface-muted)] p-3">
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-[var(--fs-text-tertiary)]">
             {t("react.workflows.wait_duration", "Wait duration")}</p>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="grid gap-2 sm:grid-cols-3">
             <button
-              aria-pressed={!mapped}
-              className={`fs-button sm ${mapped ? "secondary" : "primary"}`}
+              aria-pressed={!mapped && !eventMode}
+              className={`fs-button sm ${mapped || eventMode ? "secondary" : "primary"}`}
               onClick={() =>
                 updateStepKindConfig("wait", {
-                  duration_ms: mapped ? 60_000 : stepKindConfig.duration_ms,
+                  ...noEvent,
+                  duration_ms: mapped || eventMode ? 60_000 : stepKindConfig.duration_ms,
                   input_mapping: undefined,
                 })
               }
@@ -749,6 +753,7 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
               className={`fs-button sm ${mapped ? "primary" : "secondary"}`}
               onClick={() =>
                 updateStepKindConfig("wait", {
+                  ...noEvent,
                   duration_ms: undefined,
                   input_mapping: { ...mapping, duration_ms: mapped ? mapping.duration_ms : "state.wait_ms" },
                 })
@@ -757,8 +762,33 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
             >
               {t("react.workflows.wait_mapped_duration", "Duration from a variable")}
             </button>
+            <button
+              aria-pressed={eventMode}
+              className={`fs-button sm ${eventMode ? "primary" : "secondary"}`}
+              onClick={() =>
+                eventMode
+                  ? undefined
+                  : updateStepKindConfig("wait", {
+                      duration_ms: undefined,
+                      input_mapping: undefined,
+                      event: { source: "", event_types: [], correlation_key: "" },
+                      timeout_ms: 86_400_000,
+                    })
+              }
+              type="button"
+            >
+              {t("react.workflows.wait_until_event", "Until an event")}
+            </button>
           </div>
-          {mapped ? (
+          {eventMode ? (
+            <WaitEventSetup
+              config={stepKindConfig}
+              errorId={numericErrorId}
+              errors={errors}
+              inputClass={inputClass}
+              onChange={(patch) => updateStepKindConfig("wait", patch)}
+            />
+          ) : mapped ? (
             <label className="block text-xs text-[var(--fs-text-secondary)]">
               <span>{t("react.workflows.wait_duration_source", "Duration source (milliseconds)")}</span>
               <input

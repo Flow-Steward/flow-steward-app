@@ -602,6 +602,57 @@ the handler receives `params.run_id`. Names are lowercase identifiers (at most
 20 parameters, 1024 characters each) and the values are untrusted input the
 handler validates. The parameters are dropped when the person switches pages.
 
+### Grid links and filters
+
+A grid links its cells, or whole rows, to another page of the extension or to
+a page of the app, and filters its rows through page parameters. The host builds
+every address: only same-app links, values URL-encoded, opened in the app
+without a full page load. Declare it in the grid component:
+
+```yaml
+component_id: runs
+type: grid
+query_id: runs.list
+columns:
+  - key: name                          # the visible text
+    label: Run
+    type: link
+    link:
+      page: run_detail                 # another page of this extension
+      params: {run_id: "{row.run_id}"} # p.run_id filled from the row
+  - key: job_path                      # a type: link column without link holds an
+    label: Job                         # in-app path itself, e.g. /jobs/42
+    type: link
+row_fields: [run_id]                   # fields the query returns beside the columns
+row_link: {page: run_detail, params: {run_id: "{row.run_id}"}}   # optional
+filters:
+  - param: status                      # bound to p.status
+    label: Status
+    options: [{value: open, label: Open}, {value: done, label: Done}]
+  - param: owner
+    label: Owner
+    options_query: {query_id: owners.list, value_field: id, label_field: name}
+  - param: q
+    label: Search
+    type: text
+```
+
+- A link is either `{page, params}` (a page of this extension; each param is
+  text with `{row.<field>}` placeholders) or `{path_field}` (a row field that
+  holds an in-app path starting with `/`). A row that cannot fill it shows
+  plain text; a value that is not a same-app path is never a link.
+- `row_link` makes a click anywhere in the row (outside its links and buttons)
+  open the same kind of target.
+- Every row field a link reads is a column `key` or listed in `row_fields`.
+- A filter is a select (static `options`, or `options_query` of an ordinary
+  query without a connection) or a `type: text` box. Changing it sets
+  `p.<param>` in the address, returns the grid to its first page and loads the
+  page's queries again; the handler reads `params.<param>`. An empty choice
+  removes the parameter.
+- The compiler refuses an unknown page, an unknown row field, a malformed
+  parameter name or template, an unknown or connection query for options and a
+  repeated filter parameter (`grid_link_*`, `grid_filter_*`).
+
 ## Runtime Handler Pattern
 
 Copy the reference extension's runtime shape unless there is a concrete reason not to:
@@ -927,6 +978,92 @@ of the account calls the action and the release removes the action, removes a
 mapped input or output, adds a required input, a connection slot or a
 dependency. Add an optional input, or ship a new action, instead.
 
+## Workflows That Use A Project Connection
+
+A read-only workflow your bundle publishes (people run it from the UI, a
+webhook, a schedule or an Invoke, and add their own steps only in its hooks)
+gets the project's connection through connection slots (ADR 0068; host contract
+1.8.0). Do not ship a copy the project edits just to set a connection.
+
+1. Declare the connections the workflow needs, with the label people see:
+
+   ```yaml
+   settings:
+     connection_slots:
+       - slot: store
+         extension_id: acme.store          # this extension or a required dependency
+         connection_type_ids: [api_token]  # empty list = any type of that extension
+         label: Store account
+   ```
+
+2. In each connector step that needs it, name the slot, exactly as in a
+   composite action. An action Invoke may pass it on with
+   `connections: {<their slot>: {slot: store}}`.
+
+   ```yaml
+   connector_id: extension.acme.store       # package id, never an install id
+   connection_binding_jsonb: {slot: store}
+   ```
+
+3. Set `runtime.compatibility.platform_min: 1.8.0`.
+
+While you build the workflow in a Development environment, a step may name the
+slot and a connection of yours to test with; strip every `connection_id` and
+`connector_install_id` before packaging. Release validation refuses a step that
+reads an undeclared slot, a fixed connection next to a slot, a slot of an
+extension that is neither yours nor a required dependency, and
+`connection_slots` on an action implementation (it keeps its slots in
+`action_implementation`).
+
+What the person sees: the workflow's Overview says "This workflow needs: Store
+account" with a connection selector for each linked project. With exactly one
+usable connection of an accepted type, it is chosen automatically. Without one
+the workflow is not ready in that project, and runs, webhooks and schedules are
+refused before they start with the reason. The choice is pinned into each run;
+a child workflow of your extension started by an Invoke gets the parent run's
+connection for a slot of the same name when it fits.
+
+What an update may change: a release that adds a slot, or changes a slot's
+extension or connection types, activates only when every project that links the
+workflow has a usable connection for it; otherwise the update is refused with
+the workflow, the project and the reason, and the project chooses first
+(`PUT /api/projects/{project_id}/workflows/{workflow_id}/connection-slots/{slot}`
+with `release_id`). Changing a label never blocks. Removing a slot drops the
+choices made for it. Uninstalling the extension or deleting the connection
+removes the choice; export and import never carry connection ids.
+
+## Naming Each Run Of A Workflow
+
+When one workflow runs for several purposes (a scraper scheduled once per
+supplier site, say), every job would carry the same title. Declare a run title
+over the workflow's inputs so each job says what it was for:
+
+```yaml
+settings:
+  run_title: "{{ inputs.run_name }} {{ inputs.site_url }}"
+```
+
+- Only `{{ inputs.<name> }}` placeholders are read; text around them is kept
+  as written. Nothing is evaluated.
+- An input that is secret (type `secret`, or a name such as `api_key`,
+  `password`, `token`) can never be shown, and a secret reference, an object
+  or a list renders as nothing. Release validation and readiness refuse a
+  template that reads a secret input, an undeclared input (in fields mode) or
+  anything other than `inputs.<name>`.
+- The template is at most 300 characters, each value at most 120, and the
+  rendered title at most 160; longer text is cut with "…". A title whose
+  values are all empty is left out.
+- A run started by a schedule is titled `<schedule name> · <rendered title>`;
+  by a webhook, `<webhook description> · <rendered title>`. UI, MCP, API and
+  Invoke runs use the rendered title alone.
+- The title shows in Jobs, on the job page, on an Invoke step's link to its
+  child run and in a schedule's run history. It is written once, when the job
+  is created, so later edits of the template do not rename earlier runs.
+- An optional free-text input (for example `run_name`, "Run name") lets a
+  person name a run started from the UI.
+
+`settings.run_title` needs no `platform_min`: a host before 0.9.18 ignores it.
+
 ## Callbacks And Ingress
 
 Use callbacks for provider webhooks routed through Flow Steward into an action.
@@ -940,6 +1077,85 @@ Checklist:
 - Implement the ingress action to normalize provider payloads.
 - Return fields such as `result.ingress_type` and `result.normalized`.
 - Add tests for representative inbound payloads.
+
+## Resuming Waiting Runs
+
+A workflow can pause on a Wait step until your extension reports an event
+(`override.wait.event`, [ADR 0071](architecture/adr/0071-wait-for-an-event.md)):
+for example "start a crawl, wait for *this* crawl to finish, process its result".
+The workflow names your extension as `source`, the event types it accepts, and a
+correlation key, usually the id your start action returned. Your extension
+resumes it by returning `resume_waits` next to `events` in a **successful**
+response of any action: a callback's action, a workflow step's action, a page
+action.
+
+```json
+{
+  "ok": true,
+  "result": {"accepted": true},
+  "resume_waits": [
+    {
+      "correlation_key": "run-42",
+      "event_type": "run_completed",
+      "payload": {"rows": 120, "result_file": "crawl-42.csv"}
+    }
+  ]
+}
+```
+
+A callback handler (`handlers/actions.py`) that turns the service's completion
+POST into a resume:
+
+```python
+def crawl_finished(request: dict) -> dict:
+    """Callback action: the crawler posts {run_id, status, rows} when a run ends."""
+    body = request.get("request", {}).get("json") or {}
+    run_id = str(body.get("run_id") or "").strip()
+    if not run_id:
+        return fail("invalid_payload", "run_id is required")
+    event_type = "run_completed" if body.get("status") == "done" else "run_failed"
+    return {
+        "ok": True,
+        "result": {"run_id": run_id},
+        "events": [],
+        "resume_waits": [
+            {
+                "correlation_key": run_id,
+                "event_type": event_type,
+                "payload": {"rows": int(body.get("rows") or 0)},
+            }
+        ],
+    }
+```
+
+Rules the host enforces:
+
+- The host takes your extension id, the account and the project from the
+  invocation (the callback's registration, the step's run); anything you put in
+  an item about them is ignored. Only a run of that project that waits for your
+  extension as `source` can be resumed.
+- `correlation_key`: non-empty text or integer, at most 256 characters,
+  compared exactly. `event_type`: lowercase letters, digits, `_`, `.`, `:`, `-`,
+  and one of the wait's `event_types`. `payload`: a JSON object of at most 64 KiB;
+  it is redacted like action results, so never put secrets in it. At most 100
+  items per response.
+- Delivery is stored, never immediate: the control process matches stored events
+  to waiting runs every second. An event that arrives before the run reaches its
+  Wait is kept and taken when the run parks, so you do not have to wait for the
+  workflow before reporting.
+- Each project, extension, key and type is delivered once; a repeated item is
+  reported as a duplicate and ignored, so a provider's retried callback is safe.
+  Events are kept 7 days.
+- A malformed item is refused without failing your action; the invocation's
+  `wait_events` result lists `stored`, `duplicates` and `rejected` (with a code
+  such as `resume_wait_payload_too_large`). If the host cannot store the events,
+  the action fails with `wait_event_delivery_failed` and a callback answers 502,
+  so the provider delivers again.
+- A query that runs with a connection must not return `resume_waits`
+  (`query_connection_effects_forbidden`).
+
+Document the event types and the key your extension uses on its workflow page or
+README, so workflow authors can fill `event_types` and `correlation_key`.
 
 ## Testing And Verification
 
@@ -1253,6 +1469,30 @@ A production-ready extension should be understandable from contracts alone:
 - Smoke and pytest checks prove the bundle works before packaging.
 - The deliverable includes hash-locked wheels compatible with both Linux targets;
   native executable releases have the two explicit target archives.
+
+## Conditional connection configuration
+
+When a configuration update depends on a value still being absent or unchanged,
+use `project_connection_config_compare_and_set` (extension API 1.9.0). Declare
+the new kind in both `runtime_grants.mutations` and the action handler's
+`host_mutations`; set the bundle's `platform_min` to `1.9.0`. An older host
+rejects the unknown grant. Do not fall back to `project_connection_upsert`.
+
+Return `expect` conditions and a `set` map of dotted configuration paths. For an
+initial value that may be replayed, use `absent_or_equals` with that same value
+in `set`. The host checks the currently persisted value under a row lock;
+reading the invocation snapshot first is not an atomic precondition. A different
+established value fails with `host_mutation_precondition_failed` and rolls back
+the whole mutation batch.
+
+The host preserves unrelated current configuration and columns. Do not include
+`oauth` or its descendants in conditions or assignments, or send a copied OAuth
+block back to the host. The final configuration must satisfy the native
+connection schema, including any host-owned OAuth metadata it contains.
+
+See the canonical `conditional_connection_config` manifest contract and
+[ADR 0073](architecture/adr/0073-conditional-connection-config-writes.md) for
+payload examples, limits, JSON equality, scope and rollback behavior.
 
 ## Notes in bundled workflows
 

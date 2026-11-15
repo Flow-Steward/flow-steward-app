@@ -12,6 +12,8 @@ file passed only because it keeps the scanned release.
 from __future__ import annotations
 
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from core.infrastructure.extension_runtime.python_dependencies import (
@@ -46,3 +48,43 @@ def test_an_explicit_version_still_wins(tmp_path: Path) -> None:
 
     assert extension_python_site_dir(release) == tmp_path / ".fs-python" / "2.0.0" / "site"
     assert extension_python_site_dir({"bundle_root": str(tmp_path)}) is None
+
+
+def test_an_installed_descriptor_resolves_its_nested_release_version(tmp_path: Path) -> None:
+    """Operator/runtime install rows carry the descriptor under compiled_manifest."""
+    install = {
+        "bundle_root": str(tmp_path),
+        "compiled_manifest": {"release_version": "1.0.0"},
+    }
+    site = tmp_path / ".fs-python" / "1.0.0" / "site"
+    site.mkdir(parents=True)
+    (site / "installed_dependency.py").write_text("VALUE = 'installed wheel site'\n")
+
+    env = {**os.environ, "PYTHONPATH": extension_runtime_pythonpath(install)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "import installed_dependency; print(installed_dependency.VALUE)",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=5,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "installed wheel site"
+    assert extension_python_site_dir(install) == site
+
+
+def test_nested_descriptor_does_not_override_existing_release_version(tmp_path: Path) -> None:
+    release = {
+        "bundle_root": str(tmp_path),
+        "release_version": "2.0.0",
+        "compiled_manifest": {"release_version": "1.0.0"},
+    }
+    assert extension_python_site_dir(release) == tmp_path / ".fs-python" / "2.0.0" / "site"

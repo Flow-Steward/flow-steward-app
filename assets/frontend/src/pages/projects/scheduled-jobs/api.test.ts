@@ -70,6 +70,7 @@ describe("project scheduled jobs api", () => {
     await createProjectScheduledJob("11", {
       workflow_id: "wf_triage",
       cron_expr: "0 9 * * *",
+      name: "Supplier A",
       enabled: true,
     });
     await toggleProjectScheduledJob("11", "3", false);
@@ -89,7 +90,7 @@ describe("project scheduled jobs api", () => {
     expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("DELETE");
     expect(fetchMock.mock.calls[4]?.[1]?.method).toBeUndefined();
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
-      workflow_id: "wf_triage", cron_expr: "0 9 * * *", enabled: true,
+      workflow_id: "wf_triage", cron_expr: "0 9 * * *", name: "Supplier A", enabled: true,
     });
   });
 });

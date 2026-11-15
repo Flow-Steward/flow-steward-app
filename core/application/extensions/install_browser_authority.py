@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 from typing import Any
 
 from core.application.management.command_models import ExtensionReleaseInstallInput
@@ -16,6 +17,32 @@ from .browser_authority_approval import (
     resolve_browser_authority_manifest,
 )
 from .service_support import _normalize_text
+
+
+def _installed_release_tree_sha256(
+    *,
+    handoff: PreparedBrowserAuthorityApproval,
+    scope: ScopeContext,
+    release: Any,
+    existing: Any | None,
+) -> str:
+    """Fail closed unless a scanned re-import publishes exactly the approved binding."""
+    approved = handoff.impact
+    tree_sha256 = candidate_browser_tree_sha256(dict(release.descriptor or {}))
+    if (
+        approved.project_id != _normalize_text(scope.project_id)
+        or not approved.install_id
+        or approved.install_id != _normalize_text(getattr(existing, "install_id", ""))
+        or approved.old_release_id != _normalize_text(getattr(existing, "release_id", ""))
+    ):
+        raise ServiceValidationError(
+            "Prevalidated browser authority does not match the installed release"
+        )
+    if not hmac.compare_digest(tree_sha256, approved.candidate_tree_sha256):
+        raise ServiceValidationError(
+            "Prevalidated browser authority does not match the candidate tree"
+        )
+    return tree_sha256
 
 
 def prepare_install_browser_authority(
@@ -37,6 +64,14 @@ def prepare_install_browser_authority(
             raise ServiceValidationError(
                 "Prevalidated browser authority does not match this install"
             )
+        candidate_tree_sha256 = handoff.impact.candidate_tree_sha256
+        if handoff.bind_installed_release:
+            candidate_tree_sha256 = _installed_release_tree_sha256(
+                handoff=handoff,
+                scope=scope,
+                release=release,
+                existing=existing,
+            )
         impact = browser_authority_impact(
             account_id=scope.account_id or "acc_default",
             project_id=_normalize_text(scope.project_id),
@@ -45,7 +80,7 @@ def prepare_install_browser_authority(
             old_release_id=_normalize_text(getattr(existing, "release_id", "")),
             new_release_id=release.release_id,
             descriptor_sha256=release.descriptor_sha256,
-            candidate_tree_sha256=handoff.impact.candidate_tree_sha256,
+            candidate_tree_sha256=candidate_tree_sha256,
             manifest=resolve_browser_authority_manifest(release),
         )
         if impact.surface_fingerprint != handoff.impact.surface_fingerprint:

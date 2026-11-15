@@ -336,7 +336,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/security/secret_reference.py \
     core/infrastructure/security/stored_secrets.py \
     core/infrastructure/security/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/projects/connection_repository.py core/application/projects/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/projects/connection_repository.py core/application/projects/connection_config_repository.py core/application/projects/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/notifications/repository.py core/application/notifications/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/workflows/workflow_reaction_scope_repository.py core/application/workflows/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/db/psycopg_runtime/ core/infrastructure/db/psycopg_runtime/

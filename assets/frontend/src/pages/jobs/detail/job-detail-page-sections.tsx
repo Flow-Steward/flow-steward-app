@@ -1,6 +1,7 @@
 import type { DrawerGeometry } from "@/components/shared/design-system-overlays";
 import { StepInspectorPanel } from "./job-step-inspector-panel";
 import { ReadableDataFields, ReadableFileList } from "./readable-data-fields";
+import { usageAgentLabel } from "./job-usage-label";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useState, type ReactNode, type Ref } from "react";
@@ -151,6 +152,9 @@ function JobRunDefinitionFacts({
   const waitKind = firstReadableText(workflowWait.kind);
   const dueAt = firstReadableText(workflowWait.due_at);
   const childJobId = firstReadableText(workflowWait.child_job_id);
+  const eventTypes = Array.isArray(workflowWait.event_types)
+    ? workflowWait.event_types.map((item) => firstReadableText(item)).filter(Boolean)
+    : [];
   const lanes = activeSteps.filter((step) => firstReadableText(step.lane_id));
   // The innermost For each of the running step: its item position and bounded counts.
   const forEachProgress = activeSteps
@@ -186,6 +190,17 @@ function JobRunDefinitionFacts({
       {waitKind === "timer" && dueAt ? (
         <p className="text-sm fs-ink-primary" data-testid="job-wait-due-at">
           {t("react.jobs.waiting_until_value0", "Waiting until {value0}", { value0: normalizeTimestamp(dueAt, userTimezone) })}
+        </p>
+      ) : null}
+      {waitKind === "event" ? (
+        <p className="text-sm fs-ink-primary" data-testid="job-wait-event">
+          {t("react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4", "Waiting for {value0} from {value1} (key {value2}) since {value3}, times out at {value4}", {
+            value0: eventTypes.join(" / ") || t("react.jobs.an_event", "an event"),
+            value1: firstReadableText(workflowWait.source) || t("react.jobs.an_extension", "an extension"),
+            value2: firstReadableText(workflowWait.correlation_key),
+            value3: normalizeTimestamp(firstReadableText(workflowWait.started_at), userTimezone),
+            value4: normalizeTimestamp(dueAt, userTimezone),
+          })}
         </p>
       ) : null}
       {waitKind === "child" && childJobId ? (
@@ -376,6 +391,20 @@ function JobRunOverviewCard(props: Readonly<JobDetailPrimaryContentProps>) {
   );
 }
 
+/**
+ * The run's final files as file items. The server adds each file's download
+ * address on this job; the page never builds one itself. A returned collection
+ * shows each of its files.
+ */
+function resultArtifactFiles(artifacts: Record<string, unknown>): Entity[] {
+  return Object.entries(artifacts).flatMap(([key, raw]) =>
+    (Array.isArray(raw) ? raw : [raw]).map((item) => {
+      const file = objectOrEmpty(item) as Entity;
+      return { ...file, filename: firstReadableText(file.filename, key) };
+    }),
+  );
+}
+
 function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryContentProps>) {
   const { t } = useI18n();
   const reportLabels = useReportLabels();
@@ -401,7 +430,7 @@ function JobResultCard({ detail, executionSteps }: Readonly<JobDetailPrimaryCont
       {hasArtifacts ? (
         <section aria-label={t("react.workflows.final_artifacts", "Final artifacts")} className="mt-3 space-y-2">
           <h3 className="text-sm font-semibold fs-ink-primary">{t("react.workflows.final_artifacts", "Final artifacts")}</h3>
-          <ReadableDataFields value={artifacts} />
+          <ReadableFileList files={resultArtifactFiles(artifacts)} />
         </section>
       ) : null}
     </DsCard>
@@ -827,12 +856,8 @@ function JobUsageBreakdownCard({
                   }
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span>
-                      {firstStringFromUnknownValue([
-                        row.agent_label,
-                        row.agent,
-                        "agent",
-                      ])}
+                    <span title={firstReadableText(row.agent_id, row.agent) || undefined}>
+                      {usageAgentLabel(row, t)}
                     </span>
                   </div>
                   <p className="mt-1 fs-ink-tertiary">

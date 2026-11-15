@@ -60,6 +60,7 @@ from core.application.management.mcp_connector_services import (
     McpConnectorQueryService,
     McpConnectorStore,
 )
+from core.application.management.query_services import ProjectQueryService
 from core.application.management.scope import ScopeContext
 from core.entrypoints.api.integrations_connectors import create_integrations_connectors_router
 from tests.fixtures.mcp_streamable_http import legacy_mcp_server, modern_mcp_server
@@ -3442,7 +3443,9 @@ def _mcp_connector_api_client():
             get_extension_runtime_store=lambda: MagicMock(),
             extension_query_service=lambda: MagicMock(),
             request_scope=_request_scope,
-            project_query_service=lambda: MagicMock(),
+            # A spec'd mock: the MCP routes authorize through assert_project_access,
+            # which a bare MagicMock refuses as a mistyped assertion.
+            project_query_service=lambda: MagicMock(spec=ProjectQueryService),
             project_command_service=lambda: MagicMock(),
             service_error_response=_service_error_response,
             api_error_response=_api_error_response,

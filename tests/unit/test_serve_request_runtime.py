@@ -324,6 +324,40 @@ def test_compute_wait_reason_names_a_durable_wait_without_calling_it_an_approval
     )
 
 
+EVENT_WAIT = {
+    "kind": "event",
+    "source": "acme.crawler",
+    "event_types": ["run_completed", "run_failed"],
+    "correlation_key": "run-42",
+    "started_at": "2026-10-12T10:00:00+00:00",
+    "due_at": "2026-10-13T10:00:00+00:00",
+}
+
+
+def test_the_event_wait_line_names_what_when_and_until_when() -> None:
+    assert serve_request_runtime.event_wait_line(EVENT_WAIT) == (
+        "Waiting for run_completed or run_failed (key run-42) since "
+        "2026-10-12T10:00:00+00:00, times out at 2026-10-13T10:00:00+00:00"
+    )
+    assert serve_request_runtime.event_wait_line(None) == "Waiting for an event"
+
+
+def test_compute_wait_reason_renders_an_event_wait_with_its_line() -> None:
+    event_job = {"status": "awaiting_event", "meta": json.dumps({"workflow_wait": EVENT_WAIT})}
+
+    assert serve_request_runtime.compute_wait_reason(
+        event_job, {}, retryable_interrupted_step_status="retryable_step"
+    ) == serve_request_runtime.event_wait_line(EVENT_WAIT)
+    assert (
+        serve_request_runtime.compute_wait_reason(
+            {"status": "awaiting_event", "meta": "not json"},
+            {},
+            retryable_interrupted_step_status="retryable_step",
+        )
+        == "Waiting for an event"
+    )
+
+
 def test_request_correlation_id_prefers_headers_then_fallback_then_generator() -> None:
     request = _FakeRequest(headers={"x-request-id": "req-1"})
 

@@ -128,7 +128,9 @@ STEP_CONFIG_ALLOWED_KEYS: dict[str, frozenset[str]] = {
     STEP_KIND_APPROVAL: frozenset(
         {"message", "output_mapping", "response_mapping", "show_outputs"}
     ),
-    STEP_KIND_WAIT: frozenset({"duration_ms", "input_mapping"}),
+    STEP_KIND_WAIT: frozenset(
+        {"duration_ms", "input_mapping", "event", "timeout_ms", "output_mapping"}
+    ),
     STEP_KIND_STOP_SUCCESS: frozenset({"message", "reason"}),
     STEP_KIND_STOP_FAIL: frozenset({"message", "reason"}),
     STEP_KIND_SET_VARIABLE: frozenset({"assignments", "output_types", "target", "value"}),

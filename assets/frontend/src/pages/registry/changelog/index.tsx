@@ -1,3 +1,6 @@
+import { z } from "@/lib/validation/zod";
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useState, type ReactNode } from "react";
@@ -197,15 +200,15 @@ export function RegistryChangelogPage() {
   const queryClient = useQueryClient();
   const auth = useAuth();
   const userTimezone = firstStringFromUnknownValue([auth.session?.user?.timezone, ""]).trim();
-  const [entityType, setEntityType] = useState("");
-  const [entityId, setEntityId] = useState("");
+  const [entityType, setEntityType] = useFilterState("changelog/entityType", textFilterSchema, "");
+  const [entityId, setEntityId] = useFilterState("changelog/entityId", textFilterSchema, "");
   const [limit, setLimit] = useState(50);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useFilterState("changelog/searchQuery", textFilterSchema, "");
   const [selectedEntryId, setSelectedEntryId] = useState("");
   const [revisionModalOpen, setRevisionModalOpen] = useState(false);
   const [validationText, setValidationText] = useState("");
   const [validationIssues, setValidationIssues] = useState<RegistryValidationIssue[]>([]);
-  const [validationSeverity, setValidationSeverity] = useState<"" | "error" | "warning">("");
+  const [validationSeverity, setValidationSeverity] = useFilterState<"" | "error" | "warning">("changelog/validationSeverity", z.enum(["", "error", "warning"]), "");
   const [restoreMessage, setRestoreMessage] = useState("");
   const [restoring, setRestoring] = useState(false);
   const { confirmDialog, requestConfirmation } = useConfirmDialog();

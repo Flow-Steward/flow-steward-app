@@ -72,7 +72,11 @@ def test_invoke_workflow_reference_location_matches_runtime_override():
 @pytest.mark.parametrize(
     "kind, fields, outcomes",
     [
-        ("wait", {"duration_ms", "input_mapping"}, {"success", "error"}),
+        (
+            "wait",
+            {"duration_ms", "input_mapping", "event", "timeout_ms", "output_mapping"},
+            {"success", "error"},
+        ),
         (
             "approval",
             {"message", "show_outputs", "output_mapping", "response_mapping"},

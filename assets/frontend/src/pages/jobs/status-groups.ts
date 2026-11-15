@@ -9,7 +9,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
  */
 export const JOB_STATUS_GROUPS = [
   { key: "in_progress", label: "In progress", statuses: ["in_progress", "pending", "resume_pending"] },
-  { key: "waiting", label: "Waiting", statuses: ["awaiting_timer", "awaiting_child", "external_wait"] },
+  { key: "waiting", label: "Waiting", statuses: ["awaiting_timer", "awaiting_child", "awaiting_event", "external_wait"] },
   { key: "awaiting_approval", label: "Waiting for approval", statuses: ["awaiting_approval"] },
   { key: "stuck", label: "Stuck", statuses: ["stuck", "orphaned"] },
   { key: "interrupted", label: "Interrupted", statuses: ["retryable_interrupted_step", "blocked"] },

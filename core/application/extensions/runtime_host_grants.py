@@ -28,6 +28,7 @@ RESOURCE_GRANT_KINDS: frozenset[str] = frozenset(
 MUTATION_GRANT_KINDS: frozenset[str] = frozenset(
     {
         "project_connection_upsert",
+        "project_connection_config_compare_and_set",
         "project_connection_secrets_save",
         "notification_delivery_log",
         "notification_routes_save",
@@ -43,6 +44,7 @@ _SCOPE_DEFAULT_KINDS: frozenset[str] = frozenset(
         "project_connection",
         "callback_registrations",
         "project_connection_upsert",
+        "project_connection_config_compare_and_set",
         "project_connection_secrets_save",
     }
 )

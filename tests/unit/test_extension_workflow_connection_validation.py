@@ -748,6 +748,22 @@ def test_a_connection_bound_operation_requires_its_binding(production_contract) 
     assert [item["code"] for item in issues] == ["workflow.connection_required"]
 
 
+def test_a_step_reading_a_slot_is_not_asked_for_a_connection(production_contract) -> None:
+    """The slot is filled when the run starts (ADR 0065 action, ADR 0070 workflow)."""
+    production_contract["value"] = _multi_type_contract("mail_account")
+
+    step = _step()
+    step["connection_binding_jsonb"] = {"slot": "mailbox"}
+
+    issues = validate_extension_connector_step(
+        _ProductionShapedStore(None),
+        step=step,
+        step_path="workflow.phases[0].steps[0]",
+    )
+
+    assert issues == []
+
+
 def _input_mapping_rules_contract() -> dict:
     contract = _contract()
     contract["operation_manifest"][0]["input_mapping_rules"] = [

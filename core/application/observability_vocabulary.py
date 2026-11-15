@@ -75,6 +75,14 @@ _JOB_STATUS_META: dict[str, dict[str, Any]] = {
         "outcome": "waiting",
         "terminal": False,
     },
+    "awaiting_event": {
+        "label": "Waiting for event",
+        "tone": "blue",
+        "headline": "Flow Steward paused on a Wait step until its event arrives or it times out.",
+        "dashboard_group": "running",
+        "outcome": "waiting",
+        "terminal": False,
+    },
     "resume_pending": {
         "label": "Resume queued",
         "tone": "blue",
@@ -166,7 +174,7 @@ JOB_TERMINAL_STATUSES = frozenset(
 #: assets/frontend/src/pages/jobs/status-groups.ts; a unit test pins the two.
 JOB_STATUS_GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     ("in_progress", "In progress", ("in_progress", "pending", "resume_pending")),
-    ("waiting", "Waiting", ("awaiting_timer", "awaiting_child", "external_wait")),
+    ("waiting", "Waiting", ("awaiting_timer", "awaiting_child", "awaiting_event", "external_wait")),
     ("awaiting_approval", _WAITING_FOR_APPROVAL_LABEL, ("awaiting_approval",)),
     ("stuck", "Stuck", ("stuck", "orphaned")),
     ("interrupted", "Interrupted", ("retryable_interrupted_step", "blocked")),
@@ -350,6 +358,7 @@ def job_attention_group(
         "resume_pending",
         "awaiting_timer",
         "awaiting_child",
+        "awaiting_event",
     }:
         # A run paused on a timer or a child workflow needs no one: it resumes
         # by itself, so it stays with the running work.

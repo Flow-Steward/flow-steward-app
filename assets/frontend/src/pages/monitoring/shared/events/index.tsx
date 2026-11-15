@@ -1,3 +1,5 @@
+import { periodFilterSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -609,12 +611,12 @@ export function EventsAuditTrail() {
   const { t, locale } = useI18n();
   const queryClient = useQueryClient();
   const userTimezone = useUserTimezone();
-  const [workflowId, setWorkflowId] = useState("");
-  const [eventFamily, setEventFamily] = useState("");
-  const [eventCategory, setEventCategory] = useState("");
-  const [eventType, setEventType] = useState("");
-  const [status, setStatus] = useState("");
-  const [period, setPeriod] = useState<PeriodValue>({ kind: "all" });
+  const [workflowId, setWorkflowId] = useFilterState("monitoring/events/workflowId", textFilterSchema, "");
+  const [eventFamily, setEventFamily] = useFilterState("monitoring/events/eventFamily", textFilterSchema, "");
+  const [eventCategory, setEventCategory] = useFilterState("monitoring/events/eventCategory", textFilterSchema, "");
+  const [eventType, setEventType] = useFilterState("monitoring/events/eventType", textFilterSchema, "");
+  const [status, setStatus] = useFilterState("monitoring/events/status", textFilterSchema, "");
+  const [period, setPeriod] = useFilterState<PeriodValue>("monitoring/events/period", periodFilterSchema, { kind: "all" });
   // Expanded on every render, so a preset keeps meaning "the last N days" as
   // the days pass; today is the user's configured zone, not the browser's.
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));

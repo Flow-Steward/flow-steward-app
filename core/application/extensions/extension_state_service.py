@@ -31,6 +31,8 @@ from .binding_constants import (
 )
 from .binding_context import ExtensionLifecycleContext
 from .binding_projection_service import ExtensionBindingProjectionService
+from .browser_authority_approval import PreparedBrowserAuthorityApproval
+from .enable_browser_authority import scanned_release_browser_authority_handoff
 from .lifecycle_ports import ERR_DATABASE_NOT_CONFIGURED, service_scope
 from .managed_release_service import ManagedReleaseService
 
@@ -237,7 +239,39 @@ class ExtensionStateService:
                 scope=scope,
                 source_kind_override="extension_scan",
                 allow_same_version_enrichment=True,
+                _browser_authority_handoff=self._installed_release_browser_authority_handoff(
+                    bl,
+                    extension_id=extension_id,
+                    scope=scope,
+                    approved_impact_hash=approved_browser_authority_impact_hash,
+                ),
             )
+
+    def _installed_release_browser_authority_handoff(
+        self,
+        bl: Any,
+        *,
+        extension_id: str,
+        scope: ScopeContext,
+        approved_impact_hash: str,
+    ) -> PreparedBrowserAuthorityApproval | None:
+        """Bind a page-preview approval of the installed release to its re-import."""
+        if not str(approved_impact_hash or "").strip():
+            return None
+        record = self._extension_install_record(bl, extension_id=extension_id, scope=scope)
+        release_id = str(getattr(record, "release_id", "") or "").strip()
+        runtime_store = self._context.runtime_store(bl)
+        if not release_id or not hasattr(runtime_store, "get_release"):
+            return None
+        release = runtime_store.get_release(release_id)
+        if release is None:
+            return None
+        return scanned_release_browser_authority_handoff(
+            record=record,
+            release=release,
+            scope=scope,
+            approved_impact_hash=approved_impact_hash,
+        )
 
     def _extension_install_record(
         self,

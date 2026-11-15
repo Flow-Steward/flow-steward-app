@@ -1011,6 +1011,36 @@ msgstr ""
 msgid "extension_page.validation.warnings_badge"
 msgstr ""
 
+msgid "extensions.callback.copy_failed"
+msgstr ""
+
+msgid "extensions.callback.copy_token"
+msgstr ""
+
+msgid "extensions.callback.copy_url"
+msgstr ""
+
+msgid "extensions.callback.create"
+msgstr ""
+
+msgid "extensions.callback.created"
+msgstr ""
+
+msgid "extensions.callback.failed"
+msgstr ""
+
+msgid "extensions.callback.one_time"
+msgstr ""
+
+msgid "extensions.callback.refreshed"
+msgstr ""
+
+msgid "extensions.callback.select_connection"
+msgstr ""
+
+msgid "extensions.callback.verify_token"
+msgstr ""
+
 msgid "extensions.callback.configure"
 msgstr ""
 
@@ -5598,6 +5628,33 @@ msgstr ""
 msgid "react.jobs.field_step_kind"
 msgstr ""
 
+msgid "react.jobs.field_event_type"
+msgstr ""
+
+msgid "react.jobs.field_received_at"
+msgstr ""
+
+msgid "react.jobs.field_correlation_key"
+msgstr ""
+
+msgid "react.jobs.field_payload"
+msgstr ""
+
+msgid "react.jobs.field_child_error_message"
+msgstr ""
+
+msgid "react.jobs.field_child_error_code"
+msgstr ""
+
+msgid "react.jobs.field_child_status"
+msgstr ""
+
+msgid "react.jobs.field_child_error_step_id"
+msgstr ""
+
+msgid "react.jobs.field_child_job_id"
+msgstr ""
+
 msgid "react.jobs.field_value"
 msgstr ""
 
@@ -5751,6 +5808,9 @@ msgstr ""
 msgid "react.jobs.open_the_run_behind_this_step"
 msgstr ""
 
+msgid "react.jobs.open_the_run_behind_this_step_titled"
+msgstr ""
+
 msgid "react.jobs.operation_kind"
 msgstr ""
 
@@ -5815,6 +5875,9 @@ msgid "react.jobs.review_job_status_filter_active_runs_and_jump_straight_into_th
 msgstr ""
 
 msgid "react.jobs.review_workspace"
+msgstr ""
+
+msgid "react.jobs.run_of_workflow"
 msgstr ""
 
 msgid "react.jobs.run_overview"
@@ -5940,6 +6003,15 @@ msgstr ""
 msgid "react.jobs.step_transform_finished"
 msgstr ""
 
+msgid "react.jobs.step_wait_event_received"
+msgstr ""
+
+msgid "react.jobs.step_wait_event_timed_out"
+msgstr ""
+
+msgid "react.jobs.step_wait_finished"
+msgstr ""
+
 msgid "react.jobs.step_type"
 msgstr ""
 
@@ -6028,6 +6100,9 @@ msgid "react.jobs.waiting_for_approval"
 msgstr ""
 
 msgid "react.jobs.waiting_for_child_workflow_run"
+msgstr ""
+
+msgid "react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4"
 msgstr ""
 
 msgid "react.jobs.waiting_until_value0"
@@ -13011,6 +13086,9 @@ msgstr ""
 msgid "react.shared.badge_awaiting_child"
 msgstr ""
 
+msgid "react.shared.badge_awaiting_event"
+msgstr ""
+
 msgid "react.shared.badge_awaiting_review"
 msgstr ""
 
@@ -16466,6 +16544,39 @@ msgid "react.workflows.run_bar_live_running"
 msgstr ""
 
 msgid "react.workflows.run_bar_live_stopped"
+msgstr ""
+
+msgid "react.workflows.run_title"
+msgstr ""
+
+msgid "react.workflows.run_title_help"
+msgstr ""
+
+msgid "react.workflows.run_title_inputs"
+msgstr ""
+
+msgid "react.workflows.run_title_placeholder_invalid"
+msgstr ""
+
+msgid "react.workflows.run_title_secret_input"
+msgstr ""
+
+msgid "react.workflows.run_title_too_long"
+msgstr ""
+
+msgid "react.workflows.run_title_unknown_input"
+msgstr ""
+
+msgid "react.workflows.schedule_name"
+msgstr ""
+
+msgid "react.workflows.schedule_name_help"
+msgstr ""
+
+msgid "react.workflows.schedule_name_placeholder"
+msgstr ""
+
+msgid "react.workflows.schedule_name_required"
 msgstr ""
 
 msgid "react.workflows.step_saved_with_connection_repair"
@@ -20755,6 +20866,9 @@ msgstr ""
 msgid "react.workflows.value0_test_run_is_waiting_for_a_child_workflow"
 msgstr ""
 
+msgid "react.workflows.value0_test_run_is_waiting_for_an_event"
+msgstr ""
+
 msgid "react.workflows.value0_test_run_is_waiting_for_approval"
 msgstr ""
 
@@ -20924,6 +21038,9 @@ msgid "react.workflows.wait_for_project_context_to_resolve_before_updating_provi
 msgstr ""
 
 msgid "react.workflows.wait_mapped_duration"
+msgstr ""
+
+msgid "react.workflows.wait_until_event"
 msgstr ""
 
 msgid "react.workflows.we_couldn_t_check_this_template"
@@ -25866,6 +25983,27 @@ msgstr ""
 msgid "react.workflows.wait_duration_source_invalid"
 msgstr ""
 
+msgid "react.workflows.wait_event_correlation_key"
+msgstr ""
+
+msgid "react.workflows.wait_event_hint"
+msgstr ""
+
+msgid "react.workflows.wait_event_payload_target"
+msgstr ""
+
+msgid "react.workflows.wait_event_source"
+msgstr ""
+
+msgid "react.workflows.wait_event_timeout_invalid"
+msgstr ""
+
+msgid "react.workflows.wait_event_timeout_ms"
+msgstr ""
+
+msgid "react.workflows.wait_event_types"
+msgstr ""
+
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.http_timeout_positive"
 msgstr ""
@@ -29103,6 +29241,12 @@ msgstr ""
 msgid "react.jobs.all_runs"
 msgstr ""
 
+msgid "react.jobs.an_event"
+msgstr ""
+
+msgid "react.jobs.an_extension"
+msgstr ""
+
 msgid "react.jobs.job_period"
 msgstr ""
 
@@ -29402,4 +29546,84 @@ msgid "react.workflows.regenerating_url"
 msgstr ""
 
 msgid "react.workflows.rotating_credential"
+msgstr ""
+
+msgid "react.workflows.connection_slots"
+msgstr ""
+
+msgid "react.workflows.connection_slots_description"
+msgstr ""
+
+msgid "react.workflows.connection_slots_in_project"
+msgstr ""
+
+msgid "react.workflows.connection_slots_project"
+msgstr ""
+
+msgid "react.workflows.connection_slots_loading"
+msgstr ""
+
+msgid "react.workflows.connection_slots_load_failed"
+msgstr ""
+
+msgid "react.workflows.connection_slots_not_ready"
+msgstr ""
+
+msgid "react.workflows.connection_slots_not_ready_detail"
+msgstr ""
+
+msgid "react.workflows.connection_slot_needed"
+msgstr ""
+
+msgid "react.workflows.connection_slot_connection"
+msgstr ""
+
+msgid "react.workflows.connection_slot_needs"
+msgstr ""
+
+msgid "react.workflows.connection_slot_select"
+msgstr ""
+
+msgid "react.workflows.connection_slot_choose"
+msgstr ""
+
+msgid "react.workflows.connection_slot_no_connections"
+msgstr ""
+
+msgid "react.workflows.connection_slot_save_failed"
+msgstr ""
+
+msgid "react.workflows.connection_slot_not_ready"
+msgstr ""
+
+msgid "react.workflows.connection_slot_automatic"
+msgstr ""
+
+msgid "react.workflows.connection_slot_chosen"
+msgstr ""
+
+msgid "react.extensions.grid_filters"
+msgstr ""
+
+msgid "react.extensions.grid_filter_any"
+
+msgid "react.system.core_installed_version"
+msgstr ""
+
+msgid "react.system.core_release_notes"
+msgstr ""
+
+msgid "react.system.core_update_available"
+msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_processing"
+msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_routing"
+msgstr ""
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_agent"
 msgstr ""

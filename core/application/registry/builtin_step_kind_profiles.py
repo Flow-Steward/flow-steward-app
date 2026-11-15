@@ -37,10 +37,10 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
     {
         "step_kind_key": STEP_KIND_WAIT,
         "display_name": "Wait",
-        "description": "Pause durably for a duration, then follow success; failures use the error policy. Allowed at root or in sequential groups, not parallel lanes.",
+        "description": "Pause durably for a duration, or until an extension reports an event (ADR 0071), then follow success; failures and an event timeout use the error policy. Allowed at root or in sequential groups, not parallel lanes.",
         "enabled": True,
         "builder_metadata_jsonb": {
-            "purpose": "Wait for a timer without occupying a worker.",
+            "purpose": "Wait for a timer or an extension event without occupying a worker.",
             "composition_role": "control_flow",
             "determinism_level": "deterministic",
             "safe_for_auto_use": True,
@@ -50,7 +50,7 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
             "properties": {
                 "wait": {
                     "type": "object",
-                    "description": "Provide exactly one duration source: literal duration_ms or input_mapping.duration_ms. Mapped values must also be integer milliseconds in the allowed range.",
+                    "description": "Provide exactly one duration source: literal duration_ms or input_mapping.duration_ms. Mapped values must also be integer milliseconds in the allowed range. Or wait for an event: event {source, event_types, correlation_key} with a required timeout_ms and an optional output_mapping.",
                     "properties": {
                         "duration_ms": {
                             "type": "integer",
@@ -66,6 +66,32 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                             },
                             "additionalProperties": False,
                         },
+                        "event": {
+                            "type": "object",
+                            "description": "Wait until the extension `source` reports one of `event_types` for `correlation_key` (exact text; a selector, template or literal resolved once at entry).",
+                            "properties": {
+                                "source": {"type": "string"},
+                                "event_types": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                    "minItems": 1,
+                                    "maxItems": 20,
+                                },
+                                "correlation_key": {},
+                            },
+                            "required": ["source", "event_types", "correlation_key"],
+                            "additionalProperties": False,
+                        },
+                        "timeout_ms": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": WAIT_DURATION_MS_MAX,
+                        },
+                        "output_mapping": {
+                            "type": "object",
+                            "description": "Event field (payload, payload.<field>, event_type, correlation_key, received_at, source) to a state target.",
+                            "additionalProperties": {"type": "string"},
+                        },
                     },
                     "oneOf": [
                         {"required": ["duration_ms"]},
@@ -73,6 +99,7 @@ _BUILTIN_STEP_KIND_PROFILES: tuple[dict[str, Any], ...] = (
                             "required": ["input_mapping"],
                             "properties": {"input_mapping": {"required": ["duration_ms"]}},
                         },
+                        {"required": ["event", "timeout_ms"]},
                     ],
                     "additionalProperties": False,
                 },

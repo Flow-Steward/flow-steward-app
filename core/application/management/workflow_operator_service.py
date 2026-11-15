@@ -24,6 +24,7 @@ from .query_models import (
     WorkflowValidationResultView,
 )
 from .workflow_operator_authoring import WorkflowOperatorAuthoringMixin
+from .workflow_operator_connection_slots import WorkflowOperatorConnectionSlotsMixin
 from .workflow_operator_hooks import WorkflowOperatorHooksMixin
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,11 @@ def _is_disabled_draft(binding: dict[str, Any]) -> bool:
     return str(binding.get("availability_reason_code") or "").lower() == "workflow_disabled"
 
 
-class WorkflowOperatorService(WorkflowOperatorHooksMixin, WorkflowOperatorAuthoringMixin):
+class WorkflowOperatorService(
+    WorkflowOperatorHooksMixin,
+    WorkflowOperatorConnectionSlotsMixin,
+    WorkflowOperatorAuthoringMixin,
+):
     """Shared workflow operator surfaces used by MCP, API, and CLI."""
 
     def __init__(

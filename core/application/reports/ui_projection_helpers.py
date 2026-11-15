@@ -11,12 +11,9 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from core.application.jobs.job_artifact_access import (
-    artifact_metadata_belongs_to_job,
-    artifact_metadata_is_downloadable,
-)
 from core.application.jobs.workflow_wait_projection import (
     STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_EVENT,
     STATUS_AWAITING_TIMER,
 )
 from core.application.orchestration.active_step import ActiveStep, active_step
@@ -31,11 +28,15 @@ from core.application.workflows.workflow_step_kinds import (
     TOOL_KIND_LABELS,
     connector_tool_kind,
 )
-from core.infrastructure.config.workflow_file_limits import file_preview_max_bytes
 
 from . import ui_projection_common as _common
 from . import ui_projection_review_workspace as _review
 from . import ui_projection_usage as _usage
+from .ui_projection_artifacts import (
+    _ARTIFACT_HANDLE_PREFIX,
+    _artifact_descriptors,
+    _artifact_id_from_value,
+)
 
 #: The catalog keys of ``TOOL_KIND_LABELS``; the run's canvas cards use the same ones.
 _TOOL_KIND_LABEL_KEYS = {
@@ -44,7 +45,9 @@ _TOOL_KIND_LABEL_KEYS = {
     "system": "react.jobs.kind_system_tool",
 }
 #: Pauses that are the active step still running (not a review gate).
-_SELF_RESUMING_WAIT_STATUSES = frozenset({STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD})
+_SELF_RESUMING_WAIT_STATUSES = frozenset(
+    {STATUS_AWAITING_TIMER, STATUS_AWAITING_CHILD, STATUS_AWAITING_EVENT}
+)
 _SPECIAL_WORDS = _common._SPECIAL_WORDS
 _STEP_STATUS_META = _common._STEP_STATUS_META
 NOT_RECORDED = _common.NOT_RECORDED
@@ -84,7 +87,6 @@ _build_review_workspace = _review._build_review_workspace
 _build_usage_breakdown = _usage._build_usage_breakdown
 
 _LOGGER = logging.getLogger("platform.reports.ui_projection_helpers")
-_ARTIFACT_HANDLE_PREFIX = "artifact:"
 
 _TECHNICAL_STEP_FIELDS = {
     "connection_ref",
@@ -121,6 +123,51 @@ _BUILTIN_STEP_LOCALIZED_FIELDS = frozenset(
 )
 
 
+#: What a Wait step that ended on an event returns (ADR 0071), in the run view.
+_WAIT_EVENT_OUTPUT_FIELDS = ("event_type", "received_at", "correlation_key", "source", "payload")
+#: What an Invoke step whose child failed or was cancelled returns.
+_CHILD_FAILURE_OUTPUT_FIELDS = (
+    "child_error_message",
+    "child_error_code",
+    "child_status",
+    "child_error_step_id",
+    "child_job_id",
+)
+#: Output fields of first-party Wait and Invoke results with a catalog label.
+_RESULT_FIELD_LABEL_KEYS = {
+    field: f"react.jobs.field_{field}"
+    for field in (*_WAIT_EVENT_OUTPUT_FIELDS, *_CHILD_FAILURE_OUTPUT_FIELDS)
+}
+
+
+def _wait_step_outputs(artifacts: dict[str, Any]) -> dict[str, Any]:
+    """A Wait step's result: the event that woke it, or the time it waited until.
+
+    The event is the step's result (ADR 0071); without this the run view showed
+    an event wake as a step with no outputs at all.
+    """
+    if str(artifacts.get("step_kind") or "") != "wait" or artifacts.get("error_code"):
+        return {}
+    if artifacts.get("event_type"):
+        return {
+            field: artifacts[field]
+            for field in _WAIT_EVENT_OUTPUT_FIELDS
+            if artifacts.get(field) not in (None, "")
+        }
+    return {
+        field: artifacts[field]
+        for field in ("duration_ms", "due_at")
+        if artifacts.get(field) not in (None, "")
+    }
+
+
+def _result_field_label_keys(outputs: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, str]:
+    step_kind = str(artifacts.get("step_kind") or "")
+    if step_kind != "wait" and "child_status" not in outputs:
+        return {}
+    return {field: key for field, key in _RESULT_FIELD_LABEL_KEYS.items() if field in outputs}
+
+
 def _builtin_step_field_label_keys(
     artifacts: dict[str, Any], payload_key: str = ""
 ) -> dict[str, str]:
@@ -148,38 +195,6 @@ def _redacted_debug_preview(value: Any, *, max_items: int | None = None) -> Any:
     if max_items is None:
         return _bounded_diagnostic_value(sanitized)
     return _bounded_diagnostic_value(sanitized, max_items=max_items)
-
-
-def _artifact_id_from_value(value: Any) -> str:
-    if not isinstance(value, str):
-        return ""
-    normalized = value.strip()
-    if not normalized.startswith(_ARTIFACT_HANDLE_PREFIX):
-        return ""
-    return normalized.removeprefix(_ARTIFACT_HANDLE_PREFIX).strip()
-
-
-def _artifact_ids(value: Any) -> list[str]:
-    resolved: list[str] = []
-
-    def _visit(candidate: Any) -> None:
-        artifact_id = _artifact_id_from_value(candidate)
-        if artifact_id:
-            if artifact_id not in resolved:
-                resolved.append(artifact_id)
-            return
-        if isinstance(candidate, dict):
-            direct_artifact_id = str(candidate.get("artifact_id") or "").strip()
-            if direct_artifact_id and direct_artifact_id not in resolved:
-                resolved.append(direct_artifact_id)
-            for nested in candidate.values():
-                _visit(nested)
-        elif isinstance(candidate, (list, tuple)):
-            for nested in candidate:
-                _visit(nested)
-
-    _visit(value)
-    return resolved
 
 
 def _display_debug_value(value: Any, *, preserve_empty_items: bool = False) -> Any:
@@ -263,63 +278,6 @@ def _http_saved_output(message: dict[str, Any], artifacts: dict[str, Any]) -> di
         "value": _redacted_debug_preview(value),
         "is_file": is_file,
     }
-
-
-def _artifact_metadata(value: Any) -> dict[str, Any]:
-    if hasattr(value, "model_dump"):
-        dumped = value.model_dump(mode="json")
-        return dict(dumped) if isinstance(dumped, dict) else {}
-    if hasattr(value, "dump"):
-        dumped = value.dump()
-        return dict(dumped) if isinstance(dumped, dict) else {}
-    return dict(value) if isinstance(value, dict) else {}
-
-
-def _artifact_descriptors(
-    value: Any,
-    *,
-    role: str,
-    project_id: str,
-    job_id: str,
-    resolve_artifact: Callable[[str], Any] | None,
-) -> list[dict[str, Any]]:
-    if not callable(resolve_artifact) or not project_id or not job_id:
-        return []
-    descriptors: list[dict[str, Any]] = []
-    for artifact_id in _artifact_ids(value):
-        try:
-            metadata = _artifact_metadata(resolve_artifact(artifact_id))
-        except Exception:
-            metadata = {}
-        if not artifact_metadata_belongs_to_job(
-            metadata,
-            project_id=project_id,
-            job_id=job_id,
-        ):
-            continue
-        available = artifact_metadata_is_downloadable(metadata)
-        from core.application.extensions.artifact_presentation import artifact_presentation_view
-
-        metadata = artifact_presentation_view(metadata, resolve_artifact=resolve_artifact)
-        size_bytes = max(0, int(metadata.get("size_bytes") or 0))
-        descriptors.append(
-            {
-                "artifact_id": artifact_id,
-                "role": role,
-                "filename": str(metadata.get("filename") or "Artifact").strip() or "Artifact",
-                "content_type": str(
-                    metadata.get("content_type") or "application/octet-stream"
-                ).strip(),
-                "size_bytes": size_bytes,
-                # Known before anyone asks: the run view says so instead of offering a preview.
-                "preview_too_large": size_bytes > file_preview_max_bytes(),
-                "available": available,
-                "download_url": (
-                    f"/api/jobs/{job_id}/artifacts/{artifact_id}" if available else None
-                ),
-            }
-        )
-    return descriptors
 
 
 def _step_duration_ms(*, started_at: Any, finished_at: Any, explicit_ms: Any) -> int | None:
@@ -414,6 +372,7 @@ def _message_step_debug_fields(
         envelope.get("inputs"),
     )
     outputs = _first_nonempty_dict(
+        _wait_step_outputs(artifacts),
         connector_response.get("result"),
         artifacts.get("output_payload"),
         artifacts.get("outputs"),
@@ -478,7 +437,8 @@ def _message_step_debug_fields(
 
     return {
         "input_field_label_keys": _builtin_step_field_label_keys(artifacts, "input_payload"),
-        "output_field_label_keys": _builtin_step_field_label_keys(artifacts, "output_payload"),
+        "output_field_label_keys": _builtin_step_field_label_keys(artifacts, "output_payload")
+        or _result_field_label_keys(outputs, artifacts),
         "inputs": (
             _redacted_debug_preview(
                 _display_debug_value(
@@ -578,6 +538,7 @@ def _build_message_steps(
             "file_from_base64": "react.workflows.save_file_from_base64",
             "template": "react.workflows.template",
             "invoke_workflow": "react.workflows.invoke_workflow",
+            "wait": "react.workflows.step_kind_wait",
             "if": "react.workflows.if",
             "switch": "react.workflows.switch",
             "stop_success": "react.workflows.finish_successfully",
@@ -669,7 +630,9 @@ def _build_message_steps(
                 "timestamp": str(message.get("timestamp") or ""),
                 "message_id": message_id or None,
                 "evidence": _message_evidence(
-                    message, field_label_keys=_builtin_step_field_label_keys(artifacts)
+                    message,
+                    field_label_keys=_builtin_step_field_label_keys(artifacts)
+                    or _result_field_label_keys(artifacts, artifacts),
                 ),
                 "source": "message",
                 "selected": False,

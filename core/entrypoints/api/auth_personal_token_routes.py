@@ -55,7 +55,7 @@ def register_personal_token_routes(
     ERR_TOKEN_NOT_FOUND = dependencies.err_token_not_found
 
     @router.get("/api/auth/tokens")
-    async def api_auth_tokens_list(
+    def api_auth_tokens_list(
         request: Request,
         page: Annotated[int, Query()] = 1,
         per_page: Annotated[int, Query()] = 25,

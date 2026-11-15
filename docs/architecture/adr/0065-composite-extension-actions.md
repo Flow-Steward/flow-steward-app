@@ -4,6 +4,8 @@
 - Date: 2026-11-10
 - Builds on: [ADR 0013](0013-extension-package-identity-and-dependencies.md),
   [ADR 0038](0038-workflow-containers-for-each-collect-hooks.md)
+- Amended by: [ADR 0068](0068-connection-slots-for-extension-workflows.md) (connection
+  slots of extension workflows started directly)
 
 ## Context
 

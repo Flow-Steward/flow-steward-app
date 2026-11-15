@@ -1,6 +1,7 @@
+import { z } from "@/lib/validation/zod";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
@@ -155,7 +156,7 @@ export function DashboardPage() {
   const { t } = useI18n();
   const canAdministerPlatform = useHasCapability("administer_platform");
   const canReadRegistry = useHasCapability("read_registry");
-  const [range, setRange] = useState("24h");
+  const [range, setRange] = useFilterState<string>("dashboard/range", z.enum(["24h", "7d", "30d"]), "24h");
   const summaryQuery = useQuery({
     queryKey: queryKeys.dashboardSummary(range),
     queryFn: () => fetchDashboardSummary(range),

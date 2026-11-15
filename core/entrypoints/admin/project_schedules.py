@@ -28,6 +28,8 @@ class ApiScheduledJobCreateRequest(BaseModel):
 
     workflow_id: str
     cron_expr: str
+    #: Tells schedules of one workflow apart; the jobs it starts are titled with it.
+    name: str = Field(default="", max_length=120)
     schedule_timezone: str = ""
     inputs: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = False
@@ -38,6 +40,7 @@ class ApiScheduledJobUpdateRequest(BaseModel):
 
     workflow_id: str
     cron_expr: str
+    name: str | None = Field(default=None, max_length=120)
     schedule_timezone: str | None = None
     inputs: dict[str, Any] | None = None
     enabled: bool | None = None
@@ -220,6 +223,7 @@ def create_project_schedules_router(
                 ProjectScheduledJobCreateInput(
                     workflow_id=body.workflow_id,
                     cron_expr=body.cron_expr,
+                    name=body.name,
                     schedule_timezone=body.schedule_timezone,
                     inputs=body.inputs,
                     enabled=body.enabled,
@@ -354,7 +358,7 @@ def create_project_schedules_router(
         )
 
     @router.get("/api/projects/{project_id}/scheduled-jobs")
-    async def api_project_scheduled_jobs(
+    def api_project_scheduled_jobs(
         request: Request,
         project_id: str,
         limit_runs: Annotated[int, Query(ge=1, le=200)] = 20,
@@ -372,7 +376,7 @@ def create_project_schedules_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/cron-preview")
-    async def api_project_cron_preview(
+    def api_project_cron_preview(
         request: Request,
         project_id: str,
         cron_expr: Annotated[str, Query(alias="cron_expr")] = "",

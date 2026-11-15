@@ -11,6 +11,7 @@ from core.application.orchestration.invoke_workflow_step_node_common import (
     _json_object,
 )
 from core.application.orchestration.step_templating import set_state_path
+from core.application.workflows.workflow_invocation_target import CHILD_FAILURE_OUTPUTS
 
 logger = logging.getLogger(__name__)
 
@@ -265,3 +266,96 @@ def _artifact_key_for_state_target(state_target: str) -> str:
         target = target[len(STATE_TARGET_PREFIX) :]
     parts = [part for part in target.split(".") if part]
     return parts[-1] if parts else ""
+
+
+_CHILD_ERROR_MESSAGE_LIMIT = 1000
+#: A run status written as an error code says nothing the status does not.
+_STATUS_ONLY_CODES = frozenset({"", "fail", "failed", "error", "cancelled", "step_failed"})
+
+
+def _child_error_row(bl: Any, child_job_id: str) -> dict[str, Any]:
+    """The child's terminal error: the newest ``job_errors`` row naming a step."""
+    list_job_errors = getattr(bl, "list_job_errors", None)
+    if not callable(list_job_errors) or not child_job_id:
+        return {}
+    try:
+        rows = list_job_errors(str(child_job_id), limit=20) or []
+    except Exception as exc:  # The reason is a courtesy; its absence never fails the step.
+        logger.debug("invoke_workflow: child errors unavailable for %s: %s", child_job_id, exc)
+        return {}
+    rows = [dict(row) for row in rows if isinstance(row, dict)]
+    return next(
+        (row for row in rows if str(row.get("step_id") or "").strip()), rows[0] if rows else {}
+    )
+
+
+def child_failure(
+    bl: Any,
+    *,
+    child_job_id: Any,
+    child_status: str,
+    child_row: dict[str, Any] | None = None,
+    fallback_message: str = "",
+) -> dict[str, Any]:
+    """Why the child did not complete: its status, error code and message, and failed step."""
+    from core.infrastructure.security.prompt_safety import redact_text_for_persistence
+
+    job_id = str(child_job_id or "").strip()
+    row = _child_error_row(bl, job_id) if bl is not None else {}
+    context = _json_object(row.get("context_jsonb"))
+    code = str(context.get("error_code") or row.get("error_code") or "").strip()
+    if code.lower() in _STATUS_ONLY_CODES:
+        code = ""
+    child = child_row if isinstance(child_row, dict) else {}
+    message = next(
+        (
+            text
+            for text in (
+                str(row.get("error_message") or "").strip(),
+                str(child.get("error") or "").strip(),
+                str(child.get("last_error") or "").strip(),
+                str(fallback_message or "").strip(),
+            )
+            if text
+        ),
+        "",
+    )
+    if message:
+        message = redact_text_for_persistence(message[:_CHILD_ERROR_MESSAGE_LIMIT])
+    return {
+        "child_status": str(child_status or "failed"),
+        "child_job_id": job_id,
+        "child_error_code": code,
+        "child_error_message": message,
+        "child_error_step_id": str(row.get("step_id") or "").strip(),
+    }
+
+
+def child_failure_text(child_workflow_id: str, failure: dict[str, Any]) -> str:
+    """``Child workflow 'x' finished with status 'failed': <the child's own reason>``."""
+    text = f"Child workflow '{child_workflow_id}' finished with status '{failure['child_status']}'"
+    reason = str(failure.get("child_error_message") or "").strip()
+    step_id = str(failure.get("child_error_step_id") or "").strip()
+    if reason and step_id:
+        return f"{text} at step '{step_id}': {reason}"
+    if reason:
+        return f"{text}: {reason}"
+    return text
+
+
+def child_failure_state_updates(
+    *,
+    state: OrchestratorState,
+    output_mapping: dict[str, Any],
+    failure: dict[str, Any],
+) -> dict[str, Any]:
+    """State writes for the failure outputs the step maps (``child_error_message: state.x``)."""
+    updates: dict[str, Any] = {}
+    for name, target in (output_mapping or {}).items():
+        key = str(name or "").strip()
+        if key not in CHILD_FAILURE_OUTPUTS or failure.get(key) in (None, ""):
+            continue
+        _set_nested_state_update(
+            state=state, updates=updates, state_target=str(target or ""), value=failure[key]
+        )
+    return updates

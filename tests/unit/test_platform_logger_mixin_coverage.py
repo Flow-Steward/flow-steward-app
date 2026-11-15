@@ -1953,7 +1953,8 @@ def test_extension_scan_list_and_get_paths_cover_mixin_branches() -> None:
         "account_scope_jsonb": {"mode": "all"},
         "account_id": "acc_default",
     }
-    conn.fetchall_results = [[extension_row], [extension_row]]
+    conn.fetchall_results = [[extension_row]]
+    conn.fetchone_results = [extension_row]
 
     listed = logger.list_extensions(enabled_only=True)
     assert listed

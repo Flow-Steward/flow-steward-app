@@ -186,8 +186,14 @@ def build_execution_steps(
             message_step[field] = durable_step.get(field)
         if durable_step.get("step_execution_id"):
             message_step["step_execution_id"] = durable_step["step_execution_id"]
-        for field in ("status", "status_label", "tone"):
-            message_step[field] = durable_step[field]
+        # The durable row says the step's node finished; its own result says
+        # whether it failed. A failure an error route or Continue took is still
+        # a failed step, not a completed one.
+        if not (
+            message_step.get("status") == "failed" and durable_step.get("status") == "completed"
+        ):
+            for field in ("status", "status_label", "tone"):
+                message_step[field] = durable_step[field]
         for field in ("started_at", "finished_at", "duration_ms"):
             value = durable_step.get(field)
             if value not in (None, ""):

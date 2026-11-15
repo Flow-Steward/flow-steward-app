@@ -55,7 +55,7 @@ function installHttp() {
   });
   return { requests, state };
 }
-function renderPage(initialEntry = "/registry/workflows") {
+function renderPage(initialEntry = "/registry/workflows?per_page=50") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const router = createMemoryRouter([{ path: "/registry/workflows", element: <WorkflowsListPage /> }], { initialEntries: [initialEntry] });
   return { ...render(<QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider>), router, client };
@@ -127,7 +127,7 @@ it("offers the project filter only through Add filter and restores unassigned wo
   expect(new URLSearchParams(view.router.state.location.search).has("project_id")).toBe(false);
 });
 it("clears project and status together with Clear all", async () => {
-  installHttp(); const view = renderPage(`/registry/workflows?project_id=${beta.id}&enabled=1`);
+  installHttp(); const view = renderPage(`/registry/workflows?project_id=${beta.id}&enabled=1&per_page=50`);
   await table().findByRole("link", { name: "Beta workflow" });
   fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
   await table().findByRole("link", { name: "Unassigned workflow" });
@@ -161,7 +161,7 @@ it("restores project and search state on a fresh URL load", async () => {
   expect(screen.getByRole("searchbox", { name: "Search workflows" })).toHaveValue("Shared");
 });
 it("never substitutes a real project for an unknown URL project", async () => {
-  installHttp(); const view = renderPage("/registry/workflows?project_id=missing-project");
+  installHttp(); const view = renderPage("/registry/workflows?project_id=missing-project&per_page=50");
   await screen.findByRole("alert"); expect(table().queryByRole("link")).not.toBeInTheDocument();
   expect(new URLSearchParams(view.router.state.location.search).get("project_id")).toBe("missing-project");
   await chooseProject("All projects"); await table().findByRole("link", { name: "Unassigned workflow" });
@@ -238,8 +238,8 @@ it("withdraws the previous account's rows and project options on the same QueryC
   const pendingWorkflows = deferred<Response>();
   const originalProjects = state.projects;
   const originalWorkflows = state.workflows;
-  state.projects = async (url) => accountId === "account-beta" ? pendingProjects.promise : originalProjects(url);
-  state.workflows = async (url) => accountId === "account-beta" ? pendingWorkflows.promise : originalWorkflows(url);
+  state.projects = async (url) => accountId === "account-beta" ? (await pendingProjects.promise).clone() : originalProjects(url);
+  state.workflows = async (url) => accountId === "account-beta" ? (await pendingWorkflows.promise).clone() : originalWorkflows(url);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 60_000 } } });
   const router = createMemoryRouter([{ path: "/registry/workflows", element: <WorkflowsListPage /> }], {
     initialEntries: [`/registry/workflows?project_id=${alpha.id}&search=workflow&view=grid`],
@@ -251,16 +251,19 @@ it("withdraws the previous account's rows and project options on the same QueryC
   view.rerender(tree());
   expect(table().queryByRole("link")).not.toBeInTheDocument();
   await act(async () => { pendingProjects.resolve(json({ projects: [{ ...beta, workflow_ids: ["beta-only"] }], page: 1, per_page: 200, total: 1, total_pages: 1 })); });
-  await screen.findByRole("alert");
-  expect(new URLSearchParams(router.state.location.search).get("project_id")).toBe(alpha.id);
-  await act(async () => { pendingWorkflows.resolve(json([{ workflow_id: "beta-only", display_name: "Beta workflow", enabled: true }])); });
-  // Alpha is not a project of this account: its rows stay withheld.
+  // Account-scoped filter preferences discard Alpha's selection on identity change.
+  await waitFor(() => expect(new URLSearchParams(router.state.location.search).has("project_id")).toBe(false));
   expect(table().queryByRole("link")).not.toBeInTheDocument();
-  await waitFor(() => expect(screen.getByRole("button", { name: "Add filter" })).toBeEnabled());
-  await chooseProject("Beta project");
+  await act(async () => { pendingWorkflows.resolve(json([{ workflow_id: "beta-only", display_name: "Beta workflow", enabled: true }])); });
   await table().findByRole("link", { name: "Beta workflow" });
   expect(table().queryByRole("link", { name: "Alpha workflow" })).not.toBeInTheDocument();
-  expect(new URLSearchParams(router.state.location.search).get("search")).toBe("workflow");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Add filter" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Project" }));
+  expect(screen.queryByRole("menuitem", { name: "Alpha project" })).not.toBeInTheDocument();
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Beta project" }));
+  await waitFor(() => expect(new URLSearchParams(router.state.location.search).get("project_id")).toBe(beta.id));
+  expect(new URLSearchParams(router.state.location.search).has("search")).toBe(false);
   expect(new URLSearchParams(router.state.location.search).get("view")).toBe("grid");
 });
 

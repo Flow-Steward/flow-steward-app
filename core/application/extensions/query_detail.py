@@ -4,6 +4,7 @@ from core.application.management.errors import ServiceNotFoundError, ServiceUnav
 from core.application.management.query_models import ExtensionDetailView
 from core.application.management.scope import ScopeContext
 
+from .install import ExtensionInstallRecord
 from .query_detail_projection import ExtensionDetailProjector
 from .query_ports import ExtensionDetailListingPort
 from .service_support import _normalize_text, _service_scope
@@ -27,6 +28,24 @@ class ExtensionQueryDetail:
         scope: ScopeContext | None = None,
     ) -> ExtensionDetailView:
         scope = _service_scope(scope)
+        record = self._visible_install(extension_id, scope=scope)
+        return self._projector.project(record=record, account_id=scope.account_id or "acc_default")
+
+    def get_extension_identity(
+        self,
+        extension_id: str,
+        *,
+        scope: ScopeContext | None = None,
+    ) -> str:
+        """Resolve visibility without loading release, projection or connection payloads."""
+        return self._visible_install(extension_id, scope=_service_scope(scope)).extension_id
+
+    def _visible_install(
+        self,
+        extension_id: str,
+        *,
+        scope: ScopeContext,
+    ) -> ExtensionInstallRecord:
         account_id = scope.account_id or "acc_default"
         try:
             store = self._listings.install_store()
@@ -49,7 +68,7 @@ class ExtensionQueryDetail:
             )
         if not record:
             raise ServiceNotFoundError(f"Extension '{extension_id}' not found")
-        return self._projector.project(record=record, account_id=account_id)
+        return record
 
     def get_install_detail(
         self,

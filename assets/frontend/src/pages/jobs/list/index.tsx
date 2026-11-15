@@ -1,3 +1,4 @@
+import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -5,7 +6,8 @@ import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { RefreshCw, Search } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
@@ -22,7 +24,6 @@ import {
   jobStatusesOfGroups,
   jobStatusGroup,
   jobStatusGroupLabel,
-  jobStatusGroupsFromValues,
   jobStatusGroupTone,
 } from "@/pages/jobs/status-groups";
 import {
@@ -36,6 +37,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { JOB_SKELETON_ROWS, JOB_SKELETON_WIDTHS } from "@/pages/jobs/list/job-skeleton";
+import { jobFiltersFromUrl, normalizeStatusList } from "@/pages/jobs/list/job-filters";
 import {
   AdvancedTableFilters,
   BulkActionBar,
@@ -44,6 +46,7 @@ import {
   DsCheckbox,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   Pagination,
   PageContainer,
   RowActionMenu,
@@ -124,19 +127,6 @@ function normalizeJobRows(payload: unknown): JobListItem[] {
 
 function normalizeStatus(value: unknown): string {
   return firstStringFromUnknownValue([value, ""]).trim().toLowerCase();
-}
-
-/**
- * The status filter is a comma list of status group keys; the URL repeats
- * `status` once per group. A stored status from an older link means its group.
- */
-function normalizeStatusList(values: readonly string[]): string {
-  return jobStatusGroupsFromValues(values).join(",");
-}
-
-/** `hide_acknowledged=1` (or `true`) in the URL turns the toggle on. */
-function hideAcknowledgedFromUrl(value: string | null): boolean {
-  return ["1", "true"].includes(String(value || "").trim().toLowerCase());
 }
 
 function periodFromUrl(params: URLSearchParams): PeriodValue {
@@ -232,7 +222,9 @@ function jobWorkflowCell(row: Record<string, unknown>) {
   const fullRequest = firstStringFromUnknownValue([row._task_full, row.task_summary, request]);
   return (
     <span className="fs-job-workflow-copy">
-      <strong title={workflowId || workflowName}>{workflowName}</strong>
+      <DsTableLink href={appHref(`/jobs/${encodeURIComponent(firstStringFromUnknownValue([row.job_id, row.id, ""]))}`)}>
+        <span title={workflowId || workflowName}>{workflowName}</span>
+      </DsTableLink>
       {request ? <span title={fullRequest}>{request}</span> : null}
     </span>
   );
@@ -244,24 +236,17 @@ export function JobsListPage() {
   const userTimezone = useUserTimezone();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useFilterSearchParams("jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
-  const urlWorkflowFilter = firstStringFromUnknownValue([searchParams.get("workflow_id"), ""]).trim();
-  // Dashboard metric cards deep-link here with a status, the same way workflow
-  // links already do. It seeds the filter once; the user's own choice wins after.
-  const urlStatusFilter = normalizeStatusList(searchParams.getAll("status"));
-
-  // Filter state, not DOM reads: the published filter and search controls are
-  // controlled. The option lists never come from the loaded jobs alone: the
-  // server already narrowed those to the applied filters, so a filter would
-  // shrink its own menu (and the others) to what it selected.
-  const [search, setSearch] = useState("");
+  // Filter state lives in the URL (job-filters.ts): the published filter and
+  // search controls are controlled, and the option lists never come from the
+  // loaded jobs alone, so a filter never shrinks its own menu.
+  const {
+    urlWorkflowFilter, search, setSearch, projectFilter, setProjectFilter, statusFilter,
+    setStatusFilter, hideAcknowledged, setHideAcknowledged, workflowFilter, setWorkflowFilter,
+  } = jobFiltersFromUrl(searchParams, setSearchParams);
   const deferredSearch = useDeferredValue(search);
-  const [projectFilter, setProjectFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState(urlStatusFilter);
-  const [hideAcknowledged, setHideAcknowledged] = useState(() => hideAcknowledgedFromUrl(searchParams.get("hide_acknowledged")));
-  const [workflowFilter, setWorkflowFilter] = useState(urlWorkflowFilter);
   const [filterOptions, setFilterOptions] = useState<{
     projects: DsOption[];
     statuses: DsOption[];
@@ -342,7 +327,7 @@ export function JobsListPage() {
         action_id: "cancel",
         label: t("common.cancel", "Cancel"),
         variant: "danger",
-        visible_if: { field: "status", in: ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child"] },
+        visible_if: { field: "status", in: ["in_progress", "resume_pending", "pending", "awaiting_approval", "awaiting_timer", "awaiting_child", "awaiting_event"] },
       });
     }
     const bulkActions: Record<string, unknown>[] = [];
@@ -387,6 +372,7 @@ export function JobsListPage() {
             in_progress: "accent",
             awaiting_timer: "accent",
             awaiting_child: "accent",
+            awaiting_event: "accent",
             resume_pending: "accent",
             pending: "accent",
             completed: "green",
@@ -433,6 +419,7 @@ export function JobsListPage() {
       const workflowId = normalizeWorkflowId(job);
       if (searchQuery) {
         const haystack = [
+          job.run_title || "",
           job.display_summary || job.task_summary || "",
           job.task_summary || "",
           job.project_name || "",
@@ -477,15 +464,22 @@ export function JobsListPage() {
         : undefined;
       const generatedWorkflowRun = job.task_summary_key === "react.jobs.generated_workflow_run_summary"
         && typeof generatedWorkflowId === "string" && generatedWorkflowId.length > 0;
+      // A run title (schedule or webhook name, the workflow's run title) says what this run was for.
+      const runTitle = firstStringFromUnknownValue([job.run_title, ""]).trim();
+      let taskDisplay = firstStringFromUnknownValue([job.display_summary, job.task_summary, ""]);
+      let taskFull = firstStringFromUnknownValue([job.task_summary, job.display_summary, ""]);
+      if (runTitle) {
+        taskDisplay = runTitle;
+        taskFull = runTitle;
+      } else if (generatedWorkflowRun) {
+        taskDisplay = t("react.jobs.generated_workflow_run_label", "Workflow run");
+        taskFull = t("react.jobs.generated_workflow_run_summary", "Workflow run: {workflow_id}", { workflow_id: generatedWorkflowId });
+      }
       return {
         ...job,
         _duration: durationLabel(job, t),
-        _task_display: generatedWorkflowRun
-          ? t("react.jobs.generated_workflow_run_label", "Workflow run")
-          : firstStringFromUnknownValue([job.display_summary, job.task_summary, ""]),
-        _task_full: generatedWorkflowRun
-          ? t("react.jobs.generated_workflow_run_summary", "Workflow run: {workflow_id}", { workflow_id: generatedWorkflowId })
-          : firstStringFromUnknownValue([job.task_summary, job.display_summary, ""]),
+        _task_display: taskDisplay,
+        _task_full: taskFull,
         _workflow_display: workflowDisplayName(job, workflowDisplayNamesRef.current, workflowSourceRef.current),
         _workflow_tooltip: workflowId,
         // Unknown or legacy codes have no group; only Job details shows them raw.
@@ -859,7 +853,6 @@ export function JobsListPage() {
       return;
     }
     setPage(1);
-    setWorkflowFilter(urlWorkflowFilter);
   }, [urlWorkflowFilter]);
 
   function handleJobRowAction(actionId: string, row: Record<string, unknown>) {
@@ -1036,6 +1029,7 @@ export function JobsListPage() {
           </label>
         </div>
         <DsTable
+          rowClickFocusable={false}
           ariaLabel={t("jobs.page_title", "Jobs")}
           columns={jobColumns}
           onRowClick={(row) => {

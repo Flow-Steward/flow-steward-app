@@ -1016,9 +1016,9 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-job-status-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--fs-space-050); }
 .fs-job-workflow-copy { display: grid; min-width: 0; max-width: clamp(16rem, 30vw, 28rem); line-height: 1.25; }
 
-.fs-job-workflow-copy strong,
+.fs-job-workflow-copy > a,
 .fs-job-workflow-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fs-job-workflow-copy strong { color: var(--fs-text-primary); font-size: var(--fs-type-field-label-size); font-weight: var(--fs-type-weight-medium); }
+.fs-job-workflow-copy > a { font-size: var(--fs-type-field-label-size); font-weight: var(--fs-type-weight-medium); }
 .fs-job-workflow-copy > span { margin-top: var(--fs-space-025); color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); }
 .fs-management-result-announcement { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .fs-table-footer { display: flex; align-items: center; justify-content: flex-end; gap: var(--fs-dashboard-grid-gap); padding: var(--fs-card-footer-padding); color: var(--fs-text-secondary); font-size: 12px; }

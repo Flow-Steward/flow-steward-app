@@ -232,7 +232,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
             return api_error_response(e)
 
     @router.get("/api/jobs/{job_id}/trace")
-    async def api_job_trace(
+    def api_job_trace(
         request: Request,
         job_id: str,
         limit: Annotated[int, Query()] = 500,
@@ -251,7 +251,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         return JSONResponse(payload.dump())
 
     @router.get("/api/jobs/{job_id}/incident")
-    async def api_job_incident_drilldown(
+    def api_job_incident_drilldown(
         request: Request, job_id: str, limit: Annotated[int, Query(ge=1, le=200)] = 100
     ):
         """Return one-shot incident drill-down payload to locate root cause fast."""
@@ -282,7 +282,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         return JSONResponse({"status": payload.status, "job_id": payload.job_id})
 
     @router.get("/api/jobs/{job_id}/usage-breakdown")
-    async def api_job_usage_breakdown(request: Request, job_id: str):
+    def api_job_usage_breakdown(request: Request, job_id: str):
         """Return per-agent, per-model token usage breakdown for a job."""
         try:
             payload = job_query_service().get_usage_breakdown(
@@ -296,7 +296,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         return JSONResponse(payload.dump())
 
     @router.get("/api/jobs/{job_id}/events")
-    async def api_job_events(
+    def api_job_events(
         request: Request,
         job_id: str,
         since_id: str = "",
@@ -317,7 +317,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         return JSONResponse(payload.dump())
 
     @router.get("/api/jobs/{job_id}/messages")
-    async def api_job_messages(
+    def api_job_messages(
         request: Request,
         job_id: str,
         since_id: str = "",
@@ -350,9 +350,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         return JSONResponse(payload.dump())
 
     @router.get("/api/jobs/{job_id}/messages/{message_id}/output-value")
-    async def api_job_step_output_value(
-        request: Request, job_id: str, message_id: str, field: str = ""
-    ):
+    def api_job_step_output_value(request: Request, job_id: str, message_id: str, field: str = ""):
         """Return the full value of one step output that Job Details shows cut short."""
         try:
             payload = job_query_service().get_step_output_value(
@@ -418,7 +416,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         )
 
     @router.get("/api/jobs/{job_id}/artifacts/{artifact_id}")
-    async def api_job_artifact_download(request: Request, job_id: str, artifact_id: str):
+    def api_job_artifact_download(request: Request, job_id: str, artifact_id: str):
         """Authorize an artifact, then redirect to storage or stream it back.
 
         Authorization always runs first. A backend that can grant a browser URL

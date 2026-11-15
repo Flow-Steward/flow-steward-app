@@ -71,6 +71,7 @@ import {
   emptyExtensionsDescription,
   extensionStateBadgeTone,
   translatedExtensionStatus,
+  extensionHeaderDescription,
 } from "./hub-support";
 
 import { useExtensionsHubState } from "./use-extensions-hub-state";
@@ -561,7 +562,7 @@ export function ExtensionsHubPage() {
   ));
 
   return (
-    <PageContainer className="fs-page-sections" width="wide">
+    <PageContainer className={choose(detailMode, "fs-page-sections fs-extension-internal", "fs-page-sections")} width="wide">
       {renderWhen(Boolean(oauthCallbackNotice), (
         <DsAlert
           title={oauthCallbackMessage}
@@ -590,7 +591,7 @@ export function ExtensionsHubPage() {
         description={choose(
           detailMode,
           [
-            detailExtension?.description || t("react.extensions.display_manage_configuration_runtime", "Manage this extension's configuration and runtime."),
+            extensionHeaderDescription(detailExtension?.summary, detailExtension?.description || t("react.extensions.display_manage_configuration_runtime", "Manage this extension's configuration and runtime.")),
             detailPublisher ? t("react.extensions.display_published_by", "Published by {publisher}.", { publisher: detailPublisher }) : "",
           ].filter(Boolean).join(" "),
           t("react.extensions.display_manage_installed_extensions", "Manage installed extensions and review available integrations."),
@@ -672,7 +673,10 @@ export function ExtensionsHubPage() {
             effectRecoveries={manifestActions.effectRecoveries}
             activeManifestPage={activeManifestPage}
             busyById={busyById}
+            canManageCallbacks={manifestActions.canManageCallbacks}
             callbackStatuses={callbackStatuses}
+            callbackSetupCredentials={manifestActions.callbackSetupCredentials}
+            callbackSetupErrors={manifestActions.callbackSetupErrors}
             callbacksQuery={callbacksQuery}
             componentErrors={componentErrors}
             componentQueryData={componentQueryData}

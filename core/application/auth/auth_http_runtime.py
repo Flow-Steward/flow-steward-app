@@ -7,6 +7,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from fastapi.responses import JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from core.application.auth.inbound_oauth_policy import (
     MCP_FORWARD_HEADER,
@@ -452,13 +453,13 @@ async def local_auth_middleware(
     if isinstance(principal, ResolvedPrincipal):
         auth_source = "mcp_dev"
     elif external_enabled:
-        bl = get_logger_only_fn()
-        user = request_principal_resolver_fn(request, bl)
+        bl = await run_in_threadpool(get_logger_only_fn)
+        user = await run_in_threadpool(request_principal_resolver_fn, request, bl)
         principal = normalize_live_principal_fn(user, default_auth_source="external")
         if isinstance(principal, ResolvedPrincipal):
             auth_source = "external"
     if not isinstance(principal, ResolvedPrincipal) and local_auth_enabled:
-        bl = bl or get_logger_only_fn()
+        bl = bl or await run_in_threadpool(get_logger_only_fn)
         auth_header = str(request.headers.get("authorization") or "").strip()
         bearer_token = auth_header[7:].strip() if auth_header.lower().startswith("bearer ") else ""
         session_cookie_token = str(request.cookies.get(auth_cookie_name) or "").strip()
@@ -474,11 +475,12 @@ async def local_auth_middleware(
             if public_auth_path:
                 return await call_next(request)
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
-        if session_cookie_token and not auth_tables_available_fn(bl):
+        if session_cookie_token and not await run_in_threadpool(auth_tables_available_fn, bl):
             if public_auth_path:
                 return await call_next(request)
             return JSONResponse({"error": err_auth_tables_not_available}, status_code=503)
-        user = _resolve_local_token(
+        user = await run_in_threadpool(
+            _resolve_local_token,
             bl,
             token=token,
             bearer_token=bearer_token,
@@ -490,7 +492,9 @@ async def local_auth_middleware(
     if not isinstance(principal, ResolvedPrincipal):
         if public_auth_path:
             return await call_next(request)
-        bootstrap_required = bool(local_auth_enabled and local_auth_bootstrap_required_fn(bl))
+        bootstrap_required = bool(
+            local_auth_enabled and await run_in_threadpool(local_auth_bootstrap_required_fn, bl)
+        )
         accept = str(request.headers.get("accept") or "")
         if "text/html" in accept and not path.startswith("/api/"):
             query_suffix = f"?{request.url.query}" if request.url.query else ""
@@ -513,11 +517,11 @@ async def local_auth_middleware(
         if public_auth_path:
             return await call_next(request)
         return JSONResponse({"error": err_account_disabled}, status_code=403)
-    if local_auth_enabled and bl and auth_account_tables_available_fn(bl):
+    if local_auth_enabled and bl and await run_in_threadpool(auth_account_tables_available_fn, bl):
         account_active = getattr(bl, "is_account_active", None)
         if callable(account_active):
             try:
-                if not bool(account_active(principal.account_id)):
+                if not bool(await run_in_threadpool(account_active, principal.account_id)):
                     if public_auth_path:
                         return await call_next(request)
                     return JSONResponse({"error": err_account_disabled}, status_code=403)

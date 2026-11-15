@@ -83,6 +83,7 @@ def test_callback_dispatch_finds_the_connection_on_the_project_store(monkeypatch
             "account_id": "acc-1",
             "extension_id": "acme.telegram",
             "extension_install_id": "inst-1",
+            "enabled": True,
         }
 
     identity = SimpleNamespace(
@@ -134,6 +135,7 @@ def test_callback_dispatch_derives_the_account_of_a_registration_from_the_projec
             "account_id": "acc-1",
             "extension_id": "acme.telegram",
             "extension_install_id": "inst-1",
+            "enabled": True,
         },
     )
     service = callbacks.ExtensionCallbackDispatchService(identity, connection_store=projects)

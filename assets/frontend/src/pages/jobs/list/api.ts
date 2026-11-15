@@ -11,6 +11,8 @@ export type JobListItem = {
   task_summary_key?: string;
   task_summary_params?: Record<string, unknown>;
   display_summary?: string;
+  /** What this run is for: its schedule or webhook name and the workflow's run title. */
+  run_title?: string | null;
   project_name?: string;
   project_id?: string;
   selected_workflow?: string;

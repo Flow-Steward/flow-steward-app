@@ -6,7 +6,7 @@ import { ArrowLeft, Search } from "lucide-react";
 import { DsDialog, DsTabs } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { useCompactCatalog } from "@/lib/react/use-compact-catalog";
-import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
+import { useLatestFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { currentTime } from "@/lib/utils/catalog-facets";
 import { fetchExtensions } from "@/pages/extensions/api";
@@ -106,7 +106,7 @@ export function WorkflowCatalogDialog({
   onViewWorkflow?: (workflowId: string) => void;
 }>) {
   const { t } = useI18n();
-  const [params, updateParams] = useLatestSearchParams();
+  const [params, updateParams] = useLatestFilterSearchParams("workflow-catalog", ["tpl_q", "tpl_category", "tpl_integration", "tpl_trigger", "tpl_requires"], open);
   const urlState = useMemo(() => readCatalogUrl(params), [params]);
   // The open template and the tab are state first and URL second: the URL
   // catches up a render later, and two quick actions (Escape twice, two

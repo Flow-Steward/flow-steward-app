@@ -146,6 +146,14 @@
   gap: var(--fs-space-150);
 }
 
+.fs-extension-internal > .fs-page-header .fs-page-description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .fs-extension-detail-page-description {
   margin: 0;
   color: var(--fs-text-secondary);

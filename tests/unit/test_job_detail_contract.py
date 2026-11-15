@@ -3176,9 +3176,9 @@ def test_execution_page_keeps_container_evidence_independent_of_step_pagination(
 
 
 def test_artifact_descriptor_says_when_a_file_is_over_the_preview_limit(monkeypatch):
-    from core.application.reports import ui_projection_helpers
+    from core.application.reports import ui_projection_artifacts
 
-    monkeypatch.setattr(ui_projection_helpers, "file_preview_max_bytes", lambda: 4096)
+    monkeypatch.setattr(ui_projection_artifacts, "file_preview_max_bytes", lambda: 4096)
     artifacts = {
         artifact_id: {
             "artifact_id": artifact_id,
@@ -3193,7 +3193,7 @@ def test_artifact_descriptor_says_when_a_file_is_over_the_preview_limit(monkeypa
         for artifact_id, size in (("art-small", 4096), ("art-large", 4097))
     }
 
-    descriptors = ui_projection_helpers._artifact_descriptors(
+    descriptors = ui_projection_artifacts._artifact_descriptors(
         ["artifact:art-small", "artifact:art-large"],
         role="output",
         project_id="proj-42",

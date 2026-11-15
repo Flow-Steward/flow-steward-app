@@ -17,7 +17,7 @@ def create_system_maintenance_router(
     router = APIRouter(tags=["system"])
 
     @router.get("/api/system/maintenance", response_model=MaintenanceStatusResult)
-    async def system_maintenance_status() -> object:
+    def system_maintenance_status() -> object:
         return status_provider()
 
     return router

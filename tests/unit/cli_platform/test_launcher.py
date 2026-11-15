@@ -1282,6 +1282,69 @@ def test_compact_root_help_lists_supported_commands_without_starting_runtime(
     assert _log(fake_repo) == ""
 
 
+@pytest.mark.parametrize("cli_exit_code", (0, 7))
+def test_compact_root_version_uses_selected_cli_without_retained_runtime(
+    fake_repo: tuple[Path, Path], cli_exit_code: int
+) -> None:
+    repo, _log_path = fake_repo
+    cli_image = f"sha256:{'d' * 64}"
+    _write_compact_installation(fake_repo, image=f"sha256:{'c' * 64}")
+    env_file = repo / ".env.prod"
+    with env_file.open("a", encoding="utf-8") as stream:
+        stream.write(f"FS_CLI_IMAGE={cli_image}\n")
+    # Updated host sources must not determine the installed CLI's version.
+    (repo / "VERSION").write_text("9.9.9\n", encoding="utf-8")
+
+    result = _run_launcher(
+        fake_repo,
+        "--version",
+        env={
+            "FAKE_IMAGE_REVISION": "test-revision",
+            "FAKE_IMAGE_ID": cli_image,
+            "FAKE_CONTAINER_PRESENT": "0",
+            "FAKE_COMPOSE_STDOUT": "flow-steward, version 0.9.18",
+            "FAKE_COMPOSE_EXIT": str(cli_exit_code),
+        },
+    )
+
+    assert result.returncode == cli_exit_code, result.stderr
+    assert result.stdout.strip() == "flow-steward, version 0.9.18"
+    log = _log(fake_repo)
+    assert f"ENV_FS_CLI_IMAGE={cli_image}" in log
+    assert (
+        _arg_sequence(
+            "--entrypoint",
+            "python",
+            "fs-cli",
+            "-m",
+            "core.entrypoints.cli.lifecycle_click_app",
+            "--version",
+        )
+        in log
+    )
+    assert _count_action(fake_repo, "run") == 1
+    for action in ("exec", "up", "start", "rm"):
+        assert _count_action(fake_repo, action) == 0
+    assert "CMD=container inspect" not in log
+    assert "CMD=build" not in log
+
+
+@pytest.mark.parametrize(
+    "args", (("--version", "database", "upgrade"), ("database", "upgrade", "--version"))
+)
+def test_compact_version_with_a_command_cannot_bypass_platform_validation(
+    fake_repo: tuple[Path, Path], args: tuple[str, ...]
+) -> None:
+    _write_compact_installation(fake_repo, image=f"sha256:{'c' * 64}")
+
+    result = _run_launcher(fake_repo, *args, env={"FAKE_IMAGE_REVISION": "test-revision"})
+
+    assert result.returncode == 2
+    assert "Unsupported Compact platform option: --version" in result.stderr
+    assert _count_action(fake_repo, "run") == 0
+    assert _count_action(fake_repo, "exec") == 0
+
+
 def test_compact_clone_create_reaches_platform_dispatcher_with_secret_stdin_flag(
     fake_repo: tuple[Path, Path],
 ) -> None:

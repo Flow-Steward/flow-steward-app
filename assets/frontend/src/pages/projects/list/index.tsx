@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import {
@@ -14,6 +16,7 @@ import {
 import { Plus } from "lucide-react";
 
 import { useNavigate, type NavigateFunction } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import {
   persistWorkspaceSelection,
@@ -28,6 +31,7 @@ import {
   DsFormSelect,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   Pagination,
   PageContainer,
   RowActionMenu,
@@ -94,7 +98,7 @@ function buildProjectColumns({
       sortable: true,
       truncate: "20rem",
       tooltip: (row) => firstStringFromUnknownValue([row.name, ""]) || undefined,
-      cell: (row) => <strong>{firstStringFromUnknownValue([row.name, "—"])}</strong>,
+      cell: (row) => <DsTableLink href={appHref(`/projects/${encodeURIComponent(firstStringFromUnknownValue([row.id, row.project_id, ""]))}`)}>{firstStringFromUnknownValue([row.name, "—"])}</DsTableLink>,
     },
     {
       key: "operator_default_workflow_id",
@@ -179,8 +183,8 @@ export function ProjectsListPage() {
   const [listLoading, setListLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(25);
-  const [search, setSearch] = useState("");
-  const [jobsFilter, setJobsFilter] = useState("");
+  const [search, setSearch] = useFilterState("projects/search", textFilterSchema, "");
+  const [jobsFilter, setJobsFilter] = useFilterState("projects/jobsFilter", textFilterSchema, "");
   const [sort, setSort] = useState<DsTableSort | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -490,6 +494,7 @@ export function ProjectsListPage() {
           <span aria-live="polite" className="fs-management-result-announcement">{t("monitoring.badge.projects", "{count} projects", { count: total })}</span>
         </div>
         <DsTable
+          rowClickFocusable={false}
           ariaLabel={t("react.projects.projects_inventory", "Projects inventory")}
           busy={listLoading}
           columns={projectColumns}

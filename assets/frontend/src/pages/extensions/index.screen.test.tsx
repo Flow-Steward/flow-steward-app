@@ -229,7 +229,10 @@ function imapConnectionFormFixture() {
   };
 }
 
-function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
+function authValue(
+  role: "admin" | "operator" | "viewer",
+  identity: { id?: string; account_id?: string } = {},
+): AuthContextValue {
   return {
     error: null,
     isAuthenticated: true,
@@ -239,7 +242,7 @@ function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
     session: {
       authenticated: true,
       roles: [role],
-      user: { roles: [role] },
+      user: { id: "user-1", account_id: "account-1", ...identity, roles: [role] },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -258,9 +261,8 @@ function renderPage(
     },
   });
   configureQueryClient?.(queryClient);
-  return {
-    ...render(
-    <AuthContext.Provider value={authValue(role)}>
+  const page = (value = authValue(role)) => (
+    <AuthContext.Provider value={value}>
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[initialEntry]}>
           {recoverySwitches ? <RecoveryScopeSwitcher /> : null}
@@ -277,9 +279,13 @@ function renderPage(
           {extraContent}
         </MemoryRouter>
       </QueryClientProvider>
-    </AuthContext.Provider>,
-    ),
+    </AuthContext.Provider>
+  );
+  const view = render(page());
+  return {
+    ...view,
     queryClient,
+    rerenderAuth: (value: AuthContextValue) => view.rerender(page(value)),
   };
 }
 
@@ -306,6 +312,65 @@ function renderReadyManifestActionPage(manifest: Record<string, unknown>) {
       remediation: { install_update: [], uninstall: [] },
     });
   });
+}
+
+function renderManualCallbackOwnerPage() {
+  const extensionId = "example.connector";
+  const registration = {
+    id: "registration-a", extension_id: extensionId, callback_id: "updates",
+    project_id: "project-1", connection_id: "connection-a", enabled: true,
+  };
+  const receipt = {
+    ...registration,
+    callback_url: "https://callbacks.example.test/webhook/extensions/example.connector/updates/one-time-route",
+    callback_secret: "non-authenticating-restoring-owner-fixture", // pragma: allowlist secret - owner restoration test sentinel
+  };
+  mockedFetchExtension.mockResolvedValue({
+    extension_id: extensionId, install_id: "install-1", display_name: "Example connector",
+    active: true, state: "active",
+  });
+  mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    account_scope: { scope_type: "project" },
+    callbacks: [{ callback_id: "updates", connection_scoped: true }],
+    connection_types: [{ connection_type_id: "service_profile", display_name: "Service profile" }],
+    ui_manifest: { pages: [{
+      page_id: "setup", title: "Incoming updates", project_scoped: true,
+      connection: { connection_type_ids: ["service_profile"] },
+      components: [{ component_id: "incoming_setup", type: "callback_setup", callback_id: "updates", setup_mode: "manual" }],
+    }] },
+  });
+  mockedFetchProjectsList.mockResolvedValue({
+    projects: [{ id: "project-1", name: "Project One" }], page: 1, per_page: 200, total: 1, total_pages: 1,
+  });
+  mockedFetchProjectConnectionsList.mockResolvedValue([{
+    connection_id: "connection-a", connection_type: "service_profile", extension_id: extensionId,
+    extension_install_id: "install-1", display_name: "Primary profile", enabled: true,
+  }]);
+  mockedFetchExtensionCallbacks.mockResolvedValue([{ ...registration, callback_url: "/webhook/extensions/example.connector/updates/<redacted>" }]);
+  mockedCreateExtensionCallbackRegistration.mockResolvedValue(receipt);
+  const entry = `/extensions/${extensionId}?project_id=project-1&extension_page=setup&extension_connection=connection-a`;
+  return { ...renderPage(entry, "operator"), receipt };
+}
+
+function unavailableCallbackAuth(
+  state: "missing user" | "restoring user" | "restoring permissions",
+): AuthContextValue {
+  const ready = authValue("operator");
+  if (!ready.session) throw new Error("Expected an authenticated test session.");
+  return {
+    ...ready,
+    status: state === "missing user" ? "authenticated" : "loading",
+    // Retain stale operator roles, including while the real user is absent.
+    session: { ...ready.session, user: state === "restoring permissions" ? ready.session.user : undefined },
+  };
+}
+
+function expectCallbackSetupUnavailable() {
+  for (const name of ["Create Callback", "Refresh Status"]) {
+    const control = screen.queryByRole("button", { name });
+    if (control) expect(control).toBeDisabled();
+  }
+  expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
 }
 
 function RecoveryScopeSwitcher() {
@@ -345,14 +410,16 @@ function ExtensionPageParamRemover() {
 
 function renderCachedExtensionTransition(queryClient: QueryClient) {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/extensions/extension.alpha"]}>
-        <ExtensionRouteSwitcher />
-        <Routes>
-          <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <AuthContext.Provider value={authValue("admin")}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/extensions/extension.alpha"]}>
+          <ExtensionRouteSwitcher />
+          <Routes>
+            <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AuthContext.Provider>,
   );
 }
 
@@ -981,6 +1048,116 @@ describe("ExtensionsHubPage", () => {
       );
     },
   );
+
+  it.each([
+    ["user", { id: "user-2", account_id: "account-1" }],
+    ["account", { id: "user-1", account_id: "account-2" }],
+  ] as const)("hides one-time callback credentials when the real authenticated %s changes in the mounted hub", async (_label, nextIdentity) => {
+    const user = userEvent.setup();
+    const extensionId = "example.connector";
+    const registration = {
+      id: "registration-a", extension_id: extensionId, callback_id: "updates",
+      project_id: "project-1", connection_id: "connection-a", enabled: true,
+    };
+    const receipt = {
+      ...registration,
+      callback_url: "https://callbacks.example.test/webhook/extensions/example.connector/updates/one-time-route",
+      callback_secret: "non-authenticating-owner-fixture", // pragma: allowlist secret - credential owner test sentinel
+    };
+    mockedFetchExtension.mockResolvedValue({
+      extension_id: extensionId, install_id: "install-1", display_name: "Example connector",
+      active: true, state: "active",
+    });
+    mockedFetchExtensionCompiledManifest.mockResolvedValue({
+      account_scope: { scope_type: "project" },
+      callbacks: [{ callback_id: "updates", connection_scoped: true }],
+      connection_types: [{ connection_type_id: "service_profile", display_name: "Service profile" }],
+      ui_manifest: { pages: [{
+        page_id: "setup", title: "Incoming updates", project_scoped: true,
+        connection: { connection_type_ids: ["service_profile"] },
+        components: [{ component_id: "incoming_setup", type: "callback_setup", callback_id: "updates", setup_mode: "manual" }],
+      }] },
+    });
+    mockedFetchProjectsList.mockResolvedValue({
+      projects: [{ id: "project-1", name: "Project One" }], page: 1, per_page: 200, total: 1, total_pages: 1,
+    });
+    mockedFetchProjectConnectionsList.mockResolvedValue([{
+      connection_id: "connection-a", connection_type: "service_profile", extension_id: extensionId,
+      extension_install_id: "install-1", display_name: "Primary profile", enabled: true,
+    }]);
+    mockedFetchExtensionCallbacks.mockResolvedValue([{ ...registration, callback_url: "/webhook/extensions/example.connector/updates/<redacted>" }]);
+    mockedCreateExtensionCallbackRegistration.mockResolvedValue(receipt);
+    const entry = `/extensions/${extensionId}?project_id=project-1&extension_page=setup&extension_connection=connection-a`;
+    const view = renderPage(entry, "operator");
+    view.rerenderAuth(authValue("operator", { id: "user-1", account_id: "account-1" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Create Callback" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /copy verify token/i })).toBeVisible());
+
+    view.rerenderAuth(authValue("operator", nextIdentity));
+
+    expect(screen.getByTestId("location-probe")).toHaveTextContent(entry);
+    expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /copy/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(receipt.callback_url)).not.toBeInTheDocument();
+    expect(screen.queryByText(receipt.callback_secret)).not.toBeInTheDocument();
+    expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledExactlyOnceWith(
+      extensionId, "updates", expect.objectContaining({ project_id: "project-1", connection_id: "connection-a", configure: false }),
+    );
+  });
+
+  it.each(["missing user", "restoring user", "restoring permissions"] as const)(
+    "fails closed for %s and does not restore one-time callback credentials with the same owner",
+    async (state) => {
+      const user = userEvent.setup();
+      const view = renderManualCallbackOwnerPage();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+      await user.click(screen.getByRole("button", { name: "Create Callback" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Copy Verify Token" })).toBeVisible());
+
+      view.rerenderAuth(unavailableCallbackAuth(state));
+
+      expectCallbackSetupUnavailable();
+      expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+      expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+      expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
+
+      view.rerenderAuth(authValue("operator"));
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+      expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+      expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+      expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
+    },
+  );
+
+  it("discards an in-flight callback receipt after the real owner becomes unavailable and returns", async () => {
+    const user = userEvent.setup();
+    const view = renderManualCallbackOwnerPage();
+    const pending = deferredWorkspaceResponse<typeof view.receipt>();
+    mockedCreateExtensionCallbackRegistration.mockReturnValueOnce(pending.promise);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Create Callback" }));
+    await waitFor(() => expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1));
+
+    view.rerenderAuth(unavailableCallbackAuth("restoring user"));
+    expectCallbackSetupUnavailable();
+    view.rerenderAuth(authValue("operator"));
+    const listCallsBeforeReceipt = mockedFetchExtensionCallbacks.mock.calls.length;
+
+    await act(async () => { pending.resolve(view.receipt); await pending.promise; });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+    expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+    expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+    expect(mockedFetchExtensionCallbacks).toHaveBeenCalledTimes(listCallsBeforeReceipt);
+    expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+    expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
+  });
 
   it("names a callback connection only after exact scoped resolution and refetch", async () => {
     mockedFetchExtension.mockResolvedValue({
@@ -3837,16 +4014,18 @@ describe("ExtensionsHubPage", () => {
     mockedFetchExtensionCompiledManifest.mockResolvedValue(manifest);
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[
-          "/extensions/extension.alpha?extension_page=service",
-        ]}>
-          <ExtensionPageParamRemover />
-          <Routes>
-            <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
+      <AuthContext.Provider value={authValue("admin")}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[
+            "/extensions/extension.alpha?extension_page=service",
+          ]}>
+            <ExtensionPageParamRemover />
+            <Routes>
+              <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AuthContext.Provider>,
     );
 
     await waitFor(() => expect(screen.getByText("Selected service page.")).toBeVisible());
@@ -6008,4 +6187,22 @@ describe("ExtensionsHubPage", () => {
     expect(preSpawnFailureKey).not.toBe(replayFailureKey);
     expect(mockedExecuteExtensionAction.mock.calls[3]?.[3]).not.toBe(preSpawnFailureKey);
   });
+  it.each([undefined, "Search records and manage a music library."])("keeps the internal header brief and the full About copy intact (summary=%s)", async (summary) => {
+    const brief = "Research music releases from workflows.";
+    const details = "Detailed marketplace, inventory, collection and account coverage stays in the About page.";
+    const description = `${brief} ${details}`;
+    mockedFetchExtension.mockResolvedValue({
+      extension_id: "smoke.guardrail.enforcement", display_name: "Music Catalog", active: true, state: "active", vendor_name: "Flow Steward", description, summary,
+    });
+    mockedFetchExtensionCompiledManifest.mockResolvedValue({ ui_manifest: { pages: [{
+      page_id: "about", title: "About", project_scoped: false, components: [{ component_id: "full-description", type: "markdown", content: description }],
+    }] } });
+    renderPage("/extensions/smoke.guardrail.enforcement?extension_page=about");
+    await screen.findByText(description, { exact: true });
+    const header = screen.getByRole("banner");
+    expect(header).toHaveTextContent(summary || brief);
+    expect(header).not.toHaveTextContent(details);
+    expect(screen.getByText(description, { exact: true })).toBeVisible();
+  });
+
 });

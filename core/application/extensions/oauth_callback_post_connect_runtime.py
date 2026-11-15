@@ -11,7 +11,6 @@ from core.application.extensions.oauth_contract import (
     provider_revocation_fingerprint,
     provider_security_fingerprint,
 )
-from core.application.extensions.oauth_contract_models import FLOW_REFRESH_TOKEN_IMPORT
 from core.application.extensions.oauth_post_connect import (
     OAuthPostConnectResult,
 )
@@ -73,13 +72,7 @@ def _apply_post_connect(
             ):
                 raise ValueError(_MESSAGE_STALE_CONNECTION)
             effective = _effective_post_connect_result(connection, result)
-            # An imported grant was never consented to on the provider's screen,
-            # so a failed verification keeps the account the connection had.
-            connection_config, display_name = _post_connect_config(
-                connection,
-                effective,
-                keep_identity_on_failure=_text(state.get("flow_type")) == FLOW_REFRESH_TOKEN_IMPORT,
-            )
+            connection_config, display_name = _post_connect_config(connection, effective)
             saved = repository.update_oauth_post_connect(
                 connection_id=connection_id,
                 account_id=_text(state.get("account_id")),

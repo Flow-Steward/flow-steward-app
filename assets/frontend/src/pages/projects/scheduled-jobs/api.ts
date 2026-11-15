@@ -3,6 +3,8 @@ import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils
 
 export type ScheduledJob = Record<string, unknown> & {
   id?: string;
+  /** Tells schedules of one workflow apart; the runs it starts are titled with it. */
+  name?: string;
   workflow_id?: string;
   status?: string;
   enabled?: boolean;
@@ -22,6 +24,8 @@ export async function fetchProjectScheduleWorkflows(projectId: string): Promise<
 export type ScheduledRun = Record<string, unknown> & {
   id?: string;
   scheduled_job_id?: string;
+  /** The title of the job this run started. */
+  job_run_title?: string | null;
   status?: string;
   created_at_user_local?: string;
 };
@@ -44,6 +48,7 @@ type ScheduledJobsRaw = {
 export type ScheduledJobCreateInput = {
   workflow_id: string;
   cron_expr: string;
+  name?: string;
   schedule_timezone?: string;
   inputs?: Record<string, unknown>;
   enabled?: boolean;
@@ -69,6 +74,7 @@ export async function fetchProjectScheduledJobs(projectId: string, limitRuns = 2
 export async function createProjectScheduledJob(projectId: string, input: ScheduledJobCreateInput) {
   const body = {
     cron_expr: input.cron_expr,
+    name: input.name,
     enabled: input.enabled,
     schedule_timezone: firstStringFromUnknownValue([input.schedule_timezone, ""]).trim() || undefined,
     inputs: input.inputs,

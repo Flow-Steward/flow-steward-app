@@ -424,7 +424,7 @@ def _validated_guardrail_save_payload(payload: dict) -> dict:
         503: {"description": "Service unavailable"},
     },
 )
-async def list_guardrails(
+def list_guardrails(
     request: Request,
     project_id: Annotated[str | None, Query()] = None,
     enabled_only: Annotated[bool, Query()] = False,
@@ -517,7 +517,7 @@ async def create_guardrail(
         503: {"description": "Service unavailable"},
     },
 )
-async def get_guardrail(guardrail_id: str, request: Request):
+def get_guardrail(guardrail_id: str, request: Request):
     """Get guardrail detail."""
     db = _get_db()
     scope = _request_scope(request)
@@ -725,7 +725,7 @@ async def set_guardrail_agents(
         503: {"description": "Service unavailable"},
     },
 )
-async def get_guardrail_history(
+def get_guardrail_history(
     guardrail_id: str, request: Request, limit: Annotated[int, Query(ge=1, le=200)] = 50
 ):
     db = _get_db()
@@ -747,7 +747,7 @@ async def get_guardrail_history(
         503: {"description": "Service unavailable"},
     },
 )
-async def get_guardrail_revision(guardrail_id: str, revision: int, request: Request):
+def get_guardrail_revision(guardrail_id: str, revision: int, request: Request):
     db = _get_db()
     scope = _request_scope(request)
     _require_guardrail_in_scope(db, guardrail_id, request)
@@ -772,7 +772,7 @@ async def get_guardrail_revision(guardrail_id: str, revision: int, request: Requ
         503: {"description": "Service unavailable"},
     },
 )
-async def get_guardrail_diff(
+def get_guardrail_diff(
     guardrail_id: str,
     request: Request,
     from_entry_id: Annotated[str | None, Query()] = None,

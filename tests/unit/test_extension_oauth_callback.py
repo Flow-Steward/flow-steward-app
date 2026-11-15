@@ -1123,7 +1123,7 @@ def test_post_connect_failure_retains_grant_and_sets_closed_lifecycle(
     assert "raw-provider-copy-canary" not in repr(update)
 
 
-def test_reconnect_failure_clears_old_verified_identity_and_keeps_new_grant() -> None:
+def test_reconnect_failure_keeps_bound_subject_and_new_grant() -> None:
     repository = _Repository()
     repository.configuration["status"] = "verified"
     repository.state["existing_connection_id"] = "connection-existing"
@@ -1158,12 +1158,9 @@ def test_reconnect_failure_clears_old_verified_identity_and_keeps_new_grant() ->
     oauth = repository.post_connect_updates[0]["connection_config"]["oauth"]
     assert oauth["lifecycle_status"] == "needs_attention"
     assert oauth["last_error_code"] == "provider_unavailable"
-    assert not {
-        "subject",
-        "verified_display_name",
-        "verified_email",
-        "safe_metadata",
-    } & set(oauth)
+    assert oauth["subject"] == "old-subject"
+    assert oauth["replaced_subject"] == "old-subject"
+    assert not {"verified_display_name", "verified_email", "safe_metadata"} & set(oauth)
     assert repository.post_connect_updates[0]["display_name"] == "Primary mailbox"
     assert repository.updated[0]["secret_refs"]["refs"]["_oauth_access_token"] == "access-ref"
 
@@ -1494,5 +1491,5 @@ def test_reauthorization_verified_as_another_subject_keeps_the_connection_bound(
     assert oauth["subject"] == "old-subject"
     assert oauth["lifecycle_status"] == "needs_attention"
     assert oauth["last_error_code"] == "subject_changed"
-    assert "replaced_subject" not in oauth
+    assert oauth["replaced_subject"] == "old-subject"
     assert repository.post_connect_updates[0]["display_name"] == "Primary mailbox"

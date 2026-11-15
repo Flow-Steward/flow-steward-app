@@ -155,14 +155,20 @@ _PUBLIC_WAIT_FIELDS = (
     "wait_id",
     "step_id",
     "group_id",
+    "started_at",
     "due_at",
     "child_job_id",
     "approval_id",
+    # An event wait (ADR 0071): which extension, which events, which key.
+    "source",
+    "event_types",
+    "correlation_key",
+    "timeout_ms",
 )
 
 
 def _public_workflow_wait(job: dict[str, Any], meta: Any) -> dict[str, Any] | None:
-    """What a paused run waits for: its due time, its child job or its approval."""
+    """What a paused run waits for: its due time, its child job, its approval or its event."""
     status = str(job.get("status") or "").strip().lower()
     wait = meta.get("workflow_wait") if isinstance(meta, dict) else None
     if not status.startswith("awaiting_") or not isinstance(wait, dict):

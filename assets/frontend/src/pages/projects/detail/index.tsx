@@ -1,3 +1,6 @@
+import { z } from "@/lib/validation/zod";
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useMemo, useState } from "react";
@@ -153,19 +156,19 @@ export function ProjectsDetailPage() {
   }
   const [selectedWorkflowIds, setSelectedWorkflowIds] = useState<string[]>([]);
   const [defaultWorkflowId, setDefaultWorkflowId] = useState("");
-  const [workflowSearch, setWorkflowSearch] = useState("");
-  const [workflowStatusFilter, setWorkflowStatusFilter] = useState<WorkflowStatusFilter>("all");
+  const [workflowSearch, setWorkflowSearch] = useFilterState(`projects/${projectId}/workflowSearch`, textFilterSchema, "");
+  const [workflowStatusFilter, setWorkflowStatusFilter] = useFilterState<WorkflowStatusFilter>(`projects/${projectId}/workflowStatus`, z.enum(["all", "linked", "available", "disabled"]), "all");
   const [selectedDataConnectionIds, setSelectedDataConnectionIds] = useState<string[]>([]);
-  const [dataConnectionSearch, setDataConnectionSearch] = useState("");
+  const [dataConnectionSearch, setDataConnectionSearch] = useFilterState(`projects/${projectId}/dataConnectionSearch`, textFilterSchema, "");
   const [dataConnectionStatusFilter, setDataConnectionStatusFilter] =
-    useState<DataConnectionStatusFilter>("all");
+    useFilterState<DataConnectionStatusFilter>(`projects/${projectId}/connectionStatus`, z.enum(["all", "linked", "available", "disabled", "unhealthy"]), "all");
   const [selectedOverrideAgentIds, setSelectedOverrideAgentIds] = useState<string[]>([]);
   const [agentOverrideDrafts, setAgentOverrideDrafts] = useState<Record<string, AgentOverrideDraft>>({});
   const [agentCatalogOpen, setAgentCatalogOpen] = useState(false);
-  const [agentCatalogSearch, setAgentCatalogSearch] = useState("");
-  const [agentCatalogMode, setAgentCatalogMode] = useState<AgentCatalogMode>("project-relevant");
-  const [agentProviderFilter, setAgentProviderFilter] = useState("all");
-  const [agentModelFilter, setAgentModelFilter] = useState("all");
+  const [agentCatalogSearch, setAgentCatalogSearch] = useFilterState(`projects/${projectId}/agentCatalogSearch`, textFilterSchema, "");
+  const [agentCatalogMode, setAgentCatalogMode] = useFilterState<AgentCatalogMode>(`projects/${projectId}/agentCatalogMode`, z.enum(["overridden", "project-relevant", "all"]), "project-relevant");
+  const [agentProviderFilter, setAgentProviderFilter] = useFilterState(`projects/${projectId}/agentProviderFilter`, textFilterSchema, "all");
+  const [agentModelFilter, setAgentModelFilter] = useFilterState(`projects/${projectId}/agentModelFilter`, textFilterSchema, "all");
   const [workspaceId, setWorkspaceId] = useState("");
   const [defaultProviderDraft, setDefaultProviderDraft] = useState("");
   const [defaultModelDraft, setDefaultModelDraft] = useState("");

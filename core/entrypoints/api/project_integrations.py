@@ -7,6 +7,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from core.application.extensions.connection_partition_validation import (
     ConnectionPartitionsRejected,
@@ -57,7 +58,7 @@ def create_project_integrations_router(
     notification_commands = notification_command_service or project_command_service
 
     @router.get("/api/providers")
-    async def api_providers(
+    def api_providers(
         request: Request,
         enabled_only: Annotated[bool, Query()] = True,
         provider_type_key: Annotated[str, Query()] = "",
@@ -203,7 +204,7 @@ def create_project_integrations_router(
         }
 
     @router.get("/api/projects/{project_id}/providers")
-    async def api_project_providers(
+    def api_project_providers(
         request: Request,
         project_id: str,
         enabled_only: Annotated[bool, Query()] = False,
@@ -407,10 +408,12 @@ def create_project_integrations_router(
         except Exception as e:
             return api_error_response(e)
 
-        return await api_project_providers(request, project_id, enabled_only=False)
+        return await run_in_threadpool(
+            api_project_providers, request, project_id, enabled_only=False
+        )
 
     @router.get("/api/projects/{project_id}/notification-routes")
-    async def api_project_notification_routes(
+    def api_project_notification_routes(
         request: Request,
         project_id: str,
         enabled_only: Annotated[bool, Query()] = False,
@@ -429,7 +432,7 @@ def create_project_integrations_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/notification-overview")
-    async def api_project_notification_overview(request: Request, project_id: str):
+    def api_project_notification_overview(request: Request, project_id: str):
         try:
             payload = project_query_service().get_notification_overview(
                 project_id,
@@ -462,7 +465,7 @@ def create_project_integrations_router(
         return payload.dump()
 
     @router.get("/api/projects/{project_id}/notification-deliveries")
-    async def api_project_notification_deliveries(
+    def api_project_notification_deliveries(
         request: Request,
         project_id: str,
         job_id: Annotated[str | None, Query()] = None,

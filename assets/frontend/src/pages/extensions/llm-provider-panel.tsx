@@ -1,3 +1,5 @@
+import { booleanFilterSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { Button } from "@/components/ui/button";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -225,8 +227,8 @@ export function LlmProviderPanel({
   const [shownJsonSecrets, setShownJsonSecrets] = useState<ReadonlySet<string>>(new Set());
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [remoteBaseUrl, setRemoteBaseUrl] = useState("");
-  const [filter, setFilter] = useState("");
-  const [showAllModels, setShowAllModels] = useState(false);
+  const [filter, setFilter] = useFilterState(`extensions/${installId}/models/search`, textFilterSchema, "");
+  const [showAllModels, setShowAllModels] = useFilterState(`extensions/${installId}/models/showAll`, booleanFilterSchema, false);
   const [status, setStatus] = useState("");
   const [mutationPending, setMutationPending] = useState(false);
   // Which of Save connection / Discover models started the pending mutation: that button is busy.

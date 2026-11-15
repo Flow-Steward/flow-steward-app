@@ -70,6 +70,8 @@ export type JobChildInvocation = {
   invocation_key: string;
   child_job_id: string;
   child_workflow_id: string;
+  /** The child run's title, when it has one. */
+  child_run_title?: string;
 };
 
 /** Archived execution evidence for a canvas observer; never a live-definition guess. */
@@ -127,6 +129,8 @@ export type JobDetailJobPayload = {
   thread_id?: string | null;
   task_summary?: string;
   display_summary?: string;
+  /** What this run is for: its schedule or webhook name and the workflow's run title. */
+  run_title?: string | null;
   selected_workflow?: string | null;
   selected_workflow_display_name?: string | null;
   selected_workflow_source?: string | null;

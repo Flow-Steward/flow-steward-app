@@ -34,6 +34,8 @@ class WorkflowEntrypointRequestCommand:
     fallback_body: object
     staged_files: tuple[StagedWorkflowAttachment, ...]
     request_context: dict[str, object]
+    #: The webhook's description; the jobs it starts are titled with it.
+    entry_label: str = ""
 
     def submission(self) -> dict[str, object]:
         return {
@@ -51,6 +53,7 @@ class WorkflowEntrypointRequestCommand:
             "fallback_body": self.fallback_body,
             "staged_files": list(self.staged_files),
             "request_context": self.request_context,
+            "entry_label": self.entry_label,
         }
 
 

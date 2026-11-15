@@ -1,3 +1,5 @@
+import { z } from "@/lib/validation/zod";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { McpCatalogIcon, ExternalAnchor } from "./mcp-catalog-presentation";
 import { McpCatalogInstallDialog } from "./mcp-catalog-install-dialog";
 import { signInLabel, itemQueryKey, documentationUrl, type McpProjectOption } from "./mcp-catalog-model";
@@ -396,7 +398,7 @@ export function McpCatalogPanel({
   onInstalled: (result: McpCatalogInstallResult, item: McpCatalogItem, projectId: string) => void;
 }>) {
   const { t } = useI18n();
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [filters, setFilters] = useFilterState<Filters>("mcp/catalog/filters", z.object({ q: z.string(), category: z.array(z.string()), sign_in: z.array(z.string()) }), EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [view, setView] = useState<CatalogView>("grid");
   // The table pages by its own Rows per page; the cards by PAGE_SIZE.

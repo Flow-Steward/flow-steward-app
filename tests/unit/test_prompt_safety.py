@@ -238,6 +238,71 @@ def test_secret_detection_preserves_canonical_registry_id_inside_summary():
     assert "dotted_provider_token" in redact_detected_secrets(dotted_token)
 
 
+@pytest.mark.parametrize(
+    "token",
+    [
+        "stripe.abcdefghijklmnopqrstuvwxyz123456",
+        "acme.0123456789abcdef0123456789abcdef",
+        "acme.Ab3_dEf6hIj9kLm2nOp5qRs8t",
+        "acme.ABCDEFGH_IJKLMNOP_QRSTUVWX",
+        "acme.abcd-efgh_ijkl-mnop_qrst-uvwx",
+        "acme.abcdefghijklmnopqrstuvwxyz_X",
+    ],
+)
+def test_secret_detection_still_redacts_opaque_dotted_tokens(token: str) -> None:
+    from core.infrastructure.security.secret_detection import redact_detected_secrets
+
+    assert redact_detected_secrets(f"provider returned {token}") == (
+        "provider returned [SECRET:dotted_provider_token:REDACTED]"
+    )
+
+
+def test_secret_detection_keeps_every_ui_translation_key() -> None:
+    # A summary/message key is a dotted lowercase snake_case name, not a token:
+    # 'react.jobs.step_wait_event_received' came back as
+    # 'react.[SECRET:dotted_provider_token:REDACTED]' and the UI could not translate it.
+    import re
+    from pathlib import Path
+
+    from core.infrastructure.security.secret_detection import (
+        contains_detected_secret,
+        redact_detected_secrets,
+    )
+
+    catalog = Path(__file__).resolve().parents[2] / "locales" / "ui.pot"
+    keys = re.findall(r'^msgid "(.+)"$', catalog.read_text(encoding="utf-8"), re.MULTILINE)
+    assert "react.jobs.step_wait_event_received" in keys
+
+    changed = [key for key in keys if redact_detected_secrets(key) != key]
+    flagged = [key for key in keys if contains_detected_secret(key)]
+
+    assert changed == []
+    assert flagged == []
+
+
+def test_redact_structure_keeps_summary_key_and_redacts_tokens_beside_it() -> None:
+    from core.infrastructure.security.secret_detection import redact_detected_secrets
+
+    dotted_token = "stripe.abcdefghijklmnopqrstuvwxyz123456"
+
+    def _scan(value, *_args, **_kwargs):
+        return SimpleNamespace(action="redact", redacted_text=redact_detected_secrets(value))
+
+    with patch("core.infrastructure.security.integration.scan_outbound", side_effect=_scan):
+        redacted = redact_structure_for_persistence(
+            {
+                "summary_key": "react.jobs.step_wait_event_received",
+                "summary": "Event received; provider said jobs.step_wait_event_received",
+                "provider_debug": dotted_token,
+            }
+        )
+
+    assert redacted["summary_key"] == "react.jobs.step_wait_event_received"
+    assert redacted["summary"].endswith("jobs.step_wait_event_received")
+    assert dotted_token not in redacted["provider_debug"]
+    assert "dotted_provider_token" in redacted["provider_debug"]
+
+
 def test_secret_detection_preserves_process_env_identifier() -> None:
     from core.infrastructure.security.secret_detection import redact_detected_secrets
 

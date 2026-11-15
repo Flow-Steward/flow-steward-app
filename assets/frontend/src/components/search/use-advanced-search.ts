@@ -1,5 +1,8 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { z } from "@/lib/validation/zod";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   normalizeGlobalSearchGroups,
@@ -18,6 +21,12 @@ import {
 import { fetchJson } from "@/lib/http/client";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
+
+const searchFilterSchema: z.ZodType<FilterState> = z.object({
+  active: z.array(z.object({ k: z.enum(["workspace", "project", "status", "updated"]), v: z.string() })),
+  // A reopened search restores refinements, with every popover closed.
+  menu: z.unknown().transform(() => null),
+});
 
 const SEARCH_DEBOUNCE_MS = 250;
 const SEARCH_PAGE_SIZE = 20;
@@ -165,13 +174,11 @@ export function useAdvancedSearch({
           : [],
       menu: null,
     }),
-    // Only the values present when the dialog mounts seed the reducer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [selectedWorkspaceId, workspaceOptions.length],
   );
   const [config, setConfig] = useState<AdvancedSearchConfig | null>(null);
-  const [category, setCategory] = useState("all");
-  const [draft, setDraft] = useState("");
+  const [category, setCategory] = useFilterState(`global-search/${selectedWorkspaceId}/category`, textFilterSchema, "all");
+  const [draft, setDraft] = useFilterState(`global-search/${selectedWorkspaceId}/query`, textFilterSchema, "");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [groups, setGroups] = useState<GlobalSearchGroup[]>([]);
   const [bestMatch, setBestMatch] = useState<GlobalSearchItem | null>(null);
@@ -182,7 +189,10 @@ export function useAdvancedSearch({
   const [completedQuery, setCompletedQuery] = useState<string | null>(null);
   // Relative ages are measured from when the results arrived, not from render time.
   const [resultsAt, setResultsAt] = useState(0);
-  const [filters, dispatchFilter] = useReducer(filterReducer, initialFilters);
+  const [filters, setFilters] = useFilterState<FilterState>(`global-search/${selectedWorkspaceId}/filters`, searchFilterSchema, initialFilters);
+  const dispatchFilter = useCallback((action: FilterAction) => {
+    setFilters((current) => filterReducer(current, action));
+  }, [setFilters]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [retryToken, setRetryToken] = useState(0);
 
@@ -236,7 +246,7 @@ export function useAdvancedSearch({
         }
       })(),
     );
-  }, [open]);
+  }, [open, setCategory]);
 
   const buildPath = useCallback(
     (args: { query: string; category: string; cursor?: string }) => {

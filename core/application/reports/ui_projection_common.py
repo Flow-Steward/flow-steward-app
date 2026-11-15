@@ -404,6 +404,7 @@ def _map_step_status(status: Any) -> str:
         # A Wait or child invocation step is still running while it is paused.
         "awaiting_timer",
         "awaiting_child",
+        "awaiting_event",
         "external_wait",
     }:
         return "in_progress"

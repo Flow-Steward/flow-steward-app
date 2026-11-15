@@ -1,3 +1,4 @@
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
@@ -46,7 +47,7 @@ function authValue(role: Role): AuthContextValue {
     session: {
       authenticated: true,
       roles: [role],
-      user: { roles: [role] },
+      user: { id: "user-1", account_id: "account-1", roles: [role] },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -79,6 +80,18 @@ function renderProjectsListPage(messages: Record<string, string> = {}, role: Rol
  * reports the current value.
  */
 describe("ProjectsListPage", () => {
+  it.each(["/", "/app/"])("exposes the project name as the standard green detail link at %s", async (base) => {
+    vi.stubEnv("BASE_URL", base);
+    try {
+      renderProjectsListPage();
+      const link = await screen.findByRole("link", { name: "Audit Project" });
+      expect(link).toHaveAttribute("href", `${base}projects/project-1`);
+      expect(link).toHaveClass("fs-link");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   beforeEach(() => {
     globalThis.localStorage.clear();
     mockedFetchProjectsList.mockReset();
@@ -319,6 +332,23 @@ describe("ProjectsListPage", () => {
 
     await user.click(within(row).getByText("Audit Project"));
     await waitFor(() => expect(screen.getByText("project detail route")).toBeInTheDocument());
+  });
+
+  it("remembers list filters and search after leaving and returning", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const view = renderProjectsListPage();
+    await screen.findByRole("table", { name: "Projects inventory" });
+    await user.click(screen.getByRole("button", { name: /add filter/i }));
+    await user.click(await screen.findByRole("menuitem", { name: "Jobs" }));
+    await user.click(await screen.findByRole("menuitem", { name: "With jobs" }));
+    await user.type(screen.getByRole("searchbox", { name: "Search projects" }), "Audit");
+    await waitFor(() => expect(localStorage.getItem(filterStorageKey("account-1", "user-1", "projects/jobsFilter"))).toBe(JSON.stringify("yes")));
+    view.unmount();
+    mockedFetchProjectsList.mockClear();
+    renderProjectsListPage();
+    await waitFor(() => expect(mockedFetchProjectsList).toHaveBeenCalledWith(expect.objectContaining({ hasJobs: "yes", search: "Audit", page: 1 })));
+    expect(screen.getByRole("searchbox", { name: "Search projects" })).toHaveValue("Audit");
+    expect(screen.getByText("Jobs · With jobs")).toBeInTheDocument();
   });
 
   it("sends the has-jobs filter to the endpoint", async () => {

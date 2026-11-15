@@ -118,6 +118,14 @@ class RegistryManager:
         return _instance
 
     @classmethod
+    def current(cls) -> RegistryManager | None:
+        """The registry this process already runs, or None; never creates one."""
+        override = getattr(_thread_local, "registry_override", None)
+        if override is not None:
+            return override
+        return _runtime_override_registry or _instance
+
+    @classmethod
     def read_only(cls) -> RegistryManager:
         """Return a fresh registry snapshot without builtin sync side effects."""
         return cls(cls._resolve_db_dsn(), sync_builtins=False)

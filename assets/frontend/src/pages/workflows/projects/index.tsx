@@ -1,3 +1,6 @@
+import { z } from "@/lib/validation/zod";
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import type { I18nContextValue } from "@/lib/i18n/context";
 import { useEffect, useMemo, useState } from "react";
@@ -94,8 +97,8 @@ function WorkflowProjectBindingsPanel({ workflowId }: Readonly<{ workflowId: str
   const { t } = useI18n();
   const queryClient = useQueryClient();
   const [selectedProjectIdsDraft, setSelectedProjectIdsDraft] = useState<string[] | null>(null);
-  const [projectSearch, setProjectSearch] = useState("");
-  const [projectStatusFilter, setProjectStatusFilter] = useState<ProjectBindingStatusFilter>("all");
+  const [projectSearch, setProjectSearch] = useFilterState(`workflows/${workflowId}/projects/search`, textFilterSchema, "");
+  const [projectStatusFilter, setProjectStatusFilter] = useFilterState<ProjectBindingStatusFilter>(`workflows/${workflowId}/projects/status`, z.enum(["all", "linked", "available", "default"]), "all");
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 

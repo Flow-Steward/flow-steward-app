@@ -127,7 +127,7 @@ def create_api_trash_router(
         "/api/trash",
         responses={403: {"description": "Project or trash access denied"}},
     )
-    async def api_trash_list(
+    def api_trash_list(
         request: Request,
         entity_type: Annotated[str | None, Query()] = None,
         project_id: Annotated[str | None, Query()] = None,

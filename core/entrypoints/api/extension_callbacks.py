@@ -32,6 +32,9 @@ from core.application.extensions.oauth_contract import (
 from core.application.management.errors import ServiceForbiddenError
 from core.application.management.guards import require_project_access
 from core.application.workflows.project_credential_versions import WorkflowCredentialVersionConflict
+from core.infrastructure.observability.callback_access_redaction import (
+    install_callback_access_log_redaction,
+)
 
 CALLBACK_REGISTRATION_NOT_FOUND_MESSAGE = "Callback registration not found"
 CALLBACK_REGISTRATION_NOT_FOUND_MESSAGE_2 = "callback registration not found"
@@ -324,6 +327,7 @@ def create_extension_callbacks_router(
     event_command_service_factory: Callable[[], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["extension-callbacks"])
+    install_callback_access_log_redaction()
 
     def _authorize_project_access(request: Request, project_id: str) -> JSONResponse | None:
         normalized_project_id = str(project_id or "").strip()
@@ -345,7 +349,7 @@ def create_extension_callbacks_router(
         return None
 
     @router.get("/api/extensions/{extension_id}/callbacks")
-    async def list_extension_callbacks(request: Request, extension_id: str):
+    def list_extension_callbacks(request: Request, extension_id: str):
         bl = get_callback_store()
         if not bl:
             return _error(err_database_not_configured, 503)
@@ -663,13 +667,17 @@ def create_extension_callbacks_router(
                     extension_id=registered_extension_id,
                     project_id=str(registration.get("project_id") or ""),
                 )
+        auth = _callback_auth(declaration)
         if (
-            _callback_auth(declaration).get("type") == "hub_signature"
+            auth.get("type") == "raw_body_hmac_sha256"
+            and isinstance(auth.get("verification"), dict)
             and request.method.upper() == "GET"
         ):
-            challenge = service.hub_challenge(request, registration)
+            challenge = service.verification_challenge(request, registration, declaration)
             if challenge is None:
                 return _error("Invalid webhook verification request", 403)
+            if isinstance(challenge, dict):
+                return JSONResponse(challenge)
             return PlainTextResponse(challenge)
         try:
             authentication = await service.authenticate(

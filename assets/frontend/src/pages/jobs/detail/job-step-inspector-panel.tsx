@@ -152,6 +152,7 @@ export function StepInspectorPanel({
   );
   const nextAction = firstReadableText(selectedStep.next, selectedStep.next_action);
   const childJobId = firstReadableText(selectedStep.child_job_id);
+  const childRunTitle = firstReadableText(selectedStep.child_run_title);
   const evidenceItems = collectEvidenceItems(selectedStep, t);
   const inputs = userFacingStepFields(
     selectedStep.inputs || selectedStep.input || selectedStep.input_payload,
@@ -214,7 +215,9 @@ export function StepInspectorPanel({
         {childJobId ? (
           <p className="text-sm fs-ink-primary">
             <Link className="fs-link" data-testid={`${testId}-child-run-link`} to={`/jobs/${encodeURIComponent(childJobId)}`}>
-              {t("react.jobs.open_the_run_behind_this_step", "Open the run behind this step")}
+              {childRunTitle
+                ? t("react.jobs.open_the_run_behind_this_step_titled", "Open the run behind this step: {title}", { title: childRunTitle })
+                : t("react.jobs.open_the_run_behind_this_step", "Open the run behind this step")}
             </Link>
           </p>
         ) : null}

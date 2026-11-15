@@ -45,7 +45,7 @@ from .job_detail_sections import (
     build_job_detail_sections,
 )
 from .ui_projection import project_job_detail
-from .ui_projection_helpers import _artifact_descriptors
+from .ui_projection_artifacts import _artifact_descriptors
 
 _MISSING = object()
 _LOGGER = logging.getLogger("platform.reports.job_detail_contract")

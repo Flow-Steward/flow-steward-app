@@ -1,3 +1,4 @@
+import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { ROLE_OPTIONS, userLabel, type EditorState, type ConfirmActionKind } from "./user-form-model";
 import { UserEditorDialog, TemporaryPasswordDialog, ConfirmUserActionDialog } from "./user-dialogs";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -8,7 +9,6 @@ import {
 } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -393,7 +393,7 @@ export function SettingsUsersPage() {
   const { t } = useI18n();
   const auth = useAuth();
   const queryClient = useQueryClient();
-  const [params, setParams] = useSearchParams();
+  const [params, setParams] = useFilterSearchParams("users", ["search", "role", "status"]);
   const isAdmin = auth.session?.roles.includes("admin") || false;
   const filters: UserFilters = {
     search: params.get("search") || "",

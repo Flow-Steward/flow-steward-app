@@ -11,8 +11,53 @@
 # - none
 # - shared_secret_header
 # - hmac_sha256 (timestamped, replay-protected delivery)
-# - hub_signature (Meta webhooks: GET hub.challenge handshake against the registration's
-#   verify token; POST body signed with a connection secret, auth.secret_name)
+# - raw_body_hmac_sha256: accepted/frozen authoring contract for host 1.9.0.
+#   Runtime implementation/integration verification of Base64 and HMAC JSON
+#   verification is pending; this contract does not claim release readiness.
+#   connection_scoped must be true; platform_min must be >=1.9.0.
+#   signature_header: required ASCII HTTP token, <=128 characters.
+#   signature_prefix: optional exact printable ASCII string, <=64 characters,
+#     default empty. No trimming, interpolation or independent response prefix.
+#   signature_encoding: hex (default) | base64. Both encode the same 32-byte
+#     HMAC-SHA256 digest. Base64 is strict canonical standard Base64 with padding;
+#     malformed/truncated/noncanonical input is rejected.
+#   secret_name: normalized local field name in an owning connection type's
+#     secret_schema.properties. Signing secret bytes retain whitespace exactly.
+#   verification: optional GET-only host handshake (methods must include GET):
+#     response: echo (default) | hmac.
+#     challenge_parameter: required exact ASCII identifier, <=64 characters.
+#     token_parameter: required for echo; optional for hmac. When supplied it must
+#       be a valid nonempty name distinct from challenge_parameter. Its query
+#       value must exactly match the registration-generated verify token.
+#       Supplied null/empty/malformed names are invalid, not treated as omitted.
+#     response_field: required for hmac; literal ASCII identifier <=64 characters.
+#     Query/response field names match [A-Za-z_][A-Za-z0-9_.-]{0,63}.
+#     required_parameters: optional map (default {}) of <=8 other disjoint names
+#       to nonempty exact literal strings, <=512 UTF-8 bytes each.
+#   Required token/challenge values are nonempty, <=512 UTF-8 bytes; encoded query <=8192 bytes,
+#   <=16 pairs, no duplicate names. Echo returns exact text/plain challenge.
+#   Hmac returns application/json {<response_field>: signature_prefix +
+#     encode(HMAC-SHA256(connection_secret, challenge_utf8))}, using the SAME
+#     auth.secret_name, signature_encoding and signature_prefix as POST signing.
+#     No token_parameter: no registration verify token is generated/required.
+#     The challenge must match [A-Za-z0-9._~+/=\-]{1,512}; reject structures,
+#     quoted JSON strings, controls, whitespace and Unicode BEFORE key resolution.
+#     In hmac verification mode, correctly signed POST bodies must parse as JSON
+#     objects regardless of Content-Type. Reject signed nonce/scalar/string/array:
+#     GET and POST message languages must be disjoint to prevent a signing oracle.
+#     Invalid verification query/token/nonce ->403; bad signature ->401;
+#     correctly signed non-object POST in hmac mode ->400. Rejections never dispatch.
+#   GET verification never dispatches extension actions/events/workflows. No
+#   verification declaration: normal signed GET. Echo retains raw-body POSTs.
+#   Unknown fields/modes, independent response secret/encoding/prefix fields,
+#   dynamic expressions and arbitrary secret references are rejected.
+#   No delivery-id replay protection: extension owns provider event deduplication.
+# - hub_signature: legacy preset normalized to the same raw-body protocol with
+#   authored signature_header/secret_name, sha256= prefix and hub.verify_token,
+#   hub.challenge, required hub.mode=subscribe. It retains its old host floor and
+#   historical bare/case-insensitive prefix and trimmed header/query behavior.
+#   _legacy_compatibility is internal host output, forbidden in authored generic
+#   auth. Callback access logs redact capability tokens and the entire query.
 #
 # OAuth callback handshakes are separate from generic callback authentication.
 # OAuth2 for
@@ -105,7 +150,8 @@ required_scopes:
 # Rights over this extension's OWN data, granted by one host rule for every
 # extension (core/application/extensions/runtime_host_grants.py:own_runtime_grants).
 # scope may only be owning_extension (the default for project_connection,
-# callback_registrations, project_connection_upsert, project_connection_secrets_save);
+# callback_registrations, project_connection_upsert, project_connection_secrets_save,
+# project_connection_config_compare_and_set);
 # provider_key may only be this extension's own id (the default for every
 # provider-keyed kind). A grant over another extension's namespace, an unknown
 # kind, or a malformed secret_keys/connection_type_ids list fails validation
@@ -120,6 +166,7 @@ runtime_grants:
     callback_registrations: {}
   mutations:
     project_connection_upsert: {}
+    project_connection_config_compare_and_set: {}
     project_connection_secrets_save:
       secret_keys: [api_token]
       connection_type_ids: [example_connection]
@@ -205,6 +252,73 @@ action_manifest: ui/actions/actions.yaml
 # exported; the action cannot be called outside a workflow. Marking a workflow
 # as an implementation needs a Development environment.
 
+# Grid links and filters (ui components of type grid):
+#
+#   columns:
+#     - {key: name, label: Run, type: link,
+#        link: {page: run_detail, params: {run_id: "{row.run_id}"}}}
+#     - {key: job_path, label: Job, type: link}   # the value is an in-app path
+#   row_fields: [run_id]                # row fields links read beside column keys
+#   row_link: {page: run_detail, params: {run_id: "{row.run_id}"}}
+#   filters:
+#     - {param: status, label: Status, options: [{value: open, label: Open}]}
+#     - {param: owner, label: Owner,
+#        options_query: {query_id: owners.list, value_field: id, label_field: name}}
+#     - {param: q, label: Search, type: text}
+#
+# A link is {page, params} (a page of this extension; params are p.<name>
+# values with {row.<field>} placeholders) or {path_field} (a row field holding
+# an in-app path starting with /). The host builds and encodes every address;
+# no scheme, host or external URL is possible. A filter sets p.<param> in the
+# page address and reloads the page's queries. The compiler refuses an unknown
+# page, row field or query, a connection query for options, a malformed name
+# and a repeated filter parameter.
+
+# Connection slots of a workflow a person runs (ADR 0068). A published,
+# read-only workflow whose connector steps need a project connection declares
+# the connections in its settings, in the same shape as an action's slots plus
+# a label people see:
+#
+#   settings:
+#     connection_slots:
+#       - slot: store                         # lowercase id, unique in the workflow
+#         extension_id: acme.store            # this extension or a required dependency
+#         connection_type_ids: [api_token]    # empty list = any type of that extension
+#         label: Store account                # "This workflow needs: Store account"
+#
+# and every connector step that needs it binds connection_binding: {slot: store}.
+# An action Invoke inside the workflow may pass the slot on:
+# connections: {<its slot>: {slot: store}}. Each project chooses one of its
+# connections per slot on the workflow's Overview; with exactly one usable
+# connection of an accepted type the host picks it. The choice is pinned into
+# every new run (UI, webhook, schedule, Invoke); a workflow without a connection
+# for a slot is not ready in that project and its runs are refused before they
+# start. Rules, checked when the release is built:
+#   - the declaration has only slot, extension_id, connection_type_ids, label;
+#   - every slot a step or an action Invoke reads is declared, and a step never
+#     carries a fixed connection id next to its slot;
+#   - an action implementation keeps its slots in action_implementation, never
+#     in connection_slots;
+#   - runtime.compatibility.platform_min is 1.8.0 or later.
+# A release that adds a slot, or changes its extension or connection types, is
+# activated only when every project that links the workflow has a connection
+# for it. Export and import never carry the chosen connection ids.
+
+# Run title of a workflow (A56). A workflow that runs for several purposes
+# names each run from its inputs:
+#
+#   settings:
+#     run_title: "{{ inputs.site_url }}"
+#
+# Rules: only {{ inputs.<name> }} placeholders, at most 300 characters; never a
+# secret input (type secret, or a credential-like name); in fields mode only a
+# declared input. Readiness refuses anything else with workflow.run_title.*.
+# The host renders it once per new job (UI, schedule, webhook, Invoke, MCP,
+# API) into jobs.meta.run_title, prefixed by the schedule's name or the
+# webhook's description ("<name> · <rendered>"); a secret reference, object or
+# list renders as nothing, each value is bounded to 120 characters and the
+# title to 160. An older host ignores the setting, so no platform_min is needed.
+
 # A query that runs with a project connection (ADR 0067). In
 # ui/queries/queries.yaml:
 #
@@ -226,10 +340,10 @@ action_manifest: ui/actions/actions.yaml
 #   - handler.mode is extension, and external_effects does not name the query;
 #   - runtime.compatibility.platform_min is 1.7.0 or later.
 # A connection query MUST only read the remote service; effects belong to
-# actions. A response with commands, events or project_state_updates fails and
-# nothing is applied. It runs at most 30 seconds, its result passes the
-# reflected-secret check, and only an operator or admin can run it (as every
-# query). An unreachable service MUST be reported as a domain failure (exit 2,
+# actions. A response with commands, events, project_state_updates or
+# resume_waits fails and nothing is applied. It runs at most 30 seconds, its
+# result passes the reflected-secret check, and only an operator or admin can
+# run it (as every query). An unreachable service MUST be reported as a domain failure (exit 2,
 # ok: false), so the install's circuit breaker is not tripped by outages.
 # Remote runtime installs cannot run connection queries.
 #
@@ -254,6 +368,41 @@ action_manifest: ui/actions/actions.yaml
 # URL page parameters: p.<name> keys of the page URL (extension_page=run_detail
 # &p.run_id=42) are merged into the params of every query on that page; they
 # are untrusted input the extension validates.
+
+# Manual callback setup UI (host 1.9+). A setup page for a callback whose
+# compiled declaration has connection_scoped: true MUST declare its connection
+# types, so the host's existing page connection selector supplies the anchor:
+#
+#   page_id: webhooks
+#   title: Webhooks
+#   project_scoped: true
+#   connection:
+#     connection_type_ids: [service_profile]
+#   components:
+#     - component_id: incoming_setup
+#       type: callback_setup
+#       callback_id: updates
+#       setup_mode: manual
+#
+# setup_mode: manual displays Create Callback and sends configure: false; it
+# does not require or call configure_webhook/get_webhook_status provider actions.
+# Refresh Status reloads host registrations (GET), showing this registration's
+# last_seen_at and last_error without claiming remote provider configuration.
+# Omitted setup_mode preserves automatic Create and Configure plus the existing
+# configure_action_id/status_action_id overrides and provider status refresh.
+# Scoping is per compiled callback declaration, not per page: scoped callbacks
+# use the selected connection_id for creation and status; global callbacks omit
+# connection_id and select only an unscoped registration even on a scoped page.
+# Missing project/required connection blocks both controls. Setup controls and
+# one-time values are for managers only; host/server authorization still applies.
+# Manual creation exposes callback_url and, only when present, callback_secret
+# as one-time Copy Callback URL/Copy Verify Token controls. URL-only receipts
+# (for example HMAC verification without token_parameter) remain usable. Values
+# stay in transient component-owned state, never browser storage, query caches,
+# logs, status messages, toasts or action results. Owner/account/workspace,
+# project/install/connection/page/permission changes hide and discard them;
+# generation guards discard stale responses even after leaving and returning.
+# Registration listing remains redacted and cannot reconstruct copy controls.
 
 machine_auth:
   service_account_key: svc_ext_example
@@ -292,6 +441,25 @@ callbacks:
     auth:
       type: shared_secret_header
       header: X-Example-Callback-Secret
+  # Frozen generic HMAC-verification example (runtime/integration checks pending).
+  # api_key is declared in an owning connection type's secret_schema below.
+  - callback_id: signed_updates
+    purpose: inbound_events
+    methods: [GET, POST]
+    action_id: ingress_event
+    connection_scoped: true
+    auth:
+      type: raw_body_hmac_sha256
+      signature_header: X-Callback-Signature
+      signature_encoding: base64
+      signature_prefix: ""
+      secret_name: api_key  # pragma: allowlist secret
+      verification:
+        response: hmac
+        challenge_parameter: nonce
+        response_field: proof
+        required_parameters: {}
+        # token_parameter: verify_token  # Optional registration-generated token.
   # Reserved core-owned OAuth callback. It is registered at project scope before
   # a connection exists and therefore has neither action_id nor callback auth.
   - callback_id: oauth_authorization
@@ -356,6 +524,8 @@ runtime:
   # Required. The host invokes only releases built for its contract; validation
   # and install fail for a missing or different value.
   contract_version: extension_host_v2
+  compatibility:
+    platform_min: 1.9.0
   extension_contract_v2:
     # An LLM provider extension declares an llm_provider block (shown commented,
     # since this example is not one). Host contract versions, compared with
@@ -392,6 +562,13 @@ runtime:
     #          connection, page refresh_seconds; ADR 0067). A bundle declaring a
     #          connection query requires runtime.compatibility.platform_min 1.7.0.
     #          Product 0.9.17 ships host 1.7.0.
+    #   1.8.0  A workflow may declare settings.connection_slots, which each
+    #          project fills with one of its connections (ADR 0068). A bundle
+    #          declaring them requires runtime.compatibility.platform_min 1.8.0.
+    #   1.9.0  Generic raw_body_hmac_sha256 callbacks (ADR 0072). Explicit source
+    #          declarations require runtime.compatibility.platform_min 1.9.0;
+    #          hub_signature source keeps its earlier floor through normalization.
+    #          Product 0.9.18 ships host 1.9.0; SDK remains 0.5.0.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
@@ -887,7 +1064,7 @@ x-validator-contract:
     external_effects: forbidden
     request_target: "{connection_id}"
     envelope_location: target.connection
-    platform_effects: forbidden (commands, events, project_state_updates)
+    platform_effects: forbidden (commands, events, project_state_updates, resume_waits)
     timeout_seconds_max: 30
     roles: [operator, admin]
     remote_runtime: unsupported
@@ -964,6 +1141,40 @@ x-validator-contract:
     - shared_secret_header
     - hmac_sha256
     - hub_signature
+    - raw_body_hmac_sha256
+  raw_body_callback_auth:
+    authoring_contract: accepted_frozen
+    platform_min: 1.9.0
+    runtime_integration_verification: pending
+    signature_encoding:
+      values: [hex, base64]
+      default: hex
+      digest_bytes: 32
+      base64_form: canonical_standard_padded
+    verification:
+      response:
+        values: [echo, hmac]
+        default: echo
+      challenge_parameter: required_ascii_identifier_max64
+      token_parameter:
+        echo: required
+        hmac: optional_but_validate_when_supplied
+      response_field: required_for_hmac_ascii_identifier_max64
+      required_parameters: optional_disjoint_literal_map_max8_default_empty
+      field_name_pattern: '^[A-Za-z_][A-Za-z0-9_.-]{0,63}$'
+      value_max_utf8_bytes: 512
+      query_max_bytes: 8192
+      query_max_pairs: 16
+      duplicate_query_names: rejected
+      hmac_nonce_pattern: '^[A-Za-z0-9._~+/=\-]{1,512}$'
+      hmac_nonce_validation: before_signing_key_resolution
+      hmac_post_body: json_object_regardless_of_content_type
+      response_signing_source: same_connection_secret_encoding_and_prefix_as_body
+      independent_response_signing_fields: forbidden
+      invalid_verification_status: 403
+      invalid_signature_status: 401
+      signed_hmac_post_non_object_status: 400
+      get_extension_dispatch: forbidden
   connection_auth_types:
     - none
     - api_key
@@ -985,6 +1196,7 @@ x-validator-contract:
       - callback_registrations
     mutation_kinds:
       - project_connection_upsert
+      - project_connection_config_compare_and_set
       - project_connection_secrets_save
       - notification_delivery_log
       - notification_routes_save
@@ -993,6 +1205,24 @@ x-validator-contract:
     list_fields: [secret_keys, connection_type_ids]
     error_code: runtime_grant_forbidden
     host_policy_file: none
+    conditional_connection_config:
+      kind: project_connection_config_compare_and_set
+      platform_min: "1.9.0"
+      payload_fields: [connection_id, extension_install_id, expect, set]
+      expect_states: [absent, equals, absent_or_equals]
+      max_distinct_paths: 16
+      max_path_length: 256
+      max_path_depth: 16
+      max_json_depth: 64
+      paths: dotted object keys; no empty components or array-index traversal
+      protected_root: oauth (including descendants), in both expect and set
+      equality: JSONB; explicit null differs from absence
+      assignments: nonempty; overlapping assignment paths forbidden
+      transaction: exact scoped row lock, validate current patched config, config-only update
+      precondition_error: host_mutation_precondition_failed
+      precondition_reasons: [absent_expected, value_mismatch]
+      rollback: whole host mutation batch; applied is empty on failure
+      adr: docs/architecture/adr/0073-conditional-connection-config-writes.md
   python_requirements:
     field: python_requirements
     item_shape:

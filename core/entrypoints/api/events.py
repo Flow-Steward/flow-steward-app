@@ -22,7 +22,7 @@ def create_api_events_router(
     router = APIRouter(tags=["api-events"])
 
     @router.get("/api/events")
-    async def api_events_list(
+    def api_events_list(
         request: Request,
         workflow_id: Annotated[str, Query()] = "",
         event_family: Annotated[str, Query()] = "",
@@ -57,7 +57,7 @@ def create_api_events_router(
         return JSONResponse(payload.dump())
 
     @router.get("/api/events/{event_ref}")
-    async def api_event_detail(request: Request, event_ref: str):
+    def api_event_detail(request: Request, event_ref: str):
         """Return one domain event with dispatch attempts and linked commands."""
         try:
             payload = event_query_service().get_event_detail(

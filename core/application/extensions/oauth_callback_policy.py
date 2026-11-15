@@ -181,17 +181,16 @@ def _effective_post_connect_result(
 def _post_connect_config(
     connection: Mapping[str, Any],
     result: OAuthPostConnectResult,
-    *,
-    keep_identity_on_failure: bool = False,
 ) -> tuple[dict[str, Any], str]:
     config = _mapping(connection.get("connection_config"))
     oauth = _mapping(config.get("oauth"))
-    replaced = _text(oauth.pop(_REPLACED_SUBJECT, ""))
+    replaced = _text(oauth.get(_REPLACED_SUBJECT))
     oauth["lifecycle_status"] = "connected" if result.health == "ok" else result.health
     oauth["token_type"] = "Bearer"
     oauth["last_error_code"] = result.error_code
     display_name = _text(connection.get("display_name"))
     if result.health == "ok":
+        oauth.pop(_REPLACED_SUBJECT, None)
         oauth.update(
             {
                 "subject": result.subject,
@@ -201,9 +200,9 @@ def _post_connect_config(
             }
         )
         display_name = result.verified_display_name or result.verified_email or result.subject
-    elif replaced and (keep_identity_on_failure or result.error_code == OAUTH_SUBJECT_CHANGED):
-        # The connection stays bound to the account it already had: a failed
-        # or mismatched verification is not evidence of a different one.
+    elif replaced:
+        # A failed verification does not change the bound account. Keep its
+        # constraint for retries and subsequent reconnects using the new grant.
         oauth["subject"] = replaced
     else:
         for field in _VERIFIED_IDENTITY_FIELDS:

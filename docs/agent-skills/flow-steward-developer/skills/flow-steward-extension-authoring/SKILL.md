@@ -93,8 +93,78 @@ form with buttons (ADR 0067; host contract 1.7.0, SDK 0.5.0):
 - A detail page takes URL page parameters: `p.<name>` keys of the page URL
   arrive in every query's `params` (validate them; they are untrusted).
 
+- A grid links cells or rows without markdown: a column `type: link` with
+  `link: {page: <page_id>, params: {<name>: "{row.<field>}"}}` (another page of
+  the extension, `p.<name>` filled from the row) or `link: {path_field:
+  <field>}` (an in-app path the row holds); `row_link` takes the same shape for
+  a clickable row; fields a link reads are column keys or `row_fields`.
+- A grid declares `filters` above the table, each bound to `p.<param>`: a
+  select with `options` or `options_query: {query_id, value_field,
+  label_field}` (an ordinary query), or `type: text`.
+
 See `docs/extension-authoring-agent-playbook.md` "Pages That Read Through A
-Connection" for the full example.
+Connection" and "Grid links and filters" for the full example.
+
+### Workflows that use a project connection
+
+A read-only workflow the bundle publishes reads the project's connection
+through connection slots (ADR 0068; host contract 1.8.0); never ship a project
+copy only to set a connection:
+
+- Declare `settings.connection_slots: [{slot, extension_id,
+  connection_type_ids, label}]` on the workflow (this extension or a required
+  dependency; an empty type list accepts any type of that extension).
+- Each connector step that needs it binds `connection_binding_jsonb: {slot:
+  <slot>}` and names the extension by package id; an action Invoke passes it on
+  with `connections: {<their slot>: {slot: <slot>}}`. No `connection_id` or
+  `connector_install_id` in the bundle.
+- Set `runtime.compatibility.platform_min: 1.8.0`. An action implementation
+  keeps its slots in `action_implementation`, never in `connection_slots`.
+- Each project picks a connection per slot on the workflow's Overview; the only
+  usable one is picked automatically. Without one the workflow is not ready and
+  its runs are refused before start. A release adding a slot or changing its
+  types activates only when every linked project can fill it.
+
+See `docs/extension-authoring-agent-playbook.md` "Workflows That Use A Project
+Connection".
+
+### Resuming waiting runs
+
+A workflow Wait step can wait for an event of this extension (`override.wait.event:
+{source: <extension_id>, event_types, correlation_key}`, ADR 0071). Resume it
+from any successful action response, typically the callback action that
+receives the external service's completion:
+
+- Return `resume_waits: [{correlation_key, event_type, payload}]` next to
+  `events`. The host fixes extension, account and project from the invocation;
+  never put them in an item.
+- `correlation_key` is exact text (at most 256 characters), usually the id your
+  start action returned; `event_type` is lowercase (`run_completed`); `payload`
+  is a JSON object of at most 64 KiB, redacted, no secrets.
+- Delivery is stored and matched every second; an early event waits for the
+  run to park; a repeated key and type is a duplicate and ignored (retries are
+  safe). Malformed items are listed in the invocation's `wait_events.rejected`;
+  a storage failure fails the action (`wait_event_delivery_failed`).
+- Document the event types and the key for workflow authors.
+
+See `docs/extension-authoring-agent-playbook.md` "Resuming Waiting Runs".
+
+### Naming each run of a workflow
+
+A workflow that runs for several purposes (one schedule per supplier site)
+declares `settings.run_title: "{{ inputs.site_url }}"` so each job says what it
+was for:
+
+- Only `{{ inputs.<name> }}` placeholders, at most 300 characters. A secret
+  input (type `secret` or a credential-like name), an undeclared input or any
+  other expression is refused by readiness (`workflow.run_title.*`).
+- The host renders it when the job is created; a schedule's name or a webhook's
+  description comes first (`Supplier A · https://a.example`). Values are plain
+  text, bounded, and a secret reference, object or list renders as nothing.
+- Consider an optional "Run name" input for runs started from the UI.
+- No `platform_min` is needed; an older host ignores the setting.
+
+See `docs/extension-authoring-agent-playbook.md` "Naming Each Run Of A Workflow".
 
 ### Task ingress
 

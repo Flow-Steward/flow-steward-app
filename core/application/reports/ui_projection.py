@@ -12,6 +12,7 @@ from typing import Any
 
 from core.application.jobs.workflow_wait_projection import DURABLE_WAIT_STATUSES
 from core.application.reports.display_text import build_display_summary
+from core.application.workflows.workflow_run_title import job_run_title
 
 from .job_detail_sections import (
     build_job_detail_sections,
@@ -59,10 +60,12 @@ def _build_header(job: dict[str, Any], project_name: str) -> dict[str, Any]:
             or len(task_summary) > max(len(task_title), 0) + 24
         )
     )
+    run_title = job_run_title(job)
     return {
         "project_name": str(project_name or "").strip() or "Unknown project",
         "project_id": _entity_id(job.get("project_id")),
-        "task_title": task_title,
+        "task_title": run_title or task_title,
+        "run_title": run_title or None,
         "task_summary": task_summary,
         "task_description_preview": task_description_preview,
         "has_task_description": has_task_description,
@@ -380,6 +383,8 @@ def _derive_next_action(status: str, runtime: dict[str, Any]) -> str:
         return "Paused on a Wait step; the run resumes by itself when it is due."
     if status == "awaiting_child":
         return "Waiting for the child workflow to finish before the run continues."
+    if status == "awaiting_event":
+        return "Waiting for an event; the run resumes when it arrives or fails at the timeout."
     if status in ("failed", "max_iterations"):
         return "Review the failure reason and restart or acknowledge."
     if status == "retryable_interrupted_step":

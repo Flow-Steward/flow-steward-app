@@ -1,5 +1,9 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { z } from "@/lib/validation/zod";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useQueryClient, useQuery, useQueries } from "@tanstack/react-query";
 import { useParams, useLocation, useNavigate } from "react-router";
+import { useAuth } from "@/lib/auth/useAuth";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import { useRef, useState, useEffect, useMemo } from "react";
@@ -32,6 +36,11 @@ import {
   fetchExtensionExternalEffects,
   executeExtensionQuery,
 } from "@/pages/extensions/api";
+import {
+  cachedExtensionPageData,
+  extensionPageDataKey,
+  rememberExtensionComponentData,
+} from "@/pages/extensions/extension-page-data-cache";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   normalizeWorkspaceId,
@@ -85,11 +94,17 @@ export type ExtensionBusyAction = "toggle" | "health" | "uninstall" | "install" 
 
 export function useExtensionsHubState() {
   const queryClient = useQueryClient();
+  const { session, status: authStatus, isAuthenticated } = useAuth();
   const { extensionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [, updateSearchParams] = useLatestSearchParams();
   const [workspaceId, setWorkspaceId] = useState(readStoredWorkspaceId);
+  const callbackUserId = stringFrom(session?.user?.id);
+  const callbackAccountId = stringFrom(session?.user?.account_id);
+  const callbackOwnerScopeKey = authStatus === "authenticated" && isAuthenticated
+    && session?.authenticated === true && callbackUserId && callbackAccountId
+    ? JSON.stringify([callbackUserId, callbackAccountId, workspaceId]) : null;
   const workspaceIdRef = useRef(workspaceId);
   const [projectWorkspaceId, setProjectWorkspaceId] = useState(() => workspaceId);
   const [workspaceChanged, setWorkspaceChanged] = useState(false);
@@ -116,9 +131,9 @@ export function useExtensionsHubState() {
   const [activeTab, setActiveTab] = useState<"installed" | "marketplace">(
     normalizeActiveTab(location.hash),
   );
-  const [viewFilter, setViewFilter] = useState<ExtensionsViewFilter>("active");
-  const [extensionSearch, setExtensionSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [viewFilter, setViewFilter] = useFilterState<ExtensionsViewFilter>("extensions/view", z.enum(["active", "disabled", "all"]), "active");
+  const [extensionSearch, setExtensionSearch] = useFilterState("extensions/extensionSearch", textFilterSchema, "");
+  const [categoryFilter, setCategoryFilter] = useFilterState("extensions/categoryFilter", textFilterSchema, "all");
   const [busyById, setBusyById] = useState<Record<string, ExtensionBusyAction | false>>({});
   const [statusById, setStatusById] = useState<ExtensionHealthStatus>({});
   const [toggleErrorById, setToggleErrorById] = useState<ExtensionHealthStatus>({});
@@ -447,7 +462,7 @@ export function useExtensionsHubState() {
   const callbacksQuery = useQuery({
     queryKey: ["extensions", "callbacks", extensionId || "", activePageProjectId],
     queryFn: () => fetchExtensionCallbacks(firstStringFromUnknownValue([extensionId, ""]), activePageProjectId),
-    enabled: Boolean(canManageProject && detailExtension?.extension_id && activePageProjectId),
+    enabled: Boolean(canManageProject && callbackOwnerScopeKey && detailExtension?.extension_id && activePageProjectId),
   });
   const projectsQuery = useQuery({
     queryKey: ["extensions", "projects", detailExtension?.extension_id || "", workspaceId],
@@ -719,57 +734,64 @@ export function useExtensionsHubState() {
     let disposed = false;
     let failed = false;
     const pageParameters = JSON.parse(pageParametersKey) as Record<string, string>;
+    const dataKey = extensionPageDataKey([extensionKey, activePageId, activePageProjectId, pageConnectionId, pageParametersKey]);
+    // Coming back to a page shows what it last showed at once; the load below refreshes it.
+    const cached = cachedExtensionPageData(dataKey);
+    if (cached) setComponentQueryData((current) => (Object.keys(current).length ? current : cached));
+    const loadComponent = async (component: Record<string, unknown>) => {
+      const queryId = componentQueryId(component);
+      const componentId = stringFrom(component.component_id || component.id || component.key);
+      if (!queryId || !componentId) {
+        return;
+      }
+      try {
+        const queryParams = {
+          ...componentQueryParamsForComponent(component),
+          ...pageParameters,
+          ...objectOrEmpty(componentQueryParams[componentId]),
+        };
+        const payload = await executeExtensionQuery(extensionKey, queryId, {
+          component_id: componentId,
+          context: activePageProjectId ? { project_id: activePageProjectId } : {},
+          page_id: activePageId,
+          params: queryParams,
+          ...queryConnectionTarget(manifestQuery.data, queryId, pageConnectionId),
+        });
+        if (disposed) {
+          return;
+        }
+        const normalized =
+          payload && typeof payload === "object" && !Array.isArray(payload)
+            ? normalizeComponentPayload(payload)
+            : {};
+        rememberExtensionComponentData(dataKey, componentId, normalized);
+        setComponentQueryData((current) => ({ ...current, [componentId]: normalized }));
+        setComponentErrors((current) => {
+          if (!current[componentId]) {
+            return current;
+          }
+          const next = { ...current };
+          delete next[componentId];
+          return next;
+        });
+      } catch (error) {
+        if (disposed) {
+          return;
+        }
+        failed = true;
+        setComponentErrors((current) => ({
+          ...current,
+          [componentId]: {
+            message: queryFailureMessage(error, t, t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data.")),
+            fieldPath: "",
+          },
+        }));
+      }
+    };
     const run = async () => {
       pageLoadStarted();
-      for (const component of queryComponents) {
-        const queryId = componentQueryId(component);
-        const componentId = stringFrom(component.component_id || component.id || component.key);
-        if (!queryId || !componentId) {
-          continue;
-        }
-        try {
-          const queryParams = {
-            ...componentQueryParamsForComponent(component),
-            ...pageParameters,
-            ...objectOrEmpty(componentQueryParams[componentId]),
-          };
-          const payload = await executeExtensionQuery(extensionKey, queryId, {
-            component_id: componentId,
-            context: activePageProjectId ? { project_id: activePageProjectId } : {},
-            page_id: activePageId,
-            params: queryParams,
-            ...queryConnectionTarget(manifestQuery.data, queryId, pageConnectionId),
-          });
-          if (disposed) {
-            return;
-          }
-          const normalized =
-            payload && typeof payload === "object" && !Array.isArray(payload)
-              ? normalizeComponentPayload(payload)
-              : {};
-          setComponentQueryData((current) => ({ ...current, [componentId]: normalized }));
-          setComponentErrors((current) => {
-            if (!current[componentId]) {
-              return current;
-            }
-            const next = { ...current };
-            delete next[componentId];
-            return next;
-          });
-        } catch (error) {
-          if (disposed) {
-            return;
-          }
-          failed = true;
-          setComponentErrors((current) => ({
-            ...current,
-            [componentId]: {
-              message: queryFailureMessage(error, t, t("react.extensions.failed_to_load_extension_component_data", "Failed to load extension component data.")),
-              fieldPath: "",
-            },
-          }));
-        }
-      }
+      // The page's queries run side by side; each component shows its data as it arrives.
+      await Promise.all(queryComponents.map((component) => loadComponent(component)));
     };
     ignoreAsyncResult(run().finally(() => {
       if (!disposed) pageLoadFinished(failed);
@@ -845,6 +867,7 @@ export function useExtensionsHubState() {
     activeManifestPage,
     manifestQuery,
     callbacksQuery,
+    callbackOwnerScopeKey,
     setCallbackStatuses,
     extensionInstallId,
     location,

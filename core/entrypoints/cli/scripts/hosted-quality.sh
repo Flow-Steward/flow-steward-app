@@ -28,7 +28,7 @@ case "${1:-}" in
     if ! git merge-base --is-ancestor refs/remotes/origin/main HEAD; then
       main_sha="$(git rev-parse --short refs/remotes/origin/main)"
       case "${QUALITY_MODE:-release}" in
-        release|release-sonar)
+        release|release-sonar|release-full)
           # Release evidence must describe the exact commit that will ship.
           echo "::error::main is now ${main_sha} and ${GITHUB_SHA:0:7} does not include it (another pull request was merged). Release evidence must include main. Update this branch from origin/main, resolve conflicts and push a new candidate." >&2
           exit 1

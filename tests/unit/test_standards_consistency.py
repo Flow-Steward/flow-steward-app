@@ -9,7 +9,7 @@ def test_canonical_standards_define_delta_tiers_and_trust_boundary() -> None:
     matrix = Path("docs/standards/enforcement-matrix.md").read_text(encoding="utf-8")
 
     assert "one owning tier" in testing
-    assert "local Docker" in testing
+    assert "run locally in Docker" in testing
     assert "Tier 3" in testing
     assert "delta" in testing
     assert "exact commit SHA" in workflow

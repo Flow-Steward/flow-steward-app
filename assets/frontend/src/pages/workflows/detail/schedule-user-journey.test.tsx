@@ -36,7 +36,7 @@ function fixture({ linked = ["project-a", "project-b"], failProjects = false, fa
   const reads: string[] = [];
   const catalogSearches: string[] = [];
   const jobs: Array<Record<string, unknown>> = [];
-  if (initialInputs) jobs.push({ id: "stored-1", project_id: "project-a", workflow_id: workflowId, status: "paused", enabled: false, cron_expr: "0 9 * * *", schedule_timezone: "UTC", inputs: structuredClone(initialInputs) });
+  if (initialInputs) jobs.push({ id: "stored-1", project_id: "project-a", workflow_id: workflowId, name: "Stored schedule", status: "paused", enabled: false, cron_expr: "0 9 * * *", schedule_timezone: "UTC", inputs: structuredClone(initialInputs) });
   const contract = { ...callable, expected_inputs: required ? [{ name: "region", type: "string", required: true }] : fields };
   const projects = [{ id: "project-a", name: "Alpha project" }, { id: "project-b", name: "Beta project" }];
   const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
@@ -187,11 +187,19 @@ async function openBuilderSchedules(user: ReturnType<typeof userEvent.setup>) {
   await user.click(within(await screen.findByRole("dialog", { name: "Workflow settings" })).getByRole("tab", { name: "Schedules" }));
 }
 
+/** A schedule needs a Name (A56) before Create schedule submits. */
+async function nameSchedule(user: ReturnType<typeof userEvent.setup>, name = "Supplier A daily") {
+  const field = within(screen.getByRole("form", { name: "Schedule editor" })).getByLabelText("Name");
+  await user.clear(field);
+  await user.type(field, name);
+}
+
 async function createPaused(user: ReturnType<typeof userEvent.setup>) {
   const create = await screen.findByRole("button", { name: "New schedule" });
   expect(create).toBeEnabled();
   await user.click(create);
   await screen.findByRole("form", { name: "Schedule editor" });
+  await nameSchedule(user);
   await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
 }
@@ -235,11 +243,12 @@ it("authors object array items as JSON through normal Schedule POST and fresh re
     target: { value: '{"sku":"B","price":20,"title":"Beta"}' },
   });
   await choose(user, "Source feed rows item 2 Type", "JSON");
+  await nameSchedule(user);
   const scheduleReadsBeforePost = state.reads.filter((path) => path === "/api/projects/project-a/scheduled-jobs").length;
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toEqual([{ path: "/api/projects/project-a/scheduled-jobs", method: "POST", body: {
-    workflow_id: workflowId, cron_expr: "0 9 * * *", schedule_timezone: "UTC", enabled: false,
+    workflow_id: workflowId, cron_expr: "0 9 * * *", name: "Supplier A daily", schedule_timezone: "UTC", enabled: false,
     inputs: { source_rows: [{ sku: "A", price: 10, title: "Alpha" }, { sku: "B", price: 20, title: "Beta" }] },
   } }]);
   expect(state.reads.filter((path) => path === "/api/projects/project-a/scheduled-jobs").length).toBeGreaterThan(scheduleReadsBeforePost);
@@ -259,6 +268,7 @@ it("blocks invalid new JSON array drafts instead of submitting the last valid Sc
   const user = userEvent.setup();
   renderJourney(`${builderPath}?project_id=project-a&drawer=schedules`);
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Add item" }));
   const item = screen.getByRole("textbox", { name: "Source feed rows item 1" });
   fireEvent.change(item, { target: { value: '{"sku":"A","price":10}' } });
@@ -290,6 +300,7 @@ it("defaults new array items to Text and keeps literal true and false strings in
   await user.click(screen.getByRole("button", { name: "Add item" }));
   expect(screen.getByRole("combobox", { name: "Source feed rows item 2 Type" })).toHaveTextContent("Text");
   fireEvent.change(screen.getByRole("textbox", { name: "Source feed rows item 2" }), { target: { value: "false" } });
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(state.writes).toHaveLength(1));
   expect(state.writes[0]).toMatchObject({ method: "POST", body: { inputs: { source_rows: ["true", "false"] } } });
@@ -343,7 +354,7 @@ it("opens Builder Schedules without a URL hint and explicitly schedules the seco
   await waitFor(() => expect(state.reads).toContain(`/api/projects/project-b/workflows/${workflowId}/where-used`));
   expect(state.writes).toEqual([]);
   await createPaused(user);
-  expect(state.writes).toEqual([{ path: "/api/projects/project-b/scheduled-jobs", method: "POST", body: expect.objectContaining({ workflow_id: workflowId, enabled: false, cron_expr: "0 9 * * *", inputs: {} }) }]);
+  expect(state.writes).toEqual([{ path: "/api/projects/project-b/scheduled-jobs", method: "POST", body: expect.objectContaining({ workflow_id: workflowId, name: "Supplier A daily", enabled: false, cron_expr: "0 9 * * *", inputs: {} }) }]);
   for (const scope of state.historyReads) expect(scope).toEqual({ page: "1", per_page: "8", project_id: expect.stringMatching(/^(?:project-[ab]|foreign-project)$/), workflow_id: workflowId, task_source: "workflow_test_run" });
   expect(state.unexpected).toEqual([]);
 });
@@ -363,10 +374,11 @@ it.each([
   expect(within(editor).queryByRole("textbox", { name: "Concurrency key" })).not.toBeInTheDocument();
   expect(within(editor).queryByRole("textbox", { name: "Schedule instructions" })).not.toBeInTheDocument();
   if (repeat !== "Daily") await user.click(within(screen.getByRole("group", { name: "Repeat" })).getByRole("button", { name: repeat }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toEqual([{ path: "/api/projects/project-a/scheduled-jobs", method: "POST", body: {
-    workflow_id: workflowId, cron_expr: cron,
+    workflow_id: workflowId, cron_expr: cron, name: "Supplier A daily",
     schedule_timezone: "UTC", enabled: false, inputs: {},
   } }]);
   for (const scope of state.historyReads) expect(scope).toEqual({ page: "1", per_page: "8", project_id: expect.stringMatching(/^(?:project-[ab]|foreign-project)$/), workflow_id: workflowId, task_source: "workflow_test_run" });
@@ -391,10 +403,11 @@ it("creates caller input values while leaving fixed workflow defaults to executi
   expect(within(editor).queryByRole("textbox", { name: /^Fixed record key/ })).not.toBeInTheDocument();
   await user.type(screen.getByLabelText(/^Count/), "12");
   await user.click(screen.getByText("Caller flag", { exact: true }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toEqual([{ path: "/api/projects/project-a/scheduled-jobs", method: "POST", body: {
-    workflow_id: workflowId, cron_expr: "0 9 * * *",
+    workflow_id: workflowId, cron_expr: "0 9 * * *", name: "Supplier A daily",
     schedule_timezone: "UTC", enabled: false, inputs: { count: 12, enabled: true },
   } }]);
   await user.click(screen.getByRole("button", { name: /^Edit schedule: / }));
@@ -423,7 +436,7 @@ it("removes stale saved values for configured defaults while preserving caller t
   await user.click(screen.getByRole("button", { name: "Save schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toEqual([{ path: "/api/projects/project-a/scheduled-jobs/stored-1", method: "PUT", body: {
-    workflow_id: workflowId, cron_expr: "0 9 * * *",
+    workflow_id: workflowId, cron_expr: "0 9 * * *", name: "Stored schedule",
     schedule_timezone: "UTC", enabled: false,
     inputs: { count: 7, record: { enabled: false, nested: [12, null] }, undeclared: { preserve: ["opaque"] } },
   } }]);
@@ -516,6 +529,7 @@ it("shows loading instead of assuming a project and enforces required saved inpu
   expect(screen.queryByRole("button", { name: "New schedule" })).not.toBeInTheDocument();
   release();
   await user.click(await screen.findByRole("button", { name: "New schedule" }));
+  await nameSchedule(user);
   await user.click(screen.getByRole("button", { name: "Create schedule" }));
   expect(state.writes).toEqual([]);
   await user.type(screen.getByLabelText(/^region/), "eu");
@@ -541,6 +555,7 @@ it("creates and reopens a paused schedule with contract-derived structured input
   fireEvent.change(editor.getByRole("textbox", { name: "Record value 2" }), { target: { value: "true" } });
   await user.click(editor.getByRole("button", { name: "Add item" }));
   fireEvent.change(editor.getByRole("textbox", { name: "Items item 1" }), { target: { value: "false" } });
+  await nameSchedule(user);
   await user.click(within(screen.getByTestId("workflow-schedule-editor-footer")).getByRole("button", { name: "Create schedule" }));
   await waitFor(() => expect(screen.queryByRole("form", { name: "Schedule editor" })).not.toBeInTheDocument());
   expect(state.writes).toHaveLength(1);

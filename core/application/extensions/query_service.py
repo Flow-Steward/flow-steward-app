@@ -97,7 +97,10 @@ class ExtensionQueryService:
         installed_ids = {row.extension_id for row in installed.extensions}
         runtime_only = [
             row
-            for row in self._presentation.runtime_summaries(scope=scope)
+            for row in self._presentation.runtime_summaries(
+                scope=scope,
+                exclude_extension_ids=frozenset(installed_ids),
+            )
             if row.extension_id not in installed_ids
         ]
         listed = self._listings.filter_summaries(
@@ -150,14 +153,14 @@ class ExtensionQueryService:
         """
         scope = normalize_scope(scope)
         try:
-            detail = self._details.get_extension(extension_id, scope=scope)
+            visible_id = self._details.get_extension_identity(extension_id, scope=scope)
         except ServiceNotFoundError:
-            detail = self._presentation.runtime_detail(
+            visible_id = self._presentation.runtime_detail(
                 extension_id,
                 selected_project_id=None,
                 scope=scope,
-            )
-        data = installed_extension_icon(detail.extension_id or extension_id)
+            ).extension_id
+        data = installed_extension_icon(visible_id or extension_id)
         if data is None:
             raise ServiceNotFoundError("Extension icon not found")
         return data
@@ -333,17 +336,19 @@ class ExtensionQueryService:
             if browser_authority_required(detail.compiled_manifest):
                 raise ServicePreconditionError("External browser code approval required")
             return dict(detail.compiled_manifest)
-        require_current_browser_authority(record=record, release=release)
         stored_authority_required = browser_authority_required(detail.compiled_manifest)
         approval_provenance = getattr(record, "provenance", {})
         previously_approved_authority = (
             isinstance(approval_provenance, dict)
             and BROWSER_AUTHORITY_PROVENANCE_KEY in approval_provenance
         )
+        # A missing bundle manifest is a broken bundle, not an approvable change: the
+        # persisted descriptor (which carries the compiled UI) must not stand in for it.
         current_manifest = resolve_browser_authority_manifest(
             release,
             require_bundle_manifest=(stored_authority_required or previously_approved_authority),
         )
+        require_current_browser_authority(record=record, release=release)
         if stored_authority_required or browser_authority_required(current_manifest):
             return current_manifest
         return dict(detail.compiled_manifest)

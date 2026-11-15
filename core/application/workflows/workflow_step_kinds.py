@@ -100,6 +100,7 @@ STEP_KIND_RUNTIME_ACTOR_LABELS: dict[str, str] = {
     "template_step": "Template",
     "invoke_workflow": "Run another workflow",
     "control_flow_step": "Control flow",
+    "wait_step": "Wait",
 }
 
 

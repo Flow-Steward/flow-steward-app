@@ -218,7 +218,7 @@ def create_auth_users_router(
         }
 
     @router.get("/api/auth/me")
-    async def api_auth_me(request: Request):
+    def api_auth_me(request: Request):
         """Return current authenticated user."""
         if not (local_auth_enabled() or external_auth_enabled()):
             return {
@@ -320,7 +320,7 @@ def create_auth_users_router(
         return {"status": "ok", "display_name": display_name}
 
     @router.get("/api/users/me/email-change-status")
-    async def api_user_email_change_status(request: Request):
+    def api_user_email_change_status(request: Request):
         if not local_auth_enabled():
             return JSONResponse({"error": err_local_auth_disabled}, status_code=400)
         bl = get_logger_only()
@@ -713,7 +713,7 @@ def create_auth_users_router(
         return {"status": "ok", "timezone": clean_tz}
 
     @router.get("/api/auth/users")
-    async def api_auth_users(
+    def api_auth_users(
         request: Request,
         page: Annotated[int, Query()] = 1,
         per_page: Annotated[int, Query()] = 25,

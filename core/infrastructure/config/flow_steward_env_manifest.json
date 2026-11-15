@@ -906,7 +906,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-app:0.9.17",
+      "default": "flow-steward-app:0.9.18",
       "owner": "images"
     },
     {
@@ -2277,7 +2277,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-control:0.9.17",
+      "default": "flow-steward-control:0.9.18",
       "owner": "images"
     },
     {
@@ -3410,7 +3410,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-frontend:0.9.17",
+      "default": "flow-steward-frontend:0.9.18",
       "owner": "images",
       "notes": "Optional development frontend image; production application images already contain the built frontend shell."
     },
@@ -5054,6 +5054,23 @@
       "notes": "Controls local quality evidence behavior: reuse, report, or off. CLI flags take precedence."
     },
     {
+      "name": "FS_QUALITY_TEST_SELECTION",
+      "groups": [
+        "quality_tools"
+      ],
+      "environments": [
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "quality",
+      "notes": "Internal: path of the impacted-test selection plan verify.py hands a Tier 3 suite (ADR 0070). Set only by the quality gate; never configure it."
+    },
+    {
       "name": "FS_READY_DRAIN_MAX_MESSAGES",
       "groups": [
         "core_runtime"
@@ -6612,7 +6629,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-worker:0.9.17",
+      "default": "flow-steward-worker:0.9.18",
       "owner": "images"
     },
     {
@@ -7007,7 +7024,7 @@
       "doctor_required": false,
       "secret": false,
       "preserve_existing": true,
-      "default": "flow-steward-mcp:0.9.17",
+      "default": "flow-steward-mcp:0.9.18",
       "owner": "images"
     },
     {

@@ -128,6 +128,11 @@ def _secret_like_key(key: Any, declared_secret_inputs: set[str]) -> bool:
     )
 
 
+def is_secret_like_input(key: Any, declared_secret_inputs: Collection[str] | None = None) -> bool:
+    """Whether an input name is declared secret or reads like a credential."""
+    return _secret_like_key(key, _normalized_secret_names(declared_secret_inputs))
+
+
 def _redact_value(value: Any, *, declared_secret_inputs: set[str]) -> Any:
     if isinstance(value, Mapping):
         redacted: dict[str, Any] = {}
@@ -648,6 +653,7 @@ __all__ = [
     "JobReplaySnapshotError",
     "build_effective_input_projection",
     "capture_replay_snapshot",
+    "is_secret_like_input",
     "load_replay_snapshot",
     "mint_replay_file_handles",
 ]

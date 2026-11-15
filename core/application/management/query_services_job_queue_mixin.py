@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from core.application.jobs.query_scope import job_row_in_scope
 from core.application.observability_vocabulary import job_status_filter_statuses
+from core.application.workflows.workflow_run_title import job_run_title
 
 from .query_models import AwaitingApprovalJobsPageView
 from .query_services_common import *  # NOSONAR
@@ -119,8 +120,10 @@ class JobQueryServiceQueueMixin:
                 key: self._serialize_project_job_value(value)
                 for key, value in self._project_job_row_payload(row).items()
             }
-            display_summary = self._build_display_summary(payload.get("task_summary"))
+            run_title = job_run_title(payload)
+            display_summary = run_title or self._build_display_summary(payload.get("task_summary"))
             payload["display_summary"] = display_summary or str(payload.get("task_summary") or "")
+            payload["run_title"] = run_title or None
             serialized_rows.append(ProjectJobRowView.model_validate(payload))
 
         return ProjectJobsListView(

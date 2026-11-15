@@ -1675,7 +1675,7 @@ def test_cli_and_api_share_canonical_extension_query_projection(
     monkeypatch.setattr(
         extension_runtime_helpers,
         "list_extension_runtime_records",
-        lambda *, account_id: [],
+        lambda *, account_id, exclude_extension_ids: [],
     )
 
     runtime = CLIRuntime()

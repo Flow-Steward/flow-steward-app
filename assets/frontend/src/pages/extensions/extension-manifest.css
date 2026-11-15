@@ -220,6 +220,29 @@ fieldset.fs-manifest-actions {
   white-space: nowrap;
 }
 
+/* A grid row with row_link opens its target; hover comes from the canon table. */
+.fs-manifest-row-link { cursor: pointer; }
+
+/* Grid filters: design-system controls above the table, each bound to a p.<name>. */
+.fs-manifest-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+.fs-manifest-filter {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 12rem;
+}
+
+.fs-manifest-filter-label {
+  color: var(--fs-text-secondary);
+  font-size: var(--fs-type-caption-size);
+}
+
 .fs-manifest-pager {
   display: flex;
   flex-wrap: wrap;

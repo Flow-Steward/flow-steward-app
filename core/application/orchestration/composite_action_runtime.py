@@ -28,11 +28,11 @@ from core.application.workflows.workflow_action_contract import (
     action_connections,
     action_implementation_of,
     action_installs,
-    composite_action_context,
     is_installed_action_implementation,
     parse_action_ref,
     slot_of_binding,
 )
+from core.application.workflows.workflow_connection_slots import job_connection_context
 
 InstallResolver = Callable[[str], InstalledComposites | None]
 
@@ -283,7 +283,7 @@ def action_invoke_for_state(
     try:
         plan = plan_action_invoke(
             source,
-            parent_context=composite_action_context(_parent_meta(parent_job)),
+            parent_context=job_connection_context(_parent_meta(parent_job)),
             resolve_install=lambda install_id: installed_composites_for_store(
                 db, install_id=install_id, account_id=account_id
             ),
@@ -436,12 +436,16 @@ def resolve_connector_action_binding(
 
 
 def job_action_context(state: Mapping[str, Any]) -> dict[str, Any]:
-    """The action context of the job that owns *state*, read from its durable row."""
+    """The slot context of the job that owns *state*, read from its durable row.
+
+    The action context of an action child, or the connections the host pinned
+    for a slot workflow at submission (ADR 0068); both have the same shape.
+    """
     from core.application.orchestration.connector_events import _shared_job_store
 
     job_id = _text(state.get("job_id"))
     store = _shared_job_store() if job_id else None
-    return composite_action_context(_job_meta(job_id, getattr(store, "get_job", None)))
+    return job_connection_context(_job_meta(job_id, getattr(store, "get_job", None)))
 
 
 __all__ = [

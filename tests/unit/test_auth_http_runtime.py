@@ -1266,6 +1266,29 @@ _VIEWER = ResolvedPrincipal(id="vw-1", username="viewer", roles=["viewer"], auth
 
 
 @pytest.mark.parametrize(
+    ("principal", "expected_status"),
+    [
+        (
+            ResolvedPrincipal(
+                id="admin-1", username="admin", roles=["admin"], auth_source="session"
+            ),
+            204,
+        ),
+        (_OPERATOR, 403),
+        (_VIEWER, 403),
+        (None, 401),
+    ],
+)
+def test_core_update_notice_is_an_admin_only_http_read(principal, expected_status):
+    path = "/api/system/core-updates"
+    assert is_admin_only_route(path)
+    response = _run_middleware_with_principal(
+        path=path, method="GET", principal=principal, admin_only=is_admin_only_route(path)
+    )
+    assert response.status_code == expected_status
+
+
+@pytest.mark.parametrize(
     ("method", "path"),
     [
         ("GET", "/api/projects/proj-1/workflows/orders_sync/secret-approval"),

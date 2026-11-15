@@ -43,6 +43,9 @@ class ExtensionResponseEnvelope(BaseModel):
     events: list[dict[str, Any]] = Field(default_factory=list)
     reload: list[str] = Field(default_factory=list)
     errors: list[dict[str, Any]] = Field(default_factory=list)
+    #: Events for runs paused on an event Wait (ADR 0071); stored by the host
+    #: with the trusted account, project and extension of the invocation.
+    resume_waits: list[dict[str, Any]] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +60,7 @@ def normalize_extension_response(raw: dict | None) -> ExtensionResponseEnvelope:
     - ``ok`` is required and must be boolean.
     - ``result`` must be an object.
     - ``commands``, ``events``, ``reload``, ``errors`` must be arrays.
+    - ``resume_waits`` (optional) is an array of objects (ADR 0071).
     """
     if raw is None or not isinstance(raw, dict):
         return ExtensionResponseEnvelope(
@@ -122,7 +126,12 @@ def normalize_extension_response(raw: dict | None) -> ExtensionResponseEnvelope:
         )
     data["errors"] = normalized_errors
 
-    known_keys = {"ok", "result", "commands", "events", "reload", "errors"}
+    if isinstance(raw.get("resume_waits"), list):
+        data["resume_waits"] = [
+            item for item in raw.get("resume_waits") or [] if isinstance(item, dict)
+        ]
+
+    known_keys = {"ok", "result", "commands", "events", "reload", "errors", "resume_waits"}
     for key, val in raw.items():
         if key not in known_keys and key not in data:
             data[key] = val

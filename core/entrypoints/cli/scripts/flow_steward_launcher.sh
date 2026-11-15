@@ -1583,6 +1583,12 @@ run_isolated_cli_command() {
 }
 
 run_compact_platform_command() {
+  # Root version metadata belongs to the selected CLI image, not the host checkout
+  # or the restricted platform-operation parser. No retained CLI exists on Compact.
+  if [ "$#" -eq 1 ] && [ "$1" = "--version" ]; then
+    exec_compose_command run --rm --no-deps -T --entrypoint python \
+      fs-cli -m core.entrypoints.cli.lifecycle_click_app "$@"
+  fi
   # Configuration field parsing and confirmation belong to canonical Click.
   # Preserve the original argv; the image verifies this fixed operation's path.
   if [ "$top_level_command" = "config" ]; then

@@ -104,3 +104,43 @@ def test_finished_children_wake_their_parents_through_the_same_publication() -> 
     assert result == {"claimed": 1, "published": 1, "failed": 0}
     assert sent[0]["job_id"] == "parent-1"
     assert repository.published == [("thread-p", 2, "token-parent-1")]
+
+
+class _EventRepository(_Repository):
+    def __init__(self, events, timeouts) -> None:
+        super().__init__([])
+        self.events = events
+        self.timeouts = timeouts
+        self.order: list[str] = []
+
+    def claim_delivered_events(self, *, limit: int):
+        self.order.append("events")
+        return self.events
+
+    def claim_timed_out_event_waits(self, *, now_epoch_ms: int, limit: int):
+        self.order.append("timeouts")
+        return self.timeouts
+
+    def delete_expired_events(self, *, retention_days: int, limit: int):
+        self.order.append(f"expire:{retention_days}")
+        return 3
+
+
+def test_event_waits_match_delivered_events_before_deadlines() -> None:
+    from core.application.jobs.workflow_timer_dispatcher import dispatch_event_waits
+
+    repository = _EventRepository([(_row("e"), "thread-e")], [(_row("t"), "thread-t")])
+    sent: list[dict] = []
+
+    result = dispatch_event_waits(repository, lambda **kw: sent.append(kw), now_epoch_ms=1)
+
+    assert repository.order == ["events", "timeouts", "expire:7"]
+    assert [message["job_id"] for message in sent] == ["e", "t"]
+    assert result == {
+        "claimed": 2,
+        "published": 2,
+        "failed": 0,
+        "events": 1,
+        "timeouts": 1,
+        "expired": 3,
+    }

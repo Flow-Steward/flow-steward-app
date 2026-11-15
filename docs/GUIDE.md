@@ -2297,6 +2297,20 @@ changes) block `maintenance disable` until they are resumed. A failed
 and `doctor` only report it until a later backup succeeds, and the next
 `backup create` starts a new backup.
 
+#### Core release notifications
+
+Administrators see a notice above the application header when a newer official
+stable Core version is published, with the running version and a link to release
+notes. Operators and viewers neither see this notice nor access its check API.
+The browser rechecks every five minutes; the server reuses successful discovery
+for one hour and unavailable checks for five minutes. A failed check leaves the
+rest of the interface usable.
+
+This is a release announcement based on the declared running Core version. It
+does not establish source-checkout ordering, verify upgrade readiness, or install
+anything. The CLI below remains responsible for installed identity, image
+availability, maintenance and the reviewed upgrade.
+
 #### Official production upgrade
 
 Default production installation creates an official installation and upgrades as

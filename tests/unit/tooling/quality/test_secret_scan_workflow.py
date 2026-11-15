@@ -24,7 +24,7 @@ def _workflow() -> dict:
         (MEASUREMENT_REF, "workflow_dispatch", "tier2", ["secret_scan"]),
         (MEASUREMENT_REF, "workflow_dispatch", "release", ["secret_scan"]),
         (MEASUREMENT_REF, "workflow_dispatch", "release-sonar", ["secret_scan"]),
-        (MEASUREMENT_REF, "workflow_dispatch", "parallel-diagnostic", ["secret_scan"]),
+        (MEASUREMENT_REF, "workflow_dispatch", "release-full", ["secret_scan"]),
         ("feature/ordinary-change", "workflow_dispatch", "secret-scan-only", ["secret_scan"]),
         ("feature/ordinary-change", "push", "", ["quality"]),
         ("feature/ordinary-change", "workflow_dispatch", "tier2", ["quality"]),

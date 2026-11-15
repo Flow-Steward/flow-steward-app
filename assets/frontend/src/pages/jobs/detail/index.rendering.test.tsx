@@ -226,6 +226,15 @@ describe("JobsDetailPage canonical rendering", () => {
     expect(screen.getByTestId("job-download-report")).toHaveTextContent("Download full report");
   });
 
+  it("titles the page with the run title and names the workflow it ran", async () => {
+    primeApi(jobPayload({ status: "completed", finished_at: "2026-04-25T10:02:00Z", run_title: "Supplier A · https://a.example" }));
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Supplier A · https://a.example" })).toBeInTheDocument());
+    expect(screen.getByText("A run of Weekly Report.")).toBeInTheDocument();
+  });
+
   it("restores durable approval decisions after a compact terminal-job reload", async () => {
     primeApi(jobPayload({ status: "completed", finished_at: "2026-04-25T10:02:00Z" }));
     mockedFetchJobApprovalHistory.mockResolvedValue({
@@ -1215,6 +1224,30 @@ describe("Approval Review public context parity", () => {
 
 
 describe("canonical workflow-level result artifacts", () => {
+  it("links each final file to the download address the server gives", async () => {
+    primeApi({ ...jobPayload({ status: "completed", execution_steps: [] }), workflow_run: null,
+      workflow_result: {
+        outputs: {},
+        artifacts: {
+          result_file: { artifact_id: "art-1", filename: "result.jsonl", content_type: "application/x-ndjson", size_bytes: 10,
+            download_url: "/api/jobs/job-1/artifacts/art-1" },
+          result_csv: { artifact_id: "art-2", filename: "result.csv", content_type: "text/csv", size_bytes: 9,
+            download_url: "/api/jobs/job-1/artifacts/art-2" },
+        },
+      },
+    });
+    renderPage();
+    const panel = await screen.findByTestId("job-result-panel");
+    const artifacts = within(panel).getByRole("region", { name: "Final artifacts" });
+    expect(within(artifacts).getByText("result.jsonl")).toBeVisible();
+    expect(within(artifacts).getByText("result.csv")).toBeVisible();
+    const files = within(artifacts).getAllByRole("listitem");
+    const jsonl = files.find((file) => within(file).queryByText("result.jsonl"));
+    const csv = files.find((file) => within(file).queryByText("result.csv"));
+    expect(within(jsonl!).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-1");
+    expect(within(csv!).getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-2");
+  });
+
   it.each([false, true])("preserves validated artifact metadata with artifact-only=%s without step attribution or invented links", async (artifactOnly) => {
     primeApi({ ...jobPayload({ status: "completed", execution_steps: [] }), workflow_run: null,
       workflow_result: {
@@ -1226,10 +1259,8 @@ describe("canonical workflow-level result artifacts", () => {
     renderPage();
     const panel = await screen.findByTestId("job-result-panel");
     const artifacts = within(panel).getByRole("region", { name: "Final artifacts" });
-    expect(within(artifacts).getByText("Report")).toBeVisible();
-    for (const expected of ["artifact_id: artifact-1", "filename: canonical-report.pdf", "content_type: application/pdf", "size_bytes: 42", "sha256: canonical-sha256", "retention_class: workflow-output"]) {
-      expect(within(artifacts).getAllByRole("listitem").some((item) => item.textContent === expected)).toBe(true);
-    }
+    // The file is listed by name; without a server-given address there is no link.
+    expect(within(artifacts).getByText("canonical-report.pdf")).toBeVisible();
     expect(within(artifacts).queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByTestId("job-step-inspector-drawer")).not.toBeInTheDocument();
     if (artifactOnly) expect(within(panel).queryByText("Workflow outputs")).not.toBeInTheDocument();

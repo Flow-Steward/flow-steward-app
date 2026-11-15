@@ -36,7 +36,7 @@ def load_active_job_rows() -> list[dict[str, Any]]:
                     JOIN projects p ON p.id = j.project_id
                     WHERE j.status IN (
                         'pending', 'resume_pending', 'in_progress',
-                        'awaiting_approval', 'awaiting_timer', 'awaiting_child'
+                        'awaiting_approval', 'awaiting_timer', 'awaiting_child', 'awaiting_event'
                     )
                     ORDER BY j.started_at DESC
                     """

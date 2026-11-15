@@ -7,6 +7,7 @@ from typing import Protocol, cast
 
 from core.application.jobs.query_scope import job_row_in_scope
 from core.application.jobs.workflow_identity import resolve_job_workflow_id
+from core.application.jobs.workflow_result_links import with_artifact_downloads
 from core.application.jobs.workflow_run_models import PublicWorkflowResultV1
 from core.application.jobs.workflow_run_projection import (
     ArtifactResolverUnavailable,
@@ -650,7 +651,12 @@ class JobQueryServiceCoreMixin:
             except ArtifactResolverUnavailable as exc:
                 raise ServiceUnavailableError("Public workflow result is unavailable") from exc
             workflow_result = (
-                PublicWorkflowResultV1.model_validate(redact(public_result.model_dump(mode="json")))
+                PublicWorkflowResultV1.model_validate(
+                    with_artifact_downloads(
+                        cast(dict[str, object], redact(public_result.model_dump(mode="json"))),
+                        job_id,
+                    )
+                )
                 if public_result is not None
                 else None
             )

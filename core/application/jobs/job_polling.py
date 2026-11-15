@@ -43,7 +43,21 @@ FOR_EACH_PROGRESS_FIELDS = (
     "processed_count",
     "truncated",
 )
-_WAIT_FIELDS = ("kind", "wait_id", "step_id", "group_id", "due_at", "child_job_id", "approval_id")
+_WAIT_FIELDS = (
+    "kind",
+    "wait_id",
+    "step_id",
+    "group_id",
+    "started_at",
+    "due_at",
+    "child_job_id",
+    "approval_id",
+    "source",
+    "correlation_key",
+    "timeout_ms",
+)
+#: The event types an event wait accepts (ADR 0071: at most 20).
+_MAX_WAIT_EVENT_TYPES = 20
 
 
 def _bounded_fields(payload: Mapping[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
@@ -65,6 +79,18 @@ def _active_step(step: Mapping[str, Any]) -> dict[str, Any]:
     return row
 
 
+def _bounded_wait(wait: Mapping[str, Any]) -> dict[str, Any]:
+    row = _bounded_fields(wait, _WAIT_FIELDS)
+    event_types = wait.get("event_types")
+    if isinstance(event_types, list):
+        row["event_types"] = [
+            item[:_MAX_TEXT_LENGTH]
+            for item in event_types[:_MAX_WAIT_EVENT_TYPES]
+            if isinstance(item, str)
+        ]
+    return row
+
+
 def build_job_polling_payload(status: JobStatusView) -> dict[str, Any]:
     """Keep progress and usage; histories, inputs and drilldowns use their own tools."""
     fields = {field: getattr(status, field) for field in _STATUS_FIELDS}
@@ -79,8 +105,6 @@ def build_job_polling_payload(status: JobStatusView) -> dict[str, Any]:
     result["active_steps_total"] = len(active_steps)
     result["active_steps_truncated"] = len(active_steps) > _MAX_ACTIVE_STEPS
     wait = status.runtime.get("workflow_wait")
-    result["workflow_wait"] = (
-        _bounded_fields(wait, _WAIT_FIELDS) if isinstance(wait, Mapping) else None
-    )
+    result["workflow_wait"] = _bounded_wait(wait) if isinstance(wait, Mapping) else None
     result["usage"] = status.usage.dump()
     return result

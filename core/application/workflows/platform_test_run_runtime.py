@@ -733,6 +733,7 @@ def get_workflow_test_run_state(
         "in_progress",
         "awaiting_timer",
         "awaiting_child",
+        "awaiting_event",
         "completed",
         "failed",
         "stuck",

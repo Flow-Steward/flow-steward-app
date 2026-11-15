@@ -210,6 +210,7 @@ export function testRunStatus(value: unknown): string {
     normalized === "awaiting_approval"
     || normalized === "awaiting_timer"
     || normalized === "awaiting_child"
+    || normalized === "awaiting_event"
   ) {
     return normalized;
   }
@@ -243,6 +244,9 @@ export function testRunBannerMessage(
   if (status === "awaiting_child") {
     return t("react.workflows.value0_test_run_is_waiting_for_a_child_workflow", "{value0} test run is waiting for a child workflow.", { value0: label });
   }
+  if (status === "awaiting_event") {
+    return t("react.workflows.value0_test_run_is_waiting_for_an_event", "{value0} test run is waiting for an event.", { value0: label });
+  }
   if (status === "pass") {
     return t("react.workflows.value0_test_run_completed_successfully", "{value0} test run completed successfully.", { value0: label });
   }
@@ -275,6 +279,7 @@ export function workflowTestRunIsPending(
     || normalized === "awaiting_approval"
     || normalized === "awaiting_timer"
     || normalized === "awaiting_child"
+    || normalized === "awaiting_event"
   );
 }
 

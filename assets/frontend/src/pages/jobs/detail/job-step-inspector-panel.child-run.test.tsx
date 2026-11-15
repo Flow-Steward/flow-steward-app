@@ -17,6 +17,12 @@ it("links a step that ran another workflow, or an extension action behind one, t
   expect(screen.getByRole("link", { name: "Open the run behind this step" })).toHaveAttribute("href", "/jobs/job%20child%2F1");
 });
 
+it("says which run an Invoke started when the child run has a title", () => {
+  renderPanel({ child_job_id: "child-2", child_run_title: "Supplier B · https://b.example" });
+
+  expect(screen.getByRole("link", { name: "Open the run behind this step: Supplier B · https://b.example" })).toHaveAttribute("href", "/jobs/child-2");
+});
+
 it("shows no run link for a step that started none", () => {
   renderPanel({});
 

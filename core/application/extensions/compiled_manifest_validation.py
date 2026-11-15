@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 import re
 
+from core.application.extensions.callback_protocol import (
+    normalize_callback_auth,
+    raw_body_auth_errors,
+)
 from core.application.extensions.composite_actions import workflow_handler_issues
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.oauth_contract import (
@@ -62,6 +66,7 @@ from .compiled_manifest_policies import (
     _validate_project_state_declaration,
     _validate_runtime_grants,
 )
+from .grid_link_contract import validate_grid_link_contract
 from .query_connection_contract import validate_query_connection_contract
 
 
@@ -484,6 +489,19 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
         issues=issues,
         manifest_path=manifest_path,
         action_ids=action_ids,
+        secret_names={
+            str(name).strip()
+            for row in _as_list(compiled_manifest.get("connection_types"))
+            for name in _as_dict(_as_dict(_as_dict(row).get("secret_schema")).get("properties"))
+        },
+        platform_min=str(
+            _as_dict(_as_dict(compiled_manifest.get("runtime")).get("compatibility")).get(
+                "platform_min"
+            )
+            or ""
+        ).strip(),
+        normalize_callback_auth=normalize_callback_auth,
+        raw_body_auth_errors=raw_body_auth_errors,
     )
     compiled_manifest["workflow_triggers"] = _validate_workflow_trigger_definitions(
         compiled_manifest.get("workflow_triggers"),
@@ -710,6 +728,7 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
     validate_query_connection_contract(
         compiled_manifest, issues=issues, manifest_path=manifest_path
     )
+    validate_grid_link_contract(compiled_manifest, issues=issues, manifest_path=manifest_path)
 
     errors, warnings = _split_issues(issues)
     return {

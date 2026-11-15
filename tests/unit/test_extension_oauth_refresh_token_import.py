@@ -1136,7 +1136,7 @@ def test_replacement_verified_as_another_account_keeps_the_old_subject() -> None
     assert recorded["connection_config"]["oauth"]["subject"] == "account-old"
     assert recorded["connection_config"]["oauth"]["lifecycle_status"] == "needs_attention"
     assert recorded["connection_config"]["oauth"]["last_error_code"] == "subject_changed"
-    assert "replaced_subject" not in recorded["connection_config"]["oauth"]
+    assert recorded["connection_config"]["oauth"]["replaced_subject"] == "account-old"
     assert recorded["last_error"] == "subject_changed"
     assert recorded["runtime_status"] == "unavailable"
     assert recorded["display_name"] == "Primary account"

@@ -170,6 +170,7 @@ def _build_attention_where(
             "j.id::text",
             "COALESCE(j.task_id, '')",
             "COALESCE(j.task_summary, '')",
+            "COALESCE(j.meta ->> 'run_title', '')",
             "COALESCE(j.status, '')",
             "COALESCE(j.current_step_id, '')",
             "COALESCE(j.current_group_id, '')",
@@ -293,6 +294,7 @@ def list_jobs_for_attention(
                 LEFT(COALESCE(j.task_summary, ''), 512) AS task_summary,
                 j.meta ->> 'task_summary_key' AS task_summary_key,
                 j.meta -> 'task_summary_params' AS task_summary_params,
+                j.meta ->> 'run_title' AS run_title,
                 j.status,
                 j.queued_at,
                 j.started_at,
@@ -412,7 +414,7 @@ def get_workflow_stats(
                 SUM(CASE WHEN LOWER(COALESCE(j.status,'')) IN
                     ('in_progress','pending','blocked','retryable_interrupted_step',
                      'external_wait','awaiting_approval','awaiting_timer','awaiting_child',
-                     'resume_pending')
+                     'awaiting_event','resume_pending')
                     THEN 1 ELSE 0 END)                                            AS active_count,
                 SUM(CASE WHEN LOWER(COALESCE(j.status,'')) = 'cancelled' THEN 1 ELSE 0 END)
                                                                                   AS cancelled_count,

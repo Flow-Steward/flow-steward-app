@@ -154,7 +154,7 @@ def _canonicalize_submitted_shape(
 # SEC-015: Policy management
 # ---------------------------------------------------------------------------
 @router.get("/api/security/policy")
-async def get_global_policy(request: Request):
+def get_global_policy(request: Request):
     """Return the global security policy."""
     if not _request_principal(request):
         return _error(AUTHENTICATION_REQUIRED_MESSAGE, 401)
@@ -214,7 +214,7 @@ async def update_global_policy(request: Request):
 
 
 @router.get("/api/security/projects/{project_id}/policy")
-async def get_project_policy(
+def get_project_policy(
     request: Request,
     project_id: str,
     include_sources: Annotated[bool, Query()] = False,
@@ -377,7 +377,7 @@ async def add_custom_rule(request: Request, project_id: str):
 # SEC-016: Security observability
 # ---------------------------------------------------------------------------
 @router.get("/api/security/posture")
-async def get_posture(
+def get_posture(
     request: Request,
     project_id: Annotated[str | None, Query()] = None,
 ):
@@ -406,7 +406,7 @@ async def get_posture(
 
 
 @router.get("/api/security/events")
-async def list_events(
+def list_events(
     request: Request,
     project_id: Annotated[str | None, Query()] = None,
     job_id: Annotated[str | None, Query()] = None,
@@ -453,7 +453,7 @@ async def list_events(
 
 
 @router.get("/api/security/findings")
-async def list_findings(
+def list_findings(
     request: Request,
     project_id: Annotated[str | None, Query()] = None,
     event_id: Annotated[str | None, Query()] = None,

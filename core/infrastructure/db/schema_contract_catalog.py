@@ -70,6 +70,8 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "catalog_secrets",
     "catalog_secret_bindings",
     "catalog_secret_approvals",
+    "workflow_connection_slot_choices",
+    "workflow_wait_events",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",
@@ -220,6 +222,8 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("request_idempotency", "key_digest"),
     ("request_idempotency", "lease_expires_at"),
     ("workflow_entrypoints", "project_id"),
+    # A schedule's name titles the jobs it starts (migration 20261114150000).
+    ("scheduled_jobs", "name"),
     ("external_effect_rate_windows", "scope_hash"),
     ("external_effect_rate_windows", "scope_type"),
     ("external_effect_rate_windows", "account_id"),

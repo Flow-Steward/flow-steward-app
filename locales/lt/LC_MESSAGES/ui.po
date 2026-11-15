@@ -1062,6 +1062,46 @@ msgstr "Įspėjimai"
 msgid "extension_page.validation.warnings_badge"
 msgstr "Įspėjimų: {count}"
 
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.copy_failed"
+msgstr "Could not copy. Select and copy the setup value manually."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.copy_token"
+msgstr "Copy Verify Token"
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.copy_url"
+msgstr "Copy Callback URL"
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.create"
+msgstr "Create Callback"
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.created"
+msgstr "Callback registered. Copy the one-time setup values before leaving this page."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.failed"
+msgstr "Callback setup failed. Refresh the status and try again."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.one_time"
+msgstr "Copy these one-time setup values before leaving this page."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.refreshed"
+msgstr "Callback status refreshed."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.select_connection"
+msgstr "Select a connection before configuring callbacks."
+
+# English fallback for new manual callback setup controls.
+msgid "extensions.callback.verify_token"
+msgstr "Verify token"
+
 msgid "extensions.callback.configure"
 msgstr "Sukurti ir konfigūruoti"
 
@@ -5909,6 +5949,9 @@ msgstr "Atidaryti dabartinę darbo eigą"
 msgid "react.jobs.open_the_run_behind_this_step"
 msgstr "Atidaryti šio žingsnio vykdymą"
 
+msgid "react.jobs.open_the_run_behind_this_step_titled"
+msgstr "Atidaryti šio žingsnio vykdymą: {title}"
+
 msgid "react.jobs.operation_kind"
 msgstr "operacijos rūšis"
 
@@ -5973,6 +6016,9 @@ msgstr ""
 
 msgid "react.jobs.review_workspace"
 msgstr "Peržiūros darbo sritis"
+
+msgid "react.jobs.run_of_workflow"
+msgstr "Darbo eigos {workflow} vykdymas."
 
 msgid "react.jobs.run_overview"
 msgstr "Vykdymo apžvalga"
@@ -6122,6 +6168,9 @@ msgstr "Laukiama patvirtinimo"
 
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr "Laukiama antrinės darbo eigos vykdymo"
+
+msgid "react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4"
+msgstr "Laukiama {value0} iš {value1} (raktas {value2}) nuo {value3}, laukimas baigiasi {value4}"
 
 msgid "react.jobs.waiting_until_value0"
 msgstr "Laukiama iki {value0}"
@@ -14312,6 +14361,39 @@ msgstr "Vyksta vykdymas"
 msgid "react.workflows.run_bar_live_stopped"
 msgstr "Vykdymas sustabdytas"
 
+msgid "react.workflows.run_title"
+msgstr "Vykdymo pavadinimas"
+
+msgid "react.workflows.run_title_help"
+msgstr "Pavadina kiekvieną vykdymą užduočių sąraše pagal jo įvestis, kad šios darbo eigos vykdymus būtų galima atskirti. Pirmiausia rodomas tvarkaraščio ar webhook pavadinimas. Slaptos įvestys niekada nerodomos."
+
+msgid "react.workflows.run_title_inputs"
+msgstr "Įvestys: {names}."
+
+msgid "react.workflows.run_title_placeholder_invalid"
+msgstr "{placeholder} nėra įvestis; rašykite {example}."
+
+msgid "react.workflows.run_title_secret_input"
+msgstr "Vykdymo pavadinime negalima rodyti slaptos įvesties {name}."
+
+msgid "react.workflows.run_title_too_long"
+msgstr "Vykdymo pavadinimas ilgesnis nei {max} simbolių."
+
+msgid "react.workflows.run_title_unknown_input"
+msgstr "{name} nėra deklaruota įvestis."
+
+msgid "react.workflows.schedule_name"
+msgstr "Pavadinimas"
+
+msgid "react.workflows.schedule_name_help"
+msgstr "Šio tvarkaraščio paleistos užduotys pavadinamos šiuo pavadinimu."
+
+msgid "react.workflows.schedule_name_placeholder"
+msgstr "Tiekėjo A kasdienis importas"
+
+msgid "react.workflows.schedule_name_required"
+msgstr "Suteikite tvarkaraščiui pavadinimą, kad jo vykdymus būtų galima atskirti."
+
 msgid "react.workflows.snapshot_mode"
 msgstr "Palyginimo paskirtis"
 
@@ -14411,6 +14493,33 @@ msgstr "Žingsnio ID"
 
 msgid "react.jobs.field_step_kind"
 msgstr "Žingsnio tipas"
+
+msgid "react.jobs.field_event_type"
+msgstr "Įvykio tipas"
+
+msgid "react.jobs.field_received_at"
+msgstr "Gauta"
+
+msgid "react.jobs.field_correlation_key"
+msgstr "Susiejimo raktas"
+
+msgid "react.jobs.field_payload"
+msgstr "Turinys"
+
+msgid "react.jobs.field_child_error_message"
+msgstr "Antrinės darbo eigos klaida"
+
+msgid "react.jobs.field_child_error_code"
+msgstr "Antrinės darbo eigos klaidos kodas"
+
+msgid "react.jobs.field_child_status"
+msgstr "Antrinės darbo eigos būsena"
+
+msgid "react.jobs.field_child_error_step_id"
+msgstr "Nepavykęs antrinės darbo eigos žingsnis"
+
+msgid "react.jobs.field_child_job_id"
+msgstr "Antrinės darbo eigos vykdymas"
 
 msgid "react.jobs.confirm_cancel_current_run"
 msgstr "Atšaukti šią užduotį? Dabartinis vykdymas bus sustabdytas."
@@ -21021,6 +21130,9 @@ msgstr "{value0} bandomojo vykdymo būsena vis dar {value1}."
 msgid "react.workflows.value0_test_run_is_waiting_for_a_child_workflow"
 msgstr "{value0} bandomasis vykdymas laukia antrinio darbo eigos."
 
+msgid "react.workflows.value0_test_run_is_waiting_for_an_event"
+msgstr "{value0} bandomasis vykdymas laukia įvykio."
+
 msgid "react.workflows.value0_test_run_is_waiting_for_approval"
 msgstr "{value0} bandomasis vykdymas laukia patvirtinimo."
 
@@ -21122,6 +21234,9 @@ msgstr ""
 
 msgid "react.workflows.wait_mapped_duration"
 msgstr "Trukmė iš kintamojo"
+
+msgid "react.workflows.wait_until_event"
+msgstr "Iki įvykio"
 
 msgid "react.workflows.we_couldn_t_check_this_template"
 msgstr "Nepavyko patikrinti šio šablono"
@@ -26176,6 +26291,15 @@ msgstr "Darbo eiga sėkmingai užbaigta."
 msgid "react.jobs.step_transform_finished"
 msgstr "Transformacija baigta."
 
+msgid "react.jobs.step_wait_event_received"
+msgstr "Gautas {event_type} (raktas {correlation_key}) {received_at}"
+
+msgid "react.jobs.step_wait_event_timed_out"
+msgstr "Negauta {event_types} raktui {correlation_key}; laukimas baigėsi {due_at}"
+
+msgid "react.jobs.step_wait_finished"
+msgstr "Laukta iki {due_at}"
+
 msgid "react.workflows.display_if_comparison_replacement"
 msgstr ""
 "Šį būsenos palyginimą galima išsaugoti kaip struktūrinę sąlygą nekeičiant jo "
@@ -26384,6 +26508,9 @@ msgstr "Laukiama patvirtinimo"
 
 msgid "react.shared.badge_awaiting_child"
 msgstr "Laukiama antrinės darbo eigos"
+
+msgid "react.shared.badge_awaiting_event"
+msgstr "Laukiama įvykio"
 
 msgid "react.shared.badge_awaiting_review"
 msgstr "Laukiama peržiūros"
@@ -27133,6 +27260,27 @@ msgstr "Įveskite sveikąjį skaičių nuo 0 iki 31536000000."
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.wait_duration_source_invalid"
 msgstr "Pasirinkite tik vieną trukmės šaltinį."
+
+msgid "react.workflows.wait_event_correlation_key"
+msgstr "Susiejimo raktas"
+
+msgid "react.workflows.wait_event_hint"
+msgstr "Vykdymas laukia, kol plėtinys praneš apie vieną iš šių įvykių šiam raktui. Pasibaigus laukimo ribai žingsnis nepavyksta; prijunkite jo klaidos kraštą, kad tai apdorotumėte."
+
+msgid "react.workflows.wait_event_payload_target"
+msgstr "Įvykio duomenis įrašyti į"
+
+msgid "react.workflows.wait_event_source"
+msgstr "Plėtinys, kuris siunčia įvykį"
+
+msgid "react.workflows.wait_event_timeout_invalid"
+msgstr "Įveskite sveikąjį skaičių nuo 1 iki 31536000000."
+
+msgid "react.workflows.wait_event_timeout_ms"
+msgstr "Laukimo riba, milisekundės"
+
+msgid "react.workflows.wait_event_types"
+msgstr "Įvykių tipai (atskirti kableliais)"
 
 #: assets/frontend/src/pages/workflows/detail/detail-step-numeric-fields.ts
 msgid "react.workflows.http_timeout_positive"
@@ -30536,6 +30684,12 @@ msgstr "Ataskaita"
 msgid "react.jobs.all_runs"
 msgstr "Visi vykdymai"
 
+msgid "react.jobs.an_event"
+msgstr "įvykio"
+
+msgid "react.jobs.an_extension"
+msgstr "plėtinio"
+
 msgid "react.jobs.job_period"
 msgstr "Užduočių laikotarpis"
 
@@ -30882,3 +31036,84 @@ msgstr "Atnaujinti"
 
 msgid "react.extensions.page_refresh.stopped"
 msgstr "Automatinis atnaujinimas sustabdytas po nepavykusio įkėlimo. Spauskite „Atnaujinti“, kad bandytumėte dar kartą."
+
+msgid "react.workflows.connection_slots"
+msgstr "Ryšiai"
+
+msgid "react.workflows.connection_slots_description"
+msgstr "Ryšiai, kuriuos naudoja ši darbo eiga. Kiekvienas projektas pasirenka savo."
+
+msgid "react.workflows.connection_slots_in_project"
+msgstr "Projekto {project} ryšiai."
+
+msgid "react.workflows.connection_slots_project"
+msgstr "Ryšių projektas"
+
+msgid "react.workflows.connection_slots_loading"
+msgstr "Įkeliami ryšiai…"
+
+msgid "react.workflows.connection_slots_load_failed"
+msgstr "Nepavyko įkelti ryšių"
+
+msgid "react.workflows.connection_slots_not_ready"
+msgstr "Ši darbo eiga šiame projekte neparengta"
+
+msgid "react.workflows.connection_slots_not_ready_detail"
+msgstr "Paleidimai, webhook ir tvarkaraščiai atmetami, kol nepasirinkti visi toliau nurodyti ryšiai."
+
+msgid "react.workflows.connection_slot_needed"
+msgstr "Reikia"
+
+msgid "react.workflows.connection_slot_connection"
+msgstr "Ryšys"
+
+msgid "react.workflows.connection_slot_needs"
+msgstr "Šiai darbo eigai reikia: {label}"
+
+msgid "react.workflows.connection_slot_select"
+msgstr "Ryšys: {label}"
+
+msgid "react.workflows.connection_slot_choose"
+msgstr "Pasirinkite ryšį"
+
+msgid "react.workflows.connection_slot_no_connections"
+msgstr "Projekte nėra tokio ryšio"
+
+msgid "react.workflows.connection_slot_save_failed"
+msgstr "Ryšys neišsaugotas"
+
+msgid "react.workflows.connection_slot_not_ready"
+msgstr "Neparengta"
+
+msgid "react.workflows.connection_slot_automatic"
+msgstr "Pasirinkta automatiškai"
+
+msgid "react.workflows.connection_slot_chosen"
+msgstr "Pasirinkta"
+
+msgid "react.extensions.grid_filters"
+msgstr "Filtrai"
+
+msgid "react.extensions.grid_filter_any"
+msgstr "Bet kuris"
+
+msgid "react.system.core_installed_version"
+msgstr "Įdiegta versija: {version}"
+
+msgid "react.system.core_release_notes"
+msgstr "Laidos naujienos"
+
+msgid "react.system.core_update_available"
+msgstr "Pasiekiama „Flow Steward“ {version} versija"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_processing"
+msgstr "Modelio apdorojimas"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_routing"
+msgstr "Darbo eigos maršruto parinkimas"
+
+#: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
+msgid "react.jobs.model_usage_agent"
+msgstr "Agentas"

@@ -42,7 +42,7 @@ def create_api_reports_router(
         return payload
 
     @router.get("/api/reports/{report_id}")
-    async def api_reports_get(request: Request, report_id: str):
+    def api_reports_get(request: Request, report_id: str):
         try:
             payload = reporting_service().report_get(
                 report_id,

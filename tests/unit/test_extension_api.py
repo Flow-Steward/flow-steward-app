@@ -2196,7 +2196,7 @@ class TestExtensionInstall:
             resolve_extension_runtime_record=lambda extension_id, *, account_id=None: (
                 (runtime, None) if extension_id == "acme.copied-runtime" else (None, None)
             ),
-            list_extension_runtime_records=lambda *, account_id: [runtime],
+            list_extension_runtime_records=lambda *, account_id, exclude_extension_ids: [runtime],
             build_extension_compiled_manifest=lambda _runtime: {
                 "extension_id": "acme.copied-runtime",
                 "ui_manifest": {"version": "1", "pages": [{"id": "copied"}]},

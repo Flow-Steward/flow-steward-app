@@ -27,6 +27,14 @@ _CANONICAL_PROJECTED_REGISTRY_PREFIX = (
     r"(?:pi_[0-9a-fA-F]{24}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})\."
 )
 
+# A dotted name whose second part is a lowercase snake_case identifier is a
+# name, not a credential: an i18n key such as ``jobs.step_wait_event_received``
+# (inside ``react.jobs.step_wait_event_received``) or a settings path. Opaque
+# provider tokens after a short dotted prefix are random base62/base64url text:
+# mixed case or no underscore at all, so they never take this shape (lowercase
+# letters, digits and at least one underscore, nothing else).
+_SNAKE_CASE_IDENTIFIER = r"(?=[a-z0-9]*_)(?=[a-z0-9_]*[a-z])[a-z0-9_]+(?![A-Za-z0-9_-])"
+
 # Installation tokens are opaque: both classic bodies and stateless JWT bodies
 # are supported, without a maximum length or a final word boundary that would
 # leave a base64url '-' behind. A sentence-ending dot stays outside the value.
@@ -177,7 +185,7 @@ SECRET_PATTERNS: tuple[SecretPattern, ...] = (
         "dotted_provider_token",
         re.compile(
             rf"(?<![A-Za-z0-9_-])(?<!process\.)(?!{_CANONICAL_PROJECTED_REGISTRY_PREFIX})"
-            r"([A-Za-z][A-Za-z0-9_-]{1,15}\.[A-Za-z0-9_-]{24,})"
+            rf"([A-Za-z][A-Za-z0-9_-]{{1,15}}\.(?!{_SNAKE_CASE_IDENTIFIER})[A-Za-z0-9_-]{{24,}})"
             r"(?![A-Za-z0-9_-])"
         ),
         "high",

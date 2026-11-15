@@ -120,6 +120,7 @@ _SCHEDULED_ACTIVE_JOB_STATUSES = {
     "awaiting_approval",
     "awaiting_timer",
     "awaiting_child",
+    "awaiting_event",
 }
 _resume_shutdown_event = threading.Event()
 _resume_threads_lock = threading.Lock()

@@ -113,6 +113,25 @@ Rules:
 - `MUST` keep React asset serving explicit and cache-safe.
 - `MUST` keep the React build pipeline independent from template-era asset build tooling.
 
+## List Filter Preferences
+
+List filters and search refinements are remembered in this browser (ADR
+[0069](../architecture/adr/0069-browser-local-list-filter-preferences.md)) across route
+changes and reloads. Preferences are scoped by authenticated account, user and
+list; entity-specific lists also include their entity identifier. Signing out
+keeps the existing authenticated browser-data purge.
+
+- New list surfaces `SHOULD` reuse the schema-validated `useFilterState` hook or
+  the allowlisted `useFilterSearchParams` / `useLatestFilterSearchParams` hooks
+  under `src/lib/filters/`.
+- Explicit filter query parameters take precedence over a remembered query
+  selection. Clearing filters replaces the remembered selection.
+- Only filter/search state is restored; page numbers, selections, editor drafts,
+  action parameters and open dialogs remain transient.
+- Storage errors or invalid saved values fall back to the list defaults without
+  preventing normal filtering. Relative period presets retain their relative
+  meaning when reopened.
+
 ## Frontend Testing Expectations
 
 - `MUST` verify UI-critical changes at the affected layer.

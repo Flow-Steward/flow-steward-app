@@ -122,7 +122,7 @@ def _write_minimal_extension(
 
 
 def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
     from core.application.extensions.provider_registration import provider_row_for_extension
 
     bundle = tmp_path / "acme_provider"
@@ -130,7 +130,7 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
     normalized = {"extension_id": "acme.provider", "release_version": "1.0.0"}
     original = copy.deepcopy(normalized)
 
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor=normalized,
     )
@@ -152,6 +152,60 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
     }
 
 
+def test_descriptor_enrichment_preserves_oauth_return_page_ownership(tmp_path) -> None:
+    import yaml
+
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
+    from core.application.extensions.oauth_authorization import OAuthAuthorizationService
+    from core.application.extensions.oauth_contract import declared_ui_page_ids
+
+    bundle = tmp_path / "acme_provider"
+    _write_minimal_extension(bundle, extension_id="acme.provider")
+    ui = {
+        "version": "1",
+        "pages": [
+            {
+                "page_id": "setup",
+                "title": "Setup",
+                "components": [
+                    {
+                        "component_id": "account",
+                        "type": "connection_form",
+                        "data": {
+                            "oauth_provider_id": "example",
+                            "connection_type": "example_account",
+                            "oauth_intent": "connect",
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+    (bundle / "ui/ui_manifest.yaml").write_text(yaml.safe_dump(ui))
+
+    descriptor, errors = descriptor_with_bundle_runtime(
+        descriptor_path=bundle / "extension-descriptor.yaml",
+        normalized_descriptor={"extension_id": "acme.provider", "release_version": "1.0.0"},
+    )
+
+    assert errors == [], errors
+    assert "setup" in declared_ui_page_ids(descriptor)
+    assert OAuthAuthorizationService._return_page_owns_intent(
+        descriptor,
+        page_id="setup",
+        provider_id="example",
+        connection_type="example_account",
+        intent_id="connect",
+    )
+    assert not OAuthAuthorizationService._return_page_owns_intent(
+        descriptor,
+        page_id="setup",
+        provider_id="example",
+        connection_type="example_account",
+        intent_id="other",
+    )
+
+
 @pytest.mark.parametrize(
     ("extension_id", "version", "expected_code"),
     [
@@ -162,11 +216,11 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
 def test_descriptor_enrichment_rejects_mismatched_provider_identity(
     tmp_path, extension_id, version, expected_code
 ) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
 
     bundle = tmp_path / "acme_provider"
     _write_minimal_extension(bundle, extension_id="acme.provider")
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor={"extension_id": extension_id, "release_version": version},
     )
@@ -178,12 +232,12 @@ def test_descriptor_enrichment_rejects_mismatched_provider_identity(
 
 
 def test_descriptor_enrichment_rejects_invalid_provider_manifest(tmp_path) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
 
     bundle = tmp_path / "acme_provider"
     _write_minimal_extension(bundle, extension_id="acme.provider")
     (bundle / "extension.yaml").write_text("not: [valid", encoding="utf-8")
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor={"extension_id": "acme.provider", "release_version": "1.0.0"},
     )
@@ -6239,3 +6293,666 @@ def test_execute_resource_query_reports_a_withheld_result_as_failed():
     assert result["ok"] is False
     assert result["error_code"] == "extension_secret_exposure_blocked"
     assert result["items"] == []
+
+
+def _raw_body_callback_manifest():
+    manifest = _compiled_manifest_with_callback(
+        {
+            "callback_id": "updates",
+            "purpose": "inbound_events",
+            "methods": ["GET", "POST"],
+            "action_id": "ingress_event",
+            "connection_scoped": True,
+            "auth": {
+                "type": "raw_body_hmac_sha256",
+                "signature_header": "X-Custom-Signature",
+                "secret_name": "app_secret",  # pragma: allowlist secret
+                "verification": {
+                    "token_parameter": "verify.token",
+                    "challenge_parameter": "verify.challenge",
+                    "required_parameters": {"verify.mode": "listen"},
+                },
+            },
+        }
+    )
+    manifest["runtime"] = {
+        "contract_version": "extension_host_v2",
+        "compatibility": {"platform_min": "1.9.0"},
+    }
+    manifest["connection_types"] = [
+        {
+            "connection_type_id": "signed_account",
+            "display_name": "Signed account",
+            "auth": {"type": "api_key"},
+            "config_schema": {"type": "object"},
+            "secret_schema": {"type": "object", "properties": {"app_secret": {"type": "string"}}},
+        }
+    ]
+    return manifest
+
+
+def test_raw_body_callback_compiler_preserves_declared_protocol_and_empty_prefix_default():
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "valid", validation["errors"]
+    auth = manifest["callbacks"][0]["auth"]
+    assert auth == {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Custom-Signature",
+        "signature_prefix": "",
+        "secret_name": "app_secret",  # pragma: allowlist secret
+        "verification": {
+            "token_parameter": "verify.token",
+            "challenge_parameter": "verify.challenge",
+            "required_parameters": {"verify.mode": "listen"},
+        },
+    }
+    auth["signature_prefix"] = "custom="
+    assert validate_compiled_manifest(manifest)["status"] == "valid"
+    assert manifest["callbacks"][0]["auth"]["signature_prefix"] == "custom="
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("signature_header", ""),
+        ("signature_header", "X-Bad\r\nInjected"),
+        ("signature_header", "X Signature"),
+        ("signature_header", "X" * 129),
+        ("signature_header", "X-É"),
+        ("signature_header", ["X-Signature"]),
+        ("signature_prefix", 123),
+        ("signature_prefix", "a" * 65),
+        ("signature_prefix", "bad\n"),
+        ("signature_prefix", "é="),
+        ("secret_name", "project_secret:anything"),
+        ("secret_name", "undeclared"),
+        ("verification", []),
+        ("verification", {"token_parameter": "token"}),
+        ("verification", {"token_parameter": "same", "challenge_parameter": "same"}),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"token": "fixed"},
+            },
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": 42},
+            },
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {str(n): "v" for n in range(9)},
+            },
+        ),
+        ("verification", {"token_parameter": "a" * 65, "challenge_parameter": "challenge"}),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": "a" * 513},
+            },
+        ),
+        ("secret_ref", "project:other"),
+        ("_legacy_compatibility", True),
+        (
+            "verification",
+            {"token_parameter": "token", "challenge_parameter": "challenge", "unknown": True},
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": "é" * 257},
+            },
+        ),
+    ],
+)
+def test_raw_body_callback_compiler_rejects_unsafe_protocol_fields(field, value):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"][0]["auth"][field] = value
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "invalid"
+    assert any(
+        issue.get("field_path", "").startswith("callbacks[0].auth")
+        for issue in validation["errors"]
+    ), validation["errors"]
+
+
+def test_raw_body_callback_compiler_requires_connection_scope_and_get_for_verification():
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    for field, value in (("connection_scoped", False), ("methods", ["POST"])):
+        manifest = _raw_body_callback_manifest()
+        manifest["callbacks"][0][field] = value
+        validation = validate_compiled_manifest(manifest)
+        assert validation["status"] == "invalid"
+        assert any(
+            issue.get("field_path", "").startswith("callbacks[0]") for issue in validation["errors"]
+        )
+
+
+@pytest.mark.parametrize("minimum", ["1.0.0", "1.8.0", "1.8.9", ""])
+def test_explicit_raw_body_callback_requires_host_contract_1_9(minimum):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["runtime"]["compatibility"]["platform_min"] = minimum
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "invalid"
+    assert any("1.9.0" in issue.get("message", "") for issue in validation["errors"]), validation[
+        "errors"
+    ]
+
+
+@pytest.mark.parametrize(
+    "header,secret_name",
+    [("X-Hub-Signature-256", "app_secret"), ("X-Existing-Signature", "existing_key")],
+)
+def test_legacy_hub_callback_compiles_to_generic_protocol_at_previous_host_floor(
+    header, secret_name
+):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["connection_types"][0]["secret_schema"]["properties"][secret_name] = {"type": "string"}
+    manifest["runtime"]["compatibility"]["platform_min"] = "1.0.0"
+    manifest["callbacks"][0]["auth"] = {
+        "type": "hub_signature",
+        "signature_header": header,
+        "secret_name": secret_name,
+    }
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "valid", validation["errors"]
+    assert manifest["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert manifest["callbacks"][0]["auth"] == {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": header,
+        "signature_prefix": "sha256=",
+        "_legacy_compatibility": True,
+        "secret_name": secret_name,
+        "verification": {
+            "token_parameter": "hub.verify_token",
+            "challenge_parameter": "hub.challenge",
+            "required_parameters": {"hub.mode": "subscribe"},
+        },
+    }
+
+
+def test_host_accepts_generic_callback_release_at_contract_1_9():
+    from core.application.extensions.extension_descriptor import validate_extension_descriptor
+
+    descriptor = {
+        "extension_id": "acme.callback-provider",
+        "release_version": "1.0.0",
+        "identity": {"display_name": "Signed callbacks"},
+        "vendor": {"vendor_name": "Acme"},
+        "distribution": {"channel": "private_byo", "execution_modes": ["local"]},
+        "runtime": {
+            "contract_version": "extension_host_v2",
+            "compatibility": {"platform_min": "1.9.0"},
+            "extension_contract_v2": {
+                "connection_types": _raw_body_callback_manifest()["connection_types"]
+            },
+        },
+    }
+    current = validate_extension_descriptor(descriptor)
+    assert current["valid"], current["errors"]
+    older = validate_extension_descriptor(descriptor, platform_version="1.8.0")
+    assert not older["valid"]
+    assert any("below required minimum" in error.get("message", "") for error in older["errors"])
+
+
+def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_floor(tmp_path):
+    import yaml
+
+    from core.application.extensions.callback_contract import (
+        _callback_auth,
+        find_callback_declaration,
+    )
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
+    from core.infrastructure.extension_runtime.extension_runtime import compile_extension_bundle
+    from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+        build_extension_compiled_manifest,
+    )
+
+    bundle = tmp_path / "acme_callback_provider"
+    _write_minimal_extension(bundle, extension_id="acme.callback-provider")
+    manifest_path = bundle / "extension.yaml"
+    source = yaml.safe_load(manifest_path.read_text())
+    contract = _raw_body_callback_manifest()
+    callback = copy.deepcopy(contract["callbacks"][0])
+    callback["auth"] = {
+        "type": "hub_signature",
+        "signature_header": "X-Hub-Signature-256",
+        "secret_name": "app_secret",  # pragma: allowlist secret
+    }
+    source["runtime"].update(
+        {
+            "compatibility": {"platform_min": "1.0.0"},
+            "extension_contract_v2": {"connection_types": contract["connection_types"]},
+        }
+    )
+    source["callbacks"] = [callback]
+    source["action_manifest"] = "ui/actions/actions.yaml"
+    manifest_path.write_text(yaml.safe_dump(source, sort_keys=False))
+    (bundle / "ui/actions").mkdir()
+    (bundle / "ui/actions/actions.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "actions": [
+                    {
+                        "action_id": "ingress_event",
+                        "title": "Receive event",
+                        "parameters": [],
+                        "handler": {"mode": "extension"},
+                        "workflow_visible": False,
+                    }
+                ]
+            }
+        )
+    )
+    compiled = compile_extension_bundle(bundle)
+    assert compiled["status"] == "valid", (
+        compiled.get("compile_errors"),
+        compiled.get("validation_errors"),
+    )
+    expected_auth = {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Hub-Signature-256",
+        "signature_prefix": "sha256=",
+        "_legacy_compatibility": True,
+        "secret_name": "app_secret",  # pragma: allowlist secret
+        "verification": {
+            "token_parameter": "hub.verify_token",
+            "challenge_parameter": "hub.challenge",
+            "required_parameters": {"hub.mode": "subscribe"},
+        },
+    }
+    assert compiled["compiled_manifest"]["callbacks"][0]["auth"] == expected_auth
+    # Artifact import recompiles the original manifest, then persists its compiled
+    # runtime fields; it does not validate the generic artifact as new author input.
+    descriptor, errors = descriptor_with_bundle_runtime(
+        descriptor_path=bundle / "extension-descriptor.yaml",
+        normalized_descriptor={
+            "extension_id": "acme.callback-provider",
+            "release_version": "1.0.0",
+        },
+    )
+    assert errors == [], errors
+    assert descriptor["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert descriptor["callbacks"][0]["auth"] == expected_auth
+    installed = {"extension_id": "acme.callback-provider", "compiled_manifest": descriptor}
+    reloaded = build_extension_compiled_manifest(installed)
+    assert reloaded["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert (
+        _callback_auth(find_callback_declaration({"compiled_manifest": reloaded}, "updates"))
+        == expected_auth
+    )
+    assert (
+        yaml.safe_load(manifest_path.read_text())["callbacks"][0]["auth"]["type"] == "hub_signature"
+    )
+
+
+@pytest.mark.parametrize(
+    "auth_options,valid",
+    [
+        pytest.param(
+            {
+                "signature_encoding": "base64",
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {},
+                },
+            },
+            True,
+            id="base64-hmac-no-token",
+        ),
+        pytest.param({}, True, id="implicit-hex-echo-defaults"),
+        pytest.param({"signature_encoding": "hex"}, True, id="explicit-hex-echo-default"),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "echo",
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            True,
+            id="explicit-echo",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                }
+            },
+            True,
+            id="default-hex-hmac",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof.value",
+                    "token_parameter": "v",
+                    "required_parameters": {"mode": "check"},
+                }
+            },
+            True,
+            id="hmac-with-token-and-literal",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "p" * 64,
+                }
+            },
+            True,
+            id="response-name-boundary",
+        ),
+        pytest.param({"signature_encoding": "base64url"}, False, id="unknown-encoding"),
+        pytest.param({"signature_encoding": "HEX"}, False, id="encoding-case-is-exact"),
+        pytest.param({"signature_encoding": None}, False, id="null-encoding"),
+        pytest.param({"signature_encoding": 1}, False, id="numeric-encoding"),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "unknown",
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            False,
+            id="unknown-response",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": None,
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            False,
+            id="null-response",
+        ),
+        pytest.param(
+            {"verification": {"response": "echo", "challenge_parameter": "nonce"}},
+            False,
+            id="echo-token-required",
+        ),
+        pytest.param(
+            {"verification": {"response": "hmac", "challenge_parameter": "nonce"}},
+            False,
+            id="hmac-field-required",
+        ),
+        pytest.param(
+            {"verification": {"response": "hmac", "response_field": "proof"}},
+            False,
+            id="hmac-challenge-required",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "",
+                }
+            },
+            False,
+            id="empty-response-field",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "p" * 65,
+                }
+            },
+            False,
+            id="response-field-too-long",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof\ninjected",
+                }
+            },
+            False,
+            id="response-field-control",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "é",
+                }
+            },
+            False,
+            id="response-field-non-ascii",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "{proof}",
+                }
+            },
+            False,
+            id="response-field-expression",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": "",
+                }
+            },
+            False,
+            id="supplied-empty-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": None,
+                }
+            },
+            False,
+            id="supplied-null-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": ["v"],
+                }
+            },
+            False,
+            id="supplied-malformed-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": "nonce",
+                }
+            },
+            False,
+            id="token-challenge-overlap",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {"nonce": "fixed"},
+                }
+            },
+            False,
+            id="literal-challenge-overlap",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {"mode": "x" * 513},
+                }
+            },
+            False,
+            id="literal-value-bound",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "secret_name": "other_key",  # pragma: allowlist secret
+                }
+            },
+            False,
+            id="independent-response-key",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "secret_ref": "foreign:secret",  # pragma: allowlist secret
+                }
+            },
+            False,
+            id="independent-response-key-ref",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "signature_encoding": "hex",
+                }
+            },
+            False,
+            id="independent-response-encoding",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "signature_prefix": "other=",
+                }
+            },
+            False,
+            id="independent-response-prefix",
+        ),
+        pytest.param(
+            {"signature_encoding": "base64", "_legacy_compatibility": True},
+            False,
+            id="authored-compatibility-policy",
+        ),
+    ],
+)
+def test_raw_body_callback_compiler_validates_encoding_and_hmac_verification_contract(
+    auth_options, valid
+):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"][0]["auth"].update(copy.deepcopy(auth_options))
+    result = validate_compiled_manifest(manifest)
+    assert result["status"] == ("valid" if valid else "invalid"), result["errors"]
+    if not valid:
+        assert any(
+            issue.get("field_path", "").startswith("callbacks[0].auth")
+            for issue in result["errors"]
+        ), result["errors"]
+        return
+    auth = manifest["callbacks"][0]["auth"]
+    assert auth.get("signature_encoding", "hex") == auth_options.get("signature_encoding", "hex")
+    verification = auth["verification"]
+    source = auth_options.get(
+        "verification", _raw_body_callback_manifest()["callbacks"][0]["auth"]["verification"]
+    )
+    assert verification.get("response", "echo") == source.get("response", "echo")
+    for field in (
+        "challenge_parameter",
+        "token_parameter",
+        "response_field",
+        "required_parameters",
+    ):
+        if field in source:
+            assert verification[field] == source[field]
+    if "token_parameter" not in source:
+        assert "token_parameter" not in verification
+
+
+def test_raw_body_callback_canonical_hmac_example_compiles_against_declared_secret():
+    import yaml
+
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    standard = yaml.safe_load(
+        (
+            Path(__file__).resolve().parents[2] / "docs/standards/extension-manifest-standard.yaml"
+        ).read_text()
+    )
+    example = next(row for row in standard["callbacks"] if row["callback_id"] == "signed_updates")
+    secret_name = example["auth"]["secret_name"]
+    declared = {
+        name
+        for connection_type in standard["runtime"]["extension_contract_v2"]["connection_types"]
+        for name in connection_type.get("secret_schema", {}).get("properties", {})
+    }
+    assert secret_name in declared
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"] = [copy.deepcopy(example)]
+    manifest["runtime"]["compatibility"] = standard["runtime"]["compatibility"]
+    manifest["connection_types"][0]["secret_schema"]["properties"][secret_name] = {"type": "string"}
+    result = validate_compiled_manifest(manifest)
+    assert result["status"] == "valid", result["errors"]
+    assert manifest["callbacks"][0]["auth"]["verification"]["required_parameters"] == {}
+    assert "token_parameter" not in manifest["callbacks"][0]["auth"]["verification"]

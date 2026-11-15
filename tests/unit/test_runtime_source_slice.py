@@ -1069,7 +1069,7 @@ def test_every_resource_a_packaged_module_names_is_packaged_too(role: str) -> No
     assert missing == {}
 
 
-@pytest.mark.parametrize("role", ROLES)
+@pytest.mark.parametrize("role", (*ROLES, "compact"))
 def test_schema_contract_roles_include_canonical_migration_history(role: str) -> None:
     payload = _manifest_payload(role)
     static_paths = set(payload["static_paths"])

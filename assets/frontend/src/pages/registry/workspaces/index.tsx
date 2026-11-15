@@ -1,16 +1,19 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useMemo, useRef, useState } from "react";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RefreshCw } from "lucide-react";
-import { Link } from "react-router";
+import { appHref } from "@/lib/routing/app-href";
 
 import {
   DsAlert,
   DsDialog,
   DsPageHeader,
   DsTable,
+  DsTableLink,
   PageContainer,
   RequiredLabel,
   RowActionMenu,
@@ -71,7 +74,7 @@ function buildWorkspaceColumns(
       header: t("react.registry.workspace_name", "Workspace name"),
       cell: (row) =>
         actions.canAdministerPlatform ? (
-          <Link to={`/registry/workspaces/${row.id}`}>{row.display_name}</Link>
+          <DsTableLink href={appHref(`/registry/workspaces/${encodeURIComponent(row.id)}`)}>{row.display_name}</DsTableLink>
         ) : (
           row.display_name
         ),
@@ -197,7 +200,7 @@ export function RegistryWorkspacesPage() {
   const queryClient = useQueryClient();
   const userTimezone = useUserTimezone();
   const createNameRef = useRef<HTMLInputElement>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useFilterState("workspaces/search", textFilterSchema, "");
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<WorkspaceDraft>(EMPTY_DRAFT);

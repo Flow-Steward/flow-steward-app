@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.application.reports.display_text import build_display_summary
+from core.application.workflows.workflow_run_title import job_run_title
 from core.infrastructure.monitoring.process_runtime import (
     build_proc_index,
     current_pid,
@@ -204,7 +205,9 @@ def _get_active_jobs() -> list[dict]:
                     if not job.get("current_step_id"):
                         job["current_step_id"] = latest_msg.get("step_id") or ""
                         job["current_group_id"] = latest_msg.get("group_id") or ""
-            job["display_summary"] = build_display_summary(job.get("task_summary"))
+            run_title = job_run_title(job)
+            job["run_title"] = run_title or None
+            job["display_summary"] = run_title or build_display_summary(job.get("task_summary"))
             job.pop("meta", None)
             jobs.append(job)
         return jobs

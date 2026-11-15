@@ -875,3 +875,65 @@ def test_branch_step_rejects_policy_requiring_a_success_outcome(
     assert "workflow.error_policy.success_outcome_required" in codes(issues)
     branch["error_policy"] = {"on_error": "fail"}
     assert validate_workflow_definition(payload) == []
+
+
+EVENT_WAIT = {
+    "event": {
+        "source": "acme.crawler",
+        "event_types": ["run_completed", "run_failed"],
+        "correlation_key": "state.crawl.run_id",
+    },
+    "timeout_ms": 86_400_000,
+    "output_mapping": {"payload": "state.result", "payload.rows": "state.rows"},
+}
+
+
+def test_an_event_wait_is_valid() -> None:
+    assert validate_workflow_definition(wait_root(EVENT_WAIT)) == []
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ({"timeout_ms": None}, "workflow.wait.timeout_invalid"),
+        ({"timeout_ms": 0}, "workflow.wait.timeout_invalid"),
+        ({"timeout_ms": 31_536_000_001}, "workflow.wait.timeout_invalid"),
+        ({"duration_ms": 5}, "workflow.wait.event_duration_conflict"),
+        ({"input_mapping": {"duration_ms": "state.d"}}, "workflow.wait.event_duration_conflict"),
+        ({"event": "run_completed"}, "workflow.wait.event_invalid"),
+        ({"event": {**EVENT_WAIT["event"], "source": ""}}, "workflow.wait.event_source_invalid"),
+        (
+            {"event": {**EVENT_WAIT["event"], "source": "Not An Id"}},
+            "workflow.wait.event_source_invalid",
+        ),
+        (
+            {"event": {**EVENT_WAIT["event"], "event_types": []}},
+            "workflow.wait.event_types_invalid",
+        ),
+        (
+            {"event": {**EVENT_WAIT["event"], "event_types": ["Run Completed"]}},
+            "workflow.wait.event_types_invalid",
+        ),
+        (
+            {"event": {**EVENT_WAIT["event"], "event_types": ["a", "a"]}},
+            "workflow.wait.event_types_invalid",
+        ),
+        (
+            {"event": {**EVENT_WAIT["event"], "correlation_key": ""}},
+            "workflow.wait.correlation_key_missing",
+        ),
+        ({"event": {**EVENT_WAIT["event"], "pattern": "*"}}, "workflow.step_config_key_unknown"),
+        ({"output_mapping": {"rows": "state.rows"}}, "workflow.wait.output_unknown"),
+        ({"output_mapping": {"payload": ""}}, "workflow.wait.mapping_invalid"),
+    ],
+)
+def test_an_event_wait_refuses_what_it_cannot_run(change: dict, code: str) -> None:
+    config = {**EVENT_WAIT, **change}
+    if change.get("timeout_ms", 1) is None:
+        config.pop("timeout_ms")
+    assert code in codes(validate_workflow_definition(wait_root(config)))
+
+
+def test_a_duration_wait_refuses_event_only_keys() -> None:
+    issues = validate_workflow_definition(wait_root({"duration_ms": 5, "timeout_ms": 5}))
+    assert codes(issues) == ["workflow.wait.event_key_without_event"]

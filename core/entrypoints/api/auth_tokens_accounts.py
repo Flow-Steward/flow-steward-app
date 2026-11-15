@@ -136,7 +136,7 @@ def create_auth_tokens_accounts_router(
     )
 
     @router.get("/api/auth/accounts")
-    async def api_auth_accounts_list(
+    def api_auth_accounts_list(
         request: Request,
         include_inactive: Annotated[bool, Query()] = True,
         search: Annotated[str, Query()] = "",
@@ -173,7 +173,7 @@ def create_auth_tokens_accounts_router(
         return {"accounts": list(accounts or [])}
 
     @router.get("/api/auth/accounts/current")
-    async def api_auth_accounts_current(request: Request):
+    def api_auth_accounts_current(request: Request):
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
         bl = _get_logger_only()
@@ -369,7 +369,7 @@ def create_auth_tokens_accounts_router(
         return {"status": "disabled", "account": account}
 
     @router.get("/api/auth/service-accounts")
-    async def api_auth_service_accounts_list(request: Request):
+    def api_auth_service_accounts_list(request: Request):
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
         bl = _get_logger_only()
@@ -575,7 +575,7 @@ def create_auth_tokens_accounts_router(
         return {"service_account": service_account}
 
     @router.get("/api/auth/service-accounts/{service_account_key}/tokens")
-    async def api_auth_service_account_tokens_list(service_account_key: str, request: Request):
+    def api_auth_service_account_tokens_list(service_account_key: str, request: Request):
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
         bl = _get_logger_only()

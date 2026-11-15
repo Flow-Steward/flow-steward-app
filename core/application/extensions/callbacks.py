@@ -74,6 +74,16 @@ from core.application.extensions.callback_contract import (
 from core.application.extensions.callback_contract import (
     redacted_callback_url as redacted_callback_url,
 )
+from core.application.extensions.callback_protocol import (
+    RAW_BODY_AUTH_TYPE,
+    callback_body_is_json_object,
+    callback_hmac_digest,
+    callback_signature,
+    encode_callback_signature,
+    is_hmac_verification,
+    verification_challenge,
+    verification_uses_token,
+)
 from core.application.extensions.callback_registration import (
     EXTENSION_CALLBACK_REGISTRATION_STORAGE_IS_MESSAGE as EXTENSION_CALLBACK_REGISTRATION_STORAGE_IS_MESSAGE,
 )
@@ -100,7 +110,6 @@ from core.infrastructure.db.extension_response import normalize_extension_respon
 _logger = logging.getLogger(__name__)
 
 _MESSAGE_INVALID_CALLBACK_SIGNATURE = "Invalid callback signature"
-_MAX_HUB_CHALLENGE_LENGTH = 512
 
 
 NON_RETRYABLE_CALLBACK_ERROR_CODES = {
@@ -212,6 +221,10 @@ class ExtensionCallbackDispatchService:
         auth = _callback_auth(declaration)
         if auth.get("type") == "none":
             return CallbackAuthenticationResult(True, 200, "")
+        if auth.get("type") == RAW_BODY_AUTH_TYPE:
+            return await self._authenticate_raw_body_signature(
+                request=request, registration=registration, auth=auth
+            )
         expected = self._secret_for_registration(registration)
         if auth.get("type") == "shared_secret_header":
             header_name = _normalize_text(auth.get("header"))
@@ -222,10 +235,6 @@ class ExtensionCallbackDispatchService:
                 and hmac.compare_digest(received.encode("utf-8"), expected.encode("utf-8"))
             )
             return CallbackAuthenticationResult(accepted)
-        if auth.get("type") == "hub_signature":
-            return await self._authenticate_hub_signature(
-                request=request, registration=registration, auth=auth
-            )
         if auth.get("type") != "hmac_sha256":
             return CallbackAuthenticationResult(False)
 
@@ -275,27 +284,26 @@ class ExtensionCallbackDispatchService:
             return CallbackAuthenticationResult(False, 409, "Callback delivery already processed")
         return CallbackAuthenticationResult(True, 200, "")
 
-    def hub_challenge(self, request: Request, registration: dict[str, Any]) -> str | None:
-        """Answer Meta's subscription handshake (``hub.mode=subscribe``).
-
-        The registration's shared secret is the verify token the operator pastes
-        into the provider's dashboard. Returns the challenge to echo, or ``None``
-        when the request is not a valid handshake.
-        """
-        params = request.query_params
-        challenge = _normalize_text(params.get("hub.challenge"))
-        received = _normalize_text(params.get("hub.verify_token"))
-        expected = self._secret_for_registration(registration)
-        if (
-            _normalize_text(params.get("hub.mode")) != "subscribe"
-            or not challenge
-            or len(challenge) > _MAX_HUB_CHALLENGE_LENGTH
-            or not received
-            or not expected
-            or not hmac.compare_digest(received.encode("utf-8"), expected.encode("utf-8"))
-        ):
+    def verification_challenge(
+        self, request: Request, registration: dict[str, Any], declaration: dict[str, Any]
+    ) -> str | dict[str, str] | None:
+        auth = _callback_auth(declaration)
+        expected = (
+            self._secret_for_registration(registration) if verification_uses_token(auth) else ""
+        )
+        challenge = verification_challenge(request, auth, expected)
+        if challenge is None or not is_hmac_verification(auth):
+            return challenge
+        # Nonce grammar, query bounds and any token were checked before key lookup.
+        secret = self._connection_secret(registration, _normalize_text(auth.get("secret_name")))
+        if not secret:
             return None
-        return challenge
+        signature = encode_callback_signature(
+            callback_hmac_digest(secret, challenge.encode("utf-8")), auth
+        )
+        if signature is None:
+            return None
+        return {auth["verification"]["response_field"]: signature}
 
     def _connection_secret(self, registration: dict[str, Any], secret_name: str) -> str:
         """Read one secret of the connection a registration belongs to."""
@@ -310,7 +318,18 @@ class ExtensionCallbackDispatchService:
                 enabled_only=True,
             )
         )
-        if not connection:
+        if (
+            not connection
+            or not bool(connection.get("enabled"))
+            or any(
+                _normalize_text(connection.get(field)) != _normalize_text(registration.get(field))
+                for field in ("connection_id", "project_id", "extension_id")
+            )
+            or _normalize_text(connection.get("account_id"))
+            != ExtensionCallbackRegistrationService(
+                self.bl, project_repository=self.connection_store
+            )._registration_account_id(registration)
+        ):
             return ""
         from core.application.extensions.operation_targets import provider_secrets_for_connection
         from core.application.management.project_connection_secrets import (
@@ -337,38 +356,31 @@ class ExtensionCallbackDispatchService:
             self.bl, connection, secret_refs
         ).items():
             secrets.setdefault(name, value)
-        return _normalize_text(secrets.get(secret_name))
+        value = secrets.get(secret_name)
+        return value if isinstance(value, str) else ""
 
-    async def _authenticate_hub_signature(
+    async def _authenticate_raw_body_signature(
         self,
         *,
         request: Request,
         registration: dict[str, Any],
         auth: dict[str, Any],
     ) -> CallbackAuthenticationResult:
-        """Check ``X-Hub-Signature-256``: HMAC-SHA256 of the raw body, keyed by the app secret.
-
-        The key is a secret of the connection (``auth.secret_name``), not the
-        registration's own secret: the provider signs with the secret of the app
-        its operator created.
-        """
         signature_header = _normalize_text(auth.get("signature_header"))
-        signature = (
-            _normalize_text(request.headers.get(signature_header)) if signature_header else ""
-        )
-        if signature.lower().startswith("sha256="):
-            signature = signature.split("=", 1)[1].strip()
+        headers = request.headers.getlist(signature_header) if signature_header else []
+        signature = callback_signature(headers[0], auth) if len(headers) == 1 else None
+        if signature is None:
+            return CallbackAuthenticationResult(False, 401, _MESSAGE_INVALID_CALLBACK_SIGNATURE)
         app_secret = self._connection_secret(registration, _normalize_text(auth.get("secret_name")))
-        if len(signature) != 64 or not app_secret:
+        if not app_secret:
             return CallbackAuthenticationResult(False, 401, _MESSAGE_INVALID_CALLBACK_SIGNATURE)
         raw_body = await _read_capped_callback_body(request, cap=_MAX_CALLBACK_BODY_BYTES)
-        expected_signature = hmac.new(
-            app_secret.encode("utf-8"), raw_body, hashlib.sha256
-        ).hexdigest()
-        if not hmac.compare_digest(
-            signature.lower().encode("utf-8"), expected_signature.encode("utf-8")
-        ):
+        expected_signature = callback_hmac_digest(app_secret, raw_body)
+        if not hmac.compare_digest(signature, expected_signature):
             return CallbackAuthenticationResult(False, 401, _MESSAGE_INVALID_CALLBACK_SIGNATURE)
+        # Applies to every dispatching method, independent of its Content-Type.
+        if is_hmac_verification(auth) and not callback_body_is_json_object(raw_body):
+            return CallbackAuthenticationResult(False, 400, "Callback body must be a JSON object")
         return CallbackAuthenticationResult(True, 200, "")
 
     def extension_for_registration(self, registration: dict[str, Any]) -> dict[str, Any] | None:
@@ -401,6 +413,7 @@ class ExtensionCallbackDispatchService:
         install_id = _normalize_text(connection.get("extension_install_id"))
         if (
             not connection
+            or not bool(connection.get("enabled"))
             or not install_id
             or _normalize_text(connection.get("connection_id")) != connection_id
             or _normalize_text(connection.get("project_id")) != project_id

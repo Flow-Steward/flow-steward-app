@@ -357,6 +357,44 @@ def test_hook_routes_validate_with_shared_dtos_and_call_the_shared_service():
     assert len(calls) == 8
 
 
+def test_connection_slot_routes_call_the_shared_service():
+    """ADR 0068: read and choose a workflow's connections through the operator service."""
+    calls: list[tuple[str, dict]] = []
+    result = {"workflow_id": "wf", "project_id": "proj-1", "ready": True, "slots": []}
+
+    class _SlotService:
+        def __getattr__(self, name):
+            def _method(**kwargs):
+                calls.append((name, kwargs))
+                return result
+
+            return _method
+
+    app = FastAPI()
+    app.include_router(
+        create_workflow_operator_router(
+            workflow_operator_service=_SlotService,
+            request_scope=_request_scope,
+            service_error_response=_service_error_response,
+            api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
+        )
+    )
+    client = TestClient(app)
+    base = "/api/projects/proj-1/workflows/wf/connection-slots"
+
+    assert client.get(base).json() == result
+    assert client.put(f"{base}/store", json={"connection_id": "conn-1"}).status_code == 200
+    assert client.put(f"{base}/store", json={"connection": "conn-1"}).status_code == 422
+    assert [name for name, _ in calls] == ["connection_slots_get", "connection_slot_set"]
+    chosen = calls[1][1]
+    assert (chosen["project_id"], chosen["workflow_id"], chosen["slot"]) == (
+        "proj-1",
+        "wf",
+        "store",
+    )
+    assert (chosen["connection_id"], chosen["release_id"]) == ("conn-1", "")
+
+
 def test_portability_routes_call_the_operator_methods_with_the_cli_arguments(tmp_path):
     import asyncio
     from types import SimpleNamespace

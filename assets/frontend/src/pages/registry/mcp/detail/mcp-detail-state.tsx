@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { mcpStatusLabel } from "../mcp-status-label";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
@@ -59,7 +61,7 @@ export function useMcpDetailState() {
   const canManageProject = useHasCapability("mutate_projects");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<Outcome>("neutral");
-  const [searchValue, setSearchValue] = useState("");
+  const [searchValue, setSearchValue] = useFilterState(`mcp/${connectorId}/tools/search`, textFilterSchema, "");
   const [pendingSelectedToolIds, setPendingSelectedToolIds] = useState<string[] | null>(null);
   const [manualClientId, setManualClientId] = useState("");
   const [manualClientSecret, setManualClientSecret] = useState("");

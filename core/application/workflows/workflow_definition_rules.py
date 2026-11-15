@@ -839,7 +839,15 @@ def _approval_config_issues(config: Mapping[str, Any], path: str) -> list[dict[s
 
 
 def _wait_config_issues(config: Mapping[str, Any], path: str) -> list[dict[str, str]]:
-    issues: list[dict[str, str]] = []
+    from core.application.workflows.workflow_wait_event_rules import (
+        wait_duration_only_key_issues,
+        wait_event_config_issues,
+        wait_waits_for_event,
+    )
+
+    if wait_waits_for_event(config):
+        return wait_event_config_issues(config, path, timeout_max_ms=WAIT_DURATION_MS_MAX)
+    issues: list[dict[str, str]] = wait_duration_only_key_issues(config, path)
     has_literal = "duration_ms" in config
     mapping = config.get("input_mapping")
     has_mapped = False

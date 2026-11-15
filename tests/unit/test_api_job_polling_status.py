@@ -87,6 +87,45 @@ def test_polling_status_preserves_run_state_without_loading_ui_drilldowns(status
     assert "runtime" not in result
 
 
+def test_polling_status_says_which_event_a_run_waits_for():
+    """P14: the event wait lost its source, event types and key on the way out."""
+    payload = {
+        "id": "job-1",
+        "status": "awaiting_event",
+        "project_id": "project-1",
+        "task_summary": "Scrape a site",
+        "runtime": {
+            "workflow_wait": {
+                "kind": "event",
+                "wait_id": "w-1",
+                "step_id": "wait_for_run",
+                "source": "acme.crawler",
+                "event_types": ["run_completed", "run_failed", 7],
+                "correlation_key": "run-42",
+                "timeout_ms": 259200000,
+                "started_at": "2026-11-15T08:36:37Z",
+                "due_at": "2026-11-18T08:36:37Z",
+                "due_epoch_ms": 1,
+            }
+        },
+    }
+    result = _client(payload).get("/api/jobs/job-1/status").json()
+    assert result["workflow_wait"] == {
+        "kind": "event",
+        "wait_id": "w-1",
+        "step_id": "wait_for_run",
+        "group_id": None,
+        "started_at": "2026-11-15T08:36:37Z",
+        "due_at": "2026-11-18T08:36:37Z",
+        "child_job_id": None,
+        "approval_id": None,
+        "source": "acme.crawler",
+        "correlation_key": "run-42",
+        "timeout_ms": 259200000,
+        "event_types": ["run_completed", "run_failed"],
+    }
+
+
 def test_polling_response_is_bounded_even_with_large_runtime_history_and_parallel_group():
     huge = "x" * 100000
     payload = {

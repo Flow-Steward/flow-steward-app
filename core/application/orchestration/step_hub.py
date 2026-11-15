@@ -104,15 +104,20 @@ from core.application.orchestration.step_operation_retry import (
     OperationRetryDecision,
     decide_operation_retry,
 )
+from core.application.orchestration.wait_event_runtime import (
+    event_pending_wait,
+    is_event_wait,
+    resolve_wait_event,
+)
 from core.application.orchestration.wait_step_runtime import (
     PENDING_WAIT_KEY,
-    WAIT_DURATION_INVALID,
     approval_id_for_execution,
     approval_pending_wait,
     child_pending_wait,
     pending_wait_for,
     resolve_wait_duration,
     timer_pending_wait,
+    wait_input_error_code,
 )
 from core.application.workflows.execution_graph import (
     OUTCOME_SUCCESS,
@@ -580,11 +585,13 @@ class _StepHub:
         )
 
     def wait_input_failure(self, cursor: RunCursor, current: ActiveStep, error: str) -> Command:
-        """A Wait whose mapped duration is not valid at run time is a failure of
-        that step: it goes through the step's effective error policy. The error
-        is deterministic, so a retry policy escalates instead of repeating it."""
+        """A Wait whose mapped duration or correlation key is not valid at run
+        time is a failure of that step: it goes through the step's effective
+        error policy. The error is deterministic, so a retry policy escalates
+        instead of repeating it."""
         from core.application.orchestration.agent_messages import build_agent_message
 
+        error_code = wait_input_error_code(current.step)
         timestamp = datetime.now(UTC).isoformat()
         message = build_agent_message(
             from_agent=WAIT_NODE,
@@ -594,7 +601,7 @@ class _StepHub:
             correlation_id=uuid.uuid4().hex,
             caused_by=[],
             artifacts={
-                "error_code": WAIT_DURATION_INVALID,
+                "error_code": error_code,
                 "failure_class": "contract",
                 "retryable": False,
             },
@@ -612,8 +619,8 @@ class _StepHub:
             return self.open_recovery(
                 current,
                 kind=RECOVERY_FAILURE,
-                reason="The Wait duration is not valid; retrying cannot change it",
-                detail={"on_error": policy.on_error, "error_code": WAIT_DURATION_INVALID},
+                reason="The Wait input is not valid; retrying cannot change it",
+                detail={"on_error": policy.on_error, "error_code": error_code},
                 failure_class="contract",
                 allowed_actions=["approve", "reject"],
             )
@@ -637,6 +644,11 @@ class _StepHub:
             # A serial invocation waits for its child durably; the node adds the
             # child job and keeps the finite path when called from a lane.
             return child_pending_wait(current, revision=revision), ""
+        if is_event_wait(current.step):
+            event, error = resolve_wait_event(current.step, state)
+            if event is None:
+                return None, f"Wait step '{current.step_id}': {error}"
+            return event_pending_wait(current, event=event, revision=revision), ""
         duration_ms, error = resolve_wait_duration(current.step, state)
         if duration_ms is None:
             return None, f"Wait step '{current.step_id}': {error}"

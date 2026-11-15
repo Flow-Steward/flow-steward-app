@@ -110,6 +110,14 @@ class ProjectQueryServiceCoreMixin:
         require_project_access(scope, project)
         return project
 
+    def assert_project_access(self, project_id: Any, *, scope: ScopeContext | None = None) -> None:
+        """Authorize a project read without loading its jobs or workflow projections."""
+        resolved = self._scope(scope, project_id=project_id)
+        bl = self._get_logger()
+        if not bl:
+            raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
+        self._require_project_in_scope(bl, str(project_id), resolved)
+
     @staticmethod
     def _project_run_config(bl: Any, project_id: Any) -> dict[str, Any]:
         if not hasattr(bl, "get_project_run_config"):

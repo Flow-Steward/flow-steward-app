@@ -1,3 +1,5 @@
+import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import type * as HttpClient from "@/lib/http/client";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -116,6 +118,40 @@ function renderPageWithLocation(initialEntry = "/registry/workflows") {
 }
 
 describe("WorkflowsListPage", () => {
+  it("pages the workflow inventory at the standard 25 rows and preserves access to later rows", async () => {
+    mockedFetchWorkflows.mockResolvedValue(Array.from({ length: 48 }, (_, index) => ({
+      workflow_id: `workflow-${index + 1}`, display_name: `Workflow ${index + 1}`, enabled: true,
+    })));
+    renderPage();
+    await screen.findByText("Workflow 1", { exact: true });
+    const table = screen.getByRole("table", { name: "Workflows catalog" });
+    expect(within(table).getAllByRole("row")).toHaveLength(26);
+    expect(screen.queryByText("Workflow 26", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("1–25 of 48")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    await screen.findByText("Workflow 26", { exact: true });
+    expect(within(table).getAllByRole("row")).toHaveLength(24);
+    expect(screen.queryByText("Workflow 1", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByText("26–48 of 48")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Previous page" }));
+    await screen.findByText("Workflow 1", { exact: true });
+  });
+
+  it("resets the workflow page when searching and clamps an out-of-range saved page", async () => {
+    const rows = Array.from({ length: 48 }, (_, index) => ({
+      workflow_id: `workflow-${index + 1}`, display_name: `Workflow ${index + 1}`, enabled: true,
+    }));
+    mockedFetchWorkflows.mockImplementation(async ({ search }) => rows.filter((row) => row.display_name.includes(search)));
+    renderPageWithLocation("/registry/workflows?page=999");
+    await screen.findByText("Workflow 26", { exact: true });
+    expect(screen.queryByText("Workflow 1", { exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next page" })).toBeDisabled();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workflows" }), { target: { value: "Workflow 1" } });
+    await screen.findByText("Workflow 1", { exact: true });
+    expect(screen.getByText("1–11 of 11")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous page" })).toBeDisabled();
+  });
+
   it("does not poll, and keeps the actual catalog search focused and rows visible during a refresh", async () => {
     const actualApi = await vi.importActual<typeof WorkflowApi>("@/pages/workflows/shared/api");
     const actualHttp = await vi.importActual<typeof HttpClient>("@/lib/http/client");
@@ -590,4 +626,17 @@ describe("WorkflowsListPage RBAC and create parity", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/registry/workflows/import");
     });
   });
+});
+
+
+it("restores remembered workflow filters into the first catalog request", async () => {
+  mockedUseIsAdmin.mockReturnValue(true);
+  mockedUseCanReadWorkflowRegistry.mockReturnValue(true);
+  mockedFetchWorkflows.mockReset();
+  mockedFetchWorkflows.mockResolvedValue([]);
+  localStorage.setItem(filterStorageKey("account-1", "user-1", "query/workflows"), JSON.stringify("search=nightly&enabled=1"));
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<AuthContext.Provider value={{ session: { user: { id: "user-1", account_id: "account-1" } } } as AuthContextValue}><QueryClientProvider client={queryClient}><MemoryRouter initialEntries={["/registry/workflows"]}><WorkflowsListPage /></MemoryRouter></QueryClientProvider></AuthContext.Provider>);
+  await waitFor(() => expect(screen.getByRole("searchbox", { name: "Search workflows" })).toHaveValue("nightly"));
+  await waitFor(() => expect(mockedFetchWorkflows).toHaveBeenNthCalledWith(1, { search: "nightly", enabledOnly: true }));
 });

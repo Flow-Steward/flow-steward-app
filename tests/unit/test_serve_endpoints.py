@@ -1294,7 +1294,7 @@ class TestAuthMeTimezone:
             ),
         ):
             endpoint = app_factory._auth_users_route_endpoint("/api/auth/me", "GET")
-            payload = _run_coro_blocking(endpoint(request))
+            payload = endpoint(request)
 
         assert payload["authenticated"] is True
         assert payload["user"]["timezone"] == "Europe/Vilnius"
@@ -4723,7 +4723,7 @@ class TestLocalAuthEndpoints:
         }
         svc = MagicMock()
         svc.list_connectors.return_value = payload
-        project_svc = MagicMock()
+        project_svc = MagicMock(spec=["assert_project_access"])
 
         with (
             patch(

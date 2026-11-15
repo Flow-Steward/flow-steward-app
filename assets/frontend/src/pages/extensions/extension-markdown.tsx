@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { MarkdownAppLink } from "@/pages/extensions/extension-markdown-link";
+
 /**
  * Safe Markdown rendering for the declarative extension UI.
  *
@@ -356,6 +358,12 @@ export function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode
         const href = safeMarkdownHref(link.destination);
         const label = link.label || href || link.destination;
         if (href) {
+          const children = link.label ? renderInlineMarkdown(link.label, key) : label;
+          if (href.startsWith("/")) {
+            // A link into this app opens in place, through the router: no new tab,
+            // no full page load, and Back returns to the page as it was.
+            return <MarkdownAppLink href={href} key={key}>{children}</MarkdownAppLink>;
+          }
           return (
             <a
               className="fs-link fs-markdown-link"
@@ -364,7 +372,7 @@ export function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode
               rel="noreferrer"
               target="_blank"
             >
-              {link.label ? renderInlineMarkdown(link.label, key) : label}
+              {children}
             </a>
           );
         }

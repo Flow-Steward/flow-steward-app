@@ -1,3 +1,4 @@
+import { useLatestFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import {
@@ -12,13 +13,12 @@ import {
 
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Upload } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { HttpError } from "@/lib/http/errors";
 import { queryKeys } from "@/lib/query/keys";
 import { appHref } from "@/lib/routing/app-href";
-import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import {
   AdvancedTableFilters,
   DsAlert,
@@ -27,6 +27,7 @@ import {
   DsTable,
   DsTabs,
   PageContainer,
+  Pagination,
   RowActionMenu,
   Search,
   type DsFilterField,
@@ -300,7 +301,10 @@ export function WorkflowsListPage() {
   const navigate = useNavigate();
   const userTimezone = useUserTimezone();
   const [rowMenu, setRowMenu] = useState<string | null>(null);
-  const [searchParams, updateSearchParams] = useLatestSearchParams();
+  const location = useLocation();
+  const routeParams = new URLSearchParams(location.search);
+  const showingCatalog = routeParams.get("tab") === "catalog" || routeParams.get("create") === "template";
+  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id"], !showingCatalog);
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.
@@ -383,6 +387,11 @@ export function WorkflowsListPage() {
     [projectFilter.projectsByWorkflow, userTimezone, workflows, t],
   );
   const refetchWorkflows = workflowsQuery.refetch;
+  const requestedPerPage = Number(searchParams.get("per_page"));
+  const perPage = [10, 25, 50].includes(requestedPerPage) ? requestedPerPage : 25;
+  const requestedPage = Math.max(1, Math.floor(Number(searchParams.get("page")) || 1));
+  const page = Math.min(requestedPage, Math.max(1, Math.ceil(workflowRows.length / perPage)));
+  const pageRows = workflowRows.slice((page - 1) * perPage, page * perPage);
 
   // `WorkflowCloneDialog` asks for the name and performs the request; this decides
   // where a clone lands, which differs by caller — the list opens the builder.
@@ -471,6 +480,7 @@ export function WorkflowsListPage() {
   function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string }) {
     startTransition(() => {
       updateSearchParams((params) => {
+        params.delete("page");
         if (next.search !== undefined) {
           const value = next.search.trim();
           if (value) params.set("search", value);
@@ -654,9 +664,28 @@ export function WorkflowsListPage() {
             columns={workflowColumns}
             onRowClick={(row) => handleWorkflowAction("detail", row)}
             rowKey={(row) => firstStringFromUnknownValue([row.workflow_id, ""])}
-            rows={workflowRows}
+            rows={pageRows}
             state={workflowTableState}
           />
+          {!restricted && !workflowsLoading ? (
+            <Pagination
+              page={page}
+              perPage={perPage}
+              total={workflowRows.length}
+              perPageOptions={[10, 25, 50]}
+              onPageChange={(next) => updateSearchParams((params) => {
+                if (next > 1) params.set("page", String(next));
+                else params.delete("page");
+                return params;
+              })}
+              onPerPageChange={(next) => updateSearchParams((params) => {
+                if (next === 25) params.delete("per_page");
+                else params.set("per_page", String(next));
+                params.delete("page");
+                return params;
+              })}
+            />
+          ) : null}
   
           {projectFilter.error ? (
             <DsAlert title={t("react.workflows.project_filter_failed", "Project filter unavailable")} tone="danger">

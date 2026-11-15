@@ -1,3 +1,5 @@
+import { textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ConnectionSchemaField } from "./connection-schema-field";
 import { useMemo, useRef, useState } from "react";
@@ -63,10 +65,10 @@ export function useDataConnectionsState() {
   const { t } = useI18n();
   const canAdministerPlatform = useHasCapability("administer_platform");
   const queryClient = useQueryClient();
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [enabledFilter, setEnabledFilter] = useState("");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useFilterState("data-connections/workspace", textFilterSchema, "");
+  const [search, setSearch] = useFilterState("data-connections/search", textFilterSchema, "");
+  const [statusFilter, setStatusFilter] = useFilterState("data-connections/statusFilter", textFilterSchema, "");
+  const [enabledFilter, setEnabledFilter] = useFilterState("data-connections/enabledFilter", textFilterSchema, "");
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<MessageTone>("info");
   const [createOpen, setCreateOpen] = useState(false);

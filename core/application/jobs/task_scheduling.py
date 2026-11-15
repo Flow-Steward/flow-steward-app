@@ -351,6 +351,19 @@ def _enqueue_scheduled_job_unadmitted(
 
 def enqueue_scheduled_job(**kwargs: Any) -> dict[str, Any]:
     """Create a scheduled job through the canonical new-job admission gate."""
+    from core.application.workflows.workflow_run_title import stamp_run_title
+
+    extra_state = kwargs.get("extra_state")
+    raw_meta = kwargs.get("meta")
+    titled = stamp_run_title(
+        dict(raw_meta) if isinstance(raw_meta, dict) else {},
+        workflow_id=kwargs.get("workflow_id")
+        or (extra_state.get("workflow_id") if isinstance(extra_state, dict) else ""),
+        account_id=kwargs.get("account_id"),
+        inputs=extra_state.get("inputs") if isinstance(extra_state, dict) else None,
+    )
+    if isinstance(raw_meta, dict) or titled:
+        kwargs = {**kwargs, "meta": titled}
     with admit_public_submission(
         task_source=str(kwargs.get("task_source") or "schedule"),
         meta=kwargs.get("meta") if isinstance(kwargs.get("meta"), dict) else None,

@@ -1,3 +1,5 @@
+import { stringFiltersSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
+import { useFilterState } from "@/lib/filters/use-filter-state";
 import { isInstallOwned } from "./dataset-ownership";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useCallback, useDeferredValue, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -71,9 +73,9 @@ export function useDatasetsState() {
   const [introspectionError, setIntrospectionError] = useState("");
   const [createError, setCreateError] = useState("");
   const [rowMenu, setRowMenu] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useFilterState("datasets/search", textFilterSchema, "");
   const deferredSearch = useDeferredValue(search);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useFilterState<Record<string, string>>("datasets/filters", stringFiltersSchema, {});
   const [deleteTarget, setDeleteTarget] = useState("");
   const displayNameRef = useRef<HTMLInputElement>(null);
   const editorSessionRef = useRef(0);

@@ -71,7 +71,7 @@ def create_api_system_monitoring_router(
         return None
 
     @router.get("/api/system/monitoring/summary")
-    async def monitoring_summary_api(request: Request):
+    def monitoring_summary_api(request: Request):
         auth_failure = _api_auth_guard(request)
         if auth_failure is not None:
             return auth_failure
@@ -124,7 +124,7 @@ def create_api_system_monitoring_router(
         )
 
     @router.get("/api/system/monitoring/storage")
-    async def monitoring_storage_api(request: Request):
+    def monitoring_storage_api(request: Request):
         auth_failure = _api_auth_guard(request)
         if auth_failure is not None:
             return auth_failure

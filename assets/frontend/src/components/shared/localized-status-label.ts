@@ -29,6 +29,7 @@ export function localizedStatusLabel(value: string, t: I18nContextValue["t"]): s
     interrupted: t("react.jobs.status_group_interrupted", "Interrupted"),
     awaiting_timer: t("react.shared.badge_awaiting_timer", "Awaiting Timer"),
     awaiting_child: t("react.shared.badge_awaiting_child", "Awaiting Child"),
+    awaiting_event: t("react.shared.badge_awaiting_event", "Waiting for event"),
     resume_pending: t("react.shared.badge_resume_pending", "Resume Pending"),
     blocked: t("react.shared.badge_blocked", "Blocked"),
     retryable_interrupted_step: t("react.shared.badge_retryable_interrupted_step", "Retryable Interrupted Step"),

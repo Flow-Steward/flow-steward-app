@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, cast
 
@@ -43,7 +44,7 @@ logger = logging.getLogger(__name__)
 #: The longest a query that holds a connection may run, below any timeout_policy.
 QUERY_CONNECTION_TIMEOUT_SECONDS = 30
 _PROJECT_SCOPED_PRINCIPALS = frozenset({"operator", "viewer", "service_account"})
-_PLATFORM_EFFECT_KEYS = ("commands", "events", "project_state_updates")
+_PLATFORM_EFFECT_KEYS = ("commands", "events", "project_state_updates", "resume_waits")
 
 
 def _refusal(error: type[ServiceError], code: str, message: str) -> ServiceError:
@@ -140,6 +141,22 @@ def _is_remote_runtime(extension: dict[str, Any]) -> bool:
     return bool(is_remote_runtime_enabled(extension))
 
 
+class _PhaseTimer:
+    """Milliseconds of each host phase of one query, returned with it to find slow steps."""
+
+    def __init__(self) -> None:
+        self._last = time.perf_counter()
+        self._phases: dict[str, float] = {}
+
+    def lap(self, phase: str) -> None:
+        now = time.perf_counter()
+        self._phases[phase] = round((now - self._last) * 1000, 1)
+        self._last = now
+
+    def result(self) -> dict[str, float]:
+        return {**self._phases, "total": round(sum(self._phases.values()), 1)}
+
+
 def execute_extension_query(
     service: ExtensionOperationService,
     extension_id: str,
@@ -148,8 +165,10 @@ def execute_extension_query(
     *,
     scope: ScopeContext | None = None,
 ) -> ExtensionQueryResultView:
+    timings = _PhaseTimer()
     resolved_scope = normalize_scope(scope)
     extension, bl = service._resolve_extension_runtime_record(extension_id)
+    timings.lap("resolve_extension")
     if not extension:
         raise ServiceNotFoundError(ERR_EXTENSION_NOT_FOUND)
     service._assert_operation_within_extension_scope(
@@ -181,6 +200,7 @@ def execute_extension_query(
         )
         authorized_project_ids.add(project_id)
 
+    timings.lap("project_access")
     connection_types = query_connection_type_ids(_declared_query(extension, query_id))
     connection_id = requested_query_connection_id(
         getattr(body, "target", None), connection_types=connection_types
@@ -239,6 +259,7 @@ def execute_extension_query(
                 },
             )
 
+    timings.lap("connection")
     from core.infrastructure.extension_runtime import extension_runtime
 
     run_extension_query = cast(
@@ -257,6 +278,7 @@ def execute_extension_query(
         runtime_context=runtime_ctx,
         scope=scope,
     )
+    timings.lap("run")
     if connection_types:
         # Before the invocation is logged or returned: the result may echo a
         # secret of the connection the host just handed to the extension.
@@ -276,6 +298,8 @@ def execute_extension_query(
         request_context={"source": "extension_binding_service.execute_query"},
         query_id=query_id,
     )
+    timings.lap("secret_check_and_audit_log")
+    invocation = {**invocation, "host_timings_ms": timings.result()}
     if invocation.get("status") != "succeeded":
         payload: dict[str, Any] = {
             "extension_id": extension_id,
@@ -303,6 +327,8 @@ def execute_extension_query(
             event_command_service_factory=service._event_command_service_factory,
             command_dispatch_service_factory=service._command_dispatch_service_factory,
         )
+    timings.lap("response_envelope")
+    invocation["host_timings_ms"] = timings.result()
     return ExtensionQueryResultView(extension_id=extension_id, query_id=query_id, query=invocation)
 
 

@@ -47,9 +47,11 @@
     "core/application/extensions/artifact_storage.py",
     "core/application/extensions/browser_assets.py",
     "core/application/extensions/browser_authority_approval.py",
+    "core/application/extensions/callback_protocol.py",
     "core/application/extensions/compiled_manifest_policies.py",
     "core/application/extensions/compiled_manifest_validation.py",
     "core/application/extensions/composite_actions.py",
+    "core/application/extensions/connection_config_mutation.py",
     "core/application/extensions/connection_partition_validation.py",
     "core/application/extensions/connection_viability.py",
     "core/application/extensions/data_migration_plan.py",
@@ -64,6 +66,7 @@
     "core/application/extensions/extension_contract_v2.py",
     "core/application/extensions/extension_contract_v2_common.py",
     "core/application/extensions/extension_descriptor.py",
+    "core/application/extensions/extension_descriptor_artifacts.py",
     "core/application/extensions/extension_descriptor_llm_provider.py",
     "core/application/extensions/extension_locales.py",
     "core/application/extensions/extension_project_state.py",
@@ -74,6 +77,7 @@
     "core/application/extensions/external_effect_resolution.py",
     "core/application/extensions/external_effect_resolution_repository.py",
     "core/application/extensions/external_effects.py",
+    "core/application/extensions/grid_link_contract.py",
     "core/application/extensions/host_contract.py",
     "core/application/extensions/identity.py",
     "core/application/extensions/install.py",
@@ -152,6 +156,7 @@
     "core/application/jobs/task_scheduling.py",
     "core/application/jobs/terminal_persistence.py",
     "core/application/jobs/workflow_definition_snapshot_repository.py",
+    "core/application/jobs/workflow_event_wait_repository.py",
     "core/application/jobs/workflow_identity.py",
     "core/application/jobs/workflow_knowledge_sync_requests.py",
     "core/application/jobs/workflow_pause_persistence.py",
@@ -162,6 +167,7 @@
     "core/application/jobs/workflow_run_projection.py",
     "core/application/jobs/workflow_timer_dispatcher.py",
     "core/application/jobs/workflow_wait_contract.py",
+    "core/application/jobs/workflow_wait_event_delivery.py",
     "core/application/jobs/workflow_wait_projection.py",
     "core/application/lifecycle/__init__.py",
     "core/application/lifecycle/contracts.py",
@@ -258,6 +264,7 @@
     "core/application/orchestration/transform_selectors.py",
     "core/application/orchestration/workflow_state_selector_contract.py",
     "core/application/ports/platform_store.py",
+    "core/application/projects/connection_config_repository.py",
     "core/application/projects/connection_repository.py",
     "core/application/registry/__init__.py",
     "core/application/registry/active_workflow_dependencies.py",
@@ -376,6 +383,10 @@
     "core/application/workflows/workflow_canvas_annotation_contract.py",
     "core/application/workflows/workflow_catalog_identity.py",
     "core/application/workflows/workflow_change_authorization.py",
+    "core/application/workflows/workflow_connection_slot_launch.py",
+    "core/application/workflows/workflow_connection_slot_repository.py",
+    "core/application/workflows/workflow_connection_slot_service.py",
+    "core/application/workflows/workflow_connection_slots.py",
     "core/application/workflows/workflow_consumer_guard.py",
     "core/application/workflows/workflow_contract_summary.py",
     "core/application/workflows/workflow_credential_retirement.py",
@@ -402,12 +413,14 @@
     "core/application/workflows/workflow_portability_redaction.py",
     "core/application/workflows/workflow_reaction_events.py",
     "core/application/workflows/workflow_reaction_scope_repository.py",
+    "core/application/workflows/workflow_run_title.py",
     "core/application/workflows/workflow_start_runtime.py",
     "core/application/workflows/workflow_step_config_contracts.py",
     "core/application/workflows/workflow_step_connection_binding.py",
     "core/application/workflows/workflow_step_kinds.py",
     "core/application/workflows/workflow_trigger_guards.py",
     "core/application/workflows/workflow_trigger_lifecycle.py",
+    "core/application/workflows/workflow_wait_event_rules.py",
     "core/application/workflows/workflow_where_used.py",
     "core/entrypoints/cli/__init__.py",
     "core/entrypoints/cli/control_process.py",
@@ -683,6 +696,22 @@
     },
     {
       "path": "db/migrations/20261113073401_webhook_signature_auth_mode.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114090000_workflow_connection_slot_choices.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114150000_scheduled_job_name.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114160000_workflow_wait_events.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

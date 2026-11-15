@@ -397,14 +397,53 @@ def enqueue_job(**kwargs) -> int:
 
     extra_state = kwargs.get("extra_state")
     project_config = kwargs.get("project_config")
-    refuse_direct_action_implementation(
-        workflow_id=(extra_state.get("workflow_id") if isinstance(extra_state, dict) else "")
-        or (meta or {}).get("selected_workflow_id"),
-        meta=meta,
-        account_id=project_config.get("account_id") if isinstance(project_config, dict) else "",
+    workflow_id = (extra_state.get("workflow_id") if isinstance(extra_state, dict) else "") or (
+        meta or {}
+    ).get("selected_workflow_id")
+    account_id = project_config.get("account_id") if isinstance(project_config, dict) else ""
+    from core.application.workflows.workflow_connection_slot_launch import (
+        memoized_workflow_loader,
+        pin_workflow_connection_slots,
     )
+
+    load_workflow = memoized_workflow_loader()
+    refuse_direct_action_implementation(
+        workflow_id=workflow_id, meta=meta, account_id=account_id, load_workflow=load_workflow
+    )
+
+    # ADR 0068: a slot workflow runs with the connections the project chose,
+    # pinned now; one that is not ready is refused before the job exists.
+    pinned = pin_workflow_connection_slots(
+        workflow_id=workflow_id,
+        meta=dict(meta or {}),
+        project_id=kwargs.get("project_id"),
+        account_id=account_id,
+        load_workflow=load_workflow,
+        load_job=getattr(kwargs.get("bl"), "get_job", None),
+    )
+    if meta is not None or pinned:
+        meta = pinned
+        kwargs = {**kwargs, "meta": meta}
+    titled = _stamp_run_title(meta, extra_state, workflow_id=workflow_id, account_id=account_id)
+    if meta is not None or titled:
+        meta = titled
+        kwargs = {**kwargs, "meta": meta}
     with admit_public_submission(task_source=task_source, meta=meta):
         return _enqueue_job_unadmitted(**kwargs)
+
+
+def _stamp_run_title(
+    meta: dict | None, extra_state: Any, *, workflow_id: Any, account_id: Any
+) -> dict[str, Any]:
+    """The job's run title from its schedule/webhook label and the workflow's template."""
+    from core.application.workflows.workflow_run_title import stamp_run_title
+
+    return stamp_run_title(
+        dict(meta or {}),
+        workflow_id=workflow_id,
+        account_id=account_id,
+        inputs=extra_state.get("inputs") if isinstance(extra_state, dict) else None,
+    )
 
 
 def enqueue_task(

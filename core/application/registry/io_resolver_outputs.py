@@ -374,6 +374,38 @@ class IOResolverOutputMixin:
                 override = _json.loads(override)
             except Exception:
                 override = {}
+        wait_spec = override.get("wait") if isinstance(override, dict) else None
+        if isinstance(wait_spec, dict) and isinstance(wait_spec.get("event"), dict):
+            # An event Wait (ADR 0071) writes the fields of its event it maps.
+            event_source = str(wait_spec["event"].get("source") or "").strip()
+            wait_mapping = wait_spec.get("output_mapping")
+            for event_output, state_target in (
+                wait_mapping.items() if isinstance(wait_mapping, dict) else ()
+            ):
+                target_name = _state_target_name(state_target)
+                if not target_name:
+                    continue
+                out_type = "json" if str(event_output).strip() == "payload" else "text"
+                if state_only:
+                    if str(state_target).strip().startswith(STATE_PREFIX):
+                        _add_state_target_output(
+                            state_target,
+                            source="wait_event",
+                            source_id=event_source,
+                            output_type=out_type,
+                        )
+                    continue
+                _add_output(
+                    {
+                        "name": target_name,
+                        "type": out_type,
+                        "description": f"Event {event_output} from '{event_source}'",
+                        "source": "wait_event",
+                        "source_id": event_source,
+                        **origin,
+                        "required": False,
+                    }
+                )
         invoke_spec = override.get("invoke_workflow") if isinstance(override, dict) else None
         if isinstance(invoke_spec, dict):
             output_mapping = invoke_spec.get("output_mapping") or {}

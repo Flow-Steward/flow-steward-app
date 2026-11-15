@@ -226,6 +226,8 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
   }
   const [workflowDisplayNameDraft, setWorkflowDisplayNameDraft] = useState("");
   const [workflowDescriptionDraft, setWorkflowDescriptionDraft] = useState("");
+  // settings.run_title: names each run from its inputs, e.g. "{{ inputs.site_url }}".
+  const [workflowRunTitleDraft, setWorkflowRunTitleDraft] = useState("");
   const [workflowEnabledDraft, setWorkflowEnabledDraft] = useState(true);
   const [workflowExpectedFailureValue, setWorkflowExpectedFailureValue] = useState(false);
   const [workflowExpectedFailureEdited, setWorkflowExpectedFailureEdited] = useState(false);
@@ -394,6 +396,9 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
               ...(workflowExpectedFailureEdited ? { traits: { ...existingTraits,
                 expected_failure: workflowExpectedFailureValue } } : {}),
               callable: callableContract,
+              // Settings merge on save, so clearing a stored title sends it empty.
+              ...(workflowRunTitleDraft.trim() || Object.hasOwn(existingSettings, "run_title")
+                ? { run_title: workflowRunTitleDraft.trim() } : {}),
             },
           }),
         },
@@ -487,6 +492,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     setWorkflowBuilderUseCasesDraft: trackChange(setWorkflowBuilderUseCasesDraft),
     setWorkflowDescriptionDraft: trackChange(setWorkflowDescriptionDraft),
     setWorkflowDisplayNameDraft: trackChange(setWorkflowDisplayNameDraft),
+    setWorkflowRunTitleDraft: trackChange(setWorkflowRunTitleDraft),
     setWorkflowEnabledDraft: trackChange(setWorkflowEnabledDraft),
     setWorkflowExpectedFailureDraft,
     setWorkflowExpectedFailureValue,
@@ -510,6 +516,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
     workflowDescriptionDraft,
     workflowDisplayNameDraft,
     workflowEnabledDraft,
+    workflowRunTitleDraft,
     workflowExpectedFailureDraft: workflowExpectedFailureValue,
     workflowExpectedFailureTag,
     workflowInterfaceEnabledDraft,
@@ -538,6 +545,7 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
     setWorkflowDescriptionDraft,
     setWorkflowDisplayNameDraft,
     setWorkflowEnabledDraft,
+    setWorkflowRunTitleDraft,
     setWorkflowExpectedFailureValue,
     setWorkflowExpectedFailureEdited,
     setWorkflowInterfaceEnabledDraft,
@@ -565,6 +573,7 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
       textOrEmpty(workflowRecord.display_name) || workflowId,
     );
     setWorkflowDescriptionDraft(textOrEmpty(workflowRecord.description));
+    setWorkflowRunTitleDraft?.(textOrEmpty(objectOrEmpty(workflowRecord.settings).run_title));
     setWorkflowEnabledDraft(Boolean(workflowRecord.enabled));
     setWorkflowExpectedFailureValue(objectOrEmpty(objectOrEmpty(workflowRecord.settings).traits).expected_failure === true);
     setWorkflowExpectedFailureEdited(false);

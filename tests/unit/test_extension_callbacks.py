@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import threading
@@ -1974,24 +1975,30 @@ def test_invalid_reject_comment_context_is_acknowledged_without_retry(
 APP_SECRET_NAME = "app_secret"  # pragma: allowlist secret
 
 
-def _hub_signature_setup(monkeypatch, *, app_secret_value: str = "meta-app-value"):
+def _hub_signature_setup(
+    monkeypatch,
+    *,
+    app_secret_value: str = "meta-app-value",
+    signature_header: str = "X-Hub-Signature-256",
+    secret_name: str = APP_SECRET_NAME,
+):
     fake = FakeCallbackLogger()
     callback = fake.extension["compiled_manifest"]["callbacks"][0]
     callback["methods"] = ["GET", "POST"]
     callback["auth"] = {
         "type": "hub_signature",
-        "signature_header": "X-Hub-Signature-256",
-        "secret_name": APP_SECRET_NAME,
+        "signature_header": signature_header,
+        "secret_name": secret_name,
     }
     fake.connections["conn-callback-primary"]["secret_refs"] = {
         "provider_secrets": {
             "provider_key": "fixture.callback-provider",
-            "keys": {APP_SECRET_NAME: APP_SECRET_NAME},
+            "keys": {secret_name: secret_name},
         }
     }
 
     def get_provider_secret(**kwargs: Any) -> str:
-        return app_secret_value if kwargs.get("secret_key") == APP_SECRET_NAME else ""
+        return app_secret_value if kwargs.get("secret_key") == secret_name else ""
 
     fake.get_provider_secret = get_provider_secret
     monkeypatch.setattr(
@@ -2098,3 +2105,712 @@ def test_every_callback_auth_type_is_allowed_by_the_registrations_table():
     )
     for auth_type in ALLOWED_CALLBACK_AUTH_TYPES:
         assert f"'{auth_type}'::text" in constraint
+
+
+def _raw_body_callback_setup(
+    monkeypatch,
+    *,
+    prefix: str = "sig=",
+    verification: bool = True,
+    app_secret: str = "fixture-signing-material",  # pragma: allowlist secret
+    auth_options: dict[str, Any] | None = None,
+):
+    fake = FakeCallbackLogger()
+    callback = fake.extension["compiled_manifest"]["callbacks"][0]
+    callback.update(methods=["GET", "POST"], connection_scoped=True)
+    callback["auth"] = {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Custom-Signature",
+        "signature_prefix": prefix,
+        "secret_name": APP_SECRET_NAME,
+    }
+    if verification:
+        callback["auth"]["verification"] = {
+            "token_parameter": "validation.token",
+            "challenge_parameter": "validation.challenge",
+            "required_parameters": {"validation.mode": "listen"},
+        }
+    callback["auth"].update(auth_options or {})
+    fake.connections["conn-callback-primary"]["secret_refs"] = {
+        "provider_secrets": {
+            "provider_key": "fixture.callback-provider",
+            "keys": {APP_SECRET_NAME: APP_SECRET_NAME},
+        }
+    }
+    fake.get_provider_secret = lambda **kwargs: (
+        app_secret if kwargs.get("secret_key") == APP_SECRET_NAME else ""
+    )
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime.run_extension_action",
+        lambda *_args, **_kwargs: {
+            "status": "succeeded",
+            "response": {"ok": True, "result": {"accepted": True}, "errors": []},
+        },
+    )
+    client = _client(fake)
+    response = client.post(
+        "/api/extensions/fixture.callback-provider/callbacks/updates",
+        json={"project_id": fake.project_id, "connection_id": "conn-callback-primary"},
+    )
+    assert response.status_code == 200, response.text
+    created = response.json()
+    path = f"/webhook/extensions/fixture.callback-provider/updates/{created['callback_token']}"
+    return fake, client, created, path, app_secret
+
+
+@pytest.mark.parametrize("prefix", ["", "sig=", "sha256="])
+def test_raw_body_hmac_callback_uses_declared_header_prefix_and_connection_secret(
+    monkeypatch, prefix
+):
+    fake, client, created, path, key = _raw_body_callback_setup(monkeypatch, prefix=prefix)
+    body = b'{ "event": "received", "items": [] }'
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    headers = {"Content-Type": "application/json", "X-Custom-Signature": prefix + digest}
+
+    accepted = client.post(path, content=body, headers=headers)
+    assert accepted.status_code == 200, accepted.text
+    assert created["callback_secret"]
+    assert fake.registrations[created["id"]]["auth_type"] == "raw_body_hmac_sha256"
+    assert client.post(path, content=body + b" ", headers=headers).status_code == 401
+    for wrong_key in ("incorrect-key", created["callback_secret"]):
+        wrong_digest = hmac.new(wrong_key.encode(), body, hashlib.sha256).hexdigest()
+        assert (
+            client.post(
+                path, content=body, headers={"X-Custom-Signature": prefix + wrong_digest}
+            ).status_code
+            == 401
+        )
+    assert (
+        client.post(path, content=body, headers={"X-Other-Signature": prefix + digest}).status_code
+        == 401
+    )
+    assert (
+        client.post(
+            path, content=body, headers={"X-Custom-Signature": "other=" + digest}
+        ).status_code
+        == 401
+    )
+    fake.get_provider_secret = lambda **_kwargs: ""
+    assert client.post(path, content=body, headers=headers).status_code == 401
+
+
+def test_raw_body_hmac_callback_answers_declared_verification_without_dispatch(monkeypatch):
+    _fake, client, created, path, _key = _raw_body_callback_setup(monkeypatch)
+    monkeypatch.setattr(
+        "core.infrastructure.extension_runtime.extension_runtime.run_extension_action",
+        lambda *_args, **_kwargs: pytest.fail("verification must not dispatch the extension"),
+    )
+    response = client.get(
+        path,
+        params={
+            "validation.token": created["callback_secret"],
+            "validation.challenge": "  exact challenge  ",
+            "validation.mode": "listen",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.text == "  exact challenge  "
+    assert response.headers["content-type"].startswith("text/plain")
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "missing-token",
+        "missing-challenge",
+        "missing-mode",
+        "wrong-token",
+        "wrong-mode",
+        "duplicate-token",
+        "duplicate-challenge",
+        "duplicate-mode",
+        "oversize-challenge",
+        "oversize-token",
+        "oversize-query",
+        "empty-challenge",
+        "token-whitespace",
+        "mode-whitespace",
+        "multibyte-challenge",
+        "duplicate-unknown",
+        "too-many-pairs",
+    ],
+)
+def test_raw_body_hmac_callback_rejects_invalid_verification_query(monkeypatch, invalid):
+    _fake, client, created, path, _key = _raw_body_callback_setup(monkeypatch)
+    params = {
+        "validation.token": created["callback_secret"],
+        "validation.challenge": "challenge",
+        "validation.mode": "listen",
+    }
+    name = {
+        "token": "validation.token",
+        "challenge": "validation.challenge",
+        "mode": "validation.mode",
+    }
+    if invalid.startswith("missing-"):
+        params.pop(name[invalid.removeprefix("missing-")])
+    elif invalid in {"duplicate-token", "duplicate-challenge", "duplicate-mode"}:
+        field = name[invalid.removeprefix("duplicate-")]
+        params[field] = [params[field], params[field]]
+    elif invalid == "wrong-token":
+        params["validation.token"] = "incorrect"
+    elif invalid == "wrong-mode":
+        params["validation.mode"] = "Listen"
+    elif invalid == "oversize-challenge":
+        params["validation.challenge"] = "a" * 513
+    elif invalid == "oversize-token":
+        params["validation.token"] = "a" * 513
+    elif invalid == "oversize-query":
+        params["other"] = "a" * 8193
+    elif invalid == "token-whitespace":
+        params["validation.token"] = " " + created["callback_secret"] + " "
+    elif invalid == "mode-whitespace":
+        params["validation.mode"] = " listen "
+    elif invalid == "multibyte-challenge":
+        params["validation.challenge"] = "é" * 257
+    elif invalid == "duplicate-unknown":
+        params["unknown"] = ["a", "b"]
+    elif invalid == "too-many-pairs":
+        params.update({f"other{number}": "v" for number in range(14)})
+    else:
+        params["validation.challenge"] = ""
+    assert client.get(path, params=params).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "state,status",
+    [
+        ("registration-disabled", 410),
+        ("connection-disabled", 404),
+        ("cross-project", 404),
+        ("cross-account", 404),
+        ("cross-extension", 404),
+    ],
+)
+def test_raw_body_hmac_callback_preserves_registration_ownership(monkeypatch, state, status):
+    fake, client, created, path, key = _raw_body_callback_setup(monkeypatch)
+    connection = fake.connections["conn-callback-primary"]
+    if state == "registration-disabled":
+        fake.registrations[created["id"]]["enabled"] = False
+    elif state == "connection-disabled":
+        connection["enabled"] = False
+    else:
+        connection[
+            {
+                "cross-project": "project_id",
+                "cross-account": "account_id",
+                "cross-extension": "extension_id",
+            }[state]
+        ] = "other-owner"
+    digest = hmac.new(key.encode(), b"{}", hashlib.sha256).hexdigest()
+    assert (
+        client.post(
+            path, content=b"{}", headers={"X-Custom-Signature": "sig=" + digest}
+        ).status_code
+        == status
+    )
+    assert (
+        client.get(
+            path,
+            params={
+                "validation.token": created["callback_secret"],
+                "validation.challenge": "ok",
+                "validation.mode": "listen",
+            },
+        ).status_code
+        == status
+    )
+
+
+def test_raw_body_hmac_callback_requires_owning_connection_and_declared_verification(monkeypatch):
+    fake, client, _created, path, _key = _raw_body_callback_setup(monkeypatch, verification=False)
+    response = client.post(
+        "/api/extensions/fixture.callback-provider/callbacks/updates",
+        json={"project_id": fake.project_id},
+    )
+    assert response.status_code == 400
+    assert client.get(path, params={"validation.challenge": "unverified"}).status_code == 401
+
+
+def test_raw_body_hmac_callback_preserves_signing_key_whitespace(monkeypatch):
+    _fake, client, _created, path, key = _raw_body_callback_setup(
+        monkeypatch, app_secret=" fixture-signing-material "
+    )
+    body = b'{"event":"exact-key-bytes"}'
+    exact = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    trimmed = hmac.new(key.strip().encode(), body, hashlib.sha256).hexdigest()
+    assert (
+        client.post(path, content=body, headers={"X-Custom-Signature": "sig=" + exact}).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            path, content=body, headers={"X-Custom-Signature": "sig=" + trimmed}
+        ).status_code
+        == 401
+    )
+
+
+def test_persisted_hub_callback_uses_the_generic_authentication_boundary(monkeypatch):
+    from core.application.extensions.callback_contract import (
+        _callback_auth,
+        find_callback_declaration,
+    )
+
+    client, created, path, key = _hub_signature_setup(monkeypatch)
+    # This is the shape returned from the installed release store, with a legacy
+    # registration auth_type and no new compatibility floor on its descriptor.
+    fake = FakeCallbackLogger()
+    declaration = fake.extension["compiled_manifest"]["callbacks"][0]
+    declaration["auth"] = {
+        "type": "hub_signature",
+        "signature_header": "X-Hub-Signature-256",
+        "secret_name": APP_SECRET_NAME,
+    }
+    fake.extension["compiled_manifest"]["runtime"] = {"compatibility": {"platform_min": "1.0.0"}}
+    installed = find_callback_declaration(fake.extension, "updates")
+    assert _callback_auth(installed) == {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Hub-Signature-256",
+        "signature_prefix": "sha256=",
+        "_legacy_compatibility": True,
+        "secret_name": APP_SECRET_NAME,
+        "verification": {
+            "token_parameter": "hub.verify_token",
+            "challenge_parameter": "hub.challenge",
+            "required_parameters": {"hub.mode": "subscribe"},
+        },
+    }
+    body = b'{"event":"legacy-install"}'
+    signature = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    assert (
+        client.post(
+            path, content=body, headers={"X-Hub-Signature-256": "sha256=" + signature}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            path,
+            params={
+                "hub.mode": "subscribe",
+                "hub.verify_token": created["callback_secret"],
+                "hub.challenge": "legacy",
+            },
+        ).text
+        == "legacy"
+    )
+
+
+@pytest.mark.parametrize("logger_name", ["uvicorn.access", "gunicorn.access"])
+def test_callback_router_redacts_capability_and_all_query_values_in_access_records(logger_name):
+    import logging
+
+    access = logging.getLogger(logger_name)
+    original_filters = list(access.filters)
+    try:
+        _client(FakeCallbackLogger())
+        _client(FakeCallbackLogger())
+        target = "/webhook/extensions/fixture.callback-provider/updates/capability-canary?v=verify-canary&x=challenge-canary"
+        if logger_name == "uvicorn.access":
+            record = logging.LogRecord(
+                logger_name,
+                logging.INFO,
+                __file__,
+                1,
+                '%s - "%s %s HTTP/%s" %d',
+                ("client:1", "GET", target, "1.1", 200),
+                None,
+            )
+        else:
+            record = logging.LogRecord(
+                logger_name,
+                logging.INFO,
+                __file__,
+                1,
+                "%(r)s %(U)s %(q)s %(s)s",
+                (
+                    {
+                        "r": "GET " + target + " HTTP/1.1",
+                        "U": target.split("?", 1)[0],
+                        "q": target.split("?", 1)[1],
+                        "s": "200",
+                    },
+                ),
+                None,
+            )
+        assert access.filter(record)
+        message = record.getMessage()
+        assert "capability-canary" not in message
+        assert "verify-canary" not in message
+        assert "challenge-canary" not in message
+        assert "/webhook/extensions/fixture.callback-provider/updates/" in message
+        other = logging.LogRecord(
+            logger_name,
+            logging.INFO,
+            __file__,
+            1,
+            '%s - "%s %s HTTP/%s" %d',
+            ("client:1", "GET", "/api/jobs?page=2", "1.1", 200),
+            None,
+        )
+        assert access.filter(other)
+        assert "/api/jobs?page=2" in other.getMessage()
+    finally:
+        access.filters[:] = original_filters
+
+
+@pytest.mark.parametrize("signature_format", ["bare", "uppercase-prefix", "spaced"])
+def test_legacy_hub_signature_preserves_header_parsing_compatibility(monkeypatch, signature_format):
+    client, _created, path, key = _hub_signature_setup(monkeypatch)
+    body = b'{"event":"legacy-format"}'
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    header = {
+        "bare": digest,
+        "uppercase-prefix": "SHA256=" + digest.upper(),
+        "spaced": "  Sha256=  " + digest + "  ",
+    }[signature_format]
+    assert (
+        client.post(path, content=body, headers={"X-Hub-Signature-256": header}).status_code == 200
+    )
+
+
+def test_legacy_hub_verification_preserves_value_trimming(monkeypatch):
+    client, created, path, _key = _hub_signature_setup(monkeypatch)
+    response = client.get(
+        path,
+        params={
+            "hub.mode": " subscribe ",
+            "hub.verify_token": " " + created["callback_secret"] + " ",
+            "hub.challenge": " legacy challenge ",
+        },
+    )
+    assert response.status_code == 200
+    assert response.text == "legacy challenge"
+
+
+@pytest.mark.parametrize("prefix", ["sig=", " Sig= "])
+def test_raw_body_hmac_callback_requires_exact_signature_prefix(monkeypatch, prefix):
+    _fake, client, _created, path, key = _raw_body_callback_setup(monkeypatch, prefix=prefix)
+    body = b"{}"
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    assert (
+        client.post(path, content=body, headers={"X-Custom-Signature": prefix + digest}).status_code
+        == 200
+    )
+    for received in (digest, prefix.upper() + digest, prefix + digest + " "):
+        assert (
+            client.post(path, content=body, headers={"X-Custom-Signature": received}).status_code
+            == 401
+        )
+
+
+def test_raw_body_hmac_callback_registration_rejects_disabled_connection(monkeypatch):
+    fake, client, _created, _path, _key = _raw_body_callback_setup(monkeypatch)
+    fake.connections["conn-callback-primary"]["enabled"] = False
+    response = client.post(
+        "/api/extensions/fixture.callback-provider/callbacks/updates",
+        json={"project_id": fake.project_id, "connection_id": "conn-callback-primary"},
+    )
+    assert response.status_code == 400
+
+
+def test_legacy_hub_callback_preserves_authored_header_and_secret_name(monkeypatch):
+    client, _created, path, key = _hub_signature_setup(
+        monkeypatch,
+        signature_header="X-Existing-Signature",
+        secret_name="existing_key",  # pragma: allowlist secret
+    )
+    body = b"{}"
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    assert (
+        client.post(
+            path, content=body, headers={"X-Existing-Signature": "sha256=" + digest}
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            path, content=body, headers={"X-Hub-Signature-256": "sha256=" + digest}
+        ).status_code
+        == 401
+    )
+
+
+def _hmac_verification_options(*, token: bool = False, encoding: str | None = None):
+    verification = {
+        "response": "hmac",
+        "challenge_parameter": "nonce",
+        "response_field": "proof",
+        "required_parameters": {"mode": "check"},
+    }
+    if token:
+        verification["token_parameter"] = "v"
+    options = {"verification": verification}
+    if encoding is not None:
+        options["signature_encoding"] = encoding
+    return options
+
+
+def _forbid_callback_dispatch(monkeypatch):
+    monkeypatch.setattr(
+        "core.application.extensions.callbacks.ExtensionCallbackDispatchService.dispatch",
+        lambda *_args, **_kwargs: pytest.fail("verification or rejected input must not dispatch"),
+    )
+
+
+def test_raw_body_hmac_callback_accepts_declared_base64_signature(monkeypatch):
+    fake, client, created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        app_secret=" fixture-signing-material ",
+        auth_options={"signature_encoding": "base64"},
+    )
+    body = b'{ "event": "received", "items": [] }'
+    digest = hmac.new(key.encode(), body, hashlib.sha256).digest()
+    encoded = base64.b64encode(digest).decode("ascii")
+    headers = {"X-Custom-Signature": "body=" + encoded}
+    accepted = client.post(path, content=body, headers=headers)
+    assert accepted.status_code == 200, accepted.text
+    _forbid_callback_dispatch(monkeypatch)
+    assert client.post(path, content=body + b" ", headers=headers).status_code == 401
+    for wrong_key in (key.strip(), "incorrect-key", created["callback_secret"]):
+        wrong = base64.b64encode(
+            hmac.new(wrong_key.encode(), body, hashlib.sha256).digest()
+        ).decode()
+        assert (
+            client.post(
+                path, content=body, headers={"X-Custom-Signature": "body=" + wrong}
+            ).status_code
+            == 401
+        )
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    # Nonzero padding bits decode to the same bytes but are not canonical Base64.
+    noncanonical = encoded[:-2] + alphabet[alphabet.index(encoded[-2]) | 1] + "="
+    for malformed in (
+        encoded[:-1],
+        encoded + "=",
+        encoded[:10] + " " + encoded[10:],
+        "?" + encoded[1:],
+        "_" * 43 + "=",
+        noncanonical,
+        base64.b64encode(digest[:-1]).decode(),
+        base64.b64encode(digest + b"x").decode(),
+        digest.hex(),
+    ):
+        response = client.post(
+            path, content=body, headers={"X-Custom-Signature": "body=" + malformed}
+        )
+        assert response.status_code == 401, (malformed, response.text)
+    fake.get_provider_secret = lambda **_kwargs: ""
+    assert client.post(path, content=body, headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "nonce",
+    ["nonce-123._~+/=", "7", "n" * 512],
+    ids=["ascii-alphabet", "scalar-json-nonce", "max-nonce"],
+)
+@pytest.mark.parametrize("encoding", [None, "hex", "base64"], ids=["default-hex", "hex", "base64"])
+@pytest.mark.parametrize("prefix", ["", "proof="])
+@pytest.mark.parametrize("token", [False, True], ids=["no-token", "with-token"])
+def test_raw_body_hmac_callback_answers_hmac_verification_using_owning_connection_key(
+    monkeypatch, encoding, prefix, token, nonce
+):
+    options = _hmac_verification_options(token=token, encoding=encoding)
+    if not token:
+        options["verification"]["required_parameters"] = {}
+    fake, client, created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix=prefix,
+        auth_options=options,
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    params = {"nonce": nonce}
+    if token:
+        params.update({"mode": "check", "v": created["callback_secret"]})
+    response = client.get(path, params=params)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/json")
+    digest = hmac.new(key.encode(), nonce.encode(), hashlib.sha256).digest()
+    encoded = base64.b64encode(digest).decode() if encoding == "base64" else digest.hex()
+    assert response.json() == {"proof": prefix + encoded}
+    if not token:
+        assert not created.get("callback_secret")
+        assert not fake.secrets
+    fake.get_provider_secret = lambda **_kwargs: ""
+    assert client.get(path, params=params).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "missing-token",
+        "empty-token",
+        "wrong-token",
+        "padded-token",
+        "duplicate-token",
+        "missing-nonce",
+        "empty-nonce",
+        "oversize-nonce",
+        "duplicate-nonce",
+        "missing-mode",
+        "wrong-mode",
+        "duplicate-mode",
+        "duplicate-unknown",
+        "too-many-pairs",
+        "oversize-query",
+    ],
+)
+def test_hmac_verification_rejects_invalid_queries_without_dispatch(monkeypatch, invalid):
+    _fake, client, created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(token=True),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    params = {"nonce": "nonce-123", "mode": "check", "v": created["callback_secret"]}
+    if invalid.startswith("missing-"):
+        params.pop(
+            {"token": "v", "nonce": "nonce", "mode": "mode"}[invalid.removeprefix("missing-")]
+        )
+    elif invalid.startswith("duplicate-"):
+        field = {"token": "v", "nonce": "nonce", "mode": "mode", "unknown": "other"}[
+            invalid.removeprefix("duplicate-")
+        ]
+        value = params.get(field, "same")
+        params[field] = [value, value]
+    elif invalid == "empty-token":
+        params["v"] = ""
+    elif invalid == "wrong-token":
+        params["v"] = "incorrect"
+    elif invalid == "padded-token":
+        params["v"] = " " + created["callback_secret"] + " "
+    elif invalid == "empty-nonce":
+        params["nonce"] = ""
+    elif invalid == "oversize-nonce":
+        params["nonce"] = "n" * 513
+    elif invalid == "wrong-mode":
+        params["mode"] = "Check"
+    elif invalid == "too-many-pairs":
+        params.update({f"other{number}": "x" for number in range(14)})
+    else:
+        params["other"] = "x" * 8193
+    assert client.get(path, params=params).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "nonce",
+    [
+        '{"event":"forged"}',
+        '"nonce-123"',
+        "[]",
+        "n\n",
+        "n\x00",
+        "n\t",
+        "n n",
+        "é",
+        "n%",
+        "n&",
+        "n:",
+    ],
+)
+def test_hmac_verification_rejects_signing_oracle_nonce_before_key_resolution(monkeypatch, nonce):
+    _fake, client, created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(token=True),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    monkeypatch.setattr(
+        "core.application.extensions.callbacks.ExtensionCallbackDispatchService._connection_secret",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid nonce must be rejected before signing key lookup"
+        ),
+    )
+    response = client.get(
+        path, params={"nonce": nonce, "mode": "check", "v": created["callback_secret"]}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("encoding", ["hex", "base64"])
+@pytest.mark.parametrize("content_type", ["application/json", "text/plain"])
+@pytest.mark.parametrize(
+    "body", [b"nonce-123._~+/=", b'"nonce"', b"7", b"null", b"true", b"[]", b"", b"{broken"]
+)
+def test_hmac_verification_mode_rejects_signed_non_object_posts_without_dispatch(
+    monkeypatch, body, encoding, content_type
+):
+    _fake, client, _created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        auth_options=_hmac_verification_options(encoding=encoding),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    raw_digest = hmac.new(key.encode(), body, hashlib.sha256).digest()
+    digest = base64.b64encode(raw_digest).decode() if encoding == "base64" else raw_digest.hex()
+    response = client.post(
+        path,
+        content=body,
+        headers={"X-Custom-Signature": "body=" + digest, "Content-Type": content_type},
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_hmac_verification_mode_accepts_signed_json_object_post(monkeypatch):
+    _fake, client, _created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        auth_options=_hmac_verification_options(encoding="base64"),
+    )
+    body = b'{ "event": "object-message", "items": [] }'
+    digest = base64.b64encode(hmac.new(key.encode(), body, hashlib.sha256).digest()).decode()
+    response = client.post(
+        path,
+        content=body,
+        headers={"X-Custom-Signature": "body=" + digest, "Content-Type": "application/json"},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_echo_verification_keeps_non_json_raw_body_post_compatibility(monkeypatch):
+    _fake, client, _created, path, key = _raw_body_callback_setup(monkeypatch)
+    body = b"nonce-123._~+/="
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    response = client.post(path, content=body, headers={"X-Custom-Signature": "sig=" + digest})
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize(
+    "state,status",
+    [
+        ("registration-disabled", 410),
+        ("connection-disabled", 404),
+        ("cross-project", 404),
+        ("cross-account", 404),
+        ("cross-extension", 404),
+        ("cross-install", 404),
+    ],
+)
+def test_hmac_verification_preserves_registration_and_connection_ownership(
+    monkeypatch, state, status
+):
+    fake, client, _created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    connection = fake.connections["conn-callback-primary"]
+    if state == "registration-disabled":
+        next(iter(fake.registrations.values()))["enabled"] = False
+    elif state == "connection-disabled":
+        connection["enabled"] = False
+    else:
+        connection[
+            {
+                "cross-project": "project_id",
+                "cross-account": "account_id",
+                "cross-extension": "extension_id",
+                "cross-install": "extension_install_id",
+            }[state]
+        ] = "foreign-owner"
+    assert client.get(path, params={"nonce": "nonce-123", "mode": "check"}).status_code == status

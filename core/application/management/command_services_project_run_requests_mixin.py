@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -44,6 +45,19 @@ from core.application.workflows.workflow_trigger_guards import workflow_trigger_
 
 _CRON_UNAVAILABLE = "Cron scheduling is unavailable"
 _SCHEDULE_ACCOUNT_REQUIRED = "Project account context is required for scheduled jobs."
+#: A schedule's name titles the jobs it starts (see workflow_run_title).
+SCHEDULE_NAME_MAX_CHARS = 120
+_CONTROL_CHARACTERS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _schedule_name(value: Any) -> str:
+    """One line of text naming the schedule; "" when it has none."""
+    text = " ".join(_CONTROL_CHARACTERS.sub(" ", str(value or "")).split())
+    if len(text) > SCHEDULE_NAME_MAX_CHARS:
+        raise ServiceValidationError(
+            f"Schedule name is longer than {SCHEDULE_NAME_MAX_CHARS} characters."
+        )
+    return text
 
 
 class ProjectCommandServiceRunRequestsMixin:
@@ -355,6 +369,7 @@ class ProjectCommandServiceRunRequestsMixin:
             "project_id": str(project_id),
             "workflow_id": selected_workflow_id,
             "cron_expr": clean_cron,
+            "name": _schedule_name(command.name),
             "inputs": workflow_inputs,
             "enabled": enabled_flag,
             "status": "active" if enabled_flag else "paused",

@@ -497,7 +497,11 @@ def _contains_only_runtime_cache_artifacts(path: Path) -> bool:
     return only_cache_artifacts and saw_cache_artifact
 
 
-def scan_extensions(root: str | None = None) -> list[dict]:
+def scan_extensions(
+    root: str | None = None,
+    *,
+    excluded_extension_ids: frozenset[str] = frozenset(),
+) -> list[dict]:
     extensions_root = Path(root or default_extensions_root()).resolve()
     if not extensions_root.exists():
         return []
@@ -509,8 +513,19 @@ def scan_extensions(root: str | None = None) -> list[dict]:
             continue
         if child.name.startswith(".") or child.name == "__pycache__":
             continue
-        if _discover_manifest_path(child) is None and _contains_only_runtime_cache_artifacts(child):
+        manifest_path = _discover_manifest_path(child)
+        if manifest_path is None and _contains_only_runtime_cache_artifacts(child):
             continue
+        if excluded_extension_ids and manifest_path is not None:
+            # Folder spelling is not identity: dots and hyphens both become
+            # underscores. Read the declaration before skipping a DB-backed
+            # package, so a different copied package is still discovered.
+            try:
+                manifest = _load_manifest_file(manifest_path)
+            except Exception:
+                manifest = {}
+            if str(manifest.get("extension_id") or "").strip() in excluded_extension_ids:
+                continue
         compiled = compile_extension_bundle(child)
         compiled.update(extension_host_metadata(compiled))
         compiled.setdefault("bundle_dir_name", child.name)

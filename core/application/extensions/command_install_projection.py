@@ -92,6 +92,9 @@ class ExtensionInstallProjectionService:
         self._check_release_actions(
             snapshots, install_record=install_record, release=release, account_id=account_id
         )
+        self._check_release_connection_slots(
+            snapshots, install_record=install_record, release=release, account_id=account_id
+        )
         for snapshot in snapshots:
             if not bool(getattr(snapshot, "publish", True)):
                 continue
@@ -141,6 +144,75 @@ class ExtensionInstallProjectionService:
             )
         except HookReleaseBlockedError as exc:
             raise ServiceConflictError(str(exc), payload={"hooks": exc.issues}) from exc
+
+    def _check_release_connection_slots(
+        self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str
+    ) -> None:
+        """A release never leaves a linked workflow without its connection (ADR 0068)."""
+        from core.application.workflows.workflow_connection_slot_release import (
+            ConnectionSlotReleaseBlockedError,
+            check_and_apply_release_slots,
+        )
+
+        connection_provider = getattr(self._context, "persistence_connection", None)
+        connection = connection_provider() if callable(connection_provider) else None
+        if connection is None or not callable(getattr(connection, "cursor", None)):
+            # In-memory lifecycle stores keep no project choices.
+            return
+        install_id = _normalize_text(getattr(install_record, "install_id", ""))
+        workflows = {
+            _normalize_text(getattr(snapshot, "artifact_id", "")): dict(
+                getattr(snapshot, "snapshot", {}) or {}
+            )
+            for snapshot in snapshots
+            if _normalize_text(getattr(snapshot, "artifact_kind", "")) == "workflow"
+            and bool(getattr(snapshot, "publish", True))
+        }
+        names = {
+            local_id: _normalize_text(body.get("display_name")) or local_id
+            for local_id, body in workflows.items()
+        }
+        try:
+            with connection.cursor() as cur:
+                check_and_apply_release_slots(
+                    cur,
+                    account_id=account_id,
+                    install_id=install_id,
+                    release_id=release.release_id,
+                    workflows=workflows,
+                    previous_workflows=self._active_install_workflows(
+                        install_id=install_id, account_id=account_id
+                    ),
+                    display_names=names,
+                )
+        except ConnectionSlotReleaseBlockedError as exc:
+            raise ServiceConflictError(str(exc), payload={"connection_slots": exc.issues}) from exc
+
+    def _active_install_workflows(
+        self, *, install_id: str, account_id: str
+    ) -> dict[str, dict[str, Any]]:
+        """The workflows the install projects now, before the new release replaces them."""
+        runtime_store = self._context.runtime_store()
+        lister = getattr(runtime_store, "list_projections", None)
+        if not callable(lister):
+            return {}
+        workflows: dict[str, dict[str, Any]] = {}
+        for projection in lister(account_id=account_id, only_active=True) or []:
+            payload = (
+                projection.model_dump(mode="json")
+                if hasattr(projection, "model_dump")
+                else projection
+            )
+            if not isinstance(payload, dict) or (
+                _normalize_text(payload.get("install_id")) != install_id
+                or _normalize_text(payload.get("artifact_kind")) != "workflow"
+            ):
+                continue
+            body = payload.get("projection")
+            workflows[_normalize_text(payload.get("artifact_id"))] = (
+                dict(body) if isinstance(body, dict) else {}
+            )
+        return workflows
 
     def _ensure_action_implementation_anchors(
         self, snapshots: list[Any], *, install_record: Any
