@@ -34,6 +34,8 @@ export function ExtensionCallbackSetup({ component, context, title, componentId,
   const registered = Boolean(registration?.id && registration.enabled);
   const credential = !unavailable && target.manual
     ? context.callbackSetupCredentials?.[callbackSetupCredentialKey(component, target.connectionId)] : undefined;
+  const setupError = !unavailable
+    ? context.callbackSetupErrors?.[callbackSetupCredentialKey(component, target.connectionId)] : undefined;
   const verifyToken = credential?.verifyToken;
   const webhookStatus = objectOrEmpty(registration?.webhook_status || context.callbackStatuses[stringFrom(registration?.id)]);
   const lastError = stringFrom(registration?.last_error);
@@ -74,6 +76,7 @@ export function ExtensionCallbackSetup({ component, context, title, componentId,
           <div className="fs-kv-row"><dt>{platformText(context, "extensions.callback.pending", "Pending")}</dt><dd>{stringFrom(webhookStatus.pending_update_count) || t("project_detail.connections.status.unknown", "unknown")}</dd></div>
         </> : null}
       </dl>
+      {setupError ? <DsAlert title={setupError} tone="danger" /> : null}
       {lastError ? <DsAlert title={lastError} tone="danger" /> : null}
       {webhookError ? <DsAlert title={webhookError} tone="warning" /> : null}
       {copyFailed ? <DsAlert title={platformText(context, "extensions.callback.copy_failed", "Could not copy. Select and copy the setup value manually.")} tone="warning" /> : null}

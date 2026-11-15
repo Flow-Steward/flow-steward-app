@@ -19,7 +19,7 @@ export function useExtensionCallbackSetup(
 ) {
   const { t } = useI18n();
   const extensionId = hub.detailExtension?.extension_id || "";
-  const declarations = listFromUnknown(hub.manifestQuery.data?.callbacks);
+  const declarations = listFromUnknown(objectOrEmpty(hub.manifestQuery.data).callbacks);
   const scopeKey = JSON.stringify([
     hub.callbackOwnerScopeKey, extensionId, hub.extensionInstallId,
     hub.activePageProjectId, hub.pageConnection.selectedId,
@@ -29,12 +29,12 @@ export function useExtensionCallbackSetup(
       .filter((item) => item.type === "callback_setup")
       .map((item) => [callbackSetupCredentialKey(item, ""), item.setup_mode]),
   ]);
-  const [state, setState] = useState<{ scopeKey: string; generation: number; credentials: CallbackSetupCredentials }>({
-    scopeKey, generation: 0, credentials: {},
+  const [state, setState] = useState<{ scopeKey: string; generation: number; credentials: CallbackSetupCredentials; errors: Record<string, string> }>({
+    scopeKey, generation: 0, credentials: {}, errors: {},
   });
   // Adjust during render so the previous scope cannot flash or survive A → B → A.
   if (state.scopeKey !== scopeKey) {
-    setState({ scopeKey, generation: state.generation + 1, credentials: {} });
+    setState({ scopeKey, generation: state.generation + 1, credentials: {}, errors: {} });
   }
   const generation = state.generation;
   const committed = useRef({ scopeKey, generation, active: false });
@@ -64,8 +64,20 @@ export function useExtensionCallbackSetup(
       setStatus(t("extensions.callback.select_connection", "Select a connection before configuring callbacks."));
       return;
     }
+    const setupKey = callbackSetupCredentialKey(component, target.connectionId);
+    function setSetupError(message?: string) {
+      if (!isCurrent()) return;
+      setState((current) => {
+        if (current.scopeKey !== scopeKey || current.generation !== generation) return current;
+        const errors = { ...current.errors };
+        if (message) errors[setupKey] = message;
+        else delete errors[setupKey];
+        return { ...current, errors };
+      });
+    }
     await lifecycle.withBusy(extensionId, async () => {
       if (!isCurrent()) return;
+      setSetupError();
       try {
         if (action === "status") {
           if (!target.manual) {
@@ -83,7 +95,7 @@ export function useExtensionCallbackSetup(
             hub.setCallbackStatuses((current) => ({ ...current, [registration.id]: objectOrEmpty(payload.webhook_status) }));
           }
           if (!isCurrent()) return;
-          await hub.callbacksQuery.refetch();
+          await hub.callbacksQuery.refetch({ throwOnError: true });
           setStatus(target.manual
             ? t("extensions.callback.refreshed", "Callback status refreshed.")
             : t("react.extensions.display_webhook_status_refreshed", "Webhook status refreshed."));
@@ -110,7 +122,7 @@ export function useExtensionCallbackSetup(
         if (!target.manual) {
           hub.setCallbackStatuses((current) => ({ ...current, [registration.id]: objectOrEmpty(registration.webhook_status) }));
         }
-        await hub.callbacksQuery.refetch();
+        await hub.callbacksQuery.refetch({ throwOnError: true });
         setStatus(target.manual
           ? t("extensions.callback.created", "Callback registered. Copy the one-time setup values before leaving this page.")
           : t("react.extensions.display_callback_registered_webhook_configured", "Callback registered and webhook configured."));
@@ -125,9 +137,11 @@ export function useExtensionCallbackSetup(
           await hub.queryClient.invalidateQueries({ queryKey: ["extensions", "callbacks", extensionId, hub.activePageProjectId] });
         }
         // Callback responses may contain credentials; never reflect their error payloads.
-        setStatus(target.manual
+        const failure = target.manual
           ? t("extensions.callback.failed", "Callback setup failed. Refresh the status and try again.")
-          : t("react.extensions.display_webhook_configuration_failed", "Webhook configuration failed."));
+          : t("react.extensions.display_webhook_configuration_failed", "Webhook configuration failed.");
+        setSetupError(failure);
+        setStatus(failure);
       }
     });
   }
@@ -135,5 +149,6 @@ export function useExtensionCallbackSetup(
   return {
     handleCallbackSetup,
     callbackSetupCredentials: state.scopeKey === scopeKey && hub.canManageProject ? state.credentials : {},
+    callbackSetupErrors: state.scopeKey === scopeKey && hub.canManageProject ? state.errors : {},
   };
 }

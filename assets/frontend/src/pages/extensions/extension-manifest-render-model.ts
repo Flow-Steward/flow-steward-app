@@ -58,6 +58,7 @@ export type ManifestRenderContext = {
   callbackDeclarations?: Array<Record<string, unknown>>;
   selectedConnectionId?: string;
   callbackSetupCredentials?: CallbackSetupCredentials;
+  callbackSetupErrors?: Record<string, string>;
   callbackStatuses: Record<string, Record<string, unknown>>;
   componentErrors: Record<string, ComponentError>;
   componentQueryParams: Record<string, Record<string, unknown>>;

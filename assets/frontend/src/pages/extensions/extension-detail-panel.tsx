@@ -90,6 +90,7 @@ type ExtensionDetailPanelProps = {
   busyById: Record<string, ExtensionBusyAction | false>;
   callbackStatuses: RecordMap;
   callbackSetupCredentials?: CallbackSetupCredentials;
+  callbackSetupErrors?: Record<string, string>;
   callbacksQuery: {
     data?: ExtensionCallbackRegistration[];
   };
@@ -659,6 +660,7 @@ function ManifestComponentSections({
           callbacks: panel.callbacksQuery.data || [],
           callbackStatuses: panel.callbackStatuses,
           callbackSetupCredentials: panel.callbackSetupCredentials,
+          callbackSetupErrors: panel.callbackSetupErrors,
           callbackDeclarations: listFromUnknown(objectOrEmpty(panel.manifestQuery.data).callbacks),
           selectedConnectionId: panel.pageConnection.selectedId,
           componentErrors: panel.componentErrors,

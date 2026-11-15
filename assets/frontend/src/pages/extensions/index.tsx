@@ -675,6 +675,7 @@ export function ExtensionsHubPage() {
             busyById={busyById}
             callbackStatuses={callbackStatuses}
             callbackSetupCredentials={manifestActions.callbackSetupCredentials}
+            callbackSetupErrors={manifestActions.callbackSetupErrors}
             callbacksQuery={callbacksQuery}
             componentErrors={componentErrors}
             componentQueryData={componentQueryData}

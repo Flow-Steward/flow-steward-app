@@ -1,6 +1,8 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
+import { renderManifestField } from "./extension-manifest-fields";
 import { useExtensionConnectionActions } from "./use-extension-connection-actions";
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
@@ -49,6 +51,37 @@ const stateComponent = {
   defaults: { folder: "", label: "Default" },
   fields: [{ path: "folder" }, { path: "label", required: true, label: "Folder label" }],
 };
+
+const optionalAssetComponent = {
+  component_id: "asset_source",
+  data: { connection_type: "asset_source", config_fields: ["allowed_asset_ids"] },
+  fields: [{ path: "allowed_asset_ids", widget: "tag_picker", label: "Allowed assets" }],
+};
+const assetConnection = {
+  ...connection,
+  extension_id: "example.connector",
+  connection_type: "asset_source",
+  display_name: "Primary source",
+  connection_config: { allowed_asset_ids: ["asset-101", "asset-202"] },
+};
+
+function OptionalAssetTagsForm({ initialValues = {}, onSave }: {
+  initialValues?: Record<string, unknown>;
+  onSave: (component: Record<string, unknown>, values: Record<string, unknown>) => Promise<void>;
+}) {
+  const [values, setValues] = useState(initialValues);
+  return <form onSubmit={(event) => event.preventDefault()}>
+    {renderManifestField({
+      componentId: optionalAssetComponent.component_id,
+      field: optionalAssetComponent.fields[0],
+      values,
+      invalidFieldPath: "",
+      invalidMessage: "",
+      onFieldChange: (name, value) => setValues((current) => ({ ...current, [name]: value })),
+    })}
+    <button onClick={() => { void onSave(optionalAssetComponent, values); }} type="button">Save connection</button>
+  </form>;
+}
 
 function renderActions(options: {
   projectId?: string;
@@ -233,6 +266,70 @@ describe("extension connection actions", () => {
     } else {
       expect(updateProjectConnection).toHaveBeenCalledWith("project-1", "created-1", { enabled: true });
     }
+  });
+
+  it("omits an untouched optional asset string array from a new connection save", async () => {
+    const user = userEvent.setup();
+    const { result } = renderActions({ extensionId: "example.connector", connections: [], oauthTypes: [] });
+    render(<OptionalAssetTagsForm onSave={(source, values) => result.current.actions.handleConnectionSave(source, values)} />);
+
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(result.current.statuses["example.connector"]).toBe("Connection created."));
+
+    await waitFor(() => expect(createProjectConnection).toHaveBeenCalledWith("project-1", expect.objectContaining({
+      extension_id: "example.connector", extension_install_id: "install-1", connection_config: {},
+    })));
+    expect(vi.mocked(createProjectConnection).mock.calls[0][1].connection_config).not.toHaveProperty("allowed_asset_ids");
+  });
+
+  it("saves committed optional asset tags as a string array through the connection hook", async () => {
+    const user = userEvent.setup();
+    const { result } = renderActions({ extensionId: "example.connector", connections: [], oauthTypes: [] });
+    render(<OptionalAssetTagsForm onSave={(source, values) => result.current.actions.handleConnectionSave(source, values)} />);
+    await user.type(screen.getByLabelText("Allowed assets"), "asset-101{Enter}asset-202{Enter}uncommitted-draft");
+
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(result.current.statuses["example.connector"]).toBe("Connection created."));
+
+    await waitFor(() => expect(createProjectConnection).toHaveBeenCalledWith("project-1", expect.objectContaining({
+      connection_config: { allowed_asset_ids: ["asset-101", "asset-202"] },
+    })));
+    expect(updateProjectConnection).toHaveBeenCalledWith("project-1", "created-1", { enabled: true });
+  });
+
+  it("hydrates and edits optional asset tags before persisting a connection update", async () => {
+    const user = userEvent.setup();
+    const { result } = renderActions({ extensionId: "example.connector", connections: [assetConnection], oauthTypes: [] });
+    act(() => result.current.actions.handleConnectionSelect(optionalAssetComponent, assetConnection));
+    render(<OptionalAssetTagsForm initialValues={result.current.formValues.asset_source} onSave={(source, values) => result.current.actions.handleConnectionSave(source, values)} />);
+    await user.click(screen.getByRole("button", { name: "Remove asset-101" }));
+    await user.type(screen.getByLabelText("Allowed assets"), "asset-303{Enter}");
+
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(result.current.statuses["example.connector"]).toBe("Connection saved."));
+
+    await waitFor(() => expect(updateProjectConnection).toHaveBeenCalledWith("project-1", "connection-1", expect.objectContaining({
+      connection_config: { allowed_asset_ids: ["asset-202", "asset-303"] },
+    })));
+    expect(createProjectConnection).not.toHaveBeenCalled();
+  });
+
+  it("persists removal of the final optional asset tag as an explicit empty array", async () => {
+    const user = userEvent.setup();
+    const row = { ...assetConnection, connection_config: { allowed_asset_ids: ["asset-101"] } };
+    const { result } = renderActions({ extensionId: "example.connector", connections: [row], oauthTypes: [] });
+    act(() => result.current.actions.handleConnectionSelect(optionalAssetComponent, row));
+    render(<OptionalAssetTagsForm initialValues={result.current.formValues.asset_source} onSave={(source, values) => result.current.actions.handleConnectionSave(source, values)} />);
+    await user.click(screen.getByRole("button", { name: "Remove asset-101" }));
+
+    await user.click(screen.getByRole("button", { name: "Save connection" }));
+    await waitFor(() => expect(result.current.statuses["example.connector"]).toBe("Connection saved."));
+
+    await waitFor(() => expect(updateProjectConnection).toHaveBeenCalledWith("project-1", "connection-1", expect.objectContaining({
+      connection_config: { allowed_asset_ids: [] },
+    })));
+    expect(vi.mocked(updateProjectConnection).mock.calls[0][2].connection_config).toHaveProperty("allowed_asset_ids", []);
+    expect(createProjectConnection).not.toHaveBeenCalled();
   });
 
   it("removes a newly created connection when secret persistence fails", async () => {
