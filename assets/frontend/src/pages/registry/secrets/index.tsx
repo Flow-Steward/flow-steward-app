@@ -1,6 +1,6 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useFilterState } from "@/lib/filters/use-filter-state";
-import { z } from "zod";
+import { z } from "@/lib/validation/zod";
 import { formatUserDateTime } from "@/lib/time/user-timezone";
 import { useState } from "react";
 

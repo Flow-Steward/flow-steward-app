@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { type z } from "zod";
+import { type z } from "@/lib/validation/zod";
 
 import { AuthContext } from "@/lib/auth/context";
 

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/validation/zod";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { McpCatalogIcon, ExternalAnchor } from "./mcp-catalog-presentation";
 import { McpCatalogInstallDialog } from "./mcp-catalog-install-dialog";

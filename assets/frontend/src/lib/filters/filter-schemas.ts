@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/validation/zod";
 
 export const textFilterSchema = z.string();
 export const booleanFilterSchema = z.boolean();

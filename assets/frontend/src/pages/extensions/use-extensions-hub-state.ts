@@ -1,5 +1,5 @@
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
-import { z } from "zod";
+import { z } from "@/lib/validation/zod";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useQueryClient, useQuery, useQueries } from "@tanstack/react-query";
 import { useParams, useLocation, useNavigate } from "react-router";

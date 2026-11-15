@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { z } from "zod";
+import { z } from "@/lib/validation/zod";
 
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { filterStorageKey, useFilterState } from "./use-filter-state";
