@@ -676,6 +676,8 @@ def create_extension_callbacks_router(
             challenge = service.verification_challenge(request, registration, declaration)
             if challenge is None:
                 return _error("Invalid webhook verification request", 403)
+            if isinstance(challenge, dict):
+                return JSONResponse(challenge)
             return PlainTextResponse(challenge)
         try:
             authentication = await service.authenticate(

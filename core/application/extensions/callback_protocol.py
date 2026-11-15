@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
 import hmac
+import json
 import re
 from typing import Any
 
@@ -15,6 +19,9 @@ RAW_BODY_PLATFORM_MIN = "1.9.0"
 _HEADER_RE = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,128}")
 _NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,63}")
 _DIGEST_RE = re.compile(r"[0-9a-fA-F]{64}")
+_NONCE_RE = re.compile(r"[A-Za-z0-9._~+/=\-]{1,512}")
+_DIGEST_BYTES = 32
+_BASE64_DIGEST_LENGTH = 44
 _MAX_QUERY_BYTES = 8192
 _MAX_QUERY_PAIRS = 16
 _MAX_VALUE_BYTES = 512
@@ -68,6 +75,7 @@ def raw_body_auth_errors(
         "type",
         "signature_header",
         "signature_prefix",
+        "signature_encoding",
         "secret_name",
         "verification",
     }:
@@ -89,6 +97,8 @@ def raw_body_auth_errors(
         errors.append(
             ("signature_prefix", "signature_prefix must be at most 64 printable ASCII characters")
         )
+    if auth.get("signature_encoding", "hex") not in ("hex", "base64"):
+        errors.append(("signature_encoding", "signature_encoding must be hex or base64"))
     secret_name = auth.get("secret_name")
     if (
         not isinstance(secret_name, str)
@@ -111,42 +121,60 @@ def raw_body_auth_errors(
                 "raw-body callback auth requires runtime.compatibility.platform_min 1.9.0 or later",
             )
         )
-    if "verification" not in auth:
-        return errors
-    verification = auth["verification"]
+    if "verification" in auth:
+        errors.extend(_verification_auth_errors(auth["verification"], methods=methods))
+    return errors
+
+
+def _verification_auth_errors(value: Any, *, methods: list[str]) -> list[tuple[str, str]]:
+    errors: list[tuple[str, str]] = []
     if "GET" not in methods:
         errors.append(("verification", "callback verification requires GET in methods"))
-    if not isinstance(verification, dict):
-        errors.append(("verification", "verification must be an object"))
-        return errors
-    if verification.keys() - {"token_parameter", "challenge_parameter", "required_parameters"}:
+    if not isinstance(value, dict):
+        return [*errors, ("verification", "verification must be an object")]
+    if value.keys() - {
+        "response",
+        "response_field",
+        "token_parameter",
+        "challenge_parameter",
+        "required_parameters",
+    }:
         errors.append(("verification", "Unknown callback verification field"))
-    names = [verification.get(field) for field in ("token_parameter", "challenge_parameter")]
-    if (
-        any(not isinstance(name, str) or _NAME_RE.fullmatch(name) is None for name in names)
-        or names[0] == names[1]
-    ):
-        errors.append(
-            (
-                "verification",
-                "token and challenge parameters must be distinct ASCII identifiers of at most 64 characters",
+    response = value.get("response", "echo")
+    if response not in ("echo", "hmac"):
+        errors.append(("verification.response", "verification.response must be echo or hmac"))
+    name_fields = ["challenge_parameter"]
+    if response != "hmac" or "token_parameter" in value:
+        name_fields.append("token_parameter")
+    if response == "hmac" or "response_field" in value:
+        name_fields.append("response_field")
+    for field in name_fields:
+        name = value.get(field)
+        if not isinstance(name, str) or _NAME_RE.fullmatch(name) is None:
+            errors.append(
+                (
+                    f"verification.{field}",
+                    f"{field} must be an ASCII identifier of at most 64 characters",
+                )
             )
-        )
-    required = verification.get("required_parameters", {})
+    query_names = [value.get("token_parameter"), value.get("challenge_parameter")]
+    if "token_parameter" in value and query_names[0] == query_names[1]:
+        errors.append(("verification", "token and challenge parameter names must be distinct"))
+    required = value.get("required_parameters", {})
     if not isinstance(required, dict) or len(required) > 8:
-        errors.append(
+        return [
+            *errors,
             (
                 "verification.required_parameters",
                 "required_parameters must be a map of at most eight literals",
-            )
-        )
-        return errors
-    for name, value in required.items():
+            ),
+        ]
+    for name, literal in required.items():
         if (
             not isinstance(name, str)
             or _NAME_RE.fullmatch(name) is None
-            or name in names
-            or not _bounded_value(value)
+            or name in query_names
+            or not _bounded_value(literal)
         ):
             errors.append(
                 (
@@ -157,9 +185,22 @@ def raw_body_auth_errors(
     return errors
 
 
-def callback_signature(value: str, auth: dict[str, Any]) -> str | None:
-    """Decode one digest, preserving only the host-derived preset's legacy syntax."""
+def is_hmac_verification(auth: dict[str, Any]) -> bool:
+    """Whether the shared connection key supplies a JSON verification proof."""
+    verification = auth.get("verification")
+    return isinstance(verification, dict) and verification.get("response", "echo") == "hmac"
+
+
+def verification_uses_token(auth: dict[str, Any]) -> bool:
+    """Keep existing registration secrets except for explicitly tokenless HMAC."""
+    return not (is_hmac_verification(auth) and "token_parameter" not in auth["verification"])
+
+
+def callback_signature(value: str, auth: dict[str, Any]) -> bytes | None:
+    """Strictly decode one digest with legacy syntax only for the host preset."""
     prefix = auth.get("signature_prefix", "")
+    if not isinstance(prefix, str):
+        return None
     if auth.get("_legacy_compatibility") is True:
         value = value.strip()
         if value.lower().startswith(prefix.lower()):
@@ -168,13 +209,54 @@ def callback_signature(value: str, auth: dict[str, Any]) -> str | None:
         if not value.startswith(prefix):
             return None
         value = value[len(prefix) :]
-    return value.lower() if _DIGEST_RE.fullmatch(value) else None
+    encoding = auth.get("signature_encoding", "hex")
+    if encoding == "hex":
+        return bytes.fromhex(value) if _DIGEST_RE.fullmatch(value) else None
+    if encoding != "base64" or len(value) != _BASE64_DIGEST_LENGTH:
+        return None
+    try:
+        digest = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        return None
+    if len(digest) != _DIGEST_BYTES or base64.b64encode(digest).decode("ascii") != value:
+        return None
+    return digest
+
+
+def callback_hmac_digest(secret: str, message: bytes) -> bytes:
+    """The shared raw-body and verification HMAC primitive, with opaque key bytes."""
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).digest()
+
+
+def encode_callback_signature(digest: bytes, auth: dict[str, Any]) -> str | None:
+    """Use the body signature's exact prefix and declared encoding for the proof."""
+    prefix = auth.get("signature_prefix", "")
+    if not isinstance(prefix, str):
+        return None
+    encoding = auth.get("signature_encoding", "hex")
+    if encoding == "hex":
+        encoded = digest.hex()
+    elif encoding == "base64":
+        encoded = base64.b64encode(digest).decode("ascii")
+    else:
+        return None
+    return prefix + encoded
+
+
+def callback_body_is_json_object(raw_body: bytes) -> bool:
+    """Keep dispatchable HMAC-mode bodies disjoint from the ASCII nonce language."""
+    try:
+        return isinstance(json.loads(raw_body.decode("utf-8")), dict)
+    except (ValueError, RecursionError):
+        return False
 
 
 def verification_challenge(request: Request, auth: dict[str, Any], expected: str) -> str | None:
     """Return an authenticated bounded challenge without invoking extension code."""
     verification = auth.get("verification")
-    if not isinstance(verification, dict) or not expected:
+    if not isinstance(verification, dict) or _verification_auth_errors(
+        verification, methods=["GET"]
+    ):
         return None
     if len(request.scope.get("query_string", b"")) > _MAX_QUERY_BYTES:
         return None
@@ -194,12 +276,15 @@ def verification_challenge(request: Request, auth: dict[str, Any], expected: str
     for name, literal in verification.get("required_parameters", {}).items():
         if values.get(name) != literal:
             return None
-    token = values.get(verification.get("token_parameter"), "")
-    challenge = values.get(verification.get("challenge_parameter"), "")
-    if (
-        not token
-        or not challenge
-        or not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
-    ):
+    challenge = values.get(verification["challenge_parameter"], "")
+    if not challenge or (is_hmac_verification(auth) and _NONCE_RE.fullmatch(challenge) is None):
         return None
+    if verification_uses_token(auth):
+        token = values.get(verification["token_parameter"], "")
+        if (
+            not token
+            or not expected
+            or not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
+        ):
+            return None
     return challenge

@@ -22,6 +22,7 @@ from core.application.extensions.callback_contract import (
     generate_callback_secret,
     generate_callback_token,
 )
+from core.application.extensions.callback_protocol import verification_uses_token
 from core.application.management.scope import ScopeContext
 from core.application.workflows.project_credential_versions import guard_project_credential_versions
 from core.infrastructure.db.db_pool import transaction_connection
@@ -271,7 +272,9 @@ class ExtensionCallbackRegistrationService:
         raw_secret = ""
         auth = _callback_auth(declaration)
         auth_config: dict[str, Any] = {}
-        if auth.get("type") in {"shared_secret_header", "hmac_sha256", "raw_body_hmac_sha256"}:
+        if auth.get("type") in {"shared_secret_header", "hmac_sha256", "raw_body_hmac_sha256"} and (
+            auth.get("type") != "raw_body_hmac_sha256" or verification_uses_token(auth)
+        ):
             if not hasattr(self.bl, "save_project_secret"):
                 raise RuntimeError(_MESSAGE_PROJECT_SECRET_STORAGE_IS_UNAVAILABLE)
             raw_secret = generate_callback_secret()
