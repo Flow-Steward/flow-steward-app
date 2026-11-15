@@ -101,8 +101,11 @@ def _parse(payload: dict[str, Any]) -> tuple[list[_Condition], dict[str, Any]]:
     for row in expected:
         if not isinstance(row, dict) or set(row) - {"path", "state", "value"}:
             raise ConnectionConfigMutationRejected("invalid_expectation")
-        path, state = row.get("path"), row.get("state")
-        parts = _parts(path)
+        state = row.get("state")
+        parts = _parts(row.get("path"))
+        # _parts accepted only a non-empty string of non-empty dot-separated
+        # segments, so joining them restores the same, now typed, path.
+        path = ".".join(parts)
         if path in seen:
             raise ConnectionConfigMutationRejected("duplicate_expectation")
         if state not in ("absent", "equals", "absent_or_equals"):
