@@ -1011,6 +1011,36 @@ msgstr ""
 msgid "extension_page.validation.warnings_badge"
 msgstr ""
 
+msgid "extensions.callback.copy_failed"
+msgstr ""
+
+msgid "extensions.callback.copy_token"
+msgstr ""
+
+msgid "extensions.callback.copy_url"
+msgstr ""
+
+msgid "extensions.callback.create"
+msgstr ""
+
+msgid "extensions.callback.created"
+msgstr ""
+
+msgid "extensions.callback.failed"
+msgstr ""
+
+msgid "extensions.callback.one_time"
+msgstr ""
+
+msgid "extensions.callback.refreshed"
+msgstr ""
+
+msgid "extensions.callback.select_connection"
+msgstr ""
+
+msgid "extensions.callback.verify_token"
+msgstr ""
+
 msgid "extensions.callback.configure"
 msgstr ""
 

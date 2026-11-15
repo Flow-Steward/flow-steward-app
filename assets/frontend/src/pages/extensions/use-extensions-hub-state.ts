@@ -3,6 +3,7 @@ import { z } from "zod";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useQueryClient, useQuery, useQueries } from "@tanstack/react-query";
 import { useParams, useLocation, useNavigate } from "react-router";
+import { useAuth } from "@/lib/auth/useAuth";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import { useRef, useState, useEffect, useMemo } from "react";
@@ -93,6 +94,7 @@ export type ExtensionBusyAction = "toggle" | "health" | "uninstall" | "install" 
 
 export function useExtensionsHubState() {
   const queryClient = useQueryClient();
+  const { session } = useAuth();
   const { extensionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -860,6 +862,7 @@ export function useExtensionsHubState() {
     activeManifestPage,
     manifestQuery,
     callbacksQuery,
+    callbackOwnerScopeKey: JSON.stringify([session?.user.id, session?.user.account_id, workspaceId]),
     setCallbackStatuses,
     extensionInstallId,
     location,

@@ -33,6 +33,7 @@ import { DsAlert, DsBadge } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
+import { ExtensionCallbackSetup } from "./extension-callback-setup";
 import { renderConnectionRow } from "./extension-manifest-connections";
 import { ConnectionStoredSecretField } from "./extension-connection-secret-catalog";
 import { connectionDataForValues, manifestFieldIsSecret, manifestFieldPath } from "./connection-form-support";
@@ -52,7 +53,6 @@ import {
   manifestSummaryEntries,
   platformText,
   pressManifestAction,
-  webhookConfigurationLabel,
   type ManifestRenderContext,
 } from "./extension-manifest-render-model";
 export function renderManifestComponent(
@@ -512,77 +512,8 @@ export function renderManifestComponent(
     );
   }
 
-  function renderCallbackSetup( ) {
-    const callbackId = stringFrom(component.callback_id || component.callbackId);
-    if (!context.canManageProject) {
-      return (
-        <div className="fs-manifest-block" key={blockKey}>
-          <div>
-            <p className="fs-manifest-title">{title}</p>
-            <p className="fs-manifest-meta fs-manifest-code">{callbackId || "callback"}</p>
-            <p className="fs-manifest-description">{t("react.extensions.callback_setup_is_managed_by_project_managers", "Callback setup is managed by project managers.")}</p>
-          </div>
-        </div>
-      );
-    }
-    const registration = context.callbacks.find((item) => item.callback_id === callbackId);
-    const configured = Boolean(registration?.id);
-    const lastSeen = stringFrom(registration?.last_seen_at) || t("react.extensions.display_not_seen", "not seen");
-    const lastError = stringFrom(registration?.last_error);
-    const webhookStatus = objectOrEmpty(
-      registration?.webhook_status ||
-        context.callbackStatuses[stringFrom(registration?.id) || callbackId],
-    );
-    const urlConfigured = webhookStatus.url_configured;
-    const pendingCount = stringFrom(webhookStatus.pending_update_count);
-    const webhookError = stringFrom(webhookStatus.last_error_message);
-    return (
-      <div className="fs-manifest-block" key={blockKey}>
-        <div className="fs-manifest-head">
-          <div>
-            <p className="fs-manifest-title">{title}</p>
-            <p className="fs-manifest-meta fs-manifest-code">{callbackId || "callback"}</p>
-          </div>
-          <DsBadge tone={configured && registration?.enabled ? "green" : "neutral"}>
-            {configured && registration?.enabled ? t("react.extensions.registered", "registered") : t("react.extensions.not_registered", "not registered")}
-          </DsBadge>
-        </div>
-        <dl className="fs-kv">
-          <div className="fs-kv-row">
-            <dt>{platformText(context, "extensions.callback.url", "Callback URL")}</dt>
-            <dd>{stringFrom(registration?.callback_url) || "/webhook/extensions/.../<redacted>"}</dd>
-          </div>
-          <div className="fs-kv-row"><dt>{platformText(context, "extensions.callback.last_seen", "Last seen")}</dt><dd>{lastSeen}</dd></div>
-          <div className="fs-kv-row"><dt>{platformText(context, "extensions.callback.webhook", "Webhook")}</dt><dd>{webhookConfigurationLabel(urlConfigured, t)}</dd></div>
-          <div className="fs-kv-row"><dt>{platformText(context, "extensions.callback.pending", "Pending")}</dt><dd>{pendingCount || t("project_detail.connections.status.unknown", "unknown")}</dd></div>
-        </dl>
-        {lastError ? <DsAlert title={lastError} tone="danger" /> : null}
-        {webhookError ? <DsAlert title={webhookError} tone="warning" /> : null}
-        <div className="fs-manifest-actions">
-          <Button
-            busy={manifestActionBusy(context, manifestActionKey("callback", componentId, "configure"))}
-            busyLabel={t("react.settings.creating", "Creating…")}
-            disabled={!callbackId || !context.projectId}
-            onClick={() => pressManifestAction(context, manifestActionKey("callback", componentId, "configure"), () => context.onCallbackSetup(component, "configure"))}
-            size="sm"
-            type="button"
-            variant="primary"
-          >
-            {platformText(context, "extensions.callback.configure", "Create and Configure")}
-          </Button>
-          <Button
-            busy={manifestActionBusy(context, manifestActionKey("callback", componentId, "status"))}
-            busyLabel={t("react.shared.refreshing", "Refreshing…")}
-            onClick={() => pressManifestAction(context, manifestActionKey("callback", componentId, "status"), () => context.onCallbackSetup(component, "status"))}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            {platformText(context, "extensions.callback.refresh", "Refresh Status")}
-          </Button>
-        </div>
-      </div>
-    );
+  function renderCallbackSetup() {
+    return <ExtensionCallbackSetup component={component} componentId={componentId} context={context} key={blockKey} t={t} title={title} />;
   }
 
   function renderLogList() {

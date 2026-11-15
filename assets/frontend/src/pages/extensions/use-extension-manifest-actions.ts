@@ -8,8 +8,6 @@ import {
   type ExtensionEffectResolutionRef,
   executeExtensionQuery,
   executeExtensionAction,
-  refreshExtensionCallbackStatus,
-  createExtensionCallbackRegistration,
 } from "@/pages/extensions/api";
 import { normalizeComponentPayload } from "@/pages/extensions/payload";
 import {
@@ -37,6 +35,8 @@ import {
 import { connectionActionTarget } from "./connection-form-support";
 import { pageActionTarget, pageUrlParameters, queryConnectionTarget } from "./extension-page-connection";
 
+import { useExtensionCallbackSetup } from "./use-extension-callback-setup";
+
 import type { ExtensionEffectRecovery } from "./extension-action-result-panel";
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
@@ -63,16 +63,15 @@ export function useExtensionManifestActions(
     formValuesByComponent,
     activeManifestPage,
     manifestQuery,
-    callbacksQuery,
     externalEffectsQuery,
     selectedProjectId,
     extensionInstallId,
     canManageProject,
-    setCallbackStatuses,
     pageConnection,
     location,
   } = hubState;
   const { withBusy } = lifecycleActions;
+  const callbackSetup = useExtensionCallbackSetup(hubState, lifecycleActions);
 
   const scopeKey = JSON.stringify([detailExtension?.extension_id, extensionInstallId, selectedProjectId]);
   const scopeRef = useRef(scopeKey);
@@ -547,83 +546,5 @@ export function useExtensionManifestActions(
     return manifestActionResult(result);
   }
 
-  async function handleCallbackSetup(
-    component: Record<string, unknown>,
-    setupAction: "configure" | "status",
-  ) {
-    if (!detailExtension?.extension_id) {
-      return;
-    }
-    const extensionKey = detailExtension.extension_id;
-    const callbackId = stringFrom(component.callback_id || component.callbackId);
-    const configureActionId = stringFrom(component.configure_action_id || "configure_webhook");
-    const statusActionId = stringFrom(component.status_action_id || "get_webhook_status");
-    if (!activePageProjectId) {
-      setStatusById((current) => ({ ...current, [extensionKey]: "Select a project before configuring callbacks." }));
-      return;
-    }
-    await withBusy(extensionKey, async () => {
-      try {
-        if (setupAction === "status") {
-          const registration = callbacksQuery.data?.find((item) => item.callback_id === callbackId);
-          if (!registration?.id) {
-            setStatusById((current) => ({ ...current, [extensionKey]: "Create the callback registration before refreshing webhook status." }));
-            return;
-          }
-          setStatusById((current) => ({ ...current, [extensionKey]: "Refreshing webhook status..." }));
-          const statusPayload = await refreshExtensionCallbackStatus(extensionKey, registration.id, {
-            action_id: statusActionId,
-            runtime: { fake_mode: false },
-          });
-          setCallbackStatuses((current) => ({
-            ...current,
-            [registration.id]: objectOrEmpty(statusPayload.webhook_status),
-            [callbackId]: objectOrEmpty(statusPayload.webhook_status),
-          }));
-          await callbacksQuery.refetch();
-          setStatusById((current) => ({ ...current, [extensionKey]: "Webhook status refreshed." }));
-          return;
-        }
-        setStatusById((current) => ({ ...current, [extensionKey]: "Creating callback registration..." }));
-        const registration = await createExtensionCallbackRegistration(extensionKey, callbackId, {
-          project_id: activePageProjectId,
-          enabled: true,
-          configure: true,
-          configure_action_id: configureActionId,
-        });
-        setCallbackStatuses((current) => ({
-          ...current,
-          [registration.id]: objectOrEmpty(registration.webhook_status),
-          [callbackId]: objectOrEmpty(registration.webhook_status),
-        }));
-        await callbacksQuery.refetch();
-        setStatusById((current) => ({ ...current, [extensionKey]: "Callback registered and webhook configured." }));
-      } catch (error) {
-        if (isHttpError(error)) {
-          const payload = objectOrEmpty(error.payload);
-          const registrationId = stringFrom(payload.id);
-          const webhookStatus = objectOrEmpty(payload.webhook_status);
-          if (registrationId || Object.keys(webhookStatus).length) {
-            setCallbackStatuses((current) => ({
-              ...current,
-              ...(registrationId ? { [registrationId]: webhookStatus } : {}),
-              [callbackId]: webhookStatus,
-            }));
-          }
-          await queryClient.invalidateQueries({ queryKey: ["extensions", "callbacks", extensionKey, activePageProjectId] });
-          const detail = stringFrom(payload.detail || payload.message || error.message);
-          setStatusById((current) => ({
-            ...current,
-            [extensionKey]: detail || "Webhook configuration failed. Polling fallback remains active.",
-          }));
-          return;
-        }
-        setStatusById((current) => ({
-          ...current,
-          [extensionKey]: error instanceof Error ? error.message : "Webhook configuration failed.",
-        }));
-      }
-    });
-  }
-  return { handleCallbackSetup, handleExternalResourcePickerBootstrap, handleManifestAction, effectRecoveries, scopeKey };
+  return { ...callbackSetup, handleExternalResourcePickerBootstrap, handleManifestAction, effectRecoveries, scopeKey };
 }

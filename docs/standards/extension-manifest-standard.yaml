@@ -367,6 +367,41 @@ action_manifest: ui/actions/actions.yaml
 # &p.run_id=42) are merged into the params of every query on that page; they
 # are untrusted input the extension validates.
 
+# Manual callback setup UI (host 1.9+). A setup page for a callback whose
+# compiled declaration has connection_scoped: true MUST declare its connection
+# types, so the host's existing page connection selector supplies the anchor:
+#
+#   page_id: webhooks
+#   title: Webhooks
+#   project_scoped: true
+#   connection:
+#     connection_type_ids: [service_profile]
+#   components:
+#     - component_id: incoming_setup
+#       type: callback_setup
+#       callback_id: updates
+#       setup_mode: manual
+#
+# setup_mode: manual displays Create Callback and sends configure: false; it
+# does not require or call configure_webhook/get_webhook_status provider actions.
+# Refresh Status reloads host registrations (GET), showing this registration's
+# last_seen_at and last_error without claiming remote provider configuration.
+# Omitted setup_mode preserves automatic Create and Configure plus the existing
+# configure_action_id/status_action_id overrides and provider status refresh.
+# Scoping is per compiled callback declaration, not per page: scoped callbacks
+# use the selected connection_id for creation and status; global callbacks omit
+# connection_id and select only an unscoped registration even on a scoped page.
+# Missing project/required connection blocks both controls. Setup controls and
+# one-time values are for managers only; host/server authorization still applies.
+# Manual creation exposes callback_url and, only when present, callback_secret
+# as one-time Copy Callback URL/Copy Verify Token controls. URL-only receipts
+# (for example HMAC verification without token_parameter) remain usable. Values
+# stay in transient component-owned state, never browser storage, query caches,
+# logs, status messages, toasts or action results. Owner/account/workspace,
+# project/install/connection/page/permission changes hide and discard them;
+# generation guards discard stale responses even after leaving and returning.
+# Registration listing remains redacted and cannot reconstruct copy controls.
+
 machine_auth:
   service_account_key: svc_ext_example
   required_scopes:

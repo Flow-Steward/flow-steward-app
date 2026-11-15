@@ -75,6 +75,7 @@ import { ExtensionPageConnectionScope } from "./extension-page-connection-scope"
 import { ExtensionPageRefreshControl } from "./extension-page-refresh";
 import type { ExtensionPageRefresh } from "./use-extension-page-refresh";
 import type { ExtensionPageConnection } from "./use-extension-page-connection";
+import type { CallbackSetupCredentials } from "./callback-setup-scope";
 
 
 
@@ -88,6 +89,7 @@ type ExtensionDetailPanelProps = {
   activeManifestPage: Record<string, unknown> | undefined;
   busyById: Record<string, ExtensionBusyAction | false>;
   callbackStatuses: RecordMap;
+  callbackSetupCredentials?: CallbackSetupCredentials;
   callbacksQuery: {
     data?: ExtensionCallbackRegistration[];
   };
@@ -656,6 +658,9 @@ function ManifestComponentSections({
           connectionCreationBlockedReason: panel.connectionCreationBlockedReason,
           callbacks: panel.callbacksQuery.data || [],
           callbackStatuses: panel.callbackStatuses,
+          callbackSetupCredentials: panel.callbackSetupCredentials,
+          callbackDeclarations: listFromUnknown(objectOrEmpty(panel.manifestQuery.data).callbacks),
+          selectedConnectionId: panel.pageConnection.selectedId,
           componentErrors: panel.componentErrors,
           componentQueryParams: panel.componentQueryParams,
           componentQueryData: panel.componentQueryData,

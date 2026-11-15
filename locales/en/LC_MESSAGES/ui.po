@@ -1054,6 +1054,36 @@ msgstr "Warnings"
 msgid "extension_page.validation.warnings_badge"
 msgstr "warnings: {count}"
 
+msgid "extensions.callback.copy_failed"
+msgstr "Could not copy. Select and copy the setup value manually."
+
+msgid "extensions.callback.copy_token"
+msgstr "Copy Verify Token"
+
+msgid "extensions.callback.copy_url"
+msgstr "Copy Callback URL"
+
+msgid "extensions.callback.create"
+msgstr "Create Callback"
+
+msgid "extensions.callback.created"
+msgstr "Callback registered. Copy the one-time setup values before leaving this page."
+
+msgid "extensions.callback.failed"
+msgstr "Callback setup failed. Refresh the status and try again."
+
+msgid "extensions.callback.one_time"
+msgstr "Copy these one-time setup values before leaving this page."
+
+msgid "extensions.callback.refreshed"
+msgstr "Callback status refreshed."
+
+msgid "extensions.callback.select_connection"
+msgstr "Select a connection before configuring callbacks."
+
+msgid "extensions.callback.verify_token"
+msgstr "Verify token"
+
 msgid "extensions.callback.configure"
 msgstr "Create and Configure"
 

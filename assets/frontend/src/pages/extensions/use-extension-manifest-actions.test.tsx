@@ -217,6 +217,20 @@ it("lets the manager copy one-time URL and verify token after a redacted list re
   expect(persisted).not.toContain(credentials.callback_secret);
 });
 
+it("copies the one-time callback URL when the manual receipt has no verify token", async () => {
+  const user = userEvent.setup();
+  const clipboard = vi.spyOn(navigator.clipboard, "writeText");
+  const urlOnlyReceipt = { ...registration, callback_url: credentials.callback_url };
+  vi.mocked(fetchJson).mockImplementation(async (_input, init) => (
+    init?.method === "POST" ? urlOnlyReceipt : { callbacks: [redacted] }
+  ));
+  render(<CallbackHarness scope={initialScope} />);
+  await user.click(screen.getByRole("button", { name: "Create Callback" }));
+  await user.click(await screen.findByRole("button", { name: "Copy Callback URL" }));
+  expect(clipboard).toHaveBeenLastCalledWith(credentials.callback_url);
+  expect(screen.queryByRole("button", { name: "Copy Verify Token" })).not.toBeInTheDocument();
+});
+
 it("keeps callback setup read-only for a viewer even if its handler is invoked", async () => {
   const { result } = renderActions({ canManage: false });
   await act(async () => result.current.actions.handleCallbackSetup(component, "configure"));
