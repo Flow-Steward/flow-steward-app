@@ -351,14 +351,16 @@ function ExtensionPageParamRemover() {
 
 function renderCachedExtensionTransition(queryClient: QueryClient) {
   return render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/extensions/extension.alpha"]}>
-        <ExtensionRouteSwitcher />
-        <Routes>
-          <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <AuthContext.Provider value={authValue("admin")}>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/extensions/extension.alpha"]}>
+          <ExtensionRouteSwitcher />
+          <Routes>
+            <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AuthContext.Provider>,
   );
 }
 
@@ -3900,16 +3902,18 @@ describe("ExtensionsHubPage", () => {
     mockedFetchExtensionCompiledManifest.mockResolvedValue(manifest);
 
     render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[
-          "/extensions/extension.alpha?extension_page=service",
-        ]}>
-          <ExtensionPageParamRemover />
-          <Routes>
-            <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>,
+      <AuthContext.Provider value={authValue("admin")}>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[
+            "/extensions/extension.alpha?extension_page=service",
+          ]}>
+            <ExtensionPageParamRemover />
+            <Routes>
+              <Route path="/extensions/:extensionId" element={<ExtensionsHubPage />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </AuthContext.Provider>,
     );
 
     await waitFor(() => expect(screen.getByText("Selected service page.")).toBeVisible());

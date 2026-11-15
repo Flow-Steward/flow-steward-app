@@ -282,6 +282,7 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
   const cronErrorId = `${formId}-cron-error`;
   const enabledHelpId = `${formId}-enabled-help`;
   const nameHelpId = `${formId}-name-help`;
+  const nameInputId = `${formId}-name`;
   const nameInvalid = nameAttempted && nameMissing;
 
   return <form aria-label={t("react.workflows.schedule_editor", "Schedule editor")} className="workflow-schedules" id={formId} onSubmit={submit}>
@@ -289,14 +290,14 @@ function ScheduleEditor({ projectId, workflowId, job, fields, place, onCancel, o
       <p className="fs-drawer-label">{job ? t("react.workflows.edit_schedule", "Edit schedule") : t("react.workflows.new_schedule", "New schedule")}</p>
       <p className="fs-field-helper">{t("react.workflows.schedule_runs_in_project", "Runs this workflow in {project}.", { project: place })}</p>
     </div>
-    <label className="fs-field">
-      <span className="fs-field-label">{t("react.workflows.schedule_name", "Name")}</span>
-      <input aria-describedby={nameHelpId} aria-invalid={nameInvalid || undefined} aria-required="true" autoComplete="off" className="fs-input"
+    <div className="fs-field">
+      <label className="fs-field-label" htmlFor={nameInputId}>{t("react.workflows.schedule_name", "Name")}</label>
+      <input aria-describedby={nameHelpId} aria-invalid={nameInvalid || undefined} aria-required="true" autoComplete="off" className="fs-input" id={nameInputId}
         maxLength={SCHEDULE_NAME_MAX} onChange={(event) => setName(event.target.value)} placeholder={t("react.workflows.schedule_name_placeholder", "Supplier A daily import")} value={name} />
       <span className={nameInvalid ? "fs-field-helper error" : "fs-field-helper"} id={nameHelpId}>{nameInvalid
         ? t("react.workflows.schedule_name_required", "Give the schedule a name, so its runs can be told apart.")
         : t("react.workflows.schedule_name_help", "Jobs this schedule starts are titled with this name.")}</span>
-    </label>
+    </div>
     <div className="fs-field">
       <span className="fs-field-label" id={repeatLabelId}>{t("react.projects.repeat", "Repeat")}</span>
       <div aria-labelledby={repeatLabelId} className="fs-seg workflow-schedule-repeat" role="group">
