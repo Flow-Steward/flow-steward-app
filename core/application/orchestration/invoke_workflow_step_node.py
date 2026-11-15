@@ -10,7 +10,6 @@ Executes step.override.invoke_workflow as a blocking child job:
 from __future__ import annotations
 
 import contextvars
-import copy
 import logging
 import os
 import time
@@ -34,6 +33,7 @@ from core.application.orchestration.helpers import has_value as _has_value
 from core.application.orchestration.helpers import now_iso as _now_iso
 from core.application.orchestration.helpers import resolve_step_skill as _resolve_step_skill
 from core.application.orchestration.helpers import to_bool as _to_bool
+from core.application.orchestration.invoke_workflow_child_launch import launch_child_job
 from core.application.orchestration.invoke_workflow_child_wait import (
     ChildWaitNotRecorded,
     await_child,
@@ -772,118 +772,35 @@ def _invoke_workflow_step(
                 },
             )
 
-            from core.application.jobs.task_enqueue_runtime import enqueue_job
-            from core.application.workflows.workflow_start_runtime import enqueue_workflow_start
-
             # A serial invocation never runs its child in the parent's call
             # stack: the parent parks and a single worker can run the child.
             attempted_inline = (not durable) and _should_execute_child_inline(parent_job)
 
-            def _dispatch_child(**task_message: Any) -> None:
-                if attempted_inline:
-                    emit_event(
-                        state,
-                        "orchestrator",
-                        "invoke_workflow_inline_execute",
-                        f"Executing child workflow '{child_workflow_id}' inline under current project lease",
-                        {
-                            "child_job_id": task_message.get("job_id"),
-                            "child_workflow_id": child_workflow_id,
-                            "parent_job_id": parent_job_id,
-                        },
-                    )
-                    try:
-                        disposition = _execute_child_job_inline(dict(task_message))
-                        action = str(disposition.get("action") or "").strip()
-                        if action == "retry":
-                            from core.infrastructure.runtime.worker.queue_publisher import (
-                                enqueue_task,
-                            )
-
-                            enqueue_task(**task_message)
-                            return
-                        if action != "ack":
-                            reason = str(disposition.get("reason") or "inline_execution_incomplete")
-                            raise RuntimeError(
-                                f"inline child execution was not acknowledged: {reason}"
-                            )
-                    except Exception as inline_error:
-                        logger.warning(
-                            "invoke_workflow inline child execution raised job_id=%s child_job_id=%s: %s",
-                            parent_job_id,
-                            task_message.get("job_id"),
-                            inline_error,
-                        )
-                        raise
-                    return
-
-                from core.infrastructure.runtime.worker.queue_publisher import enqueue_task
-
-                enqueue_task(**task_message)
-
             try:
-
-                def _link_child(conn: Any, created_job_id: str) -> None:
-                    # Linked in the creating transaction under the parent row
-                    # lock: one child per invocation, none after a parent cancel.
-                    link_child_in_transaction(
-                        conn,
-                        parent_job_id=parent_job_id,
-                        child_job_id=created_job_id,
-                        entry={
-                            "child_workflow_id": child_workflow_id,
-                            "step_id": step_id,
-                            "step_execution_id": step_execution_id,
-                            "invocation_key": invocation_key,
-                            "step_agent": step_agent,
-                            "step_skill": step_skill,
-                            "input_fingerprint": child_input_key,
-                            "created_at": _now_iso(),
-                        },
-                    )
-
-                def _enqueue_child(**kwargs: Any) -> str:
-                    return str(
-                        enqueue_job(
-                            bl=bl,
-                            enqueue_task_fn=_dispatch_child,
-                            build_project_config_snapshot=lambda config: copy.deepcopy(config),
-                            logger=logger,
-                            log_prefix="invoke_workflow",
-                            artifact_plane=_job_invocation_artifact_plane(),
-                            job_created_hook=_link_child if parent_job_id else None,
-                            **kwargs,
-                        )
-                    )
-
-                launched_child_job_id = enqueue_workflow_start(
-                    enqueue_task_fn=_enqueue_child,
-                    task_id=child_task_id,
-                    task_summary=child_summary,
-                    task_source="invoke_workflow",
+                child_job_id = launch_child_job(
+                    state,
+                    bl=bl,
+                    attempted_inline=attempted_inline,
+                    parent_job_id=parent_job_id,
+                    step_id=step_id,
+                    step_execution_id=step_execution_id,
+                    step_agent=step_agent,
+                    step_skill=step_skill,
+                    invocation_key=invocation_key,
+                    child_workflow_id=child_workflow_id,
+                    child_input_key=child_input_key,
+                    child_task_id=child_task_id,
+                    child_summary=child_summary,
                     project_id=project_id,
                     project_name=project_name,
-                    project_config=child_project_config,
-                    selected_workflow_id=child_workflow_id,
-                    workflow_selection_source="parent_call",
-                    entry_path="invoke_workflow",
-                    input_contract="task_envelope",
-                    source_system="invoke_workflow",
-                    requested_workflow_id=child_workflow_id,
-                    source_event_id=child_task_id,
-                    source_object_id=parent_job_id,
-                    test_mode=_to_bool(child_extra_state.get("test_mode"), False),
-                    task_envelope=dict(child_extra_state.get("task_envelope") or {}),
-                    inputs=dict(child_extra_state.get("inputs") or {}),
-                    files=list(child_extra_state.get("files") or []),
-                    extra_state=child_extra_state,
-                    workflow_secret_ref_fingerprints=child_secret_ref_snapshot,
-                    job_meta=child_meta,
-                )
-                child_job_id = (
-                    int(launched_child_job_id)
-                    if str(launched_child_job_id).isdigit()
-                    else launched_child_job_id
+                    child_project_config=child_project_config,
+                    child_extra_state=child_extra_state,
+                    child_secret_ref_snapshot=child_secret_ref_snapshot,
+                    child_meta=child_meta,
+                    execute_inline=_execute_child_job_inline,
+                    link_in_transaction=link_child_in_transaction,
+                    artifact_plane_provider=_job_invocation_artifact_plane,
+                    logger=logger,
                 )
             except InvokeChildAlreadyLinked as linked:
                 # Re-resolve every derived input/output rule against the

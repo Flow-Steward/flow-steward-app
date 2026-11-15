@@ -7,7 +7,7 @@ import copy
 import pytest
 import yaml
 
-from core.application.extensions.extension_descriptor import (
+from core.application.extensions.extension_descriptor_artifacts import (
     ExtensionDescriptorArtifactEntry,
     _refuse_non_final_workflow,
 )

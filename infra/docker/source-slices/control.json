@@ -66,6 +66,7 @@
     "core/application/extensions/extension_contract_v2.py",
     "core/application/extensions/extension_contract_v2_common.py",
     "core/application/extensions/extension_descriptor.py",
+    "core/application/extensions/extension_descriptor_artifacts.py",
     "core/application/extensions/extension_descriptor_llm_provider.py",
     "core/application/extensions/extension_locales.py",
     "core/application/extensions/extension_project_state.py",
