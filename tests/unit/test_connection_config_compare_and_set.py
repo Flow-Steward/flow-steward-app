@@ -73,6 +73,7 @@ def connection_case(disposable_db):
                             "anchor": {"type": ["string", "null"]},
                             "selected_id": {"type": "string"},
                             "oauth": {"type": "object"},
+                            "settings": {"type": "object"},
                         },
                         "additionalProperties": False,
                     },
@@ -228,7 +229,7 @@ def test_host_owned_oauth_paths_are_rejected(connection_case, section, path):
     _, result = _apply(connection_case, [mutation])
 
     assert result["applied"] == []
-    assert result["errors"]
+    assert result["errors"][0]["code"] == "invalid_payload"
     assert _persisted(connection_case)["connection_config"] == {
         "oauth": {"subject": "original", "revision": 1}
     }
@@ -280,3 +281,111 @@ def test_conditional_write_preserves_oauth_refreshed_after_invocation_snapshot(c
         "subject": "refreshed",
         "revision": 2,
     }
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"expect": []},
+        {"set": {}},
+        {"enabled": True},
+        {"secret_refs": {"token": "foreign-reference"}},
+        {"expect": [{"path": "anchor", "state": "equals"}]},
+        {"expect": [{"path": "anchor", "state": "absent", "value": None}]},
+        {"expect": [{"path": "anchor", "state": "unknown"}]},
+        {"expect": [{"path": "anchor", "state": "absent"}] * 2},
+        {"set": {"": "A"}},
+        {"set": {".anchor": "A"}},
+        {"set": {"anchor.": "A"}},
+        {"set": {"settings..value": "A"}},
+        {"set": {"settings": {}, "settings.value": "A"}},
+    ],
+)
+def test_malformed_conditional_write_cannot_persist(connection_case, change):
+    mutation = _mutation("A")
+    mutation["payload"].update(change)
+
+    _, result = _apply(connection_case, [mutation])
+
+    assert result["applied"] == []
+    assert result["errors"][0]["code"] == "invalid_payload"
+    assert _persisted(connection_case)["connection_config"] == {
+        "oauth": {"subject": "original", "revision": 1}
+    }
+
+
+@pytest.mark.parametrize(
+    ("stored", "expected", "matches"),
+    [
+        (True, 1, False),
+        (False, 0, False),
+        (1, 1.0, True),
+        ({"first": 1, "second": 2}, {"second": 2, "first": 1}, True),
+        ([1, 2], [2, 1], False),
+        (None, None, True),
+    ],
+)
+def test_conditions_use_jsonb_equality(connection_case, stored, expected, matches):
+    initial = _mutation("A")
+    initial["payload"]["set"]["settings.value"] = stored
+    assert _apply(connection_case, [initial])[1]["errors"] == []
+    mutation = {
+        "kind": KIND,
+        "payload": {
+            "expect": [{"path": "settings.value", "state": "equals", "value": expected}],
+            "set": {"selected_id": "B"},
+        },
+    }
+
+    _, result = _apply(connection_case, [mutation])
+
+    assert bool(result["errors"]) is not matches
+    config = _persisted(connection_case)["connection_config"]
+    assert config["selected_id"] == ("B" if matches else "A")
+    if not matches:
+        assert result["errors"][0]["code"] == "host_mutation_precondition_failed"
+        assert result["errors"][0]["reason"] == "value_mismatch"
+        assert result["errors"][0]["path"] == "settings.value"
+
+
+def test_nested_assignment_does_not_replace_a_scalar_parent(connection_case):
+    initial = _mutation("A")
+    initial["payload"]["set"]["settings.value"] = "retain-me"
+    assert _apply(connection_case, [initial])[1]["errors"] == []
+    mutation = _mutation("A")
+    mutation["payload"]["set"] = {"settings.value.child": "B"}
+
+    _, result = _apply(connection_case, [mutation])
+
+    assert result["errors"][0]["code"] == "invalid_payload"
+    assert _persisted(connection_case)["connection_config"]["settings"] == {"value": "retain-me"}
+
+
+@pytest.mark.parametrize(("count", "allowed"), [(16, True), (17, False)])
+def test_distinct_path_budget_is_enforced_before_schema_validation(connection_case, count, allowed):
+    schema = connection_case["extension"]["connection_types"][0]["config_schema"]
+    schema["additionalProperties"] = True
+    mutation = _mutation("A")
+    mutation["payload"]["set"] = {
+        "anchor": "A",
+        **{f"key_{index}": index for index in range(count - 1)},
+    }
+
+    _, result = _apply(connection_case, [mutation])
+
+    assert bool(result["errors"]) is not allowed
+    config = _persisted(connection_case)["connection_config"]
+    assert ("anchor" in config) is allowed
+    if not allowed:
+        assert result["errors"][0]["code"] == "invalid_payload"
+
+
+def test_conditional_mutation_requires_action_declaration(connection_case):
+    connection_case["extension"]["action_definitions"][0]["handler"]["config"][
+        "host_mutations"
+    ] = []
+
+    _, result = _apply(connection_case, [_mutation("A")])
+
+    assert result["errors"][0]["code"] == "host_mutation_undeclared"
+    assert "anchor" not in _persisted(connection_case)["connection_config"]
