@@ -18,7 +18,7 @@ export function ExtensionCallbackSetup({ component, context, title, componentId,
 }) {
   const [copyFailed, setCopyFailed] = useState(false);
   const target = callbackSetupTarget(component, context.callbackDeclarations || [], context.selectedConnectionId);
-  if (!context.canManageProject) {
+  if (!context.canManageProject || context.canManageCallbacks === false) {
     return (
       <div className="fs-manifest-block">
         <div>

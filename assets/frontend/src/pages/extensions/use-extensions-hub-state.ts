@@ -94,12 +94,17 @@ export type ExtensionBusyAction = "toggle" | "health" | "uninstall" | "install" 
 
 export function useExtensionsHubState() {
   const queryClient = useQueryClient();
-  const { session } = useAuth();
+  const { session, status: authStatus, isAuthenticated } = useAuth();
   const { extensionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [, updateSearchParams] = useLatestSearchParams();
   const [workspaceId, setWorkspaceId] = useState(readStoredWorkspaceId);
+  const callbackUserId = stringFrom(session?.user?.id);
+  const callbackAccountId = stringFrom(session?.user?.account_id);
+  const callbackOwnerScopeKey = authStatus === "authenticated" && isAuthenticated
+    && session?.authenticated === true && callbackUserId && callbackAccountId
+    ? JSON.stringify([callbackUserId, callbackAccountId, workspaceId]) : null;
   const workspaceIdRef = useRef(workspaceId);
   const [projectWorkspaceId, setProjectWorkspaceId] = useState(() => workspaceId);
   const [workspaceChanged, setWorkspaceChanged] = useState(false);
@@ -457,7 +462,7 @@ export function useExtensionsHubState() {
   const callbacksQuery = useQuery({
     queryKey: ["extensions", "callbacks", extensionId || "", activePageProjectId],
     queryFn: () => fetchExtensionCallbacks(firstStringFromUnknownValue([extensionId, ""]), activePageProjectId),
-    enabled: Boolean(canManageProject && detailExtension?.extension_id && activePageProjectId),
+    enabled: Boolean(canManageProject && callbackOwnerScopeKey && detailExtension?.extension_id && activePageProjectId),
   });
   const projectsQuery = useQuery({
     queryKey: ["extensions", "projects", detailExtension?.extension_id || "", workspaceId],
@@ -862,7 +867,7 @@ export function useExtensionsHubState() {
     activeManifestPage,
     manifestQuery,
     callbacksQuery,
-    callbackOwnerScopeKey: JSON.stringify([session?.user.id, session?.user.account_id, workspaceId]),
+    callbackOwnerScopeKey,
     setCallbackStatuses,
     extensionInstallId,
     location,

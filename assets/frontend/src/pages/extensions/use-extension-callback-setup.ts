@@ -19,6 +19,7 @@ export function useExtensionCallbackSetup(
 ) {
   const { t } = useI18n();
   const extensionId = hub.detailExtension?.extension_id || "";
+  const canManageCallbacks = Boolean(hub.callbackOwnerScopeKey) && hub.canManageProject;
   const declarations = listFromUnknown(objectOrEmpty(hub.manifestQuery.data).callbacks);
   const scopeKey = JSON.stringify([
     hub.callbackOwnerScopeKey, extensionId, hub.extensionInstallId,
@@ -44,7 +45,7 @@ export function useExtensionCallbackSetup(
   }, [scopeKey, generation]);
 
   function isCurrent() {
-    return committed.current.active && committed.current.scopeKey === scopeKey
+    return canManageCallbacks && committed.current.active && committed.current.scopeKey === scopeKey
       && committed.current.generation === generation;
   }
 
@@ -53,7 +54,7 @@ export function useExtensionCallbackSetup(
   }
 
   async function handleCallbackSetup(component: Record<string, unknown>, action: "configure" | "status") {
-    if (!isCurrent() || !hub.canManageProject || !extensionId) return;
+    if (!isCurrent() || !canManageCallbacks || !extensionId) return;
     const target = callbackSetupTarget(component, declarations, hub.pageConnection.selectedId);
     if (!target.callbackId) return;
     if (!hub.activePageProjectId) {
@@ -148,7 +149,8 @@ export function useExtensionCallbackSetup(
 
   return {
     handleCallbackSetup,
-    callbackSetupCredentials: state.scopeKey === scopeKey && hub.canManageProject ? state.credentials : {},
-    callbackSetupErrors: state.scopeKey === scopeKey && hub.canManageProject ? state.errors : {},
+    canManageCallbacks,
+    callbackSetupCredentials: state.scopeKey === scopeKey && canManageCallbacks ? state.credentials : {},
+    callbackSetupErrors: state.scopeKey === scopeKey && canManageCallbacks ? state.errors : {},
   };
 }

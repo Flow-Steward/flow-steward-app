@@ -88,6 +88,7 @@ type ExtensionDetailPanelProps = {
   connectionCreationBlockedReason: string;
   activeManifestPage: Record<string, unknown> | undefined;
   busyById: Record<string, ExtensionBusyAction | false>;
+  canManageCallbacks?: boolean;
   callbackStatuses: RecordMap;
   callbackSetupCredentials?: CallbackSetupCredentials;
   callbackSetupErrors?: Record<string, string>;
@@ -656,6 +657,7 @@ function ManifestComponentSections({
           busyAction: running === "other" ? pressedAction : "",
           onActionPress: setPressedAction,
           canManageProject,
+          canManageCallbacks: panel.canManageCallbacks,
           connectionCreationBlockedReason: panel.connectionCreationBlockedReason,
           callbacks: panel.callbacksQuery.data || [],
           callbackStatuses: panel.callbackStatuses,

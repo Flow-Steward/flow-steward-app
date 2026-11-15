@@ -53,6 +53,8 @@ export type ManifestRenderContext = {
   /** Switch to `pageId` and focus the component anchored as `anchorId` there. */
   onNavigateToAnchor?: (pageId: string, anchorId: string) => void;
   canManageProject: boolean;
+  /** The owning hub additionally requires a resolved authenticated callback owner. */
+  canManageCallbacks?: boolean;
   connectionCreationBlockedReason: string;
   callbacks: ExtensionCallbackRegistration[];
   callbackDeclarations?: Array<Record<string, unknown>>;

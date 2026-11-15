@@ -33,7 +33,7 @@ const initialScope = {
   callbackOwnerScopeKey: "user-1:account-1:workspace-1", projectId: "project-1", installId: "install-1",
   connectionId: "connection-a", connectionRequired: true, canManage: true, pageId: "setup",
 };
-type Scope = typeof initialScope;
+type Scope = Omit<typeof initialScope, "callbackOwnerScopeKey"> & { callbackOwnerScopeKey: string | null };
 type Options = {
   callbacks?: ExtensionCallbackRegistration[];
   component?: Record<string, unknown>;
@@ -293,6 +293,15 @@ it("copies the one-time callback URL when the manual receipt has no verify token
   await user.click(await screen.findByRole("button", { name: "Copy Callback URL" }));
   expect(clipboard).toHaveBeenLastCalledWith(credentials.callback_url);
   expect(screen.queryByRole("button", { name: "Copy Verify Token" })).not.toBeInTheDocument();
+});
+
+it.each(["configure", "status"] as const)("rejects direct %s while the authenticated callback owner is unavailable", async (action) => {
+  const { result } = renderActions({ callbackOwnerScopeKey: null }, { callbacks: [registration] });
+  await act(async () => result.current.actions.handleCallbackSetup(component, action));
+  expect(fetchJson).not.toHaveBeenCalled();
+  expect(result.current.actions.canManageCallbacks).toBe(false);
+  expect(result.current.actions.callbackSetupCredentials).toEqual({});
+  expect(result.current.actions.callbackSetupErrors).toEqual({});
 });
 
 it("keeps callback setup read-only for a viewer even if its handler is invoked", async () => {

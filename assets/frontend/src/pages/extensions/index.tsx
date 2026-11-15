@@ -673,6 +673,7 @@ export function ExtensionsHubPage() {
             effectRecoveries={manifestActions.effectRecoveries}
             activeManifestPage={activeManifestPage}
             busyById={busyById}
+            canManageCallbacks={manifestActions.canManageCallbacks}
             callbackStatuses={callbackStatuses}
             callbackSetupCredentials={manifestActions.callbackSetupCredentials}
             callbackSetupErrors={manifestActions.callbackSetupErrors}
