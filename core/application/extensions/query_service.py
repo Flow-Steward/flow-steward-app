@@ -336,17 +336,19 @@ class ExtensionQueryService:
             if browser_authority_required(detail.compiled_manifest):
                 raise ServicePreconditionError("External browser code approval required")
             return dict(detail.compiled_manifest)
-        require_current_browser_authority(record=record, release=release)
         stored_authority_required = browser_authority_required(detail.compiled_manifest)
         approval_provenance = getattr(record, "provenance", {})
         previously_approved_authority = (
             isinstance(approval_provenance, dict)
             and BROWSER_AUTHORITY_PROVENANCE_KEY in approval_provenance
         )
+        # A missing bundle manifest is a broken bundle, not an approvable change: the
+        # persisted descriptor (which carries the compiled UI) must not stand in for it.
         current_manifest = resolve_browser_authority_manifest(
             release,
             require_bundle_manifest=(stored_authority_required or previously_approved_authority),
         )
+        require_current_browser_authority(record=record, release=release)
         if stored_authority_required or browser_authority_required(current_manifest):
             return current_manifest
         return dict(detail.compiled_manifest)

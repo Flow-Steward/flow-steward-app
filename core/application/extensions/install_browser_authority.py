@@ -34,10 +34,13 @@ def _installed_release_tree_sha256(
         or not approved.install_id
         or approved.install_id != _normalize_text(getattr(existing, "install_id", ""))
         or approved.old_release_id != _normalize_text(getattr(existing, "release_id", ""))
-        or not hmac.compare_digest(tree_sha256, approved.candidate_tree_sha256)
     ):
         raise ServiceValidationError(
             "Prevalidated browser authority does not match the installed release"
+        )
+    if not hmac.compare_digest(tree_sha256, approved.candidate_tree_sha256):
+        raise ServiceValidationError(
+            "Prevalidated browser authority does not match the candidate tree"
         )
     return tree_sha256
 

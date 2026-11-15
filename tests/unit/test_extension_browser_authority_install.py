@@ -339,8 +339,13 @@ def test_scanned_reimport_accepts_only_the_exact_installed_release_preview(
             handoff=handoff,
         )
 
-    def assert_binding_refused(*, scope: ScopeContext, existing: object) -> None:
-        with pytest.raises(ServiceValidationError, match="does not match the installed release"):
+    def assert_binding_refused(
+        *,
+        scope: ScopeContext,
+        existing: object,
+        reason: str = "does not match the installed release",
+    ) -> None:
+        with pytest.raises(ServiceValidationError, match=reason):
             prepare_install_browser_authority(
                 command=command,
                 scope=scope,
@@ -362,7 +367,11 @@ def test_scanned_reimport_accepts_only_the_exact_installed_release_preview(
     )
     # Any candidate byte that changes after the approval is refused, browser or not.
     non_browser_file.write_text("print('changed')\n", encoding="utf-8")
-    assert_binding_refused(scope=_scope(), existing=record)
+    assert_binding_refused(
+        scope=_scope(),
+        existing=record,
+        reason="does not match the candidate tree",
+    )
 
 
 def test_real_cli_enable_binding_cannot_bypass_browser_authority_gate(tmp_path: Path) -> None:
