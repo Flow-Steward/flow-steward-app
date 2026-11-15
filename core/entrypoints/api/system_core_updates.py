@@ -1,15 +1,33 @@
-"""Administrator-only, read-only Core release notice adapter."""
+"""Administrator-only, read-only Core release notice adapter and its composition."""
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from functools import lru_cache
 from typing import Any
 
 from fastapi import APIRouter, Request, Response
 from starlette.responses import JSONResponse
 
-from core.application.release.update_notice import CoreUpdateStatus
-from core.infrastructure.release.update_notice import core_update_status
+from core.application.release.catalog import GitHubReleaseDiscovery, PublishedRelease
+from core.application.release.update_notice import CoreUpdateQuery, CoreUpdateStatus
+from core.infrastructure.config.version import APP_VERSION
+from core.infrastructure.release.github import budgeted_public_fetcher
+
+
+def latest_core_release() -> PublishedRelease:
+    """Use the CLI's stable-release selection policy without private credentials."""
+    return GitHubReleaseDiscovery(fetch_json=budgeted_public_fetcher()).latest()
+
+
+@lru_cache(maxsize=1)
+def _query() -> CoreUpdateQuery:
+    return CoreUpdateQuery(current_version=APP_VERSION, latest_release=latest_core_release)
+
+
+def core_update_status() -> CoreUpdateStatus:
+    """Reuse the process-local query without filesystem or image inspection."""
+    return _query().status()
 
 
 def create_system_core_updates_router(

@@ -120,7 +120,8 @@ def test_mismatched_release_identity_does_not_announce_an_update(changes):
 
 
 def test_public_transport_reuses_stable_discovery_without_private_credentials(monkeypatch):
-    from core.infrastructure.release import github, update_notice
+    from core.entrypoints.api import system_core_updates
+    from core.infrastructure.release import github
 
     def fetch(url, *, authorization=None):
         assert authorization is None
@@ -139,11 +140,12 @@ def test_public_transport_reuses_stable_discovery_without_private_credentials(mo
         return {"object": {"type": "commit", "sha": "a" * 40}}
 
     monkeypatch.setattr(github, "fetch_json_url", fetch)
-    assert str(update_notice.latest_core_release().version) == "0.9.18"
+    assert str(system_core_updates.latest_core_release().version) == "0.9.18"
 
 
 def test_transport_stops_starting_remote_requests_after_its_budget(monkeypatch):
-    from core.infrastructure.release import github, update_notice
+    from core.entrypoints.api import system_core_updates
+    from core.infrastructure.release import github
 
     now, urls = [0.0], []
 
@@ -160,16 +162,17 @@ def test_transport_stops_starting_remote_requests_after_its_budget(monkeypatch):
         ]
 
     monkeypatch.setattr(github, "fetch_json_url", fetch)
-    monkeypatch.setattr(update_notice, "monotonic", lambda: now[0])
+    monkeypatch.setattr(github, "monotonic", lambda: now[0])
     with pytest.raises(ReleaseDiscoveryError, match="time budget"):
-        update_notice.latest_core_release()
+        system_core_updates.latest_core_release()
     assert len(urls) == 1
 
 
 def test_truncated_http_response_uses_the_failure_cache(monkeypatch):
     from http.client import IncompleteRead
 
-    from core.infrastructure.release import github, update_notice
+    from core.entrypoints.api import system_core_updates
+    from core.infrastructure.release import github
 
     calls = []
 
@@ -179,7 +182,7 @@ def test_truncated_http_response_uses_the_failure_cache(monkeypatch):
 
     monkeypatch.setattr(github, "fetch_json_url", fetch)
     query = CoreUpdateQuery(
-        current_version="0.9.17", latest_release=update_notice.latest_core_release
+        current_version="0.9.17", latest_release=system_core_updates.latest_core_release
     )
     assert query.status().status == "unavailable"
     assert "private" not in query.status().model_dump_json()

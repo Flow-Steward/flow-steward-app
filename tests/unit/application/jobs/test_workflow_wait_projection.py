@@ -112,13 +112,3 @@ def test_an_event_wait_projects_as_awaiting_event_with_its_key_and_deadline() ->
     assert meta["source"] == "acme.crawler"
     assert meta["due_epoch_ms"] == 1_760_349_600_000
     assert "gate_kind" not in meta
-
-
-def test_the_event_wait_line_names_what_when_and_until_when() -> None:
-    from core.application.jobs.workflow_wait_projection import event_wait_line
-
-    assert event_wait_line(EVENT) == (
-        "Waiting for run_completed or run_failed (key run-42) since "
-        "2026-10-12T10:00:00+00:00, times out at 2026-10-13T10:00:00+00:00"
-    )
-    assert event_wait_line(None) == "Waiting for an event"

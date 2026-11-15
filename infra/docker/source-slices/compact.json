@@ -1630,7 +1630,6 @@
     "core/infrastructure/release/github.py",
     "core/infrastructure/release/github_credentials.py",
     "core/infrastructure/release/installed_origin.py",
-    "core/infrastructure/release/update_notice.py",
     "core/infrastructure/rounding.py",
     "core/infrastructure/runtime/__init__.py",
     "core/infrastructure/runtime/app_factory.py",

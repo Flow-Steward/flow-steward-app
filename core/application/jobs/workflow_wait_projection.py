@@ -161,23 +161,6 @@ def pause_projection(state: Any) -> tuple[str, dict[str, Any] | None] | None:
     return wait_status(wait), wait
 
 
-def event_wait_line(wait: Mapping[str, Any] | None) -> str:
-    """ "Waiting for <types> (key …) since …, times out at …" for an event wait."""
-    wait = wait if isinstance(wait, Mapping) else {}
-    types = [str(item) for item in wait.get("event_types") or [] if str(item or "").strip()]
-    line = f"Waiting for {' or '.join(types) if types else 'an event'}"
-    key = str(wait.get("correlation_key") or "").strip()
-    if key:
-        line += f" (key {key})"
-    started_at = str(wait.get("started_at") or "").strip()
-    if started_at:
-        line += f" since {started_at}"
-    due_at = str(wait.get("due_at") or "").strip()
-    if due_at:
-        line += f", times out at {due_at}"
-    return line
-
-
 def interrupt_matches_wait(state: Any, wait_id: str) -> bool:
     """Whether the checkpoint is paused on exactly this timer wait."""
     target = str(wait_id or "").strip()
@@ -203,7 +186,6 @@ __all__ = [
     "WAIT_RESUME_APPLIED_KEY",
     "WAIT_STATUS_BY_KIND",
     "durable_wait_from_state",
-    "event_wait_line",
     "interrupt_matches_wait",
     "pause_projection",
     "pending_interrupt_payloads",

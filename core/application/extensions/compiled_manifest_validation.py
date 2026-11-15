@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 import re
 
+from core.application.extensions.callback_protocol import (
+    normalize_callback_auth,
+    raw_body_auth_errors,
+)
 from core.application.extensions.composite_actions import workflow_handler_issues
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.oauth_contract import (
@@ -496,6 +500,8 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
             )
             or ""
         ).strip(),
+        normalize_callback_auth=normalize_callback_auth,
+        raw_body_auth_errors=raw_body_auth_errors,
     )
     compiled_manifest["workflow_triggers"] = _validate_workflow_trigger_definitions(
         compiled_manifest.get("workflow_triggers"),

@@ -1,12 +1,14 @@
 # ruff: noqa: F403, F405, RUF022
 from __future__ import annotations
 
-from core.application.extensions.callback_protocol import (
-    normalize_callback_auth,
-    raw_body_auth_errors,
-)
+from collections.abc import Callable
 
 from .extension_runtime_common import *  # NOSONAR
+
+# The callback auth protocol (ADR 0072) is application-owned; its caller
+# injects the normalizer and the raw-body validator into this manifest walker.
+CallbackAuthNormalizer = Callable[[dict[str, Any]], dict[str, Any]]
+RawBodyAuthErrors = Callable[..., list[tuple[str, str]]]
 
 
 def _as_dict(value: Any) -> dict:
@@ -226,6 +228,8 @@ def _validate_callback_definitions(
     action_ids: set[str] | None = None,
     secret_names: set[str] | None = None,
     platform_min: str = "",
+    normalize_callback_auth: CallbackAuthNormalizer,
+    raw_body_auth_errors: RawBodyAuthErrors,
 ) -> list[dict]:
     if value is None:
         return []

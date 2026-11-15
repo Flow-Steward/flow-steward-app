@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from collections.abc import Mapping
 from datetime import date, datetime
 from datetime import time as datetime_time
 from decimal import Decimal
@@ -540,6 +541,23 @@ async def build_runtime_payload_for_api(
     return build_runtime_payload_fallback(job)
 
 
+def event_wait_line(wait: Mapping[str, Any] | None) -> str:
+    """ "Waiting for <types> (key …) since …, times out at …" for an event wait."""
+    wait = wait if isinstance(wait, Mapping) else {}
+    types = [str(item) for item in wait.get("event_types") or [] if str(item or "").strip()]
+    line = f"Waiting for {' or '.join(types) if types else 'an event'}"
+    key = str(wait.get("correlation_key") or "").strip()
+    if key:
+        line += f" (key {key})"
+    started_at = str(wait.get("started_at") or "").strip()
+    if started_at:
+        line += f" since {started_at}"
+    due_at = str(wait.get("due_at") or "").strip()
+    if due_at:
+        line += f", times out at {due_at}"
+    return line
+
+
 def compute_wait_reason(
     job: dict,
     runtime_state: dict,
@@ -582,8 +600,6 @@ def compute_wait_reason(
     if status == "awaiting_child":
         return "Waiting for a child workflow to finish"
     if status == "awaiting_event":
-        from core.application.jobs.workflow_wait_projection import event_wait_line
-
         meta = to_json_obj(job.get("meta"))
         wait = meta.get("workflow_wait") if isinstance(meta, dict) else None
         return event_wait_line(wait if isinstance(wait, dict) else None)
