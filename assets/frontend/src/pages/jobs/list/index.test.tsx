@@ -301,7 +301,7 @@ describe("JobsListPage", () => {
     ] } as never);
     renderJobsListPage();
     const table = await screen.findByRole("table", { name: "Jobs" });
-    expect(await within(table).findByText("Supplier A · https://a.example")).toHaveAttribute("title", "Supplier A · https://a.example");
+    await waitFor(() => expect(within(table).getByText("Supplier A · https://a.example")).toHaveAttribute("title", "Supplier A · https://a.example"));
     expect(within(table).getByText("Supplier B")).toBeInTheDocument();
     expect(within(table).queryByText("Workflow run")).not.toBeInTheDocument();
   });
