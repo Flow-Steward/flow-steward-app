@@ -1,6 +1,11 @@
 # ruff: noqa: F403, F405, RUF022
 from __future__ import annotations
 
+from core.application.extensions.callback_protocol import (
+    normalize_callback_auth,
+    raw_body_auth_errors,
+)
+
 from .extension_runtime_common import *  # NOSONAR
 
 
@@ -219,6 +224,8 @@ def _validate_callback_definitions(
     issues: list[dict],
     manifest_path: str,
     action_ids: set[str] | None = None,
+    secret_names: set[str] | None = None,
+    platform_min: str = "",
 ) -> list[dict]:
     if value is None:
         return []
@@ -448,7 +455,7 @@ def _validate_callback_definitions(
                     field_path=f"{field_path}.auth.type",
                     hint=(
                         "Supported callback auth types are none, shared_secret_header, "
-                        "hmac_sha256, and hub_signature."
+                        "hmac_sha256, raw_body_hmac_sha256, and hub_signature."
                     ),
                 )
             )
@@ -468,6 +475,24 @@ def _validate_callback_definitions(
                 )
             else:
                 normalized_auth["header"] = header
+        elif auth_type == "raw_body_hmac_sha256":
+            for auth_field, message in raw_body_auth_errors(
+                auth,
+                connection_scoped=bool(connection_scoped),
+                methods=methods,
+                secret_names=secret_names or set(),
+                platform_min=platform_min,
+            ):
+                issues.append(
+                    _issue(
+                        severity="error",
+                        code="invalid_raw_body_callback_auth",
+                        message=message,
+                        file_path=manifest_path,
+                        field_path=f"{field_path}.auth" + (f".{auth_field}" if auth_field else ""),
+                    )
+                )
+            normalized_auth = normalize_callback_auth(auth)
         elif auth_type == "hub_signature":
             for key in ("signature_header", "secret_name"):
                 value = str(auth.get(key) or "").strip()
@@ -481,8 +506,7 @@ def _validate_callback_definitions(
                             field_path=f"{field_path}.auth.{key}",
                         )
                     )
-                else:
-                    normalized_auth[key] = value
+            normalized_auth = normalize_callback_auth(auth)
         elif auth_type == "hmac_sha256":
             for key in ("signature_header", "timestamp_header", "delivery_id_header"):
                 header = str(auth.get(key) or "").strip()

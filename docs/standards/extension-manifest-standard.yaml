@@ -11,8 +11,28 @@
 # - none
 # - shared_secret_header
 # - hmac_sha256 (timestamped, replay-protected delivery)
-# - hub_signature (Meta webhooks: GET hub.challenge handshake against the registration's
-#   verify token; POST body signed with a connection secret, auth.secret_name)
+# - raw_body_hmac_sha256 (platform_min 1.9.0): connection_scoped must be true.
+#   signature_header: required ASCII HTTP token, <=128 characters.
+#   signature_prefix: optional exact printable ASCII string, <=64 characters,
+#     default empty. The remaining signature is 64 hexadecimal SHA-256 characters.
+#   secret_name: normalized local field name in an owning connection type's
+#     secret_schema.properties. Signing secret bytes retain whitespace exactly.
+#   verification: optional GET-only host handshake (methods must include GET):
+#     token_parameter and challenge_parameter are distinct exact ASCII identifiers
+#     matching [A-Za-z_][A-Za-z0-9_.-]{0,63}.
+#     required_parameters is an optional map of <=8 disjoint parameter names to
+#     nonempty exact literal strings, <=512 UTF-8 bytes each.
+#   Token/challenge are nonempty, <=512 UTF-8 bytes; encoded query <=8192 bytes,
+#   <=16 pairs, no duplicate names. Success echoes the challenge as text/plain
+#   without extension dispatch. No verification declaration: normal signed GET.
+#   Unknown fields, dynamic expressions and arbitrary secret references are rejected.
+#   No delivery-id replay protection: extension owns provider event deduplication.
+# - hub_signature: legacy preset normalized to the same raw-body protocol with
+#   authored signature_header/secret_name, sha256= prefix and hub.verify_token,
+#   hub.challenge, required hub.mode=subscribe. It retains its old host floor and
+#   historical bare/case-insensitive prefix and trimmed header/query behavior.
+#   _legacy_compatibility is internal host output, forbidden in authored generic
+#   auth. Callback access logs redact capability tokens and the entire query.
 #
 # OAuth callback handshakes are separate from generic callback authentication.
 # OAuth2 for
@@ -462,7 +482,10 @@ runtime:
     #   1.8.0  A workflow may declare settings.connection_slots, which each
     #          project fills with one of its connections (ADR 0068). A bundle
     #          declaring them requires runtime.compatibility.platform_min 1.8.0.
-    #          Product 0.9.18 ships host 1.8.0.
+    #   1.9.0  Generic raw_body_hmac_sha256 callbacks (ADR 0072). Explicit source
+    #          declarations require runtime.compatibility.platform_min 1.9.0;
+    #          hub_signature source keeps its earlier floor through normalization.
+    #          Product 0.9.18 ships host 1.9.0; SDK remains 0.5.0.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
@@ -1035,6 +1058,7 @@ x-validator-contract:
     - shared_secret_header
     - hmac_sha256
     - hub_signature
+    - raw_body_hmac_sha256
   connection_auth_types:
     - none
     - api_key

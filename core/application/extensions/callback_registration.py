@@ -219,6 +219,8 @@ class ExtensionCallbackRegistrationService:
         connection = _as_dict(row)
         if not connection:
             raise ValueError(_MESSAGE_CONNECTION_ID_IS_NOT_VALID_FOR_THIS_PROJECT)
+        if not bool(connection.get("enabled")):
+            raise ValueError("connection_id is disabled")
         if _normalize_text(connection.get("connection_id")) != normalized_connection_id:
             raise ValueError(_MESSAGE_CONNECTION_ID_IS_NOT_VALID_FOR_THIS_PROJECT)
         if _normalize_text(connection.get("project_id")) != _normalize_text(project_id):
@@ -269,7 +271,7 @@ class ExtensionCallbackRegistrationService:
         raw_secret = ""
         auth = _callback_auth(declaration)
         auth_config: dict[str, Any] = {}
-        if auth.get("type") in {"shared_secret_header", "hmac_sha256", "hub_signature"}:
+        if auth.get("type") in {"shared_secret_header", "hmac_sha256", "raw_body_hmac_sha256"}:
             if not hasattr(self.bl, "save_project_secret"):
                 raise RuntimeError(_MESSAGE_PROJECT_SECRET_STORAGE_IS_UNAVAILABLE)
             raw_secret = generate_callback_secret()

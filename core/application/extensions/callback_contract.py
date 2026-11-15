@@ -10,6 +10,7 @@ from urllib.parse import quote, urlsplit, urlunsplit
 from fastapi import Request
 
 from core.application.auth.serve_auth_runtime import public_base_url
+from core.application.extensions.callback_protocol import normalize_callback_auth
 from core.application.extensions.lifecycle_descriptor_io import _allow_private_remote_urls
 from core.application.extensions.oauth_contract import is_canonical_https_origin
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
@@ -117,10 +118,7 @@ def _callback_methods(declaration: dict | None) -> set[str]:
 
 def _callback_auth(declaration: dict | None) -> dict[str, Any]:
     auth = _as_dict(_as_dict(declaration).get("auth"))
-    auth_type = _normalize_text(auth.get("type")).lower() or "none"
-    payload = dict(auth)
-    payload["type"] = auth_type
-    return payload
+    return normalize_callback_auth(auth)
 
 
 def _forwarded_header_base_url(request: Request) -> str:

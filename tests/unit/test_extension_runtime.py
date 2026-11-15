@@ -6239,3 +6239,316 @@ def test_execute_resource_query_reports_a_withheld_result_as_failed():
     assert result["ok"] is False
     assert result["error_code"] == "extension_secret_exposure_blocked"
     assert result["items"] == []
+
+
+def _raw_body_callback_manifest():
+    manifest = _compiled_manifest_with_callback(
+        {
+            "callback_id": "updates",
+            "purpose": "inbound_events",
+            "methods": ["GET", "POST"],
+            "action_id": "ingress_event",
+            "connection_scoped": True,
+            "auth": {
+                "type": "raw_body_hmac_sha256",
+                "signature_header": "X-Custom-Signature",
+                "secret_name": "app_secret",
+                "verification": {
+                    "token_parameter": "verify.token",
+                    "challenge_parameter": "verify.challenge",
+                    "required_parameters": {"verify.mode": "listen"},
+                },
+            },
+        }
+    )
+    manifest["runtime"] = {
+        "contract_version": "extension_host_v2",
+        "compatibility": {"platform_min": "1.9.0"},
+    }
+    manifest["connection_types"] = [
+        {
+            "connection_type_id": "signed_account",
+            "display_name": "Signed account",
+            "auth": {"type": "api_key"},
+            "config_schema": {"type": "object"},
+            "secret_schema": {"type": "object", "properties": {"app_secret": {"type": "string"}}},
+        }
+    ]
+    return manifest
+
+
+def test_raw_body_callback_compiler_preserves_declared_protocol_and_empty_prefix_default():
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "valid", validation["errors"]
+    auth = manifest["callbacks"][0]["auth"]
+    assert auth == {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Custom-Signature",
+        "signature_prefix": "",
+        "secret_name": "app_secret",
+        "verification": {
+            "token_parameter": "verify.token",
+            "challenge_parameter": "verify.challenge",
+            "required_parameters": {"verify.mode": "listen"},
+        },
+    }
+    auth["signature_prefix"] = "custom="
+    assert validate_compiled_manifest(manifest)["status"] == "valid"
+    assert manifest["callbacks"][0]["auth"]["signature_prefix"] == "custom="
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("signature_header", ""),
+        ("signature_header", "X-Bad\r\nInjected"),
+        ("signature_header", "X Signature"),
+        ("signature_header", "X" * 129),
+        ("signature_header", "X-É"),
+        ("signature_header", ["X-Signature"]),
+        ("signature_prefix", 123),
+        ("signature_prefix", "a" * 65),
+        ("signature_prefix", "bad\n"),
+        ("signature_prefix", "é="),
+        ("secret_name", "project_secret:anything"),
+        ("secret_name", "undeclared"),
+        ("verification", []),
+        ("verification", {"token_parameter": "token"}),
+        ("verification", {"token_parameter": "same", "challenge_parameter": "same"}),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"token": "fixed"},
+            },
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": 42},
+            },
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {str(n): "v" for n in range(9)},
+            },
+        ),
+        ("verification", {"token_parameter": "a" * 65, "challenge_parameter": "challenge"}),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": "a" * 513},
+            },
+        ),
+        ("secret_ref", "project:other"),
+        ("_legacy_compatibility", True),
+        (
+            "verification",
+            {"token_parameter": "token", "challenge_parameter": "challenge", "unknown": True},
+        ),
+        (
+            "verification",
+            {
+                "token_parameter": "token",
+                "challenge_parameter": "challenge",
+                "required_parameters": {"mode": "é" * 257},
+            },
+        ),
+    ],
+)
+def test_raw_body_callback_compiler_rejects_unsafe_protocol_fields(field, value):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"][0]["auth"][field] = value
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "invalid"
+    assert any(
+        issue.get("field_path", "").startswith("callbacks[0].auth")
+        for issue in validation["errors"]
+    ), validation["errors"]
+
+
+def test_raw_body_callback_compiler_requires_connection_scope_and_get_for_verification():
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    for field, value in (("connection_scoped", False), ("methods", ["POST"])):
+        manifest = _raw_body_callback_manifest()
+        manifest["callbacks"][0][field] = value
+        validation = validate_compiled_manifest(manifest)
+        assert validation["status"] == "invalid"
+        assert any(
+            issue.get("field_path", "").startswith("callbacks[0]") for issue in validation["errors"]
+        )
+
+
+@pytest.mark.parametrize("minimum", ["1.0.0", "1.8.0", "1.8.9", ""])
+def test_explicit_raw_body_callback_requires_host_contract_1_9(minimum):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["runtime"]["compatibility"]["platform_min"] = minimum
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "invalid"
+    assert any("1.9.0" in issue.get("message", "") for issue in validation["errors"]), validation[
+        "errors"
+    ]
+
+
+@pytest.mark.parametrize(
+    "header,secret_name",
+    [("X-Hub-Signature-256", "app_secret"), ("X-Existing-Signature", "existing_key")],
+)
+def test_legacy_hub_callback_compiles_to_generic_protocol_at_previous_host_floor(
+    header, secret_name
+):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["connection_types"][0]["secret_schema"]["properties"][secret_name] = {"type": "string"}
+    manifest["runtime"]["compatibility"]["platform_min"] = "1.0.0"
+    manifest["callbacks"][0]["auth"] = {
+        "type": "hub_signature",
+        "signature_header": header,
+        "secret_name": secret_name,
+    }
+    validation = validate_compiled_manifest(manifest)
+    assert validation["status"] == "valid", validation["errors"]
+    assert manifest["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert manifest["callbacks"][0]["auth"] == {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": header,
+        "signature_prefix": "sha256=",
+        "_legacy_compatibility": True,
+        "secret_name": secret_name,
+        "verification": {
+            "token_parameter": "hub.verify_token",
+            "challenge_parameter": "hub.challenge",
+            "required_parameters": {"hub.mode": "subscribe"},
+        },
+    }
+
+
+def test_host_accepts_generic_callback_release_at_contract_1_9():
+    from core.application.extensions.extension_descriptor import validate_extension_descriptor
+
+    descriptor = {
+        "extension_id": "acme.callback-provider",
+        "release_version": "1.0.0",
+        "identity": {"display_name": "Signed callbacks"},
+        "vendor": {"vendor_name": "Acme"},
+        "distribution": {"channel": "private_byo", "execution_modes": ["local"]},
+        "runtime": {
+            "contract_version": "extension_host_v2",
+            "compatibility": {"platform_min": "1.9.0"},
+            "extension_contract_v2": {
+                "connection_types": _raw_body_callback_manifest()["connection_types"]
+            },
+        },
+    }
+    current = validate_extension_descriptor(descriptor)
+    assert current["valid"], current["errors"]
+    older = validate_extension_descriptor(descriptor, platform_version="1.8.0")
+    assert not older["valid"]
+    assert any("below required minimum" in error.get("message", "") for error in older["errors"])
+
+
+def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_floor(tmp_path):
+    import yaml
+
+    from core.application.extensions.callback_contract import (
+        _callback_auth,
+        find_callback_declaration,
+    )
+    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.infrastructure.extension_runtime.extension_runtime import compile_extension_bundle
+    from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+        build_extension_compiled_manifest,
+    )
+
+    bundle = tmp_path / "acme_callback_provider"
+    _write_minimal_extension(bundle, extension_id="acme.callback-provider")
+    manifest_path = bundle / "extension.yaml"
+    source = yaml.safe_load(manifest_path.read_text())
+    contract = _raw_body_callback_manifest()
+    callback = copy.deepcopy(contract["callbacks"][0])
+    callback["auth"] = {
+        "type": "hub_signature",
+        "signature_header": "X-Hub-Signature-256",
+        "secret_name": "app_secret",
+    }
+    source["runtime"].update(
+        {
+            "compatibility": {"platform_min": "1.0.0"},
+            "extension_contract_v2": {"connection_types": contract["connection_types"]},
+        }
+    )
+    source["callbacks"] = [callback]
+    source["action_manifest"] = "ui/actions/actions.yaml"
+    manifest_path.write_text(yaml.safe_dump(source, sort_keys=False))
+    (bundle / "ui/actions").mkdir()
+    (bundle / "ui/actions/actions.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "actions": [
+                    {
+                        "action_id": "ingress_event",
+                        "title": "Receive event",
+                        "parameters": [],
+                        "handler": {"mode": "extension"},
+                    }
+                ]
+            }
+        )
+    )
+    compiled = compile_extension_bundle(bundle)
+    assert compiled["status"] == "valid", (
+        compiled.get("compile_errors"),
+        compiled.get("validation_errors"),
+    )
+    expected_auth = {
+        "type": "raw_body_hmac_sha256",
+        "signature_header": "X-Hub-Signature-256",
+        "signature_prefix": "sha256=",
+        "_legacy_compatibility": True,
+        "secret_name": "app_secret",
+        "verification": {
+            "token_parameter": "hub.verify_token",
+            "challenge_parameter": "hub.challenge",
+            "required_parameters": {"hub.mode": "subscribe"},
+        },
+    }
+    assert compiled["compiled_manifest"]["callbacks"][0]["auth"] == expected_auth
+    # Artifact import recompiles the original manifest, then persists its compiled
+    # runtime fields; it does not validate the generic artifact as new author input.
+    descriptor, errors = _descriptor_with_bundle_runtime(
+        descriptor_path=bundle / "extension-descriptor.yaml",
+        normalized_descriptor={
+            "extension_id": "acme.callback-provider",
+            "release_version": "1.0.0",
+        },
+    )
+    assert errors == [], errors
+    assert descriptor["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert descriptor["callbacks"][0]["auth"] == expected_auth
+    installed = {"extension_id": "acme.callback-provider", "compiled_manifest": descriptor}
+    reloaded = build_extension_compiled_manifest(installed)
+    assert reloaded["runtime"]["compatibility"]["platform_min"] == "1.0.0"
+    assert (
+        _callback_auth(find_callback_declaration({"compiled_manifest": reloaded}, "updates"))
+        == expected_auth
+    )
+    assert (
+        yaml.safe_load(manifest_path.read_text())["callbacks"][0]["auth"]["type"] == "hub_signature"
+    )

@@ -423,7 +423,13 @@ OPERATION_HANDLER_MODE_WORKFLOW = "workflow"
 ALLOWED_ACTION_HANDLER_MODES = ALLOWED_OPERATION_HANDLER_MODES | {OPERATION_HANDLER_MODE_WORKFLOW}
 ALLOWED_SUBSCRIPTION_SEVERITIES = {"any", "debug", "info", "warning", "error", "critical"}
 ALLOWED_CALLBACK_METHODS = {"GET", "POST"}
-ALLOWED_CALLBACK_AUTH_TYPES = {"none", "shared_secret_header", "hmac_sha256", "hub_signature"}
+ALLOWED_CALLBACK_AUTH_TYPES = {
+    "none",
+    "shared_secret_header",
+    "hmac_sha256",
+    "hub_signature",
+    "raw_body_hmac_sha256",
+}
 CALLBACK_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 AUTHORING_MANIFEST_ALLOWED_FIELDS: set[str] = {
     "account_scope",

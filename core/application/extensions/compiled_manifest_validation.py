@@ -485,6 +485,17 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
         issues=issues,
         manifest_path=manifest_path,
         action_ids=action_ids,
+        secret_names={
+            str(name).strip()
+            for row in _as_list(compiled_manifest.get("connection_types"))
+            for name in _as_dict(_as_dict(_as_dict(row).get("secret_schema")).get("properties"))
+        },
+        platform_min=str(
+            _as_dict(_as_dict(compiled_manifest.get("runtime")).get("compatibility")).get(
+                "platform_min"
+            )
+            or ""
+        ).strip(),
     )
     compiled_manifest["workflow_triggers"] = _validate_workflow_trigger_definitions(
         compiled_manifest.get("workflow_triggers"),
