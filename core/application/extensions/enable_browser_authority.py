@@ -109,6 +109,8 @@ def scanned_release_browser_authority_handoff(
     if not approved:
         return None
     impact = current_browser_authority_impact(record=record, release=release)
+    if impact is None:
+        return None
     if not impact.approval_required or not hmac.compare_digest(approved, impact.impact_hash):
         return None
     return PreparedBrowserAuthorityApproval(
