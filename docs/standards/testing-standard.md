@@ -114,8 +114,11 @@ A frontend test `MUST` fail only on a defect, never on how fast or how busy the 
 Each executable quality check has one owning tier in
 `infra/tooling/quality/check-registry.json`. Higher tiers execute their delta;
 they do not rerun checks owned by lower tiers. A matching fingerprint may reuse
-checksummed evidence. All tiers run in local Docker through the canonical registry
-by default. Explicitly requested hosted runs use the same container and registry.
+checksummed evidence. Short, focused Tier 1 checks run locally in Docker.
+Tier 2 and Tier 3 `MUST` run on GitHub-hosted runners, using the same canonical
+Docker container and registry (ADR 0053). They `MUST NOT` run on the developer
+workstation as a fallback or during release preparation. Docker isolation and
+execution location are separate requirements; all tiers retain both.
 Final verification must identify the exact commit SHA and candidate environment.
 Ordinary verification, including release preparation, `MUST` select checks from
 the diff and known dependency chains. Full, heavy, nightly and Sonar runs require
@@ -133,8 +136,8 @@ Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
   tooling and the audit image inputs, so a check `MUST` be marked `inputs` only
   when its `inputs` name every file its tool reads.
 
-Select affected Tier 2 check IDs through `lint.sh --checks`, preserving each
-check's existing input scope and fingerprint reuse. This release's bare
+On GitHub, select affected Tier 2 check IDs through `lint.sh --checks`,
+preserving each check's existing input scope and fingerprint reuse. This release's bare
 `lint.sh`, `--fast` and `--full` select complete registry scopes; they are not
 automatic diff selectors. Selecting a check ID does not limit that check to the
 changed files.
@@ -169,6 +172,13 @@ unit XML reports and Sonar consumes only available reports from executed scopes.
 An explicit coverage threshold applies to each executed selection.
 
 ### Tier 1: Iteration
+
+Only short, focused checks run locally. Agents `MUST` review the planned scope
+before execution, including automatic selections. A whole backend/frontend
+suite, a broad selection, or a heavy runtime check `MUST` move to the requested
+hosted scope; calling it through `targeted-tests` does not make it local Tier 1.
+Formatting explicitly changed source files is edit preparation, not Tier 2
+evidence.
 
 - `MUST` reproduce a bug with a regression test and observe the expected failure before applying the fix.
 - `MUST` run the regression test, tests owned by the changed module, and direct consumers identified through dependency or blast-radius analysis.
@@ -209,6 +219,10 @@ interpreter and never by a core-only result:
 
 ### Tier 2: Affected Static and Dependency Checks
 
+These checks run on GitHub-hosted runners, including scoped static, security,
+dependency and build checks owned by Tier 2. The commands below are executed
+inside that hosted gate, not on the developer workstation.
+
 - `MUST` select affected check IDs from `infra/tooling/quality/check-registry.json`, for example `lint.sh --checks ruff,mypy` for affected Python quality or `lint.sh --checks pip-audit,bandit` when those checks are required by the changed dependencies or security contract. A push does not request the complete `--fast` gate.
 - When an explicitly requested complete Tier 2 gate runs, it `MUST` start checks in registry order: dependency audits, security scanners, then remaining static checks. Up to four checks run at once, each with a separate log.
 - `MUST` start no further Tier 2 check after the first failure; checks already running finish, and every completed check retains real fingerprinted evidence. A deferred or skipped implementation `MUST NOT` record a pass.
@@ -220,7 +234,10 @@ interpreter and never by a core-only result:
 
 ### Tier 3: Affected Integration and Runtime Checks
 
-Ordinary Tier 3 selects affected registry-owned checks through existing `--checks`; complete `--full` verification requires a separate explicit request.
+Tier 3 runs on GitHub-hosted runners. Ordinary Tier 3 selects affected
+registry-owned checks through existing `--checks`; complete `--full`
+verification requires a separate explicit request. Runner commands below do
+not authorize local execution.
 
 - `MUST` run `./core/entrypoints/cli/scripts/lint.sh --full` only after a separate explicit request, from the agreed final committed candidate. Handoff, opening a PR, merging or publishing does not implicitly request it; report complete Tier 3 as unrun when it has not run.
 - The canonical `--full` wrapper `MUST` validate or refresh commit-bound Tier 2 evidence before starting long Tier 3 test infrastructure, then execute only the Tier 3-owned delta.
@@ -238,7 +255,7 @@ Ordinary Tier 3 selects affected registry-owned checks through existing `--check
 - When the user explicitly requests complete Tier 2/Tier 3 acceptance, only complete matching evidence may be called a full pass. The Tier 3 delta or a targeted pass alone cannot establish it; a failed full gate stays failed after a partial retry.
 - `MUST` run integration/E2E and candidate smoke checks when required by the changed runtime contract, recording image digests, compose project, and environment.
 - Additional deep audit checks `MAY` be selected explicitly with `lint.sh --checks`; they are not a fourth tier or a GitHub prerequisite.
-- Stress, scale and nightly checks run only in a separately requested scope, including a previously authorized recurring schedule. An explicit stress request may use `lint.sh --checks targeted-tests --test-paths tests/unit/stress`; its results are not part of ordinary Tier 3 evidence.
+- Stress, scale and nightly checks run on GitHub-hosted runners only in a separately requested scope, including a previously authorized recurring schedule. An explicit stress request may use `lint.sh --checks targeted-tests --test-paths tests/unit/stress`; its results are not part of ordinary Tier 3 evidence.
 
 ## Test Selection
 
@@ -270,7 +287,7 @@ scope decision; they do not automatically justify running all tests.
 
 ## Execution Policy
 
-- `MUST` run selected checks through the canonical Docker gate and `fs-audit`. Hosted quality execution requires a separate manual request and must preserve its selected scope; no push or publication implicitly requests it.
+- `MUST` run selected checks through the canonical Docker gate and `fs-audit`: short Tier 1 locally, Tier 2/Tier 3 and heavy scopes on GitHub-hosted runners. Hosted quality execution requires a separate manual request or an already authorized recurring schedule and must preserve its selected scope; no push or publication implicitly requests it. If hosted execution is unavailable, report the scope pending instead of running it locally.
 - `MUST` resolve the intended target branch and accepted source SHA before verification, recheck before merge, and verify new impact when the candidate changes. A changed SHA does not automatically request a complete gate.
 - `MUST` inspect the run's repository, workflow, event, exact head SHA and conclusion before accepting remote evidence. A cached artifact or green result for another SHA is not evidence. Remote execution does not itself enforce GitHub branch protection or perform merges.
 - `MUST NOT` start Sonar because of a substantial core edit, failure, handoff, merge or publication alone. Sonar requires a separate explicit request and reports its actual profile, coverage and baseline limitations.

@@ -3,6 +3,8 @@
 Status: Accepted for pilot — owner authorized the experiment on 2026-11-02.
 Amends the execution-location policy in ADRs 0021 and 0048; registry ownership
 and the evidence fingerprint rules in ADR 0036 remain unchanged.
+The execution-location amendment below supersedes the original pilot's local
+fallback and automatic-run wording.
 
 ## Context
 
@@ -54,6 +56,22 @@ No successful hosted run is assumed until measured.
 These source-control refs are external tooling metadata. The retired-executor
 guard admits only their exact reviewed documentation lines; its runtime and
 product-surface prohibition remains in force.
+
+## Execution-location amendment — 2026-11-15
+
+The owner confirmed that Tier 2 and Tier 3 belong on GitHub-hosted runners
+to avoid workstation load and a development queue. Only short, focused Tier 1
+checks remain local, inside Docker. This supersedes the local diagnostic/fallback
+route for Tier 2/Tier 3 above. A broad or heavy test selection also runs hosted,
+even when a targeted command can select it. If GitHub execution is unavailable,
+report that verification pending rather than running a heavy local gate.
+
+The canonical standards govern scope and authorization: hosted quality needs a
+manual request or an already authorized recurring schedule; a push, merge or
+publication alone does not authorize it. This supersedes the automatic-push
+and mandatory-full-publication wording of the original pilot above. The existing
+hosted workflow and impacted/parallel execution in ADR 0070 remain in place;
+this amendment does not dispatch a run or change workflow triggers.
 
 ## Incremental local commit checks
 

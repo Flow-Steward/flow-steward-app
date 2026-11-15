@@ -113,8 +113,18 @@ npx --no-install eslint --fix <changed-ts-or-tsx-files>
 Do not use repository-wide formatting for a scoped change and do not stage
 formatter output automatically.
 
+Execution location: short, focused Tier 1 checks run locally in Docker.
+Tier 2 and Tier 3 run on GitHub-hosted runners through the canonical Docker
+gate. Do not run local Tier 2/Tier 3, complete suites, or heavy checks as a
+fallback when hosted execution is pending. Scoped source formatting above is
+edit preparation, not a Tier 2 gate. See
+[Testing Standard](docs/standards/testing-standard.md) and
+[ADR 0053](docs/architecture/adr/0053-hosted-quality-gates.md).
+
 For ordinary work, including release preparation, select checks from the diff
-and known dependencies, then run the regression and related tests fail-fast.
+and known dependencies, then run short Tier 1 regressions and related tests
+fail-fast. Review an automatic selection before running it; a broad or heavy
+selection belongs in the hosted scope, even if selected by a Tier 1 command.
 Use the accepted candidate SHA as the base and add concrete test paths/node IDs
 for dependencies the import graph cannot see:
 
@@ -124,8 +134,9 @@ for dependencies the import graph cannot see:
 ```
 
 The frontend wrapper accepts either `auto:<ref>` or an explicit list, not both
-in one selection. Select affected Tier 2 checks by ID with `--checks`; their
-existing check-level input scopes and fingerprint reuse remain unchanged.
+in one selection. In GitHub, select affected Tier 2 checks by ID with
+`--checks`; their existing check-level input scopes and fingerprint reuse
+remain unchanged.
 This release's bare `lint.sh`, `--fast`, and `--full` select complete registry
 scopes; use explicit `--checks` commands for ordinary work.
 
@@ -144,8 +155,10 @@ scoped retry.
 
 AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `lint.sh --checks …`. Tier 1 is no exception: being focused does not mean running on the host. A host interpreter makes the result depend on the machine — Tier 1 could not run at all where `python3` is 3.14, and a host run of a suite passed while the same suite failed in the gate, because the gate substitutes the tree through `run-core-only-tests.sh`. `infra/tooling/quality/check-registry.json` is the single list of commands, and `tests/unit/tooling/quality/test_check_registry.py` fails if any check escapes the container.
 
-All tiers use Docker with one registry owner per check. Local execution uses
-`fs-audit`; separately requested hosted checks must preserve the selected scope.
+All tiers use Docker with one registry owner per check. Only short Tier 1
+checks run on the local Docker host; Tier 2 and Tier 3 use GitHub-hosted
+`fs-audit` containers and preserve the requested scope. Container isolation
+does not authorize running a hosted tier locally.
 Recheck main before merge; an updated candidate requires verification of its new
 impact and matching evidence.
 Reuse is fingerprint-bound; input-scoped Tier 2 checks reuse a pass across commits
@@ -156,7 +169,8 @@ cumulative Tier 2 and Tier 3 evidence; publication does not request that run.
 Public results never verify a different private commit. Additional audit checks
 remain available through `--checks`.
 
-For a focused fix/verify cycle, selected checks remain available:
+For a requested hosted fix/verify cycle, select affected checks in the GitHub
+workflow (the following are runner commands, not local instructions):
 
 ```bash
 ./core/entrypoints/cli/scripts/lint.sh --checks semgrep
@@ -165,5 +179,5 @@ For a focused fix/verify cycle, selected checks remain available:
 
 Install hooks once per clone with `pre-commit install --hook-type pre-commit`.
 The hook runs affected Tier 1 checks. Choose additional verification according to
-the canonical standards; all local test tiers use the on-demand `fs-audit`
-container.
+the canonical standards; local Tier 1 uses the on-demand `fs-audit` container.
+Tier 2 and Tier 3 remain hosted, including during release preparation.
