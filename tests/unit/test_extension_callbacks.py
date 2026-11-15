@@ -2517,7 +2517,9 @@ def test_raw_body_hmac_callback_registration_rejects_disabled_connection(monkeyp
 
 def test_legacy_hub_callback_preserves_authored_header_and_secret_name(monkeypatch):
     client, _created, path, key = _hub_signature_setup(
-        monkeypatch, signature_header="X-Existing-Signature", secret_name="existing_key"
+        monkeypatch,
+        signature_header="X-Existing-Signature",
+        secret_name="existing_key",  # pragma: allowlist secret
     )
     body = b"{}"
     digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()

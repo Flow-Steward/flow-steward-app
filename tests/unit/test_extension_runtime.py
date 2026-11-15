@@ -6252,7 +6252,7 @@ def _raw_body_callback_manifest():
             "auth": {
                 "type": "raw_body_hmac_sha256",
                 "signature_header": "X-Custom-Signature",
-                "secret_name": "app_secret",
+                "secret_name": "app_secret",  # pragma: allowlist secret
                 "verification": {
                     "token_parameter": "verify.token",
                     "challenge_parameter": "verify.challenge",
@@ -6288,7 +6288,7 @@ def test_raw_body_callback_compiler_preserves_declared_protocol_and_empty_prefix
         "type": "raw_body_hmac_sha256",
         "signature_header": "X-Custom-Signature",
         "signature_prefix": "",
-        "secret_name": "app_secret",
+        "secret_name": "app_secret",  # pragma: allowlist secret
         "verification": {
             "token_parameter": "verify.token",
             "challenge_parameter": "verify.challenge",
@@ -6486,7 +6486,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
     callback["auth"] = {
         "type": "hub_signature",
         "signature_header": "X-Hub-Signature-256",
-        "secret_name": "app_secret",
+        "secret_name": "app_secret",  # pragma: allowlist secret
     }
     source["runtime"].update(
         {
@@ -6523,7 +6523,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
         "signature_header": "X-Hub-Signature-256",
         "signature_prefix": "sha256=",
         "_legacy_compatibility": True,
-        "secret_name": "app_secret",
+        "secret_name": "app_secret",  # pragma: allowlist secret
         "verification": {
             "token_parameter": "hub.verify_token",
             "challenge_parameter": "hub.challenge",
@@ -6793,7 +6793,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
                     "response": "hmac",
                     "challenge_parameter": "nonce",
                     "response_field": "proof",
-                    "secret_name": "other_key",
+                    "secret_name": "other_key",  # pragma: allowlist secret
                 }
             },
             False,
@@ -6805,7 +6805,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
                     "response": "hmac",
                     "challenge_parameter": "nonce",
                     "response_field": "proof",
-                    "secret_ref": "foreign:secret",
+                    "secret_ref": "foreign:secret",  # pragma: allowlist secret
                 }
             },
             False,

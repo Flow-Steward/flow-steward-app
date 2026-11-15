@@ -61,7 +61,10 @@ def test_raw_body_callback_migration_is_idempotent_and_preserves_legacy_rows(dis
         assert conn.execute(
             "SELECT auth_type, auth_config_jsonb FROM public.extension_callback_registrations WHERE id = %s",
             (registration_id,),
-        ).fetchone() == ("hub_signature", {"secret_ref": "existing-ref"})
+        ).fetchone() == (
+            "hub_signature",
+            {"secret_ref": "existing-ref"},  # pragma: allowlist secret
+        )
         conn.execute(
             "INSERT INTO public.extension_callback_registrations "
             "(id, extension_id, callback_id, callback_token_hash, project_id, auth_type) "

@@ -451,7 +451,7 @@ callbacks:
       signature_header: X-Callback-Signature
       signature_encoding: base64
       signature_prefix: ""
-      secret_name: api_key
+      secret_name: api_key  # pragma: allowlist secret
       verification:
         response: hmac
         challenge_parameter: nonce
