@@ -242,7 +242,7 @@ function authValue(
     session: {
       authenticated: true,
       roles: [role],
-      user: { ...identity, roles: [role] },
+      user: { id: "user-1", account_id: "account-1", ...identity, roles: [role] },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -312,6 +312,65 @@ function renderReadyManifestActionPage(manifest: Record<string, unknown>) {
       remediation: { install_update: [], uninstall: [] },
     });
   });
+}
+
+function renderManualCallbackOwnerPage() {
+  const extensionId = "example.connector";
+  const registration = {
+    id: "registration-a", extension_id: extensionId, callback_id: "updates",
+    project_id: "project-1", connection_id: "connection-a", enabled: true,
+  };
+  const receipt = {
+    ...registration,
+    callback_url: "https://callbacks.example.test/webhook/extensions/example.connector/updates/one-time-route",
+    callback_secret: "non-authenticating-restoring-owner-fixture", // pragma: allowlist secret - owner restoration test sentinel
+  };
+  mockedFetchExtension.mockResolvedValue({
+    extension_id: extensionId, install_id: "install-1", display_name: "Example connector",
+    active: true, state: "active",
+  });
+  mockedFetchExtensionCompiledManifest.mockResolvedValue({
+    account_scope: { scope_type: "project" },
+    callbacks: [{ callback_id: "updates", connection_scoped: true }],
+    connection_types: [{ connection_type_id: "service_profile", display_name: "Service profile" }],
+    ui_manifest: { pages: [{
+      page_id: "setup", title: "Incoming updates", project_scoped: true,
+      connection: { connection_type_ids: ["service_profile"] },
+      components: [{ component_id: "incoming_setup", type: "callback_setup", callback_id: "updates", setup_mode: "manual" }],
+    }] },
+  });
+  mockedFetchProjectsList.mockResolvedValue({
+    projects: [{ id: "project-1", name: "Project One" }], page: 1, per_page: 200, total: 1, total_pages: 1,
+  });
+  mockedFetchProjectConnectionsList.mockResolvedValue([{
+    connection_id: "connection-a", connection_type: "service_profile", extension_id: extensionId,
+    extension_install_id: "install-1", display_name: "Primary profile", enabled: true,
+  }]);
+  mockedFetchExtensionCallbacks.mockResolvedValue([{ ...registration, callback_url: "/webhook/extensions/example.connector/updates/<redacted>" }]);
+  mockedCreateExtensionCallbackRegistration.mockResolvedValue(receipt);
+  const entry = `/extensions/${extensionId}?project_id=project-1&extension_page=setup&extension_connection=connection-a`;
+  return { ...renderPage(entry, "operator"), receipt };
+}
+
+function unavailableCallbackAuth(
+  state: "missing user" | "restoring user" | "restoring permissions",
+): AuthContextValue {
+  const ready = authValue("operator");
+  if (!ready.session) throw new Error("Expected an authenticated test session.");
+  return {
+    ...ready,
+    status: state === "missing user" ? "authenticated" : "loading",
+    // Retain stale operator roles, including while the real user is absent.
+    session: { ...ready.session, user: state === "restoring permissions" ? ready.session.user : undefined },
+  };
+}
+
+function expectCallbackSetupUnavailable() {
+  for (const name of ["Create Callback", "Refresh Status"]) {
+    const control = screen.queryByRole("button", { name });
+    if (control) expect(control).toBeDisabled();
+  }
+  expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
 }
 
 function RecoveryScopeSwitcher() {
@@ -1045,6 +1104,59 @@ describe("ExtensionsHubPage", () => {
     expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledExactlyOnceWith(
       extensionId, "updates", expect.objectContaining({ project_id: "project-1", connection_id: "connection-a", configure: false }),
     );
+  });
+
+  it.each(["missing user", "restoring user", "restoring permissions"] as const)(
+    "fails closed for %s and does not restore one-time callback credentials with the same owner",
+    async (state) => {
+      const user = userEvent.setup();
+      const view = renderManualCallbackOwnerPage();
+      await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+      await user.click(screen.getByRole("button", { name: "Create Callback" }));
+      await waitFor(() => expect(screen.getByRole("button", { name: "Copy Verify Token" })).toBeVisible());
+
+      view.rerenderAuth(unavailableCallbackAuth(state));
+
+      expectCallbackSetupUnavailable();
+      expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+      expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+      expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
+
+      view.rerenderAuth(authValue("operator"));
+
+      await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+      expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+      expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+      expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+      expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
+    },
+  );
+
+  it("discards an in-flight callback receipt after the real owner becomes unavailable and returns", async () => {
+    const user = userEvent.setup();
+    const view = renderManualCallbackOwnerPage();
+    const pending = deferredWorkspaceResponse<typeof view.receipt>();
+    mockedCreateExtensionCallbackRegistration.mockReturnValueOnce(pending.promise);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Create Callback" }));
+    await waitFor(() => expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1));
+
+    view.rerenderAuth(unavailableCallbackAuth("restoring user"));
+    expectCallbackSetupUnavailable();
+    view.rerenderAuth(authValue("operator"));
+    const listCallsBeforeReceipt = mockedFetchExtensionCallbacks.mock.calls.length;
+
+    await act(async () => { pending.resolve(view.receipt); await pending.promise; });
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
+    expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(view.receipt.callback_url)).not.toBeInTheDocument();
+    expect(screen.queryByText(view.receipt.callback_secret)).not.toBeInTheDocument();
+    expect(mockedFetchExtensionCallbacks).toHaveBeenCalledTimes(listCallsBeforeReceipt);
+    expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
+    expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
   });
 
   it("names a callback connection only after exact scoped resolution and refetch", async () => {
