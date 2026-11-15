@@ -6552,3 +6552,352 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
     assert (
         yaml.safe_load(manifest_path.read_text())["callbacks"][0]["auth"]["type"] == "hub_signature"
     )
+
+
+@pytest.mark.parametrize(
+    "auth_options,valid",
+    [
+        pytest.param(
+            {
+                "signature_encoding": "base64",
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {},
+                },
+            },
+            True,
+            id="base64-hmac-no-token",
+        ),
+        pytest.param({}, True, id="implicit-hex-echo-defaults"),
+        pytest.param({"signature_encoding": "hex"}, True, id="explicit-hex-echo-default"),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "echo",
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            True,
+            id="explicit-echo",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                }
+            },
+            True,
+            id="default-hex-hmac",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof.value",
+                    "token_parameter": "v",
+                    "required_parameters": {"mode": "check"},
+                }
+            },
+            True,
+            id="hmac-with-token-and-literal",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "p" * 64,
+                }
+            },
+            True,
+            id="response-name-boundary",
+        ),
+        pytest.param({"signature_encoding": "base64url"}, False, id="unknown-encoding"),
+        pytest.param({"signature_encoding": "HEX"}, False, id="encoding-case-is-exact"),
+        pytest.param({"signature_encoding": None}, False, id="null-encoding"),
+        pytest.param({"signature_encoding": 1}, False, id="numeric-encoding"),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "unknown",
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            False,
+            id="unknown-response",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": None,
+                    "token_parameter": "v",
+                    "challenge_parameter": "nonce",
+                }
+            },
+            False,
+            id="null-response",
+        ),
+        pytest.param(
+            {"verification": {"response": "echo", "challenge_parameter": "nonce"}},
+            False,
+            id="echo-token-required",
+        ),
+        pytest.param(
+            {"verification": {"response": "hmac", "challenge_parameter": "nonce"}},
+            False,
+            id="hmac-field-required",
+        ),
+        pytest.param(
+            {"verification": {"response": "hmac", "response_field": "proof"}},
+            False,
+            id="hmac-challenge-required",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "",
+                }
+            },
+            False,
+            id="empty-response-field",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "p" * 65,
+                }
+            },
+            False,
+            id="response-field-too-long",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof\ninjected",
+                }
+            },
+            False,
+            id="response-field-control",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "é",
+                }
+            },
+            False,
+            id="response-field-non-ascii",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "{proof}",
+                }
+            },
+            False,
+            id="response-field-expression",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": "",
+                }
+            },
+            False,
+            id="supplied-empty-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": None,
+                }
+            },
+            False,
+            id="supplied-null-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": ["v"],
+                }
+            },
+            False,
+            id="supplied-malformed-token-name",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "token_parameter": "nonce",
+                }
+            },
+            False,
+            id="token-challenge-overlap",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {"nonce": "fixed"},
+                }
+            },
+            False,
+            id="literal-challenge-overlap",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "required_parameters": {"mode": "x" * 513},
+                }
+            },
+            False,
+            id="literal-value-bound",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "secret_name": "other_key",
+                }
+            },
+            False,
+            id="independent-response-key",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "secret_ref": "foreign:secret",
+                }
+            },
+            False,
+            id="independent-response-key-ref",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "signature_encoding": "hex",
+                }
+            },
+            False,
+            id="independent-response-encoding",
+        ),
+        pytest.param(
+            {
+                "verification": {
+                    "response": "hmac",
+                    "challenge_parameter": "nonce",
+                    "response_field": "proof",
+                    "signature_prefix": "other=",
+                }
+            },
+            False,
+            id="independent-response-prefix",
+        ),
+        pytest.param(
+            {"signature_encoding": "base64", "_legacy_compatibility": True},
+            False,
+            id="authored-compatibility-policy",
+        ),
+    ],
+)
+def test_raw_body_callback_compiler_validates_encoding_and_hmac_verification_contract(
+    auth_options, valid
+):
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"][0]["auth"].update(copy.deepcopy(auth_options))
+    result = validate_compiled_manifest(manifest)
+    assert result["status"] == ("valid" if valid else "invalid"), result["errors"]
+    if not valid:
+        assert any(
+            issue.get("field_path", "").startswith("callbacks[0].auth")
+            for issue in result["errors"]
+        ), result["errors"]
+        return
+    auth = manifest["callbacks"][0]["auth"]
+    assert auth.get("signature_encoding", "hex") == auth_options.get("signature_encoding", "hex")
+    verification = auth["verification"]
+    source = auth_options.get(
+        "verification", _raw_body_callback_manifest()["callbacks"][0]["auth"]["verification"]
+    )
+    assert verification.get("response", "echo") == source.get("response", "echo")
+    for field in (
+        "challenge_parameter",
+        "token_parameter",
+        "response_field",
+        "required_parameters",
+    ):
+        if field in source:
+            assert verification[field] == source[field]
+    if "token_parameter" not in source:
+        assert "token_parameter" not in verification
+
+
+def test_raw_body_callback_canonical_hmac_example_compiles_against_declared_secret():
+    import yaml
+
+    from core.infrastructure.extension_runtime.extension_runtime import validate_compiled_manifest
+
+    standard = yaml.safe_load(
+        (
+            Path(__file__).resolve().parents[2] / "docs/standards/extension-manifest-standard.yaml"
+        ).read_text()
+    )
+    example = next(row for row in standard["callbacks"] if row["callback_id"] == "signed_updates")
+    secret_name = example["auth"]["secret_name"]
+    declared = {
+        name
+        for connection_type in standard["runtime"]["extension_contract_v2"]["connection_types"]
+        for name in connection_type.get("secret_schema", {}).get("properties", {})
+    }
+    assert secret_name in declared
+    manifest = _raw_body_callback_manifest()
+    manifest["callbacks"] = [copy.deepcopy(example)]
+    manifest["runtime"]["compatibility"] = standard["runtime"]["compatibility"]
+    manifest["connection_types"][0]["secret_schema"]["properties"][secret_name] = {"type": "string"}
+    result = validate_compiled_manifest(manifest)
+    assert result["status"] == "valid", result["errors"]
+    assert manifest["callbacks"][0]["auth"]["verification"]["required_parameters"] == {}
+    assert "token_parameter" not in manifest["callbacks"][0]["auth"]["verification"]

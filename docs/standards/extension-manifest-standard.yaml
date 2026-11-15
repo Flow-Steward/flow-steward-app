@@ -11,21 +11,46 @@
 # - none
 # - shared_secret_header
 # - hmac_sha256 (timestamped, replay-protected delivery)
-# - raw_body_hmac_sha256 (platform_min 1.9.0): connection_scoped must be true.
+# - raw_body_hmac_sha256: accepted/frozen authoring contract for host 1.9.0.
+#   Runtime implementation/integration verification of Base64 and HMAC JSON
+#   verification is pending; this contract does not claim release readiness.
+#   connection_scoped must be true; platform_min must be >=1.9.0.
 #   signature_header: required ASCII HTTP token, <=128 characters.
 #   signature_prefix: optional exact printable ASCII string, <=64 characters,
-#     default empty. The remaining signature is 64 hexadecimal SHA-256 characters.
+#     default empty. No trimming, interpolation or independent response prefix.
+#   signature_encoding: hex (default) | base64. Both encode the same 32-byte
+#     HMAC-SHA256 digest. Base64 is strict canonical standard Base64 with padding;
+#     malformed/truncated/noncanonical input is rejected.
 #   secret_name: normalized local field name in an owning connection type's
 #     secret_schema.properties. Signing secret bytes retain whitespace exactly.
 #   verification: optional GET-only host handshake (methods must include GET):
-#     token_parameter and challenge_parameter are distinct exact ASCII identifiers
-#     matching [A-Za-z_][A-Za-z0-9_.-]{0,63}.
-#     required_parameters is an optional map of <=8 disjoint parameter names to
-#     nonempty exact literal strings, <=512 UTF-8 bytes each.
-#   Token/challenge are nonempty, <=512 UTF-8 bytes; encoded query <=8192 bytes,
-#   <=16 pairs, no duplicate names. Success echoes the challenge as text/plain
-#   without extension dispatch. No verification declaration: normal signed GET.
-#   Unknown fields, dynamic expressions and arbitrary secret references are rejected.
+#     response: echo (default) | hmac.
+#     challenge_parameter: required exact ASCII identifier, <=64 characters.
+#     token_parameter: required for echo; optional for hmac. When supplied it must
+#       be a valid nonempty name distinct from challenge_parameter. Its query
+#       value must exactly match the registration-generated verify token.
+#       Supplied null/empty/malformed names are invalid, not treated as omitted.
+#     response_field: required for hmac; literal ASCII identifier <=64 characters.
+#     Query/response field names match [A-Za-z_][A-Za-z0-9_.-]{0,63}.
+#     required_parameters: optional map (default {}) of <=8 other disjoint names
+#       to nonempty exact literal strings, <=512 UTF-8 bytes each.
+#   Required token/challenge values are nonempty, <=512 UTF-8 bytes; encoded query <=8192 bytes,
+#   <=16 pairs, no duplicate names. Echo returns exact text/plain challenge.
+#   Hmac returns application/json {<response_field>: signature_prefix +
+#     encode(HMAC-SHA256(connection_secret, challenge_utf8))}, using the SAME
+#     auth.secret_name, signature_encoding and signature_prefix as POST signing.
+#     No token_parameter: no registration verify token is generated/required.
+#     The challenge must match [A-Za-z0-9._~+/=\-]{1,512}; reject structures,
+#     quoted JSON strings, controls, whitespace and Unicode BEFORE key resolution.
+#     In hmac verification mode, correctly signed POST bodies must parse as JSON
+#     objects regardless of Content-Type. Reject signed nonce/scalar/string/array:
+#     GET and POST message languages must be disjoint to prevent a signing oracle.
+#     Invalid verification query/token/nonce ->403; bad signature ->401;
+#     correctly signed non-object POST in hmac mode ->400. Rejections never dispatch.
+#   GET verification never dispatches extension actions/events/workflows. No
+#   verification declaration: normal signed GET. Echo retains raw-body POSTs.
+#   Unknown fields/modes, independent response secret/encoding/prefix fields,
+#   dynamic expressions and arbitrary secret references are rejected.
 #   No delivery-id replay protection: extension owns provider event deduplication.
 # - hub_signature: legacy preset normalized to the same raw-body protocol with
 #   authored signature_header/secret_name, sha256= prefix and hub.verify_token,
@@ -379,6 +404,25 @@ callbacks:
     auth:
       type: shared_secret_header
       header: X-Example-Callback-Secret
+  # Frozen generic HMAC-verification example (runtime/integration checks pending).
+  # api_key is declared in an owning connection type's secret_schema below.
+  - callback_id: signed_updates
+    purpose: inbound_events
+    methods: [GET, POST]
+    action_id: ingress_event
+    connection_scoped: true
+    auth:
+      type: raw_body_hmac_sha256
+      signature_header: X-Callback-Signature
+      signature_encoding: base64
+      signature_prefix: ""
+      secret_name: api_key
+      verification:
+        response: hmac
+        challenge_parameter: nonce
+        response_field: proof
+        required_parameters: {}
+        # token_parameter: verify_token  # Optional registration-generated token.
   # Reserved core-owned OAuth callback. It is registered at project scope before
   # a connection exists and therefore has neither action_id nor callback auth.
   - callback_id: oauth_authorization
@@ -443,6 +487,8 @@ runtime:
   # Required. The host invokes only releases built for its contract; validation
   # and install fail for a missing or different value.
   contract_version: extension_host_v2
+  compatibility:
+    platform_min: 1.9.0
   extension_contract_v2:
     # An LLM provider extension declares an llm_provider block (shown commented,
     # since this example is not one). Host contract versions, compared with
@@ -1059,6 +1105,39 @@ x-validator-contract:
     - hmac_sha256
     - hub_signature
     - raw_body_hmac_sha256
+  raw_body_callback_auth:
+    authoring_contract: accepted_frozen
+    platform_min: 1.9.0
+    runtime_integration_verification: pending
+    signature_encoding:
+      values: [hex, base64]
+      default: hex
+      digest_bytes: 32
+      base64_form: canonical_standard_padded
+    verification:
+      response:
+        values: [echo, hmac]
+        default: echo
+      challenge_parameter: required_ascii_identifier_max64
+      token_parameter:
+        echo: required
+        hmac: optional_but_validate_when_supplied
+      response_field: required_for_hmac_ascii_identifier_max64
+      required_parameters: optional_disjoint_literal_map_max8_default_empty
+      field_name_pattern: '^[A-Za-z_][A-Za-z0-9_.-]{0,63}$'
+      value_max_utf8_bytes: 512
+      query_max_bytes: 8192
+      query_max_pairs: 16
+      duplicate_query_names: rejected
+      hmac_nonce_pattern: '^[A-Za-z0-9._~+/=\-]{1,512}$'
+      hmac_nonce_validation: before_signing_key_resolution
+      hmac_post_body: json_object_regardless_of_content_type
+      response_signing_source: same_connection_secret_encoding_and_prefix_as_body
+      independent_response_signing_fields: forbidden
+      invalid_verification_status: 403
+      invalid_signature_status: 401
+      signed_hmac_post_non_object_status: 400
+      get_extension_dispatch: forbidden
   connection_auth_types:
     - none
     - api_key

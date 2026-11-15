@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import hmac
 import threading
@@ -2112,6 +2113,7 @@ def _raw_body_callback_setup(
     prefix: str = "sig=",
     verification: bool = True,
     app_secret: str = "fixture-signing-material",  # pragma: allowlist secret
+    auth_options: dict[str, Any] | None = None,
 ):
     fake = FakeCallbackLogger()
     callback = fake.extension["compiled_manifest"]["callbacks"][0]
@@ -2128,6 +2130,7 @@ def _raw_body_callback_setup(
             "challenge_parameter": "validation.challenge",
             "required_parameters": {"validation.mode": "listen"},
         }
+    callback["auth"].update(auth_options or {})
     fake.connections["conn-callback-primary"]["secret_refs"] = {
         "provider_secrets": {
             "provider_key": "fixture.callback-provider",
@@ -2530,3 +2533,282 @@ def test_legacy_hub_callback_preserves_authored_header_and_secret_name(monkeypat
         ).status_code
         == 401
     )
+
+
+def _hmac_verification_options(*, token: bool = False, encoding: str | None = None):
+    verification = {
+        "response": "hmac",
+        "challenge_parameter": "nonce",
+        "response_field": "proof",
+        "required_parameters": {"mode": "check"},
+    }
+    if token:
+        verification["token_parameter"] = "v"
+    options = {"verification": verification}
+    if encoding is not None:
+        options["signature_encoding"] = encoding
+    return options
+
+
+def _forbid_callback_dispatch(monkeypatch):
+    monkeypatch.setattr(
+        "core.application.extensions.callbacks.ExtensionCallbackDispatchService.dispatch",
+        lambda *_args, **_kwargs: pytest.fail("verification or rejected input must not dispatch"),
+    )
+
+
+def test_raw_body_hmac_callback_accepts_declared_base64_signature(monkeypatch):
+    fake, client, created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        app_secret=" fixture-signing-material ",
+        auth_options={"signature_encoding": "base64"},
+    )
+    body = b'{ "event": "received", "items": [] }'
+    digest = hmac.new(key.encode(), body, hashlib.sha256).digest()
+    encoded = base64.b64encode(digest).decode("ascii")
+    headers = {"X-Custom-Signature": "body=" + encoded}
+    accepted = client.post(path, content=body, headers=headers)
+    assert accepted.status_code == 200, accepted.text
+    _forbid_callback_dispatch(monkeypatch)
+    assert client.post(path, content=body + b" ", headers=headers).status_code == 401
+    for wrong_key in (key.strip(), "incorrect-key", created["callback_secret"]):
+        wrong = base64.b64encode(
+            hmac.new(wrong_key.encode(), body, hashlib.sha256).digest()
+        ).decode()
+        assert (
+            client.post(
+                path, content=body, headers={"X-Custom-Signature": "body=" + wrong}
+            ).status_code
+            == 401
+        )
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    # Nonzero padding bits decode to the same bytes but are not canonical Base64.
+    noncanonical = encoded[:-2] + alphabet[alphabet.index(encoded[-2]) | 1] + "="
+    for malformed in (
+        encoded[:-1],
+        encoded + "=",
+        encoded[:10] + " " + encoded[10:],
+        "?" + encoded[1:],
+        "_" * 43 + "=",
+        noncanonical,
+        base64.b64encode(digest[:-1]).decode(),
+        base64.b64encode(digest + b"x").decode(),
+        digest.hex(),
+    ):
+        response = client.post(
+            path, content=body, headers={"X-Custom-Signature": "body=" + malformed}
+        )
+        assert response.status_code == 401, (malformed, response.text)
+    fake.get_provider_secret = lambda **_kwargs: ""
+    assert client.post(path, content=body, headers=headers).status_code == 401
+
+
+@pytest.mark.parametrize(
+    "nonce",
+    ["nonce-123._~+/=", "7", "n" * 512],
+    ids=["ascii-alphabet", "scalar-json-nonce", "max-nonce"],
+)
+@pytest.mark.parametrize("encoding", [None, "hex", "base64"], ids=["default-hex", "hex", "base64"])
+@pytest.mark.parametrize("prefix", ["", "proof="])
+@pytest.mark.parametrize("token", [False, True], ids=["no-token", "with-token"])
+def test_raw_body_hmac_callback_answers_hmac_verification_using_owning_connection_key(
+    monkeypatch, encoding, prefix, token, nonce
+):
+    options = _hmac_verification_options(token=token, encoding=encoding)
+    if not token:
+        options["verification"]["required_parameters"] = {}
+    fake, client, created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix=prefix,
+        auth_options=options,
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    params = {"nonce": nonce}
+    if token:
+        params.update({"mode": "check", "v": created["callback_secret"]})
+    response = client.get(path, params=params)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/json")
+    digest = hmac.new(key.encode(), nonce.encode(), hashlib.sha256).digest()
+    encoded = base64.b64encode(digest).decode() if encoding == "base64" else digest.hex()
+    assert response.json() == {"proof": prefix + encoded}
+    if not token:
+        assert not created.get("callback_secret")
+        assert not fake.secrets
+    fake.get_provider_secret = lambda **_kwargs: ""
+    assert client.get(path, params=params).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "missing-token",
+        "empty-token",
+        "wrong-token",
+        "padded-token",
+        "duplicate-token",
+        "missing-nonce",
+        "empty-nonce",
+        "oversize-nonce",
+        "duplicate-nonce",
+        "missing-mode",
+        "wrong-mode",
+        "duplicate-mode",
+        "duplicate-unknown",
+        "too-many-pairs",
+        "oversize-query",
+    ],
+)
+def test_hmac_verification_rejects_invalid_queries_without_dispatch(monkeypatch, invalid):
+    _fake, client, created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(token=True),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    params = {"nonce": "nonce-123", "mode": "check", "v": created["callback_secret"]}
+    if invalid.startswith("missing-"):
+        params.pop(
+            {"token": "v", "nonce": "nonce", "mode": "mode"}[invalid.removeprefix("missing-")]
+        )
+    elif invalid.startswith("duplicate-"):
+        field = {"token": "v", "nonce": "nonce", "mode": "mode", "unknown": "other"}[
+            invalid.removeprefix("duplicate-")
+        ]
+        value = params.get(field, "same")
+        params[field] = [value, value]
+    elif invalid == "empty-token":
+        params["v"] = ""
+    elif invalid == "wrong-token":
+        params["v"] = "incorrect"
+    elif invalid == "padded-token":
+        params["v"] = " " + created["callback_secret"] + " "
+    elif invalid == "empty-nonce":
+        params["nonce"] = ""
+    elif invalid == "oversize-nonce":
+        params["nonce"] = "n" * 513
+    elif invalid == "wrong-mode":
+        params["mode"] = "Check"
+    elif invalid == "too-many-pairs":
+        params.update({f"other{number}": "x" for number in range(14)})
+    else:
+        params["other"] = "x" * 8193
+    assert client.get(path, params=params).status_code == 403
+
+
+@pytest.mark.parametrize(
+    "nonce",
+    [
+        '{"event":"forged"}',
+        '"nonce-123"',
+        "[]",
+        "n\n",
+        "n\x00",
+        "n\t",
+        "n n",
+        "é",
+        "n%",
+        "n&",
+        "n:",
+    ],
+)
+def test_hmac_verification_rejects_signing_oracle_nonce_before_key_resolution(monkeypatch, nonce):
+    _fake, client, created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(token=True),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    monkeypatch.setattr(
+        "core.application.extensions.callbacks.ExtensionCallbackDispatchService._connection_secret",
+        lambda *_args, **_kwargs: pytest.fail(
+            "invalid nonce must be rejected before signing key lookup"
+        ),
+    )
+    response = client.get(
+        path, params={"nonce": nonce, "mode": "check", "v": created["callback_secret"]}
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("encoding", ["hex", "base64"])
+@pytest.mark.parametrize("content_type", ["application/json", "text/plain"])
+@pytest.mark.parametrize(
+    "body", [b"nonce-123._~+/=", b'"nonce"', b"7", b"null", b"true", b"[]", b"", b"{broken"]
+)
+def test_hmac_verification_mode_rejects_signed_non_object_posts_without_dispatch(
+    monkeypatch, body, encoding, content_type
+):
+    _fake, client, _created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        auth_options=_hmac_verification_options(encoding=encoding),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    raw_digest = hmac.new(key.encode(), body, hashlib.sha256).digest()
+    digest = base64.b64encode(raw_digest).decode() if encoding == "base64" else raw_digest.hex()
+    response = client.post(
+        path,
+        content=body,
+        headers={"X-Custom-Signature": "body=" + digest, "Content-Type": content_type},
+    )
+    assert response.status_code == 400, response.text
+
+
+def test_hmac_verification_mode_accepts_signed_json_object_post(monkeypatch):
+    _fake, client, _created, path, key = _raw_body_callback_setup(
+        monkeypatch,
+        prefix="body=",
+        auth_options=_hmac_verification_options(encoding="base64"),
+    )
+    body = b'{ "event": "object-message", "items": [] }'
+    digest = base64.b64encode(hmac.new(key.encode(), body, hashlib.sha256).digest()).decode()
+    response = client.post(
+        path,
+        content=body,
+        headers={"X-Custom-Signature": "body=" + digest, "Content-Type": "application/json"},
+    )
+    assert response.status_code == 200, response.text
+
+
+def test_echo_verification_keeps_non_json_raw_body_post_compatibility(monkeypatch):
+    _fake, client, _created, path, key = _raw_body_callback_setup(monkeypatch)
+    body = b"nonce-123._~+/="
+    digest = hmac.new(key.encode(), body, hashlib.sha256).hexdigest()
+    response = client.post(path, content=body, headers={"X-Custom-Signature": "sig=" + digest})
+    assert response.status_code == 200, response.text
+
+
+@pytest.mark.parametrize(
+    "state,status",
+    [
+        ("registration-disabled", 410),
+        ("connection-disabled", 404),
+        ("cross-project", 404),
+        ("cross-account", 404),
+        ("cross-extension", 404),
+        ("cross-install", 404),
+    ],
+)
+def test_hmac_verification_preserves_registration_and_connection_ownership(
+    monkeypatch, state, status
+):
+    fake, client, _created, path, _key = _raw_body_callback_setup(
+        monkeypatch,
+        auth_options=_hmac_verification_options(),
+    )
+    _forbid_callback_dispatch(monkeypatch)
+    connection = fake.connections["conn-callback-primary"]
+    if state == "registration-disabled":
+        next(iter(fake.registrations.values()))["enabled"] = False
+    elif state == "connection-disabled":
+        connection["enabled"] = False
+    else:
+        connection[
+            {
+                "cross-project": "project_id",
+                "cross-account": "account_id",
+                "cross-extension": "extension_id",
+                "cross-install": "extension_install_id",
+            }[state]
+        ] = "foreign-owner"
+    assert client.get(path, params={"nonce": "nonce-123", "mode": "check"}).status_code == status
