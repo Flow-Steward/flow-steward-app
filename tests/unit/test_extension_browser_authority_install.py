@@ -4,6 +4,7 @@ import ast
 import asyncio
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -248,6 +249,120 @@ def test_reenable_requires_persisted_matching_browser_authority(tmp_path: Path):
         refreshed.provenance["browser_authority_approval"]["approved_impact_hash"]
         == (preview.value.payload["impact_hash"])
     )
+
+
+def test_scanned_reimport_accepts_only_the_exact_installed_release_preview(
+    tmp_path: Path,
+) -> None:
+    import copy
+
+    from core.application.extensions.browser_authority_approval import (
+        current_browser_authority_impact,
+    )
+    from core.application.extensions.enable_browser_authority import (
+        scanned_release_browser_authority_handoff,
+    )
+    from core.application.extensions.install_browser_authority import (
+        prepare_install_browser_authority,
+    )
+
+    installed = _release(tmp_path)
+    non_browser_file = tmp_path / "bundle" / "main.py"
+    non_browser_file.write_text("print('{}')\n", encoding="utf-8")
+    record = ExtensionInstallStore().install(
+        extension_id=installed.extension_id,
+        version=installed.release_version,
+        account_id=DEFAULT_ACCOUNT_ID,
+        release_id=installed.release_id,
+        provenance={},
+    )
+    preview = current_browser_authority_impact(record=record, release=installed)
+    assert preview.approval_required is True
+
+    def handoff_for(approved_hash: str):
+        return scanned_release_browser_authority_handoff(
+            record=record,
+            release=installed,
+            scope=_scope(),
+            approved_impact_hash=approved_hash,
+        )
+
+    tampered = preview.impact_hash[:-1] + ("0" if preview.impact_hash[-1] != "0" else "1")
+    assert handoff_for("") is None
+    assert handoff_for(tampered) is None
+    handoff = handoff_for(preview.impact_hash)
+    assert handoff is not None
+    assert handoff.impact == preview
+    assert handoff.candidate_version == installed.release_version
+
+    def reimported(descriptor: dict) -> ExtensionReleaseRecord:
+        return ExtensionReleaseRecord.model_validate(
+            {
+                **installed.model_dump(),
+                "release_id": "pr_reimported",
+                "descriptor": descriptor,
+                "descriptor_sha256": "",
+            }
+        )
+
+    # Re-import persists a new release (the descriptor now carries the compiled
+    # UI); the approval carries over only for the exact same browser surface.
+    same_surface = reimported({**copy.deepcopy(installed.descriptor), "display_name": "Picker"})
+    assert same_surface.descriptor_sha256 != installed.descriptor_sha256
+    command = ExtensionReleaseInstallInput(
+        release_id=same_surface.release_id,
+        approved_browser_authority_impact_hash=preview.impact_hash,
+    )
+    impact, approval = prepare_install_browser_authority(
+        command=command,
+        scope=_scope(),
+        release=same_surface,
+        existing=record,
+        handoff=handoff,
+    )
+    assert impact is not None
+    assert impact.new_release_id == "pr_reimported"
+    assert impact.descriptor_sha256 == same_surface.descriptor_sha256
+    assert impact.surface_fingerprint == preview.surface_fingerprint
+    assert approval["approved_impact_hash"] == preview.impact_hash
+
+    changed = copy.deepcopy(installed.descriptor)
+    picker = changed["ui_manifest"]["pages"][0]["components"][0]["data"]
+    picker["scripts"][0]["src"] = "https://changed.example.test/picker.js"
+    picker["allowed_script_origins"] = ["https://changed.example.test"]
+    with pytest.raises(ServiceValidationError, match="surface does not match"):
+        prepare_install_browser_authority(
+            command=command,
+            scope=_scope(),
+            release=reimported(changed),
+            existing=record,
+            handoff=handoff,
+        )
+
+    def assert_binding_refused(*, scope: ScopeContext, existing: object) -> None:
+        with pytest.raises(ServiceValidationError, match="does not match the installed release"):
+            prepare_install_browser_authority(
+                command=command,
+                scope=scope,
+                release=same_surface,
+                existing=existing,
+                handoff=handoff,
+            )
+
+    # The approved install, old release and project must still be the live binding.
+    for existing in (
+        None,
+        SimpleNamespace(install_id="pi_other", release_id=installed.release_id),
+        SimpleNamespace(install_id=record.install_id, release_id="pr_other"),
+    ):
+        assert_binding_refused(scope=_scope(), existing=existing)
+    assert_binding_refused(
+        scope=_scope().model_copy(update={"project_id": "project-other"}),
+        existing=record,
+    )
+    # Any candidate byte that changes after the approval is refused, browser or not.
+    non_browser_file.write_text("print('changed')\n", encoding="utf-8")
+    assert_binding_refused(scope=_scope(), existing=record)
 
 
 def test_real_cli_enable_binding_cannot_bypass_browser_authority_gate(tmp_path: Path) -> None:
@@ -672,6 +787,20 @@ def test_real_cli_enable_binding_cannot_bypass_browser_authority_gate(tmp_path: 
                 ),
             )
         )
+        # The descriptor carries the compiled UI, so the re-imported bundle is a new
+        # release; the page-preview approval is bound to exactly that publication.
+        record = install_store.get(extension_id=extension_id, account_id=DEFAULT_ACCOUNT_ID)
+        assert record is not None
+        release = runtime_store.get_release(record.release_id)
+        assert release is not None
+        assert (
+            record.provenance["browser_authority_approval"]["approved_impact_hash"]
+            == (remote_preview.value.payload["impact_hash"])
+        )
+        assert ExtensionDetailProjector._browser_authority_status(
+            record=record,
+            release=release,
+        )["matches"]
 
         ui_payload["pages"][0]["components"] = [
             component

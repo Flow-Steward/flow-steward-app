@@ -23,7 +23,10 @@ from .command_context import ExtensionCommandContext
 from .command_core import ExtensionCommandCore
 from .command_install import ExtensionCommandInstall
 from .command_lifecycle_recovery import ExtensionLifecycleRecoveryOperations
-from .enable_browser_authority import authorize_extension_enable_browser_authority
+from .enable_browser_authority import (
+    authorize_extension_enable_browser_authority,
+    scanned_release_browser_authority_handoff,
+)
 from .extension_activation_validation import (
     validate_extension_activation,
     validate_managed_release_artifact,
@@ -350,6 +353,12 @@ class ExtensionLifecycleActivationOperations:
             scope=scope,
             source_kind_override="extension_scan",
             allow_same_version_enrichment=True,
+            _browser_authority_handoff=scanned_release_browser_authority_handoff(
+                record=record,
+                release=release,
+                scope=scope,
+                approved_impact_hash=approved_browser_authority_impact_hash,
+            ),
         )
         refreshed_record = install_store.get(
             extension_id=record.extension_id,

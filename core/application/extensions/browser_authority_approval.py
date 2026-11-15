@@ -51,11 +51,17 @@ class BrowserAuthorityImpact:
 
 @dataclass(frozen=True, slots=True)
 class PreparedBrowserAuthorityApproval:
-    """Opaque internal handoff from one validated archive candidate."""
+    """Opaque internal handoff from one validated archive candidate.
+
+    ``bind_installed_release`` marks an approval of an installed release's mutable
+    scanned bundle: the install must still be that release, and the published tree
+    must be byte-identical to the approved one.
+    """
 
     impact: BrowserAuthorityImpact
     approval: dict[str, Any]
     candidate_version: str
+    bind_installed_release: bool = False
 
 
 def _text(value: Any) -> str:
