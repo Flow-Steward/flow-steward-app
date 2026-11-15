@@ -6507,6 +6507,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
                         "title": "Receive event",
                         "parameters": [],
                         "handler": {"mode": "extension"},
+                        "workflow_visible": False,
                     }
                 ]
             }
