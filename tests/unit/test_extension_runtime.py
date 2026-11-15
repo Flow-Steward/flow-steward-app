@@ -122,7 +122,7 @@ def _write_minimal_extension(
 
 
 def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
     from core.application.extensions.provider_registration import provider_row_for_extension
 
     bundle = tmp_path / "acme_provider"
@@ -130,7 +130,7 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
     normalized = {"extension_id": "acme.provider", "release_version": "1.0.0"}
     original = copy.deepcopy(normalized)
 
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor=normalized,
     )
@@ -162,11 +162,11 @@ def test_descriptor_enrichment_preserves_validated_provider_metadata(tmp_path) -
 def test_descriptor_enrichment_rejects_mismatched_provider_identity(
     tmp_path, extension_id, version, expected_code
 ) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
 
     bundle = tmp_path / "acme_provider"
     _write_minimal_extension(bundle, extension_id="acme.provider")
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor={"extension_id": extension_id, "release_version": version},
     )
@@ -178,12 +178,12 @@ def test_descriptor_enrichment_rejects_mismatched_provider_identity(
 
 
 def test_descriptor_enrichment_rejects_invalid_provider_manifest(tmp_path) -> None:
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
 
     bundle = tmp_path / "acme_provider"
     _write_minimal_extension(bundle, extension_id="acme.provider")
     (bundle / "extension.yaml").write_text("not: [valid", encoding="utf-8")
-    enriched, errors = _descriptor_with_bundle_runtime(
+    enriched, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor={"extension_id": "acme.provider", "release_version": "1.0.0"},
     )
@@ -6471,7 +6471,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
         _callback_auth,
         find_callback_declaration,
     )
-    from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+    from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
     from core.infrastructure.extension_runtime.extension_runtime import compile_extension_bundle
     from core.infrastructure.extension_runtime.extension_runtime_helpers import (
         build_extension_compiled_manifest,
@@ -6533,7 +6533,7 @@ def test_legacy_hub_bundle_import_and_installed_reload_keep_the_previous_host_fl
     assert compiled["compiled_manifest"]["callbacks"][0]["auth"] == expected_auth
     # Artifact import recompiles the original manifest, then persists its compiled
     # runtime fields; it does not validate the generic artifact as new author input.
-    descriptor, errors = _descriptor_with_bundle_runtime(
+    descriptor, errors = descriptor_with_bundle_runtime(
         descriptor_path=bundle / "extension-descriptor.yaml",
         normalized_descriptor={
             "extension_id": "acme.callback-provider",

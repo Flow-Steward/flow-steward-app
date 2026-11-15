@@ -8,7 +8,7 @@ from pathlib import Path
 
 import yaml
 
-from core.application.extensions.command_core import _descriptor_with_bundle_runtime
+from core.application.extensions.descriptor_bundle_runtime import descriptor_with_bundle_runtime
 from core.application.extensions.lifecycle import validate_extension_descriptor_file
 from core.application.extensions.oauth_contract import compile_oauth_providers
 from core.application.extensions.oauth_release_upgrade import resolve_oauth_release_contract
@@ -40,7 +40,7 @@ def test_artifact_descriptor_inherits_executable_oauth_without_changing_fingerpr
     assert compiled["status"] == "valid", compiled.get("compile_errors")
     executable = compiled["compiled_manifest"]
 
-    persisted, errors = _descriptor_with_bundle_runtime(
+    persisted, errors = descriptor_with_bundle_runtime(
         descriptor_path=descriptor_file,
         normalized_descriptor=validated["normalized"],
     )
@@ -64,7 +64,7 @@ def test_artifact_descriptor_inherits_executable_oauth_without_changing_fingerpr
     # contract that deliberately declares no OAuth providers.
     explicit = dict(validated["normalized"])
     explicit["runtime"] = {**explicit["runtime"], "extension_contract_v2": {}}
-    overridden, errors = _descriptor_with_bundle_runtime(
+    overridden, errors = descriptor_with_bundle_runtime(
         descriptor_path=descriptor_file, normalized_descriptor=explicit
     )
     assert errors == []

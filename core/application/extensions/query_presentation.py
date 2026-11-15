@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from core.application.management.errors import ServiceNotFoundError
@@ -18,6 +17,7 @@ from core.application.management.query_models import (
 from core.application.management.scope import ScopeContext
 
 from .browser_manifest_projection import project_browser_manifest
+from .extension_health_status import persisted_health, probe_health
 from .extension_runtime import runtime_has_no_manifest
 
 _MESSAGE_EXTENSION_NOT_FOUND = "Extension not found"
@@ -278,65 +278,19 @@ class ExtensionPresentationQuery:
         if detail is None:
             raise ServiceNotFoundError(_MESSAGE_EXTENSION_NOT_FOUND)
         if not detail.has_runtime_module:
-            health = {
+            health: dict[str, Any] = {
                 "status": "not_applicable",
                 "detail": "Extension has no runtime component.",
             }
+        elif str(detail.state or "").lower() == "disabled":
+            health = {
+                "status": "disabled",
+                "detail": "Extension is disabled; no active probe was run.",
+            }
+        elif self._run_runtime_health is not None and not self._is_foreign_global(detail):
+            health = self._probe_health(extension_id, scope=scope)
         else:
-            health: dict[str, Any] | None = None
-            state = str(detail.state or "").lower()
-            persisted = str(detail.health_status or "").strip().lower()
-            runtime_status = str(detail.runtime_status or "").strip().lower()
-            if state == "disabled":
-                health = {
-                    "status": "disabled",
-                    "detail": "Extension is disabled; no active probe was run.",
-                }
-            elif self._run_runtime_health is not None and not self._is_foreign_global(detail):
-                runtime = self._runtime_record(extension_id, scope=scope)
-                if runtime is not None:
-                    try:
-                        probe = dict(self._run_runtime_health(runtime) or {})
-                    except Exception as exc:
-                        probe = {"status": "failed", "detail": str(exc)}
-                    raw_status = str(probe.get("status") or "unknown").strip().lower()
-                    if raw_status in {"healthy", "ok", "succeeded", "success"}:
-                        status = "healthy"
-                    elif raw_status in {"failed", "unhealthy", "error"}:
-                        status = "failed"
-                    elif raw_status == "degraded":
-                        status = "degraded"
-                    else:
-                        status = "unknown"
-                    reason = str(probe.get("detail") or "No probe detail returned.").strip()
-                    health = {
-                        **probe,
-                        "status": status,
-                        "detail": reason,
-                        "reason": reason,
-                        "checked_at": datetime.now(UTC).isoformat(),
-                    }
-                else:
-                    health = {
-                        "status": "unknown",
-                        "detail": "Extension runtime record is unavailable; no active probe was run.",
-                    }
-            elif runtime_status in {"failed", "incompatible", "unavailable"} or persisted in {
-                "failed",
-                "unhealthy",
-            }:
-                status = "failed"
-            elif persisted == "degraded":
-                status = "degraded"
-            elif persisted in {"healthy", "ok"}:
-                status = "healthy"
-            else:
-                status = "unknown"
-            if health is None:
-                health = {
-                    "status": status,
-                    "detail": "Persisted extension health state; no active probe was run.",
-                }
+            health = persisted_health(detail)
         health = dict(health or {})
         if self._governance_reader is not None and not self._is_foreign_global(detail):
             health["governance"] = dict(
@@ -348,6 +302,19 @@ class ExtensionPresentationQuery:
                 or {}
             )
         return ExtensionHealthView(extension_id=extension_id, health=health)
+
+    def _probe_health(self, extension_id: str, *, scope: ScopeContext | None) -> dict[str, Any]:
+        runtime = self._runtime_record(extension_id, scope=scope)
+        if runtime is None or self._run_runtime_health is None:
+            return {
+                "status": "unknown",
+                "detail": "Extension runtime record is unavailable; no active probe was run.",
+            }
+        try:
+            probe = dict(self._run_runtime_health(runtime) or {})
+        except Exception as exc:
+            probe = {"status": "failed", "detail": str(exc)}
+        return probe_health(probe)
 
     def preview(
         self,
