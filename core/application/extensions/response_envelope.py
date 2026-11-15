@@ -7,6 +7,11 @@ from contextlib import contextmanager
 from typing import Any
 
 from core.application.extensions import extension_project_state
+from core.application.extensions.connection_config_mutation import (
+    CONDITIONAL_CONFIG_MUTATION,
+    ConnectionConfigMutationRejected,
+    apply_conditional_connection_config,
+)
 from core.application.extensions.connection_partition_validation import (
     ConnectionPartitionsRejected,
     require_valid_connection_partitions,
@@ -277,7 +282,19 @@ def process_host_mutations(
                 kind = item["kind"]
                 payload = item["payload"]
                 index = item["index"]
-                if kind == "project_connection_upsert":
+                if kind == CONDITIONAL_CONFIG_MUTATION:
+                    apply_conditional_connection_config(
+                        payload,
+                        db=transaction_db,
+                        extension=_as_dict(extension),
+                        grant=item["grant"],
+                        account_id=account_id,
+                        project_id=project_id,
+                        extension_id=extension_id,
+                        connection_id=connection_id,
+                        extension_install_id=extension_install_id,
+                    )
+                elif kind == "project_connection_upsert":
                     payload_connection_id = _text(payload.get("connection_id"))
                     payload_install_id = _text(payload.get("extension_install_id"))
                     requested_connection_id = _text(connection_id)
@@ -390,7 +407,7 @@ def process_host_mutations(
             failed_item = prepared[len(applied)] if len(applied) < len(prepared) else {}
             error_code = (
                 exc.code
-                if isinstance(exc, ConnectionPartitionsRejected)
+                if isinstance(exc, (ConnectionPartitionsRejected, ConnectionConfigMutationRejected))
                 else "host_mutation_failed"
             )
             errors.append(
@@ -401,6 +418,10 @@ def process_host_mutations(
                     "index": failed_item.get("index"),
                 }
             )
+            if isinstance(exc, ConnectionConfigMutationRejected):
+                errors[-1]["reason"] = exc.reason
+                if exc.path:
+                    errors[-1]["path"] = exc.path
         applied = []
     result = {"applied": applied, "errors": errors}
     invocation["host_mutations"] = result

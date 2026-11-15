@@ -150,7 +150,8 @@ required_scopes:
 # Rights over this extension's OWN data, granted by one host rule for every
 # extension (core/application/extensions/runtime_host_grants.py:own_runtime_grants).
 # scope may only be owning_extension (the default for project_connection,
-# callback_registrations, project_connection_upsert, project_connection_secrets_save);
+# callback_registrations, project_connection_upsert, project_connection_secrets_save,
+# project_connection_config_compare_and_set);
 # provider_key may only be this extension's own id (the default for every
 # provider-keyed kind). A grant over another extension's namespace, an unknown
 # kind, or a malformed secret_keys/connection_type_ids list fails validation
@@ -165,6 +166,7 @@ runtime_grants:
     callback_registrations: {}
   mutations:
     project_connection_upsert: {}
+    project_connection_config_compare_and_set: {}
     project_connection_secrets_save:
       secret_keys: [api_token]
       connection_type_ids: [example_connection]
@@ -1194,6 +1196,7 @@ x-validator-contract:
       - callback_registrations
     mutation_kinds:
       - project_connection_upsert
+      - project_connection_config_compare_and_set
       - project_connection_secrets_save
       - notification_delivery_log
       - notification_routes_save
@@ -1202,6 +1205,24 @@ x-validator-contract:
     list_fields: [secret_keys, connection_type_ids]
     error_code: runtime_grant_forbidden
     host_policy_file: none
+    conditional_connection_config:
+      kind: project_connection_config_compare_and_set
+      platform_min: "1.9.0"
+      payload_fields: [connection_id, extension_install_id, expect, set]
+      expect_states: [absent, equals, absent_or_equals]
+      max_distinct_paths: 16
+      max_path_length: 256
+      max_path_depth: 16
+      max_json_depth: 64
+      paths: dotted object keys; no empty components or array-index traversal
+      protected_root: oauth (including descendants), in both expect and set
+      equality: JSONB; explicit null differs from absence
+      assignments: nonempty; overlapping assignment paths forbidden
+      transaction: exact scoped row lock, validate current patched config, config-only update
+      precondition_error: host_mutation_precondition_failed
+      precondition_reasons: [absent_expected, value_mismatch]
+      rollback: whole host mutation batch; applied is empty on failure
+      adr: docs/architecture/adr/0073-conditional-connection-config-writes.md
   python_requirements:
     field: python_requirements
     item_shape:

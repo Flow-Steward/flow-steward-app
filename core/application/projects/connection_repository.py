@@ -7,6 +7,10 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
+from core.application.projects.connection_config_repository import (
+    ConfigTransform,
+    mutate_locked_connection_config,
+)
 from core.infrastructure.db import psycopg_runtime
 from core.infrastructure.db.platform_logger_common import (
     SQL_AND,
@@ -61,6 +65,27 @@ class ProjectConnectionRepositoryMixin:
     conn: Any
     _table_exists: Callable[[str], bool]
     _column_exists: Callable[[str, str], bool]
+
+    def mutate_locked_project_connection_config(
+        self,
+        *,
+        connection_id: str,
+        account_id: str,
+        project_id: str,
+        extension_id: str,
+        extension_install_id: str,
+        transform: ConfigTransform,
+    ) -> bool:
+        """Update only config inside the caller's pinned host-mutation transaction."""
+        return mutate_locked_connection_config(
+            self.conn,
+            connection_id=connection_id,
+            account_id=account_id,
+            project_id=project_id,
+            extension_id=extension_id,
+            extension_install_id=extension_install_id,
+            transform=transform,
+        )
 
     def consume_project_connection_ingress_token(
         self,

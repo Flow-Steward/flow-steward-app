@@ -30,7 +30,7 @@ def connection_case(disposable_db):
         with store.conn.cursor() as cur:
             cur.execute(
                 "INSERT INTO projects (id, name, account_id) VALUES (%s, %s, %s)",
-                (project_id, "Conditional config", DEFAULT_ACCOUNT_ID),
+                (project_id, f"Conditional config {suffix}", DEFAULT_ACCOUNT_ID),
             )
             cur.execute(
                 """
@@ -74,6 +74,7 @@ def connection_case(disposable_db):
                             "selected_id": {"type": "string"},
                             "oauth": {"type": "object"},
                             "settings": {"type": "object"},
+                            "settings-": {"type": "string"},
                         },
                         "additionalProperties": False,
                     },
@@ -299,6 +300,7 @@ def test_conditional_write_preserves_oauth_refreshed_after_invocation_snapshot(c
         {"set": {"anchor.": "A"}},
         {"set": {"settings..value": "A"}},
         {"set": {"settings": {}, "settings.value": "A"}},
+        {"set": {"settings": {}, "settings-": "B", "settings.value": "A"}},
     ],
 )
 def test_malformed_conditional_write_cannot_persist(connection_case, change):
@@ -389,3 +391,61 @@ def test_conditional_mutation_requires_action_declaration(connection_case):
 
     assert result["errors"][0]["code"] == "host_mutation_undeclared"
     assert "anchor" not in _persisted(connection_case)["connection_config"]
+
+
+@pytest.mark.parametrize("operation", ["condition", "unrelated_update"])
+def test_persisted_jsonb_precision_is_preserved(connection_case, operation):
+    with connection_case["store"].conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE project_connections
+               SET connection_config = '{
+                 "oauth": {"subject":"original","revision":1,
+                           "opaque_counter":0.100000000000000005},
+                 "settings": {"precise":0.100000000000000005}
+               }'::jsonb
+             WHERE connection_id = %s
+            """,
+            (connection_case["scope"]["connection_id"],),
+        )
+    mutation = _mutation("A")
+    if operation == "condition":
+        mutation["payload"]["expect"] = [
+            {"path": "settings.precise", "state": "equals", "value": 0.1}
+        ]
+
+    _, result = _apply(connection_case, [mutation])
+
+    if operation == "condition":
+        assert result["errors"], "A rounded value must not satisfy the original JSONB condition"
+        assert result["errors"][0]["code"] == "host_mutation_precondition_failed"
+    else:
+        assert result["errors"] == []
+    with connection_case["store"].conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT connection_config #> '{settings,precise}' =
+                       '0.100000000000000005'::jsonb,
+                   connection_config #> '{oauth,opaque_counter}' =
+                       '0.100000000000000005'::jsonb
+              FROM project_connections WHERE connection_id = %s
+            """,
+            (connection_case["scope"]["connection_id"],),
+        )
+        assert tuple(cur.fetchone()) == (True, True)
+
+
+def test_nested_assignments_preserve_siblings_under_a_created_parent(connection_case):
+    mutation = _mutation("A")
+    mutation["payload"]["set"].update(
+        {"settings.first": 1, "settings.second": 2, "settings.deeper.flag": True}
+    )
+
+    _, result = _apply(connection_case, [mutation])
+
+    assert result["errors"] == []
+    assert _persisted(connection_case)["connection_config"]["settings"] == {
+        "first": 1,
+        "second": 2,
+        "deeper": {"flag": True},
+    }

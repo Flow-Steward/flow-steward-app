@@ -1470,6 +1470,30 @@ A production-ready extension should be understandable from contracts alone:
 - The deliverable includes hash-locked wheels compatible with both Linux targets;
   native executable releases have the two explicit target archives.
 
+## Conditional connection configuration
+
+When a configuration update depends on a value still being absent or unchanged,
+use `project_connection_config_compare_and_set` (extension API 1.9.0). Declare
+the new kind in both `runtime_grants.mutations` and the action handler's
+`host_mutations`; set the bundle's `platform_min` to `1.9.0`. An older host
+rejects the unknown grant. Do not fall back to `project_connection_upsert`.
+
+Return `expect` conditions and a `set` map of dotted configuration paths. For an
+initial value that may be replayed, use `absent_or_equals` with that same value
+in `set`. The host checks the currently persisted value under a row lock;
+reading the invocation snapshot first is not an atomic precondition. A different
+established value fails with `host_mutation_precondition_failed` and rolls back
+the whole mutation batch.
+
+The host preserves unrelated current configuration and columns. Do not include
+`oauth` or its descendants in conditions or assignments, or send a copied OAuth
+block back to the host. The final configuration must satisfy the native
+connection schema, including any host-owned OAuth metadata it contains.
+
+See the canonical `conditional_connection_config` manifest contract and
+[ADR 0073](architecture/adr/0073-conditional-connection-config-writes.md) for
+payload examples, limits, JSON equality, scope and rollback behavior.
+
 ## Notes in bundled workflows
 
 Workflow artifacts use the same `settings.canvas_annotations` format as the

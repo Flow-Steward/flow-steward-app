@@ -390,6 +390,7 @@ def test_runtime_grants_is_a_documented_authoring_field() -> None:
     }
     assert set(contract["mutation_kinds"]) == {
         "project_connection_upsert",
+        "project_connection_config_compare_and_set",
         "project_connection_secrets_save",
         "notification_delivery_log",
         "notification_routes_save",
