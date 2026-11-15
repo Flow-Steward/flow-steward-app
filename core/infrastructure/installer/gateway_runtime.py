@@ -500,7 +500,7 @@ class RuntimeOperations:
             "aws_secret_access_key=os.environ['ARTIFACT_S3_SECRET_KEY']"
         )
         script = (
-            "import os,uuid,boto3; from botocore.exceptions import ClientError; "
+            "import os,time,uuid,boto3; from botocore.exceptions import ClientError; "
             "bucket=os.environ['ARTIFACT_S3_BUCKET']; "
             "client=boto3.client('s3', endpoint_url=os.environ['ARTIFACT_S3_ENDPOINT_URL'], "
             f"{client_options}, "
@@ -508,12 +508,27 @@ class RuntimeOperations:
             "use_ssl=os.environ.get('ARTIFACT_S3_USE_SSL','true').lower()=='true'); "
             f"create_bucket={create_bucket}; "
             f"read_only={read_only_value}; "
+            "missing={'404','NoSuchBucket','NotFound'}; "
+            "concurrent={'BucketAlreadyExists','BucketAlreadyOwnedByYou'}; "
+            "error_code=lambda exc: str(exc.response.get('Error',{}).get('Code','')); "
+            # The application creates the same bucket when it starts, so the
+            # create can lose a race it has nothing to do with. Only an
+            # "already exists" answer is taken as that race; the bucket must
+            # then become visible within a few bounded checks, and any other
+            # answer (access, credentials, endpoint) still fails the step.
             "\ntry: client.head_bucket(Bucket=bucket)\n"
             "except ClientError as exc:\n"
-            "  code=str(exc.response.get('Error',{}).get('Code',''))\n"
-            "  if create_bucket and code in {'404','NoSuchBucket','NotFound'}: "
-            "client.create_bucket(Bucket=bucket)\n"
-            "  else: raise\n"
+            "  if not (create_bucket and error_code(exc) in missing): raise\n"
+            "  try: client.create_bucket(Bucket=bucket)\n"
+            "  except ClientError as create_exc:\n"
+            "    if error_code(create_exc) not in concurrent: raise\n"
+            "    for attempt in range(10):\n"
+            "      try:\n"
+            "        client.head_bucket(Bucket=bucket)\n"
+            "        break\n"
+            "      except ClientError as head_exc:\n"
+            "        if error_code(head_exc) not in missing or attempt == 9: raise\n"
+            "        time.sleep(0.5)\n"
             "if not read_only:\n"
             "  key='.flow-steward-installer-probe-'+uuid.uuid4().hex\n"
             "  client.put_object(Bucket=bucket,Key=key,Body=b'')\n"

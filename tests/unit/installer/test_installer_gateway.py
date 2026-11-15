@@ -36,6 +36,7 @@ from core.infrastructure.installer.gateway import DockerInstallerGateway
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import RegistryImageIdentity
 from core.infrastructure.installer.state_store import InstallerStateStore
+from tests.support.scripted_s3_client import ScriptedS3Client
 
 _FULL_REVISION = "0123456789abcdef0123456789abcdef01234567"
 # The build argument is asserted as name plus value rather than as one written-out
@@ -5219,6 +5220,105 @@ def test_production_bundled_storage_probe_uses_generated_credentials(tmp_path: P
     assert "aws_access_key_id=os.environ['ARTIFACT_S3_ACCESS_KEY']" in script
     assert "aws_secret_access_key=os.environ['ARTIFACT_S3_SECRET_KEY']" in script
     assert "signature_version=UNSIGNED" not in script
+
+
+def _execute_bundled_storage_probe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    client: ScriptedS3Client,
+) -> list[float]:
+    """Run the installer's generated bundled-storage probe against ``client``."""
+    import time
+
+    import boto3
+
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process)
+    log = gateway.state_store.open_log("bundled-storage-race")
+    sleeps: list[float] = []
+    monkeypatch.setattr(boto3, "client", lambda _service, **_options: client)
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    monkeypatch.setenv("ARTIFACT_S3_BUCKET", "flow-steward-artifacts")
+    monkeypatch.setenv("ARTIFACT_S3_ENDPOINT_URL", "http://seaweedfs:8333")
+    monkeypatch.setenv("ARTIFACT_S3_ACCESS_KEY", "bundled-access")
+    monkeypatch.setenv("ARTIFACT_S3_SECRET_KEY", "bundled-secret")  # pragma: allowlist secret
+
+    gateway.verify_storage(InstallConfig(environment="production"), log=log)
+    log.close()
+    script = process.commands[-1][-1]
+    exec(compile(script, "<bundled-storage-probe>", "exec"), {})
+    return sleeps
+
+
+def test_bundled_storage_probe_accepts_a_bucket_the_application_created_first(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Clean install, 2026-11-15: HeadBucket 404, then CreateBucket
+    # BucketAlreadyExists because fs-app created the bucket in between.
+    client = ScriptedS3Client(heads=["404", None], create="BucketAlreadyExists")
+
+    sleeps = _execute_bundled_storage_probe(tmp_path, monkeypatch, client)
+
+    assert client.calls == ["head", "create", "head", "put", "delete"]
+    assert sleeps == []
+
+
+def test_bundled_storage_probe_waits_a_bounded_time_for_a_concurrent_bucket(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = ScriptedS3Client(
+        heads=["NoSuchBucket", "404", "NotFound", None],
+        create="BucketAlreadyOwnedByYou",
+    )
+
+    sleeps = _execute_bundled_storage_probe(tmp_path, monkeypatch, client)
+
+    assert client.calls == ["head", "create", "head", "head", "head", "put", "delete"]
+    assert sleeps == [0.5, 0.5]
+
+
+def test_bundled_storage_probe_fails_when_a_concurrent_bucket_never_appears(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from botocore.exceptions import ClientError
+
+    client = ScriptedS3Client(heads=["404"] * 11, create="BucketAlreadyExists")
+
+    with pytest.raises(ClientError, match="404"):
+        _execute_bundled_storage_probe(tmp_path, monkeypatch, client)
+
+    assert client.calls == ["head", "create", *["head"] * 10]
+    assert "put" not in client.calls
+
+
+@pytest.mark.parametrize(
+    ("heads", "create", "expected_calls"),
+    [
+        (["AccessDenied"], None, ["head"]),
+        (["InvalidAccessKeyId"], None, ["head"]),
+        (["404"], "AccessDenied", ["head", "create"]),
+        (["404"], "SignatureDoesNotMatch", ["head", "create"]),
+        (["404", "403"], "BucketAlreadyExists", ["head", "create", "head"]),
+    ],
+)
+def test_bundled_storage_probe_does_not_mask_access_or_credential_errors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    heads: list[str | None],
+    create: str | None,
+    expected_calls: list[str],
+) -> None:
+    from botocore.exceptions import ClientError
+
+    client = ScriptedS3Client(heads=heads, create=create)
+
+    with pytest.raises(ClientError):
+        _execute_bundled_storage_probe(tmp_path, monkeypatch, client)
+
+    assert client.calls == expected_calls
 
 
 @pytest.mark.parametrize("read_only", (False, True))
