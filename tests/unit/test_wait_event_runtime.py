@@ -244,3 +244,63 @@ def test_the_verdict_names_only_its_own_wait() -> None:
     assert event_wake_verdict(pending, timeout, now_ms=9_999) is None
     assert event_wake_verdict(pending, timeout, now_ms=10_000) == "timed_out"
     assert event_wake_verdict(pending, None) is None
+
+
+def test_the_event_wake_publishes_the_event_as_the_steps_result(monkeypatch) -> None:
+    """P14: the run view showed an event-woken Wait with no summary, evidence or outputs."""
+    published: list[dict] = []
+    monkeypatch.setattr(
+        agents_common, "publish_agent_message", lambda _state, message: published.append(message)
+    )
+    state = _dispatch(_run(EVENT_WAIT, crawl={"run_id": "run-42"}))
+    pending = state["pending_wait"]
+
+    with patch("langgraph.types.interrupt", return_value=_event(pending)):
+        update = wait_step_node(state)
+
+    assert published == [update["agent_messages"][-1]]
+    artifacts = published[0]["artifacts"]
+    # The event leads, so the run view's evidence names it first.
+    assert list(artifacts)[:5] == [
+        "event_type",
+        "received_at",
+        "correlation_key",
+        "source",
+        "payload",
+    ]
+    assert artifacts["received_at"] == "2026-11-14T12:00:00+00:00"
+    assert artifacts["summary_key"] == "react.jobs.step_wait_event_received"
+    assert artifacts["summary_params"] == {
+        "event_type": "run_completed",
+        "correlation_key": "run-42",
+        "received_at": "2026-11-14T12:00:00+00:00",
+    }
+    assert "2026-11-14T12:00:00+00:00" in published[0]["summary"]
+
+
+def test_the_timeout_publishes_what_the_wait_waited_for(monkeypatch) -> None:
+    published: list[dict] = []
+    monkeypatch.setattr(
+        agents_common, "publish_agent_message", lambda _state, message: published.append(message)
+    )
+    state = _dispatch(_run(EVENT_WAIT, crawl={"run_id": "run-42"}))
+    pending = state["pending_wait"]
+    timeout = {"reason": "event", "wait_id": pending["wait_id"], "timed_out": True}
+    with (
+        patch("langgraph.types.interrupt", return_value=timeout),
+        patch(
+            "core.application.orchestration.wait_step_runtime._now_ms",
+            return_value=pending["due_epoch_ms"],
+        ),
+    ):
+        wait_step_node(state)
+
+    (message,) = published
+    assert message["status"] == "fail"
+    assert message["artifacts"]["summary_key"] == "react.jobs.step_wait_event_timed_out"
+    assert message["artifacts"]["summary_params"] == {
+        "event_types": "run_completed, run_failed",
+        "correlation_key": "run-42",
+        "due_at": pending["due_at"],
+    }
+    assert message["artifacts"]["source"] == "acme.crawler"

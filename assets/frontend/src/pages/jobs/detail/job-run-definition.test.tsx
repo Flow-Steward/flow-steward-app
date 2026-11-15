@@ -90,6 +90,21 @@ describe("JobsDetailPage executed definition", () => {
     await waitFor(() => expect(screen.getByTestId("job-wait-child-link")).toHaveAttribute("href", "/jobs/77"));
   });
 
+  it("names some extension when an event wait carries no source", async () => {
+    primeApi(
+      jobPayload({
+        status: "awaiting_event",
+        runtime: {
+          workflow_wait: { kind: "event", wait_id: "w-5", event_types: ["done"], correlation_key: "k", started_at: "2026-11-14T08:00:00Z", due_at: "2026-11-15T08:00:00Z" },
+          active_steps: [],
+        },
+      }),
+    );
+    renderPage();
+
+    await waitFor(() => expect(screen.getByTestId("job-wait-event")).toHaveTextContent("Waiting for done from an extension (key k) since"));
+  });
+
   it("says which event a run waits for, under which key, since when and until when", async () => {
     primeApi(
       jobPayload({
@@ -112,7 +127,7 @@ describe("JobsDetailPage executed definition", () => {
     renderPage();
 
     const line = await screen.findByTestId("job-wait-event");
-    expect(line).toHaveTextContent("Waiting for run_completed / run_failed (key run-42) since");
+    expect(line).toHaveTextContent("Waiting for run_completed / run_failed from acme.crawler (key run-42) since");
     expect(line).toHaveTextContent("times out at");
   });
 

@@ -945,8 +945,103 @@ def test_invoke_step_fails_when_child_status_not_completed(monkeypatch: pytest.M
     assert msg["artifacts"].get("_invoke_workflow_child_job_id") == 915
     # Job Details showed "No step inputs were recorded" for a failed child.
     assert msg["artifacts"]["input_payload"] == {"task_summary": _base_state(step)["task_summary"]}
-    assert msg["artifacts"]["output_payload"] == {"child_status": "failed", "child_job": "915"}
+    # The child's own reason reaches the parent (P15).
+    assert msg["artifacts"]["output_payload"] == {
+        "child_error_message": "child exploded",
+        "child_status": "failed",
+        "child_job_id": "915",
+    }
+    assert msg["summary"] == (
+        "Child workflow 'wf_child' finished with status 'failed': child exploded"
+    )
     assert result.get("agent_messages")
+
+
+@pytest.mark.parametrize("child_status", ["failed", "cancelled"])
+def test_a_failed_child_hands_its_error_to_the_parents_invoke_step(
+    monkeypatch: pytest.MonkeyPatch, child_status: str
+):
+    """P15: only "finished with status 'failed'" reached the parent, never why."""
+    from core.application.orchestration import invoke_workflow_step_node as node
+
+    _install_runtime_stubs(
+        monkeypatch,
+        workflows={
+            "wf_child": {
+                "workflow_id": "wf_child",
+                "enabled": True,
+                "settings": {
+                    "callable": {
+                        "enabled": True,
+                        "expected_outputs": [{"name": "plan", "type": "json", "required": True}],
+                    }
+                },
+            }
+        },
+    )
+    captured = _capture_append_messages(monkeypatch, node)
+    fake_logger = _FakeLogger(child_job_id=916)
+    reason = "No target page could be sampled: start page not usable (HTTP 404)"
+    fake_logger.list_job_errors = lambda job_id, limit=200: [
+        {"error_message": "provider hiccup", "context_jsonb": {}},
+        {
+            "step_id": "fetch_samples",
+            "error_message": reason,
+            "context_jsonb": {"error_code": "start_page_unusable"},
+        },
+    ]
+    step = {
+        "agent": "planner",
+        "skill": "create_plan",
+        "override": {
+            "invoke_workflow": {
+                "workflow_id": "wf_child",
+                "input_mapping": {"task_summary": "state.task_summary"},
+                "output_mapping": {
+                    "plan": "state.child_plan",
+                    "child_error_message": "state.scrape_error",
+                    "child_error_code": "state.scrape_error_code",
+                    "child_status": "state.scrape_status",
+                },
+            }
+        },
+    }
+    monkeypatch.setattr(
+        node, "_resolve_invoke_input", lambda state, selector, key: (state.get("task_summary"), "")
+    )
+    monkeypatch.setattr(node, "_get_logger", lambda: fake_logger)
+    monkeypatch.setattr(
+        node,
+        "_wait_for_terminal_child",
+        lambda _bl, child_job_id, **_kwargs: (
+            {"id": int(child_job_id), "status": child_status, "error": "generic"},
+            child_status,
+        ),
+    )
+
+    result = node.invoke_workflow_step_node(_base_state(step))
+
+    msg = captured[-1]
+    assert msg["status"] == "fail"
+    assert msg["summary"] == (
+        f"Child workflow 'wf_child' finished with status '{child_status}' at step "
+        f"'fetch_samples': {reason}"
+    )
+    failure = {
+        "child_error_message": reason,
+        "child_error_code": "start_page_unusable",
+        "child_status": child_status,
+        "child_error_step_id": "fetch_samples",
+        "child_job_id": "916",
+    }
+    assert msg["artifacts"]["output_payload"] == failure
+    assert {key: msg["artifacts"][key] for key in failure} == failure
+    assert msg["errors"] == [msg["summary"]]
+    # The step's output_mapping maps the failure for its error route.
+    assert result["scrape_error"] == reason
+    assert result["scrape_error_code"] == "start_page_unusable"
+    assert result["scrape_status"] == child_status
+    assert "child_plan" not in result
 
 
 def test_invoke_step_marks_child_failed_when_enqueue_raises(monkeypatch: pytest.MonkeyPatch):

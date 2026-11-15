@@ -124,6 +124,51 @@ _BUILTIN_STEP_LOCALIZED_FIELDS = frozenset(
 )
 
 
+#: What a Wait step that ended on an event returns (ADR 0071), in the run view.
+_WAIT_EVENT_OUTPUT_FIELDS = ("event_type", "received_at", "correlation_key", "source", "payload")
+#: What an Invoke step whose child failed or was cancelled returns.
+_CHILD_FAILURE_OUTPUT_FIELDS = (
+    "child_error_message",
+    "child_error_code",
+    "child_status",
+    "child_error_step_id",
+    "child_job_id",
+)
+#: Output fields of first-party Wait and Invoke results with a catalog label.
+_RESULT_FIELD_LABEL_KEYS = {
+    field: f"react.jobs.field_{field}"
+    for field in (*_WAIT_EVENT_OUTPUT_FIELDS, *_CHILD_FAILURE_OUTPUT_FIELDS)
+}
+
+
+def _wait_step_outputs(artifacts: dict[str, Any]) -> dict[str, Any]:
+    """A Wait step's result: the event that woke it, or the time it waited until.
+
+    The event is the step's result (ADR 0071); without this the run view showed
+    an event wake as a step with no outputs at all.
+    """
+    if str(artifacts.get("step_kind") or "") != "wait" or artifacts.get("error_code"):
+        return {}
+    if artifacts.get("event_type"):
+        return {
+            field: artifacts[field]
+            for field in _WAIT_EVENT_OUTPUT_FIELDS
+            if artifacts.get(field) not in (None, "")
+        }
+    return {
+        field: artifacts[field]
+        for field in ("duration_ms", "due_at")
+        if artifacts.get(field) not in (None, "")
+    }
+
+
+def _result_field_label_keys(outputs: dict[str, Any], artifacts: dict[str, Any]) -> dict[str, str]:
+    step_kind = str(artifacts.get("step_kind") or "")
+    if step_kind != "wait" and "child_status" not in outputs:
+        return {}
+    return {field: key for field, key in _RESULT_FIELD_LABEL_KEYS.items() if field in outputs}
+
+
 def _builtin_step_field_label_keys(
     artifacts: dict[str, Any], payload_key: str = ""
 ) -> dict[str, str]:
@@ -417,6 +462,7 @@ def _message_step_debug_fields(
         envelope.get("inputs"),
     )
     outputs = _first_nonempty_dict(
+        _wait_step_outputs(artifacts),
         connector_response.get("result"),
         artifacts.get("output_payload"),
         artifacts.get("outputs"),
@@ -481,7 +527,8 @@ def _message_step_debug_fields(
 
     return {
         "input_field_label_keys": _builtin_step_field_label_keys(artifacts, "input_payload"),
-        "output_field_label_keys": _builtin_step_field_label_keys(artifacts, "output_payload"),
+        "output_field_label_keys": _builtin_step_field_label_keys(artifacts, "output_payload")
+        or _result_field_label_keys(outputs, artifacts),
         "inputs": (
             _redacted_debug_preview(
                 _display_debug_value(
@@ -581,6 +628,7 @@ def _build_message_steps(
             "file_from_base64": "react.workflows.save_file_from_base64",
             "template": "react.workflows.template",
             "invoke_workflow": "react.workflows.invoke_workflow",
+            "wait": "react.workflows.step_kind_wait",
             "if": "react.workflows.if",
             "switch": "react.workflows.switch",
             "stop_success": "react.workflows.finish_successfully",
@@ -672,7 +720,9 @@ def _build_message_steps(
                 "timestamp": str(message.get("timestamp") or ""),
                 "message_id": message_id or None,
                 "evidence": _message_evidence(
-                    message, field_label_keys=_builtin_step_field_label_keys(artifacts)
+                    message,
+                    field_label_keys=_builtin_step_field_label_keys(artifacts)
+                    or _result_field_label_keys(artifacts, artifacts),
                 ),
                 "source": "message",
                 "selected": False,

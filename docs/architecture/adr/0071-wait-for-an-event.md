@@ -159,8 +159,12 @@ only.
 
 ### UI
 
-The job shows "Waiting for <types> (key <key>) since <started>, times out at <due>"
-with the status "Waiting for event". The builder's Wait step offers "Until an event"
+The job shows "Waiting for <types> from <source> (key <key>) since <started>, times
+out at <due>" with the status "Waiting for event"; the job API's `workflow_wait` carries
+`source`, `event_types`, `correlation_key`, `timeout_ms`, `started_at` and `due_at`. A
+Wait that ended on an event shows the event as its result (`event_type`, `received_at`,
+`correlation_key`, `source`, `payload`), a timed-out one its deadline and key; the Wait
+publishes its result message like every other step. The builder's Wait step offers "Until an event"
 beside the two duration modes.
 
 ## Consequences

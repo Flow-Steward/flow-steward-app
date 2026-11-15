@@ -155,10 +155,11 @@ def _result_message(
 ) -> dict[str, Any]:
     from core.application.orchestration.active_step import step_message_fields
     from core.application.orchestration.agent_messages import build_agent_message
+    from core.application.orchestration.agents.common import publish_agent_message
     from core.application.orchestration.step_hub_support import HUB_NODE, WAIT_NODE
 
     timestamp = datetime.now(UTC).isoformat()
-    return build_agent_message(
+    message = build_agent_message(
         from_agent=WAIT_NODE,
         to_agent=HUB_NODE,
         skill="wait",
@@ -173,6 +174,8 @@ def _result_message(
             "duration_ms": pending.get("duration_ms"),
             "started_at": pending.get("started_at"),
             "due_at": pending.get("due_at"),
+            "summary_key": "react.jobs.step_wait_finished",
+            "summary_params": {"due_at": str(pending.get("due_at") or "")},
             "_outcome": {"name": "success"},
         },
         summary=f"Wait step '{current.step_id}' finished",
@@ -182,6 +185,9 @@ def _result_message(
         published_at=timestamp,
         **step_message_fields(state),
     )
+    # Persisted like every other step's result: the run view shows the Wait.
+    publish_agent_message(dict(state), message)
+    return message
 
 
 def wait_input_error_code(step: Mapping[str, Any]) -> str:

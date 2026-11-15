@@ -279,3 +279,19 @@ def test_an_invalid_mapped_duration_is_never_retried() -> None:
     assert command.goto == "human_approval_gate"
     assert command.update["recovery_pending"]["kind"] == "failure"
     assert command.update["recovery_pending"]["step_id"] == "pause"
+
+
+def test_a_finished_timer_wait_publishes_its_result(monkeypatch) -> None:
+    published: list[dict] = []
+    monkeypatch.setattr(
+        agents_common, "publish_agent_message", lambda _state, message: published.append(message)
+    )
+    state, _ = _dispatch(_run({"duration_ms": 0}))
+
+    update = wait_step_node(state)
+
+    assert published == [update["agent_messages"][-1]]
+    assert published[0]["artifacts"]["summary_key"] == "react.jobs.step_wait_finished"
+    assert published[0]["artifacts"]["summary_params"] == {
+        "due_at": state["pending_wait"]["due_at"]
+    }

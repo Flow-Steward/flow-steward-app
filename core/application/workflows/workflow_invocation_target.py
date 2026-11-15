@@ -33,6 +33,17 @@ from core.application.workflows.workflow_hook_contract import (
 #: each hook with, fixed in the transaction that pins its definition.
 HOOK_BINDING_PINS_META_KEY = "hook_binding_pins"
 
+#: The outputs an Invoke step has when its child fails or is cancelled: the
+#: child's status and job, and the error code, message and step of its failure.
+#: An error route reads them, and the step's ``output_mapping`` may map them.
+CHILD_FAILURE_OUTPUTS = (
+    "child_status",
+    "child_job_id",
+    "child_error_code",
+    "child_error_message",
+    "child_error_step_id",
+)
+
 
 class InvocationTargetError(ValueError):
     def __init__(self, code: str, message: str) -> None:
@@ -218,6 +229,7 @@ def hook_ids(definition: Mapping[str, Any]) -> list[str]:
 
 
 __all__ = [
+    "CHILD_FAILURE_OUTPUTS",
     "HOOK_BINDING_PINS_META_KEY",
     "BindingSource",
     "HookBindingRevision",

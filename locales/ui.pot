@@ -5598,6 +5598,33 @@ msgstr ""
 msgid "react.jobs.field_step_kind"
 msgstr ""
 
+msgid "react.jobs.field_event_type"
+msgstr ""
+
+msgid "react.jobs.field_received_at"
+msgstr ""
+
+msgid "react.jobs.field_correlation_key"
+msgstr ""
+
+msgid "react.jobs.field_payload"
+msgstr ""
+
+msgid "react.jobs.field_child_error_message"
+msgstr ""
+
+msgid "react.jobs.field_child_error_code"
+msgstr ""
+
+msgid "react.jobs.field_child_status"
+msgstr ""
+
+msgid "react.jobs.field_child_error_step_id"
+msgstr ""
+
+msgid "react.jobs.field_child_job_id"
+msgstr ""
+
 msgid "react.jobs.field_value"
 msgstr ""
 
@@ -5946,6 +5973,15 @@ msgstr ""
 msgid "react.jobs.step_transform_finished"
 msgstr ""
 
+msgid "react.jobs.step_wait_event_received"
+msgstr ""
+
+msgid "react.jobs.step_wait_event_timed_out"
+msgstr ""
+
+msgid "react.jobs.step_wait_finished"
+msgstr ""
+
 msgid "react.jobs.step_type"
 msgstr ""
 
@@ -6036,7 +6072,7 @@ msgstr ""
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr ""
 
-msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
+msgid "react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4"
 msgstr ""
 
 msgid "react.jobs.waiting_until_value0"
@@ -29176,6 +29212,9 @@ msgid "react.jobs.all_runs"
 msgstr ""
 
 msgid "react.jobs.an_event"
+msgstr ""
+
+msgid "react.jobs.an_extension"
 msgstr ""
 
 msgid "react.jobs.job_period"

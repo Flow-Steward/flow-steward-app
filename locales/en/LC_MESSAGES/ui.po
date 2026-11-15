@@ -6029,8 +6029,8 @@ msgstr "Waiting for approval"
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr "Waiting for the child workflow run"
 
-msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
-msgstr "Waiting for {value0} (key {value1}) since {value2}, times out at {value3}"
+msgid "react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4"
+msgstr "Waiting for {value0} from {value1} (key {value2}) since {value3}, times out at {value4}"
 
 msgid "react.jobs.waiting_until_value0"
 msgstr "Waiting until {value0}"
@@ -14255,6 +14255,33 @@ msgstr "Step ID"
 
 msgid "react.jobs.field_step_kind"
 msgstr "Step Kind"
+
+msgid "react.jobs.field_event_type"
+msgstr "Event type"
+
+msgid "react.jobs.field_received_at"
+msgstr "Received at"
+
+msgid "react.jobs.field_correlation_key"
+msgstr "Correlation key"
+
+msgid "react.jobs.field_payload"
+msgstr "Payload"
+
+msgid "react.jobs.field_child_error_message"
+msgstr "Child run error"
+
+msgid "react.jobs.field_child_error_code"
+msgstr "Child error code"
+
+msgid "react.jobs.field_child_status"
+msgstr "Child run status"
+
+msgid "react.jobs.field_child_error_step_id"
+msgstr "Failed child step"
+
+msgid "react.jobs.field_child_job_id"
+msgstr "Child run"
 
 msgid "react.jobs.confirm_cancel_current_run"
 msgstr "Cancel this job? The current run will stop."
@@ -25848,6 +25875,15 @@ msgstr "Workflow finished successfully."
 msgid "react.jobs.step_transform_finished"
 msgstr "Transformation completed."
 
+msgid "react.jobs.step_wait_event_received"
+msgstr "Received {event_type} (key {correlation_key}) at {received_at}"
+
+msgid "react.jobs.step_wait_event_timed_out"
+msgstr "No {event_types} arrived for key {correlation_key}; timed out at {due_at}"
+
+msgid "react.jobs.step_wait_finished"
+msgstr "Waited until {due_at}"
+
 msgid "react.workflows.display_if_comparison_replacement"
 msgstr ""
 "This state comparison can be stored as a structured condition without "
@@ -30192,6 +30228,9 @@ msgstr "All runs"
 
 msgid "react.jobs.an_event"
 msgstr "an event"
+
+msgid "react.jobs.an_extension"
+msgstr "an extension"
 
 msgid "react.jobs.job_period"
 msgstr "Job period"

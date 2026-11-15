@@ -6129,8 +6129,8 @@ msgstr "Laukiama patvirtinimo"
 msgid "react.jobs.waiting_for_child_workflow_run"
 msgstr "Laukiama antrinės darbo eigos vykdymo"
 
-msgid "react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3"
-msgstr "Laukiama {value0} (raktas {value1}) nuo {value2}, laukimas baigiasi {value3}"
+msgid "react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4"
+msgstr "Laukiama {value0} iš {value1} (raktas {value2}) nuo {value3}, laukimas baigiasi {value4}"
 
 msgid "react.jobs.waiting_until_value0"
 msgstr "Laukiama iki {value0}"
@@ -14453,6 +14453,33 @@ msgstr "Žingsnio ID"
 
 msgid "react.jobs.field_step_kind"
 msgstr "Žingsnio tipas"
+
+msgid "react.jobs.field_event_type"
+msgstr "Įvykio tipas"
+
+msgid "react.jobs.field_received_at"
+msgstr "Gauta"
+
+msgid "react.jobs.field_correlation_key"
+msgstr "Susiejimo raktas"
+
+msgid "react.jobs.field_payload"
+msgstr "Turinys"
+
+msgid "react.jobs.field_child_error_message"
+msgstr "Antrinės darbo eigos klaida"
+
+msgid "react.jobs.field_child_error_code"
+msgstr "Antrinės darbo eigos klaidos kodas"
+
+msgid "react.jobs.field_child_status"
+msgstr "Antrinės darbo eigos būsena"
+
+msgid "react.jobs.field_child_error_step_id"
+msgstr "Nepavykęs antrinės darbo eigos žingsnis"
+
+msgid "react.jobs.field_child_job_id"
+msgstr "Antrinės darbo eigos vykdymas"
 
 msgid "react.jobs.confirm_cancel_current_run"
 msgstr "Atšaukti šią užduotį? Dabartinis vykdymas bus sustabdytas."
@@ -26224,6 +26251,15 @@ msgstr "Darbo eiga sėkmingai užbaigta."
 msgid "react.jobs.step_transform_finished"
 msgstr "Transformacija baigta."
 
+msgid "react.jobs.step_wait_event_received"
+msgstr "Gautas {event_type} (raktas {correlation_key}) {received_at}"
+
+msgid "react.jobs.step_wait_event_timed_out"
+msgstr "Negauta {event_types} raktui {correlation_key}; laukimas baigėsi {due_at}"
+
+msgid "react.jobs.step_wait_finished"
+msgstr "Laukta iki {due_at}"
+
 msgid "react.workflows.display_if_comparison_replacement"
 msgstr ""
 "Šį būsenos palyginimą galima išsaugoti kaip struktūrinę sąlygą nekeičiant jo "
@@ -30610,6 +30646,9 @@ msgstr "Visi vykdymai"
 
 msgid "react.jobs.an_event"
 msgstr "įvykio"
+
+msgid "react.jobs.an_extension"
+msgstr "plėtinio"
 
 msgid "react.jobs.job_period"
 msgstr "Užduočių laikotarpis"

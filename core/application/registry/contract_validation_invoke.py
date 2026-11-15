@@ -580,7 +580,12 @@ def validate_invoke_workflow_step(
                         path=f"{path_prefix}.override.invoke_workflow.output_mapping",
                     )
                 )
+        from core.application.workflows.workflow_invocation_target import CHILD_FAILURE_OUTPUTS
+
         for child_output_name in sorted(normalized_output_mapping):
+            if child_output_name in CHILD_FAILURE_OUTPUTS:
+                # Set when the child fails; the error route reads them.
+                continue
             if child_output_names and child_output_name not in child_output_names:
                 warnings.append(
                     _issue(

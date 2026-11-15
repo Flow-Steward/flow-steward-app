@@ -74,6 +74,9 @@ from core.application.orchestration.invoke_workflow_step_node_common import (
 from core.application.orchestration.invoke_workflow_step_node_results import (
     _collect_child_artifacts,
     _collect_child_outputs,
+    child_failure,
+    child_failure_state_updates,
+    child_failure_text,
 )
 from core.application.orchestration.invoke_workflow_step_node_runtime import (
     _append_agent_message,
@@ -138,6 +141,23 @@ def invoke_workflow_step_node(state: OrchestratorState) -> dict:
 
     # A file the child returned can in turn be returned by this workflow.
     return with_returned_files(state, update)
+
+
+def _child_failure_artifacts(failure: dict[str, Any]) -> dict[str, Any]:
+    """The child's failure as the step's result: readable first, then its output.
+
+    The fields lead the artifacts so the run view's evidence shows the child's
+    reason; ``message.step.<id>.artifacts.child_error_message`` reads them too.
+    """
+    order = (
+        "child_error_message",
+        "child_error_code",
+        "child_status",
+        "child_error_step_id",
+        "child_job_id",
+    )
+    present = {key: failure[key] for key in order if failure.get(key) not in (None, "")}
+    return {**present, "output_payload": dict(present)}
 
 
 def _invoke_workflow_step(
@@ -668,19 +688,30 @@ def _invoke_workflow_step(
         raw_child_artifacts = debug_result.get("artifacts")
         child_artifacts = dict(raw_child_artifacts) if isinstance(raw_child_artifacts, dict) else {}
         if child_status != "completed":
-            error_text = f"Child workflow '{child_workflow_id}' finished with status '{child_status or 'failed'}'"
-            return _fail(
-                summary=error_text,
-                artifacts={
-                    "_invoke_workflow_error": "child_failed",
-                    "_invoke_workflow_child_status": child_status,
-                    "_invoke_workflow_nested_trace": debug_result.get("trace"),
-                    "input_payload": _child_input_preview(child_inputs, child_interface),
-                    "output_payload": {"child_status": child_status or "failed"},
-                },
-                errors=[error_text],
-                started_at=step_started_at,
+            failure = child_failure(
+                None,
+                child_job_id="",
+                child_status=child_status or "failed",
+                fallback_message=str(debug_result.get("error") or ""),
             )
+            error_text = child_failure_text(child_workflow_id, failure)
+            return {
+                **_fail(
+                    summary=error_text,
+                    artifacts={
+                        **_child_failure_artifacts(failure),
+                        "_invoke_workflow_error": "child_failed",
+                        "_invoke_workflow_child_status": child_status,
+                        "_invoke_workflow_nested_trace": debug_result.get("trace"),
+                        "input_payload": _child_input_preview(child_inputs, child_interface),
+                    },
+                    errors=[error_text],
+                    started_at=step_started_at,
+                ),
+                **child_failure_state_updates(
+                    state=state, output_mapping=output_mapping, failure=failure
+                ),
+            }
 
     if not is_ephemeral_child_test_run:
         if bl is None:
@@ -930,8 +961,14 @@ def _invoke_workflow_step(
                 child_workflow_id=child_workflow_id,
             )
         if child_status != "completed":
+            failure = child_failure(
+                bl,
+                child_job_id=child_job_id,
+                child_status=child_status,
+                child_row=child_row,
+            )
             error_text = (
-                f"Child workflow '{child_workflow_id}' finished with status '{child_status}'"
+                child_failure_text(child_workflow_id, failure)
                 if child_status != "timeout"
                 else f"Child workflow '{child_workflow_id}' timed out while waiting for terminal status"
             )
@@ -943,27 +980,29 @@ def _invoke_workflow_step(
                 {
                     "child_job_id": child_job_id,
                     "child_status": child_status,
-                    "child_error": str((child_row or {}).get("error") or ""),
+                    "child_error": failure["child_error_message"],
+                    "child_error_code": failure["child_error_code"],
                     "child_workflow_id": child_workflow_id,
                 },
                 severity="error",
             )
-            return _fail(
-                summary=error_text,
-                artifacts={
-                    "_invoke_workflow_error": "child_failed",
-                    "_invoke_workflow_child_job_id": child_job_id,
-                    "_invoke_workflow_child_status": child_status,
-                    "input_payload": _child_input_preview(child_inputs, child_interface),
-                    "output_payload": {
-                        "child_status": child_status,
-                        "child_job": str(child_job_id),
+            return {
+                **_fail(
+                    summary=error_text,
+                    artifacts={
+                        **_child_failure_artifacts(failure),
+                        "_invoke_workflow_error": "child_failed",
+                        "_invoke_workflow_child_job_id": child_job_id,
+                        "_invoke_workflow_child_status": child_status,
+                        "input_payload": _child_input_preview(child_inputs, child_interface),
                     },
-                    "_invoke_workflow_child_error": str((child_row or {}).get("error") or ""),
-                },
-                errors=[error_text],
-                started_at=step_started_at,
-            )
+                    errors=[error_text],
+                    started_at=step_started_at,
+                ),
+                **child_failure_state_updates(
+                    state=state, output_mapping=output_mapping, failure=failure
+                ),
+            }
 
         child_outputs = _collect_child_outputs(bl, child_job_id, result_contract.declared_outputs)
         child_artifacts = _collect_child_artifacts(

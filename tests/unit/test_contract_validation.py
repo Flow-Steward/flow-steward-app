@@ -1877,6 +1877,53 @@ def test_validate_invoke_step_allows_unmapped_optional_child_outputs():
     assert "invoke.required_output_unmapped" not in codes
 
 
+def test_validate_invoke_step_accepts_mapping_the_childs_failure_outputs():
+    """P15: an Invoke may map why its child failed; those names are not child outputs."""
+    db = _InvokeValidationDB(
+        workflows={
+            "wf_child": {
+                "workflow_id": "wf_child",
+                "enabled": True,
+                "settings": {
+                    "callable": {
+                        "enabled": True,
+                        "trigger_channels": ["parent_workflow"],
+                        "expected_inputs": [],
+                        "expected_outputs": [{"name": "plan", "type": "json", "required": True}],
+                    }
+                },
+            }
+        }
+    )
+    step = {
+        "override": {
+            "invoke_workflow": {
+                "workflow_id": "wf_child",
+                "input_mapping": {},
+                "output_mapping": {
+                    "plan": "state.plan",
+                    "child_error_message": "state.child_error",
+                    "child_status": "state.child_status",
+                    "not_a_child_output": "state.other",
+                },
+            }
+        }
+    }
+
+    validation = validate_invoke_workflow_step(
+        db, workflow_id="wf_parent", step=step, path_prefix="workflow.steps.run_child"
+    )
+
+    unknown = [
+        item["path"]
+        for item in validation.get("warnings") or []
+        if item.get("code") == "invoke.output_mapping_unknown_key"
+    ]
+    assert unknown == [
+        "workflow.steps.run_child.override.invoke_workflow.output_mapping.not_a_child_output"
+    ]
+
+
 def test_validate_invoke_step_rejects_child_without_parent_workflow_channel():
     db = _InvokeValidationDB(
         workflows={
@@ -2862,7 +2909,9 @@ def test_action_invoke_without_workflow_id_is_valid_and_keeps_action_rules():
         "step_id": "build",
         "step_kind": "invoke_workflow",
         "override": {
-            "invoke_workflow": {"action": {"extension_id": "acme.store", "action_id": "build_index"}}
+            "invoke_workflow": {
+                "action": {"extension_id": "acme.store", "action_id": "build_index"}
+            }
         },
     }
     result = validate_invoke_workflow_step(

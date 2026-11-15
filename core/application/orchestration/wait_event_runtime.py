@@ -126,16 +126,26 @@ def event_wake_verdict(
 def _event_artifacts(
     current: ActiveStep, pending: Mapping[str, Any], wake: Mapping[str, Any]
 ) -> dict[str, Any]:
+    # The event leads: the run view's evidence shows the first fields.
+    event_type = str(wake.get("event_type") or "")
+    correlation_key = str(wake.get("correlation_key") or "")
+    received_at = str(wake.get("received_at") or "")
     return {
+        "event_type": event_type,
+        "received_at": received_at,
+        "correlation_key": correlation_key,
+        "source": pending.get("source"),
+        "payload": dict(wake.get("payload") or {}),
         "step_kind": "wait",
         "step_id": current.step_id,
         "wait_id": pending.get("wait_id"),
-        "source": pending.get("source"),
-        "event_type": str(wake.get("event_type") or ""),
-        "correlation_key": str(wake.get("correlation_key") or ""),
-        "payload": dict(wake.get("payload") or {}),
-        "received_at": str(wake.get("received_at") or ""),
         "started_at": pending.get("started_at"),
+        "summary_key": "react.jobs.step_wait_event_received",
+        "summary_params": {
+            "event_type": event_type,
+            "correlation_key": correlation_key,
+            "received_at": received_at,
+        },
         "_outcome": {"name": "success"},
     }
 
@@ -151,10 +161,11 @@ def _message(
 ) -> dict[str, Any]:
     from core.application.orchestration.active_step import step_message_fields
     from core.application.orchestration.agent_messages import build_agent_message
+    from core.application.orchestration.agents.common import publish_agent_message
     from core.application.orchestration.step_hub_support import HUB_NODE, WAIT_NODE
 
     timestamp = datetime.now(UTC).isoformat()
-    return build_agent_message(
+    message = build_agent_message(
         from_agent=WAIT_NODE,
         to_agent=HUB_NODE,
         skill="wait",
@@ -169,6 +180,10 @@ def _message(
         published_at=timestamp,
         **step_message_fields(state),
     )
+    # Persisted like every other step's result, so the run view shows the
+    # event (or the timeout) instead of an empty step.
+    publish_agent_message(dict(state), message)
+    return message
 
 
 def event_wait_update(
@@ -207,6 +222,15 @@ def event_wait_update(
                 "failure_class": "timeout",
                 "retryable": True,
                 "due_at": pending.get("due_at"),
+                "source": pending.get("source"),
+                "event_types": list(pending.get("event_types") or []),
+                "correlation_key": pending.get("correlation_key"),
+                "summary_key": "react.jobs.step_wait_event_timed_out",
+                "summary_params": {
+                    "event_types": ", ".join(pending.get("event_types") or []),
+                    "correlation_key": str(pending.get("correlation_key") or ""),
+                    "due_at": str(pending.get("due_at") or ""),
+                },
             },
             summary=error,
             errors=[error],
@@ -225,7 +249,7 @@ def event_wait_update(
             artifacts=artifacts,
             summary=(
                 f"Wait step '{current.step_id}' received {artifacts['event_type']} "
-                f"(key {artifacts['correlation_key']})"
+                f"(key {artifacts['correlation_key']}) at {artifacts['received_at']}"
             ),
             errors=[],
         )

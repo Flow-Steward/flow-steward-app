@@ -194,11 +194,12 @@ function JobRunDefinitionFacts({
       ) : null}
       {waitKind === "event" ? (
         <p className="text-sm fs-ink-primary" data-testid="job-wait-event">
-          {t("react.jobs.waiting_for_event_value0_key_value1_since_value2_times_out_at_value3", "Waiting for {value0} (key {value1}) since {value2}, times out at {value3}", {
+          {t("react.jobs.waiting_for_value0_from_value1_key_value2_since_value3_times_out_at_value4", "Waiting for {value0} from {value1} (key {value2}) since {value3}, times out at {value4}", {
             value0: eventTypes.join(" / ") || t("react.jobs.an_event", "an event"),
-            value1: firstReadableText(workflowWait.correlation_key),
-            value2: normalizeTimestamp(firstReadableText(workflowWait.started_at), userTimezone),
-            value3: normalizeTimestamp(dueAt, userTimezone),
+            value1: firstReadableText(workflowWait.source) || t("react.jobs.an_extension", "an extension"),
+            value2: firstReadableText(workflowWait.correlation_key),
+            value3: normalizeTimestamp(firstReadableText(workflowWait.started_at), userTimezone),
+            value4: normalizeTimestamp(dueAt, userTimezone),
           })}
         </p>
       ) : null}
