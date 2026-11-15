@@ -132,11 +132,13 @@ def extension_python_site_dir(extension: dict[str, Any] | None) -> Path | None:
         compiled_manifest = {}
     # `release_version` is how a release imported from an extension descriptor names
     # it: such a release resolved no site, and ran without its bundle's dependencies.
+    # Installed runtime rows carry that descriptor inside compiled_manifest.
     version = str(
         payload.get("version")
         or payload.get("latest_version")
         or compiled_manifest.get("version")
         or payload.get("release_version")
+        or compiled_manifest.get("release_version")
         or ""
     ).strip()
     if not version:
