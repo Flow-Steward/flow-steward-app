@@ -13,6 +13,8 @@ from core.application.jobs.workflow_event_wait_repository import (
 from core.application.jobs.workflow_wait_contract import WAIT_EVENT_PAYLOAD_MAX_BYTES
 from core.application.jobs.workflow_wait_event_delivery import deliver_wait_events
 
+FAKE_KEY = "sk-live-not-a-real-key"  # pragma: allowlist secret
+
 SCOPE = {
     "extension_id": "acme.crawler",
     "account_id": "00000000-0000-0000-0000-000000000002",
@@ -149,7 +151,7 @@ def test_the_payload_is_redacted_before_it_is_stored() -> None:
                 {
                     "correlation_key": "k",
                     "event_type": "done",
-                    "payload": {"api_key": "sk-live-secret", "rows": 2},
+                    "payload": {"api_key": FAKE_KEY, "rows": 2},
                 }
             ]
         ),
@@ -157,7 +159,7 @@ def test_the_payload_is_redacted_before_it_is_stored() -> None:
     )
     stored = dict(store.calls[0]["items"][0].payload)
     assert stored["rows"] == 2
-    assert "sk-live-secret" not in json.dumps(stored)
+    assert FAKE_KEY not in json.dumps(stored)
 
 
 def test_without_a_project_context_nothing_is_stored() -> None:

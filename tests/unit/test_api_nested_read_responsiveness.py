@@ -204,7 +204,7 @@ def _accounts(reader, _monkeypatch):
             err_token_not_found="Token not found",
             err_account_tables_not_available="Accounts unavailable",
             err_admin_role_required="Admin role required",
-            err_service_account_key_required="Account key required",
+            err_service_account_key_required="Account key required",  # pragma: allowlist secret
             err_machine_token_tables_not_available="Machine tokens unavailable",
         )
     )
