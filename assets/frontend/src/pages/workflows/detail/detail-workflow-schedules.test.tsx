@@ -458,7 +458,7 @@ it("titles a named schedule with its name and keeps an unnamed one titled by its
   const unnamed = { id: "schedule-b", workflow_id: "wf-1", enabled: false, cron_expr: "0 10 * * *", schedule_timezone: "UTC", inputs: { region: "us" } };
   vi.mocked(fetchProjectScheduledJobs).mockResolvedValue({ project_id: "project-1", timezone_context: {}, jobs: [named, unnamed], runs: [] });
   renderSettings();
-  expect(await screen.findByRole("button", { name: "Edit schedule: Supplier A" })).toBeInTheDocument();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Edit schedule: Supplier A" })).toBeInTheDocument());
   expect(screen.getByText(/^Every day at 09:00 \(UTC\) ·/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Edit schedule: Every day at 10:00 (UTC)" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Edit schedule: Supplier A" }));
