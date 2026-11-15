@@ -1,7 +1,7 @@
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { QueryClient, QueryObserver, type RefetchOptions } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
 import { fetchJson } from "@/lib/http/client";
 import { fetchExtensionCallbacks, type ExtensionCallbackRegistration } from "./api";
@@ -34,7 +34,11 @@ const initialScope = {
   connectionId: "connection-a", connectionRequired: true, canManage: true, pageId: "setup",
 };
 type Scope = typeof initialScope;
-type Options = { callbacks?: ExtensionCallbackRegistration[]; component?: Record<string, unknown> };
+type Options = {
+  callbacks?: ExtensionCallbackRegistration[];
+  component?: Record<string, unknown>;
+  realCallbackRefetch?: boolean;
+};
 
 function useCallbackHarness(scope: Scope, options: Options = {}) {
   const [queryClient] = useState(() => new QueryClient());
@@ -42,9 +46,24 @@ function useCallbackHarness(scope: Scope, options: Options = {}) {
   const [callbackStatuses, setCallbackStatuses] = useState<Record<string, Record<string, unknown>>>({});
   const [callbacks, setCallbacks] = useState(options.callbacks ?? []);
   const pendingManifestActionIntentRef = useRef(null);
+  const [callbackObserver] = useState(() => options.realCallbackRefetch
+    ? new QueryObserver(queryClient, {
+      queryKey: ["extensions", "callbacks", "example.connector", scope.projectId],
+      queryFn: () => fetchExtensionCallbacks("example.connector", scope.projectId),
+      initialData: options.callbacks ?? [],
+      enabled: false,
+      retry: false,
+      gcTime: Infinity,
+    }) : null);
   const callbacksQuery = {
     data: callbacks,
-    refetch: async () => {
+    refetch: async (refetchOptions?: RefetchOptions) => {
+      if (callbackObserver) {
+        // Use the public observer: failed fetches resolve an error result by default.
+        const result = await callbackObserver.refetch(refetchOptions);
+        if (result.data) setCallbacks(result.data);
+        return result;
+      }
       const data = await fetchExtensionCallbacks("example.connector", scope.projectId);
       setCallbacks(data);
       return { data };
@@ -166,6 +185,51 @@ it("refreshes manual host registration details without invoking a provider statu
   );
 });
 
+it("reports a safe failure when a real query observer cannot refresh manual callback status and allows retry", async () => {
+  const user = userEvent.setup();
+  const safeFailure = "Callback setup failed. Refresh the status and try again.";
+  const staleTimestamp = "2026-11-14T17:30:00Z";
+  const refreshedTimestamp = "2026-11-15T09:30:00Z";
+  const rawError = `Untrusted refresh failure: ${credentials.callback_secret} ${credentials.callback_url}`;
+  vi.mocked(fetchJson).mockRejectedValueOnce(new Error(rawError));
+  let latestState!: ReturnType<typeof useCallbackHarness>;
+  function RealRefetchHarness() {
+    const state = useCallbackHarness(initialScope, {
+      callbacks: [{ ...redacted, last_seen_at: staleTimestamp }],
+      realCallbackRefetch: true,
+    });
+    useEffect(() => { latestState = state; }, [state]);
+    return <>{renderManifestComponent(component, state.context)}</>;
+  }
+  render(<RealRefetchHarness />);
+  expect(screen.getByText(staleTimestamp)).toBeVisible();
+
+  await user.click(screen.getByRole("button", { name: "Refresh Status" }));
+
+  await waitFor(() => expect(latestState.statuses["example.connector"]).toBe(safeFailure));
+  expect(screen.getByText(safeFailure)).toBeVisible();
+  expect(screen.queryByText("Callback status refreshed.")).not.toBeInTheDocument();
+  expect(screen.getByText(staleTimestamp)).toBeVisible();
+  expect(document.body).not.toHaveTextContent(credentials.callback_secret);
+  expect(document.body).not.toHaveTextContent(credentials.callback_url);
+  expect(JSON.stringify(latestState.statuses)).not.toContain(credentials.callback_secret);
+  expect(JSON.stringify(latestState.statuses)).not.toContain(credentials.callback_url);
+  expect(fetchJson).toHaveBeenCalledExactlyOnceWith(
+    "/api/extensions/example.connector/callbacks?project_id=project-1", { cache: "no-store" },
+  );
+
+  vi.mocked(fetchJson).mockResolvedValueOnce({ callbacks: [{ ...redacted, last_seen_at: refreshedTimestamp }] });
+  await user.click(screen.getByRole("button", { name: "Refresh Status" }));
+
+  await waitFor(() => expect(screen.getByText(refreshedTimestamp)).toBeVisible());
+  expect(latestState.statuses["example.connector"]).toBe("Callback status refreshed.");
+  expect(screen.queryByText(safeFailure)).not.toBeInTheDocument();
+  expect(fetchJson).toHaveBeenCalledTimes(2);
+  expect(fetchJson).toHaveBeenNthCalledWith(2,
+    "/api/extensions/example.connector/callbacks?project_id=project-1", { cache: "no-store" },
+  );
+});
+
 it("renders the global callback status without borrowing the selected connection's status", () => {
   render(<CallbackHarness scope={{ ...initialScope, connectionRequired: false }} options={{ callbacks: [
     { ...registration, last_error: "Connection delivery failure" },
@@ -274,6 +338,7 @@ it.each([
   rerender({ scope: { ...initialScope, ...change } });
   await act(async () => { finish(credentials); await request; });
   expect(result.current.callbackStatuses).toEqual({});
+  expect(result.current.actions.callbackSetupCredentials).toEqual({});
   expect(result.current.statuses["example.connector"]).not.toMatch(/registered|configured/i);
   expect(fetchJson).toHaveBeenCalledTimes(1);
   const cached = JSON.stringify(result.current.queryClient.getQueryCache().getAll().map((query) => query.state.data));
@@ -316,6 +381,7 @@ it("discards a late create receipt after leaving and returning to the same setup
   rerender({ scope: initialScope });
   await act(async () => { finish(credentials); await request; });
   expect(result.current.callbackStatuses).toEqual({});
+  expect(result.current.actions.callbackSetupCredentials).toEqual({});
   expect(result.current.statuses["example.connector"]).not.toMatch(/registered|configured/i);
   expect(fetchJson).toHaveBeenCalledTimes(1);
 });
