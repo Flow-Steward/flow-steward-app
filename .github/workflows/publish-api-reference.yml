@@ -1,0 +1,136 @@
+name: Publish API reference
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Published stable release tag
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable tag to bootstrap without rebuilding images
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: api-reference-${{ inputs.tag }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'Flow-Steward/flow-steward-app' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      packages: read
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - name: Check out immutable export tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
+        with:
+          persist-credentials: false
+      - name: Resolve stable release and download verified image receipts
+        id: release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
+        with:
+          script: |
+            const fs = require('node:fs');
+            const tag = process.env.RELEASE_TAG;
+            if (!/^v\d+\.\d+\.\d+$/.test(tag)) throw new Error('Expected stable version tag');
+            const {data: release} = await github.rest.repos.getReleaseByTag({...context.repo, tag});
+            if (release.draft || release.prerelease) throw new Error('Release must be published and stable');
+            let object = (await github.rest.git.getRef({...context.repo, ref: `tags/${tag}`})).data.object;
+            for (let depth = 0; object.type === 'tag' && depth < 8; depth++) {
+              object = (await github.rest.git.getTag({...context.repo, tag_sha: object.sha})).data.object;
+            }
+            if (object.type !== 'commit' || !/^[a-f0-9]{40}$/.test(object.sha)) throw new Error('Unresolved release revision');
+            core.setOutput('revision', object.sha);
+            core.setOutput('id', release.id);
+            const directory = `${process.env.RUNNER_TEMP}/api-reference-receipts`;
+            fs.mkdirSync(directory, {recursive: true});
+            const assets = await github.paginate(github.rest.repos.listReleaseAssets, {...context.repo, release_id: release.id, per_page: 100});
+            const receipts = assets.filter(asset => /^registry-verification-\d+-\d+\.json$/.test(asset.name));
+            if (!receipts.length) throw new Error('Release has no verified image receipts');
+            for (const asset of receipts) {
+              const {data} = await github.rest.repos.getReleaseAsset({...context.repo, asset_id: asset.id, headers: {accept: 'application/octet-stream'}});
+              fs.writeFileSync(`${directory}/${asset.name}`, Buffer.from(data));
+            }
+      - name: Select exact verified application image
+        env:
+          REVISION: ${{ steps.release.outputs.revision }}
+        run: |
+          python3 core/entrypoints/cli/scripts/export-api-reference.py select-image --release "$RELEASE_TAG" --revision "$REVISION" --directory "$RUNNER_TEMP/api-reference-receipts" --output "$RUNNER_TEMP/api-reference-image.json"
+      - name: Export canonical schemas from immutable released image offline
+        env:
+          REVISION: ${{ steps.release.outputs.revision }}
+        run: |
+          set -euo pipefail
+          image="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/api-reference-image.json"))["image"])')"
+          expected_config="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/api-reference-image.json"))["config_digest"])')"
+          docker pull --platform linux/amd64 "$image"
+          docker manifest inspect "$image" > "$RUNNER_TEMP/api-reference-image-manifest.json"
+          test "$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/api-reference-image-manifest.json"))["config"]["digest"])')" = "$expected_config"
+          test "$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image")" = "$REVISION"
+          mkdir -p "$RUNNER_TEMP/api-reference"
+          docker run --rm --network none --read-only --tmpfs /tmp --user "$(id -u):$(id -g)" --entrypoint python \
+            --mount "type=bind,src=$GITHUB_WORKSPACE,dst=/api-tooling,readonly" \
+            --mount "type=bind,src=$RUNNER_TEMP/api-reference,dst=/output" \
+            -e PYTHONPATH=/app -e PYTHONDONTWRITEBYTECODE=1 \
+            -e FS_STACK_ENVIRONMENT=development -e FS_AUTH_ALLOW_DISABLED=1 \
+            -e ARTIFACT_LOCAL_ROOT_DIR=/tmp/api-reference-artifacts -e FS_ARTIFACT_ROOT=/tmp/api-reference-ops \
+            -e FS_OPENAPI_PUBLIC_ENABLED=0 -e FS_DOCS_PUBLIC_ENABLED=0 \
+            -e FS_OPENAPI_INTERNAL_ENABLED=0 -e FS_DOCS_INTERNAL_ENABLED=0 \
+            "$image" /api-tooling/core/entrypoints/cli/scripts/export-api-reference.py export \
+            --release "$RELEASE_TAG" --revision "$REVISION" --directory /output
+          python3 core/entrypoints/cli/scripts/export-api-reference.py validate --release "$RELEASE_TAG" --revision "$REVISION" --directory "$RUNNER_TEMP/api-reference"
+      - name: Validate full OpenAPI specifications before publication
+        run: |
+          npm install --prefix "$RUNNER_TEMP/api-reference-validator" --ignore-scripts --no-audit --no-fund --save-exact @apidevtools/swagger-parser@13.1.0
+          node <<'JS'
+          const fs = require('node:fs');
+          const SwaggerParser = require(`${process.env.RUNNER_TEMP}/api-reference-validator/node_modules/@apidevtools/swagger-parser`);
+          (async () => {
+            for (const name of ['openapi-public.json', 'openapi-application.json']) {
+              const schema = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/api-reference/${name}`, 'utf8'));
+              await SwaggerParser.validate(schema, {resolve: {external: false, file: false, http: false}});
+              console.log(`Validated ${name}`);
+            }
+          })().catch(error => {console.error(error); process.exitCode = 1;});
+          JS
+      - name: Upload immutable API reference assets
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
+        env:
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          REVISION: ${{ steps.release.outputs.revision }}
+        with:
+          script: |
+            let object = (await github.rest.git.getRef({...context.repo, ref: `tags/${process.env.RELEASE_TAG}`})).data.object;
+            for (let depth = 0; object.type === 'tag' && depth < 8; depth++) {
+              object = (await github.rest.git.getTag({...context.repo, tag_sha: object.sha})).data.object;
+            }
+            if (object.type !== 'commit' || object.sha !== process.env.REVISION) throw new Error('Release tag moved during export');
+            const {data: release} = await github.rest.repos.getRelease({...context.repo, release_id: Number(process.env.RELEASE_ID)});
+            if (release.draft || release.prerelease || release.tag_name !== process.env.RELEASE_TAG) throw new Error('Release identity changed');
+            const {publishAssets} = require(`${process.env.GITHUB_WORKSPACE}/core/entrypoints/cli/scripts/api-reference-release.cjs`);
+            await publishAssets({github, context, release, directory: `${process.env.RUNNER_TEMP}/api-reference`});
+      - name: Mint documentation dispatch token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0 (Node 24)
+        with:
+          client-id: ${{ vars.DOCS_SYNC_APP_ID }}
+          private-key: ${{ secrets.DOCS_SYNC_APP_PRIVATE_KEY }}
+          owner: Flow-Steward
+          repositories: documentation-site
+          permission-contents: write
+      - name: Request documentation reference deployment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: 'Flow-Steward', repo: 'documentation-site', event_type: 'api-reference-release',
+              client_payload: {release: process.env.RELEASE_TAG, revision: '${{ steps.release.outputs.revision }}'}
+            });

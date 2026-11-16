@@ -501,3 +501,13 @@ jobs:
               data: fs.readFileSync(process.env.FS_RELEASE_EVIDENCE),
               headers: {'content-type': 'application/json'}
             });
+  api-reference:
+    needs: [resolve, publish]
+    if: ${{ always() && needs.resolve.result == 'success' && needs.publish.result == 'success' }}
+    permissions:
+      contents: write
+      packages: read
+    uses: ./.github/workflows/publish-api-reference.yml
+    with:
+      tag: ${{ needs.resolve.outputs.tag }}
+    secrets: inherit
