@@ -40,6 +40,13 @@ from core.entrypoints.mcp.server_discovery import visible_mcp_tool_names
 from core.entrypoints.mcp.server_maintenance import mcp_tool_is_mutation
 from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES
 
+
+def _envelope(result: Any) -> Any:
+    """The tool's structured answer; its text block carries the same JSON."""
+    assert json.loads(result.content[0].text) == result.structured_content
+    return result.structured_content
+
+
 NEW_TOOLS = {
     "agent_authoring_schema",
     "skill_authoring_schema",
@@ -307,7 +314,7 @@ def test_reads_stay_reads_during_maintenance_even_when_only_admin_may_call_them(
 def test_tool_sends_one_request_with_only_the_passed_fields(
     recorded, tool, arguments, method, path, params, body
 ) -> None:
-    result = json.loads(server_api_tool.api_tool_response(tool, arguments))
+    result = _envelope(server_api_tool.api_tool_response(tool, arguments))
 
     assert result["ok"] is True
     assert result["tool"] == tool
@@ -512,7 +519,7 @@ def _agent_db() -> MagicMock:
 
 
 def _call(name: str, **arguments: Any) -> dict[str, Any]:
-    return json.loads(_tool(name).fn(**arguments))
+    return _envelope(_tool(name).fn(**arguments))
 
 
 def _refusal(name: str, **arguments: Any) -> dict[str, Any]:

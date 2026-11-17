@@ -3,13 +3,19 @@ from __future__ import annotations
 import json
 from inspect import signature
 from types import SimpleNamespace
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 from mcp.server.mcpserver.exceptions import ToolError
 
 from core.entrypoints.mcp import server_api_tool, server_workflow_hook_tools
 from core.entrypoints.mcp.server_api_client import AppApiError
+
+
+def _envelope(result: Any) -> Any:
+    """The tool's structured answer; its text block carries the same JSON."""
+    assert json.loads(result.content[0].text) == result.structured_content
+    return result.structured_content
 
 
 class _RecordingClient:
@@ -50,7 +56,7 @@ def test_mutation_forwards_caller_correlation_and_idempotency() -> None:
         )
     )
 
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response(
             "job_cancel",
             {
@@ -95,7 +101,7 @@ def test_workflow_trigger_direct_launch_does_not_use_submit_task_api(files) -> N
         {"projects": [{"id": "project-1", "name": "alpha"}]},
         {"job_id": "job-1", "status": "pending"},
     )
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response(
             "workflow_trigger",
             {
@@ -224,7 +230,7 @@ def test_public_hook_reads_keep_parent_route_caller_and_binding_payload(tool, ho
     kwargs = {"project_name": "alpha", "workflow_id": "invoice-flow"}
     if hook_id is not None:
         kwargs["hook_id"] = hook_id
-    result = json.loads(public(**kwargs))
+    result = _envelope(public(**kwargs))
 
     assert result == {
         "ok": True,
@@ -312,7 +318,7 @@ def test_authoring_project_tools_forward_original_bearer_and_public_payload(
     tool, arguments, method, path
 ):
     _queue_responses({"projects": [{"id": "project-1", "name": "alpha"}]}, {"workflow_id": "new"})
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response(tool, {"project_name": "alpha", **arguments})
     )
     assert result["ok"] is True
@@ -596,7 +602,7 @@ def test_job_list_forwards_filters_and_caller(filters):
     from core.entrypoints.mcp.server_job_tools import job_list
 
     _queue_responses({"jobs": [], "total": 0})
-    result = json.loads(job_list(**filters))
+    result = _envelope(job_list(**filters))
     assert result["data"] == {"jobs": [], "total": 0}
     request = _RecordingClient.requests[0]
     assert request["path"] == "/api/jobs"
@@ -609,7 +615,7 @@ def test_pending_approvals_returns_queue_with_caller():
     from core.entrypoints.mcp.server_job_tools import job_approvals_pending
 
     _queue_responses([{"id": "job-1"}])
-    assert json.loads(job_approvals_pending())["data"] == [{"id": "job-1"}]
+    assert _envelope(job_approvals_pending())["data"] == [{"id": "job-1"}]
     assert _RecordingClient.requests[0]["path"] == "/api/jobs/awaiting-approval"
     assert _RecordingClient.requests[0]["bearer"] == "caller-token"
 
@@ -643,7 +649,7 @@ def test_apply_changes_posts_one_change_set_to_the_workflow_changes_route():
     operations = [{"op": "update_step_config", "step_id": "a", "patch": {"display_name": "B"}}]
     _queue_responses({"workflow_id": "wf_1", "revision": 4})
 
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response(
             "workflow_apply_changes",
             {"workflow_id": "wf_1", "expected_revision": 3, "operations": operations},
@@ -676,7 +682,7 @@ def test_group_conversion_posts_preview_and_apply_to_the_same_authenticated_api(
             "dry_run": dry_run,
             "preview_digest": "reviewed-digest",
         }
-        result = json.loads(server_api_tool.api_tool_response("workflow_convert_group", arguments))
+        result = _envelope(server_api_tool.api_tool_response("workflow_convert_group", arguments))
         assert result["data"]["can_convert"]
         request = _RecordingClient.requests[-1]
         assert request["path"] == "/api/workflows/wf_1/groups/loop_a/convert-to-child"
@@ -783,7 +789,7 @@ def test_apply_changes_keeps_the_refusal_issues_and_the_revision_conflict():
 def test_workflow_definition_reads_the_registry_route_with_the_callers_bearer():
     _queue_responses({"workflow_id": "wf_1", "revision": 5, "steps": [], "groups": []})
 
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response("workflow_definition", {"workflow_id": "wf_1"})
     )
 
@@ -795,7 +801,7 @@ def test_workflow_definition_reads_the_registry_route_with_the_callers_bearer():
 
 def test_job_status_uses_scoped_polling_endpoint_instead_of_ui_detail():
     _queue_responses({"id": "job-1", "status": "awaiting_timer", "current_step_id": "pause"})
-    result = json.loads(server_api_tool.api_tool_response("job_status", {"job_id": "job-1"}))
+    result = _envelope(server_api_tool.api_tool_response("job_status", {"job_id": "job-1"}))
     assert result["data"]["status"] == "awaiting_timer"
     assert _RecordingClient.requests[0]["path"] == "/api/jobs/job-1/status"
     assert _RecordingClient.requests[0]["bearer"] == "caller-token"
@@ -806,7 +812,7 @@ def test_workflow_global_inspection_preserves_caller_without_project_lookup(tool
     payload = {"workflow_id": "wf.global", "issues": []}
     _queue_responses(payload)
 
-    result = json.loads(server_api_tool.api_tool_response(tool, {"workflow_id": "wf.global"}))
+    result = _envelope(server_api_tool.api_tool_response(tool, {"workflow_id": "wf.global"}))
 
     assert result["data"] == payload
     assert _RecordingClient.requests == [
@@ -866,7 +872,7 @@ def test_portability_tools_call_the_project_workflow_routes_with_the_caller_bear
         ),
     )
     for tool, arguments in calls:
-        result = json.loads(
+        result = _envelope(
             server_api_tool.api_tool_response(tool, {"project_name": "alpha", **arguments})
         )
         assert result["ok"] is True, tool
@@ -962,7 +968,7 @@ def test_authoring_schema_preserves_additive_discovery_payload():
         "change_set": {"schema_scope": "envelope_only_operations_are_open_objects"},
     }
     _queue_responses({"format": "platform.workflow_bundle.v2", "definition_guidance": guidance})
-    result = json.loads(
+    result = _envelope(
         server_api_tool.api_tool_response(
             "workflow_authoring_schema",
             {"step_kind": "set_variable"},

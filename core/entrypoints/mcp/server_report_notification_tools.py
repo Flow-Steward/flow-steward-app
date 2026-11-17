@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.entrypoints.mcp.server_api_tool import api_tool_response
+from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
 
@@ -11,7 +11,7 @@ def report_generate(
     report_type: str,
     params: dict[str, object] | None = None,
     persist: bool = True,
-) -> str:
+) -> McpToolResult:
     """Generate a scoped report, optionally persisting the result.
 
     Operational types: activity_daily, project_summary, project_stats. For these,
@@ -24,13 +24,13 @@ def report_generate(
 
 
 @mcp.tool()
-def report_get(report_id: str) -> str:
+def report_get(report_id: str) -> McpToolResult:
     """Fetch one persisted report."""
     return api_tool_response("report_get", locals())
 
 
 @mcp.tool()
-def project_notification_routes(project_name: str, enabled_only: bool = False) -> str:
+def project_notification_routes(project_name: str, enabled_only: bool = False) -> McpToolResult:
     """List notification routes configured for one project."""
     return api_tool_response("project_notification_routes", locals())
 
@@ -40,7 +40,7 @@ def project_notification_deliveries(
     project_name: str,
     job_id: str = "",
     limit: int = 200,
-) -> str:
+) -> McpToolResult:
     """List notification delivery records for one project."""
     return api_tool_response("project_notification_deliveries", locals())
 
@@ -53,7 +53,7 @@ def dispatch_project_notification(
     workflow_id: str = "",
     job_id: str = "",
     payload: dict[str, object] | None = None,
-) -> str:
+) -> McpToolResult:
     """Dispatch a project notification event."""
     return api_tool_response("dispatch_project_notification", locals())
 

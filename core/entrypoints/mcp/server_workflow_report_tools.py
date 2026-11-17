@@ -18,7 +18,6 @@ from the application's public ``/static`` mount and serves it as the
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -29,13 +28,17 @@ from pydantic import Field
 
 from core.entrypoints.mcp.server_api_auth import app_api_base_url
 from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES, AppApiClient, AppApiError
-from core.entrypoints.mcp.server_api_tool import api_tool_envelope, api_tool_error
+from core.entrypoints.mcp.server_api_tool import (
+    McpToolResult,
+    api_tool_envelope,
+    api_tool_error,
+    api_tool_result,
+)
 from core.entrypoints.mcp.server_caller_identity import current_caller_bearer
 from mcp.server.apps import APP_MIME_TYPE, Apps, client_supports_apps
 from mcp.server.mcpserver.context import Context
 from mcp.server.mcpserver.exceptions import ResourceError
 from mcp.server.mcpserver.resources import FunctionResource
-from mcp.types import CallToolResult, TextContent
 
 TOOL = "workflow_run_report"
 REPORT_VIEWER_URI = "ui://flow-steward/report-viewer/v1"
@@ -150,7 +153,7 @@ async def workflow_run_report(
     ctx: Context,
     job_id: str,
     wait_seconds: Annotated[int, Field(ge=0, le=MAX_WAIT_SECONDS)] = 0,
-) -> CallToolResult:
+) -> McpToolResult:
     """Return the model-safe report part, and the snapshot for the viewer only."""
     correlation_id = uuid4().hex
     payload = await _read_report(str(job_id).strip(), wait_seconds, correlation_id)
@@ -161,12 +164,7 @@ async def workflow_run_report(
         if isinstance(snapshot, dict) and client_supports_apps(ctx)
         else None
     )
-    text = json.dumps(envelope, ensure_ascii=False, sort_keys=True, default=str)
-    return CallToolResult(
-        content=[TextContent(type="text", text=text)],
-        structured_content=envelope,
-        _meta=meta,
-    )
+    return api_tool_result(envelope, meta=meta)
 
 
 __all__ = [

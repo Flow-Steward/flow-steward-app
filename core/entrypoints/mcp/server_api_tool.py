@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Annotated, Any, TypedDict
 from uuid import uuid4
 
 from core.entrypoints.mcp.server_api_client import (
@@ -14,6 +14,7 @@ from core.entrypoints.mcp.server_api_client import (
 )
 from core.entrypoints.mcp.server_caller_identity import current_caller_bearer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.types import CallToolResult, TextContent
 
 _AUTHORING_TOOLS = frozenset(
     {
@@ -358,7 +359,7 @@ def _blocking_dependencies(payload: object) -> list[dict[str, Any]]:
     return rows
 
 
-def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
+def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> CallToolResult:
     """Map one registered MCP call to one authenticated application API call."""
     route = MCP_TOOL_ROUTES[tool]
     arguments = dict(raw_arguments)
@@ -437,12 +438,7 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
     except AppApiError as exc:
         raise api_tool_error(tool, exc) from exc
 
-    return json.dumps(
-        api_tool_envelope(tool, _payload_data(payload), correlation_id),
-        ensure_ascii=False,
-        sort_keys=True,
-        default=str,
-    )
+    return api_tool_result(api_tool_envelope(tool, _payload_data(payload), correlation_id))
 
 
 def _absolute_ui_links(data: object, origin: str) -> object:
@@ -495,6 +491,42 @@ def _public_origin() -> str:
     return public_origin(runtime_env)
 
 
+class McpToolEnvelope(TypedDict):
+    """The success envelope of a Flow Steward tool: ``data`` holds the answer.
+
+    A refusal is a tool error whose text is ``{ok: false, tool, error}``.
+    """
+
+    ok: bool
+    tool: str
+    data: Any
+    meta: dict[str, Any]
+
+
+#: The return annotation of every tool: the SDK publishes the envelope as the
+#: tool's ``outputSchema`` (an object, not ``{result: string}``) and checks the
+#: ``structuredContent`` the tool returns against it.
+McpToolResult = Annotated[CallToolResult, McpToolEnvelope]
+
+
+def api_tool_result(
+    envelope: dict[str, Any], *, meta: dict[str, Any] | None = None
+) -> CallToolResult:
+    """One answer, twice: the envelope as structured content and as its JSON text.
+
+    Structured content is the object itself, never JSON inside a string; the
+    text block carries the same compact JSON for clients that read text only.
+    Both are built from one serialization, so they cannot disagree. ``meta``
+    is the result's ``_meta`` (data for an app view, not for the model).
+    """
+    text = json.dumps(envelope, ensure_ascii=False, sort_keys=True, default=str)
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        structured_content=json.loads(text),
+        _meta=meta,
+    )
+
+
 def api_tool_envelope(tool: str, data: object, correlation_id: str) -> dict[str, Any]:
     """The success envelope every API-backed tool returns."""
     return {
@@ -522,4 +554,11 @@ def api_tool_error(tool: str, exc: AppApiError) -> ToolError:
     return ToolError(json.dumps(envelope, ensure_ascii=False, sort_keys=True))
 
 
-__all__ = ["api_tool_envelope", "api_tool_error", "api_tool_response"]
+__all__ = [
+    "McpToolEnvelope",
+    "McpToolResult",
+    "api_tool_envelope",
+    "api_tool_error",
+    "api_tool_response",
+    "api_tool_result",
+]

@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 from types import SimpleNamespace
-from typing import ClassVar
+from typing import Any, ClassVar
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,6 +33,12 @@ from core.entrypoints.mcp import server_api_tool
 
 # ---------------------------------------------------------------------------
 # helpers
+
+
+def _envelope(result: Any) -> Any:
+    """The tool's structured answer; its text block carries the same JSON."""
+    assert json.loads(result.content[0].text) == result.structured_content
+    return result.structured_content
 
 
 def _query_service(bl) -> JobQueryService:
@@ -206,7 +212,7 @@ def test_mcp_job_list_forwards_attention_paging(mcp_client):
     from core.entrypoints.mcp.server_job_tools import job_list
 
     mcp_client.responses.append({"groups": {}, "total": 30, "has_more": True})
-    result = json.loads(job_list(group_by="attention", page=2, per_page=10))
+    result = _envelope(job_list(group_by="attention", page=2, per_page=10))
 
     assert result["data"]["has_more"] is True
     assert mcp_client.requests[0]["params"]["page"] == 2
