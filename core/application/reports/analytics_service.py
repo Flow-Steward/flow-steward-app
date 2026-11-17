@@ -134,14 +134,17 @@ class AnalyticsService:
 
     @staticmethod
     def _activity_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+        """Completed and failed runs are the finished jobs; cancelled runs are counted apart."""
         completed = sum(int(row.get("completed_count") or 0) for row in rows)
         failed = sum(int(row.get("failed_count") or 0) for row in rows)
+        cancelled = sum(int(row.get("cancelled_count") or 0) for row in rows)
         total_jobs = completed + failed
         p50_values = [_safe_float(row.get("p50_seconds")) for row in rows if row.get("p50_seconds")]
         p95_values = [_safe_float(row.get("p95_seconds")) for row in rows if row.get("p95_seconds")]
         return {
             "completed_count": completed,
             "failed_count": failed,
+            "cancelled_count": cancelled,
             "total_jobs": total_jobs,
             "overall_success_rate_pct": round((completed / total_jobs) * 100, 1)
             if total_jobs
@@ -168,12 +171,17 @@ class AnalyticsService:
                     "date": day_value.isoformat(),
                     "completed_count": 0,
                     "failed_count": 0,
+                    "cancelled_count": 0,
                     "total_jobs": 0,
                     "success_rate_pct": 0.0,
                     "_durations": [],
                 },
             )
             result = str(row.get("result") or row.get("status") or "").strip().lower()
+            if result == "cancelled":
+                # Stopped, not finished: outside the success rate and the durations.
+                bucket["cancelled_count"] += 1
+                continue
             if result == "completed":
                 bucket["completed_count"] += 1
             else:
@@ -192,6 +200,7 @@ class AnalyticsService:
                     "date": cursor.isoformat(),
                     "completed_count": 0,
                     "failed_count": 0,
+                    "cancelled_count": 0,
                     "total_jobs": 0,
                     "success_rate_pct": 0.0,
                     "_durations": [],
@@ -204,6 +213,7 @@ class AnalyticsService:
                     "date": cursor.isoformat(),
                     "completed_count": _safe_int(current.get("completed_count")),
                     "failed_count": _safe_int(current.get("failed_count")),
+                    "cancelled_count": _safe_int(current.get("cancelled_count")),
                     "total_jobs": total_jobs,
                     "success_rate_pct": round(
                         (_safe_int(current.get("completed_count")) / total_jobs) * 100, 1
@@ -270,6 +280,9 @@ class AnalyticsService:
             scope, bl=bl, project_id=filters.get("project_id") or scope.project_id
         )
         start_dt, end_dt, start_date, end_date, range_key = _normalize_activity_window(filters)
+        # The facts include every run that finished before this moment: runs the
+        # rollup has not refreshed yet are read live (``list_activity_facts``).
+        data_as_of = datetime.now(UTC)
         # Account rollups lack tenant and membership dimensions; always use scoped facts.
         facts = self._activity_facts(
             bl=bl,
@@ -291,6 +304,7 @@ class AnalyticsService:
             },
             "rows": rows,
             "summary": self._activity_summary(rows),
+            "data_as_of": data_as_of.isoformat(),
         }
 
     def _core_slo_summary(

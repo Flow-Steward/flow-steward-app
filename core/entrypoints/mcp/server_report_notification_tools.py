@@ -14,9 +14,15 @@ def report_generate(
 ) -> McpToolResult:
     """Generate a scoped report, optionally persisting the result.
 
-    Operational types: activity_daily, project_summary, project_stats. For these,
-    params accepts project_id, exact workflow_id, range (default '7d'), or
-    start_date/end_date (ISO dates). Omitted filters retain the caller's scope.
+    Operational types: activity_daily, project_summary, project_stats. They are
+    three views of one dataset: the same payload and chart (KPIs, daily rows,
+    data_as_of); only summary_text differs (activity_daily: daily activity,
+    project_summary: summary with a next step, project_stats: flat counts).
+    They count runs finished up to the moment of generation (payload.data_as_of);
+    finished jobs are completed and failed runs, and cancelled runs are counted
+    apart (kpis.cancelled_count). For these, params accepts project_id, exact
+    workflow_id, range (default '7d'), or start_date/end_date (ISO dates).
+    Omitted filters retain the caller's scope.
     Job types: job_summary, job_usage_breakdown (params.job_id required).
     core_health_summary accepts params.window_hours (default 24).
     """
