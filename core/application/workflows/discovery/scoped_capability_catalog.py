@@ -326,10 +326,37 @@ class ScopedCapabilityCatalog:
     ) -> dict[str, Any]:
         normalized = self._normalize_ref(capability_ref)
         capability_type = normalized.capability_type
+        row, project_workflow_ids = self._capability_row(scope, project_id, normalized)
+        if not isinstance(row, Mapping):
+            raise ValueError("Selected capability is not visible in the current scope.")
+        payload = dict(row)
+        if not self._row_visible(
+            payload,
+            capability_type=capability_type,
+            scope=scope,
+            project_id=project_id,
+            project_workflow_ids=project_workflow_ids,
+            assigned_skill_execution=assigned_skill_execution,
+        ):
+            raise ValueError("Selected capability is not visible in the current scope.")
+        return payload
+
+    def _capability_row(
+        self,
+        scope: Mapping[str, Any] | Any,
+        project_id: str | None,
+        normalized: ScopedCapabilityRef,
+        *,
+        include_disabled: bool = False,
+    ) -> tuple[Any, set[str] | None]:
+        """The stored row for a reference, and the project's workflow ids for a workflow."""
+        capability_type = normalized.capability_type
         capability_id = normalized.capability_id
         if capability_type == "workflow":
             row = getattr(self.db, "get_workflow", lambda *_: None)(capability_id)
-            project_workflow_ids = self._project_workflow_ids(project_id)
+            project_workflow_ids = self._project_workflow_ids(
+                project_id, include_disabled=include_disabled
+            )
         elif capability_type in {"agent", "skill"}:
             account_id = _scope_value(normalize_scope(scope, project_id=project_id), "account_id")
             manual_row = getattr(self.db, f"get_{capability_type}", lambda *_: None)(capability_id)
@@ -366,19 +393,37 @@ class ScopedCapabilityCatalog:
             project_workflow_ids = None
         else:
             raise ValueError("Unknown capability type.")
-        if not isinstance(row, Mapping):
-            raise ValueError("Selected capability is not visible in the current scope.")
-        payload = dict(row)
-        if not self._row_visible(
-            payload,
-            capability_type=capability_type,
+        return row, project_workflow_ids
+
+    def capability_disabled_in_scope(
+        self,
+        scope: Mapping[str, Any] | Any,
+        project_id: str | None,
+        capability_ref: ScopedCapabilityRef | Mapping[str, Any],
+    ) -> bool:
+        """Whether a reference is refused only because the capability is disabled.
+
+        The row is judged by the same scope rules as visibility, as if it were
+        enabled, so a row in another account or project still looks exactly like
+        a missing one; only a caller who could use it once enabled learns that it
+        exists and is disabled.
+        """
+        try:
+            normalized = self._normalize_ref(capability_ref)
+            row, project_workflow_ids = self._capability_row(
+                scope, project_id, normalized, include_disabled=True
+            )
+        except ValueError:
+            return False
+        if not isinstance(row, Mapping) or row.get("enabled") is not False:
+            return False
+        return self._row_visible(
+            {**row, "enabled": True},
+            capability_type=normalized.capability_type,
             scope=scope,
             project_id=project_id,
             project_workflow_ids=project_workflow_ids,
-            assigned_skill_execution=assigned_skill_execution,
-        ):
-            raise ValueError("Selected capability is not visible in the current scope.")
-        return payload
+        )
 
     def _normalize_ref(
         self,
@@ -411,13 +456,18 @@ class ScopedCapabilityCatalog:
             operation_id=operation_id,
         )
 
-    def _project_workflow_ids(self, project_id: str | None) -> set[str]:
+    def _project_workflow_ids(
+        self, project_id: str | None, *, include_disabled: bool = False
+    ) -> set[str]:
+        """Workflows linked to the project; with include_disabled, every live link."""
         normalized_project_id = _text(project_id)
         if not normalized_project_id or not hasattr(self.db, "list_project_workflows"):
             return set()
         try:
             rows = (
-                self.db.list_project_workflows(project_id=normalized_project_id, enabled_only=True)
+                self.db.list_project_workflows(
+                    project_id=normalized_project_id, enabled_only=not include_disabled
+                )
                 or []
             )
         except TypeError:
@@ -425,7 +475,9 @@ class ScopedCapabilityCatalog:
         return {
             _text((row or {}).get("workflow_id"))
             for row in rows
-            if isinstance(row, Mapping) and _text((row or {}).get("workflow_id"))
+            if isinstance(row, Mapping)
+            and _text((row or {}).get("workflow_id"))
+            and not (include_disabled and (row or {}).get("deleted_at"))
         }
 
     def _row_visible(

@@ -121,6 +121,36 @@ def test_successful_path_bypassing_retained_producer_does_not_prove_output():
     )
 
 
+def test_unwritten_parent_output_names_the_output_and_the_missing_path():
+    """MCP probe F9: the refusal blamed "moved message history" for a branch gap."""
+    workflow, rows = retained_source()
+    workflow["steps"].insert(0, step("choose", "if"))
+    graph = workflow["settings"]["execution_graph"]
+    graph["entry"] = ref("choose")
+    graph["edges"].extend(
+        [edge("choose", ref("prepare"), "true"), edge("choose", ref("done"), "false")]
+    )
+
+    [issue] = [
+        i for i in retained_plan(workflow, rows).issues if i["code"] == "parent_output_boundary"
+    ]
+
+    assert "'items'" in issue["message"]
+    assert "every successful path" in issue["message"]
+    assert "message history" not in issue["message"]
+
+
+def test_untyped_parent_output_names_its_type():
+    workflow, rows = retained_source()
+    workflow["settings"]["callable"]["expected_outputs"][0]["type"] = "file"
+
+    [issue] = [
+        i for i in retained_plan(workflow, rows).issues if i["code"] == "parent_output_boundary"
+    ]
+
+    assert "'items' has type 'file'" in issue["message"]
+
+
 def test_moved_output_keeps_existing_transfer_mapping():
     workflow, rows = retained_source()
     workflow["settings"]["callable"]["expected_outputs"] = [

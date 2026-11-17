@@ -120,6 +120,28 @@ def _with_carried_children(
     return merged
 
 
+def _blocking_definition_message(issues: list[dict[str, Any]]) -> str:
+    """The refusal headline names the first blocking cause, not a generic category.
+
+    The blocking rows include more than graph shape (a new hook declaration
+    outside Development, for one), so a fixed "invalid topology" headline sent
+    the reader to look for a graph problem that was not there.
+    """
+    messages = list(
+        dict.fromkeys(
+            str(item.get("message") or "").strip()
+            for item in issues
+            if isinstance(item, dict) and str(item.get("message") or "").strip()
+        )
+    )
+    if not messages:
+        return "Workflow import defines an invalid topology."
+    headline = f"Workflow import is refused: {messages[0]}"
+    if len(messages) > 1:
+        headline += f" ({len(messages) - 1} more blocking issue(s) are listed in the errors.)"
+    return headline
+
+
 def _bundle_role(workflow_id: str, root_id: str, child_ids: set[str]) -> str:
     """How a bundled workflow takes part: the template itself, or a child it calls."""
     if workflow_id and workflow_id == root_id:
@@ -490,7 +512,7 @@ class WorkflowPortabilityImportMixin:
             # validator returns are what the caller gets here, so an import that a
             # later validation would reject never becomes a stored draft.
             raise WorkflowPortabilityError(
-                "Workflow import defines an invalid topology.",
+                _blocking_definition_message(topology_issues),
                 code="workflow_import_topology_invalid",
                 errors=topology_issues,
             )
@@ -564,7 +586,7 @@ class WorkflowPortabilityImportMixin:
             )
             if authoring_issues:
                 raise WorkflowPortabilityError(
-                    "Workflow import defines an invalid topology.",
+                    _blocking_definition_message(authoring_issues),
                     code="workflow_import_topology_invalid",
                     errors=authoring_issues,
                 )

@@ -602,3 +602,66 @@ def test_draft_hook_creation_uses_actual_server_mode(monkeypatch, mode, has_hook
         assert row["account_id"] == DEFAULT_ACCOUNT_ID
         assert db.bindings == [("project", saved["workflow_id"])]
         assert len(db.history) == 1
+
+
+def _invoke_child_bundle(child_id: str) -> str:
+    parsed = yaml.safe_load(bundle())
+    lead_with(
+        parsed,
+        [
+            {
+                "step_id": "call",
+                "step_kind": "invoke_workflow",
+                "override": {"invoke_workflow": {"workflow_id": child_id}},
+            }
+        ],
+    )
+    return yaml.safe_dump(parsed)
+
+
+def _child_row(**extra):
+    return {
+        "workflow_id": "child",
+        "display_name": "Child",
+        "enabled": False,
+        "account_id": DEFAULT_ACCOUNT_ID,
+        "project_id": "project",
+        "scope_kind": "account",
+        **extra,
+    }
+
+
+def test_a_disabled_child_in_the_same_project_is_named_as_disabled():
+    """MCP probe F9: a disabled child got "Reference is not available in the scope"."""
+    db = DraftDB()
+    db.workflows["child"] = _child_row()
+
+    result = service(db).validate(
+        scope=SCOPE, project_id="project", bundle_yaml=_invoke_child_bundle("child")
+    )
+
+    assert result["can_save"] is False
+    issues = [issue for issue in result["issues"] if issue["blocking"]]
+    disabled = [issue for issue in issues if issue["code"] == "authoring.reference_disabled"]
+    assert disabled, issues
+    assert "'child'" in disabled[0]["message"]
+    assert "disabled" in disabled[0]["message"]
+    assert "workflow_set_enabled" in disabled[0]["repair_guidance"]
+    assert not any(issue["code"] == "authoring.reference_not_permitted" for issue in issues)
+
+
+@pytest.mark.parametrize(
+    "extra", [{"account_id": "other"}, {"project_id": "other_project"}, {"deleted_at": "x"}]
+)
+def test_a_disabled_child_out_of_scope_keeps_the_generic_refusal(extra):
+    """Naming a component as disabled must not reveal one the caller cannot use."""
+    db = DraftDB()
+    db.workflows["child"] = _child_row(**extra)
+
+    result = service(db).validate(
+        scope=SCOPE, project_id="project", bundle_yaml=_invoke_child_bundle("child")
+    )
+
+    codes = {issue["code"] for issue in result["issues"] if issue["blocking"]}
+    assert "authoring.reference_not_permitted" in codes
+    assert "authoring.reference_disabled" not in codes

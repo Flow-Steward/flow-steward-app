@@ -74,6 +74,28 @@ def _json_type(value: Any) -> str:
     return _TYPES.get(name, name) if _TYPES.get(name, name) in _JSON_TYPES else ""
 
 
+def _parent_output_boundary_message(name: str, declared: Any) -> str:
+    """Name why a parent output blocks conversion, in terms the author can act on.
+
+    The rule refuses an output the group does not write and the remaining parent
+    cannot prove on every successful end. Two different causes reach it: the
+    declared type is not a value a child can hand back, or some successful path
+    of the parent never writes the output with that type.
+    """
+    kind = _json_type(declared)
+    if not kind:
+        return (
+            f"Workflow output '{name}' has type '{str(declared or '').strip() or 'none'}', "
+            "which cannot be proven written after conversion; declare it as text, "
+            "number, boolean, object or array before converting this group."
+        )
+    return (
+        f"Workflow output '{name}' ({kind}) is not written with that type on every "
+        "successful path of the parent outside this group. Write it on every path "
+        "that ends in success before converting this group."
+    )
+
+
 def _leaves(value: Any, path: str):
     """Use the selector discoverer's paths, including literal dotted mapping keys."""
     if isinstance(value, dict):
@@ -373,7 +395,7 @@ def analyze_group_bindings(
             plan.refuse(
                 "parent_output_boundary",
                 f"settings.callable.expected_outputs.{name}",
-                "The parent's callable result may come from moved message history; expose a transferable state output before conversion.",
+                _parent_output_boundary_message(name, row.get("type")),
             )
     from core.application.registry.workflow_contract import interface_from_definition
 

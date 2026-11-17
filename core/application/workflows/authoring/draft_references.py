@@ -8,6 +8,7 @@ from typing import Any
 from core.application.management.errors import ServiceNotFoundError
 from core.application.management.scope import ScopeContext
 from core.application.workflows.authoring.catalog import WorkflowAuthoringCatalog
+from core.application.workflows.discovery.scoped_capability_catalog import ScopedCapabilityRef
 from core.application.workflows.workflow_portability import (
     WorkflowPortabilityError,
     WorkflowPortabilityService,
@@ -16,6 +17,14 @@ from core.application.workflows.workflow_portability import (
 from core.application.workflows.workflow_step_config_contracts import STEP_CONFIG_ALLOWED_KEYS
 
 ALLOWED_RESOLUTION_ACTIONS = frozenset({"use_existing", "map_existing"})
+REFERENCE_NOT_PERMITTED_CODE = "authoring.reference_not_permitted"
+REFERENCE_DISABLED_CODE = "authoring.reference_disabled"
+#: Kinds whose disabled state is worth naming: (what to call it, the tool that enables it).
+_DISABLED_REFERENCE_LABELS = {
+    "child_workflow": ("Child workflow", "workflow_set_enabled"),
+    "agent": ("Agent", "agent_set_enabled"),
+    "skill": ("Skill", "skill_set_enabled"),
+}
 _RESOLUTION_TYPES = frozenset(
     {
         "agent",
@@ -237,9 +246,12 @@ class DraftReferences:
                 if workflow_id:
                     self.catalog.visible_row(scope, project_id, "workflow", workflow_id)
         except ServiceNotFoundError:
+            disabled = self._disabled_reference_issue(scope, project_id, kind, ref, path)
+            if disabled is not None:
+                return [disabled]
             return [
                 {
-                    "code": "authoring.reference_not_permitted",
+                    "code": REFERENCE_NOT_PERMITTED_CODE,
                     "path": path,
                     "message": "Reference is not available in the selected account/project scope.",
                     "severity": "error",
@@ -248,6 +260,40 @@ class DraftReferences:
                 }
             ]
         return []
+
+    def _disabled_reference_issue(
+        self,
+        scope: ScopeContext,
+        project_id: str,
+        kind: str,
+        ref: str,
+        path: str,
+    ) -> dict[str, Any] | None:
+        """Name a disabled component the caller could use once it is enabled.
+
+        A reference outside the caller's scope keeps the generic refusal, so this
+        never tells anyone that a component they cannot see exists.
+        """
+        label = _DISABLED_REFERENCE_LABELS.get(kind)
+        if label is None:
+            return None
+        capability_type = "workflow" if kind == "child_workflow" else kind
+        if not self.catalog.visibility.capability_disabled_in_scope(
+            scope, project_id, ScopedCapabilityRef(capability_type, ref)
+        ):
+            return None
+        noun, enable_tool = label
+        return {
+            "code": REFERENCE_DISABLED_CODE,
+            "path": path,
+            "message": f"{noun} '{ref}' is disabled; enable it first.",
+            "severity": "error",
+            "blocking": True,
+            "repair_guidance": (
+                f"Enable {noun.lower()} '{ref}' (MCP: {enable_tool}) and validate again, "
+                "or reference an enabled component."
+            ),
+        }
 
     def _step_scope_issues(
         self,

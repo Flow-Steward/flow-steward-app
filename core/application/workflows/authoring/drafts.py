@@ -26,7 +26,11 @@ from core.application.registry.contract_validation_workflow_readiness import (
 )
 from core.application.registry.db_store_workflows_mixin import WorkflowCreateConflictError
 from core.application.workflows.authoring.catalog import WorkflowAuthoringCatalog
-from core.application.workflows.authoring.draft_references import DraftReferences
+from core.application.workflows.authoring.draft_references import (
+    REFERENCE_DISABLED_CODE,
+    REFERENCE_NOT_PERMITTED_CODE,
+    DraftReferences,
+)
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
 from core.application.workflows.workflow_definition_service import (
     create_workflow_with_definition,
@@ -376,8 +380,11 @@ class WorkflowAuthoringDrafts(DraftReferences):
             for item in preflight.get("topology_issues", [])
         )
         issues.extend(self._step_scope_issues(portability, scope, project_id, payload))
+        # A disabled dependency is not hydrated either: its contract is checked
+        # once it is enabled, like any other reference the run cannot use.
         denied_reference = any(
-            issue.get("code") == "authoring.reference_not_permitted" for issue in issues
+            issue.get("code") in {REFERENCE_NOT_PERMITTED_CODE, REFERENCE_DISABLED_CODE}
+            for issue in issues
         )
         readiness: dict[str, Any]
         if denied_reference:
