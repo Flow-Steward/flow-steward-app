@@ -162,7 +162,9 @@ Enabling does not run anything.
 Only when the user asks to run it.
 
 1. `workflow_contract(workflow_id, project_name)` gives the inputs. Ask for
-   every missing required input; do not invent values.
+   every missing required input; do not invent values. Send only the inputs
+   in `input_schema`: an input with a configured default
+   (`caller_may_supply: false`) is fixed, and sending it is refused.
 2. `workflow_trigger(project_name, workflow_id, payload, files=...)`. File
    inputs carry `input_name`, `filename`, `mime_type` and `content_base64`,
    never server paths or URLs. `test_mode=true` asks extensions to suppress

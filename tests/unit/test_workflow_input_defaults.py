@@ -251,3 +251,35 @@ def test_malformed_inline_secret_reference_is_a_bounded_validation_error() -> No
 
 def test_secret_is_part_of_the_declared_workflow_field_type() -> None:
     assert "secret" in get_args(WorkflowFieldType)
+
+
+def test_contract_input_schema_offers_only_inputs_a_caller_may_supply() -> None:
+    """F2: workflow_contract must not advertise an input workflow_trigger refuses."""
+    interface = _interface(
+        {"name": "week", "type": "string", "default": "2026-W47"},
+        {"name": "region", "type": "string", "required": True},
+    )
+    service = WorkflowInterfaceService()
+
+    payload = service.public_contract_payload(interface)
+
+    schema = payload["input_schema"]
+    assert set(schema["properties"]) == {"region"}
+    assert schema["required"] == ["region"]
+    rows = {row["name"]: row for row in payload["expected_inputs"]}
+    assert rows["week"]["default_configured"] is True
+    assert rows["week"]["caller_may_supply"] is False
+    assert rows["region"]["caller_may_supply"] is True
+    # Every input the schema offers is accepted by the trigger boundary.
+    accepted = service.validate_inputs(interface, {"region": "eu"})
+    assert accepted.ok, accepted.errors
+    assert accepted.inputs == {"region": "eu", "week": "2026-W47"}
+
+
+def test_a_required_input_with_a_default_is_not_required_from_the_caller() -> None:
+    interface = _interface({"name": "week", "type": "string", "required": True, "default": "W1"})
+
+    schema = WorkflowInterfaceService().input_json_schema(interface)
+
+    assert schema["properties"] == {}
+    assert "required" not in schema

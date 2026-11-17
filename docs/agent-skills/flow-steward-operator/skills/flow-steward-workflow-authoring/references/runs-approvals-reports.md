@@ -51,7 +51,9 @@ action. Separate a run that is still going from a finished one.
   `job_approval_decide(thread_id, approval_id, approved, idempotency_key,
   comment, action)` with the gate's own `thread_id` and `approval_id` and a
   stable `idempotency_key` reused on retry. Read `allowed_actions`; an
-  exhausted rework budget offers only `approve` and `abort`. Permission to
+  exhausted rework budget offers only `approve` and `abort`. A reject
+  (`approved=false`) needs the human's reason in `comment`; `action="abort"`
+  ends the run as cancelled and needs no comment. Permission to
   start a run is never permission to approve it.
 
 ## Cancel, restart, acknowledge

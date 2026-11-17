@@ -183,10 +183,37 @@ def job_approval_decide(
     approval_id: str,
     approved: bool,
     idempotency_key: str,
-    comment: str = "",
-    action: str = "",
+    comment: Annotated[
+        str,
+        Field(
+            description=(
+                "Reason for the decision. Required (non-empty) when approved is false, "
+                "unless action is 'abort'; optional otherwise."
+            )
+        ),
+    ] = "",
+    action: Annotated[
+        str,
+        Field(
+            description=(
+                "Leave empty for a plain approve/reject decided by `approved`. "
+                "'approve' or 'reject' must agree with `approved`. 'abort' (with "
+                "approved false) stops the run as cancelled instead of following the "
+                "rejected path; it needs no comment."
+            )
+        ),
+    ] = "",
 ) -> McpToolResult:
-    """Approve or reject a paused workflow thread."""
+    """Approve or reject a paused workflow thread.
+
+    approved=true continues the run (an Approval step follows its approved path).
+    approved=false rejects (an Approval step follows its rejected path; the
+    pause's allowed_actions say what it offers). A reject requires a non-empty `comment`; a reject
+    without one is refused with "comment is required when rejecting an approval".
+    action='abort' with approved=false ends the run as cancelled and needs no
+    comment. Take thread_id and approval_id from job_approval or
+    job_approvals_pending; reuse the same idempotency_key to retry safely.
+    """
     return api_tool_response("job_approval_decide", locals())
 
 

@@ -59,7 +59,14 @@ def workflow_validate(workflow_id: str, project_name: str = "") -> McpToolResult
 
 @mcp.tool()
 def workflow_contract(workflow_id: str, project_name: str) -> McpToolResult:
-    """Return the normalized public workflow contract."""
+    """Return the normalized public workflow contract.
+
+    `interface.input_schema` lists exactly the inputs a caller may send to
+    workflow_trigger. An input with a configured default is fixed for this
+    workflow revision: it is left out of input_schema and shown in
+    `interface.expected_inputs` with `default_configured: true` and
+    `caller_may_supply: false`; sending it is refused.
+    """
     return api_tool_response("workflow_contract", locals())
 
 
@@ -84,7 +91,10 @@ def workflow_trigger(
     before calling. For file inputs, send files with input_name, filename, mime_type,
     and content_base64 (strict base64; 10 files, 1 MiB decoded total).
     Never send server paths, URLs or invented artifact IDs as files.
-    Pass declared inputs in payload. Returns job_id for status and approval polling.
+    Pass declared inputs in payload. Inputs with a configured default are fixed
+    (`caller_may_supply: false` in workflow_contract) and must not be sent: the
+    workflow runs with the configured value and a supplied value is refused with
+    workflow.input.override_forbidden. Returns job_id for status and approval polling.
     """
     return api_tool_response("workflow_trigger", locals())
 
