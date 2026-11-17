@@ -12,7 +12,7 @@ OUTPUT_FILE="$(mktemp "${TMPDIR:-/tmp}/flow-steward-npm-audit.XXXXXX")"
 trap 'rm -f "$OUTPUT_FILE"' EXIT
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../../.." && pwd)"
-EXCEPTIONS_FILE="${FS_NPM_AUDIT_EXCEPTIONS:-${REPO_ROOT}/infra/tooling/quality/npm-audit-exceptions.json}"
+EXCEPTIONS_FILE="${REPO_ROOT}/infra/tooling/quality/npm-audit-exceptions.json"
 
 # An advisory finding passes only when every blocking advisory is an
 # owner-accepted, unexpired exception for a dev-only package.
