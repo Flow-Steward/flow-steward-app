@@ -34,7 +34,7 @@
       }
     },
     "flow-steward-developer": {
-      "version": "1.0.0",
+      "version": "1.0.1",
       "display_name": "Flow Steward Developer",
       "short_description": "Build Flow Steward extensions",
       "description": "Build, test and publish Flow Steward extensions with the CLI and SDK, contribute code to the core repository, and report issues. Needs no Flow Steward MCP connection.",
