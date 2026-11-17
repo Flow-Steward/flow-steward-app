@@ -445,12 +445,62 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> str:
     )
 
 
+def _absolute_ui_links(data: object, origin: str) -> object:
+    """Make product UI links (``*_url`` paths) absolute for the AI client.
+
+    The application API returns UI paths such as ``/registry/workflows/x/builder``
+    for its own browser; an AI client in another app cannot open a bare path.
+    API paths stay as they are, and nothing changes without a public origin.
+    """
+    if not origin:
+        return data
+    if isinstance(data, dict):
+        return {
+            key: (
+                _absolute_link(value, origin)
+                if str(key).endswith("_url")
+                else _all_links_absolute(value, origin)
+                if key in _LINK_COLLECTION_KEYS
+                else _absolute_ui_links(value, origin)
+            )
+            for key, value in data.items()
+        }
+    if isinstance(data, list):
+        return [_absolute_ui_links(item, origin) for item in data]
+    return data
+
+
+#: Keys whose every string value is a product UI link (report ``deep_links``).
+_LINK_COLLECTION_KEYS = frozenset({"deep_links", "deep_link"})
+
+
+def _absolute_link(value: object, origin: str) -> object:
+    if isinstance(value, str) and value.startswith("/") and not value.startswith(("//", "/api/")):
+        return f"{origin}{value}"
+    return value
+
+
+def _all_links_absolute(value: object, origin: str) -> object:
+    if isinstance(value, dict):
+        return {key: _all_links_absolute(item, origin) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_all_links_absolute(item, origin) for item in value]
+    return _absolute_link(value, origin)
+
+
+def _public_origin() -> str:
+    from core.infrastructure.public_identity import public_origin
+    from core.infrastructure.runtime_env import runtime_env
+
+    return public_origin(runtime_env)
+
+
 def api_tool_envelope(tool: str, data: object, correlation_id: str) -> dict[str, Any]:
     """The success envelope every API-backed tool returns."""
     return {
         "ok": True,
         "tool": tool,
-        "data": data,
+        "data": _absolute_ui_links(data, _public_origin()),
         "meta": {"schema_version": "v1", "correlation_id": correlation_id},
     }
 
