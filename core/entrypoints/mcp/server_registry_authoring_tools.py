@@ -144,7 +144,11 @@ def agent_skill_assign(
 
 @mcp.tool()
 def agent_skill_unassign(agent_id: str, skill_id: str) -> McpToolResult:
-    """Remove a skill from an agent; returns the remaining assignments in order."""
+    """Remove a skill from an agent; returns the remaining assignments in order.
+
+    An enabled agent must stay ready: removing its last skill is refused with
+    a validation error. Assign another skill first, or disable the agent.
+    """
     return api_tool_response("agent_skill_unassign", locals())
 
 

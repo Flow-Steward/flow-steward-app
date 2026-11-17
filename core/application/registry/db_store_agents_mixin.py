@@ -30,6 +30,22 @@ class AgentRelationshipReadinessError(AgentRelationshipValidationError):
     """An in-scope relationship was rejected before its transaction committed."""
 
 
+def _error_codes(validation: Any) -> set[str]:
+    errors = validation.get("errors") if isinstance(validation, dict) else None
+    return {
+        str(item.get("code") or item.get("message") or "")
+        for item in errors or []
+        if isinstance(item, dict)
+    }
+
+
+def _new_readiness_errors(before: Any, after: Any) -> bool:
+    """True when *after* is not valid and has an error *before* did not have."""
+    if not isinstance(after, dict) or after.get("valid", False):
+        return False
+    return bool(_error_codes(after) - _error_codes(before))
+
+
 class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
     @staticmethod
     def _agent_row(row: Any) -> dict:
@@ -48,7 +64,8 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
     def _lock_agent_relationship_parent(cur, agent_id: str) -> dict:
         """Serialize every relationship writer on the owning agent row."""
         cur.execute(
-            "SELECT agent_id, account_id FROM registry_agents WHERE agent_id = %s FOR UPDATE",
+            "SELECT agent_id, account_id, enabled FROM registry_agents"
+            " WHERE agent_id = %s FOR UPDATE",
             (agent_id,),
         )
         row = cur.fetchone()
@@ -614,13 +631,28 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 self.materialize_agent_contract(agent_id)
         self._trigger_public_contract_projection_sync()
 
-    def remove_agent_skill(self, agent_id: str, skill_id: str) -> None:
+    def remove_agent_skill(self, agent_id: str, skill_id: str, *, validate_agent=None) -> None:
+        """Remove one mapping; an enabled agent must stay as ready as it was.
+
+        With *validate_agent*, an enabled agent's readiness is checked before
+        and after the delete in the same transaction. A removal that adds a
+        readiness error (the last skill, say) is rolled back with
+        :class:`AgentRelationshipReadinessError`, the rule enabling and saving
+        an enabled agent already follow. An error the agent already had does
+        not block the removal, so a broken mapping can still be taken out.
+        """
         with self._transaction() as cur:
-            self._lock_agent_relationship_parent(cur, agent_id)
+            agent = self._lock_agent_relationship_parent(cur, agent_id)
+            guarded = callable(validate_agent) and bool(agent.get("enabled"))
+            before = validate_agent(self, agent_id) if guarded else None
             cur.execute(
                 "DELETE FROM registry_agent_skills WHERE agent_id = %s AND skill_id = %s",
                 (agent_id, skill_id),
             )
+            if guarded:
+                after = validate_agent(self, agent_id)
+                if _new_readiness_errors(before, after):
+                    raise AgentRelationshipReadinessError(after)
         self._trigger_public_contract_projection_sync()
 
     def reorder_agent_skills(self, agent_id: str, ordered_ids: list[str]) -> None:
