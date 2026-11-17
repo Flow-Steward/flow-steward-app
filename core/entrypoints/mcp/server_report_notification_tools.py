@@ -54,7 +54,14 @@ def dispatch_project_notification(
     job_id: str = "",
     payload: dict[str, object] | None = None,
 ) -> McpToolResult:
-    """Dispatch a project notification event."""
+    """Dispatch a project notification event through the project's notification routes.
+
+    Returns notification_deliveries (one per route that accepted the event) and
+    routes_matched. When nothing was delivered, `reason` says why
+    (no_enabled_route: the project has no enabled route; no_route_matched_event:
+    the routes' event type, severity or workflow filters skipped it) and
+    `message` names what to configure.
+    """
     return api_tool_response("dispatch_project_notification", locals())
 
 

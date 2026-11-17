@@ -29,6 +29,7 @@ class ProjectCommandServiceCoreMixin:
         workflow_availability_assert: Callable[..., Any] | None = None,
         write_project_profile_to_kb: Callable[[dict[str, Any]], None] | None = None,
         dispatch_project_notification_event: Callable[..., list[dict[str, Any]]] | None = None,
+        get_notification_logger: Callable[[], Any] | None = None,
         to_json_obj: Callable[[Any], Any] | None = None,
         monotonic: Callable[[], float] | None = None,
         attachment_max_size_bytes: int = 20 * 1024 * 1024,
@@ -57,6 +58,8 @@ class ProjectCommandServiceCoreMixin:
         self._workflow_availability_assert = workflow_availability_assert
         self._write_project_profile_to_kb = write_project_profile_to_kb
         self._dispatch_project_notification_event = dispatch_project_notification_event
+        # The store notification routes are read from; the project store by default.
+        self._get_notification_logger = get_notification_logger or get_logger
         self._to_json_obj = to_json_obj or (lambda value: value)
         self._monotonic = monotonic or time.monotonic
         self._attachment_max_size_bytes = int(attachment_max_size_bytes or 0)

@@ -393,11 +393,23 @@ class ProjectCommandServiceCrudMixin:
         except Exception as exc:
             raise ServiceError("Failed to dispatch project notification") from exc
 
+        rows = [dict(row) for row in (deliveries or []) if isinstance(row, dict)]
         return ProjectNotificationDispatchResultView(
             project_id=str(project_id),
-            notification_deliveries=[
-                dict(row) for row in (deliveries or []) if isinstance(row, dict)
-            ],
+            notification_deliveries=rows,
+            # One delivery row per route that accepted the event.
+            routes_matched=len(rows),
+            **(
+                {}
+                if rows
+                else _undelivered_outcome(
+                    # Routes live where the dispatcher read them, not always in bl.
+                    self._get_notification_logger(),
+                    str(project_id),
+                    event_type=str(command.event_type or "").strip(),
+                    severity=str(command.severity or "info").strip() or "info",
+                )
+            ),
         )
 
     @staticmethod
@@ -574,6 +586,42 @@ class ProjectCommandServiceCrudMixin:
             raise ServiceError("Failed to restore project settings revision") from exc
         payload = result if isinstance(result, dict) else {}
         return ProjectSettingsRestoreResultView(**payload)
+
+
+def _undelivered_outcome(
+    bl: Any, project_id: str, *, event_type: str, severity: str
+) -> dict[str, Any]:
+    """Why nothing was delivered, and what to configure, so silence is never ambiguous.
+
+    An empty delivery list used to be the whole answer, so a caller could not
+    tell "this project has no route" from "the routes ignored this event".
+    """
+    try:
+        rows = bl.list_notification_routes(project_id=project_id, enabled_only=True)
+    except Exception:  # the dispatch already happened; explain what is known
+        rows = None
+    enabled = [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+    if not enabled:
+        return {
+            "enabled_route_count": 0,
+            "reason": "no_enabled_route",
+            "message": (
+                "No notification was sent: this project has no enabled notification route. "
+                "Add one under the project's Notification routes (it needs an installed "
+                "notification extension, such as Outgoing Email or a chat extension), "
+                "then dispatch again."
+            ),
+        }
+    return {
+        "enabled_route_count": len(enabled),
+        "reason": "no_route_matched_event",
+        "message": (
+            f"No notification was sent: none of the project's {len(enabled)} enabled "
+            f"notification route(s) accepts event '{event_type}' with severity "
+            f"'{severity}'. Check each route's event type, severity and workflow "
+            "filters (project_notification_routes)."
+        ),
+    }
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]
