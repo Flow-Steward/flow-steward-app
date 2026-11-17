@@ -200,3 +200,24 @@ def test_a_project_without_an_id_is_not_a_scope() -> None:
     scopes = _sync_once(control, _KnowledgeStore(), _Registry())
 
     assert [scope["project_id"] for scope in scopes] == [""]
+
+
+def test_a_newer_stored_digest_is_seen_without_restarting_the_process() -> None:
+    """The process-wide digest cache must not pin a scope to stale.
+
+    On the probe stand (2026-11-17) searches stayed ``catalog_digest_mismatch``
+    after the sync had stored the current digest, until the runtime restarted:
+    the request path compared against the digest it had cached in memory.
+    """
+    store = _KnowledgeStore()
+    registry = _Registry()
+    key = _key(DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID, PROJECT_ID)
+    store.digests[key] = "digest-of-an-older-catalog"
+
+    first = _project_search_status(store, registry)
+    assert first["freshness"] == "stale"
+
+    store.digests[key] = first["catalog_digest"]  # the background sync caught up
+
+    second = _project_search_status(store, registry)
+    assert second["freshness"] == "fresh", second
