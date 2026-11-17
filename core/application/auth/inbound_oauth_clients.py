@@ -115,6 +115,22 @@ def _string_list(value: Any) -> list[str] | None:
     return list(value)
 
 
+def _supports_public_client_auth(document: dict[str, Any]) -> bool:
+    """Whether the client can authenticate at ``/oauth/token`` with ``none``.
+
+    CIMD draft 03 section 6 intersects client and server capabilities. When the
+    document lists ``token_endpoint_auth_methods_supported``, that list is what the
+    client can do and the singular ``token_endpoint_auth_method`` is only its
+    preference (ChatGPT prefers ``private_key_jwt`` and also supports ``none``).
+    This server advertises ``none`` only, so the client then uses ``none``.
+    """
+    if "token_endpoint_auth_methods_supported" in document:
+        methods = _string_list(document.get("token_endpoint_auth_methods_supported"))
+        return bool(methods) and "none" in methods
+    auth_method = document.get("token_endpoint_auth_method")
+    return auth_method is None or auth_method == "none"
+
+
 def validate_client_metadata(body: bytes, *, client_id: str) -> ClientMetadata:
     """Validate a fetched CIMD document against ``client_id``."""
     try:
@@ -128,8 +144,7 @@ def validate_client_metadata(body: bytes, *, client_id: str) -> ClientMetadata:
     redirect_uris = _string_list(document.get("redirect_uris"))
     if not redirect_uris or not all(valid_redirect_uri(uri) for uri in redirect_uris):
         raise InvalidClientMetadataError("client metadata redirect_uris are invalid")
-    auth_method = document.get("token_endpoint_auth_method")
-    if auth_method is not None and auth_method != "none":
+    if not _supports_public_client_auth(document):
         raise InvalidClientMetadataError("only public clients are supported")
     if "grant_types" in document:
         grant_types = _string_list(document.get("grant_types"))

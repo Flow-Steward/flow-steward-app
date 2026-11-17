@@ -206,6 +206,11 @@ this server's capabilities, as required by
 [CIMD draft 03, section 6](https://www.ietf.org/archive/id/draft-ietf-oauth-client-id-metadata-document-03.html#section-6).
 Additional grants advertised by a client do not enable token grants on this
 server; `/oauth/token` continues to support only authorization code and refresh.
+The same intersection applies to token endpoint authentication (2026-11-17):
+when the document lists `token_endpoint_auth_methods_supported`, that list is
+the client's capability and the singular `token_endpoint_auth_method` is only a
+preference. ChatGPT's document prefers `private_key_jwt` and also lists `none`;
+this server advertises `none` only, so ChatGPT authenticates as a public client.
 
 - Allowed `client_id`: `https`, host exactly `chatgpt.com` or `claude.ai`
   (fixed in code, no subdomains; row 13), non-empty path, no userinfo, query or
@@ -218,7 +223,8 @@ server; `/oauth/token` continues to support only authorization code and refresh.
 - Validation: a JSON object; `client_id` equal to the URL by exact string
   comparison; `redirect_uris` a non-empty list of absolute `https` URIs or
   `http` loopback URIs (`127.0.0.1`, `[::1]`, `localhost`), no fragments;
-  `token_endpoint_auth_method` absent or `none`; `grant_types`, if present, a
+  `token_endpoint_auth_methods_supported`, if present, a list containing
+  `none`, otherwise `token_endpoint_auth_method` absent or `none`; `grant_types`, if present, a
   non-empty list of strings containing `authorization_code`, with unsupported
   advertised grants ignored; `response_types`, if present, containing `code`.
   `client_name` is optional; when absent the consent page shows the host. The

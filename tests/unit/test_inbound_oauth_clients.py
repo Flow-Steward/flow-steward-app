@@ -69,6 +69,14 @@ def test_document_client_id_must_match_exactly(document_client_id: str) -> None:
     [
         {"token_endpoint_auth_method": "private_key_jwt"},
         {"token_endpoint_auth_method": "client_secret_basic"},
+        {"token_endpoint_auth_methods_supported": ["private_key_jwt"]},
+        {"token_endpoint_auth_methods_supported": []},
+        {"token_endpoint_auth_methods_supported": "none"},
+        {"token_endpoint_auth_methods_supported": None},
+        {
+            "token_endpoint_auth_method": "none",
+            "token_endpoint_auth_methods_supported": ["client_secret_basic"],
+        },
         {"grant_types": ["refresh_token"]},
         {"grant_types": []},
         {"grant_types": ["urn:ietf:params:oauth:grant-type:jwt-bearer"]},
@@ -101,6 +109,47 @@ def test_valid_document_keeps_name_and_redirects() -> None:
         clients.validate_client_metadata(b"[]", client_id=CLIENT_ID)
     with pytest.raises(clients.InvalidClientMetadataError):
         clients.validate_client_metadata(b"not json", client_id=CLIENT_ID)
+
+
+#: ChatGPT's document as served at its client_id URL on 2026-11-17.
+CHATGPT_CLIENT_ID = "https://chatgpt.com/oauth/client.json"
+CHATGPT_DOCUMENT = {
+    "client_id": CHATGPT_CLIENT_ID,
+    "client_uri": "https://chatgpt.com/",
+    "redirect_uris": ["https://chatgpt.com/connector_platform_oauth_redirect"],
+    "token_endpoint_auth_method": "private_key_jwt",
+    "token_endpoint_auth_methods_supported": ["none", "private_key_jwt"],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token",
+        "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    ],
+    "response_types": ["code"],
+    "client_name": "ChatGPT",
+    "logo_uri": "https://persistent.oaistatic.com/sonic/misc/openai-logo.png",
+    "token_endpoint_auth_signing_alg": "RS256",
+    "jwks_uri": "https://chatgpt.com/oauth/jwks.json",
+}
+
+
+def test_chatgpt_document_is_accepted_as_a_public_client() -> None:
+    """ChatGPT prefers private_key_jwt but supports none, the only method this server offers.
+
+    Before the fix this document was refused with ``invalid_client_metadata``.
+    """
+    body = json.dumps(CHATGPT_DOCUMENT).encode()
+    metadata = clients.validate_client_metadata(body, client_id=CHATGPT_CLIENT_ID)
+    assert metadata.client_name == "ChatGPT"
+    assert metadata.redirect_uris == ("https://chatgpt.com/connector_platform_oauth_redirect",)
+
+
+def test_supported_methods_list_overrides_a_non_public_preference() -> None:
+    document = _document(
+        token_endpoint_auth_method="client_secret_basic",
+        token_endpoint_auth_methods_supported=["client_secret_basic", "none"],
+    )
+    metadata = clients.validate_client_metadata(document, client_id=CLIENT_ID)
+    assert metadata.client_id == CLIENT_ID
 
 
 @pytest.mark.parametrize(
