@@ -352,6 +352,45 @@ def test_denied_child_does_not_hydrate_private_contract_diagnostics(monkeypatch)
     assert "contracts" in result["unperformed_checks"]
 
 
+def test_denied_reference_still_checks_the_drafts_own_interface(monkeypatch):
+    """A hidden dependency must not hide an Interface type that save refuses.
+
+    Live in claude.ai (2026-11-17): validate reported only the missing agent, then
+    save refused ``week_start`` of type ``date``.
+    """
+    db = DraftDB()
+    parsed = yaml.safe_load(bundle())
+    workflow = parsed["workflows"][0]
+    workflow.setdefault("settings", {})["callable"] = {
+        "enabled": True,
+        "expected_inputs": [{"name": "week_start", "required": True, "type": "date"}],
+    }
+    lead_with(
+        parsed,
+        [
+            {
+                "step_id": "call",
+                "step_kind": "invoke_workflow",
+                "override": {"invoke_workflow": {"workflow_id": "missing_or_private"}},
+            }
+        ],
+    )
+    import core.application.workflows.authoring.drafts as draft_module
+
+    monkeypatch.setattr(
+        draft_module,
+        "validate_workflow_readiness",
+        lambda *a, **k: pytest.fail("dependency contracts stay hidden"),
+    )
+    result = service(db).validate(
+        scope=SCOPE, project_id="project", bundle_yaml=yaml.safe_dump(parsed)
+    )
+    codes = {issue["code"] for issue in result["issues"] if issue["blocking"]}
+    assert "authoring.reference_not_permitted" in codes
+    assert "workflow.interface.invalid_type" in codes
+    assert result["can_save"] is False
+
+
 @pytest.mark.parametrize(
     "override",
     [

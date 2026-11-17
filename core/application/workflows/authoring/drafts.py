@@ -73,6 +73,22 @@ class DraftSaveResult(DraftValidationResult):
     editor_url: str
 
 
+def _own_interface_issues(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Blocking issues of the draft's own Interface, without any dependency contract."""
+    from core.application.registry.workflow_contract import interface_from_settings
+
+    interface = interface_from_settings(payload.get("settings") or {}, steps=payload.get("steps"))
+    return [
+        {
+            **{key: issue[key] for key in ("code", "path", "message") if key in issue},
+            "severity": "error",
+            "blocking": True,
+            "repair_guidance": "Repair the workflow interface field and validate again.",
+        }
+        for issue in interface.definition_issues()
+    ]
+
+
 @dataclass
 class _PreparedDraft:
     payload: dict[str, Any]
@@ -369,6 +385,9 @@ class WorkflowAuthoringDrafts(DraftReferences):
             # any dependency contracts after reference visibility has failed.
             readiness = {"valid": False}
             normalized = {"errors": [], "warnings": []}
+            # The workflow's own Interface names no dependency, so it is still
+            # checked: otherwise validate passes a type that save then refuses.
+            issues.extend(_own_interface_issues(payload))
         else:
             checks.extend(["contracts", "readiness"])
             readiness = validate_workflow_readiness(
