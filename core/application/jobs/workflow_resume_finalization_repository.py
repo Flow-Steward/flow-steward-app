@@ -220,8 +220,44 @@ class WorkflowResumeFinalizationRepository:
                 ),
             )
             updated = bool(getattr(cur, "rowcount", 0))
+            if updated:
+                self._record_output_contract_failure(job_id, final_status, result, error)
             conn.commit()
         return updated
+
+    def _record_output_contract_failure(
+        self,
+        job_id: str,
+        final_status: str,
+        result: Mapping[str, Any],
+        error: str | None,
+    ) -> None:
+        """A resumed run failed by its output contract gets its job error row.
+
+        The resume finalizer writes the terminal row itself rather than through
+        ``TerminalPersistenceService``, so the structured error that service
+        writes for a normal run is written here, in the same transaction.
+        """
+        if final_status != "failed" or not isinstance(
+            result.get("output_contract_failure"), Mapping
+        ):
+            return
+        from core.application.jobs.execution_contracts import terminal_failure_context
+        from core.application.jobs.terminal_persistence import record_structured_job_error
+
+        context = terminal_failure_context(result)
+        record_structured_job_error(
+            self._bl,
+            job_id,
+            {
+                "error_code": context.get("error_code") or "",
+                "error_message": error or "",
+                "category": "output_contract",
+                "retryable": False,
+                "diagnostic_kind": context.get("diagnostic_kind"),
+                "path": context.get("path"),
+            },
+        )
 
     def complete(
         self,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -61,6 +61,46 @@ def _durable_category(raw_category: str, *, retryable: bool) -> str:
         # raised retryable. Let the raise site's own retryability decide.
         return "transient" if retryable else "contract"
     return _DURABLE_CATEGORY_BY_CALL_SITE_KIND.get(kind, kind)
+
+
+def record_structured_job_error(
+    logger: Any, job_id: str, structured_error: Mapping[str, Any]
+) -> None:
+    """Write one terminal failure as a ``job_errors`` row, in the caller's transaction.
+
+    Job errors, the incident drilldown and the public error read this row.
+    """
+    log_job_error = getattr(logger, "log_job_error", None)
+    if not callable(log_job_error):
+        return
+    raw_category = str(structured_error.get("category") or "execution")
+    durable_category = _durable_category(
+        raw_category,
+        retryable=bool(structured_error.get("retryable", False)),
+    )
+    context_jsonb: dict[str, Any] = {}
+    stored_error_code = str(structured_error.get("error_code") or "").strip()
+    if stored_error_code:
+        context_jsonb["error_code"] = stored_error_code
+    if structured_error.get("occurrence") is not None:
+        context_jsonb["occurrence"] = structured_error["occurrence"]
+    for key in ("selector", "diagnostic_kind", "path", "correlation_id"):
+        if structured_error.get(key):
+            context_jsonb[key] = structured_error[key]
+    log_job_error(
+        job_id,
+        source="system",
+        category=durable_category,
+        retryable=bool(structured_error.get("retryable", False)),
+        error_message=str(
+            structured_error.get("error_message")
+            or _MESSAGE_WORKFLOW_EXECUTION_DID_NOT_COMPLETE_SUCCESSFULLY
+        ),
+        context_jsonb=context_jsonb,
+        group_id=structured_error.get("group_id"),
+        step_id=structured_error.get("step_id"),
+        step_execution_id=structured_error.get("step_execution_id"),
+    )
 
 
 @dataclass(frozen=True)
@@ -342,41 +382,7 @@ class TerminalPersistenceService:
                 [structured_error] if structured_error else [],
             )
             if structured_error:
-                log_job_error = getattr(self.logger, "log_job_error", None)
-                if callable(log_job_error):
-                    raw_category = str(structured_error.get("category") or "execution")
-                    durable_category = _durable_category(
-                        raw_category,
-                        retryable=bool(structured_error.get("retryable", False)),
-                    )
-                    context_jsonb: dict[str, Any] = {}
-                    stored_error_code = str(structured_error.get("error_code") or "").strip()
-                    if stored_error_code:
-                        context_jsonb["error_code"] = stored_error_code
-                    if structured_error.get("occurrence") is not None:
-                        context_jsonb["occurrence"] = structured_error["occurrence"]
-                    if structured_error.get("selector"):
-                        context_jsonb["selector"] = structured_error["selector"]
-                    if structured_error.get("diagnostic_kind"):
-                        context_jsonb["diagnostic_kind"] = structured_error["diagnostic_kind"]
-                    if structured_error.get("path"):
-                        context_jsonb["path"] = structured_error["path"]
-                    if structured_error.get("correlation_id"):
-                        context_jsonb["correlation_id"] = structured_error["correlation_id"]
-                    log_job_error(
-                        job_id,
-                        source="system",
-                        category=durable_category,
-                        retryable=bool(structured_error.get("retryable", False)),
-                        error_message=str(
-                            structured_error.get("error_message")
-                            or _MESSAGE_WORKFLOW_EXECUTION_DID_NOT_COMPLETE_SUCCESSFULLY
-                        ),
-                        context_jsonb=context_jsonb,
-                        group_id=structured_error.get("group_id"),
-                        step_id=structured_error.get("step_id"),
-                        step_execution_id=structured_error.get("step_execution_id"),
-                    )
+                record_structured_job_error(self.logger, job_id, structured_error)
                 log_action = getattr(self.logger, "log_action", None)
                 if callable(log_action):
                     log_action(

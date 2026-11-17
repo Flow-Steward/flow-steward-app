@@ -268,7 +268,8 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
         summary = "The workflow reached its success stop, but its output contract failed"
         if any(messages):
             summary = f"{summary}: {'; '.join(item for item in messages if item)}"
-        return _build_result(
+        failure = output_contract_failure(output_validation.errors, terminal_proof)
+        result = _build_result(
             state,
             "failed",
             summary,
@@ -279,6 +280,11 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
             failure_class="workflow_output_contract",
             workflow_outputs=workflow_outputs,
         )
+        # The job's error and its structured error row carry this, so job errors,
+        # the incident, the status and the run report say why the run failed.
+        result["error"] = failure["message"]
+        result["output_contract_failure"] = failure
+        return result
 
     initial_req = state.get("initial_requirements") or state.get("task_summary") or ""
     if not initial_req:
@@ -320,6 +326,43 @@ def orchestrator_validation_node(state: OrchestratorState) -> dict:
         proof_of_work={"terminal_success": terminal_proof},
         workflow_outputs=workflow_outputs,
     )
+
+
+#: ``terminal_failure_context`` reads this kind and path from the result.
+OUTPUT_CONTRACT_DIAGNOSTIC_KIND = "workflow_output_contract"
+
+
+def output_contract_failure(errors: list, terminal_proof: dict) -> dict:
+    """The run's root cause when its output contract fails at a successful end.
+
+    One plain sentence names the first missing or invalid output and the end
+    step the run reached; ``error_code`` and ``path`` are the contract error's
+    (``workflow.output.required``, ``outputs.<name>``).
+    """
+    first = next((item for item in errors if isinstance(item, dict)), {})
+    code = str(first.get("code") or "workflow.output.required").strip()
+    path = str(first.get("path") or "").strip()
+    end_step = str((terminal_proof or {}).get("step_id") or "").strip()
+    name = path.split(".", 1)[1] if "." in path else ""
+    end = f"the successful end '{end_step}'" if end_step else "a successful end"
+    if code == "workflow.output.required" and name:
+        message = (
+            f"Required output '{name}' was not written: the run reached {end} "
+            "without it, so its output contract failed."
+        )
+    else:
+        detail = str(first.get("message") or code).strip().rstrip(".")
+        message = f"{detail}: the run reached {end}, but its output contract failed."
+    others = len([item for item in errors if isinstance(item, dict)]) - 1
+    if others > 0:
+        message = f"{message} {others} more output contract error(s) are in the run events."
+    return {
+        "error_code": code,
+        "path": path,
+        "end_step_id": end_step,
+        "diagnostic_kind": OUTPUT_CONTRACT_DIAGNOSTIC_KIND,
+        "message": message,
+    }
 
 
 def _diagnostic_workflow_outputs(workflow_outputs: dict) -> dict:

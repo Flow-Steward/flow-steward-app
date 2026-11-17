@@ -453,6 +453,7 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
                 path_prefix=PATH_WORKFLOW_EXPECTED_OUTPUTS,
                 code_prefix="workflow.callable",
                 warnings=warnings,
+                check_success_paths=True,
             )
         )
     for group in _iter_workflow_groups(wf):

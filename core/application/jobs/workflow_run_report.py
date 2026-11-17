@@ -25,12 +25,34 @@ STATE_PENDING = "pending"
 STATE_NO_REPORT = "no_report"
 
 
-def _text(job_id: str, status: str, outcome: str, state: str, report: dict[str, Any] | None) -> str:
+#: Longest failure reason quoted in the model text.
+_REASON_MAX_CHARS = 500
+
+
+def _text(
+    job_id: str,
+    status: str,
+    outcome: str,
+    state: str,
+    report: dict[str, Any] | None,
+    reason: str | None = None,
+) -> str:
     if state == STATE_READY and report is not None:
         return str(report.get("summary_text") or report.get("title") or "")
     if state == STATE_PENDING:
         return f"Job {job_id} is {status}; its report is not ready yet."
+    if reason:
+        return f"Job {job_id} ended ({outcome}) without a report. Reason: {reason}"
     return f"Job {job_id} ended ({outcome}) without a report."
+
+
+def _no_report_reason(status: JobStatusView) -> str | None:
+    """Why a run that ended without a report failed: its recorded root cause."""
+    summary = status.failure_summary if isinstance(status.failure_summary, dict) else {}
+    if not summary.get("present"):
+        return None
+    reason = str(summary.get("detail") or "").strip()
+    return reason[:_REASON_MAX_CHARS] or None
 
 
 def workflow_run_report(status: JobStatusView) -> dict[str, Any]:
@@ -49,21 +71,23 @@ def workflow_run_report(status: JobStatusView) -> dict[str, Any]:
     else:
         state = STATE_NO_REPORT
     report = report_preview(snapshot) if snapshot is not None else None
-    return {
-        "model": {
-            "job": {
-                "id": status.id,
-                "status": status.status,
-                "outcome": outcome,
-                "terminal": terminal,
-            },
-            "state": state,
-            "report_output": name if snapshot is not None else None,
-            "report": report,
-            "text": _text(status.id, status.status, outcome, state, report),
+    reason = _no_report_reason(status) if state == STATE_NO_REPORT else None
+    model: dict[str, Any] = {
+        "job": {
+            "id": status.id,
+            "status": status.status,
+            "outcome": outcome,
+            "terminal": terminal,
         },
-        "snapshot": snapshot,
+        "state": state,
+        "report_output": name if snapshot is not None else None,
+        "report": report,
+        "text": _text(status.id, status.status, outcome, state, report, reason),
     }
+    if reason:
+        # Only a run that ended without a report and with a recorded cause.
+        model["reason"] = reason
+    return {"model": model, "snapshot": snapshot}
 
 
 __all__ = ["STATE_NO_REPORT", "STATE_PENDING", "STATE_READY", "workflow_run_report"]

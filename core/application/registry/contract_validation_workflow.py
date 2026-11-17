@@ -579,7 +579,11 @@ def _collect_step_declared_outputs(db, step: dict, *, account_id: str = "") -> l
     return [{**row, "step_id": str(step.get("step_id") or "")} for row in contract.rows]
 
 
-def _collect_workflow_output_types(db, workflow: dict) -> dict[str, set[str]]:
+def _collect_workflow_output_types(
+    db, workflow: dict, *, step_names: dict[str, set[str]] | None = None
+) -> dict[str, set[str]]:
+    """Output name -> producible types; ``step_names`` also gets each step's names."""
+
     def _expanded_output_types(raw_type: Any) -> set[str]:
         normalized = _normalize_type(raw_type)
         types = {normalized}
@@ -632,6 +636,8 @@ def _collect_workflow_output_types(db, workflow: dict) -> dict[str, set[str]]:
                 output_types.setdefault(producer_name, set()).update(
                     _expanded_output_types(item.get("type"))
                 )
+            if step_names is not None:
+                step_names.setdefault(str(step.get("step_id") or ""), set()).update(names)
 
     return output_types
 
@@ -644,8 +650,12 @@ def _validate_callable_outputs_produced(
     path_prefix: str,
     code_prefix: str,
     warnings: list[dict] | None = None,
+    check_success_paths: bool = False,
 ) -> list[dict]:
     """Declared callable outputs no step can produce, or produce with a wrong type.
+
+    With ``check_success_paths`` a required output that some path reaches a
+    Stop Success without writing is a warning in *warnings*.
 
     An optional output (``required: false``) that no step produces is only a
     warning in *warnings*: a run may leave it unset, and its caller keeps its
@@ -655,8 +665,9 @@ def _validate_callable_outputs_produced(
     issues: list[dict] = []
     from core.application.registry.step_output_contract import OutputContractResolutionError
 
+    step_names: dict[str, set[str]] = {}
     try:
-        output_types = _collect_workflow_output_types(db, workflow)
+        output_types = _collect_workflow_output_types(db, workflow, step_names=step_names)
     except OutputContractResolutionError as exc:
         return [
             _issue(
@@ -703,7 +714,66 @@ def _validate_callable_outputs_produced(
                     path=f"{path_prefix}[{idx}].type",
                 )
             )
+    if check_success_paths and warnings is not None:
+        warnings.extend(
+            _required_outputs_skipped_on_success_paths(
+                workflow=workflow,
+                callable_outputs=callable_outputs,
+                output_types=output_types,
+                step_names=step_names,
+                path_prefix=path_prefix,
+                code_prefix=code_prefix,
+            )
+        )
     return issues
+
+
+def _required_outputs_skipped_on_success_paths(
+    *,
+    workflow: dict,
+    callable_outputs: list[dict],
+    output_types: dict[str, set[str]],
+    step_names: dict[str, set[str]],
+    path_prefix: str,
+    code_prefix: str,
+) -> list[dict]:
+    """A warning per required output some path reaches a Stop Success without writing.
+
+    The run is still failed by its output contract at that end (the check after
+    the run). Saving is allowed: the author may want the run to fail there.
+    Outputs no step produces at all already have their own error.
+    """
+    from core.application.workflows.workflow_group_extraction_retained_outputs import (
+        outputs_missing_at_successful_ends,
+    )
+
+    required = {
+        _normalize_name(item.get("name")): idx
+        for idx, item in enumerate(callable_outputs)
+        if isinstance(item, dict)
+        and _normalize_name(item.get("name"))
+        and item.get("required") is not False
+        and output_types.get(_normalize_name(item.get("name")))
+    }
+    try:
+        missing = outputs_missing_at_successful_ends(workflow, step_names, set(required))
+    except (KeyError, TypeError, AttributeError):
+        # A malformed graph has its own definition errors; this advisory stays quiet.
+        logger.debug("Skipped the success-path output check for an unreadable graph")
+        return []
+    return [
+        _issue(
+            code=f"{code_prefix}.output_missing_on_success_path",
+            message=(
+                f"Required output '{name}' is not written on every path that reaches a "
+                f"successful end (e.g. via {via} \u2192 {end}). A run that ends there fails "
+                "its output contract."
+            ),
+            path=f"{path_prefix}[{required[name]}].name",
+            severity="warning",
+        )
+        for name, (via, end) in missing.items()
+    ]
 
 
 def _infer_literal_selector_type(source_selector: str) -> str:
