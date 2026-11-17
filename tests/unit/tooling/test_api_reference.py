@@ -17,7 +17,7 @@ from core.application.tooling.api_reference import (
     write_assets,
 )
 
-REVISION = "54a43366bf404d31c163c269af639de789b9dce6"
+REVISION = "54a43366bf404d31c163c269af639de789b9dce6"  # pragma: allowlist secret - git commit SHA
 RELEASE = "v0.9.18"
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -149,7 +149,7 @@ def test_release_workflow_publishes_reference_after_images_and_supports_bootstra
     job = publication["jobs"]["api-reference"]
     assert "publish" in job["needs"]
     assert job["uses"] == "./.github/workflows/publish-api-reference.yml"
-    assert job["secrets"] == "inherit"
+    assert job["secrets"] == "inherit"  # pragma: allowlist secret - workflow keyword
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish-api-reference.yml").read_text())
     events = workflow.get("on", workflow.get(True))
     assert {"workflow_call", "workflow_dispatch"} <= set(events)
