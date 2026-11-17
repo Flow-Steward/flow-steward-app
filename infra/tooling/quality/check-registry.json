@@ -201,7 +201,9 @@
       ],
       "inputs": [
         "assets/frontend/package*.json",
-        "core/entrypoints/cli/scripts/npm_audit_retry.sh"
+        "core/entrypoints/cli/scripts/npm_audit_retry.sh",
+        "core/application/tooling/quality/npm_audit_exceptions.py",
+        "infra/tooling/quality/npm-audit-exceptions.json"
       ],
       "reuse_scope": "inputs"
     },
