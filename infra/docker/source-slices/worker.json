@@ -801,6 +801,8 @@
     "core/application/workflows/workflow_deletion_guard.py",
     "core/application/workflows/workflow_entrypoint_repository.py",
     "core/application/workflows/workflow_for_each_rules.py",
+    "core/application/workflows/workflow_group_extraction_flow.py",
+    "core/application/workflows/workflow_group_extraction_retained_outputs.py",
     "core/application/workflows/workflow_history.py",
     "core/application/workflows/workflow_history_snapshot.py",
     "core/application/workflows/workflow_hook_authoring_policy.py",

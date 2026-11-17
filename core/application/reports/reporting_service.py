@@ -31,6 +31,8 @@ from core.application.reports.reporting_helpers import (
     _safe_int,
     _series_has_values,
     _tenant_id,
+    data_as_of_lines,
+    finished_jobs_line,
 )
 from core.application.reports.ui_projection_helpers import (
     _build_usage_breakdown,
@@ -220,26 +222,6 @@ class ReportingService:
         if start and end:
             return f"{start[:10]} to {end[:10]}"
         return "selected window"
-
-    @staticmethod
-    def _finished_jobs_line(summary: dict[str, Any]) -> str:
-        """Finished jobs and, apart from them, the cancelled runs of the window."""
-        line = (
-            f"Finished jobs: {_safe_int(summary.get('total_jobs'))} "
-            f"({_safe_int(summary.get('completed_count'))} completed, "
-            f"{_safe_int(summary.get('failed_count'))} failed)"
-        )
-        cancelled = _safe_int(summary.get("cancelled_count"))
-        if cancelled:
-            line = f"{line}; {cancelled} cancelled (not counted as finished or in the success rate)"
-        return line
-
-    @staticmethod
-    def _data_as_of_line(snapshot: dict[str, Any]) -> str:
-        data_as_of = str(snapshot.get("data_as_of") or "").strip()
-        if not data_as_of:
-            return ""
-        return f"Data as of: {data_as_of[:19].replace('T', ' ')} UTC (includes runs finished up to then)"
 
     @staticmethod
     def _latest_active_day(rows: list[dict[str, Any]]) -> dict[str, Any] | None:
@@ -634,7 +616,7 @@ class ReportingService:
         summary_lines = [
             f"Activity report for {snapshot['scope_label']}",
             f"Window: {self._window_label(snapshot['window'])}",
-            self._finished_jobs_line(summary),
+            finished_jobs_line(summary),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
             (
                 "Typical duration: "
@@ -644,8 +626,7 @@ class ReportingService:
         ]
         if latest_day_text:
             summary_lines.append(latest_day_text)
-        if self._data_as_of_line(snapshot):
-            summary_lines.append(self._data_as_of_line(snapshot))
+        summary_lines.extend(data_as_of_lines(snapshot))
         summary_text = "\n".join(summary_lines)
         return {
             "summary_text": summary_text,
@@ -670,7 +651,7 @@ class ReportingService:
         summary_lines = [
             f"{snapshot['scope_label']} summary",
             f"Window: {self._window_label(snapshot['window'])}",
-            self._finished_jobs_line(summary),
+            finished_jobs_line(summary),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
             (
                 "Typical duration: "
@@ -687,8 +668,7 @@ class ReportingService:
         summary_lines.append(
             f"Next step: {self._project_next_step(summary, snapshot['latest_day'])}"
         )
-        if self._data_as_of_line(snapshot):
-            summary_lines.append(self._data_as_of_line(snapshot))
+        summary_lines.extend(data_as_of_lines(snapshot))
         return {
             "summary_text": "\n".join(summary_lines),
             "payload": snapshot["payload"],
@@ -723,8 +703,7 @@ class ReportingService:
             f"Median p95 duration: {self._duration_display(summary.get('median_p95_seconds'))}",
             f"Active days: {snapshot['active_days']}",
         ]
-        if self._data_as_of_line(snapshot):
-            summary_lines.append(self._data_as_of_line(snapshot))
+        summary_lines.extend(data_as_of_lines(snapshot))
         return {
             "summary_text": "\n".join(summary_lines),
             "payload": snapshot["payload"],
