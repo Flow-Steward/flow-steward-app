@@ -211,7 +211,10 @@ def test_changelog_role_gate_does_not_replace_required_token_scopes(
     )
 
     assert response.status_code == 403
-    assert response.body == b'{"error":"Missing required token scope"}'
+    error = json.loads(response.body)["error"]
+    assert error.startswith("Missing required token scope")
+    # MCP probe minor: the refusal names the scopes that would be accepted.
+    assert "(needs one of: " in error
 
 
 @pytest.mark.parametrize(("auth_source", "principal_type"), _TOKEN_IDENTITIES)
@@ -285,7 +288,9 @@ def test_changelog_restore_role_gate_preserves_command_and_delete_scope_boundari
     # claim the restore endpoint itself registers DELETE.
     assert response.status_code == expected_status
     if expected_error is not None:
-        assert json.loads(response.body) == {"error": expected_error}
+        # A scope refusal also names the scopes that would be accepted.
+        assert set(json.loads(response.body)) == {"error"}
+        assert json.loads(response.body)["error"].startswith(expected_error)
 
 
 @pytest.mark.parametrize(("auth_source", "principal_type"), _TOKEN_IDENTITIES)
