@@ -270,6 +270,7 @@
     "core/application/registry/active_workflow_dependencies.py",
     "core/application/registry/agent_manifest.py",
     "core/application/registry/agent_registry.py",
+    "core/application/registry/agent_relationship_errors.py",
     "core/application/registry/boundary_contracts.py",
     "core/application/registry/builder_metadata.py",
     "core/application/registry/builtin_mcp_tools.py",

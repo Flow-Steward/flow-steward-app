@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from core.application.registry.agent_manifest import refuse_agent_phases
+from core.application.registry.agent_relationship_errors import (  # re-exported
+    AgentRelationshipConflictError,
+    AgentRelationshipReadinessError,
+    AgentRelationshipValidationError,
+    new_readiness_errors,
+)
 from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.db_store_agent_contract_mixin import (
     RegistryDBStoreAgentContractMixin,
@@ -12,38 +18,6 @@ from .db_store_common import *  # NOSONAR
 
 #: Columns a pre-existing database may still hold that agents no longer have.
 _REMOVED_AGENT_COLUMNS = ("phases",)
-
-
-class AgentRelationshipConflictError(RuntimeError):
-    """The relationship snapshot changed after the editor loaded it."""
-
-
-class AgentRelationshipValidationError(ValueError):
-    """A proposed atomic relationship snapshot violates the agent contract."""
-
-    def __init__(self, validation: dict):
-        super().__init__("Agent relationship contract validation failed")
-        self.validation = validation
-
-
-class AgentRelationshipReadinessError(AgentRelationshipValidationError):
-    """An in-scope relationship was rejected before its transaction committed."""
-
-
-def _error_codes(validation: Any) -> set[str]:
-    errors = validation.get("errors") if isinstance(validation, dict) else None
-    return {
-        str(item.get("code") or item.get("message") or "")
-        for item in errors or []
-        if isinstance(item, dict)
-    }
-
-
-def _new_readiness_errors(before: Any, after: Any) -> bool:
-    """True when *after* is not valid and has an error *before* did not have."""
-    if not isinstance(after, dict) or after.get("valid", False):
-        return False
-    return bool(_error_codes(after) - _error_codes(before))
 
 
 class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
@@ -651,7 +625,7 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
             )
             if guarded:
                 after = validate_agent(self, agent_id)
-                if _new_readiness_errors(before, after):
+                if new_readiness_errors(before, after):
                     raise AgentRelationshipReadinessError(after)
         self._trigger_public_contract_projection_sync()
 
