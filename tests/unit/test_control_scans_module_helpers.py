@@ -75,6 +75,9 @@ def test_workflow_knowledge_scan_persists_success_and_failure(monkeypatch) -> No
         def list_recent_registry_changelog(self, **_kwargs):
             return []
 
+        def list_workflow_knowledge_project_scopes(self, **_kwargs):
+            return []
+
     monkeypatch.setattr(
         requests,
         "enqueue_workflow_knowledge_sync_batch",

@@ -18,6 +18,10 @@ class _ChangelogStore:
     def __init__(self) -> None:
         self.calls: list[dict] = []
 
+    def list_workflow_knowledge_project_scopes(self, *, limit):
+        self.calls.append({"project_limit": limit})
+        return []
+
     def list_recent_registry_changelog(self, *, entity_types, limit):
         self.calls.append({"entity_types": tuple(entity_types), "limit": limit})
         return [

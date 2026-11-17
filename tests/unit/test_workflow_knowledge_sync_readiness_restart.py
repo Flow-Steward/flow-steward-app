@@ -51,6 +51,9 @@ class _Platform:
     def list_recent_registry_changelog(self, **_kwargs: Any) -> list[dict]:
         return []
 
+    def list_workflow_knowledge_project_scopes(self, **_kwargs: Any) -> list[dict]:
+        return []
+
     def enqueue_domain_event(self, *, event_id: str, **kwargs: Any) -> None:
         if event_id not in self.outbox:  # ON CONFLICT (event_id) DO NOTHING
             self.outbox[event_id] = {"id": f"outbox-{len(self.outbox) + 1}", "status": "pending"}
