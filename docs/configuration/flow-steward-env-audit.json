@@ -3785,6 +3785,7 @@
     "canonical_name": "FS_BUILD_SHA",
     "code_read_locations": [
       "core/entrypoints/api/health.py",
+      "core/entrypoints/cli/scripts/export-api-reference.py",
       "infra/docker/docker-compose.prod.yaml",
       "infra/docker/docker-compose.yaml"
     ],
@@ -5620,7 +5621,9 @@
   },
   {
     "canonical_name": "FS_EMBEDDED_IMAGE_REVISION",
-    "code_read_locations": [],
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/export-api-reference.py"
+    ],
     "conditional_groups": [
       "production_images"
     ],
@@ -5630,7 +5633,7 @@
       "production",
       "local_development"
     ],
-    "notes": "Commit the Compact runtime image was built from; baked into the image and passed to every Compact process.; registry-managed metadata only",
+    "notes": "Commit the Compact runtime image was built from; baked into the image and passed to every Compact process.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "infra/docker/Dockerfile",
     "required": false,
     "retired_alias_names": [],

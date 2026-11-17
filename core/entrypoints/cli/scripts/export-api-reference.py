@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -23,10 +22,11 @@ spec.loader.exec_module(contract)
 def export(directory: Path, release: str, revision: str) -> None:
     """Assemble real routes without lifespan, requests, database or HTTP server."""
     from core.infrastructure.config.version import APP_VERSION
+    from core.infrastructure.runtime_env import runtime_env
 
     if str(APP_VERSION).removeprefix("v") != release.removeprefix("v"):
         raise ValueError("released application version differs from requested release")
-    if os.environ.get("FS_EMBEDDED_IMAGE_REVISION", os.environ.get("FS_BUILD_SHA")) != revision:
+    if runtime_env.get("FS_EMBEDDED_IMAGE_REVISION", runtime_env.get("FS_BUILD_SHA")) != revision:
         raise ValueError("released image revision differs from requested revision")
     from core.entrypoints.api import dependencies
     from core.entrypoints.api.app_factory import create_app

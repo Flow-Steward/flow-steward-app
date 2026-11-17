@@ -168,10 +168,13 @@ def test_release_workflow_publishes_reference_after_images_and_supports_bootstra
 def test_offline_export_assembles_real_canonical_routes(tmp_path, monkeypatch):
     import runpy
 
+    from core.infrastructure.config.version import APP_VERSION
+
+    release = f"v{str(APP_VERSION).removeprefix('v')}"
     monkeypatch.setenv("FS_EMBEDDED_IMAGE_REVISION", REVISION)
     exporter = runpy.run_path(str(ROOT / "core/entrypoints/cli/scripts/export-api-reference.py"))
-    exporter["export"](tmp_path, RELEASE, REVISION)
-    manifest = validate_assets(tmp_path, RELEASE, REVISION)
+    exporter["export"](tmp_path, release, REVISION)
+    manifest = validate_assets(tmp_path, release, REVISION)
     public = json.loads((tmp_path / "openapi-public.json").read_bytes())
     application = json.loads((tmp_path / "openapi-application.json").read_bytes())
     assert manifest["schemas"]["public"]["paths"] == 10
