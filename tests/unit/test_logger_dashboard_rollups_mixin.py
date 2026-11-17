@@ -258,19 +258,25 @@ def test_reporting_store_composes_scoped_activity_repository_sql() -> None:
         "j.selected_workflow = ANY(%s)",
         "p.workspace_id = ANY(%s)",
         "f.finished_at >= %s",
-        "f.finished_at < %s",
+        # The rollup part stops where the rollup is current; the cutoff itself is
+        # clamped into the window, and the live jobs part reads the rest of it.
+        "f.finished_at < c.covered_until",
+        "LEAST(",
+        "j.finished_at >= %s",
+        "j.finished_at < %s",
     ):
         assert predicate in sql
+    scoped = ("account", "tenant", ["project"], ["release"], ["workspace"], "project", "release")
     assert params == (
-        "account",
-        "tenant",
-        ["project"],
-        ["release"],
-        ["workspace"],
-        "account",
         start,
         end,
-        "project",
-        "release",
+        "account",
+        start,
+        *scoped,
+        "account",
+        start,
+        *scoped,
+        start,
+        end,
     )
     assert "LIMIT" not in sql
