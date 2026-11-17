@@ -15,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[4]
 spec = importlib.util.spec_from_file_location(
     "api_reference_contract", ROOT / "core/application/tooling/api_reference.py"
 )
+if spec is None or spec.loader is None:
+    raise ImportError("api_reference contract module could not be loaded")
 contract = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(contract)
 
@@ -32,6 +34,7 @@ def export(directory: Path, release: str, revision: str) -> None:
     from core.entrypoints.api.app_factory import create_app
     from core.entrypoints.api.public_openapi_policy import PUBLIC_OPENAPI_POLICY as policy
     from core.infrastructure.runtime import http_app_lifecycle as canonical
+    from core.infrastructure.runtime.http_app_constants import _INTERNAL_OPENAPI_DESCRIPTION
 
     # Offline construction fixture only: this eager runtime guard resolves live DB
     # stores before route registration. Schema generation uses none of those stores.
@@ -55,7 +58,7 @@ def export(directory: Path, release: str, revision: str) -> None:
         current_app=app,
         title="Flow Steward Internal API",
         version=str(app.version or ""),
-        description=canonical._INTERNAL_OPENAPI_DESCRIPTION,
+        description=_INTERNAL_OPENAPI_DESCRIPTION,
         routes=canonical._internal_openapi_routes(app),
     )
     selected = {
