@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from pydantic import AfterValidator
+from pydantic import AfterValidator, WithJsonSchema
 
 CATALOG_CATEGORIES: tuple[tuple[str, str], ...] = (
     ("ai", "AI"),
@@ -51,8 +51,22 @@ def catalog_category(value: Any) -> str:
     return normalized
 
 
+#: The JSON Schema of a category field, built from the same list the validator
+#: uses, so a client reading a request schema sees the ids it will accept. An
+#: empty string files the entry under the default category.
+CATALOG_CATEGORY_JSON_SCHEMA: dict[str, Any] = {
+    "type": "string",
+    "enum": [*(item_id for item_id, _ in CATALOG_CATEGORIES), ""],
+    "description": (
+        "One of the shared catalog category ids; an empty string files the entry "
+        f"under '{DEFAULT_CATALOG_CATEGORY}'."
+    ),
+}
+
 #: A request field that only accepts a shared category id.
-CatalogCategory = Annotated[str, AfterValidator(catalog_category)]
+CatalogCategory = Annotated[
+    str, AfterValidator(catalog_category), WithJsonSchema(CATALOG_CATEGORY_JSON_SCHEMA)
+]
 
 
 def known_catalog_category(value: Any) -> str:
@@ -68,6 +82,7 @@ def catalog_category_options() -> list[dict[str, str]]:
 __all__ = [
     "CATALOG_CATEGORIES",
     "CATALOG_CATEGORY_IDS",
+    "CATALOG_CATEGORY_JSON_SCHEMA",
     "DEFAULT_CATALOG_CATEGORY",
     "CatalogCategory",
     "catalog_category",

@@ -432,6 +432,48 @@ def test_authoring_schemas_are_the_route_request_models() -> None:
     assert "inherits the project" in semantics
 
 
+def _category_schema(json_schema: dict[str, Any]) -> dict[str, Any]:
+    category = json_schema["properties"]["category"]
+    for option in category.get("anyOf", [category]):
+        if option.get("type") == "string":
+            return option
+    raise AssertionError(category)
+
+
+def test_authoring_schemas_publish_the_category_ids_the_validator_accepts() -> None:
+    """MCP probe F7: the schema said free text, the route refused 'reporting'."""
+    from core.application.registry.catalog_categories import (
+        CATALOG_CATEGORIES,
+        catalog_category,
+    )
+
+    ids = [item_id for item_id, _ in CATALOG_CATEGORIES]
+    for view in (agent_authoring_schema(), skill_authoring_schema()):
+        for json_schema in (view.create["json_schema"], view.patch["json_schema"]):
+            enum = _category_schema(json_schema)["enum"]
+            assert [value for value in enum if value] == ids
+            for value in enum:
+                catalog_category(value)  # every advertised value is accepted
+    with pytest.raises(ValueError, match="category must be one of"):
+        SkillCreate.model_validate({"skill_id": "s1", "category": "reporting"})
+
+
+def test_authoring_schemas_name_the_mcp_tool_for_each_route() -> None:
+    for view in (agent_authoring_schema(), skill_authoring_schema()):
+        for section in (view.create, view.patch):
+            route = MCP_TOOL_ROUTES[section["mcp_tool"]]
+            assert section["route"] == f"{route.method} {route.path}"
+        for key, tool in view.related["mcp_tools"].items():
+            route = MCP_TOOL_ROUTES[tool]
+            described = view.related[key]
+            described = described if isinstance(described, str) else described["route"]
+            assert described.split(" ")[1] == route.path, (key, tool)
+    skill_related = skill_authoring_schema().related
+    for key in ("inputs", "outputs"):
+        route = MCP_TOOL_ROUTES[skill_related[key]["mcp_tool"]]
+        assert skill_related[key]["route"].startswith(f"{route.method} {route.path}")
+
+
 def test_admin_routes_validate_with_the_published_models() -> None:
     from core.entrypoints.admin.agents import router as agent_router
     from core.entrypoints.admin.skills import router as skill_router

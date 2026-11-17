@@ -52,7 +52,8 @@ _AGENT_PATCH_RULES = [
     "inherits the project's provider/model route.",
     "local_instructions replaces prompts.local_instructions as a whole list; every other "
     "list or object field replaces the stored value as a whole.",
-    "skills and tools are refused here; assign skills with the skill assignment routes.",
+    "skills and tools are refused here; assign skills with the skill assignment routes "
+    "(MCP: agent_skill_assign / agent_skill_unassign).",
     "enabled is the desired state. Setting it to false is refused with 409 while enabled "
     "workflows run the agent. When the saved agent is enabled, it must pass readiness, "
     "otherwise 400 'Contract validation failed' and nothing is saved.",
@@ -74,7 +75,7 @@ _SKILL_PATCH_RULES = [
     "null never clears a field: a null value is ignored like an omitted one.",
     "Every field sent replaces the stored value as a whole; objects are not merged.",
     "expected_inputs/expected_outputs are not part of the patch; replace them with the "
-    "skill inputs/outputs routes.",
+    "skill inputs/outputs routes (MCP: skill_inputs_set / skill_outputs_set).",
     "enabled is the desired state. Setting it to false is refused with 409 while enabled "
     "workflows depend on an agent using the skill. When the saved skill is enabled, it "
     "must pass readiness, otherwise 400 'Contract validation failed' and nothing is saved.",
@@ -88,13 +89,21 @@ class RegistryAuthoringSchemaView(BaseModel):
 
     entity_type: Literal["agent", "skill"] = Field(description="The object type described.")
     create: dict[str, Any] = Field(
-        description="Create route, the JSON Schema of its body and its rules."
+        description=(
+            "Create route, the MCP tool that calls it, the JSON Schema of its body and its rules."
+        )
     )
     patch: dict[str, Any] = Field(
-        description="Partial-update route, the JSON Schema of its body and its semantics."
+        description=(
+            "Partial-update route, the MCP tool that calls it, the JSON Schema of its body "
+            "and its semantics."
+        )
     )
     related: dict[str, Any] = Field(
-        description="Readiness, enablement and relationship routes for this object type."
+        description=(
+            "Readiness, enablement and relationship routes for this object type, and the "
+            "MCP tools that call them (mcp_tools)."
+        )
     )
 
 
@@ -104,11 +113,13 @@ def agent_authoring_schema() -> RegistryAuthoringSchemaView:
         entity_type="agent",
         create={
             "route": "POST /api/agents",
+            "mcp_tool": "agent_create",
             "json_schema": AgentSave.model_json_schema(),
             "rules": list(_AGENT_CREATE_RULES),
         },
         patch={
             "route": "PATCH /api/agents/{agent_id}",
+            "mcp_tool": "agent_update",
             "json_schema": AgentPatch.model_json_schema(),
             "semantics": list(_AGENT_PATCH_RULES),
         },
@@ -121,6 +132,14 @@ def agent_authoring_schema() -> RegistryAuthoringSchemaView:
             "assignment_instructions": (
                 "PUT /api/agents/{agent_id}/skills/{skill_id}/prompt {skill_prompt}"
             ),
+            "mcp_tools": {
+                "read": "agent_get",
+                "readiness": "agent_validate",
+                "enable": "agent_set_enabled",
+                "assign_skill": "agent_skill_assign",
+                "unassign_skill": "agent_skill_unassign",
+                "assignment_instructions": "agent_skill_set_instructions",
+            },
         },
     )
 
@@ -131,11 +150,13 @@ def skill_authoring_schema() -> RegistryAuthoringSchemaView:
         entity_type="skill",
         create={
             "route": "POST /api/skills",
+            "mcp_tool": "skill_create",
             "json_schema": SkillCreate.model_json_schema(),
             "rules": list(_SKILL_CREATE_RULES),
         },
         patch={
             "route": "PATCH /api/skills/{skill_id}",
+            "mcp_tool": "skill_update",
             "json_schema": SkillPatch.model_json_schema(),
             "semantics": list(_SKILL_PATCH_RULES),
         },
@@ -145,11 +166,18 @@ def skill_authoring_schema() -> RegistryAuthoringSchemaView:
             "enable": "PATCH /api/skills/{skill_id} with {'enabled': true|false}",
             "inputs": {
                 "route": "PUT /api/skills/{skill_id}/inputs (replaces the whole list)",
+                "mcp_tool": "skill_inputs_set",
                 "item_json_schema": InputItem.model_json_schema(),
             },
             "outputs": {
                 "route": "PUT /api/skills/{skill_id}/outputs (replaces the whole list)",
+                "mcp_tool": "skill_outputs_set",
                 "item_json_schema": OutputItem.model_json_schema(),
+            },
+            "mcp_tools": {
+                "read": "skill_get",
+                "readiness": "skill_validate",
+                "enable": "skill_set_enabled",
             },
         },
     )
