@@ -76,6 +76,11 @@ delete one.
 
 ### Authority
 
+A proposed [ADR 0066 amendment](0066-global-roles-and-secret-provider-boundary.md#amendment-2026-11-18-proposed-in-adr-0075-admin-configures-operator-works-viewer-reads)
+(with ADR 0075) keeps create, replace value and edit metadata at operator and moves delete, bind,
+unbind and configuration approval to admin. The table below applies until it is
+accepted.
+
 | Action | Interactive human | Machine token, service account, MCP, LLM authoring |
 | --- | --- | --- |
 | Read value | never | never (only the execution boundary reads values) |

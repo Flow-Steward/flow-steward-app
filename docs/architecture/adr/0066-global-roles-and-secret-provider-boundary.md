@@ -177,6 +177,67 @@ resolved while preserving workflow-facing identity. Adapter and persistence
 work is still required; this ADR does not promise that every secret path is
 already unified or that a remote provider can be enabled by configuration today.
 
+## Amendment (2026-11-18, proposed in ADR 0075): admin configures, operator works, viewer reads
+
+Status: Proposed together with [ADR 0075](0075-project-user-sections.md). Until
+it is accepted, decision 2 above stays in force.
+
+This amendment replaces decision 2 with an explicit split of the three global
+roles. The roles, the single team trust domain and every resource, account,
+token-scope and machine-authority check above stay unchanged.
+
+| Role | Responsibility |
+| --- | --- |
+| `admin` | Everything that configures the deployment: users, extensions, projects, workflows, triggers, connections, connection slots, secret bindings and approvals, user sections. Sees the administrative UI. |
+| `operator` | Does the work the admin configured: starts workflows, uploads files, decides approvals, cancels and retries jobs, reads history, results and files. May create a catalog secret and replace a secret's value (for example a changed mailbox password) without changing where it is bound. Does not see the administrative UI. |
+| `viewer` | Reads the same history, results and files. No writes. |
+
+1. HTTP writes default to `admin`. The middleware keeps one explicit allowlist
+   of operator writes instead of treating every write outside the admin-only
+   patterns as operator-allowed. Self-service account actions stay available to
+   every signed-in user.
+2. The operator allowlist covers the work itself, in every channel:
+   - starting a workflow, through the browser launch route and through
+     `POST /api/workflow-runs` (API and MCP `workflow_trigger`);
+   - approval decisions and decision overrides;
+   - job cancel, restart, step retry, acknowledge and unacknowledge;
+   - generating a workflow report and dispatching a notification through a
+     route the admin configured;
+   - the [ADR 0057](0057-secret-catalog.md) secret create, value-replace and metadata actions;
+   - connecting the user's own AI agent (`/api/auth/agent-access/...`), which
+     every signed-in role keeps because the token is capped at its owner's role;
+   - the extension actions and queries [ADR 0067](0067-extension-page-queries-with-connection.md)
+     already grants to operators.
+
+   Step replay (`replay-step/execute`) re-executes captured inputs for diagnosis
+   and moves to `admin`.
+3. Moving to `admin`: creating and editing connections and their secret fields,
+   choosing a workflow's connection slot, binding and unbinding secrets,
+   approving a secret configuration, deleting a secret, and every project write
+   including `PUT /api/projects/{id}`. The last one also closes a gap where an
+   operator could change a project's workflow bindings and policy through the
+   general project update although the dedicated routes already require `admin`.
+4. The server enforces the split. Hiding menu entries is presentation only.
+5. For people, the secret rules live in one place, `core/application/secrets/authority.py`:
+   write and approval require operator today. The split raises delete, bind,
+   unbind and approval to `admin` there, and leaves create, value replace and
+   metadata at operator. Deleting stays with the admin because the delete
+   confirmation already shows every connection and workflow that uses the
+   secret and removes those bindings in the same transaction.
+6. One rule for every channel. What a role may do in the UI it may do through
+   the API and MCP, and nothing more: the same route check applies to a browser
+   session and to a personal token, which acts with its owner's role. MCP exists
+   so a person can work from any client without opening the product, not to
+   carry different authority. Token scopes can only narrow a token further.
+7. Machine authority is unchanged. The exact-only `secrets:write` and
+   `secrets:bind` scopes are set on service-account tokens, which only an admin
+   issues; personal agent tokens cannot carry them, so they do not bypass the split.
+
+The product has just launched and no installation relies on operator
+configuration writes yet, so the split ships directly, without a compatibility
+mode or a transition period. Release notes describe the role model once. The
+change needs denial tests for every moved route in addition to the allowlist.
+
 ## References
 
 - [Security standard](../../standards/security-standard.md)
