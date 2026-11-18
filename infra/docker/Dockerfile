@@ -233,6 +233,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/orchestration/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/agent_manifest.py \
+    core/application/registry/agent_relationship_errors.py \
     core/application/registry/builtin_mcp_tools.py \
     core/application/registry/builtin_standard_tools.py \
     core/application/registry/db_store.py \
