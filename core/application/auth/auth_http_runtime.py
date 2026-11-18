@@ -579,7 +579,12 @@ async def local_auth_middleware(
         and _principal_requires_http_scopes(user)
         and not principal_has_required_scopes(user, required_token_scopes)
     ):
-        return JSONResponse({"error": "Missing required token scope"}, status_code=403)
+        # Scope names are public; naming them tells the caller which token to use.
+        accepted = ", ".join(sorted({str(scope) for scope in required_token_scopes}))
+        return JSONResponse(
+            {"error": f"Missing required token scope (needs one of: {accepted})"},
+            status_code=403,
+        )
 
     if admin_required:
         if not roles_intersect_fn(user.get("roles") or [], auth_admin_roles):

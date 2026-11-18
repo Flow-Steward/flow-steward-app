@@ -169,7 +169,10 @@ def test_discovery_uses_current_change_envelope_schema_without_claiming_operatio
     "example_id",
     ["group_sequence", "group_lanes", "for_each_sequence", "for_each_lanes", "hook_unbound"],
 )
-def test_discovery_examples_satisfy_current_shared_definition_contract(example_id):
+def test_discovery_examples_satisfy_current_shared_definition_contract(monkeypatch, example_id):
+    # Hook examples are offered only where a new Hook declaration is accepted.
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("FS_STACK_ENVIRONMENT", "development")
     examples = WorkflowAuthoringSchema().get()["definition_guidance"]["examples"]
     example = next(row for row in examples if row["id"] == example_id)
     bundle = WorkflowPortabilityService(object()).parse_bundle(example["bundle_yaml"])

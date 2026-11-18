@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -16,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[4]
 spec = importlib.util.spec_from_file_location(
     "api_reference_contract", ROOT / "core/application/tooling/api_reference.py"
 )
+if spec is None or spec.loader is None:
+    raise ImportError("api_reference contract module could not be loaded")
 contract = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(contract)
 
@@ -23,15 +24,17 @@ spec.loader.exec_module(contract)
 def export(directory: Path, release: str, revision: str) -> None:
     """Assemble real routes without lifespan, requests, database or HTTP server."""
     from core.infrastructure.config.version import APP_VERSION
+    from core.infrastructure.runtime_env import runtime_env
 
     if str(APP_VERSION).removeprefix("v") != release.removeprefix("v"):
         raise ValueError("released application version differs from requested release")
-    if os.environ.get("FS_EMBEDDED_IMAGE_REVISION", os.environ.get("FS_BUILD_SHA")) != revision:
+    if runtime_env.get("FS_EMBEDDED_IMAGE_REVISION", runtime_env.get("FS_BUILD_SHA")) != revision:
         raise ValueError("released image revision differs from requested revision")
     from core.entrypoints.api import dependencies
     from core.entrypoints.api.app_factory import create_app
     from core.entrypoints.api.public_openapi_policy import PUBLIC_OPENAPI_POLICY as policy
     from core.infrastructure.runtime import http_app_lifecycle as canonical
+    from core.infrastructure.runtime.http_app_constants import _INTERNAL_OPENAPI_DESCRIPTION
 
     # Offline construction fixture only: this eager runtime guard resolves live DB
     # stores before route registration. Schema generation uses none of those stores.
@@ -55,7 +58,7 @@ def export(directory: Path, release: str, revision: str) -> None:
         current_app=app,
         title="Flow Steward Internal API",
         version=str(app.version or ""),
-        description=canonical._INTERNAL_OPENAPI_DESCRIPTION,
+        description=_INTERNAL_OPENAPI_DESCRIPTION,
         routes=canonical._internal_openapi_routes(app),
     )
     selected = {

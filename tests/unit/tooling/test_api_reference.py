@@ -17,7 +17,7 @@ from core.application.tooling.api_reference import (
     write_assets,
 )
 
-REVISION = "54a43366bf404d31c163c269af639de789b9dce6"
+REVISION = "54a43366bf404d31c163c269af639de789b9dce6"  # pragma: allowlist secret - git commit SHA
 RELEASE = "v0.9.18"
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -149,7 +149,7 @@ def test_release_workflow_publishes_reference_after_images_and_supports_bootstra
     job = publication["jobs"]["api-reference"]
     assert "publish" in job["needs"]
     assert job["uses"] == "./.github/workflows/publish-api-reference.yml"
-    assert job["secrets"] == "inherit"
+    assert job["secrets"] == "inherit"  # pragma: allowlist secret - workflow keyword
     workflow = yaml.safe_load((ROOT / ".github/workflows/publish-api-reference.yml").read_text())
     events = workflow.get("on", workflow.get(True))
     assert {"workflow_call", "workflow_dispatch"} <= set(events)
@@ -168,10 +168,13 @@ def test_release_workflow_publishes_reference_after_images_and_supports_bootstra
 def test_offline_export_assembles_real_canonical_routes(tmp_path, monkeypatch):
     import runpy
 
+    from core.infrastructure.config.version import APP_VERSION
+
+    release = f"v{str(APP_VERSION).removeprefix('v')}"
     monkeypatch.setenv("FS_EMBEDDED_IMAGE_REVISION", REVISION)
     exporter = runpy.run_path(str(ROOT / "core/entrypoints/cli/scripts/export-api-reference.py"))
-    exporter["export"](tmp_path, RELEASE, REVISION)
-    manifest = validate_assets(tmp_path, RELEASE, REVISION)
+    exporter["export"](tmp_path, release, REVISION)
+    manifest = validate_assets(tmp_path, release, REVISION)
     public = json.loads((tmp_path / "openapi-public.json").read_bytes())
     application = json.loads((tmp_path / "openapi-application.json").read_bytes())
     assert manifest["schemas"]["public"]["paths"] == 10

@@ -19,6 +19,7 @@ from core.application.workflows.workflow_definition_validation import (
 )
 from core.application.workflows.workflow_portability import BUNDLE_KIND, SCHEMA_VERSION
 from core.application.workflows.workflow_step_config_contracts import STEP_CONFIG_ALLOWED_KEYS
+from core.infrastructure.config.installation_mode import installation_mode
 
 _STEP_REFERENCE_FIELDS = {
     "agent": frozenset({"agent_id", "skill_id"}),
@@ -42,6 +43,7 @@ class DefinitionExample(TypedDict):
 class OperationExample(TypedDict):
     id: str
     purpose: str
+    limitations: str
     precondition_bundle_yaml: str
     expected_revision_guidance: str
     dry_run: bool
@@ -66,10 +68,23 @@ class DefinitionGuidance(TypedDict):
 class AuthoringSchemaResult(TypedDict):
     format: str
     kind: str
+    installation_mode: str
     minimal_bundle_yaml: str
     step_kinds: list[dict[str, Any]]
     mapping_guidance: str
     definition_guidance: DefinitionGuidance
+
+
+_HOOK_DEVELOPMENT_ONLY = (
+    "Development installation mode is required for a new Hook declaration "
+    "(see installation_mode); elsewhere it is refused with "
+    "workflow.hook.declaration_requires_development."
+)
+_GROUP_NOT_CONVERTIBLE = (
+    "Its Group body holds only set_variable steps, so workflow_convert_group refuses it "
+    "as is (workflow.execution_bindings_missing): a child workflow needs at least one "
+    "execution step such as a transform, HTTP request, connector or agent."
+)
 
 
 class WorkflowAuthoringSchema:
@@ -81,13 +96,17 @@ class WorkflowAuthoringSchema:
             profiles = [profile for profile in profiles if profile["step_kind_key"] == step_kind]
             if not profiles:
                 raise ServiceNotFoundError("Unknown step kind")
+        mode = installation_mode()
         return {
             "format": SCHEMA_VERSION,
             "kind": BUNDLE_KIND,
+            # New Hook declarations are refused outside Development, so a client
+            # needs to know which mode it is authoring against.
+            "installation_mode": mode,
             "minimal_bundle_yaml": yaml.safe_dump(self._minimal_bundle(), sort_keys=False),
             "step_kinds": [self._step_profile(profile) for profile in profiles],
             "mapping_guidance": "Use step.input_mapping_jsonb and step.output_mapping_jsonb; runtime configuration belongs in step.override.<step_kind>. Obtain capability contracts and permitted connection references from describe.",
-            "definition_guidance": self._definition_guidance(),
+            "definition_guidance": self._definition_guidance(mode),
         }
 
     @staticmethod
@@ -300,7 +319,7 @@ class WorkflowAuthoringSchema:
         return bundle
 
     @classmethod
-    def _operation_examples(cls) -> list[OperationExample]:
+    def _operation_examples(cls, *, hooks_allowed: bool = True) -> list[OperationExample]:
         def step_ref(node_id: str) -> dict[str, str]:
             return cls._node("step", node_id)
 
@@ -389,10 +408,12 @@ class WorkflowAuthoringSchema:
         ]
         precondition = yaml.safe_dump(cls._minimal_bundle(), sort_keys=False)
         revision = "Read the current positive workflow revision; use that exact value as expected_revision."
-        return [
+        examples: list[OperationExample] = [
             {
                 "id": "group_for_each_atomic",
                 "purpose": "Create a sequence Group containing a For each and connect its body in one change set.",
+                "limitations": _GROUP_NOT_CONVERTIBLE
+                + " state.items is not written with a declared type here either, so its For each cannot move into a child until a step writes it with output_types.",
                 "precondition_bundle_yaml": precondition,
                 "expected_revision_guidance": revision,
                 "dry_run": True,
@@ -401,6 +422,7 @@ class WorkflowAuthoringSchema:
             {
                 "id": "root_hook_atomic",
                 "purpose": "Declare an unbound root Hook in Development mode and connect its Invoke carrier.",
+                "limitations": _HOOK_DEVELOPMENT_ONLY,
                 "precondition_bundle_yaml": precondition,
                 "expected_revision_guidance": revision,
                 "dry_run": True,
@@ -409,32 +431,46 @@ class WorkflowAuthoringSchema:
             {
                 "id": "report_output_atomic",
                 "purpose": "Build a report with a Template step in format report and publish it as the workflow's report output in one change set.",
+                "limitations": "",
                 "precondition_bundle_yaml": precondition,
                 "expected_revision_guidance": revision,
                 "dry_run": True,
                 "operations": report,
             },
         ]
+        if not hooks_allowed:
+            examples = [row for row in examples if row["id"] != "root_hook_atomic"]
+        return examples
 
     @classmethod
-    def _definition_guidance(cls) -> DefinitionGuidance:
+    def _definition_guidance(cls, mode: str = "production") -> DefinitionGuidance:
+        # Outside Development a new Hook declaration is refused everywhere, so the
+        # examples that create one are not offered (MCP probe F12).
+        hooks_allowed = mode == "development"
         purposes = {
             "group_sequence": "Run one Group body in sequence.",
             "group_lanes": "Run one Group body with two parallel lanes.",
             "for_each_sequence": "Visit a collection with a sequence For each body.",
             "for_each_lanes": "Visit a collection with two For each lanes.",
-            "hook_unbound": "Declare a root Hook without a direct child target or project binding.",
         }
+        if hooks_allowed:
+            purposes["hook_unbound"] = (
+                "Declare a root Hook without a direct child target or project binding."
+            )
         examples: list[DefinitionExample] = []
+        instructional = "Instructional disabled bundle; use workflow_draft_validate before saving or enabling it."
         for example_id, purpose in purposes.items():
+            limitations = instructional
+            if example_id.startswith("group_"):
+                limitations = f"{instructional} {_GROUP_NOT_CONVERTIBLE}"
             examples.append(
                 {
                     "id": example_id,
                     "purpose": purpose,
-                    "prerequisites": "Development installation mode is required for a new Hook declaration."
+                    "prerequisites": _HOOK_DEVELOPMENT_ONLY
                     if example_id == "hook_unbound"
                     else "Import as a disabled draft and review its collection/state inputs.",
-                    "limitations": "Instructional disabled bundle; use workflow_draft_validate before saving or enabling it.",
+                    "limitations": limitations,
                     "bundle_yaml": yaml.safe_dump(
                         cls._definition_example_bundle(example_id), sort_keys=False
                     ),
@@ -458,7 +494,12 @@ class WorkflowAuthoringSchema:
                 },
                 "hook": {
                     "persisted_location": "steps[].override.invoke_workflow.hook",
-                    "description": "A new Hook is a root Invoke declaration in Development mode, with typed inputs/outputs and stage effects. A project binding is separate from the author definition revision; direct workflow_id is mutually exclusive with hook.",
+                    "description": "A new Hook is a root Invoke declaration in Development mode, with typed inputs/outputs and stage effects. A project binding is separate from the author definition revision; direct workflow_id is mutually exclusive with hook."
+                    + (
+                        ""
+                        if hooks_allowed
+                        else f" This installation runs in {mode} mode: a new Hook declaration is refused (workflow.hook.declaration_requires_development), so no Hook example is offered; Hooks that already exist stay editable and bindable."
+                    ),
                 },
             },
             "examples": examples,
@@ -466,6 +507,6 @@ class WorkflowAuthoringSchema:
                 "schema_scope": "envelope_only_operations_are_open_objects",
                 "request_envelope_schema": WorkflowChangeSet.model_json_schema(),
                 "operation_names": sorted(OPERATION_KINDS),
-                "partial_examples": cls._operation_examples(),
+                "partial_examples": cls._operation_examples(hooks_allowed=hooks_allowed),
             },
         }

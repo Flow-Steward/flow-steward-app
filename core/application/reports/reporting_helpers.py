@@ -44,3 +44,25 @@ def _series_has_values(series: dict[str, Any]) -> bool:
         if _safe_float(item, default=0.0) > 0:
             return True
     return False
+
+
+def finished_jobs_line(summary: dict[str, Any]) -> str:
+    """Finished jobs (completed and failed) and, apart from them, the cancelled runs."""
+    line = (
+        f"Finished jobs: {_safe_int(summary.get('total_jobs'))} "
+        f"({_safe_int(summary.get('completed_count'))} completed, "
+        f"{_safe_int(summary.get('failed_count'))} failed)"
+    )
+    cancelled = _safe_int(summary.get("cancelled_count"))
+    if cancelled:
+        line = f"{line}; {cancelled} cancelled (not counted as finished or in the success rate)"
+    return line
+
+
+def data_as_of_lines(snapshot: dict[str, Any]) -> list[str]:
+    """The moment a report's data was read, as a summary line (none when unknown)."""
+    data_as_of = str(snapshot.get("data_as_of") or "").strip()
+    if not data_as_of:
+        return []
+    moment = data_as_of[:19].replace("T", " ")
+    return [f"Data as of: {moment} UTC (includes runs finished up to then)"]

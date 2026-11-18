@@ -3,6 +3,12 @@
 from __future__ import annotations
 
 from core.application.registry.agent_manifest import refuse_agent_phases
+from core.application.registry.agent_relationship_errors import (  # re-exported
+    AgentRelationshipConflictError,
+    AgentRelationshipReadinessError,
+    AgentRelationshipValidationError,
+    new_readiness_errors,
+)
 from core.application.registry.catalog_categories import catalog_category
 from core.application.registry.db_store_agent_contract_mixin import (
     RegistryDBStoreAgentContractMixin,
@@ -12,22 +18,6 @@ from .db_store_common import *  # NOSONAR
 
 #: Columns a pre-existing database may still hold that agents no longer have.
 _REMOVED_AGENT_COLUMNS = ("phases",)
-
-
-class AgentRelationshipConflictError(RuntimeError):
-    """The relationship snapshot changed after the editor loaded it."""
-
-
-class AgentRelationshipValidationError(ValueError):
-    """A proposed atomic relationship snapshot violates the agent contract."""
-
-    def __init__(self, validation: dict):
-        super().__init__("Agent relationship contract validation failed")
-        self.validation = validation
-
-
-class AgentRelationshipReadinessError(AgentRelationshipValidationError):
-    """An in-scope relationship was rejected before its transaction committed."""
 
 
 class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
@@ -48,7 +38,8 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
     def _lock_agent_relationship_parent(cur, agent_id: str) -> dict:
         """Serialize every relationship writer on the owning agent row."""
         cur.execute(
-            "SELECT agent_id, account_id FROM registry_agents WHERE agent_id = %s FOR UPDATE",
+            "SELECT agent_id, account_id, enabled FROM registry_agents"
+            " WHERE agent_id = %s FOR UPDATE",
             (agent_id,),
         )
         row = cur.fetchone()
@@ -614,13 +605,28 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 self.materialize_agent_contract(agent_id)
         self._trigger_public_contract_projection_sync()
 
-    def remove_agent_skill(self, agent_id: str, skill_id: str) -> None:
+    def remove_agent_skill(self, agent_id: str, skill_id: str, *, validate_agent=None) -> None:
+        """Remove one mapping; an enabled agent must stay as ready as it was.
+
+        With *validate_agent*, an enabled agent's readiness is checked before
+        and after the delete in the same transaction. A removal that adds a
+        readiness error (the last skill, say) is rolled back with
+        :class:`AgentRelationshipReadinessError`, the rule enabling and saving
+        an enabled agent already follow. An error the agent already had does
+        not block the removal, so a broken mapping can still be taken out.
+        """
         with self._transaction() as cur:
-            self._lock_agent_relationship_parent(cur, agent_id)
+            agent = self._lock_agent_relationship_parent(cur, agent_id)
+            guarded = callable(validate_agent) and bool(agent.get("enabled"))
+            before = validate_agent(self, agent_id) if guarded else None
             cur.execute(
                 "DELETE FROM registry_agent_skills WHERE agent_id = %s AND skill_id = %s",
                 (agent_id, skill_id),
             )
+            if guarded:
+                after = validate_agent(self, agent_id)
+                if new_readiness_errors(before, after):
+                    raise AgentRelationshipReadinessError(after)
         self._trigger_public_contract_projection_sync()
 
     def reorder_agent_skills(self, agent_id: str, ordered_ids: list[str]) -> None:

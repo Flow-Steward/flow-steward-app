@@ -61,6 +61,23 @@ class PlatformLoggerLifecycleProjectsMixin:
             cur.execute("SELECT id FROM projects WHERE deleted_at IS NULL ORDER BY id")
             return [str(row[0]) for row in cur.fetchall()]
 
+    def list_workflow_knowledge_project_scopes(self, *, limit: int) -> list[dict[str, str]]:
+        """Return the newest non-deleted projects as workflow-knowledge sync scopes."""
+        with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id::text AS project_id,
+                       account_id::text AS account_id,
+                       tenant_id::text AS tenant_id
+                  FROM projects
+                 WHERE deleted_at IS NULL
+                 ORDER BY created_at DESC, id
+                 LIMIT %s
+                """,
+                (max(1, int(limit or 1)),),
+            )
+            return [dict(row) for row in (cur.fetchall() or [])]
+
     def list_recent_registry_changelog(
         self,
         *,

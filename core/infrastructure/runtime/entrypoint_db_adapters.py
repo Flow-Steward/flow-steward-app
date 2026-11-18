@@ -162,6 +162,7 @@ def create_control_stores(dsn: str) -> dict[str, PlatformStorePort]:
         "projects": (
             "list_active_project_ids",
             "list_recent_registry_changelog",
+            "list_workflow_knowledge_project_scopes",
             "record_security_posture_loop_attempt",
             "record_workflow_knowledge_sync_loop_attempt",
             "record_workflow_knowledge_sync_loop_success",

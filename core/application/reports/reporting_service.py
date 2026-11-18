@@ -31,6 +31,8 @@ from core.application.reports.reporting_helpers import (
     _safe_int,
     _series_has_values,
     _tenant_id,
+    data_as_of_lines,
+    finished_jobs_line,
 )
 from core.application.reports.ui_projection_helpers import (
     _build_usage_breakdown,
@@ -290,6 +292,7 @@ class ReportingService:
         rows = list(activity.get("rows") or [])
         summary = _json_obj(activity.get("summary"))
         window = _json_obj(activity.get("window"))
+        data_as_of = str(activity.get("data_as_of") or "").strip() or None
 
         project_name = None
         if project_id is not None:
@@ -322,6 +325,8 @@ class ReportingService:
             "project_id": project_id,
             "project_name": project_name,
             "window": window,
+            # Runs finished up to this instant are counted (rollup + live jobs).
+            "data_as_of": data_as_of,
             "kpis": summary,
             "daily": rows,
             "highlights": {
@@ -349,6 +354,7 @@ class ReportingService:
             "project_name": project_name,
             "scope_label": scope_label,
             "window": window,
+            "data_as_of": data_as_of,
             "summary": summary,
             "rows": rows,
             "latest_day": latest_day,
@@ -610,11 +616,7 @@ class ReportingService:
         summary_lines = [
             f"Activity report for {snapshot['scope_label']}",
             f"Window: {self._window_label(snapshot['window'])}",
-            (
-                f"Finished jobs: {int(summary.get('total_jobs') or 0)} "
-                f"({int(summary.get('completed_count') or 0)} completed, "
-                f"{int(summary.get('failed_count') or 0)} failed)"
-            ),
+            finished_jobs_line(summary),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
             (
                 "Typical duration: "
@@ -624,6 +626,7 @@ class ReportingService:
         ]
         if latest_day_text:
             summary_lines.append(latest_day_text)
+        summary_lines.extend(data_as_of_lines(snapshot))
         summary_text = "\n".join(summary_lines)
         return {
             "summary_text": summary_text,
@@ -648,11 +651,7 @@ class ReportingService:
         summary_lines = [
             f"{snapshot['scope_label']} summary",
             f"Window: {self._window_label(snapshot['window'])}",
-            (
-                f"Finished jobs: {int(summary.get('total_jobs') or 0)} "
-                f"({int(summary.get('completed_count') or 0)} completed, "
-                f"{int(summary.get('failed_count') or 0)} failed)"
-            ),
+            finished_jobs_line(summary),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
             (
                 "Typical duration: "
@@ -669,6 +668,7 @@ class ReportingService:
         summary_lines.append(
             f"Next step: {self._project_next_step(summary, snapshot['latest_day'])}"
         )
+        summary_lines.extend(data_as_of_lines(snapshot))
         return {
             "summary_text": "\n".join(summary_lines),
             "payload": snapshot["payload"],
@@ -694,11 +694,16 @@ class ReportingService:
             f"Total jobs: {int(summary.get('total_jobs') or 0)}",
             f"Completed: {int(summary.get('completed_count') or 0)}",
             f"Failed: {int(summary.get('failed_count') or 0)}",
+            (
+                f"Cancelled: {int(summary.get('cancelled_count') or 0)} "
+                "(not in total jobs or the success rate)"
+            ),
             f"Success rate: {self._percent_display(summary.get('overall_success_rate_pct'))}",
             f"Median p50 duration: {self._duration_display(summary.get('median_p50_seconds'))}",
             f"Median p95 duration: {self._duration_display(summary.get('median_p95_seconds'))}",
             f"Active days: {snapshot['active_days']}",
         ]
+        summary_lines.extend(data_as_of_lines(snapshot))
         return {
             "summary_text": "\n".join(summary_lines),
             "payload": snapshot["payload"],

@@ -166,6 +166,9 @@ class OrchestratorState(TypedDict):
     final_report: Annotated[str | None, lambda a, b: b]
     proof_of_work: dict | None
     unresolved_step_failure: dict | None
+    # Why final validation failed a run that reached a Stop Success (its output
+    # contract); terminal persistence records it as the job's structured error.
+    output_contract_failure: dict | None
     last_failure_class: str | None
     last_retry_reason: str | None
     last_retry_retryable: bool | None
@@ -373,6 +376,7 @@ class OrchestratorStateModel(BaseModel):
     final_report: str | None = None
     proof_of_work: dict | None = None
     unresolved_step_failure: dict | None = None
+    output_contract_failure: dict | None = None
     last_failure_class: str | None = None
     last_retry_reason: str | None = None
     last_retry_retryable: bool | None = None

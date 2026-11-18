@@ -24,14 +24,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.entrypoints.mcp.server_api_tool import api_tool_response
+from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
 # --- schemas ---------------------------------------------------------------
 
 
 @mcp.tool()
-def agent_authoring_schema() -> str:
+def agent_authoring_schema() -> McpToolResult:
     """Return the JSON Schemas of the agent create and patch bodies and their rules.
 
     ``create.json_schema`` is the body of agent_create, ``patch.json_schema`` the
@@ -44,7 +44,7 @@ def agent_authoring_schema() -> str:
 
 
 @mcp.tool()
-def skill_authoring_schema() -> str:
+def skill_authoring_schema() -> McpToolResult:
     """Return the JSON Schemas of the skill create and patch bodies and their rules.
 
     ``create.json_schema`` is the body of skill_create, ``patch.json_schema`` the
@@ -59,7 +59,7 @@ def skill_authoring_schema() -> str:
 
 
 @mcp.tool()
-def agent_list(search: str | None = None, enabled_only: bool = False) -> str:
+def agent_list(search: str | None = None, enabled_only: bool = False) -> McpToolResult:
     """List the agents visible to the caller, disabled ones included by default.
 
     ``search`` matches id, name, description and category. Each row carries
@@ -69,7 +69,7 @@ def agent_list(search: str | None = None, enabled_only: bool = False) -> str:
 
 
 @mcp.tool()
-def agent_get(agent_id: str) -> str:
+def agent_get(agent_id: str) -> McpToolResult:
     """Read one agent's current editable settings, even when it is disabled.
 
     Returns the stored fields (display_name, description, category, prompts,
@@ -81,7 +81,7 @@ def agent_get(agent_id: str) -> str:
 
 
 @mcp.tool()
-def agent_create(agent: dict[str, Any]) -> str:
+def agent_create(agent: dict[str, Any]) -> McpToolResult:
     """Create one agent under exactly ``agent['agent_id']``; it is saved disabled by default.
 
     ``agent`` is the create body of agent_authoring_schema; only the fields sent
@@ -95,7 +95,7 @@ def agent_create(agent: dict[str, Any]) -> str:
 
 
 @mcp.tool()
-def agent_update(agent_id: str, changes: dict[str, Any]) -> str:
+def agent_update(agent_id: str, changes: dict[str, Any]) -> McpToolResult:
     """Change only the fields present in ``changes`` (the agent patch body).
 
     null never clears a field; config and prompts merge shallowly; an empty
@@ -108,7 +108,7 @@ def agent_update(agent_id: str, changes: dict[str, Any]) -> str:
 
 
 @mcp.tool()
-def agent_validate(agent_id: str) -> str:
+def agent_validate(agent_id: str) -> McpToolResult:
     """Check one agent's readiness (enable, test, invoke) without changing it.
 
     Returns ``validation`` with ``valid``, ``errors`` and ``warnings``. A valid
@@ -118,7 +118,7 @@ def agent_validate(agent_id: str) -> str:
 
 
 @mcp.tool()
-def agent_set_enabled(agent_id: str, enabled: bool) -> str:
+def agent_set_enabled(agent_id: str, enabled: bool) -> McpToolResult:
     """Set the agent's enabled state to exactly ``enabled`` (never a toggle).
 
     Enabling requires a valid readiness result, otherwise 400 'Contract
@@ -129,7 +129,9 @@ def agent_set_enabled(agent_id: str, enabled: bool) -> str:
 
 
 @mcp.tool()
-def agent_skill_assign(agent_id: str, skill_id: str, skill_prompt: str | None = None) -> str:
+def agent_skill_assign(
+    agent_id: str, skill_id: str, skill_prompt: str | None = None
+) -> McpToolResult:
     """Assign a skill to an agent, with optional assignment instructions.
 
     ``skill_prompt`` is the agent-specific instruction for this skill; omitted,
@@ -141,13 +143,17 @@ def agent_skill_assign(agent_id: str, skill_id: str, skill_prompt: str | None = 
 
 
 @mcp.tool()
-def agent_skill_unassign(agent_id: str, skill_id: str) -> str:
-    """Remove a skill from an agent; returns the remaining assignments in order."""
+def agent_skill_unassign(agent_id: str, skill_id: str) -> McpToolResult:
+    """Remove a skill from an agent; returns the remaining assignments in order.
+
+    An enabled agent must stay ready: removing its last skill is refused with
+    a validation error. Assign another skill first, or disable the agent.
+    """
     return api_tool_response("agent_skill_unassign", locals())
 
 
 @mcp.tool()
-def agent_skill_set_instructions(agent_id: str, skill_id: str, skill_prompt: str) -> str:
+def agent_skill_set_instructions(agent_id: str, skill_id: str, skill_prompt: str) -> McpToolResult:
     """Replace the assignment instructions (skill_prompt) of one assigned skill."""
     return api_tool_response("agent_skill_set_instructions", locals())
 
@@ -156,13 +162,13 @@ def agent_skill_set_instructions(agent_id: str, skill_id: str, skill_prompt: str
 
 
 @mcp.tool()
-def skill_list(search: str | None = None, enabled_only: bool = False) -> str:
+def skill_list(search: str | None = None, enabled_only: bool = False) -> McpToolResult:
     """List the skills visible to the caller, disabled ones included by default."""
     return api_tool_response("skill_list", locals())
 
 
 @mcp.tool()
-def skill_get(skill_id: str) -> str:
+def skill_get(skill_id: str) -> McpToolResult:
     """Read one skill's current editable settings, even when it is disabled.
 
     Returns the stored fields (display_name, description, category, skill_type,
@@ -173,7 +179,7 @@ def skill_get(skill_id: str) -> str:
 
 
 @mcp.tool()
-def skill_create(skill: dict[str, Any]) -> str:
+def skill_create(skill: dict[str, Any]) -> McpToolResult:
     """Create one skill under exactly ``skill['skill_id']``; it is saved disabled by default.
 
     ``skill`` is the create body of skill_authoring_schema; omitted fields take
@@ -185,7 +191,7 @@ def skill_create(skill: dict[str, Any]) -> str:
 
 
 @mcp.tool()
-def skill_update(skill_id: str, changes: dict[str, Any]) -> str:
+def skill_update(skill_id: str, changes: dict[str, Any]) -> McpToolResult:
     """Change only the fields present in ``changes`` (the skill patch body).
 
     null never clears a field and every field sent replaces the stored value.
@@ -196,7 +202,7 @@ def skill_update(skill_id: str, changes: dict[str, Any]) -> str:
 
 
 @mcp.tool()
-def skill_inputs_set(skill_id: str, inputs: list[dict[str, Any]]) -> str:
+def skill_inputs_set(skill_id: str, inputs: list[dict[str, Any]]) -> McpToolResult:
     """Replace the skill's whole expected input list (items: name, type, description, required).
 
     Invalid items are refused with their issues and nothing changes. Agents using
@@ -206,7 +212,7 @@ def skill_inputs_set(skill_id: str, inputs: list[dict[str, Any]]) -> str:
 
 
 @mcp.tool()
-def skill_outputs_set(skill_id: str, outputs: list[dict[str, Any]]) -> str:
+def skill_outputs_set(skill_id: str, outputs: list[dict[str, Any]]) -> McpToolResult:
     """Replace the skill's whole expected output list (items: name, type, description, required).
 
     Invalid items are refused with their issues and nothing changes. Agents using
@@ -216,7 +222,7 @@ def skill_outputs_set(skill_id: str, outputs: list[dict[str, Any]]) -> str:
 
 
 @mcp.tool()
-def skill_validate(skill_id: str) -> str:
+def skill_validate(skill_id: str) -> McpToolResult:
     """Check one skill's readiness (enable, agent assignment) without changing it.
 
     A valid result is a static check only: it does not prove that a run succeeds.
@@ -225,7 +231,7 @@ def skill_validate(skill_id: str) -> str:
 
 
 @mcp.tool()
-def skill_set_enabled(skill_id: str, enabled: bool) -> str:
+def skill_set_enabled(skill_id: str, enabled: bool) -> McpToolResult:
     """Set the skill's enabled state to exactly ``enabled`` (never a toggle).
 
     Enabling requires a valid readiness result; disabling is refused with 409
@@ -238,7 +244,7 @@ def skill_set_enabled(skill_id: str, enabled: bool) -> str:
 
 
 @mcp.tool()
-def workflow_set_enabled(workflow_id: str, enabled: bool, expected_revision: int) -> str:
+def workflow_set_enabled(workflow_id: str, enabled: bool, expected_revision: int) -> McpToolResult:
     """Set the workflow's enabled state to exactly ``enabled`` at ``expected_revision``.
 
     Read the revision with workflow_definition first. A stale revision is a 409
@@ -251,7 +257,7 @@ def workflow_set_enabled(workflow_id: str, enabled: bool, expected_revision: int
 
 
 @mcp.tool()
-def model_options() -> str:
+def model_options() -> McpToolResult:
     """List the LLM providers and models the caller's account may select, without secrets.
 
     ``provider_id`` and ``model_id`` are the values of an agent's

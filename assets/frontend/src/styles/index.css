@@ -17,8 +17,11 @@
   --breakpoint-2xl: 96rem;
 }
 
+/* Match the default token layer (themes.css :root is the light theme). A dark
+   default here made native text white on light surfaces wherever no theme was
+   stored yet, e.g. the OAuth consent page opened from an AI app on a phone. */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 :root[data-theme="light"] {

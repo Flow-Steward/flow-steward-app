@@ -107,4 +107,19 @@ def build_job_polling_payload(status: JobStatusView) -> dict[str, Any]:
     wait = status.runtime.get("workflow_wait")
     result["workflow_wait"] = _bounded_wait(wait) if isinstance(wait, Mapping) else None
     result["usage"] = status.usage.dump()
+    result["error"] = _bounded_error(status.failure_summary)
     return result
+
+
+def _bounded_error(summary: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """Why a run failed, from its failure summary; ``None`` while nothing failed."""
+    if not isinstance(summary, Mapping) or not summary.get("present"):
+        return None
+    return _bounded_fields(
+        {
+            "kind": summary.get("kind"),
+            "title": summary.get("title"),
+            "message": summary.get("detail"),
+        },
+        ("kind", "title", "message"),
+    )

@@ -77,15 +77,21 @@ class CapabilityDiscoveryKnowledgeMixin:
         cached_digest = self._synced_scopes.get(sync_key) or _WORKFLOW_KNOWLEDGE_SYNC_CACHE.get(
             sync_cache_key
         )
-        if not cached_digest:
-            cached_digest = _workflow_knowledge_backend_sync_digest(
+        if cached_digest != catalog_digest:
+            # A remembered digest is only a shortcut: the background sync may have
+            # stored a newer one since. Re-read the backend before calling the scope
+            # stale, or one mismatch would keep this process on the keyword
+            # fallback until it restarts (F11, 2026-11-17).
+            stored_digest = _workflow_knowledge_backend_sync_digest(
                 self._workflow_knowledge_backend,
                 account_id=account_id,
                 tenant_id=tenant_id,
                 project_id=project_id,
             )
-            if cached_digest:
-                _WORKFLOW_KNOWLEDGE_SYNC_CACHE[sync_cache_key] = cached_digest
+            if stored_digest:
+                cached_digest = stored_digest
+                _WORKFLOW_KNOWLEDGE_SYNC_CACHE[sync_cache_key] = stored_digest
+                self._synced_scopes.pop(sync_key, None)
         if cached_digest != catalog_digest:
             logger.info(
                 "Skipping workflow knowledge sync in live request path for account/tenant/project scope %s/%s/%s.",

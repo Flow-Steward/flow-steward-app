@@ -324,6 +324,36 @@ def test_add_agent_tool_rolls_back_an_invalid_mapping():
     assert refused.value.payload["action"] == "save_tool_mapping"
 
 
+def test_unassigning_the_last_skill_of_an_enabled_agent_is_a_contract_error():
+    """F8: the store's readiness refusal reaches the caller with the way out named."""
+    from core.application.registry.db_store_agents_mixin import AgentRelationshipReadinessError
+
+    db = _db_with_agent(enabled=True)
+    missing = {
+        "valid": False,
+        "errors": [{"code": "agent.skills_missing", "message": "Agent must have a skill"}],
+        "warnings": [{"code": "agent.model_unset", "message": "No model"}],
+    }
+    db.remove_agent_skill.side_effect = AgentRelationshipReadinessError(missing)
+    reload_registry = MagicMock()
+    service = _agent_service(db, reload_registry=reload_registry)
+
+    with pytest.raises(ServiceValidationError) as refused:
+        service.remove_agent_skill("writer", "draft", scope=_scope())
+
+    validator = db.remove_agent_skill.call_args.kwargs["validate_agent"]
+    assert validator == service._relationship_validator
+    payload = refused.value.payload
+    assert payload["action"] == "remove_skill_mapping"
+    codes = [issue["code"] for issue in payload["validation"]["errors"]]
+    assert codes == ["agent.enabled_not_ready_after_unassign", "agent.skills_missing"]
+    assert "disable the agent" in payload["messages"][0]
+    assert payload["message"] == payload["messages"][0]
+    assert payload["validation"]["warnings"] == missing["warnings"]
+    reload_registry.assert_not_called()
+    db.materialize_agent_contract.assert_not_called()
+
+
 def test_contract_items_go_to_the_primary_skill():
     db = _db_with_agent(skills=[{"skill_id": "draft"}])
     db.get_skill_outputs.return_value = [{"name": "notes"}]

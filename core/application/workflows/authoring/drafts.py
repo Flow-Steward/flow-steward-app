@@ -26,7 +26,11 @@ from core.application.registry.contract_validation_workflow_readiness import (
 )
 from core.application.registry.db_store_workflows_mixin import WorkflowCreateConflictError
 from core.application.workflows.authoring.catalog import WorkflowAuthoringCatalog
-from core.application.workflows.authoring.draft_references import DraftReferences
+from core.application.workflows.authoring.draft_references import (
+    REFERENCE_DISABLED_CODE,
+    REFERENCE_NOT_PERMITTED_CODE,
+    DraftReferences,
+)
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
 from core.application.workflows.workflow_definition_service import (
     create_workflow_with_definition,
@@ -71,6 +75,22 @@ class DraftValidationResult(TypedDict):
 class DraftSaveResult(DraftValidationResult):
     enabled: bool
     editor_url: str
+
+
+def _own_interface_issues(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Blocking issues of the draft's own Interface, without any dependency contract."""
+    from core.application.registry.workflow_contract import interface_from_settings
+
+    interface = interface_from_settings(payload.get("settings") or {}, steps=payload.get("steps"))
+    return [
+        {
+            **{key: issue[key] for key in ("code", "path", "message") if key in issue},
+            "severity": "error",
+            "blocking": True,
+            "repair_guidance": "Repair the workflow interface field and validate again.",
+        }
+        for issue in interface.definition_issues()
+    ]
 
 
 @dataclass
@@ -360,8 +380,11 @@ class WorkflowAuthoringDrafts(DraftReferences):
             for item in preflight.get("topology_issues", [])
         )
         issues.extend(self._step_scope_issues(portability, scope, project_id, payload))
+        # A disabled dependency is not hydrated either: its contract is checked
+        # once it is enabled, like any other reference the run cannot use.
         denied_reference = any(
-            issue.get("code") == "authoring.reference_not_permitted" for issue in issues
+            issue.get("code") in {REFERENCE_NOT_PERMITTED_CODE, REFERENCE_DISABLED_CODE}
+            for issue in issues
         )
         readiness: dict[str, Any]
         if denied_reference:
@@ -369,6 +392,9 @@ class WorkflowAuthoringDrafts(DraftReferences):
             # any dependency contracts after reference visibility has failed.
             readiness = {"valid": False}
             normalized = {"errors": [], "warnings": []}
+            # The workflow's own Interface names no dependency, so it is still
+            # checked: otherwise validate passes a type that save then refuses.
+            issues.extend(_own_interface_issues(payload))
         else:
             checks.extend(["contracts", "readiness"])
             readiness = validate_workflow_readiness(

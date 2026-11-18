@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import json
 from types import SimpleNamespace
+from typing import Any
 
 import httpx
 import pytest
@@ -10,6 +11,12 @@ import pytest
 from core.entrypoints.mcp import server_api_tool, server_caller_identity
 from core.entrypoints.mcp.server import mcp
 from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES, AppApiClient
+
+
+def _envelope(result: Any) -> Any:
+    """The tool's structured answer; its text block carries the same JSON."""
+    assert json.loads(result.content[0].text) == result.structured_content
+    return result.structured_content
 
 
 def test_all_registered_tools_have_descriptions_and_api_routes() -> None:
@@ -148,7 +155,7 @@ def test_where_used_registered_tool_maps_locale_to_authenticated_get(
         server_caller_identity, "get_access_token", lambda: SimpleNamespace(token="caller-token")
     )
     tool = mcp._tool_manager._tools["workflow_where_used"]
-    result = json.loads(
+    result = _envelope(
         tool.fn(project_name="Invoices", workflow_id=workflow_id, **locale_arguments)
     )
 

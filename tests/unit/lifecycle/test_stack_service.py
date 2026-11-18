@@ -34,7 +34,11 @@ from core.application.lifecycle.stack_service import (
 )
 from core.infrastructure.lifecycle.configuration_gateway import ConfigurationLifecycleGateway
 from core.infrastructure.lifecycle.docker_gateway import DockerLifecycleGateway
+from core.infrastructure.lifecycle.docker_runtime_support import (
+    bundled_storage_write_probe_script,
+)
 from core.infrastructure.lifecycle.state_store import LifecycleStateStore
+from tests.support.scripted_s3_client import ScriptedS3Client
 
 
 class FakeConfigurationStore:
@@ -2681,7 +2685,7 @@ def test_bundled_storage_write_probe_uses_ephemeral_target_network_service(
     assert "except ClientError as exc" in script
     assert "{'404', 'NoSuchBucket', 'NotFound'}" in script
     assert "client.create_bucket(Bucket=bucket)" in script
-    assert "except BotoCoreError" in script
+    assert "except (BotoCoreError, BucketNotYetVisible)" in script
     assert "readiness_deadline = time.monotonic() + 30" in script
     assert "def probe_once()" in script
     assert "while True:\n    try:\n        probe_once()" in script
@@ -2692,6 +2696,106 @@ def test_bundled_storage_write_probe_uses_ephemeral_target_network_service(
     )
     fs_cli = compose.split("  fs-cli:", 1)[1].split("  fs-worker:", 1)[0]
     assert "artifact-storage" in fs_cli
+
+
+def _execute_lifecycle_storage_probe(
+    monkeypatch: pytest.MonkeyPatch,
+    client: ScriptedS3Client,
+) -> list[float]:
+    """Run the lifecycle bundled-storage probe on a fake clock that sleeping advances."""
+    import time
+
+    import boto3
+
+    clock = [0.0]
+    sleeps: list[float] = []
+
+    def fake_sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        clock[0] += seconds
+
+    monkeypatch.setattr(boto3, "client", lambda _service, **_options: client)
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(time, "sleep", fake_sleep)
+    monkeypatch.setenv("ARTIFACT_S3_BUCKET", "flow-steward-artifacts")
+    monkeypatch.setenv("ARTIFACT_S3_ENDPOINT_URL", "http://seaweedfs:8333")
+    monkeypatch.setenv("ARTIFACT_S3_ACCESS_KEY", "bundled-access")
+    monkeypatch.setenv("ARTIFACT_S3_SECRET_KEY", "bundled-secret")  # pragma: allowlist secret
+    script = bundled_storage_write_probe_script()
+    exec(compile(script, "<lifecycle-storage-probe>", "exec"), {})
+    return sleeps
+
+
+def test_lifecycle_storage_probe_accepts_a_bucket_the_application_created_first(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = ScriptedS3Client(heads=["404", None], create="BucketAlreadyExists")
+
+    sleeps = _execute_lifecycle_storage_probe(monkeypatch, client)
+
+    assert client.calls == ["head", "create", "head", "put", "get", "delete"]
+    assert sleeps == []
+
+
+def test_lifecycle_storage_probe_retries_an_invisible_concurrent_bucket_until_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = ScriptedS3Client(
+        heads=["404", "404", "NoSuchBucket", None],
+        create="BucketAlreadyOwnedByYou",
+    )
+
+    sleeps = _execute_lifecycle_storage_probe(monkeypatch, client)
+
+    assert client.calls == [
+        "head",
+        "create",
+        "head",
+        "head",
+        "create",
+        "head",
+        "put",
+        "get",
+        "delete",
+    ]
+    assert sleeps == [0.5]
+
+
+def test_lifecycle_storage_probe_gives_up_on_an_invisible_bucket_at_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = ScriptedS3Client(heads=["404"] * 200, create="BucketAlreadyExists")
+
+    with pytest.raises(Exception, match="flow-steward-artifacts") as raised:
+        _execute_lifecycle_storage_probe(monkeypatch, client)
+
+    assert type(raised.value).__name__ == "BucketNotYetVisible"
+    assert "put" not in client.calls
+    assert client.calls.count("create") == 61
+
+
+@pytest.mark.parametrize(
+    ("heads", "create", "expected_calls"),
+    [
+        (["AccessDenied"], None, ["head"]),
+        (["404"], "InvalidAccessKeyId", ["head", "create"]),
+        (["404", "403"], "BucketAlreadyExists", ["head", "create", "head"]),
+    ],
+)
+def test_lifecycle_storage_probe_does_not_mask_access_or_credential_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    heads: list[str | None],
+    create: str | None,
+    expected_calls: list[str],
+) -> None:
+    from botocore.exceptions import ClientError
+
+    client = ScriptedS3Client(heads=heads, create=create)
+
+    with pytest.raises(ClientError):
+        _execute_lifecycle_storage_probe(monkeypatch, client)
+
+    assert client.calls == expected_calls
 
 
 @pytest.mark.parametrize(

@@ -323,6 +323,8 @@ def build_public_error(
             and not _SENSITIVE_VALUE_RE.search(candidate_message)
             else "Dataset query failed"
         )
+    elif diagnostic_kind == "workflow_output_contract":
+        message = "The run reached a successful end without an output its contract requires"
     else:
         message = _PUBLIC_ERROR_MESSAGES.get(status, _DEFAULT_PUBLIC_ERROR_MESSAGE)
     details: dict[str, str | int | float | bool] = {}
@@ -338,6 +340,12 @@ def build_public_error(
     occurrence = source.get("occurrence", source_context.get("occurrence"))
     if diagnostic_kind in {"transform", "tabular_feed"} and selector:
         details["selector"] = selector
+    if diagnostic_kind == "workflow_output_contract":
+        output_path = str(source.get("path") or source_context.get("path") or "").strip()
+        if _PUBLIC_PATH_RE.fullmatch(output_path) and not any(
+            token in output_path.lower() for token in ("password", "secret", "token")
+        ):
+            details["path"] = output_path
     if diagnostic_kind == "dataset_query":
         diagnostic_path = str(source.get("path") or source_context.get("path") or "").strip()
         correlation_id = _safe_public_identifier(

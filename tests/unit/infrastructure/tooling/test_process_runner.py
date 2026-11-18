@@ -149,7 +149,7 @@ def test_run_callable_enforces_timeout() -> None:
     started = time.monotonic()
 
     def target() -> int:
-        time.sleep(0.25)
+        time.sleep(2.0)
         return 0
 
     result = run_callable(
@@ -158,7 +158,7 @@ def test_run_callable_enforces_timeout() -> None:
         timeout_seconds=0.01,
     )
 
-    assert time.monotonic() - started < 0.20
+    assert time.monotonic() - started < 1.0  # the timeout returns long before the 2 s target ends
     assert result.status == "timeout"
     assert result.exit_code == 124
 

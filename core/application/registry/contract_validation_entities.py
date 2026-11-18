@@ -2,6 +2,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import json
 import logging
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
@@ -561,6 +562,21 @@ def validate_agent_skill_compatibility(
     return {"valid": not errors, "errors": errors, "warnings": warnings}
 
 
+def _agent_has_own_model(agent: dict) -> bool:
+    """Whether the agent row configures provider and model together (its own route)."""
+    config = agent.get("config") or {}
+    if isinstance(config, str):
+        try:
+            config = json.loads(config)
+        except ValueError:
+            return False
+    if not isinstance(config, dict):
+        return False
+    return bool(
+        str(config.get("provider") or "").strip() and str(config.get("model") or "").strip()
+    )
+
+
 def validate_agent_readiness(db, agent_id: str, *, account_id: str | None = None) -> dict:
     from .workflow_lookup import get_registry_artifact_row
 
@@ -674,6 +690,20 @@ def validate_agent_readiness(db, agent_id: str, *, account_id: str | None = None
             prefixed = dict(issue)
             prefixed["path"] = _indexed_path(PATH_AGENT_SKILLS, idx, str(issue.get("path") or ""))
             warnings.append(prefixed)
+
+    if not _agent_has_own_model(agent):
+        warnings.append(
+            _issue(
+                code="agent.model_unset",
+                message=(
+                    "Agent has no model of its own; it runs only in projects that set a "
+                    "default model or a model for this agent. Choose a model for the agent "
+                    "or in the project's settings before running it."
+                ),
+                path="agent.config.model",
+                severity="warning",
+            )
+        )
 
     if len(skills) > 1:
         warnings.append(

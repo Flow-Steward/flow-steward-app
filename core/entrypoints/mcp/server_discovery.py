@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+from core.entrypoints.mcp.server_tool_annotations import tool_annotations
 from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES
 
 
@@ -44,6 +45,23 @@ def visible_mcp_tool_names(
     }
 
 
+def _annotated(tool: Any) -> Any:
+    """Attach the tool's MCP annotations, keeping any title it already declares."""
+    name = str(tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", ""))
+    hints = tool_annotations(name)
+    if isinstance(tool, dict):
+        existing = tool.get("annotations") or {}
+        return {**tool, "annotations": {**dict(existing), **hints}}
+    model_copy = getattr(tool, "model_copy", None)
+    if not callable(model_copy):
+        return tool
+    from mcp.types import ToolAnnotations
+
+    existing = getattr(tool, "annotations", None)
+    title = getattr(existing, "title", None) if existing is not None else None
+    return model_copy(update={"annotations": ToolAnnotations(title=title, **hints)})
+
+
 class McpToolDiscoveryMiddleware:
     """Filter only the current ``tools/list`` response."""
 
@@ -68,7 +86,7 @@ class McpToolDiscoveryMiddleware:
         if not isinstance(raw_tools, list):
             return result
         filtered_tools = [
-            tool
+            _annotated(tool)
             for tool in raw_tools
             if str(tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", ""))
             in visible

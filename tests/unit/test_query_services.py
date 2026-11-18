@@ -58,8 +58,13 @@ PROJECT_UUID = "11111111-1111-4111-8111-111111111111"
 KB_PROJECT_UUID = "77777777-7777-4777-8777-777777777777"
 
 
-def _mcp_data(text: str) -> dict:
-    payload = json.loads(text)
+def _mcp_data(result: Any) -> dict:
+    """The data of a tool's structured answer; its text block carries the same JSON."""
+    if isinstance(result, str):
+        payload = json.loads(result)
+    else:
+        payload = result.structured_content
+        assert json.loads(result.content[0].text) == payload
     assert payload["ok"] is True
     return payload["data"]
 

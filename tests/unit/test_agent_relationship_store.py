@@ -380,3 +380,86 @@ def test_duplicate_agent_skill_is_reported_without_projection_or_delete():
 
     assert store.projection_synced is False
     assert not any("DELETE FROM registry_agent_skills" in sql for sql in store.cursor.sql)
+
+
+# F8 (2026-11-17 MCP probe): agent_skill_unassign removed the last skill of an
+# enabled agent and left it enabled but not ready.
+
+
+def _store_with_agent(*, enabled: bool) -> _Store:
+    store = _Store()
+    original_execute = store.cursor.execute
+
+    def execute(sql, params=None):
+        original_execute(sql, params)
+        if "FROM registry_agents" in str(sql) and "FOR UPDATE" in str(sql):
+            store.cursor._result = {
+                "agent_id": "agent-1",
+                "account_id": "account-1",
+                "enabled": enabled,
+            }
+
+    store.cursor.execute = execute
+    return store
+
+
+def _readiness_by_call(*results):
+    calls: list[bool] = []
+    queue = list(results)
+
+    def validate_agent(store, _agent_id):
+        assert store.in_transaction
+        calls.append(any("DELETE FROM registry_agent_skills" in sql for sql in store.cursor.sql))
+        return queue.pop(0)
+
+    return validate_agent, calls
+
+
+_READY = {"valid": True, "errors": [], "warnings": []}
+_NO_SKILLS = {
+    "valid": False,
+    "errors": [{"code": "agent.skills_missing", "message": "Agent must have at least one skill"}],
+    "warnings": [],
+}
+
+
+def test_removing_the_last_skill_of_an_enabled_agent_is_rolled_back():
+    from core.application.registry.db_store_agents_mixin import AgentRelationshipReadinessError
+
+    store = _store_with_agent(enabled=True)
+    validate_agent, calls = _readiness_by_call(_READY, _NO_SKILLS)
+
+    with pytest.raises(AgentRelationshipReadinessError) as refused:
+        store.remove_agent_skill("agent-1", "old", validate_agent=validate_agent)
+
+    assert refused.value.validation == _NO_SKILLS
+    assert calls == [False, True]  # checked before and after the delete, in one transaction
+    assert store.rolled_back is True
+    assert store.projection_synced is False
+
+
+def test_a_disabled_agent_may_lose_its_last_skill():
+    store = _store_with_agent(enabled=False)
+    validate_agent, calls = _readiness_by_call()
+
+    store.remove_agent_skill("agent-1", "old", validate_agent=validate_agent)
+
+    assert calls == []
+    assert any("DELETE FROM registry_agent_skills" in sql for sql in store.cursor.sql)
+    assert store.projection_synced is True
+
+
+def test_an_error_the_enabled_agent_already_had_does_not_block_removal():
+    store = _store_with_agent(enabled=True)
+    disabled_skill = {
+        "valid": False,
+        "errors": [{"code": "agent.skill_disabled", "message": "Skill 'old' is disabled"}],
+        "warnings": [],
+    }
+    validate_agent, calls = _readiness_by_call(disabled_skill, disabled_skill)
+
+    store.remove_agent_skill("agent-1", "old", validate_agent=validate_agent)
+
+    assert calls == [False, True]
+    assert store.rolled_back is False
+    assert store.projection_synced is True

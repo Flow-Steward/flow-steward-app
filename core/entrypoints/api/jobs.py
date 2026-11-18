@@ -758,7 +758,10 @@ def create_api_jobs_router(
         "/api/jobs/{job_id}/status",
         responses={
             200: {
-                "description": "Bounded job progress, active steps, wait state, and usage totals.",
+                "description": (
+                    "Bounded job progress, active steps, wait state, usage totals, and "
+                    "why a failed run failed (error)."
+                ),
                 "content": {
                     "application/json": {
                         "example": {
@@ -803,6 +806,7 @@ def create_api_jobs_router(
                                 "tokens_total": 0,
                                 "llm_calls": 0,
                             },
+                            "error": None,
                         }
                     }
                 },

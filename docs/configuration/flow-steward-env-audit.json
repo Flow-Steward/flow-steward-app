@@ -2255,6 +2255,25 @@
     "variable_name": "EVIDENCE_MODE"
   },
   {
+    "canonical_name": "EXCEPTIONS_FILE",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/npm_audit_retry.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "EXCEPTIONS_FILE"
+  },
+  {
     "canonical_name": "EXPIRY",
     "code_read_locations": [
       "core/entrypoints/cli/scripts/start_server.sh"
@@ -3785,6 +3804,7 @@
     "canonical_name": "FS_BUILD_SHA",
     "code_read_locations": [
       "core/entrypoints/api/health.py",
+      "core/entrypoints/cli/scripts/export-api-reference.py",
       "infra/docker/docker-compose.prod.yaml",
       "infra/docker/docker-compose.yaml"
     ],
@@ -5620,7 +5640,9 @@
   },
   {
     "canonical_name": "FS_EMBEDDED_IMAGE_REVISION",
-    "code_read_locations": [],
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/export-api-reference.py"
+    ],
     "conditional_groups": [
       "production_images"
     ],
@@ -5630,7 +5652,7 @@
       "production",
       "local_development"
     ],
-    "notes": "Commit the Compact runtime image was built from; baked into the image and passed to every Compact process.; registry-managed metadata only",
+    "notes": "Commit the Compact runtime image was built from; baked into the image and passed to every Compact process.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "infra/docker/Dockerfile",
     "required": false,
     "retired_alias_names": [],
@@ -16012,6 +16034,7 @@
   {
     "canonical_name": "REPO_ROOT",
     "code_read_locations": [
+      "core/entrypoints/cli/scripts/npm_audit_retry.sh",
       "core/entrypoints/cli/scripts/sync_env_artifacts.sh"
     ],
     "conditional_groups": [],
@@ -16284,6 +16307,7 @@
       "core/entrypoints/cli/scripts/db_backup_validate.sh",
       "core/entrypoints/cli/scripts/db_restore.sh",
       "core/entrypoints/cli/scripts/lint.sh",
+      "core/entrypoints/cli/scripts/npm_audit_retry.sh",
       "core/entrypoints/cli/scripts/run-extension-oauth-browser-acceptance.sh",
       "core/entrypoints/cli/scripts/run-extension-oauth-browser-manual.sh",
       "core/entrypoints/cli/scripts/run-external-tier-three.sh",

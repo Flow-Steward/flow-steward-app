@@ -20,6 +20,8 @@ WORKFLOW_KNOWLEDGE_CHANGELOG_ENTITY_TYPES = (
     "tool",
     "workflow",
 )
+#: Projects whose own knowledge scope each request refreshes (newest first).
+WORKFLOW_KNOWLEDGE_PROJECT_SCOPE_LIMIT = 100
 
 
 def _text(value: Any) -> str:
@@ -58,7 +60,30 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _bounded_scope_payloads(rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _project_scope_key(project: Mapping[str, Any]) -> tuple[str, str, str] | None:
+    project_id = _text(project.get("project_id") or project.get("id"))
+    if not project_id:
+        return None
+    return (
+        _text(project.get("account_id")) or DEFAULT_ACCOUNT_ID,
+        _text(project.get("tenant_id")) or DEFAULT_TENANT_ID,
+        project_id,
+    )
+
+
+def _bounded_scope_payloads(
+    rows: Sequence[Mapping[str, Any]],
+    projects: Sequence[Mapping[str, Any]] = (),
+) -> list[dict[str, Any]]:
+    """One sync scope per changed scope, plus one per listed project.
+
+    Discovery reads the knowledge of the caller's project scope, but a changelog
+    entry rarely names a project: a workflow is bound to projects through
+    ``project_workflows``, so its snapshot has no ``project_id`` and its change
+    only ever refreshed the account-wide scope. Every project scope stayed
+    without a digest, and search ran on its lexical fallback forever. Each
+    listed project is now a scope of its own; a fresh one is skipped cheaply.
+    """
     revisions: dict[tuple[str, str, str], list[dict[str, str]]] = defaultdict(list)
     for row in rows:
         if _text(row.get("entity_type")) not in WORKFLOW_KNOWLEDGE_CHANGELOG_ENTITY_TYPES:
@@ -66,6 +91,10 @@ def _bounded_scope_payloads(rows: Sequence[Mapping[str, Any]]) -> list[dict[str,
         scope = _scope_from_changelog_entry(row)
         key = (scope["account_id"], scope["tenant_id"], scope["project_id"])
         revisions[key].append(_revision_component(row))
+    for project in projects:
+        project_key = _project_scope_key(project)
+        if project_key is not None:
+            revisions.setdefault(project_key, [])
 
     payloads: list[dict[str, Any]] = []
     for account_id, tenant_id, project_id in sorted(revisions):
@@ -97,9 +126,12 @@ def enqueue_workflow_knowledge_sync_batch(
     """Persist one bounded, deduplicated sync request for the worker fleet."""
 
     list_changes = getattr(changelog_store, "list_recent_registry_changelog", None)
+    list_projects = getattr(changelog_store, "list_workflow_knowledge_project_scopes", None)
     enqueue = getattr(event_store, "enqueue_domain_event", None)
     if not callable(list_changes):
         raise RuntimeError("workflow knowledge changelog repository port is unavailable")
+    if not callable(list_projects):
+        raise RuntimeError("workflow knowledge project scope repository port is unavailable")
     if not callable(enqueue):
         raise RuntimeError("workflow knowledge dispatch outbox port is unavailable")
 
@@ -115,7 +147,12 @@ def enqueue_workflow_knowledge_sync_batch(
         )
         if isinstance(row, Mapping)
     ]
-    scopes = _bounded_scope_payloads(rows)
+    projects = [
+        dict(project)
+        for project in (list_projects(limit=WORKFLOW_KNOWLEDGE_PROJECT_SCOPE_LIMIT) or [])
+        if isinstance(project, Mapping)
+    ]
+    scopes = _bounded_scope_payloads(rows, projects)
     clock = now or (lambda: datetime.now(UTC))
     cadence = max(1, int(cadence_seconds or 1))
     cadence_bucket = int(clock().timestamp()) // cadence
@@ -146,6 +183,7 @@ def enqueue_workflow_knowledge_sync_batch(
 
 __all__ = [
     "WORKFLOW_KNOWLEDGE_CHANGELOG_ENTITY_TYPES",
+    "WORKFLOW_KNOWLEDGE_PROJECT_SCOPE_LIMIT",
     "WORKFLOW_KNOWLEDGE_SYNC_REQUESTED_EVENT_TYPE",
     "enqueue_workflow_knowledge_sync_batch",
 ]

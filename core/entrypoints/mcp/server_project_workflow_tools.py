@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from core.entrypoints.mcp.server_api_tool import api_tool_response
+from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
 
 @mcp.tool()
-def project_list() -> str:
+def project_list() -> McpToolResult:
     """List projects visible to the caller."""
     return api_tool_response("project_list", locals())
 
 
 @mcp.tool()
-def project_jobs(project_name: str, limit: int = 10, page: int = 1, status: str = "") -> str:
+def project_jobs(
+    project_name: str, limit: int = 10, page: int = 1, status: str = ""
+) -> McpToolResult:
     """List a project's jobs you may see, newest first, one page of `limit` (at most 50).
 
     status takes one status or a comma list; a status group key (failed, stuck,
@@ -24,7 +26,7 @@ def project_jobs(project_name: str, limit: int = 10, page: int = 1, status: str 
 
 
 @mcp.tool()
-def project_connections(project_name: str) -> str:
+def project_connections(project_name: str) -> McpToolResult:
     """List the connections a project's steps can use, without secrets.
 
     Each row has `connection_id`, `display_name`, `extension_id`, `connection_type`
@@ -40,13 +42,13 @@ def workflow_list(
     project_name: str,
     enabled_only: bool = True,
     include_validation: bool = False,
-) -> str:
+) -> McpToolResult:
     """List workflows linked to a project."""
     return api_tool_response("workflow_list", locals())
 
 
 @mcp.tool()
-def workflow_validate(workflow_id: str, project_name: str = "") -> str:
+def workflow_validate(workflow_id: str, project_name: str = "") -> McpToolResult:
     """Validate workflow readiness and contract issues of the stored definition.
 
     Static only: `execution_verified` is always false and `unperformed_checks`
@@ -56,13 +58,20 @@ def workflow_validate(workflow_id: str, project_name: str = "") -> str:
 
 
 @mcp.tool()
-def workflow_contract(workflow_id: str, project_name: str) -> str:
-    """Return the normalized public workflow contract."""
+def workflow_contract(workflow_id: str, project_name: str) -> McpToolResult:
+    """Return the normalized public workflow contract.
+
+    `interface.input_schema` lists exactly the inputs a caller may send to
+    workflow_trigger. An input with a configured default is fixed for this
+    workflow revision: it is left out of input_schema and shown in
+    `interface.expected_inputs` with `default_configured: true` and
+    `caller_may_supply: false`; sending it is refused.
+    """
     return api_tool_response("workflow_contract", locals())
 
 
 @mcp.tool()
-def workflow_suggestions(workflow_id: str, project_name: str = "") -> str:
+def workflow_suggestions(workflow_id: str, project_name: str = "") -> McpToolResult:
     """Return repair suggestions for one workflow."""
     return api_tool_response("workflow_suggestions", locals())
 
@@ -75,14 +84,17 @@ def workflow_trigger(
     client_context: dict[str, object] | None = None,
     test_mode: bool = False,
     files: list[dict[str, object]] | None = None,
-) -> str:
+) -> McpToolResult:
     """Start the selected workflow in a concrete project.
 
     Discover workflows, read workflow_contract, and ask for missing required inputs
     before calling. For file inputs, send files with input_name, filename, mime_type,
     and content_base64 (strict base64; 10 files, 1 MiB decoded total).
     Never send server paths, URLs or invented artifact IDs as files.
-    Pass declared inputs in payload. Returns job_id for status and approval polling.
+    Pass declared inputs in payload. Inputs with a configured default are fixed
+    (`caller_may_supply: false` in workflow_contract) and must not be sent: the
+    workflow runs with the configured value and a supplied value is refused with
+    workflow.input.override_forbidden. Returns job_id for status and approval polling.
     """
     return api_tool_response("workflow_trigger", locals())
 

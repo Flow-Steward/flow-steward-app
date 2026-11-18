@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.entrypoints.mcp.server_api_tool import api_tool_response
+from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
 
@@ -18,7 +18,7 @@ def workflow_export(
     workflow_id: str,
     include_children: bool = False,
     reference_only: bool = False,
-) -> str:
+) -> McpToolResult:
     """Export a workflow linked to the project as a YAML bundle (returned as bundle_yaml text).
 
     include_children also exports the workflows it invokes. The bundle carries the
@@ -34,7 +34,7 @@ def workflow_import(
     bundle_yaml: str,
     target_workflow_id: str = "",
     resolutions: list[dict[str, Any]] | None = None,
-) -> str:
+) -> McpToolResult:
     """Import a YAML bundle into the project as disabled drafts.
 
     target_workflow_id imports it under another id; resolutions choose how each
@@ -44,6 +44,6 @@ def workflow_import(
 
 
 @mcp.tool()
-def workflow_stats(project_name: str, workflow_id: str) -> str:
+def workflow_stats(project_name: str, workflow_id: str) -> McpToolResult:
     """Show the run statistics of a workflow linked to the project."""
     return api_tool_response("workflow_stats", locals())

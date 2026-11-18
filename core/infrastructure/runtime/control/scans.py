@@ -920,6 +920,7 @@ def workflow_knowledge_sync_scan(
     required_ports = (
         "record_workflow_knowledge_sync_loop_failure",
         "list_recent_registry_changelog",
+        "list_workflow_knowledge_project_scopes",
     )
     missing = [
         name for name in required_ports if not callable(getattr(changelog_store, name, None))

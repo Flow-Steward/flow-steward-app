@@ -3328,6 +3328,9 @@ def test_imported_hook_definition_requires_development(monkeypatch, mode, locati
             portability.apply_import(text, target_workflow_id=target, owner_project_id="project")
         assert raised.value.code == "workflow_import_topology_invalid"
         assert raised.value.status_code == 400
+        # MCP probe F9: the headline names the real cause, not "invalid topology".
+        assert "requires a Development environment" in str(raised.value)
+        assert "invalid topology" not in str(raised.value)
         assert any(
             issue.get("code") == "workflow.hook.declaration_requires_development"
             for issue in raised.value.errors

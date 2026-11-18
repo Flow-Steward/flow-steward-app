@@ -50,10 +50,13 @@ def _stop_container_node(step: Mapping[str, Any], owner: Mapping[str, Any] | Non
     return None
 
 
-def _root_flow(
-    workflow: Mapping[str, Any], group_id: str
+def _root_graph(
+    workflow: Mapping[str, Any],
 ) -> tuple[_Node, dict[_Node, list[tuple[_Node, bool]]], set[_Node]] | None:
-    """Reachable root edges retain errors/rework, while successful Stops are sinks."""
+    """The root flow from its entry: incoming edges and the nodes a run can finish through.
+
+    Reachable root edges retain errors/rework, while successful Stops are sinks.
+    """
     steps = {s["step_id"]: s for s in workflow.get("steps") or []}
     groups = {g["group_id"]: g for g in workflow.get("groups") or []}
     containers = {f["for_each_id"]: f for f in workflow.get("for_each") or []}
@@ -72,8 +75,7 @@ def _root_flow(
     )
     graph = (workflow.get("settings") or {}).get("execution_graph") or {}
     entry = _node(graph.get("entry") or {})
-    selected = ("group", group_id)
-    if entry not in roots or selected not in roots:
+    if entry not in roots:
         return None
     ends = {node for node, owner in roots.items() if owner.get("step_kind") == "stop_success"}
     edges = [
@@ -93,6 +95,8 @@ def _root_flow(
         if not added:
             break
         reachable.update(added)
+    if not (ends & reachable):
+        return None
     obligations = ends & reachable
     # A Stop inside another group can also finish the run; require facts before
     # that container rather than pretending the inner Stop cannot execute.
@@ -102,13 +106,21 @@ def _root_flow(
         node = _stop_container_node(s, containers.get(str(s.get("for_each_id") or "")))
         if node is not None and node in reachable:
             obligations.add(node)
-    if selected not in reachable or not (ends & reachable):
-        return None
-    incoming = {node: [] for node in reachable}
+    incoming: dict[_Node, list[tuple[_Node, bool]]] = {node: [] for node in reachable}
     for source, target, success in edges:
         if source in reachable and target in reachable:
             incoming[target].append((source, success))
     return entry, incoming, obligations
+
+
+def _root_flow(
+    workflow: Mapping[str, Any], group_id: str
+) -> tuple[_Node, dict[_Node, list[tuple[_Node, bool]]], set[_Node]] | None:
+    """The root flow, when the selected group is reachable from its entry."""
+    flow = _root_graph(workflow)
+    if flow is None or ("group", group_id) not in flow[1]:
+        return None
+    return flow
 
 
 def _retained_writers(
@@ -172,3 +184,59 @@ def retained_parent_outputs(
     before = must_writes_before({entry}, incoming, writers)
     definite = set.intersection(*(before[node] for node in obligations))
     return {name: kind for name, kind in candidates.items() if name in definite}
+
+
+def outputs_missing_at_successful_ends(
+    workflow: Mapping[str, Any],
+    writers: Mapping[str, set[str]],
+    names: set[str],
+) -> dict[str, tuple[str, str]]:
+    """Required names some path reaches a successful end without any step that can write them.
+
+    ``writers`` maps a step id to every name that step may write (its declared
+    outputs). A Group or For each may write what any of its members may write,
+    so a container on the path counts as a writer: only a path that passes no
+    possible writer at all is reported. Error edges carry no writes, as in
+    ``must_writes_before``. The value is ``(previous node, end node)`` of one
+    such path, for the message.
+    """
+    flow = _root_graph(workflow)
+    if flow is None or not names:
+        return {}
+    entry, incoming, obligations = flow
+    for_each_group = {
+        str(f.get("for_each_id") or ""): str(f.get("group_id") or "")
+        for f in workflow.get("for_each") or []
+    }
+    writes: dict[_Node, set[str]] = {}
+    for step in workflow.get("steps") or []:
+        step_id = str(step.get("step_id") or "")
+        produced = set(writers.get(step_id) or ()) & names
+        if not produced:
+            continue
+        for_each_id = str(step.get("for_each_id") or "")
+        group_id = str(step.get("group_id") or "") or for_each_group.get(for_each_id, "")
+        if group_id:
+            node: _Node = ("group", group_id)
+        elif for_each_id:
+            node = ("for_each", for_each_id)
+        else:
+            node = ("step", step_id)
+        writes.setdefault(node, set()).update(produced)
+    before = must_writes_before({entry}, incoming, writes)
+    missing: dict[str, tuple[str, str]] = {}
+    for end in sorted(obligations):
+        arrived = before.get(end, set()) | writes.get(end, set())
+        for name in sorted(names - arrived - set(missing)):
+            via = next(
+                (
+                    parent
+                    for parent, success in incoming.get(end, [])
+                    if name
+                    not in before.get(parent, set())
+                    | (writes.get(parent, set()) if success else set())
+                ),
+                end,
+            )
+            missing[name] = (via[1], end[1])
+    return missing

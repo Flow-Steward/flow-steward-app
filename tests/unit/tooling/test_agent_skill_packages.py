@@ -135,7 +135,10 @@ def test_a_metadata_change_in_the_source_reaches_every_manifest(tmp_path: Path) 
     _copy_sources(tmp_path)
     sources_path = tmp_path / "docs/agent-skills/packages.json"
     sources = _json(sources_path)
-    sources["packages"]["flow-steward-developer"]["version"] = "1.0.1"
+    package = sources["packages"]["flow-steward-developer"]
+    major, minor, patch = (int(part) for part in package["version"].split("."))
+    bumped = f"{major}.{minor}.{patch + 1}"
+    package["version"] = bumped
     sources_path.write_text(json.dumps(sources), encoding="utf-8")
 
     assert sorted(sync.sync(tmp_path)) == [
@@ -144,7 +147,7 @@ def test_a_metadata_change_in_the_source_reaches_every_manifest(tmp_path: Path) 
     ]
     root = tmp_path / "docs/agent-skills/flow-steward-developer"
     for manifest in ("plugin.json", ".claude-plugin/plugin.json", ".cursor-plugin/plugin.json"):
-        assert _json(root / manifest)["version"] == "1.0.1"
+        assert _json(root / manifest)["version"] == bumped
 
 
 @pytest.mark.parametrize("package", sorted(PACKAGE_SKILLS))

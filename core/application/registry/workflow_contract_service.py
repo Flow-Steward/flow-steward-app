@@ -93,6 +93,13 @@ class WorkflowInterfaceService:
         properties: dict[str, Any] = {}
         required: list[str] = []
         for row in interface.expected_inputs:
+            if row.has_default:
+                # A configured default is fixed for this revision and the
+                # boundary refuses a caller's value for it
+                # (workflow.input.override_forbidden). The schema describes what
+                # a caller may send, so the field is not offered here; the
+                # expected_inputs row still shows it, marked caller_may_supply.
+                continue
             properties[row.name] = _json_schema_for_field(row)
             if row.required:
                 required.append(row.name)
@@ -136,7 +143,13 @@ class WorkflowInterfaceService:
         # The editor's view of inputs: an ordinary default is shown so it can be
         # changed, a secret is reduced to configured/not-configured. Reusing the
         # storage dump here is how a credential reaches a browser.
-        payload["expected_inputs"] = [row.public_dump() for row in interface.expected_inputs]
+        # A configured default is fixed in the fields mode (the boundary refuses
+        # a caller's value for it), so a caller is told which inputs it may send.
+        fields_mode = interface.input_mode not in {"passthrough", "json_schema"}
+        payload["expected_inputs"] = [
+            {**row.public_dump(), "caller_may_supply": not (fields_mode and row.has_default)}
+            for row in interface.expected_inputs
+        ]
         payload["expected_outputs"] = [
             {
                 key: value

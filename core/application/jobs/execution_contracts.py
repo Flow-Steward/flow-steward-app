@@ -60,6 +60,20 @@ def terminal_failure_context(
         if len(correlation_id) <= 128 and re.fullmatch(r"[A-Za-z0-9_.:-]+", correlation_id):
             context["correlation_id"] = correlation_id
 
+    # Final validation failed a run that reached a Stop Success: the output
+    # contract's code and the missing output's path. No step failed, so no
+    # step identity is carried (the Stop itself succeeded).
+    raw_contract = result.get("output_contract_failure")
+    contract = raw_contract if isinstance(raw_contract, Mapping) else {}
+    if not handled and contract:
+        code = str(contract.get("error_code") or "").strip()
+        if len(code) <= 128 and re.fullmatch(r"[A-Za-z0-9_.:-]+", code):
+            context["error_code"] = code
+        context["diagnostic_kind"] = "workflow_output_contract"
+        path = str(contract.get("path") or "").strip()
+        if len(path) <= 256 and re.fullmatch(r"(outputs|artifacts)\.[A-Za-z0-9_.\[\]-]+", path):
+            context["path"] = path
+
     # A callback observes the precise runtime occurrence, so it wins over the
     # state fallback when both are available.  Keep this surface deliberately
     # bounded: exception text and arbitrary state must not enter public errors.

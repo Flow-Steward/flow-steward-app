@@ -192,7 +192,7 @@ PACKAGES: tuple[AgentSkillPackage, ...] = (
     AgentSkillPackage(
         id=DEVELOPER_PACKAGE_ID,
         display_name="Flow Steward Developer",
-        version="1.0.0",
+        version="1.0.1",
         short_description="Build Flow Steward extensions",
         needs_mcp=False,
         description_key="react.agent_access.package_developer_description",

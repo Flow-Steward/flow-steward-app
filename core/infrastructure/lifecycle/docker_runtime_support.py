@@ -362,18 +362,42 @@ probe_id = uuid.uuid4().hex
 key = ".flow-steward/probes/" + probe_id
 payload = ("flow-steward-storage-probe:" + probe_id).encode()
 readiness_deadline = time.monotonic() + 30
+missing_codes = {'404', 'NoSuchBucket', 'NotFound'}
+concurrent_codes = {'BucketAlreadyExists', 'BucketAlreadyOwnedByYou'}
+
+class BucketNotYetVisible(Exception):
+    pass
+
+def error_code(exc):
+    return str(exc.response.get("Error", {}).get("Code", ""))
+
+def ensure_bucket():
+    # The application creates the same bucket when it starts. Only an
+    # "already exists" answer to the create is taken as that race; the bucket
+    # must then become visible before the readiness deadline, and any other
+    # answer (access, credentials, endpoint) fails the probe at once.
+    try:
+        client.head_bucket(Bucket=bucket)
+    except ClientError as exc:
+        if error_code(exc) not in missing_codes:
+            raise
+        try:
+            client.create_bucket(Bucket=bucket)
+        except ClientError as create_exc:
+            if error_code(create_exc) not in concurrent_codes:
+                raise
+            try:
+                client.head_bucket(Bucket=bucket)
+            except ClientError as head_exc:
+                if error_code(head_exc) not in missing_codes:
+                    raise
+                raise BucketNotYetVisible(bucket) from head_exc
 
 def probe_once():
     put_attempted = False
     primary_failure = None
     try:
-        try:
-            client.head_bucket(Bucket=bucket)
-        except ClientError as exc:
-            code = str(exc.response.get("Error", {}).get("Code", ""))
-            if code not in {'404', 'NoSuchBucket', 'NotFound'}:
-                raise
-            client.create_bucket(Bucket=bucket)
+        ensure_bucket()
         put_attempted = True
         client.put_object(Bucket=bucket, Key=key, Body=payload)
         response = client.get_object(Bucket=bucket, Key=key)
@@ -398,7 +422,7 @@ while True:
     try:
         probe_once()
         break
-    except BotoCoreError:
+    except (BotoCoreError, BucketNotYetVisible):
         remaining = readiness_deadline - time.monotonic()
         if remaining <= 0:
             raise

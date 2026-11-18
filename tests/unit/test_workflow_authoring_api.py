@@ -249,10 +249,13 @@ def test_safe_draft_error_preserves_forwarded_caller_correlation(monkeypatch):
 
 
 def test_schema_discovery_is_serialized_without_project_or_mutation(monkeypatch):
+    monkeypatch.setenv("ENVIRONMENT", "development")
+    monkeypatch.setenv("FS_STACK_ENVIRONMENT", "development")
     client, db, refreshed = _client(monkeypatch)
     response = client.get("/api/workflow-authoring/schema", params={"step_kind": "set_variable"})
     assert response.status_code == 200
     payload = response.json()
+    assert payload["installation_mode"] == "development"
     assert [row["step_kind"] for row in payload["step_kinds"]] == ["set_variable"]
     guidance = payload["definition_guidance"]
     assert guidance["contract_level"] == "partial_guidance_and_examples"
@@ -271,3 +274,23 @@ def test_schema_discovery_is_serialized_without_project_or_mutation(monkeypatch)
     assert db.workflows == {}
     assert db.history == []
     assert refreshed == []
+
+
+def test_schema_discovery_outside_development_offers_no_hook_example(monkeypatch):
+    """MCP probe F12: a production install offered hook examples it then refused."""
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("FS_STACK_ENVIRONMENT", "production")
+    client, _db, _refreshed = _client(monkeypatch)
+    response = client.get("/api/workflow-authoring/schema")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["installation_mode"] == "production"
+    guidance = payload["definition_guidance"]
+    assert "hook_unbound" not in {row["id"] for row in guidance["examples"]}
+    assert {row["id"] for row in guidance["change_set"]["partial_examples"]} == {
+        "group_for_each_atomic",
+        "report_output_atomic",
+    }
+    assert "declaration_requires_development" in guidance["models"]["hook"]["description"]
+    group = next(row for row in guidance["examples"] if row["id"] == "group_sequence")
+    assert "workflow_convert_group refuses it" in group["limitations"]

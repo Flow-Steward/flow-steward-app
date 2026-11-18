@@ -510,4 +510,4 @@ jobs:
     uses: ./.github/workflows/publish-api-reference.yml
     with:
       tag: ${{ needs.resolve.outputs.tag }}
-    secrets: inherit
+    secrets: inherit  # pragma: allowlist secret - GitHub Actions keyword, not a value

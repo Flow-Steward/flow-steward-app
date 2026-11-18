@@ -5,6 +5,8 @@ from typing import ClassVar
 
 from fastapi.testclient import TestClient
 
+from core.entrypoints.mcp.server_api_tool import McpToolResult
+
 
 class _RecordingClient:
     requests: ClassVar[list[dict[str, object]]] = []
@@ -64,7 +66,7 @@ def test_auth_disabled_transport_delegates_explicit_bearer_to_api_backed_project
     )
 
     @server.tool(name="project_list")
-    def project_list() -> str:
+    def project_list() -> McpToolResult:
         return server_api_tool.api_tool_response("project_list", {})
 
     app = server.streamable_http_app(
@@ -78,6 +80,7 @@ def test_auth_disabled_transport_delegates_explicit_bearer_to_api_backed_project
     result = payload["result"]
     text = next(item["text"] for item in result["content"] if item["type"] == "text")
     assert json.loads(text)["ok"] is True
+    assert result["structuredContent"] == json.loads(text)
     assert _RecordingClient.requests[0]["bearer"] == "transport-caller-token"
 
 

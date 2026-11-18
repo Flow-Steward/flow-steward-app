@@ -39,6 +39,18 @@ _VIOLATES_FOREIGN_KEY = "violates foreign key"
 AgentIOKind = Literal["inputs", "outputs"]
 
 
+def _with_issue(validation: Any, *, code: str, message: str) -> dict[str, Any]:
+    """The readiness result with one leading error that explains the refusal."""
+    base = validation if isinstance(validation, dict) else {}
+    issue = {"code": code, "message": message, "path": "skills", "severity": "error"}
+    return {
+        **base,
+        "valid": False,
+        "errors": [issue, *list(base.get("errors") or [])],
+        "warnings": list(base.get("warnings") or []),
+    }
+
+
 class AgentRelationshipCommandsMixin:
     """Skill and tool assignments of one agent, plus its structured I/O."""
 
@@ -96,7 +108,27 @@ class AgentRelationshipCommandsMixin:
     ) -> list[dict[str, Any]]:
         db = self._db()
         self._require_agent(db, agent_id, scope)
-        db.remove_agent_skill(agent_id, skill_id)
+        try:
+            db.remove_agent_skill(agent_id, skill_id, validate_agent=self._relationship_validator)
+        except AgentRelationshipReadinessError as exc:
+            # The enable/save rule: an enabled agent stays ready. Name the way out.
+            message = (
+                f"Agent '{agent_id}' is enabled; removing skill '{skill_id}' would "
+                "leave it not ready. Assign another skill first, or disable the "
+                "agent before removing it."
+            )
+            error = contract_validation_error(
+                entity_type="agent",
+                entity_id=agent_id,
+                action="remove_skill_mapping",
+                validation=_with_issue(
+                    exc.validation,
+                    code="agent.enabled_not_ready_after_unassign",
+                    message=message,
+                ),
+            )
+            error.payload["message"] = message
+            raise error from exc
         self._reload_registry()
         db.materialize_agent_contract(agent_id)
         return db.get_agent_skills(agent_id)

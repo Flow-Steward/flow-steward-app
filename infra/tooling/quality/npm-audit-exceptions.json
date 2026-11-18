@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Owner-accepted npm advisories that have no patched release.",
+    "Each entry names one advisory and one package, must be dev-only in",
+    "assets/frontend/package-lock.json, and stops applying after `expires`.",
+    "Remove the entry as soon as a patched release can be adopted."
+  ],
+  "exceptions": [
+    {
+      "advisory": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "dev_only": true,
+      "expires": "2026-12-31",
+      "accepted_on": "2026-11-17",
+      "reason": "ReDoS on attacker-supplied extglob patterns; no patched picomatch exists (<= 4.0.7, upstream fix unmerged). Used only by vite, vitest, fdir and tinyglobby at build and test time with repository-owned patterns; not shipped in the frontend bundle."
+    }
+  ]
+}

@@ -109,6 +109,7 @@ def create_project_command_service(
         enqueue_task=enqueue_task,
         parse_test_mode=parse_test_mode,
         dispatch_project_notification_event=dispatch_project_notification_event,
+        get_notification_logger=get_notification_logger or get_logger,
         workflow_availability_assert=lambda workflow_id, account_id, project_id: (
             availability_service.assert_can_start_workflow(
                 workflow_id,

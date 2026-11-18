@@ -51,9 +51,9 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `828`
+- Raw env-like names discovered by audit: `829`
 - Cataloged variables from `.env.example*` or manifest: `606`
-- Raw audit-only names outside examples/manifest: `222`
+- Raw audit-only names outside examples/manifest: `223`
 - Unique variables in shipped `.env.example*` files: `378`
 - Variables in canonical manifest: `516`
 
@@ -67,7 +67,7 @@ Cataloged variables by scope:
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
-- Script Internal: `127`
+- Script Internal: `128`
 - Test Only: `44`
 - Tooling Internal: `8`
 - Uncategorized: `40`
@@ -282,11 +282,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### images
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.18` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.18` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.18` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
-| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.18` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.18` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
+| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.19` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
+| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.19` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
 | `POSTGRES_IMAGE` | production_images | production | no | no | `fs-postgres-extended:0.1.0-pgvector-0.8.5` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins; Official installs and upgrades pin the release's flow-steward-postgres digest (0.9.2+); Source installs build this versioned tag locally. Do not use a floating pg17/latest tag. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.postgres-extended.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `RABBITMQ_IMAGE` | production_images | production | no | no | `rabbitmq:3.13-management` | .env.example.prod | Docker Compose (3) | Official release discovery and third-party infrastructure pins | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `TRAEFIK_IMAGE` | production_images | production | no | no | `traefik:v3.3` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.oauth-browser.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -320,7 +320,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### observability
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_BUILD_SHA` | ops_observability | production, local_development | no | no | - | .env.example.prod, .env.example.ops | API (1), Docker Compose (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/api/health.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_BUILD_SHA` | ops_observability | production, local_development | no | no | - | .env.example.prod, .env.example.ops | API (1), CLI scripts (1), Docker Compose (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/api/health.py`<br>`core/entrypoints/cli/scripts/export-api-reference.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_CONTROL_METRICS_PORT` | ops_observability | production, local_development | no | no | `9102` | .env.example.ops | Config (1), Docker Compose (2) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/config/runtime_config.py`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_DASHBOARD_ROLLUP_BACKFILL_DAYS` | ops_observability | production, local_development | no | no | `7` | .env.example.ops | Control plane (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/runtime/control/config.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_DASHBOARD_ROLLUP_INTERVAL_SECONDS` | ops_observability | production, local_development | no | no | `300` | .env.example.ops | Control plane (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/runtime/control/config.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -720,7 +720,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
 | `FS_EMBEDDED_IMAGE_PLATFORM` | production_images | production, local_development | no | no | - | - | No direct literal reads found | Platform baked into the Compact runtime image, for example linux/arm64. | - |
-| `FS_EMBEDDED_IMAGE_REVISION` | production_images | production, local_development | no | no | - | - | No direct literal reads found | Commit the Compact runtime image was built from; baked into the image and passed to every Compact process. | - |
+| `FS_EMBEDDED_IMAGE_REVISION` | production_images | production, local_development | no | no | - | - | CLI scripts (1) | Commit the Compact runtime image was built from; baked into the image and passed to every Compact process. | `core/entrypoints/cli/scripts/export-api-reference.py` |
 | `FS_EMBEDDED_IMAGE_ROLE` | production_images | production, local_development | no | no | - | - | No direct literal reads found | Role baked into the Compact runtime image (compact-runtime). | - |
 #### installer
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
@@ -979,7 +979,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 | Scope | Count | Common Usage Areas |
 |---|---|---|
 | Internal Runtime | `3` | CLI scripts (3), Tests (1) |
-| Script Internal | `127` | CLI scripts (193), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
+| Script Internal | `128` | CLI scripts (196), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
 | Test Only | `44` | Tests (80), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
 | Uncategorized | `40` | Docker Compose (35), Tooling (9), Infrastructure (4), Database (4), Security (3) |

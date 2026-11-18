@@ -689,6 +689,12 @@ class ProjectNotificationDispatchInput(ViewModel):
 class ProjectNotificationDispatchResultView(ViewModel):
     project_id: str
     notification_deliveries: list[dict[str, Any]] = Field(default_factory=list)
+    #: Routes that accepted the event; each one has a delivery row.
+    routes_matched: int = 0
+    #: Set only when nothing was delivered: no_enabled_route or no_route_matched_event.
+    reason: str = ""
+    message: str = ""
+    enabled_route_count: int | None = None
 
 
 class ExtensionProjectCreateInput(ViewModel):
