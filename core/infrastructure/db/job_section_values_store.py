@@ -8,7 +8,9 @@ from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 
 _READ_SQL = """
 SELECT j.id::text AS job_id,
-       j.meta -> 'inputs' AS inputs,
+       -- The accepted request's bounded, display-safe projection; older jobs kept
+       -- their inputs in meta directly.
+       COALESCE(j.meta -> 'invocation' -> 'mapped_inputs', j.meta -> 'inputs') AS inputs,
        j.meta -> 'workflow_outputs' -> 'outputs' AS outputs,
        j.meta -> 'submitted_by' AS submitted_by
   FROM jobs j

@@ -94,6 +94,29 @@ def test_an_old_job_without_author_or_outputs_leaves_them_absent() -> None:
     assert values == {"status": "completed"}
 
 
+def test_the_accepted_request_projection_shows_a_file_by_its_name() -> None:
+    """Jobs keep a display-safe projection of their inputs (meta.invocation.mapped_inputs)."""
+    projected = {
+        "inputs": {
+            "company": "Acme OÜ",
+            "document": {
+                "sha256": "abc",
+                "filename": "inv-1.pdf",
+                "size_bytes": 10,
+                "content_type": "application/pdf",
+            },
+        },
+    }
+
+    values = section_row_values(_section(), {"id": "j1", "status": "running"}, projected)
+
+    assert values["document"] == {
+        "filename": "inv-1.pdf",
+        "content_type": "application/pdf",
+        "size_bytes": 10,
+    }
+
+
 def test_secrets_and_storage_details_never_reach_the_table() -> None:
     section = _section(
         columns=[{"id": "key", "source": "input", "path": "api_key"}],

@@ -40,7 +40,12 @@ def _public(value: Any) -> Any:
     if isinstance(value, dict):
         if _SECRET_KEYS.intersection(value):
             return "[secret]"
-        if "artifact_id" in value or "storage_ref" in value or "object_key" in value:
+        if (
+            "artifact_id" in value
+            or "storage_ref" in value
+            or "object_key" in value
+            or ("filename" in value and "sha256" in value)
+        ):
             return {key: value[key] for key in _FILE_KEYS if key in value}
         return {key: _public(item) for key, item in value.items()}
     if isinstance(value, list):

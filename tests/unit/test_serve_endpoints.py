@@ -7957,7 +7957,9 @@ class TestJobEndpoints:
             "id": 1,
             "username": "alice",
             "display_name": "Alice",
-            "roles": ["operator"],
+            # Step replay re-executes captured inputs for diagnosis: the admin's
+            # (ADR 0066 amendment).
+            "roles": ["admin"],
             "is_active": True,
         }
 
