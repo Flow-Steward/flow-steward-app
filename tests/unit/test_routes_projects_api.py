@@ -261,6 +261,9 @@ def test_api_project_detail_includes_model_selection_context() -> None:
             assert scope == {"scope": {"project_id": "7"}}
             return SimpleNamespace(project={"id": "7", "name": "Demo"})
 
+        def get_project_user_sections(self, project_id: str, *, scope: Any) -> list[Any]:
+            return []
+
     app = FastAPI()
     app.include_router(
         create_api_projects_router(
@@ -575,3 +578,45 @@ def test_api_project_update_rejects_extra_tools_before_service_write() -> None:
 
     assert (response.status_code, len(writes)) == (422, 0)
     assert response.json()["detail"] == "Unknown project field(s): extra_tools_json"
+
+
+def test_api_project_detail_keeps_config_keys_but_not_raw_user_sections() -> None:
+    """ADR 0075: sections are served only as the scoped projection.
+
+    The stored config keeps every other key for existing clients; its raw
+    `user_sections` (hidden sections included) never reaches the response.
+    """
+    stored_config = {
+        "security_policy": {"mode": "strict"},
+        "retention": {"days": 30},
+        "user_sections": [
+            {"id": "receipts", "title": "Receipts", "workflow_id": "wf.receipts"},
+            {"id": "draft", "title": "Draft", "workflow_id": "wf.secret", "visible": False},
+        ],
+    }
+    projection = [{"id": "receipts", "title": "Receipts", "runtime": {"runnable": True}}]
+    seen_scopes: list[Any] = []
+
+    class _ProjectQuery:
+        def get_project_edit_form(self, project_id: str, *, scope: Any) -> Any:
+            return SimpleNamespace(project={"id": "7", "name": "Demo", "config": stored_config})
+
+        def get_project_user_sections(self, project_id: str, *, scope: Any) -> list[Any]:
+            seen_scopes.append(scope)
+            return projection
+
+    client = _client(
+        project_query_service=lambda: _ProjectQuery(),
+        project_command_service=lambda: SimpleNamespace(),
+    )
+
+    response = client.get("/api/projects/7")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"] == {"security_policy": {"mode": "strict"}, "retention": {"days": 30}}
+    assert "draft" not in response.text
+    assert body["user_sections"] == projection
+    assert seen_scopes == [{"scope": {"project_id": "7"}}]
+    # The service's own copy is not mutated by the response shaping.
+    assert len(stored_config["user_sections"]) == 2

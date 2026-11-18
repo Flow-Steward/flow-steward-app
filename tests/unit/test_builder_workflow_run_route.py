@@ -169,9 +169,7 @@ def test_builder_route_maps_normalized_saved_request_and_exact_job(source):
         ("mcp_dev", "admin", "system_actor", {}),
         ("local", "admin", "service_account", {}),
         ("external", "admin", "service_account", {}),
-        ("local", "operator", "user", {}),
         ("local", "viewer", "user", {}),
-        ("external", "operator", "user", {}),
         ("external", "viewer", "user", {}),
         ("local", "admin", "user", {"Authorization": "Bearer project-mcp-token"}),
         ("external", "admin", "user", {"Authorization": "Bearer external-token"}),
@@ -182,6 +180,15 @@ def test_builder_route_rejects_tokens_and_readonly_principals(source, role, prin
     response = client.post("/api/workflows/stock/run", json=_body(), headers=header)
     assert response.status_code == 403
     assert received == []
+
+
+@pytest.mark.parametrize("source", ["local", "external"])
+def test_builder_route_admits_an_operator_browser_session(source):
+    """ADR 0075: an operator starts runs from a section's form through this route."""
+    client, received = _client(source=source, role="operator")
+    response = client.post("/api/workflows/stock/run", json=_body())
+    assert response.status_code == 200
+    assert len(received) == 1
 
 
 @pytest.mark.parametrize("principal_type", ["user", "system_actor"])
@@ -210,7 +217,7 @@ def test_builder_route_rejects_forged_local_admin_principal_shape(principal_type
         (
             {"Authorization": "Bearer session-token"},
             403,
-            {"detail": "An administrator browser session is required"},
+            {"detail": "An administrator or operator browser session is required"},
         ),
     ],
     ids=["cookie-admin", "missing-csrf", "bearer-admin"],

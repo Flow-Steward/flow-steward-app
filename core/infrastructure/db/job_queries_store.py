@@ -92,6 +92,7 @@ def _build_attention_where(
     started_after: datetime | None = None,
     started_before: datetime | None = None,
     task_source: str | None = None,
+    exclude_task_source: str | None = None,
 ) -> tuple[str, list[Any]]:
     where, params = (
         (list(scope_conditions[0]), list(scope_conditions[1])) if scope_conditions else ([], [])
@@ -162,6 +163,10 @@ def _build_attention_where(
     if task_source is not None:
         where.append("j.task_source = %s")
         params.append(task_source)
+    if exclude_task_source is not None:
+        # A section's history (ADR 0075) leaves Test Runs out of ordinary runs.
+        where.append("j.task_source IS DISTINCT FROM %s")
+        params.append(exclude_task_source)
 
     normalized_search = " ".join(str(search or "").split())
     if normalized_search:
@@ -259,6 +264,7 @@ def list_jobs_for_attention(
     hide_acknowledged: bool = False,
     started_after: datetime | None = None,
     started_before: datetime | None = None,
+    exclude_task_source: str | None = None,
 ) -> list[dict]:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -268,6 +274,7 @@ def list_jobs_for_attention(
         status=status,
         workflow_id=workflow_id,
         task_source=task_source,
+        exclude_task_source=exclude_task_source,
         search=search,
         account_id=account_id,
         workspace_id=workspace_id,
@@ -344,6 +351,7 @@ def count_jobs_for_attention(
     hide_acknowledged: bool = False,
     started_after: datetime | None = None,
     started_before: datetime | None = None,
+    exclude_task_source: str | None = None,
 ) -> int:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -353,6 +361,7 @@ def count_jobs_for_attention(
         status=status,
         workflow_id=workflow_id,
         task_source=task_source,
+        exclude_task_source=exclude_task_source,
         search=search,
         account_id=account_id,
         workspace_id=workspace_id,

@@ -430,12 +430,13 @@ def test_pat_write_requires_command_scope() -> None:
 
 
 def test_pat_write_allows_command_scope() -> None:
+    # Creating a project is configuration: an administrator's PAT (ADR 0066 amendment).
     response = _run_middleware_with_principal(
         path="/api/projects",
         principal=ResolvedPrincipal(
             id="pat-1",
             username="pat",
-            roles=["operator"],
+            roles=["admin"],
             auth_source="pat",
             scopes=["command:*"],
         ),
@@ -710,8 +711,9 @@ def test_operator_cannot_write_global_workflow_catalog() -> None:
         "/api/extensions/fixture.extension/callbacks/registration-1/status",
     ],
 )
-@pytest.mark.parametrize("role", ["admin", "operator"])
-def test_project_managers_can_write_exact_extension_callback_routes(path: str, role: str) -> None:
+@pytest.mark.parametrize(("role", "expected"), [("admin", 204), ("operator", 403)])
+def test_admins_write_exact_extension_callback_routes(path: str, role: str, expected: int) -> None:
+    # Registering a connection's callback is configuration (ADR 0066 amendment).
     response = _run_middleware_with_principal(
         path=path,
         method="POST",
@@ -721,7 +723,7 @@ def test_project_managers_can_write_exact_extension_callback_routes(path: str, r
         ),
     )
 
-    assert response.status_code == 204
+    assert response.status_code == expected
 
 
 def test_operator_can_invoke_exact_project_scoped_extension_action_route() -> None:
@@ -877,18 +879,19 @@ def test_viewer_cannot_write_extension_callback_routes(path: str) -> None:
     )
 
     assert response.status_code == 403
-    assert b"Operator role required" in response.body
+    # Callbacks are a connection's configuration: admin (ADR 0066 amendment).
+    assert b"Admin role required" in response.body
 
 
-def test_operator_pat_can_write_project_callback_with_project_scope() -> None:
+def test_admin_pat_can_write_project_callback_with_project_scope() -> None:
     response = _run_middleware_with_principal(
         path="/api/extensions/fixture.extension/callbacks/updates",
         method="POST",
         registry_read=True,
         principal=ResolvedPrincipal(
             id="pat-1",
-            username="operator-pat",
-            roles=["operator"],
+            username="admin-pat",
+            roles=["admin"],
             auth_source="pat",
             scopes=["projects.write"],
         ),
@@ -1237,11 +1240,13 @@ def test_near_miss_direct_resolution_path_does_not_gain_project_write_scope():
     [
         ("admin", True, 204),
         ("admin", False, 403),
-        ("operator", True, 403),
+        # ADR 0075: an operator starts runs from a section's form (same route).
+        ("operator", True, 204),
+        ("operator", False, 403),
         ("viewer", True, 403),
     ],
 )
-def test_builder_normal_run_preserves_editor_role_and_cookie_csrf(role, csrf_valid, expected):
+def test_builder_normal_run_keeps_cookie_csrf_and_admits_the_operator(role, csrf_valid, expected):
     from core.infrastructure.runtime.http_app_constants import _AUTH_REGISTRY_READ_PATTERNS
     from core.infrastructure.runtime.serve_request_runtime import build_path_pattern_matcher
 
@@ -1297,13 +1302,15 @@ def test_core_update_notice_is_an_admin_only_http_read(principal, expected_statu
         ("DELETE", "/api/projects/proj-1/workflows/orders_sync/secret-bindings/api_key"),
     ],
 )
-def test_an_operator_reaches_workflow_secret_binding_and_approval(method: str, path: str) -> None:
-    # ADR 0057: binding and approval are the operator's; the secret catalog service
-    # then checks role, interactive session and scopes for each request.
+def test_an_operator_reads_but_does_not_bind_or_approve_workflow_secrets(
+    method: str, path: str
+) -> None:
+    # ADR 0066 amendment: binding and configuration approval are the admin's; the
+    # operator still reads the approval state.
     response = _run_middleware_with_principal(
         path=path, method=method, principal=_OPERATOR, admin_only=is_admin_only_route(path)
     )
-    assert response.status_code == 204
+    assert response.status_code == (204 if method == "GET" else 403)
 
 
 @pytest.mark.parametrize(
@@ -1348,20 +1355,29 @@ def test_project_workflow_management_beside_the_secret_leaves_stays_admin_only(p
         "/api/projects/proj-1",
     ],
 )
-def test_only_unbinding_a_secret_is_an_operator_delete(path: str) -> None:
+def test_a_person_below_admin_deletes_nothing(path: str) -> None:
+    # ADR 0066 amendment: unbinding a secret is configuration too.
     response = _run_middleware_with_principal(
         path=path, method="DELETE", principal=_OPERATOR, admin_only=is_admin_only_route(path)
     )
-    expected = 204 if path.endswith("/secret-bindings/api_key") else 403
-    assert response.status_code == expected
+    assert response.status_code == 403
 
 
-def test_an_operator_deletes_a_catalog_secret_and_a_viewer_does_not() -> None:
+def test_only_an_admin_deletes_a_catalog_secret() -> None:
+    # ADR 0066 amendment: the admin sees every consumer the delete unbinds.
     path = "/api/secrets/7c9e6679-7425-40de-944b-e07fc1f90ae7"
     assert is_admin_only_route(path) is False
+    admin = _run_middleware_with_principal(
+        path=path,
+        method="DELETE",
+        principal=ResolvedPrincipal(
+            id="admin-1", username="admin", roles=["admin"], auth_source="session"
+        ),
+    )
     operator = _run_middleware_with_principal(path=path, method="DELETE", principal=_OPERATOR)
     viewer = _run_middleware_with_principal(path=path, method="DELETE", principal=_VIEWER)
-    assert operator.status_code == 204
+    assert admin.status_code == 204
+    assert operator.status_code == 403
     assert viewer.status_code == 403
 
 
@@ -1395,8 +1411,16 @@ _CATALOG_WRITES = [
 
 
 def _catalog_pat(*scopes: str) -> ResolvedPrincipal:
+    # A service account: its scope rule is unchanged by the ADR 0066 amendment. A
+    # person's own token also needs the admin role for bind and delete (see
+    # tests/unit/test_user_section_role_matrix.py).
     return ResolvedPrincipal(
-        id="pat-1", username="pat", roles=["operator"], auth_source="pat", scopes=list(scopes)
+        id="sa-1",
+        username="robot",
+        roles=["operator"],
+        auth_source="machine",
+        principal_type="service_account",
+        scopes=list(scopes),
     )
 
 

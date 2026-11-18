@@ -72,6 +72,11 @@ class AttentionJobView(ViewModel):
     heartbeat_at: datetime | None = None
     acknowledged_at: str | None = None
     acknowledged_by: str | None = None
+    #: ADR 0075: only on a section's history. Column id -> value the job stored;
+    #: a value the job does not have is absent.
+    section_values: dict[str, Any] | None = None
+    #: Who started the run, recorded from the authenticated scope at launch.
+    submitted_by: dict[str, Any] | None = None
 
 
 class AwaitingApprovalJobView(ViewModel):

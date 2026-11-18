@@ -678,9 +678,15 @@ def test_builder_preserves_editor_catalog_and_workflow_owner_project_scope(
 
 
 @pytest.mark.parametrize("kind", ["unknown", "empty_name", "oversized", "aggregate", "too_many"])
-def test_builder_rejects_bad_actual_uploads_before_admission(builder_workflow_service, kind):
+def test_builder_rejects_bad_actual_uploads_before_admission(
+    builder_workflow_service, kind, monkeypatch
+):
     import base64
 
+    # ADR 0075: the browser launch follows the attachment policy; pin it at the
+    # sizes this test exercises (1 MiB per run, 10 files).
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_SIZE_BYTES", str(1_048_576))
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_FILES", "10")
     service, fields, queued, _ = builder_workflow_service
     create_artifact = MagicMock()
     service._artifact_plane = SimpleNamespace(create_artifact=create_artifact)
@@ -716,3 +722,45 @@ def test_builder_can_run_a_linked_global_system_definition(builder_workflow_serv
     workflow.update(account_id=None, scope_kind="system")
     service.start_builder_workflow_run("stock-import", _builder_request())
     assert len(queued) == 1
+
+
+def test_builder_run_records_the_server_owned_author(builder_workflow_service):
+    """ADR 0075: the history's author comes from the authenticated scope only."""
+    service, _, queued, _ = builder_workflow_service
+
+    service.start_builder_workflow_run(
+        "stock-import",
+        _builder_request(),
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7", principal_type="operator"
+        ),
+    )
+
+    assert queued[0]["meta"]["submitted_by"] == {"id": "operator-7", "kind": "person"}
+
+
+def test_a_form_cannot_name_the_author(builder_workflow_service):
+    """An undeclared input such as `submitted_by` is refused by the strict contract."""
+    service, _, queued, _ = builder_workflow_service
+
+    with pytest.raises(ServiceValidationError, match="not declared"):
+        service.start_builder_workflow_run(
+            "stock-import",
+            _builder_request(inputs={"submitted_by": {"id": "someone-else"}}),
+            scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7"),
+        )
+    assert queued == []
+
+
+def test_api_run_records_the_same_author_as_the_form(direct_workflow_service):
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string", "required": True})
+
+    service.start_mcp_workflow_run(
+        {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}},
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7", principal_type="operator"
+        ),
+    )
+
+    assert queued[0]["meta"]["submitted_by"] == {"id": "operator-7", "kind": "person"}

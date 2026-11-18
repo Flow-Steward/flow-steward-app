@@ -39,10 +39,26 @@ def _scope(**fields) -> ScopeContext:
     return ScopeContext(account_id="acct", **fields)
 
 
-def test_an_interactive_operator_writes_binds_and_approves() -> None:
-    person = _scope(principal_type="operator", auth_source="local")
+@pytest.mark.parametrize("auth_source", ["local", "external"])
+def test_an_interactive_operator_writes_values_but_does_not_configure(auth_source) -> None:
+    """ADR 0066 amendment: values are the operator's; bindings, approval and delete
+    are configuration and the admin's."""
+    person = _scope(principal_type="operator", auth_source=auth_source)
+    authority.require_secret_write(person)
+    for check in (
+        authority.require_secret_bind,
+        authority.require_secret_delete,
+        authority.require_approval_authority,
+    ):
+        with pytest.raises(ServiceForbiddenError, match="Admin role required"):
+            check(person)
+
+
+def test_an_interactive_admin_writes_binds_deletes_and_approves() -> None:
+    person = _scope(principal_type="admin", auth_source="local")
     authority.require_secret_write(person)
     authority.require_secret_bind(person)
+    authority.require_secret_delete(person)
     authority.require_approval_authority(person)
 
 
@@ -51,10 +67,21 @@ def test_a_viewer_does_none_of_it() -> None:
     for check in (
         authority.require_secret_write,
         authority.require_secret_bind,
+        authority.require_secret_delete,
         authority.require_approval_authority,
     ):
         with pytest.raises(ServiceForbiddenError):
             check(viewer)
+
+
+def test_a_service_account_deletes_with_the_exact_write_scope() -> None:
+    """Machine authority is unchanged: `secrets:write` still deletes."""
+    machine = _scope(
+        principal_type="service_account",
+        auth_source="machine",
+        token_scopes=frozenset({"secrets:write"}),
+    )
+    authority.require_secret_delete(machine)
 
 
 @pytest.mark.parametrize("source", ["pat", "machine", "token", "oauth"])

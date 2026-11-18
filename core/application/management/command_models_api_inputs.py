@@ -502,6 +502,8 @@ class ProjectUpdateInput(ViewModel):
     operator_default_workflow_id: str = ""
     default_provider: str = ""
     default_model: str = ""
+    #: ADR 0075: `None` keeps the stored sections, a list replaces them, `[]` clears.
+    user_sections: list[dict[str, Any]] | None = None
 
 
 class ProjectTaskFileInput(ViewModel):
@@ -607,6 +609,20 @@ class WorkflowRunInput(ViewModel):
         return validate_bounded_json_object(value)
 
 
+class BrowserRunFileInput(WorkflowRunFileInput):
+    """A real upload from the browser: bounded by the attachment policy, not 1 MiB.
+
+    The size is checked against the configured policy by the request model before
+    decoding (ADR 0075); the MCP/API launch keeps its own fixed budget.
+    """
+
+    content_base64: str = Field(min_length=1, repr=False)
+
+
+def _base64_length(decoded_bytes: int) -> int:
+    return 4 * ((decoded_bytes + 2) // 3)
+
+
 class BuilderWorkflowRunInput(ViewModel):
     """Acknowledged browser launch of one saved revision; runtime authority is server-owned."""
 
@@ -616,7 +632,7 @@ class BuilderWorkflowRunInput(ViewModel):
     acknowledged: bool = Field(strict=True)
     summary: str = Field(min_length=1, max_length=10000)
     inputs: dict[str, Any] = Field(default_factory=dict)
-    files: list[WorkflowRunFileInput] = Field(default_factory=list, max_length=10)
+    files: list[BrowserRunFileInput] = Field(default_factory=list)
 
     @field_validator("acknowledged")
     @classmethod
@@ -642,8 +658,33 @@ class BuilderWorkflowRunInput(ViewModel):
 
     @field_validator("files")
     @classmethod
-    def validate_uploads(cls, value: list[WorkflowRunFileInput]) -> list[WorkflowRunFileInput]:
-        return WorkflowRunInput.validate_uploads(value)
+    def validate_uploads(cls, value: list[BrowserRunFileInput]) -> list[BrowserRunFileInput]:
+        from core.infrastructure.config.workflow_file_limits import browser_run_upload_limits
+
+        limits = browser_run_upload_limits()
+        max_files = limits["max_files"]
+        max_file = limits["max_file_bytes"]
+        max_total = limits["max_total_bytes"]
+        if max_files and len(value) > max_files:
+            raise ValueError(f"A run accepts at most {max_files} files")
+        names = [row.input_name for row in value]
+        if len(set(names)) != len(names):
+            raise ValueError("Each file input must have exactly one upload")
+        if max_file:
+            # Refuse an oversized body before decoding it.
+            encoded_cap = _base64_length(max_file)
+            for row in value:
+                if len(row.content_base64) > encoded_cap:
+                    raise ValueError(f"'{row.filename}' is larger than {max_file} bytes")
+        total = 0
+        for row in value:
+            size = len(row.decoded_content())
+            if max_file and size > max_file:
+                raise ValueError(f"'{row.filename}' is larger than {max_file} bytes")
+            total += size
+        if max_total and total > max_total:
+            raise ValueError(f"The files of one run exceed {max_total} bytes together")
+        return value
 
 
 class ProjectTaskEnqueueInput(ViewModel):

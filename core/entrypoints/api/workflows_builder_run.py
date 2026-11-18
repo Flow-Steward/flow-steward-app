@@ -32,24 +32,27 @@ def create_builder_workflow_run_router(
         response_model=WorkflowRunAcceptedView,
         operation_id="startBuilderWorkflowRun",
         responses={
-            403: {"description": "An administrator browser session is required"},
+            403: {"description": "An administrator or operator browser session is required"},
             409: {"description": "The workflow revision changed or the workflow is not runnable"},
         },
     )
     async def run_workflow(request: Request, workflow_id: str, command: BuilderWorkflowRunInput):
-        # Middleware retains editor admin authorization and session CSRF. Tokens
-        # must use the MCP route, never acquire UI-channel authority here.
+        # Middleware keeps session CSRF. Starting a run is operator work (ADR 0066
+        # amendment, ADR 0075), so an admin or operator browser session may launch;
+        # tokens use /api/workflow-runs and never acquire UI-channel authority here.
         user = getattr(request.state, "auth_user", None)
         source = str(getattr(request.state, "auth_source", "") or "")
+        principal_type = str(user.get("principal_type") or "") if isinstance(user, dict) else ""
         if (
             not isinstance(user, dict)
             or source not in {"local", "external"}
-            or user.get("principal_type") != "admin"
-            or "admin" not in user.get("roles", [])
+            or principal_type not in {"admin", "operator"}
+            or principal_type not in user.get("roles", [])
             or request.headers.get("authorization")
         ):
             raise HTTPException(
-                status_code=403, detail="An administrator browser session is required"
+                status_code=403,
+                detail="An administrator or operator browser session is required",
             )
         try:
             result = await run_in_threadpool(

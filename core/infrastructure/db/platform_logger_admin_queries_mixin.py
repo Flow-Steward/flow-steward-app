@@ -25,6 +25,7 @@ from core.infrastructure.db.platform_logger_common import (
     _normalize_string_list,
     logger,
 )
+from core.infrastructure.db.project_user_sections_store import save_project_user_sections
 
 
 class PlatformLoggerCommandAuditMixin:
@@ -253,6 +254,9 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             save_project_provider_binding=self.save_project_provider_binding,
             create_project_settings_revision=self.create_project_settings_revision,
             author=author,
+            save_user_sections=lambda project, sections: save_project_user_sections(
+                self.conn, project_id=project, sections=sections
+            ),
         )
 
     def get_jobs(
@@ -319,6 +323,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         hide_acknowledged: bool = False,
         started_after: datetime | None = None,
         started_before: datetime | None = None,
+        exclude_task_source: str | None = None,
     ) -> list[dict]:
         """Return recent jobs with project metadata for operator job views."""
         return job_queries_store.list_jobs_for_attention(
@@ -332,6 +337,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             status=status,
             workflow_id=workflow_id,
             task_source=task_source,
+            exclude_task_source=exclude_task_source,
             search=search,
             account_id=account_id,
             workspace_id=workspace_id,
@@ -359,6 +365,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         hide_acknowledged: bool = False,
         started_after: datetime | None = None,
         started_before: datetime | None = None,
+        exclude_task_source: str | None = None,
     ) -> int:
         """Return total jobs count for operator job views."""
         return job_queries_store.count_jobs_for_attention(
@@ -370,6 +377,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             status=status,
             workflow_id=workflow_id,
             task_source=task_source,
+            exclude_task_source=exclude_task_source,
             search=search,
             account_id=account_id,
             workspace_id=workspace_id,
@@ -378,6 +386,14 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             started_after=started_after,
             started_before=started_before,
         )
+
+    def read_job_section_payloads(
+        self, *, job_ids: list[str], account_id: str
+    ) -> dict[str, dict[str, Any]]:
+        """Inputs, outputs and author of one page of jobs for a section's table."""
+        from core.infrastructure.db.job_section_values_store import read_job_section_payloads
+
+        return read_job_section_payloads(self.conn, job_ids=job_ids, account_id=account_id)
 
     def get_workflow_stats(
         self,

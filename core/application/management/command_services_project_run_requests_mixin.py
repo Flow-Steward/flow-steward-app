@@ -60,6 +60,19 @@ def _schedule_name(value: Any) -> str:
     return text
 
 
+def submitted_by(scope: ScopeContext) -> dict[str, str]:
+    """Who started a run, from the authenticated scope only (ADR 0075).
+
+    Shown in a section's history; it does not decide who may see the run. A form
+    field or a caller-sent name never fills it.
+    """
+    principal_type = str(scope.principal_type or "").strip().lower()
+    return {
+        "id": str(scope.actor_id or "").strip(),
+        "kind": "service_account" if principal_type == "service_account" else "person",
+    }
+
+
 class ProjectCommandServiceRunRequestsMixin:
     # Supplied by the composed ProjectCommandService.
     _assert_can_start_workflow: Callable[..., None]
@@ -149,7 +162,10 @@ class ProjectCommandServiceRunRequestsMixin:
                 workflow_id=workflow_id,
                 task_id=f"workflow-run-{correlation}",
                 task_summary=command.summary,
-                job_meta={"expected_workflow_revision": command.expected_revision},
+                job_meta={
+                    "expected_workflow_revision": command.expected_revision,
+                    "submitted_by": submitted_by(resolved),
+                },
                 task_source="manual_ui",
                 entry_path="manual_ui",
                 test_mode=False,
@@ -205,7 +221,10 @@ class ProjectCommandServiceRunRequestsMixin:
                 workflow_id=command.workflow_id,
                 task_id=f"workflow-run-{correlation}",
                 task_summary=workflow_run_summary(command.workflow_id),
-                job_meta=workflow_run_summary_metadata(command.workflow_id),
+                job_meta={
+                    **workflow_run_summary_metadata(command.workflow_id),
+                    "submitted_by": submitted_by(resolved),
+                },
                 task_source="mcp_workflow",
                 entry_path="mcp",
                 inputs=command.inputs,

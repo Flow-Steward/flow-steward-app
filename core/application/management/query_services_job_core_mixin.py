@@ -27,6 +27,8 @@ from .query_services_common import *  # NOSONAR
 
 #: Page-size ceiling of grouped attention.
 _ATTENTION_PAGE_MAX = 2000
+#: History filters by how a run started: Test Run, the UI form or the API/MCP.
+SUPPORTED_JOB_TASK_SOURCES = frozenset({"workflow_test_run", "manual_ui", "mcp_workflow"})
 
 
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
@@ -321,6 +323,75 @@ class JobQueryServiceCoreMixin:
             if isinstance(row, dict)
         ]
 
+    def _history_section(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        *,
+        project_id: Any,
+        section_id: str,
+        workflow_id: str | None,
+        task_source: str | None,
+        group_by: str,
+    ) -> Any:
+        """The user section whose history is asked for, checked against the scope.
+
+        The section decides the workflow; a caller cannot point it at another one.
+        """
+        from core.application.auth.principal import principal_type_has_minimum_role
+        from core.application.projects.user_section_history import find_section
+
+        if not project_id:
+            raise ServiceValidationError("section_id needs project_id")
+        if str(group_by or "").strip():
+            raise ServiceValidationError("section_id cannot be grouped")
+        if task_source == "workflow_test_run":
+            raise ServiceValidationError("A section's history does not list Test Runs")
+        project = bl.get_project(str(project_id)) if hasattr(bl, "get_project") else None
+        if not project:
+            raise ServiceNotFoundError(PROJECT_NOT_FOUND_MESSAGE)
+        require_project_access(resolved, dict(project))
+        section = find_section(
+            dict(project).get("config"),
+            section_id,
+            include_hidden=principal_type_has_minimum_role(resolved.principal_type, "admin"),
+        )
+        if section is None:
+            raise ServiceNotFoundError("Section not found")
+        if workflow_id and workflow_id != section.workflow_id:
+            raise ServiceValidationError("workflow_id does not match the section's workflow")
+        return section
+
+    def _list_rows_with_section_values(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        rows: list[dict[str, Any]],
+        section: Any,
+    ) -> list[AttentionJobView]:
+        """The page's rows; for a section, with its column values from one batch read."""
+        views = [
+            AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        if section is None:
+            return views
+        from core.application.projects.user_section_history import section_row_values
+
+        job_ids = [str(row.get("id") or row.get("job_id") or "") for row in rows]
+        reader = getattr(bl, "read_job_section_payloads", None)
+        payloads = (
+            reader(job_ids=job_ids, account_id=resolved.account_id) if callable(reader) else {}
+        )
+        for view, row in zip(views, rows, strict=False):
+            job_id = str(row.get("id") or row.get("job_id") or "")
+            payload = payloads.get(job_id)
+            values = section_row_values(section, row, payload)
+            view.section_values = cast(dict[str, Any], redact(values))
+            view.submitted_by = (payload or {}).get("submitted_by")
+        return views
+
     def list_jobs(
         self,
         *,
@@ -339,11 +410,14 @@ class JobQueryServiceCoreMixin:
         hide_acknowledged: bool = False,
         from_date: str = "",
         to_date: str = "",
+        section_id: str = "",
     ) -> JobsListView | JobsAttentionGroupsView:
         """List jobs; ``status`` takes one status, several, or comma lists of them (any match).
 
         ``hide_acknowledged`` leaves out runs an operator has acknowledged.
-        ``task_source`` optionally restricts history to whole-workflow Test Runs.
+        ``task_source`` optionally restricts history to Test Runs, UI or API runs.
+        ``section_id`` (with ``project_id``) lists one user section's history: its
+        workflow's runs without Test Runs, each with the section's column values.
         ``from_date`` and ``to_date`` include whole local calendar days, using
         the start time or queued time for a run that has not started.
         """
@@ -378,12 +452,12 @@ class JobQueryServiceCoreMixin:
         ):
             if exact and selected and str(selected) != str(exact):
                 raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
-        if task_source is not None and task_source != "workflow_test_run":
+        if task_source is not None and task_source not in SUPPORTED_JOB_TASK_SOURCES:
             raise ServiceValidationError(
                 "Unsupported task_source value",
                 payload={
                     "error": "Unsupported task_source value",
-                    "supported": ["workflow_test_run"],
+                    "supported": sorted(SUPPORTED_JOB_TASK_SOURCES),
                 },
             )
         bl = self._get_logger()
@@ -406,6 +480,18 @@ class JobQueryServiceCoreMixin:
             and normalized_project_id not in resolved.allowed_project_ids
         ):
             raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
+        section = None
+        if str(section_id or "").strip():
+            section = self._history_section(
+                bl,
+                resolved,
+                project_id=normalized_project_id,
+                section_id=str(section_id).strip(),
+                workflow_id=normalized_workflow_id,
+                task_source=task_source,
+                group_by=group_by,
+            )
+            normalized_workflow_id = section.workflow_id
         if normalized_workflow_id:
             require_workflow_access(resolved, normalized_workflow_id)
             if resolved.workflow_id and normalized_workflow_id != resolved.workflow_id:
@@ -427,6 +513,8 @@ class JobQueryServiceCoreMixin:
                 filters["workflow_id"] = normalized_workflow_id
             if task_source is not None:
                 filters["task_source"] = task_source
+            if section is not None:
+                filters["exclude_task_source"] = "workflow_test_run"
             if normalized_search:
                 filters["search"] = normalized_search
             if hide_acknowledged:
@@ -543,11 +631,7 @@ class JobQueryServiceCoreMixin:
                         else len(rows)
                     )
             return JobsListView(
-                jobs=[
-                    AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
-                    for row in rows
-                    if isinstance(row, dict)
-                ],
+                jobs=self._list_rows_with_section_values(bl, resolved, rows, section),
                 total=int(total or 0),
                 page=normalized_page,
                 per_page=normalized_per_page,

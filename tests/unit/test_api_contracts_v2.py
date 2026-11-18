@@ -635,3 +635,28 @@ def test_v2_job_date_validation_returns_bad_request_without_querying(
     assert response.status_code == 400
     assert response.json()["ok"] is False
     store.list_jobs_for_attention.assert_not_called()
+
+
+@pytest.mark.parametrize("source", ["manual_ui", "mcp_workflow"])
+def test_v2_jobs_filters_ui_and_api_runs(monkeypatch, source):
+    """ADR 0075: the history filters by how a run started."""
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get("/api/v2/jobs", params={"task_source": source})
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["task_source"] == source
+
+
+def test_v2_jobs_forwards_a_section_history_request(monkeypatch):
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get(
+        "/api/v2/jobs", params={"project_id": PROJECT_ID, "section_id": "receipts"}
+    )
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["section_id"] == "receipts"
+    assert service.last_list_kwargs["project_id"] == PROJECT_ID

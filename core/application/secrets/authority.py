@@ -39,9 +39,17 @@ def _require_human_operator(scope: Any, action: str) -> None:
         raise ServiceForbiddenError(f"Operator role required to {action}")
 
 
-def _require(scope: Any, *, required_scope: str, action: str) -> None:
+def _require_human_admin(scope: Any, action: str) -> None:
+    if _role_level(scope) < _ROLE_LEVELS["admin"]:
+        raise ServiceForbiddenError(f"Admin role required to {action}")
+
+
+def _require(scope: Any, *, required_scope: str, action: str, human_role: str = "operator") -> None:
     if is_interactive_human(scope):
-        _require_human_operator(scope, action)
+        if human_role == "admin":
+            _require_human_admin(scope, action)
+        else:
+            _require_human_operator(scope, action)
         return
     if is_token_scoped_principal(scope) and scope_granted(
         set(getattr(scope, "token_scopes", ()) or ()), required_scope
@@ -51,13 +59,32 @@ def _require(scope: Any, *, required_scope: str, action: str) -> None:
 
 
 def require_secret_write(scope: Any) -> None:
-    """Create a secret, replace its value, edit its metadata or delete it."""
+    """Create a secret, replace its value or edit its metadata: operator and above."""
     _require(scope, required_scope=SECRET_WRITE_SCOPE, action="change a stored secret")
 
 
+def require_secret_delete(scope: Any) -> None:
+    """Delete a secret: an admin, who sees every consumer it unbinds (ADR 0066 amendment).
+
+    A machine caller keeps the exact `secrets:write` scope it needed before.
+    """
+    _require(
+        scope,
+        required_scope=SECRET_WRITE_SCOPE,
+        action="delete a stored secret",
+        human_role="admin",
+    )
+
+
 def require_secret_bind(scope: Any) -> None:
-    """Bind a secret to a consumer, or remove a binding."""
-    _require(scope, required_scope=SECRET_BIND_SCOPE, action="choose a stored secret")
+    """Bind a secret to a consumer, or remove a binding: configuration, so a person
+    needs the admin role (ADR 0066 amendment); a machine keeps `secrets:bind`."""
+    _require(
+        scope,
+        required_scope=SECRET_BIND_SCOPE,
+        action="choose a stored secret",
+        human_role="admin",
+    )
 
 
 def require_secret_read_metadata(scope: Any) -> None:
@@ -68,12 +95,16 @@ def require_secret_read_metadata(scope: Any) -> None:
 
 
 def require_approval_authority(scope: Any) -> None:
-    """Approve a configuration's use of catalog secrets: a person, operator or above."""
+    """Approve a configuration's use of catalog secrets: a person with the admin role.
+
+    This is configuration approval, not a workflow run's approval step, which an
+    operator decides (ADR 0066 amendment).
+    """
     if not is_interactive_human(scope):
         raise ServiceForbiddenError(
             "Approving the use of stored secrets requires a person signed in interactively"
         )
-    _require_human_operator(scope, "approve the use of stored secrets")
+    _require_human_admin(scope, "approve the use of stored secrets")
 
 
 def actor_identity(scope: Any) -> tuple[str, str]:
@@ -92,6 +123,7 @@ __all__ = [
     "is_interactive_human",
     "require_approval_authority",
     "require_secret_bind",
+    "require_secret_delete",
     "require_secret_read_metadata",
     "require_secret_write",
 ]

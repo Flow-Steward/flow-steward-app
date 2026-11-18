@@ -19,8 +19,10 @@ from core.application.auth.inbound_oauth_policy import (
     oauth_forward_accepted,
     oauth_principal_denied_route,
 )
+from core.application.auth.operator_work import is_operator_work_action
 from core.application.auth.principal import (
     ResolvedPrincipal,
+    is_machine_principal,
     is_token_scoped_principal,
     principal_has_required_scopes,
 )
@@ -550,9 +552,13 @@ async def local_auth_middleware(
         return JSONResponse({"error": "CSRF validation failed"}, status_code=403)
 
     authoring_validate = _is_workflow_authoring_validate(path, method)
+    # ADR 0066 amendment: a person's writes default to admin and the operator gets
+    # an explicit list of work. Service accounts keep the earlier operator rule,
+    # narrowed by their token scopes (their authority is unchanged).
+    machine = is_machine_principal(user)
     admin_required = bool(
         is_admin_only_route_fn(path)
-        or (method == "DELETE" and not _is_operator_delete(path, method))
+        or (method == "DELETE" and not (machine and _is_operator_delete(path, method)))
         or _is_workflow_authoring_create(path, method)
     )
     registry_read_route = bool(is_registry_read_route_fn(path))
@@ -594,23 +600,23 @@ async def local_auth_middleware(
             if not roles_intersect_fn(user.get("roles") or [], auth_write_roles):
                 return JSONResponse({"error": err_operator_role_required}, status_code=403)
         else:
-            required_roles = (
-                auth_write_roles
-                if project_callback_write or project_action_write
-                else auth_admin_roles
+            operator_write = (
+                (project_callback_write and machine)
+                or project_action_write
+                or is_operator_work_action(path, method)
             )
+            required_roles = auth_write_roles if operator_write else auth_admin_roles
             if not roles_intersect_fn(user.get("roles") or [], required_roles):
-                error = (
-                    err_operator_role_required
-                    if project_callback_write or project_action_write
-                    else err_admin_role_required
-                )
+                error = err_operator_role_required if operator_write else err_admin_role_required
                 return JSONResponse({"error": error}, status_code=403)
     elif method not in _HTTP_SAFE_METHODS and not authoring_validate:
         if auth_source == "local" and is_self_service_auth_write_route_fn(path):
             return await call_next(request)
-        if not roles_intersect_fn(user.get("roles") or [], auth_write_roles):
-            return JSONResponse({"error": err_operator_role_required}, status_code=403)
+        operator_write = machine or is_operator_work_action(path, method)
+        required_roles = auth_write_roles if operator_write else auth_admin_roles
+        if not roles_intersect_fn(user.get("roles") or [], required_roles):
+            error = err_operator_role_required if operator_write else err_admin_role_required
+            return JSONResponse({"error": error}, status_code=403)
 
     return await call_next(request)
 

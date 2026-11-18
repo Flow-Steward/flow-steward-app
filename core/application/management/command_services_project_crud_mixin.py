@@ -198,6 +198,27 @@ class ProjectCommandServiceCrudMixin:
             if "data_connection_ids" in form_data
             else previous_data_connection_ids
         )
+        self._require_admin_for_bindings_or_policy(
+            bl,
+            str(project_id),
+            resolved,
+            selected_workflow_ids=selected_workflow_ids,
+            resolved_default_workflow=resolved_default_workflow,
+            project_policy=project_policy,
+            user_sections_submitted=command.user_sections is not None,
+        )
+        user_sections = None
+        if command.user_sections is not None:
+            # ADR 0075: omitted keeps the stored sections, [] clears only them.
+            from core.application.projects.user_sections_service import (
+                registry_contract_loader,
+                sections_for_update,
+            )
+
+            user_sections = sections_for_update(
+                command.user_sections,
+                load_contract=registry_contract_loader(selected_workflow_ids),
+            )
         from core.infrastructure.db.db_pool import transaction_connection
 
         with transaction_connection(bl):
@@ -218,6 +239,15 @@ class ProjectCommandServiceCrudMixin:
                 project_id=project_id,
                 data_connection_ids=data_connection_ids,
             )
+            if user_sections is not None:
+                from core.application.projects.user_sections_service import save_user_sections
+
+                save_user_sections(
+                    bl.conn,
+                    project_id=str(project_id),
+                    account_id=resolved.account_id,
+                    sections=user_sections,
+                )
 
         self._schedule_project_profile_sync(
             self._project_profile_payload(
@@ -444,6 +474,76 @@ class ProjectCommandServiceCrudMixin:
             ),
             "",
         )
+
+    @staticmethod
+    def _require_admin_for_bindings_or_policy(
+        bl: Any,
+        project_id: str,
+        resolved: ScopeContext,
+        *,
+        selected_workflow_ids: list[str],
+        resolved_default_workflow: str,
+        project_policy: dict[str, Any] | None,
+        user_sections_submitted: bool = False,
+    ) -> None:
+        """Keep the general project update from changing what admin-only routes guard.
+
+        Linking workflows (`PUT .../workflows`) and the run policy (`PUT .../policy`)
+        need the admin role. The general update writes both too, so a change to
+        either needs the same role here (ADR 0066 amendment); so does configuring
+        user sections (ADR 0075). An unreadable current state counts as a change:
+        the check fails closed.
+
+        For bindings and policy it applies to people and their own tokens: a
+        service account keeps the authority it had (its `projects.write` scope
+        narrows it in the middleware), and an internal call without a principal is
+        not a person's request. User sections are new and admin-only for every
+        caller: `projects.write` never brought them, so it does not grant them now.
+        """
+        principal_type = str(resolved.principal_type or "").strip().lower()
+        if user_sections_submitted and not principal_type_has_minimum_role(principal_type, "admin"):
+            _require_role(resolved, "admin")
+            raise ServiceForbiddenError("Admin role required")
+        if (
+            not principal_type
+            or principal_type in {"service_account", "system_actor"}
+            or str(resolved.auth_source or "").strip().lower() == "machine"
+            or principal_type_has_minimum_role(principal_type, "admin")
+        ):
+            return
+        changed = project_policy is not None
+        getter = getattr(bl, "get_project_workflows", None)
+        try:
+            rows = (
+                getter(project_id, enabled_only=True, include_deleted=False)
+                if callable(getter)
+                else None
+            )
+        except Exception:
+            rows = None
+        if rows is None:
+            changed = True
+        else:
+            current_ids = {
+                str(row.get("workflow_id") or "").strip()
+                for row in rows
+                if isinstance(row, dict) and row.get("enabled", True) and not row.get("deleted_at")
+            }
+            current_default = next(
+                (
+                    str(row.get("workflow_id") or "").strip()
+                    for row in rows
+                    if isinstance(row, dict) and bool(row.get("is_default"))
+                ),
+                "",
+            )
+            changed = (
+                changed
+                or set(selected_workflow_ids) != current_ids
+                or str(resolved_default_workflow or "") != current_default
+            )
+        if changed:
+            _require_role(resolved, "admin")
 
     def update_project_workflows(
         self,

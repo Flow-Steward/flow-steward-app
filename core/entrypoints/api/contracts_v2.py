@@ -207,7 +207,10 @@ def create_api_contracts_v2_router(
         per_page: Annotated[int, Query()] = 0,
         status: Annotated[list[str] | None, Query()] = None,
         workflow_id: Annotated[str, Query()] = "",
-        task_source: Annotated[Literal["workflow_test_run"] | None, Query()] = None,
+        task_source: Annotated[
+            Literal["workflow_test_run", "manual_ui", "mcp_workflow"] | None, Query()
+        ] = None,
+        section_id: Annotated[str, Query(max_length=64)] = "",
         search: Annotated[str, Query()] = "",
         hide_acknowledged: Annotated[bool, Query()] = False,
         from_date: Annotated[str, Query()] = "",
@@ -228,6 +231,7 @@ def create_api_contracts_v2_router(
                 hide_acknowledged=hide_acknowledged,
                 from_date=from_date,
                 to_date=to_date,
+                section_id=section_id,
                 scope=request_scope(
                     request,
                     project_id=project_id or None,
