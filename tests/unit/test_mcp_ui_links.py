@@ -15,6 +15,8 @@ DRAFT = {
     "jobs": [{"detail_url": "/jobs/job-1", "delete_plan_url": "/api/tools/t/delete-plan"}],
     "description": "/registry/workflows is a path in prose, not a link field",
     "deep_links": {"jobs": ["/jobs/job-2"], "project": "/projects/p-1"},
+    "callback_url": "/callback",
+    "fields": [{"name": "hook", "default": {"callback_url": "/callback"}}],
 }
 
 
@@ -28,6 +30,10 @@ def test_ui_paths_become_absolute_on_the_public_origin(monkeypatch) -> None:
     assert data["jobs"][0]["detail_url"] == "https://flow.example.com/jobs/job-1"
     assert data["jobs"][0]["delete_plan_url"] == "/api/tools/t/delete-plan"
     assert data["description"] == DRAFT["description"]
+    # User data keeps its value: a workflow default or report row with a *_url
+    # key is not a product link (PR 23 review).
+    assert data["callback_url"] == "/callback"
+    assert data["fields"] == DRAFT["fields"]
     assert data["deep_links"] == {
         "jobs": ["https://flow.example.com/jobs/job-2"],
         "project": "https://flow.example.com/projects/p-1",

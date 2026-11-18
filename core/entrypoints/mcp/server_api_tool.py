@@ -442,11 +442,15 @@ def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> CallToolResul
 
 
 def _absolute_ui_links(data: object, origin: str) -> object:
-    """Make product UI links (``*_url`` paths) absolute for the AI client.
+    """Make product UI links absolute for the AI client.
 
     The application API returns UI paths such as ``/registry/workflows/x/builder``
     for its own browser; an AI client in another app cannot open a bare path.
-    API paths stay as they are, and nothing changes without a public origin.
+    Only the fields the product itself fills with UI paths are rewritten
+    (``_UI_LINK_KEYS``, ``_LINK_COLLECTION_KEYS``): any other ``*_url`` value may be
+    user data, such as a workflow default or a report row, and must reach the
+    client exactly as stored. API paths stay as they are, and nothing changes
+    without a public origin.
     """
     if not origin:
         return data
@@ -454,7 +458,7 @@ def _absolute_ui_links(data: object, origin: str) -> object:
         return {
             key: (
                 _absolute_link(value, origin)
-                if str(key).endswith("_url")
+                if key in _UI_LINK_KEYS
                 else _all_links_absolute(value, origin)
                 if key in _LINK_COLLECTION_KEYS
                 else _absolute_ui_links(value, origin)
@@ -465,6 +469,11 @@ def _absolute_ui_links(data: object, origin: str) -> object:
         return [_absolute_ui_links(item, origin) for item in data]
     return data
 
+
+#: Fields the application fills with one product UI path: the draft editor
+#: (``workflow_draft_save``), a job page (queue deliveries) and a project's
+#: connections tab (authoring catalog setup hints).
+_UI_LINK_KEYS = frozenset({"editor_url", "detail_url", "setup_url"})
 
 #: Keys whose every string value is a product UI link (report ``deep_links``).
 _LINK_COLLECTION_KEYS = frozenset({"deep_links", "deep_link"})
