@@ -1355,6 +1355,7 @@
     "core/entrypoints/mcp/server_runtime.py",
     "core/entrypoints/mcp/server_tool_annotations.py",
     "core/entrypoints/mcp/server_tool_scopes.py",
+    "core/entrypoints/mcp/server_ui_links.py",
     "core/entrypoints/mcp/server_workflow_authoring_tools.py",
     "core/entrypoints/mcp/server_workflow_hook_tools.py",
     "core/entrypoints/mcp/server_workflow_portability_tools.py",

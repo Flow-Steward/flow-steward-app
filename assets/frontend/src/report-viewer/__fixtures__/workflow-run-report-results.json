@@ -3,7 +3,7 @@
     "content": [
       {
         "type": "text",
-        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"completed\", \"status\": \"completed\", \"terminal\": true}, \"report\": {\"component_count\": 10, \"datasets\": [{\"id\": \"regions\", \"row_count\": 3}, {\"id\": \"returns\", \"row_count\": 0}], \"kind\": \"fs.report\", \"schema_version\": 1, \"summary_text\": \"Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.\", \"title\": \"Weekly sales\"}, \"report_output\": \"weekly\", \"state\": \"ready\", \"text\": \"Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
+        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"completed\", \"status\": \"completed\", \"terminal\": true}, \"job_url\": \"/jobs/job-1\", \"report\": {\"component_count\": 10, \"datasets\": [{\"id\": \"regions\", \"row_count\": 3}, {\"id\": \"returns\", \"row_count\": 0}], \"kind\": \"fs.report\", \"schema_version\": 1, \"summary_text\": \"Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.\", \"title\": \"Weekly sales\"}, \"report_output\": \"weekly\", \"state\": \"ready\", \"text\": \"Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
       }
     ],
     "structuredContent": {
@@ -35,7 +35,8 @@
             }
           ]
         },
-        "text": "Revenue 48210.5 EUR in the week of 2026-11-02; target met: false."
+        "text": "Revenue 48210.5 EUR in the week of 2026-11-02; target met: false.",
+        "job_url": "/jobs/job-1"
       },
       "meta": {
         "schema_version": "v1",
@@ -293,7 +294,7 @@
     "content": [
       {
         "type": "text",
-        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"running\", \"status\": \"running\", \"terminal\": false}, \"report\": null, \"report_output\": null, \"state\": \"pending\", \"text\": \"Job job-1 is running; its report is not ready yet.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
+        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"running\", \"status\": \"running\", \"terminal\": false}, \"job_url\": \"/jobs/job-1\", \"report\": null, \"report_output\": null, \"state\": \"pending\", \"text\": \"Job job-1 is running; its report is not ready yet.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
       }
     ],
     "structuredContent": {
@@ -309,7 +310,8 @@
         "state": "pending",
         "report_output": null,
         "report": null,
-        "text": "Job job-1 is running; its report is not ready yet."
+        "text": "Job job-1 is running; its report is not ready yet.",
+        "job_url": "/jobs/job-1"
       },
       "meta": {
         "schema_version": "v1",
@@ -321,7 +323,7 @@
     "content": [
       {
         "type": "text",
-        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"failed\", \"status\": \"failed\", \"terminal\": true}, \"report\": null, \"report_output\": null, \"state\": \"no_report\", \"text\": \"Job job-1 ended (failed) without a report.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
+        "text": "{\"data\": {\"job\": {\"id\": \"job-1\", \"outcome\": \"failed\", \"status\": \"failed\", \"terminal\": true}, \"job_url\": \"/jobs/job-1\", \"report\": null, \"report_output\": null, \"state\": \"no_report\", \"text\": \"Job job-1 ended (failed) without a report.\"}, \"meta\": {\"correlation_id\": \"contract\", \"schema_version\": \"v1\"}, \"ok\": true, \"tool\": \"workflow_run_report\"}"
       }
     ],
     "structuredContent": {
@@ -337,7 +339,8 @@
         "state": "no_report",
         "report_output": null,
         "report": null,
-        "text": "Job job-1 ended (failed) without a report."
+        "text": "Job job-1 ended (failed) without a report.",
+        "job_url": "/jobs/job-1"
       },
       "meta": {
         "schema_version": "v1",

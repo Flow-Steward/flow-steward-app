@@ -60,7 +60,7 @@ def job_result(
 
 @mcp.tool()
 def job_status(job_id: str) -> McpToolResult:
-    """Return a bounded polling summary for one job."""
+    """Return a bounded polling summary for one job, with job_url, the run's page."""
     return api_tool_response("job_status", locals())
 
 

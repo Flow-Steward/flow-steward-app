@@ -656,7 +656,11 @@ def test_apply_changes_posts_one_change_set_to_the_workflow_changes_route():
         )
     )
 
-    assert result["data"] == {"workflow_id": "wf_1", "revision": 4}
+    assert result["data"] == {
+        "workflow_id": "wf_1",
+        "revision": 4,
+        "editor_url": "/registry/workflows/wf_1/builder",
+    }
     assert _RecordingClient.requests == [
         {
             "method": "POST",
@@ -814,7 +818,8 @@ def test_workflow_global_inspection_preserves_caller_without_project_lookup(tool
 
     result = _envelope(server_api_tool.api_tool_response(tool, {"workflow_id": "wf.global"}))
 
-    assert result["data"] == payload
+    editor = {"editor_url": "/registry/workflows/wf.global/builder"}
+    assert result["data"] == ({**payload, **editor} if tool == "workflow_validate" else payload)
     assert _RecordingClient.requests == [
         {
             "method": "GET",

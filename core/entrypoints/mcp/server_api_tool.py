@@ -13,6 +13,7 @@ from core.entrypoints.mcp.server_api_client import (
     AppApiError,
 )
 from core.entrypoints.mcp.server_caller_identity import current_caller_bearer
+from core.entrypoints.mcp.server_ui_links import with_ui_links
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import CallToolResult, TextContent
 
@@ -470,10 +471,10 @@ def _absolute_ui_links(data: object, origin: str) -> object:
     return data
 
 
-#: Fields the application fills with one product UI path: the draft editor
-#: (``workflow_draft_save``), a job page (queue deliveries) and a project's
-#: connections tab (authoring catalog setup hints).
-_UI_LINK_KEYS = frozenset({"editor_url", "detail_url", "setup_url"})
+#: Fields that hold one product UI path: the workflow editor, a run page
+#: (``detail_url`` from queue deliveries; ``job_url``/``new_job_url`` added by
+#: ``server_ui_links``) and a project's connections tab (authoring setup hints).
+_UI_LINK_KEYS = frozenset({"editor_url", "detail_url", "setup_url", "job_url", "new_job_url"})
 
 #: Keys whose every string value is a product UI link (report ``deep_links``).
 _LINK_COLLECTION_KEYS = frozenset({"deep_links", "deep_link"})
@@ -541,7 +542,7 @@ def api_tool_envelope(tool: str, data: object, correlation_id: str) -> dict[str,
     return {
         "ok": True,
         "tool": tool,
-        "data": _absolute_ui_links(data, _public_origin()),
+        "data": _absolute_ui_links(with_ui_links(tool, data), _public_origin()),
         "meta": {"schema_version": "v1", "correlation_id": correlation_id},
     }
 
