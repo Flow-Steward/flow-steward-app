@@ -142,9 +142,17 @@ DATABASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 default=False,
                 option_name="--maintenance-confirmed",
                 description=(
-                    "Confirm writers are stopped and a verified backup exists for "
-                    "maintenance migrations."
+                    "Confirm runtime writers are stopped. A verified backup is expected "
+                    "unless --skip-db-backup explicitly accepts proceeding without it."
                 ),
+            ),
+            FieldSpec(
+                key="skip_db_backup",
+                label="Skip database backup",
+                type=FieldType.BOOLEAN,
+                default=False,
+                option_name="--skip-db-backup",
+                description="Accept database migration without a backup; maintenance and writer checks still apply.",
             ),
             _ALLOW_UNLABELED_SESSIONS_FIELD,
         ),

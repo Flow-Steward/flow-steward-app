@@ -52,10 +52,8 @@ def test_operator_docs_define_source_to_official_transition_journey() -> None:
         assert "semantic ordering is unknown" in normalized
         assert "./flow-steward release check" in text
         assert "./flow-steward backup create" in text
-        assert "./flow-steward maintenance enable --confirm" in text
         assert "./flow-steward release upgrade --confirm" in text
         assert "./flow-steward doctor" in text
-        assert "./flow-steward maintenance disable --confirm" in text
         assert "resum" in text.lower()
         assert "official installed identity" in normalized
 

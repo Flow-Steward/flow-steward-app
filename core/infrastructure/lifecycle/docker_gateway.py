@@ -724,6 +724,24 @@ class DockerLifecycleGateway:
         """Delegate fixed maintenance operations to the existing runtime marker owner."""
         return compact_maintenance_operation(target, operation, run_compose=self._run_compose)
 
+    def upgrade_release_database(
+        self,
+        target: ComposeTarget,
+        *,
+        skip_db_backup: bool,
+        timeout_seconds: int,
+        environment: Mapping[str, str],
+    ) -> None:
+        from core.infrastructure.release.upgrade_gateway import upgrade_target_database
+
+        upgrade_target_database(
+            target,
+            skip_db_backup=skip_db_backup,
+            timeout_seconds=timeout_seconds,
+            run_compose=self._run_compose,
+            environment=environment,
+        )
+
     def management_storage_connectivity(self, target: ComposeTarget) -> bool:
         """Probe storage from the retained CLI while release services are changing."""
         return management_storage_connectivity(target, run_compose=self._run_compose)

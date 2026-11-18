@@ -605,3 +605,13 @@ def test_compact_cli_health_url_uses_selected_runtime_port() -> None:
     assert (
         "FS_COMPACT_HEALTH_URL: http://compact-runtime:${FS_RUNTIME_HTTP_PORT:-8080}/health/ready"
     ) in compose
+
+
+@pytest.mark.parametrize("operation", ["release-upgrade", "database-upgrade"])
+def test_platform_dispatcher_forwards_backup_waiver(operation):
+    from core.entrypoints.cli.platform_runtime import _canonical_argv, _parser
+
+    flags = ["--maintenance-confirmed", "--confirm"] if operation == "database-upgrade" else []
+    assert "--skip-db-backup" in _canonical_argv(
+        _parser().parse_args([operation, "--skip-db-backup", *flags])
+    )

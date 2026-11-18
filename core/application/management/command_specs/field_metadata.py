@@ -85,7 +85,10 @@ _COMMON_GUIDANCE: dict[str, tuple[str, str]] = {
     "lighthouse_threshold": ("Minimum acceptable Lighthouse score from zero to one.", "0.9"),
     "lighthouse_timeout": ("Maximum seconds allowed for each Lighthouse route audit.", "120"),
     "limit": ("Maximum number of records returned by the command.", "100"),
-    "maintenance_confirmed": ("Confirm writers are stopped and a verified backup exists.", "true"),
+    "maintenance_confirmed": (
+        "Confirm runtime writers are stopped; backup may be explicitly waived with --skip-db-backup.",
+        "true",
+    ),
     "max_connections": ("PostgreSQL max_connections value used for tuning recommendations.", "200"),
     "max_p0": ("Maximum number of priority-zero backlog items to generate.", "10"),
     "max_p1": ("Maximum number of priority-one backlog items to generate.", "30"),

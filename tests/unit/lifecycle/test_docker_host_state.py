@@ -13,6 +13,7 @@ import pytest
 from core.application.lifecycle.contracts import ComposeTarget
 from core.application.lifecycle.stack_models import StackGatewayError
 from core.infrastructure.installer.process import (
+    COMPACT_CONTAINER_STATE_MOUNT,
     CONTAINER_STATE_MOUNT,
     DockerHostStateUnavailable,
     docker_host_state_dir,
@@ -126,3 +127,13 @@ def test_stack_compose_refuses_a_container_state_path_it_cannot_translate(
     with pytest.raises(StackGatewayError, match=r"rerun \./install\.sh"):
         gateway.services(_target())
     assert process.invocations == []
+
+
+def test_compact_mount_resolves_external_host_state(tmp_path):
+    env_file = _env_prod(tmp_path, _HOST_STATE)
+    assert docker_host_state_dir(COMPACT_CONTAINER_STATE_MOUNT, env_file) == _HOST_STATE
+
+
+def test_compact_mount_refuses_missing_host_state_record(tmp_path):
+    with pytest.raises(DockerHostStateUnavailable):
+        docker_host_state_dir(COMPACT_CONTAINER_STATE_MOUNT, _env_prod(tmp_path, None))

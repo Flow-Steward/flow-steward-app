@@ -1625,6 +1625,7 @@ run_compact_platform_command() {
   compact_maintenance_confirmed=0
   compact_allow_unlabeled_sessions=0
   compact_dry_run=0
+  compact_skip_db_backup=0
   compact_author=""
   compact_target_version=""
   compact_timeout_seconds=""
@@ -1650,6 +1651,8 @@ run_compact_platform_command() {
       --confirm=*) compact_confirmation=${1#--confirm=} ;;
       --passphrase-stdin) compact_passphrase_stdin=1 ;;
       --dry-run) compact_dry_run=1 ;;
+      --skip-db-backup) compact_skip_db_backup=1 ;;
+      --no-skip-db-backup) compact_skip_db_backup=0 ;;
       --maintenance-confirmed) compact_maintenance_confirmed=1 ;;
       --allow-unlabeled-sessions) compact_allow_unlabeled_sessions=1 ;;
       --author|--target-version|--timeout-seconds|--operation-id)
@@ -1786,6 +1789,9 @@ run_compact_platform_command() {
   if [ "$compact_dry_run" -eq 1 ]; then
     set -- "$@" --dry-run
   fi
+  if [ "$compact_skip_db_backup" -eq 1 ]; then
+    set -- "$@" --skip-db-backup
+  fi
   if [ "$compact_confirm" -eq 1 ]; then
     set -- "$@" --confirm
   fi
@@ -1822,6 +1828,13 @@ run_compact_platform_command() {
   # writers are stopped. The native adapter restores Compact's persisted runtime
   # secrets before invoking the same canonical database service and seed operation.
   if [ "$compact_operation" = "database-upgrade" ]; then
+    compact_maintenance_status=$(compose_command run --rm --no-deps -T fs-cli maintenance-status --json) || \
+      fail "Could not verify maintenance before stopping Compact writers; nothing was migrated." 7
+    printf '%s' "$compact_maintenance_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true' && \
+      printf '%s' "$compact_maintenance_status" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"enabled"' || \
+      fail "Enable maintenance before upgrading the Compact database; nothing was migrated." 7
+    compose_command stop compact-runtime >&2 || \
+      fail "Could not stop Compact writers; nothing was migrated. Keep maintenance enabled and retry." 7
     if [ -n "${NO_COLOR:-}" ]; then
       exec_compose_command run --rm --no-deps $compact_no_tty_flag \
         -e "NO_COLOR=$NO_COLOR" \
@@ -1930,12 +1943,13 @@ render_compact_release_help() {
       cat <<'EOF'
 Usage: flow-steward release upgrade [OPTIONS]
 
-Activate an exact newer official release while maintenance remains enabled.
+Upgrade automatically, including maintenance, backup, migrations and health checks.
 
 Options:
   --target-version X.Y.Z  Select an exact stable release (default: latest).
   --timeout-seconds N     Bound the complete installer handoff (default: 1800).
   --dry-run               Resolve and review without activation.
+  --skip-db-backup        Accept the risk of upgrading without a database backup.
   --confirm               Confirm the reviewed release activation.
   --json                   Emit one JSON document.
   --plain                  Print without colour or animation.
