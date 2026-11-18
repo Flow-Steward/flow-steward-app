@@ -129,6 +129,9 @@ def test_frontend_shell_serves_index_and_assets(tmp_path: Path) -> None:
         "/jobs/42",
         "/projects",
         "/projects/42",
+        # ADR 0075: a user section and the operators' sections landing.
+        "/projects/42/sections/receipts",
+        "/sections",
         "/extensions",
         "/extensions/demo-connector",
         "/security",

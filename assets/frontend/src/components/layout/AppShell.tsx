@@ -48,6 +48,11 @@ import {
   writeSidebarRailState,
 } from "@/components/layout/app-shell-rail-state";
 import { AppShellSidebar } from "@/components/layout/app-shell-sidebar";
+import {
+  buildProjectSectionNavigation,
+  fetchSectionNavigationProjects,
+} from "@/components/layout/project-section-navigation";
+import { queryKeys } from "@/lib/query/keys";
 import { AdvancedSearchDialog } from "@/components/search/advanced-search-dialog";
 import {
   APPROVALS_REFRESH_EVENT,
@@ -254,7 +259,6 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   }, [auth.session]);
 
   const isAdmin = roles.includes("admin");
-  const isOperator = roles.includes("operator");
   // WordPress's count bubble on Plugins. Only administrators see Extensions in
   // the navigation, so only they ask; a failed check simply shows no count.
   const extensionUpdatesQuery = useQuery({
@@ -265,7 +269,16 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     staleTime: EXTENSION_UPDATES_STALE_TIME_MS,
   });
   const extensionUpdateCount = extensionUpdatesQuery.data?.count ?? 0;
-  const hasRegistryAccess = isAdmin || isOperator || !auth.session?.user;
+  // ADR 0066 amendment: the registry is configuration, the admin's. Operators and
+  // viewers work in the project sections the admin configured (ADR 0075).
+  const hasRegistryAccess = isAdmin || !auth.session?.user;
+  const sectionsView = Boolean(auth.session?.user) && !isAdmin;
+  const sectionNavigationQuery = useQuery({
+    queryKey: queryKeys.sectionNavigation,
+    queryFn: fetchSectionNavigationProjects,
+    enabled: sectionsView,
+    staleTime: 60_000,
+  });
   const currentAccountId = firstStringFromUnknownValue([auth.session?.user?.account_id, auth.session?.account_memberships?.[0]?.account_id, ""]).trim();
   const canReadApprovals = Boolean(
     auth.session?.authenticated || auth.session?.user,
@@ -509,9 +522,25 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
       }
     : null;
 
-  const sidebarSections = [mainSection, registrySection, systemSection, ...injectedSections]
+  const adminSidebarSections = [mainSection, registrySection, systemSection, ...injectedSections]
     .filter((section): section is NavSection => section !== null)
     .filter((section) => section.items.length > 0);
+  // An operator also replaces secret values (a changed mailbox password); a viewer only reads.
+  const operatorSettingsSection: NavSection | null = roles.includes("operator")
+    ? {
+        key: "operator_settings",
+        label: t("shell.nav.settings", "Settings"),
+        items: [{ key: "secrets", to: "/secrets", label: t("shell.nav.secrets", "Secrets"), icon: KeyRound }],
+      }
+    : null;
+  const sidebarSections = sectionsView
+    ? [
+        ...buildProjectSectionNavigation(sectionNavigationQuery.data ?? [], {
+          singleLabel: t("react.user_sections.menu", "Sections"),
+        }),
+        ...(operatorSettingsSection ? [operatorSettingsSection] : []),
+      ]
+    : adminSidebarSections;
   const routeLabels = useMemo(
     () => {
       const sidebarRouteLabels = sidebarSections.flatMap((section) =>

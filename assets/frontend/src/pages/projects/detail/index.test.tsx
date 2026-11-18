@@ -956,6 +956,8 @@ describe("ProjectsDetailPage", () => {
       "Runtime Connections",
       "Datasets",
       "History",
+      // ADR 0075: the admin configures user sections here.
+      "User sections",
     ]);
     expect(screen.queryByRole("tab", { name: "Scheduled jobs" })).not.toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Queue" })).not.toBeInTheDocument();

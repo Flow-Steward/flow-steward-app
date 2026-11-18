@@ -30689,3 +30689,210 @@ msgstr "Workflow routing"
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr "Agent"
+
+msgid "react.user_sections.send_failed"
+msgstr "Could not send"
+
+msgid "react.user_sections.files_too_large"
+msgstr "A file is empty or larger than this installation allows."
+
+msgid "react.user_sections.field_required"
+msgstr "Fill in {field}."
+
+msgid "react.user_sections.nothing_to_send"
+msgstr "Add at least one item to send."
+
+msgid "react.user_sections.new_submission"
+msgstr "New submission"
+
+msgid "react.user_sections.send"
+msgstr "Send"
+
+msgid "react.user_sections.retry_failed"
+msgstr "Retry {count} failed"
+
+msgid "react.user_sections.submission_progress"
+msgstr "{accepted} of {total} accepted"
+
+msgid "react.user_sections.open_run"
+msgstr "Open run"
+
+msgid "react.user_sections.open"
+msgstr "Open"
+
+msgid "react.user_sections.history"
+msgstr "History"
+
+msgid "react.user_sections.history_failed"
+msgstr "History could not be loaded."
+
+msgid "react.user_sections.history_empty"
+msgstr "No runs yet."
+
+msgid "react.user_sections.loading"
+msgstr "Opening the section"
+
+msgid "react.user_sections.not_found"
+msgstr "This section is not available."
+
+msgid "react.user_sections.blocked"
+msgstr "New submissions are paused"
+
+msgid "react.user_sections.not_published"
+msgstr "An administrator has not confirmed this section's real effects yet."
+
+msgid "react.user_sections.unsupported_field"
+msgstr "not supported by the form"
+
+msgid "react.user_sections.field_label"
+msgstr "Label of {field}"
+
+msgid "react.user_sections.field_widget"
+msgstr "Widget of {field}"
+
+msgid "react.user_sections.move_up"
+msgstr "Move up"
+
+msgid "react.user_sections.move_down"
+msgstr "Move down"
+
+msgid "react.user_sections.fields_hint"
+msgstr "Types, required inputs and options come from the workflow contract. To describe a list or an object, edit the contract."
+
+msgid "react.user_sections.column_source"
+msgstr "Source"
+
+msgid "react.user_sections.source_job"
+msgstr "Run"
+
+msgid "react.user_sections.source_input"
+msgstr "Input"
+
+msgid "react.user_sections.source_output"
+msgstr "Result"
+
+msgid "react.user_sections.column_value"
+msgstr "Value"
+
+msgid "react.user_sections.column_label"
+msgstr "Column title"
+
+msgid "react.user_sections.column_format"
+msgstr "Format"
+
+msgid "react.user_sections.remove"
+msgstr "Remove"
+
+msgid "react.user_sections.add_column"
+msgstr "Add column"
+
+msgid "react.user_sections.title"
+msgstr "Title"
+
+msgid "react.user_sections.workflow"
+msgstr "Workflow"
+
+msgid "react.user_sections.description"
+msgstr "Description"
+
+msgid "react.user_sections.menu_order"
+msgstr "Position in the menu"
+
+msgid "react.user_sections.visible"
+msgstr "Shown to operators and viewers"
+
+msgid "react.user_sections.contract_failed"
+msgstr "The workflow contract could not be loaded."
+
+msgid "react.user_sections.form_fields"
+msgstr "Form"
+
+msgid "react.user_sections.columns"
+msgstr "History columns"
+
+msgid "react.user_sections.sending"
+msgstr "Sending"
+
+msgid "react.user_sections.mode"
+msgstr "Mode"
+
+msgid "react.user_sections.mode_foreach"
+msgstr "For each: one run per file or item"
+
+msgid "react.user_sections.mode_bulk"
+msgstr "Bulk: one run with everything"
+
+msgid "react.user_sections.foreach_target"
+msgstr "Split by"
+
+msgid "react.user_sections.preview"
+msgstr "Preview"
+
+msgid "react.user_sections.preview_hint"
+msgstr "This is what operators see. The preview never starts the workflow."
+
+msgid "react.user_sections.acknowledge"
+msgstr "I confirm that sending this form runs the workflow with real effects (for example, writing to connected systems)."
+
+msgid "react.user_sections.new_section"
+msgstr "New section"
+
+msgid "react.user_sections.saved"
+msgstr "Sections saved."
+
+msgid "react.user_sections.save_failed"
+msgstr "Sections could not be saved."
+
+msgid "react.user_sections.loading_editor"
+msgstr "Opening the sections"
+
+msgid "react.user_sections.add_section"
+msgstr "Add section"
+
+msgid "react.user_sections.no_workflows"
+msgstr "Link a workflow to this project first."
+
+msgid "react.user_sections.saved_issues"
+msgstr "This section needs attention"
+
+msgid "react.user_sections.delete_section"
+msgstr "Delete section"
+
+msgid "react.user_sections.open_section"
+msgstr "Open section"
+
+msgid "react.user_sections.empty"
+msgstr "No sections yet. Add one to give operators a form and a history for a workflow."
+
+msgid "react.user_sections.save"
+msgstr "Save sections"
+
+msgid "react.user_sections.loading_menu"
+msgstr "Finding your sections"
+
+msgid "react.user_sections.none_yet"
+msgstr "No sections yet"
+
+msgid "react.user_sections.none_yet_detail"
+msgstr "An administrator has not set up a section for you. Ask them to add one to a project."
+
+msgid "react.user_sections.list_item"
+msgstr "{label} item {index}"
+
+msgid "react.user_sections.add_item"
+msgstr "Add item"
+
+msgid "react.user_sections.add_row"
+msgstr "Add row"
+
+msgid "react.user_sections.choose"
+msgstr "Choose…"
+
+msgid "react.user_sections.files_selected"
+msgstr "{count} selected: {names}"
+
+msgid "react.user_sections.menu"
+msgstr "Sections"
+
+msgid "react.user_sections.tab"
+msgstr "User sections"

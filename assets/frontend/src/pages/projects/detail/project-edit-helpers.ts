@@ -14,7 +14,8 @@ export type ProjectTabKey =
   | "notifications"
   | "connections"
   | "datasets"
-  | "history";
+  | "history"
+  | "user-sections";
 
 export type Entity = Record<string, unknown>;
 export type WorkflowStatusFilter = "all" | "linked" | "available" | "disabled";
@@ -135,7 +136,8 @@ export function normalizeProjectTab(value: unknown): ProjectTabKey {
     candidate === "notifications" ||
     candidate === "connections" ||
     candidate === "datasets" ||
-    candidate === "history"
+    candidate === "history" ||
+    candidate === "user-sections"
   ) {
     return candidate;
   }

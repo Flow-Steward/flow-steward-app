@@ -285,6 +285,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/job_usage_store.py \
     core/infrastructure/db/job_error_store.py \
     core/infrastructure/db/job_queries_store.py \
+    core/infrastructure/db/job_section_values_store.py \
     core/infrastructure/db/job_scope_contract.py \
     core/infrastructure/db/logger_dashboard_rollups_mixin.py \
     core/infrastructure/db/logger_events_dispatch_common.py \
@@ -326,6 +327,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/project_execution_store.py \
     core/infrastructure/db/project_registration_store.py \
     core/infrastructure/db/project_settings_store.py \
+    core/infrastructure/db/project_user_sections_store.py \
     core/infrastructure/db/scheduled_job_lock_store.py \
     core/infrastructure/db/schema_store.py \
     core/infrastructure/db/secret_storage_store.py \

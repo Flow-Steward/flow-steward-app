@@ -31117,3 +31117,210 @@ msgstr "Darbo eigos maršruto parinkimas"
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr "Agentas"
+
+msgid "react.user_sections.send_failed"
+msgstr "Nepavyko išsiųsti"
+
+msgid "react.user_sections.files_too_large"
+msgstr "Failas tuščias arba didesnis, nei leidžia ši sistema."
+
+msgid "react.user_sections.field_required"
+msgstr "Užpildykite: {field}."
+
+msgid "react.user_sections.nothing_to_send"
+msgstr "Pridėkite bent vieną elementą siuntimui."
+
+msgid "react.user_sections.new_submission"
+msgstr "Naujas pateikimas"
+
+msgid "react.user_sections.send"
+msgstr "Siųsti"
+
+msgid "react.user_sections.retry_failed"
+msgstr "Kartoti nepavykusius ({count})"
+
+msgid "react.user_sections.submission_progress"
+msgstr "Priimta {accepted} iš {total}"
+
+msgid "react.user_sections.open_run"
+msgstr "Atidaryti vykdymą"
+
+msgid "react.user_sections.open"
+msgstr "Atidaryti"
+
+msgid "react.user_sections.history"
+msgstr "Istorija"
+
+msgid "react.user_sections.history_failed"
+msgstr "Nepavyko įkelti istorijos."
+
+msgid "react.user_sections.history_empty"
+msgstr "Vykdymų dar nėra."
+
+msgid "react.user_sections.loading"
+msgstr "Atidaroma skiltis"
+
+msgid "react.user_sections.not_found"
+msgstr "Ši skiltis nepasiekiama."
+
+msgid "react.user_sections.blocked"
+msgstr "Nauji pateikimai sustabdyti"
+
+msgid "react.user_sections.not_published"
+msgstr "Administratorius dar nepatvirtino tikrojo šios skilties poveikio."
+
+msgid "react.user_sections.unsupported_field"
+msgstr "forma šio lauko nepalaiko"
+
+msgid "react.user_sections.field_label"
+msgstr "Lauko {field} pavadinimas"
+
+msgid "react.user_sections.field_widget"
+msgstr "Lauko {field} valdiklis"
+
+msgid "react.user_sections.move_up"
+msgstr "Perkelti aukštyn"
+
+msgid "react.user_sections.move_down"
+msgstr "Perkelti žemyn"
+
+msgid "react.user_sections.fields_hint"
+msgstr "Tipai, privalomi įvesties laukai ir parinktys imami iš darbo eigos sutarties. Norėdami aprašyti sąrašą ar objektą, redaguokite sutartį."
+
+msgid "react.user_sections.column_source"
+msgstr "Šaltinis"
+
+msgid "react.user_sections.source_job"
+msgstr "Vykdymas"
+
+msgid "react.user_sections.source_input"
+msgstr "Įvestis"
+
+msgid "react.user_sections.source_output"
+msgstr "Rezultatas"
+
+msgid "react.user_sections.column_value"
+msgstr "Reikšmė"
+
+msgid "react.user_sections.column_label"
+msgstr "Stulpelio pavadinimas"
+
+msgid "react.user_sections.column_format"
+msgstr "Formatas"
+
+msgid "react.user_sections.remove"
+msgstr "Pašalinti"
+
+msgid "react.user_sections.add_column"
+msgstr "Pridėti stulpelį"
+
+msgid "react.user_sections.title"
+msgstr "Pavadinimas"
+
+msgid "react.user_sections.workflow"
+msgstr "Darbo eiga"
+
+msgid "react.user_sections.description"
+msgstr "Aprašymas"
+
+msgid "react.user_sections.menu_order"
+msgstr "Vieta meniu"
+
+msgid "react.user_sections.visible"
+msgstr "Rodoma operatoriams ir peržiūrėtojams"
+
+msgid "react.user_sections.contract_failed"
+msgstr "Nepavyko įkelti darbo eigos sutarties."
+
+msgid "react.user_sections.form_fields"
+msgstr "Forma"
+
+msgid "react.user_sections.columns"
+msgstr "Istorijos stulpeliai"
+
+msgid "react.user_sections.sending"
+msgstr "Siuntimas"
+
+msgid "react.user_sections.mode"
+msgstr "Režimas"
+
+msgid "react.user_sections.mode_foreach"
+msgstr "Kiekvienam: vienas vykdymas kiekvienam failui ar elementui"
+
+msgid "react.user_sections.mode_bulk"
+msgstr "Visiems kartu: vienas vykdymas su viskuo"
+
+msgid "react.user_sections.foreach_target"
+msgstr "Skaidyti pagal"
+
+msgid "react.user_sections.preview"
+msgstr "Peržiūra"
+
+msgid "react.user_sections.preview_hint"
+msgstr "Taip formą mato operatoriai. Peržiūra niekada nepaleidžia darbo eigos."
+
+msgid "react.user_sections.acknowledge"
+msgstr "Patvirtinu, kad šios formos siuntimas paleidžia darbo eigą su tikru poveikiu (pavyzdžiui, įrašo į prijungtas sistemas)."
+
+msgid "react.user_sections.new_section"
+msgstr "Nauja skiltis"
+
+msgid "react.user_sections.saved"
+msgstr "Skiltys išsaugotos."
+
+msgid "react.user_sections.save_failed"
+msgstr "Nepavyko išsaugoti skilčių."
+
+msgid "react.user_sections.loading_editor"
+msgstr "Atidaromos skiltys"
+
+msgid "react.user_sections.add_section"
+msgstr "Pridėti skiltį"
+
+msgid "react.user_sections.no_workflows"
+msgstr "Pirmiausia susiekite darbo eigą su šiuo projektu."
+
+msgid "react.user_sections.saved_issues"
+msgstr "Šiai skilčiai reikia dėmesio"
+
+msgid "react.user_sections.delete_section"
+msgstr "Ištrinti skiltį"
+
+msgid "react.user_sections.open_section"
+msgstr "Atidaryti skiltį"
+
+msgid "react.user_sections.empty"
+msgstr "Skilčių dar nėra. Pridėkite skiltį, kad operatoriai turėtų darbo eigos formą ir istoriją."
+
+msgid "react.user_sections.save"
+msgstr "Išsaugoti skiltis"
+
+msgid "react.user_sections.loading_menu"
+msgstr "Ieškoma jūsų skilčių"
+
+msgid "react.user_sections.none_yet"
+msgstr "Skilčių dar nėra"
+
+msgid "react.user_sections.none_yet_detail"
+msgstr "Administratorius dar nesukūrė jums skilties. Paprašykite jo pridėti ją prie projekto."
+
+msgid "react.user_sections.list_item"
+msgstr "{label}, elementas {index}"
+
+msgid "react.user_sections.add_item"
+msgstr "Pridėti elementą"
+
+msgid "react.user_sections.add_row"
+msgstr "Pridėti eilutę"
+
+msgid "react.user_sections.choose"
+msgstr "Pasirinkite…"
+
+msgid "react.user_sections.files_selected"
+msgstr "Pasirinkta {count}: {names}"
+
+msgid "react.user_sections.menu"
+msgstr "Skiltys"
+
+msgid "react.user_sections.tab"
+msgstr "Naudotojų skiltys"

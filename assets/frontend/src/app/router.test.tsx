@@ -121,14 +121,19 @@ describe("HomeGate", () => {
     }
   });
 
-  it("lands a signed-in user on the Dashboard", () => {
+  it.each([
+    ["admin", "Dashboard rendered"],
+    // ADR 0075: operators and viewers land on their sections.
+    ["operator", "Sections rendered"],
+    ["viewer", "Sections rendered"],
+  ])("lands a signed-in %s on the right page", (role, expected) => {
     mockedUseAuth.mockReturnValue({
       error: null,
       isAuthenticated: true,
       logout: vi.fn(async () => undefined),
       refresh: vi.fn(async () => undefined),
       switchAccount: vi.fn(async () => undefined),
-      session: createSession({ authenticated: true }),
+      session: createSession({ authenticated: true, roles: [role] }),
       status: "authenticated",
     });
 
@@ -137,11 +142,12 @@ describe("HomeGate", () => {
         <Routes>
           <Route element={<HomeGate />} index />
           <Route element={<div>Dashboard rendered</div>} path="/dashboard" />
+          <Route element={<div>Sections rendered</div>} path="/sections" />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Dashboard rendered")).toBeInTheDocument();
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
 });
 

@@ -29627,3 +29627,210 @@ msgstr ""
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr ""
+
+msgid "react.user_sections.send_failed"
+msgstr ""
+
+msgid "react.user_sections.files_too_large"
+msgstr ""
+
+msgid "react.user_sections.field_required"
+msgstr ""
+
+msgid "react.user_sections.nothing_to_send"
+msgstr ""
+
+msgid "react.user_sections.new_submission"
+msgstr ""
+
+msgid "react.user_sections.send"
+msgstr ""
+
+msgid "react.user_sections.retry_failed"
+msgstr ""
+
+msgid "react.user_sections.submission_progress"
+msgstr ""
+
+msgid "react.user_sections.open_run"
+msgstr ""
+
+msgid "react.user_sections.open"
+msgstr ""
+
+msgid "react.user_sections.history"
+msgstr ""
+
+msgid "react.user_sections.history_failed"
+msgstr ""
+
+msgid "react.user_sections.history_empty"
+msgstr ""
+
+msgid "react.user_sections.loading"
+msgstr ""
+
+msgid "react.user_sections.not_found"
+msgstr ""
+
+msgid "react.user_sections.blocked"
+msgstr ""
+
+msgid "react.user_sections.not_published"
+msgstr ""
+
+msgid "react.user_sections.unsupported_field"
+msgstr ""
+
+msgid "react.user_sections.field_label"
+msgstr ""
+
+msgid "react.user_sections.field_widget"
+msgstr ""
+
+msgid "react.user_sections.move_up"
+msgstr ""
+
+msgid "react.user_sections.move_down"
+msgstr ""
+
+msgid "react.user_sections.fields_hint"
+msgstr ""
+
+msgid "react.user_sections.column_source"
+msgstr ""
+
+msgid "react.user_sections.source_job"
+msgstr ""
+
+msgid "react.user_sections.source_input"
+msgstr ""
+
+msgid "react.user_sections.source_output"
+msgstr ""
+
+msgid "react.user_sections.column_value"
+msgstr ""
+
+msgid "react.user_sections.column_label"
+msgstr ""
+
+msgid "react.user_sections.column_format"
+msgstr ""
+
+msgid "react.user_sections.remove"
+msgstr ""
+
+msgid "react.user_sections.add_column"
+msgstr ""
+
+msgid "react.user_sections.title"
+msgstr ""
+
+msgid "react.user_sections.workflow"
+msgstr ""
+
+msgid "react.user_sections.description"
+msgstr ""
+
+msgid "react.user_sections.menu_order"
+msgstr ""
+
+msgid "react.user_sections.visible"
+msgstr ""
+
+msgid "react.user_sections.contract_failed"
+msgstr ""
+
+msgid "react.user_sections.form_fields"
+msgstr ""
+
+msgid "react.user_sections.columns"
+msgstr ""
+
+msgid "react.user_sections.sending"
+msgstr ""
+
+msgid "react.user_sections.mode"
+msgstr ""
+
+msgid "react.user_sections.mode_foreach"
+msgstr ""
+
+msgid "react.user_sections.mode_bulk"
+msgstr ""
+
+msgid "react.user_sections.foreach_target"
+msgstr ""
+
+msgid "react.user_sections.preview"
+msgstr ""
+
+msgid "react.user_sections.preview_hint"
+msgstr ""
+
+msgid "react.user_sections.acknowledge"
+msgstr ""
+
+msgid "react.user_sections.new_section"
+msgstr ""
+
+msgid "react.user_sections.saved"
+msgstr ""
+
+msgid "react.user_sections.save_failed"
+msgstr ""
+
+msgid "react.user_sections.loading_editor"
+msgstr ""
+
+msgid "react.user_sections.add_section"
+msgstr ""
+
+msgid "react.user_sections.no_workflows"
+msgstr ""
+
+msgid "react.user_sections.saved_issues"
+msgstr ""
+
+msgid "react.user_sections.delete_section"
+msgstr ""
+
+msgid "react.user_sections.open_section"
+msgstr ""
+
+msgid "react.user_sections.empty"
+msgstr ""
+
+msgid "react.user_sections.save"
+msgstr ""
+
+msgid "react.user_sections.loading_menu"
+msgstr ""
+
+msgid "react.user_sections.none_yet"
+msgstr ""
+
+msgid "react.user_sections.none_yet_detail"
+msgstr ""
+
+msgid "react.user_sections.list_item"
+msgstr ""
+
+msgid "react.user_sections.add_item"
+msgstr ""
+
+msgid "react.user_sections.add_row"
+msgstr ""
+
+msgid "react.user_sections.choose"
+msgstr ""
+
+msgid "react.user_sections.files_selected"
+msgstr ""
+
+msgid "react.user_sections.menu"
+msgstr ""
+
+msgid "react.user_sections.tab"
+msgstr ""

@@ -30,6 +30,8 @@ const JobsListPage = lazyNamed(() => import("@/pages/jobs/list"), "JobsListPage"
 const MonitoringPage = lazyNamed(() => import("@/pages/monitoring"), "MonitoringPage");
 const ProjectsDetailPage = lazyNamed(() => import("@/pages/projects/detail"), "ProjectsDetailPage");
 const ProjectsListPage = lazyNamed(() => import("@/pages/projects/list"), "ProjectsListPage");
+const ProjectSectionPage = lazyNamed(() => import("@/pages/projects/user-sections"), "ProjectSectionPage");
+const SectionsHomePage = lazyNamed(() => import("@/pages/projects/user-sections/home"), "SectionsHomePage");
 const RegistryAgentsPage = lazyNamed(() => import("@/pages/registry/agents"), "RegistryAgentsPage");
 const RegistryAgentsDetailPage = lazyNamed(
   () => import("@/pages/registry/agents/detail"),
@@ -138,8 +140,10 @@ export function HomeGate() {
     return <Navigate replace to="/bootstrap" />;
   }
 
-  // A signed-in user lands on the Dashboard, the overview built on live data.
-  return <Navigate replace to={auth.isAuthenticated ? "/dashboard" : "/login"} />;
+  if (!auth.isAuthenticated) return <Navigate replace to="/login" />;
+  // An admin lands on the Dashboard; operators and viewers on their sections (ADR 0075).
+  const roles = (auth.session?.user?.roles ?? auth.session?.roles ?? []).map((role) => String(role).toLowerCase());
+  return <Navigate replace to={roles.includes("admin") ? "/dashboard" : "/sections"} />;
 }
 
 function ProtectedLayout() {
@@ -267,6 +271,10 @@ function AppRoutes() {
 
         <Route element={<ProtectedLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="sections" element={<SectionsHomePage />} />
+          {/* ADR 0066 amendment: an operator replaces secret values (a changed
+              mailbox password) without the registry; binding stays the admin's. */}
+          <Route path="secrets" element={<RequireCapability capability="manage_secret_values"><RegistrySecretsPage /></RequireCapability>} />
           <Route path="extensions" element={<RequireCapability capability="administer_platform"><ExtensionsHubPage /></RequireCapability>} />
           <Route path="extensions/:extensionId" element={<ExtensionsHubPage />} />
           <Route path="security" element={<RequireCapability capability="administer_platform"><SettingsSecurityPage /></RequireCapability>} />
@@ -280,6 +288,8 @@ function AppRoutes() {
             <Route index element={<ProjectsListPage />} />
             <Route path="new" element={<ShellNotFound />} />
             <Route path=":projectId" element={<ProjectsDetailPage />} />
+            {/* ADR 0075: where operators and viewers work. */}
+            <Route path=":projectId/sections/:sectionId" element={<ProjectSectionPage />} />
             {/* The Notifications tab is a read-only overview; subscriptions are edited here. */}
             <Route path=":projectId/kb" element={<ShellNotFound />} />
           </Route>

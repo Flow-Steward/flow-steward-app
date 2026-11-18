@@ -6,13 +6,21 @@ export type FrontendCapability =
   | "administer_platform"
   | "create_projects"
   | "mutate_projects"
-  | "read_registry";
+  | "read_registry"
+  | "run_workflows"
+  | "manage_secret_values";
 
+/**
+ * ADR 0066 amendment: an admin configures, an operator does the work, a viewer
+ * reads. These only shape the UI; the server enforces the same split.
+ */
 const CAPABILITY_ROLES: Record<FrontendCapability, ReadonlySet<string>> = {
   administer_platform: new Set(["admin"]),
   create_projects: new Set(["admin"]),
-  mutate_projects: new Set(["admin", "operator"]),
-  read_registry: new Set(["admin", "operator"]),
+  mutate_projects: new Set(["admin"]),
+  read_registry: new Set(["admin"]),
+  run_workflows: new Set(["admin", "operator"]),
+  manage_secret_values: new Set(["admin", "operator"]),
 };
 
 export function hasCapability(

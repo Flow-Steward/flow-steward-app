@@ -51,6 +51,13 @@ export type AppEnvironmentBootstrap = {
   mode?: "development" | "production";
 };
 
+/** Files of a real browser run, under the deployment's attachment policy. 0 = no limit. */
+export type RunUploadLimits = {
+  max_file_bytes: number;
+  max_total_bytes: number;
+  max_files: number;
+};
+
 export type SettingsPageRecord = {
   page_key: string;
   title: string;
@@ -114,6 +121,7 @@ export type AuthSession = {
   settings_pages: SettingsPageRecord[];
   registered_pages: RegisteredPageRecord[];
   shell_navigation: Record<string, ShellNavigationItem[]>;
+  run_upload_limits?: RunUploadLimits;
 };
 
 type AppBootstrapResponse = {
@@ -133,10 +141,23 @@ type AppBootstrapResponse = {
   i18n?: I18nBootstrap;
   feature_flags?: Record<string, boolean>;
   environment?: AppEnvironmentBootstrap;
+  limits?: { run_upload?: unknown };
   settings_pages?: unknown;
   registered_pages?: unknown;
   shell_navigation?: unknown;
 };
+
+function normalizeRunUploadLimits(payload: unknown): RunUploadLimits | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const record = payload as Record<string, unknown>;
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return {
+    max_file_bytes: count(record.max_file_bytes),
+    max_total_bytes: count(record.max_total_bytes),
+    max_files: count(record.max_files),
+  };
+}
 
 const fallbackI18n: I18nBootstrap = {
   locale: "en",
@@ -361,6 +382,7 @@ function toAuthSession(payload: AppBootstrapResponse): AuthSession {
     settings_pages: normalizeSettingsPages(payload.settings_pages),
     registered_pages: normalizeRegisteredPages(payload.registered_pages),
     shell_navigation: normalizeShellNavigation(payload.shell_navigation),
+    run_upload_limits: normalizeRunUploadLimits(payload.limits?.run_upload),
   };
 }
 
