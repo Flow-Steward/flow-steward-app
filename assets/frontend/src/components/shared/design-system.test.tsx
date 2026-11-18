@@ -266,6 +266,15 @@ describe("shared design-system adapters", () => {
     );
   });
 
+  it("centres a toolbar checkbox with the filter controls beside it", () => {
+    expect(settingsStyles).toMatch(
+      /\.fs-table-toolbar\s*>\s*\.fs-checkbox-label\s*\{[^}]*align-items:\s*center;/s,
+    );
+    expect(settingsStyles).toMatch(
+      /\.fs-table-toolbar\s*>\s*\.fs-checkbox-label\s*>\s*\.fs-checkbox-mark\s*\{[^}]*margin-top:\s*0;/s,
+    );
+  });
+
   it("layers Dialog Combobox menus above the modal", () => {
     expect(settingsStyles).toMatch(
       /\.fs-multi-menu-layer\s*\{[^}]*z-index:\s*var\(--fs-z-modal-popup\)/s,
