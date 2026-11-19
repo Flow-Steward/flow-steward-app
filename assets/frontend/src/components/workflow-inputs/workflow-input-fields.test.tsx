@@ -66,7 +66,9 @@ describe("WorkflowInputFields widgets", () => {
     expect(within(frame(container, "body")).getByRole("button", { name: "Preview" })).toBeInTheDocument();
     expect(input("email").type).toBe("email");
     expect(input("site").type).toBe("url");
-    expect(input("amount").type).toBe("number");
+    // A number is typed as the person writes it ("318,50"), not in a browser spinner.
+    expect(input("amount").type).toBe("text");
+    expect(input("amount").inputMode).toBe("decimal");
     expect(input("day").type).toBe("date");
     expect(input("at").type).toBe("datetime-local");
     expect(input("clock").type).toBe("time");
@@ -148,3 +150,35 @@ describe("WorkflowInputFields widgets", () => {
     expect(screen.getByRole("button", { name: "Add row" })).toBeEnabled();
   });
 });
+
+describe("WorkflowInputFields review mode", () => {
+  it("keeps a number as typed in the locale and gives the form the number", () => {
+    let latest: FormValues = {};
+    const { container } = render(<Harness fields={[field("total", "number", "number")]} initial={{ total: 31.85 }} onState={(values) => { latest = values; }} />);
+    const total = frame(container, "total").querySelector("input") as HTMLInputElement;
+    expect(total.value).toBe("31.85");
+    fireEvent.change(total, { target: { value: "318,50" } });
+    expect(total.value).toBe("318,50");
+    expect(latest.total).toBe(318.5);
+    fireEvent.change(total, { target: { value: "318,5О" } });
+    expect(latest.total).toBe("318,5О");
+    fireEvent.change(total, { target: { value: "" } });
+    expect(latest.total).toBe("");
+  });
+
+  it("shows read-only fields disabled and a note under a field", () => {
+    const { container } = render(
+      <WorkflowInputFields
+        fields={[field("supplier", "string", "text"), field("confidence", "number", "number")]}
+        notes={{ supplier: "Was: ACME" }}
+        onChange={() => undefined}
+        readOnlyFields={new Set(["confidence"])}
+        values={{ supplier: "ACME Ltd", confidence: 0.6 }}
+      />,
+    );
+    expect(frame(container, "confidence").querySelector("input")).toBeDisabled();
+    expect(frame(container, "supplier").querySelector("input")).toBeEnabled();
+    expect(within(frame(container, "supplier")).getByText("Was: ACME")).toBeInTheDocument();
+  });
+});
+

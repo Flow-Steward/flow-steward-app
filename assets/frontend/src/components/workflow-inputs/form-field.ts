@@ -77,6 +77,30 @@ export function isEmptyValue(value: unknown): boolean {
   return false;
 }
 
+/**
+ * A number as a person types it in their locale: "318,50" and "318.50" are
+ * 318.5, "1 234,56" and "1,234.56" are 1234.56. Spaces and apostrophes group
+ * digits; with both separators the last one is the decimal mark, a single comma
+ * alone is one too. Anything else (a letter, two decimal marks) is null: the
+ * caller keeps the text and the server names the field.
+ */
+export function parseLocaleNumber(text: string): number | null {
+  let compact = text.trim().replaceAll(/[\s\u00a0\u202f'’]/g, "");
+  if (!compact) return null;
+  const lastComma = compact.lastIndexOf(",");
+  const lastDot = compact.lastIndexOf(".");
+  if (lastComma >= 0 && lastDot >= 0) {
+    const decimal = lastComma > lastDot ? "," : ".";
+    const group = decimal === "," ? "." : ",";
+    compact = compact.replaceAll(group, "").replace(decimal, ".");
+  } else if (lastComma >= 0) {
+    compact = compact.split(",").length === 2 ? compact.replace(",", ".") : compact.replaceAll(",", "");
+  }
+  if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(compact)) return null;
+  const parsed = Number(compact);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /** What an option shows: the admin's label, or the option itself. */
 export function optionLabel(field: Pick<FormFieldView, "option_labels">, option: string): string {
   return field.option_labels?.[option] || option;

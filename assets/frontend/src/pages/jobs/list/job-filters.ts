@@ -1,8 +1,9 @@
 import type { SetURLSearchParams } from "react-router";
 
+import { expandPeriod, type PeriodValue } from "@/lib/time/period";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { jobStatusParams } from "@/pages/jobs/list/api";
-import { jobStatusGroupsFromValues } from "@/pages/jobs/status-groups";
+import { jobStatusesOfGroups, jobStatusGroupsFromValues } from "@/pages/jobs/status-groups";
 
 /**
  * The status filter is a comma list of status group keys; the URL repeats
@@ -45,5 +46,32 @@ export function jobFiltersFromUrl(searchParams: URLSearchParams, setSearchParams
     setHideAcknowledged: (value: boolean) => setJobFilter("hide_acknowledged", value ? "1" : ""),
     workflowFilter: urlWorkflowFilter,
     setWorkflowFilter: (value: string) => setJobFilter("workflow_id", value),
+  };
+}
+
+/** The list's period in the URL: a preset, a custom pair of days, or all runs. */
+export function periodFromUrl(params: URLSearchParams): PeriodValue {
+  const preset = params.get("period");
+  if (preset === "today" || preset === "last7" || preset === "last30") return { kind: "preset", preset };
+  const from = params.get("from_date") || "";
+  const to = params.get("to_date") || "";
+  const validDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day)
+    && !Number.isNaN(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day;
+  return validDay(from) && validDay(to) && from <= to ? { kind: "custom", from, to } : { kind: "all" };
+}
+
+/**
+ * What the list asks the server for a URL selection, as the list itself does:
+ * the status groups as stored statuses, hidden acknowledged runs, the search and
+ * the period as whole local days (`today` in the person's time zone).
+ */
+export function jobsListRequestFromUrl(params: URLSearchParams, today: string) {
+  const { fromDate, toDate } = expandPeriod(periodFromUrl(params), today);
+  return {
+    status: jobStatusesOfGroups(jobStatusParams(normalizeStatusList(params.getAll("status")))).join(","),
+    hideAcknowledged: hideAcknowledgedFromUrl(params.get("hide_acknowledged")),
+    search: (params.get("search") || "").trim(),
+    fromDate,
+    toDate,
   };
 }

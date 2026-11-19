@@ -61,10 +61,20 @@ export function jobStatusParams(status: string): string[] {
   return status.split(",").map((value) => value.trim()).filter(Boolean);
 }
 
-export async function fetchJobsList(filters: JobsListFilters) {
+/** Where one job is in a jobs list and its neighbours there (ADR 0075 queue). */
+export type JobsQueuePosition = {
+  job_id: string;
+  /** False once the job has left the list's filter, for example after its decision. */
+  in_list: boolean;
+  position: number | null;
+  total: number;
+  previous_job_id: string | null;
+  next_job_id: string | null;
+};
+
+/** The list's filters as query parameters, shared by a page and a queue position. */
+function jobsListParams(filters: Omit<JobsListFilters, "page" | "perPage">): URLSearchParams {
   const params = new URLSearchParams();
-  params.set("page", stringFromUnknownValue(filters.page));
-  params.set("per_page", stringFromUnknownValue(filters.perPage));
   jobStatusParams(filters.status).forEach((status) => params.append("status", status));
   if (filters.hideAcknowledged) {
     params.set("hide_acknowledged", "true");
@@ -92,6 +102,24 @@ export async function fetchJobsList(filters: JobsListFilters) {
   }
   if (filters.fromDate) params.set("from_date", filters.fromDate);
   if (filters.toDate) params.set("to_date", filters.toDate);
+  return params;
+}
+
+/**
+ * The position of a job in the list with these filters and the jobs before and
+ * after it, found by the job's sort key: a job just decided still points at
+ * the right next one.
+ */
+export function fetchJobsQueuePosition(filters: Omit<JobsListFilters, "page" | "perPage">, jobId: string) {
+  const params = jobsListParams(filters);
+  params.set("around", jobId);
+  return fetchJson<JobsQueuePosition>(`/api/v2/jobs?${params.toString()}`);
+}
+
+export async function fetchJobsList(filters: JobsListFilters) {
+  const params = jobsListParams(filters);
+  params.set("page", stringFromUnknownValue(filters.page));
+  params.set("per_page", stringFromUnknownValue(filters.perPage));
   const payload = await fetchJson<JobsListResponse>(`/api/v2/jobs?${params.toString()}`);
   // Preserve raw identity provenance before normalizeRow canonicalizes both aliases.
   // Only exact Test Run history is fail-closed; ordinary Jobs lists retain their

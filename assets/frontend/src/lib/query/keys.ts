@@ -14,6 +14,8 @@ export const queryKeys = {
   /** ADR 0075: the operator and viewer menu, and one (project, workflow) section. */
   operatorSections: ["operator", "sections"] as const,
   operatorSection: (projectId: string, workflowId: string) => ["operator", "sections", projectId, workflowId] as const,
+  operatorJobReview: (jobId: string) => ["operator", "review", jobId] as const,
+  operatorQueuePosition: (jobId: string, list: string) => ["operator", "queue", jobId, list] as const,
   eventsList: (params: {
     workflowId: string;
     eventFamily: string;

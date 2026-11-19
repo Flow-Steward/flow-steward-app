@@ -12,6 +12,7 @@ import {
   asRecord,
   isFileField,
   optionLabel,
+  parseLocaleNumber,
   shownFields,
   type FormFieldView,
   type FormFiles,
@@ -46,10 +47,17 @@ function textOf(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
-function numberOrEmpty(text: string): number | "" {
+/** A typed number: "" when empty, the number in the person's locale, else the text as typed. */
+function numberFromText(text: string): number | string {
   if (!text.trim()) return "";
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : "";
+  return parseLocaleNumber(text) ?? text;
+}
+
+/** Whether the text being typed still means this value (so the draft is kept as typed). */
+function draftMeans(draft: string, value: unknown): boolean {
+  if (value === "" || value === null || value === undefined) return !draft.trim();
+  if (typeof value === "number") return parseLocaleNumber(draft) === value;
+  return draft === value;
 }
 
 function fileSize(bytes: number): string {
@@ -134,7 +142,14 @@ function TextControl(props: ControlProps) {
   );
 }
 
+/**
+ * A number typed the way the person writes it: "318,50" is 318.5. The value
+ * is a JSON number; text that is not a number stays as typed, so the form or
+ * the server can say so at the field instead of dropping it.
+ */
 function NumberControl({ field, value, onChange, disabled, labelId, ariaLabel, describedBy, invalid }: ControlProps) {
+  const [draft, setDraft] = useState(() => textOf(value));
+  const shown = draftMeans(draft, value) ? draft : textOf(value);
   return (
     <Affixed field={field}>
       {(className) => (
@@ -146,10 +161,13 @@ function NumberControl({ field, value, onChange, disabled, labelId, ariaLabel, d
           className={className}
           disabled={disabled}
           inputMode="decimal"
-          onChange={(event) => onChange(numberOrEmpty(event.target.value))}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            onChange(numberFromText(event.target.value));
+          }}
           placeholder={field.placeholder || undefined}
-          type="number"
-          value={textOf(value)}
+          type="text"
+          value={shown}
         />
       )}
     </Affixed>
@@ -436,16 +454,20 @@ function FileControl({
 function FieldFrame({
   field,
   error,
+  note,
   children,
 }: Readonly<{
   field: FormFieldView;
   error?: string;
+  note?: ReactNode;
   children: (ids: { labelId: string; describedBy?: string; invalid: boolean }) => ReactNode;
 }>) {
   const labelId = useId();
   const helpId = useId();
+  const noteId = useId();
   const errorId = useId();
-  const describedBy = [field.instructions ? helpId : "", error ? errorId : ""].filter(Boolean).join(" ") || undefined;
+  const describedBy =
+    [field.instructions ? helpId : "", note ? noteId : "", error ? errorId : ""].filter(Boolean).join(" ") || undefined;
   const width = typeof field.width === "number" && field.width > 0 && field.width < 100 ? field.width : null;
   const style = width ? ({ "--fs-workflow-field-width": `${width}%` } as CSSProperties) : undefined;
   return (
@@ -459,6 +481,11 @@ function FieldFrame({
         <p className="fs-field-helper" id={helpId}>
           {field.instructions}
         </p>
+      ) : null}
+      {note ? (
+        <div className="fs-field-helper fs-workflow-field-note" id={noteId}>
+          {note}
+        </div>
       ) : null}
       {error ? (
         <p className="fs-field-helper error" id={errorId}>
@@ -485,6 +512,8 @@ export function WorkflowInputFields({
   onFiles,
   multipleFiles,
   errors,
+  notes,
+  readOnlyFields,
 }: Readonly<{
   fields: readonly FormFieldView[];
   values: InputValues;
@@ -496,18 +525,23 @@ export function WorkflowInputFields({
   multipleFiles?: ReadonlySet<string>;
   /** A message under a field, by field name. */
   errors?: Readonly<Record<string, string>>;
+  /** A remark under a field (for example what it held before an edit), by field name. */
+  notes?: Readonly<Record<string, ReactNode>>;
+  /** Fields shown but not editable (a review's read-only fields). */
+  readOnlyFields?: ReadonlySet<string>;
 }>) {
   return (
     <div className="fs-workflow-form">
       {shownFields(fields, values, files).map((field) => {
         if (isFileField(field) && !onFiles) return null;
+        const fieldDisabled = disabled || Boolean(readOnlyFields?.has(field.name));
         return (
-          <FieldFrame error={errors?.[field.name]} field={field} key={field.name}>
+          <FieldFrame error={errors?.[field.name]} field={field} key={field.name} note={notes?.[field.name]}>
             {({ labelId, describedBy, invalid }) =>
               isFileField(field) ? (
                 <FileControl
                   describedBy={describedBy}
-                  disabled={disabled}
+                  disabled={fieldDisabled}
                   field={field}
                   files={files?.[field.name] ?? []}
                   labelId={labelId}
@@ -517,7 +551,7 @@ export function WorkflowInputFields({
               ) : (
                 <FieldInput
                   describedBy={describedBy}
-                  disabled={disabled}
+                  disabled={fieldDisabled}
                   field={field}
                   invalid={invalid}
                   labelId={labelId}

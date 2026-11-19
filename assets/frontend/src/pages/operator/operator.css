@@ -26,3 +26,72 @@
   gap: var(--fs-space-075);
   min-width: 12rem;
 }
+
+/* The review queue (ADR 0075): position and steps, then the original beside the fields. */
+.fs-operator-queue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  margin-bottom: var(--fs-space-100);
+}
+
+.fs-operator-queue-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+}
+
+.fs-operator-queue-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  font-variant-numeric: tabular-nums;
+}
+
+.fs-operator-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--fs-space-150);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .fs-operator-review {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.fs-operator-original {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+.fs-operator-original-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+}
+
+.fs-operator-original-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+}
+
+.fs-operator-original-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+}
+
+.fs-operator-corrected {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-050);
+}
+

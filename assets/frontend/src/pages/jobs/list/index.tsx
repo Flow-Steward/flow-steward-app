@@ -14,7 +14,7 @@ import { fetchJson } from "@/lib/http/client";
 import { readStoredWorkspaceId } from "@/lib/utils/workspace-selection";
 import { fetchJobsList, jobStatusParams, trashJob, type JobListItem, type JobsListResponse } from "@/pages/jobs/list/api";
 import { PeriodFilter } from "@/components/shared/period-filter";
-import { expandPeriod, type PeriodValue } from "@/lib/time/period";
+import { expandPeriod } from "@/lib/time/period";
 import { todayIn } from "@/lib/time/calendar-days";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { fetchWorkflows } from "@/pages/workflows/shared/api";
@@ -37,7 +37,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { JOB_SKELETON_ROWS, JOB_SKELETON_WIDTHS } from "@/pages/jobs/list/job-skeleton";
-import { jobFiltersFromUrl, normalizeStatusList } from "@/pages/jobs/list/job-filters";
+import { jobFiltersFromUrl, normalizeStatusList, periodFromUrl } from "@/pages/jobs/list/job-filters";
 import {
   AdvancedTableFilters,
   BulkActionBar,
@@ -128,16 +128,6 @@ function normalizeJobRows(payload: unknown): JobListItem[] {
 
 function normalizeStatus(value: unknown): string {
   return firstStringFromUnknownValue([value, ""]).trim().toLowerCase();
-}
-
-function periodFromUrl(params: URLSearchParams): PeriodValue {
-  const preset = params.get("period");
-  if (preset === "today" || preset === "last7" || preset === "last30") return { kind: "preset", preset };
-  const from = params.get("from_date") || "";
-  const to = params.get("to_date") || "";
-  const validDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day)
-    && !Number.isNaN(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day;
-  return validDay(from) && validDay(to) && from <= to ? { kind: "custom", from, to } : { kind: "all" };
 }
 
 function normalizeWorkflowId(job: Record<string, unknown>): string {
@@ -255,6 +245,11 @@ export type JobsListScope = {
   filterFields?: DsFilterField[];
   /** The `filters` query value for the current panel values, or null when none applies. */
   filtersParam?: (values: Readonly<Record<string, string>>) => Record<string, unknown> | null;
+  /**
+   * Where a row opens, with the list it came from (its URL filters and page), so
+   * the job page can step through the same list and lead back to it.
+   */
+  jobPath?: (jobId: string, list: Readonly<{ params: URLSearchParams; page: number; perPage: number }>) => string;
 };
 
 const NO_FILTER_FIELDS: DsFilterField[] = [];
@@ -298,8 +293,14 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
     workflows: DsOption[];
   }>({ projects: [], statuses: [], workflows: [] });
   const [displayRows, setDisplayRows] = useState<Record<string, unknown>[]>([]);
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(25);
+  // A section reopens on the page its job page led back to.
+  const [page, setPage] = useState(() => (scope ? Math.max(1, Math.trunc(Number(searchParams.get("page"))) || 1) : 1));
+  const [perPage, setPerPage] = useState(() => {
+    const requested = scope ? Number(searchParams.get("per_page")) : 0;
+    return [10, 25, 50].includes(requested) ? requested : 25;
+  });
+  const jobPathOf = (jobId: string) =>
+    scope?.jobPath ? scope.jobPath(jobId, { params: searchParams, page, perPage }) : `/jobs/${jobId}`;
   const [totalRows, setTotalRows] = useState(0);
   // False until the first answer (or its fallback) lands: until then an empty
   // body means "not yet", never "no jobs".
@@ -769,7 +770,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
       return;
     }
     if (actionId === "view") {
-      ignoreAsyncResult(navigate(`/jobs/${jobId}`));
+      ignoreAsyncResult(navigate(jobPathOf(jobId)));
       return;
     }
     if (actionId === "cancel") {
@@ -1137,7 +1138,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
           onRowClick={(row) => {
             const jobId = normalizeEntityId(row.job_id || row.id);
             if (jobId) {
-              ignoreAsyncResult(navigate(`/jobs/${jobId}`));
+              ignoreAsyncResult(navigate(jobPathOf(jobId)));
             }
           }}
           rowKey={(row) => normalizeEntityId(row.job_id || row.id)}

@@ -4,6 +4,7 @@ import {
   conditionRuleMet,
   formProblems,
   initialFormValues,
+  parseLocaleNumber,
   shownFields,
   type FormFieldView,
 } from "./form-field";
@@ -123,3 +124,23 @@ describe("client checks", () => {
     });
   });
 });
+
+describe("parseLocaleNumber", () => {
+  it.each([
+    ["318,50", 318.5],
+    ["318.50", 318.5],
+    ["1 234,56", 1234.56],
+    ["1\u00a0234,56", 1234.56],
+    ["1.234,56", 1234.56],
+    ["1,234.56", 1234.56],
+    ["-2", -2],
+    [" 7 ", 7],
+  ])("reads %s as %s", (text, expected) => {
+    expect(parseLocaleNumber(text)).toBe(expected);
+  });
+
+  it.each(["", "318,5О", "12abc", "1.2.3", "1,2,3.4.5"])("refuses %j", (text) => {
+    expect(parseLocaleNumber(text)).toBeNull();
+  });
+});
+

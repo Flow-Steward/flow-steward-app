@@ -32,6 +32,7 @@ const ProjectsDetailPage = lazyNamed(() => import("@/pages/projects/detail"), "P
 const ProjectsListPage = lazyNamed(() => import("@/pages/projects/list"), "ProjectsListPage");
 const OperatorSectionPage = lazyNamed(() => import("@/pages/operator/section-page"), "OperatorSectionPage");
 const OperatorSectionsHomePage = lazyNamed(() => import("@/pages/operator/home"), "OperatorSectionsHomePage");
+const OperatorJobPage = lazyNamed(() => import("@/pages/operator/job-page"), "OperatorJobPage");
 const RegistryAgentsPage = lazyNamed(() => import("@/pages/registry/agents"), "RegistryAgentsPage");
 const RegistryAgentsDetailPage = lazyNamed(
   () => import("@/pages/registry/agents/detail"),
@@ -290,6 +291,8 @@ function AppRoutes() {
             <Route path=":projectId" element={<ProjectsDetailPage />} />
             {/* ADR 0075: a published workflow in one project, where operators and viewers work. */}
             <Route path=":projectId/workflows/:workflowId/work" element={<OperatorSectionPage />} />
+            {/* A job of the section, with the list it was opened from (the review queue). */}
+            <Route path=":projectId/workflows/:workflowId/work/jobs/:jobId" element={<OperatorJobPage />} />
             {/* The Notifications tab is a read-only overview; subscriptions are edited here. */}
             <Route path=":projectId/kb" element={<ShellNotFound />} />
           </Route>

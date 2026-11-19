@@ -14,6 +14,7 @@ import { JobsListPage, type JobsListScope } from "@/pages/jobs/list";
 import { fetchOperatorSection } from "./api";
 import { hiddenColumnsKey, readHiddenColumns, writeHiddenColumns } from "./column-visibility";
 import { OperatorCell } from "./section-cell";
+import { operatorJobPath, rowContext } from "./queue";
 import { operatorFilterFields, operatorFiltersParam } from "./section-filters";
 import { OperatorSubmitDialog } from "./submit-dialog";
 import type { OperatorSectionDetail } from "./types";
@@ -139,6 +140,9 @@ function SectionList({ section }: Readonly<{ section: OperatorSectionDetail }>) 
     hiddenColumns: hiddenSet,
     filterFields,
     filtersParam: (values) => operatorFiltersParam(operator.filters ?? [], values),
+    // A row opens its job with this list in the address: the review queue.
+    jobPath: (jobId, list) =>
+      operatorJobPath(section.project_id, section.workflow_id, jobId, rowContext(list.params, list.page, list.perPage)),
   };
 
   return (

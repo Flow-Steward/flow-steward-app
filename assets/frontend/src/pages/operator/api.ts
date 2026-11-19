@@ -1,5 +1,6 @@
 import { fetchJson } from "@/lib/http/client";
 
+import type { JobReview } from "./review-model";
 import type { OperatorSectionDetail, OperatorSectionItem } from "./types";
 
 /** The caller's menu: published workflows per project, sorted by project then title. */
@@ -13,4 +14,12 @@ export function fetchOperatorSection(projectId: string, workflowId: string): Pro
   return fetchJson<OperatorSectionDetail>(
     `/api/v2/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/section`,
   );
+}
+
+/**
+ * The review a job waits for, here or down its Invoke chain, read with the
+ * rights on the job that holds it: without read access only that it waits.
+ */
+export function fetchJobReview(jobId: string): Promise<JobReview> {
+  return fetchJson<JobReview>(`/api/v2/jobs/${encodeURIComponent(jobId)}/review`);
 }
