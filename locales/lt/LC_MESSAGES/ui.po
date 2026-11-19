@@ -9398,6 +9398,9 @@ msgstr "ID:"
 msgid "react.registry.identifier"
 msgstr "Identifikatorius"
 
+msgid "react.registry.identifier_follows_display_name"
+msgstr "Užpildoma pagal rodomą pavadinimą; galite pakeisti. Mažosios raidės, skaičiai ir pabraukimai, pradedant raide."
+
 msgid "react.registry.implementation_contract"
 msgstr "Įgyvendinimo sutartis"
 
@@ -11414,6 +11417,9 @@ msgstr "{value0} jungtys"
 
 msgid "react.registry.value0_detail"
 msgstr "{value0} informacija"
+
+msgid "react.registry.value0_id"
+msgstr "{value0} ID"
 
 msgid "react.registry.value0_inputs"
 msgstr "{value0} įvestys"

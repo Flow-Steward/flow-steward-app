@@ -3,20 +3,10 @@ import { useState } from "react";
 
 import { fetchJson } from "@/lib/http/client";
 import { registryConflictFromError, type RegistryConflict } from "@/pages/registry/shared/registry-conflict";
+import { identifierFromName } from "@/lib/utils/identifier-from-name";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 export const WORKFLOW_ID_PATTERN = /^[a-z][a-z0-9_]*$/;
-/**
- * A Workflow ID from a display name: "Order Sync (EU)" reads "order_sync_eu".
- * Letters outside a-z are dropped, so a name in another script yields "".
- */
-export function workflowIdFromName(name: string): string {
-  const words = name.normalize("NFKD").toLowerCase().split(/[^a-z0-9]+/u).filter(Boolean);
-  const slug = words.join("_").replace(/^[\d_]+/u, "");
-  let end = Math.min(slug.length, 64);
-  while (end > 0 && slug[end - 1] === "_") end -= 1;
-  return slug.slice(0, end);
-}
 
 export const WORKFLOW_ID_RULE =
   "Workflow ID must start with a lowercase letter and use only lowercase letters, numbers, and underscores.";
@@ -106,7 +96,7 @@ export function useCreateWorkflowForm(projectId: string) {
     setDisplayName: (value: string) => {
       setDisplayName(value);
       setNameInvalid(false);
-      if (!idEdited) setWorkflowId(workflowIdFromName(value));
+      if (!idEdited) setWorkflowId(identifierFromName(value));
       if (notice) setNotice("");
       setConflict(null);
     },

@@ -92,6 +92,8 @@ function requireCategory(value: string, t: I18nContextValue["t"]) {
 }
 
 function buildAgentPayload(basePayload: RegistryEntity, context: CreatePayloadContext, t: I18nContextValue["t"] = fallbackContext.t): RegistryEntity {
+  // Checked in field order: the display name comes first and prefills the ID.
+  const displayName = requireDisplayName(context.createForm.display_name, t);
   const category = requireCategory(context.category, t);
   const resolvedSystemPrompt = normalizeString(context.agentSystemPrompt);
   if (!resolvedSystemPrompt) throw new Error(t("react.registry.system_prompt_is_required", "System prompt is required."));
@@ -103,7 +105,7 @@ function buildAgentPayload(basePayload: RegistryEntity, context: CreatePayloadCo
   return {
     ...basePayload,
     agent_id: resolvedAgentId,
-    display_name: normalizeString(context.createForm.display_name) || resolvedAgentId,
+    display_name: displayName,
     description: normalizeString(context.createForm.description),
     category,
     prompts: { system: resolvedSystemPrompt, skill_prompts: {}, context_template: "" },
@@ -126,11 +128,12 @@ function buildAgentPayload(basePayload: RegistryEntity, context: CreatePayloadCo
 }
 
 function buildToolPayload(basePayload: RegistryEntity, context: CreatePayloadContext, t: I18nContextValue["t"] = fallbackContext.t): RegistryEntity {
+  const displayName = requireDisplayName(context.createForm.display_name, t);
   const resolvedToolId = requireDottedIdentifier(context.createForm.identifier, "Tool ID", t);
   return {
     ...basePayload,
     tool_id: resolvedToolId,
-    display_name: requireDisplayName(context.createForm.display_name, t),
+    display_name: displayName,
     category: requireCategory(context.category, t),
     prompt: normalizeString(context.toolPrompt),
     implementation: { type: normalizeString(context.toolImplementationType) || "internal" },
@@ -140,11 +143,12 @@ function buildToolPayload(basePayload: RegistryEntity, context: CreatePayloadCon
 }
 
 function buildSkillPayload(basePayload: RegistryEntity, context: CreatePayloadContext, t: I18nContextValue["t"] = fallbackContext.t): RegistryEntity {
+  const displayName = requireDisplayName(context.createForm.display_name, t);
   const resolvedSkillId = requireDottedIdentifier(context.createForm.identifier, "Skill ID", t);
   return {
     ...basePayload,
     skill_id: resolvedSkillId,
-    display_name: requireDisplayName(context.createForm.display_name, t),
+    display_name: displayName,
     category: requireCategory(context.category, t),
     instructions: parseLines(context.skillInstructions),
     enabled: Boolean(context.createForm.enabled),
