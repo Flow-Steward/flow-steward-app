@@ -94,13 +94,18 @@ def _escape_like(text: str) -> str:
 def _status_filter_sql(
     statuses: Sequence[str], *, review_chain_depth: Any = None
 ) -> tuple[str, list[Any]]:
-    """Stored statuses (any match), with "awaiting review" read down the Invoke chain."""
-    stored = [item for item in statuses if item != AWAITING_REVIEW_STATUS]
+    """Stored statuses (any match), with "awaiting review" read down the Invoke chain.
+
+    The derived "acknowledged" is an alternative too, as in the plain status filter.
+    """
+    stored = [item for item in statuses if item not in {AWAITING_REVIEW_STATUS, "acknowledged"}]
     parts: list[str] = []
     params: list[Any] = []
     if stored:
         parts.append("LOWER(COALESCE(j.status, '')) = ANY(%s)")
         params.append(stored)
+    if "acknowledged" in statuses:
+        parts.append(f"({_ACKNOWLEDGED_STATUS_FILTER} AND j.acknowledged_at IS NOT NULL)")
     if AWAITING_REVIEW_STATUS in statuses:
         predicate, predicate_params = awaiting_review_predicate(
             int(review_chain_depth or DEFAULT_REVIEW_CHAIN_DEPTH)

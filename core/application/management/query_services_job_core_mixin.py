@@ -55,6 +55,24 @@ def _store_value_filters(items: Sequence[Any]) -> list[dict[str, Any]]:
     return specs
 
 
+def _review_status_filter(statuses: Sequence[str] | None) -> dict[str, Any] | None:
+    """The list's status filter as one store predicate when it holds "awaiting review".
+
+    The statuses stay alternatives (any match); "awaiting review" matches a job
+    waiting for approval itself or anywhere down its Invoke chain.
+    """
+    if not statuses or STATUS_AWAITING_REVIEW not in statuses:
+        return None
+    return {
+        "id": "status",
+        "source": "job",
+        "key": "status",
+        "type": "choice_multi",
+        "value": tuple(statuses),
+        "review_chain_depth": max(1, invoke_chain_max_depth()),
+    }
+
+
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
     """Normalize a jobs status filter: one value, a list, or comma lists, deduplicated."""
     raw = (status,) if isinstance(status, str) else tuple(status or ())
@@ -548,6 +566,11 @@ class JobQueryServiceCoreMixin:
         # the store pages or counts, so `stuck` also lists `orphaned` runs.
         normalized_status = job_status_filter_statuses(normalized_statuses) or None
         echoed_status = ",".join(normalized_statuses) or None
+        # "Awaiting review" (ADR 0075, the operator queue) is no stored status: with
+        # it the status filter becomes one predicate that reads the Invoke chain.
+        review_status_filter = _review_status_filter(normalized_status)
+        if review_status_filter is not None:
+            normalized_status = None
         normalized_workflow_id = str(workflow_id or "").strip() or None
         normalized_search = " ".join(str(search or "").split()) or None
         if (
@@ -594,6 +617,8 @@ class JobQueryServiceCoreMixin:
                 filters["exclude_task_source"] = "workflow_test_run"
                 if operator[1]:
                     filters["value_filters"] = _store_value_filters(operator[1])
+            if review_status_filter is not None:
+                filters["value_filters"] = [*filters.get("value_filters", []), review_status_filter]
             if normalized_search:
                 filters["search"] = normalized_search
             if hide_acknowledged:

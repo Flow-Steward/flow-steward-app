@@ -264,3 +264,19 @@ def test_a_job_of_another_workflow_has_no_place_in_the_list(conn, project) -> No
 
     assert _around(conn, project, other) is None
     assert _around(conn, project, "not-a-uuid") is None
+
+
+def test_a_section_without_configured_filters_finds_the_deep_review_by_status(
+    conn, project
+) -> None:
+    """The built-in status filter: the list's own status value, no admin setup."""
+    from core.application.management.query_services_job_core_mixin import _review_status_filter
+
+    chain = _chain(conn, project)
+    failed = _job(conn, project, status="failed", minutes_ago=2)
+    spec = _review_status_filter(("awaiting_review", "failed"))
+    assert spec is not None
+
+    listed = _ids(conn, project, value_filters=[spec])
+
+    assert listed == [failed, chain["a"]]

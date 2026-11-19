@@ -321,3 +321,48 @@ def test_the_section_job_itself_needs_read_access():
 
     with pytest.raises(ServiceForbiddenError):
         _approvals().get_review("a", scope=_person(CHILD_WORKFLOW), can_decide=True)
+
+
+# --- The built-in status filter: "awaiting review" without admin setup -------------
+
+
+def test_the_built_in_status_filter_takes_awaiting_review_without_a_configured_filter(
+    monkeypatch, request
+):
+    from core.application.management import query_services_job_core_mixin as mixin
+    from tests.unit.test_operator_job_list import COLUMNS, _workflow_row
+
+    monkeypatch.setattr(mixin, "invoke_chain_max_depth", lambda: 6)
+    request.getfixturevalue("_registry")[WORKFLOW] = _workflow_row(
+        list={"columns": COLUMNS, "filters": []}
+    )
+    bl = _bl()
+
+    _list(bl, status=["awaiting_review", "failed"])
+
+    for call in (bl.list_jobs_for_attention, bl.count_jobs_for_attention):
+        kwargs = call.call_args.kwargs
+        assert kwargs["status"] is None, "no stored status alone: one predicate reads the chain"
+        (spec,) = kwargs["value_filters"]
+        assert spec["source"] == "job" and spec["key"] == "status"
+        assert "awaiting_review" in spec["value"] and "failed" in spec["value"]
+        assert spec["review_chain_depth"] == 6
+
+
+def test_a_plain_status_filter_stays_a_status_filter():
+    bl = _bl()
+
+    _list(bl, status=["failed"])
+
+    kwargs = bl.list_jobs_for_attention.call_args.kwargs
+    assert kwargs["status"] and "value_filters" not in kwargs
+
+
+def test_awaiting_review_combines_with_acknowledged_as_alternatives():
+    from core.infrastructure.db.job_queries_store import _status_filter_sql
+
+    sql, params = _status_filter_sql(["acknowledged", "awaiting_review"], review_chain_depth=3)
+
+    assert "j.acknowledged_at IS NOT NULL" in sql
+    assert " OR " in sql
+    assert params == [3]
