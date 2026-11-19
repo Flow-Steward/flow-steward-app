@@ -23,7 +23,10 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 SKILLS_DIR = ROOT / "docs" / "agent-skills"
 SYNC_SCRIPT = ROOT / "infra" / "tooling" / "agent-skills" / "sync_packages.py"
-ICON_SOURCE = ROOT / "assets" / "frontend" / "public" / "favicon.svg"
+# The single source names the favicon, so a move of the favicon is one edit.
+ICON_SOURCE = (
+    ROOT / json.loads((SKILLS_DIR / "packages.json").read_text(encoding="utf-8"))["icon_source"]
+)
 
 SHARED = {"flow-steward-report-issue"}
 PACKAGE_SKILLS = {

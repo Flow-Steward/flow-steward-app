@@ -106,6 +106,7 @@ RELEASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 default=False,
                 option_name="--skip-db-backup",
                 description="Accept the risk of upgrading without creating a database backup.",
+                examples=("true",),
             ),
             FieldSpec(
                 key="timeout_seconds",

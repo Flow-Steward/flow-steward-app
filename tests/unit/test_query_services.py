@@ -5505,7 +5505,8 @@ class TestEventQueryEndpoints:
         assert api_resp.status_code == 200
         assert rest_command_service.start_mcp_workflow_run.call_count == 2
         api_body = api_resp.json()
-        assert mcp_body == api_body
+        # MCP adds the run page an AI app can hand the user; the rest is the same.
+        assert mcp_body == {**api_body, "job_url": "/jobs/77"}
         assert api_body["job_id"] == "77"
         assert delegated_requests[0]["path"] == "/api/projects"
         assert delegated_requests[1]["path"] == "/api/workflow-runs"

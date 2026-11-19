@@ -153,6 +153,7 @@ DATABASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 default=False,
                 option_name="--skip-db-backup",
                 description="Accept database migration without a backup; maintenance and writer checks still apply.",
+                examples=("true",),
             ),
             _ALLOW_UNLABELED_SESSIONS_FIELD,
         ),
