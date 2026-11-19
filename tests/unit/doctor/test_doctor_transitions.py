@@ -28,6 +28,10 @@ class _Gateway:
     def __init__(self, *, health_error: str = "") -> None:
         self.health_error = health_error
 
+    def unhealthy_services(self, _config, *, log) -> list[str]:
+
+        return []
+
     def stopped_services(self, _config, *, log) -> list[str]:
         return []
 

@@ -212,9 +212,10 @@ class DatabaseToolingService:
 _STOP_PREVIOUS_RELEASE = (
     "Stop the running release's processes; Postgres, RabbitMQ and storage keep running. "
     "Enable maintenance with ./flow-steward maintenance enable --confirm and rerun "
-    "./flow-steward database upgrade --maintenance-confirmed --confirm: on Scalable it "
-    "then stops fs-app, fs-worker, control-plane and fs-mcp itself and leaves them "
-    "stopped until ./install.sh or the release upgrade starts the new release."
+    "./flow-steward database upgrade --maintenance-confirmed --confirm: it then stops "
+    "those processes itself (compact-runtime on Compact; fs-app, fs-worker, "
+    "control-plane and fs-mcp on Scalable) and leaves them stopped until "
+    "./install.sh or the release upgrade starts the new release."
 )
 _BLOCKING_REMEDIATION = {
     "runtime_sessions": _STOP_PREVIOUS_RELEASE,

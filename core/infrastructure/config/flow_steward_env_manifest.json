@@ -1867,6 +1867,22 @@
       "notes": "Internal Compact operator endpoint; fs-cli uses the Compose service route while PID 1 uses loopback."
     },
     {
+      "name": "FS_COMPACT_INGRESS_ADDRESS",
+      "groups": [
+        "compact_runtime"
+      ],
+      "environments": [
+        "production"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "runtime",
+      "notes": "Internal Compact address of the bundled Traefik that fs-cli status probes; set by the bundled-ingress Compose overlay, unset for other ingress modes."
+    },
+    {
       "name": "FS_COMPACT_IMAGE",
       "groups": [
         "compact_runtime"

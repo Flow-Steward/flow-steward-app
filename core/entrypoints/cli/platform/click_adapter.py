@@ -383,6 +383,8 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
                         plan_log = OperationLog(spec.command_id)
                         plan_log.write(f"PLAN_FAILED {mapped.code}: {mapped.cause}")
                         plan_log.write(f"REMEDIATION: {mapped.remediation}")
+                        if mapped.code == "internal_error" and mapped.technical_detail:
+                            plan_log.write(mapped.technical_detail)
                         plan_log.close()
                 _fail(
                     spec,

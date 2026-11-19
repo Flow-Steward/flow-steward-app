@@ -137,3 +137,37 @@ def test_compact_mount_resolves_external_host_state(tmp_path):
 def test_compact_mount_refuses_missing_host_state_record(tmp_path):
     with pytest.raises(DockerHostStateUnavailable):
         docker_host_state_dir(COMPACT_CONTAINER_STATE_MOUNT, _env_prod(tmp_path, None))
+
+
+def test_compose_reads_installed_settings_from_the_env_file_not_the_stale_cli_container(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#30: Compose prefers its process environment over --env-file. The CLI container
+    still carried the value from before `config apply` rendered .env.prod, so the
+    runtime kept FS_ALLOW_PRIVATE_REMOTE_URLS=0 and was not recreated."""
+    monkeypatch.setenv("FS_INSTALLER_STATE_DIR", str(CONTAINER_STATE_MOUNT))
+    monkeypatch.setenv("FS_ALLOW_PRIVATE_REMOTE_URLS", "0")
+    monkeypatch.setenv("FS_ONLY_IN_THE_CONTAINER", "kept")
+    monkeypatch.setattr(docker_gateway, "_IMAGE_ROOT", tmp_path / "image")
+    project_root = tmp_path / "app"
+    env_file = _env_prod(project_root, _HOST_STATE)
+    env_file.write_text(
+        env_file.read_text(encoding="utf-8")
+        + "export FS_ALLOW_PRIVATE_REMOTE_URLS=1\nFS_INSTALLER_STATE_DIR=/somewhere\n",
+        encoding="utf-8",
+    )
+    process = _Process()
+    gateway = DockerLifecycleGateway(
+        project_root=project_root,
+        docker_host_project_root=tmp_path / "host-project-not-mounted",
+        process=process,
+    )
+
+    gateway.services(_target())
+
+    environment = process.invocations[-1]["environment"]
+    assert isinstance(environment, dict)
+    assert "FS_ALLOW_PRIVATE_REMOTE_URLS" not in environment
+    assert environment["FS_ONLY_IN_THE_CONTAINER"] == "kept"
+    # The host translation still overrides the state directory, as before.
+    assert environment["FS_INSTALLER_STATE_DIR"] == _HOST_STATE

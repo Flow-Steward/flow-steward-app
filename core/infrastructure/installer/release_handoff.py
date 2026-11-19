@@ -234,8 +234,8 @@ class InstallerReleaseHandoff:
                             "`flow-steward database preflight` (it lists what still blocks, "
                             "such as running Flow Steward processes), run "
                             "`flow-steward database upgrade --maintenance-confirmed --confirm` "
-                            "(on Scalable it first stops the previous release's Flow Steward "
-                            "processes and keeps Postgres running), "
+                            "(it first stops the previous release's Flow Steward processes, "
+                            "compact-runtime on Compact, and keeps Postgres running), "
                             "then repeat this release upgrade. Maintenance remains enabled."
                         ),
                         log_path=log_path,

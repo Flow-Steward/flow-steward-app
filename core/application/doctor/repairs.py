@@ -50,7 +50,7 @@ class RepairProbe(Protocol):
 
 
 def _fix(check_id: str) -> str:
-    return f"./flow-steward doctor --fix {check_id}"
+    return f"./flow-steward doctor --fix {check_id} --confirm"
 
 
 def _gib(value: int) -> str:

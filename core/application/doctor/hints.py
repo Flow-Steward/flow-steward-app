@@ -240,7 +240,7 @@ def _workers_consuming(probe: HintProbe) -> DoctorFinding:
             "workers_consuming",
             "fail",
             "No worker consumes the job queue: submitted jobs wait for ever.",
-            "./flow-steward doctor --fix stack_stopped if a worker is stopped; otherwise "
+            "./flow-steward doctor --fix stack_stopped --confirm if a worker is stopped; otherwise "
             "./flow-steward stack restart",
         )
     return _ok("workers_consuming", f"{consumers} consumers on the job queue.")

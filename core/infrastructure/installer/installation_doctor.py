@@ -168,6 +168,9 @@ class InstallationDoctorProbe:
     def stopped_services(self) -> list[str]:
         return self.gateway.stopped_services(self.config, log=self.log)
 
+    def unhealthy_services(self) -> list[str]:
+        return self.gateway.unhealthy_services(self.config, log=self.log)
+
     def sources_differ_from_installation(self) -> str:
         installed = self.gateway.installed_runtime_revision(self.config)
         source = self.gateway.source_revision()

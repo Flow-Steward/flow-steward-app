@@ -13,7 +13,7 @@ from typing import Protocol
 
 from core.application.doctor.contracts import DoctorCheck, DoctorFinding
 
-_RERUN = "./flow-steward doctor --fix {check_id}"
+_RERUN = "./flow-steward doctor --fix {check_id} --confirm"
 _MAINTENANCE_DISABLE = "./flow-steward maintenance disable --confirm"
 
 
@@ -45,6 +45,8 @@ class DoctorProbe(Protocol):
     def stopped_services(self) -> list[str]: ...
 
     def start_stopped_services(self) -> str: ...
+
+    def unhealthy_services(self) -> list[str]: ...  # running, failing their healthcheck
 
     # "" when these sources built the installation, else the two revisions in words
     def sources_differ_from_installation(self) -> str: ...
@@ -97,6 +99,24 @@ def _stack_stopped(probe: DoctorProbe) -> DoctorFinding:
         "stack_stopped",
         "Not running: " + ", ".join(stopped) + ".",
         _RERUN.format(check_id="stack_stopped") + " (or ./install.sh)",
+    )
+
+
+def _stack_unhealthy(probe: DoctorProbe) -> DoctorFinding:
+    """#26: SeaweedFS ran `unhealthy` for hours while doctor said every check was fine;
+    stack_stopped looks only at whether a container runs."""
+    unhealthy = probe.unhealthy_services()
+    if not unhealthy:
+        return DoctorFinding(
+            "stack_unhealthy", "ok", cause="No running service fails its healthcheck."
+        )
+    names = ", ".join(unhealthy)
+    return _fail(
+        "stack_unhealthy",
+        f"Running but failing their healthcheck: {names}.",
+        f"./flow-steward stack logs --service {unhealthy[0]} shows why; then "
+        "./flow-steward stack restart --confirm",
+        repairable=False,
     )
 
 
@@ -270,6 +290,7 @@ def p1_checks() -> tuple[DoctorCheck, ...]:
             _stack_stopped,
             lambda probe, _finding: probe.start_stopped_services(),
         ),
+        DoctorCheck("stack_unhealthy", "Service health", _stack_unhealthy),
         DoctorCheck(
             "maintenance_left_enabled",
             "Maintenance mode",

@@ -482,6 +482,28 @@ class DoctorOperations:
             raise OSError(_last_error_text(outcome) or "the database could not be queried")
         return outcome.stdout
 
+    def unhealthy_services(
+        self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
+    ) -> list[str]:
+        """Expected services with a running container whose healthcheck fails (#26)."""
+        outcome = self._checked(
+            [*self._compose_prefix(config), "ps", "--format", "json"],
+            log=log,
+            code="container_unhealthy",
+            remediation="Inspect the core containers in the installer log and rerun ./install.sh.",
+            exit_code=8,
+            separate_stderr=True,
+        )
+        expected = set(self._health_expected_services(config))
+        return sorted(
+            {
+                str(row.get("Service") or row.get("service") or "")
+                for row in _compose_ps_rows(outcome.stdout)
+                if str(row.get("Health") or row.get("health") or "").lower() == "unhealthy"
+            }
+            & expected
+        )
+
     def stopped_services(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> list[str]:

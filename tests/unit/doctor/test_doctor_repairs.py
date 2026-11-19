@@ -59,7 +59,7 @@ def test_releases_beyond_the_retention_are_a_repair() -> None:
     assert finding.repairable
     assert "1 releases (kept: bbbbbbbbbbbb, cccccccccccc)" in finding.cause
     assert "1 images retained: exclusive installation ownership is unproven" in finding.cause
-    assert finding.next_step == "./flow-steward doctor --fix release_retention"
+    assert finding.next_step == "./flow-steward doctor --fix release_retention --confirm"
 
 
 def test_low_disk_with_releases_to_remove_fails_and_without_them_is_a_hint() -> None:

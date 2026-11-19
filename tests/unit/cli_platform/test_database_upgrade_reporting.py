@@ -84,7 +84,8 @@ def test_the_service_turns_a_blocked_preflight_into_a_precondition_failure(
     assert findings[1]["detail"] == "Connected: pid 42."
     assert "maintenance enable" in error.remediation
     assert "--allow-unlabeled-sessions" in error.remediation
-    assert "stops fs-app, fs-worker, control-plane and fs-mcp" in findings[0]["remediation"]
+    assert "compact-runtime on Compact" in findings[0]["remediation"]
+    assert "fs-app, fs-worker, control-plane and fs-mcp on Scalable" in findings[0]["remediation"]
 
 
 def test_an_issue_without_its_own_advice_points_at_the_full_report(

@@ -10,8 +10,8 @@ tls:
       # dynamic config has carried this store since before the Compact profile existed;
       # see infra/traefik/fs.dynamic.yaml.
       defaultCertificate:
-        certFile: /etc/traefik/certs/cert.pem
-        keyFile: /etc/traefik/certs/key.pem
+        certFile: /etc/traefik/files/certs/cert.pem
+        keyFile: /etc/traefik/files/certs/key.pem
   certificates:
-    - certFile: /etc/traefik/certs/cert.pem
-      keyFile: /etc/traefik/certs/key.pem
+    - certFile: /etc/traefik/files/certs/cert.pem
+      keyFile: /etc/traefik/files/certs/key.pem

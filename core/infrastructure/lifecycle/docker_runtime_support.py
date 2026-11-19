@@ -115,6 +115,25 @@ def inspection_service(item: Mapping[str, Any]) -> str:
     return str(labels.get("com.docker.compose.service") or "").strip()
 
 
+def env_file_names(path: Path) -> frozenset[str]:
+    """The variable names an env file assigns; empty when it cannot be read."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return frozenset()
+    names = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = line.removeprefix("export ").lstrip()
+        name, separator, _value = line.partition("=")
+        name = name.strip()
+        if separator and name.replace("_", "a").isalnum() and not name[0].isdigit():
+            names.add(name)
+    return frozenset(names)
+
+
 def project_path(project_root: Path, raw_path: str) -> Path:
     candidate = Path(str(raw_path))
     resolved = (
