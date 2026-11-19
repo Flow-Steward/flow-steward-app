@@ -136,6 +136,17 @@ class ProjectCommandServiceRunRequestsMixin:
         interface = WorkflowInterfaceService().interface_from_definition(workflow)
         if not interface.enabled or "ui" not in interface.trigger_channels:
             raise ServiceValidationError("Enable the UI trigger channel before running")
+        from core.application.projects.operator_sections import require_operator_can_run
+
+        # ADR 0075: an operator runs only what an admin published to this project.
+        require_operator_can_run(
+            resolved,
+            project_id=command.project_id,
+            workflow_id=workflow_id,
+            workflow_row=workflow,
+            project_bindings=config.get("project_workflows") or [],
+            db=registry.db_store,
+        )
         revision = int(workflow.get("revision") or 0)
         if revision != command.expected_revision:
             raise WorkflowRevisionChangedError(workflow_id, command.expected_revision, revision)
@@ -197,6 +208,7 @@ class ProjectCommandServiceRunRequestsMixin:
         resolved = self._scope(
             scope, project_id=command.project_id, workflow_id=command.workflow_id
         )
+        self._require_operator_publication(resolved, command.project_id, command.workflow_id)
         # The queue correlation must remain stable on an idempotent retry; a
         # random task id would change the existing admission fingerprint.
         correlation = (
@@ -244,6 +256,41 @@ class ProjectCommandServiceRunRequestsMixin:
             allow_implicit_project=False,
             trusted_internal=True,
             scope=resolved,
+        )
+
+    def _require_operator_publication(
+        self, resolved: ScopeContext, project_id: str, workflow_id: str
+    ) -> None:
+        """The API/MCP launch holds an operator to the form's rule (ADR 0075).
+
+        Admins, service accounts and internal calls are not affected and do not pay
+        for the extra reads.
+        """
+        from core.application.projects.operator_sections import (
+            is_operator_person,
+            require_operator_can_run,
+        )
+
+        if not is_operator_person(resolved):
+            return
+        bl = self._logger()
+        project = self._require_project_in_scope(bl, project_id, resolved)
+        require_workflow_access(resolved, workflow_id)
+        config = self._project_run_config(bl, project_id, project=project)
+        from core.application.registry.registry_manager import RegistryManager
+        from core.application.registry.workflow_lookup import get_workflow_row
+
+        db = RegistryManager.instance().db_store
+        workflow = get_workflow_row(db, workflow_id) if db is not None else None
+        if not isinstance(workflow, dict) or workflow.get("deleted_at"):
+            raise ServiceNotFoundError("Workflow not found")
+        require_operator_can_run(
+            resolved,
+            project_id=project_id,
+            workflow_id=workflow_id,
+            workflow_row=workflow,
+            project_bindings=config.get("project_workflows") or [],
+            db=db,
         )
 
     def _scheduled_job_admission(

@@ -724,9 +724,38 @@ def test_builder_can_run_a_linked_global_system_definition(builder_workflow_serv
     assert len(queued) == 1
 
 
+def _publish(workflow: dict, *, acknowledged: bool = True, **settings) -> None:
+    """Publish the workflow to operators the way an admin save leaves it (ADR 0075)."""
+    from core.application.registry.workflow_contract import interface_from_definition
+    from core.application.registry.workflow_operator_form import contract_fingerprint
+
+    operator = {"published": True, **settings}
+    if acknowledged:
+        operator["effects_acknowledged"] = {
+            "by": "admin-1",
+            "at": "2026-11-19T10:00:00+00:00",
+            "revision": workflow.get("revision") or 0,
+            "contract_sha": contract_fingerprint(interface_from_definition(workflow)),
+        }
+    workflow["settings"]["operator"] = operator
+
+
+def _operator(**fields) -> ScopeContext:
+    return ScopeContext(
+        **{
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "actor_id": "operator-7",
+            "principal_type": "operator",
+            "auth_source": "local",
+            **fields,
+        }
+    )
+
+
 def test_builder_run_records_the_server_owned_author(builder_workflow_service):
     """ADR 0075: the history's author comes from the authenticated scope only."""
-    service, _, queued, _ = builder_workflow_service
+    service, _, queued, workflow = builder_workflow_service
+    _publish(workflow)
 
     service.start_builder_workflow_run(
         "stock-import",
@@ -753,8 +782,14 @@ def test_a_form_cannot_name_the_author(builder_workflow_service):
 
 
 def test_api_run_records_the_same_author_as_the_form(direct_workflow_service):
+    from core.application.registry.registry_manager import RegistryManager
+
     service, fields, queued = direct_workflow_service
     fields.append({"name": "supplier", "type": "string", "required": True})
+    workflow = RegistryManager.instance().db_store.get_workflow("stock-import")
+    workflow.update(enabled=True, revision=7, account_id=DEFAULT_ACCOUNT_ID)
+    workflow["settings"]["callable"]["trigger_channels"] = ["ui", "mcp"]
+    _publish(workflow)
 
     service.start_mcp_workflow_run(
         {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}},
@@ -764,3 +799,124 @@ def test_api_run_records_the_same_author_as_the_form(direct_workflow_service):
     )
 
     assert queued[0]["meta"]["submitted_by"] == {"id": "operator-7", "kind": "person"}
+
+
+# --- ADR 0075: an operator runs only what an admin published to the project -------------
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ("unpublished", "operator.not_published"),
+        ("unacknowledged", "operator.effects_not_acknowledged"),
+        ("unbound", "operator.not_bound"),
+        ("broken_form", "form.widget_incompatible"),
+        ("stale_acknowledgement", "operator.effects_not_acknowledged"),
+    ],
+)
+def test_an_operator_form_run_needs_publication_binding_and_acknowledgement(
+    builder_workflow_service, change, code
+):
+    from core.application.management.errors import ServiceForbiddenError
+
+    service, fields, queued, workflow = builder_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    _publish(workflow, acknowledged=change != "unacknowledged")
+    if change == "unpublished":
+        workflow["settings"]["operator"]["published"] = False
+    if change == "unbound":
+        service._get_logger().get_project_run_config.return_value["project_workflows"] = [
+            {"workflow_id": "stock-import", "enabled": True},
+            {"workflow_id": "other", "enabled": True},
+        ]
+        service._get_logger().get_project_run_config.return_value["project_workflows"][0][
+            "deleted_at"
+        ] = "2026-11-01"
+    if change == "broken_form":
+        workflow["settings"]["operator"]["form"] = {"fields": {"supplier": {"widget": "number"}}}
+    if change == "stale_acknowledgement":
+        # The contract changed after the admin confirmed its effects.
+        fields.append({"name": "warehouse", "type": "string"})
+
+    with pytest.raises((ServiceForbiddenError, ServiceValidationError)) as refused:
+        service.start_builder_workflow_run("stock-import", _builder_request(), scope=_operator())
+
+    if isinstance(refused.value, ServiceForbiddenError):
+        assert code in [reason["code"] for reason in refused.value.payload["reasons"]]
+        assert refused.value.payload["code"] == "operator_run_not_allowed"
+    else:
+        # The Builder's own link check answers first for an unbound workflow.
+        assert change == "unbound"
+    assert queued == []
+
+
+def test_an_operator_runs_a_published_acknowledged_bound_workflow(builder_workflow_service):
+    service, fields, queued, workflow = builder_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    _publish(workflow, menu_title="Stock")
+
+    result = service.start_builder_workflow_run(
+        "stock-import", _builder_request(inputs={"supplier": "acme"}), scope=_operator()
+    )
+
+    assert result.job_id == "91"
+    assert len(queued) == 1
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="admin-1", principal_type="admin"),
+        ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="user-42"),
+    ],
+)
+def test_admins_keep_the_builder_checks_without_publication(builder_workflow_service, scope):
+    service, _, queued, _ = builder_workflow_service
+
+    service.start_builder_workflow_run("stock-import", _builder_request(), scope=scope)
+
+    assert len(queued) == 1
+
+
+@pytest.mark.parametrize("state", ["unpublished", "unbound", "published"])
+def test_the_api_and_mcp_launch_hold_an_operator_to_the_same_rule(direct_workflow_service, state):
+    from core.application.management.errors import ServiceForbiddenError
+    from core.application.registry.registry_manager import RegistryManager
+
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    workflow = RegistryManager.instance().db_store.get_workflow("stock-import")
+    workflow.update(enabled=True, revision=7, account_id=DEFAULT_ACCOUNT_ID)
+    workflow["settings"]["callable"]["trigger_channels"] = ["ui", "mcp"]
+    if state != "unpublished":
+        _publish(workflow)
+    if state == "unbound":
+        service._get_logger().get_project_run_config.return_value["project_workflows"] = []
+    command = {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}}
+
+    if state == "published":
+        service.start_mcp_workflow_run(command, scope=_operator(auth_source="pat"))
+        assert len(queued) == 1
+        return
+    with pytest.raises(ServiceForbiddenError) as refused:
+        service.start_mcp_workflow_run(command, scope=_operator(auth_source="pat"))
+    expected = "operator.not_published" if state == "unpublished" else "operator.not_bound"
+    assert expected in [reason["code"] for reason in refused.value.payload["reasons"]]
+    assert queued == []
+
+
+def test_a_service_account_keeps_its_api_launch(direct_workflow_service):
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+
+    service.start_mcp_workflow_run(
+        {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}},
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID,
+            actor_id="sa-1",
+            principal_type="service_account",
+            auth_source="machine",
+        ),
+    )
+
+    assert len(queued) == 1

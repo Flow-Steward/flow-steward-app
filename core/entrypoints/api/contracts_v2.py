@@ -23,6 +23,8 @@ from core.application.management.command_models import (
     ApiV2DashboardSummaryEnvelopeView,
     ApiV2JobDetailEnvelopeView,
     ApiV2JobsEnvelopeView,
+    ApiV2OperatorSectionEnvelopeView,
+    ApiV2OperatorSectionsEnvelopeView,
     ApiV2ProjectJobsBulkDeleteEnvelopeView,
     ApiV2ProjectJobsEnvelopeView,
     ApiV2ProjectsEnvelopeView,
@@ -336,6 +338,46 @@ def create_api_contracts_v2_router(
         except Exception as exc:
             return _unexpected_error(exc, kind="list", resource="projects")
         return JSONResponse(_success_envelope(kind="list", resource="projects", data=data))
+
+    @router.get(
+        "/api/v2/projects/sections",
+        response_model=ApiV2OperatorSectionsEnvelopeView,
+        response_description="The operator and viewer menu of (project, workflow) sections.",
+    )
+    def api_v2_operator_sections(request: Request):
+        """ADR 0075: published workflows in each project the caller can see."""
+        try:
+            sections = project_query_service().list_operator_sections(scope=request_scope(request))
+        except ServiceError as exc:
+            return _service_error(exc, kind="list", resource="operator-sections")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="list", resource="operator-sections")
+        return JSONResponse(
+            _success_envelope(
+                kind="list", resource="operator-sections", data={"sections": sections}
+            )
+        )
+
+    @router.get(
+        "/api/v2/projects/{project_id}/workflows/{workflow_id}/section",
+        response_model=ApiV2OperatorSectionEnvelopeView,
+        response_description="One operator section with its resolved operator settings.",
+    )
+    def api_v2_operator_section(request: Request, project_id: str, workflow_id: str):
+        """ADR 0075: the form, list and result settings of one section, with issues."""
+        try:
+            data = project_query_service().get_operator_section(
+                project_id,
+                workflow_id,
+                scope=request_scope(request, project_id=project_id),
+            )
+        except ServiceError as exc:
+            return _service_error(exc, kind="detail", resource="operator-sections")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="detail", resource="operator-sections")
+        return JSONResponse(
+            _success_envelope(kind="detail", resource="operator-sections", data=data)
+        )
 
     @router.get(
         "/api/v2/projects/{project_id}/jobs",

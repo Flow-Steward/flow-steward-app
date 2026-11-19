@@ -696,3 +696,40 @@ def test_v2_jobs_returns_422_for_an_unknown_operator_filter(monkeypatch):
 
     assert response.status_code == 422
     assert response.json()["ok"] is False
+
+
+class _SectionsQueryService:
+    def __init__(self):
+        self.calls: list[tuple] = []
+
+    def list_operator_sections(self, *, scope):
+        self.calls.append(("list", scope.account_id))
+        return [{"project_id": "p1", "workflow_id": "wf", "title": "Contracts"}]
+
+    def get_operator_section(self, project_id, workflow_id, *, scope):
+        from core.application.management.errors import ServiceNotFoundError
+
+        self.calls.append(("detail", project_id, workflow_id, scope.project_id))
+        if workflow_id == "missing":
+            raise ServiceNotFoundError("Section not found")
+        return {"project_id": project_id, "workflow_id": workflow_id, "operator": {}}
+
+
+def test_v2_operator_sections_menu_and_detail(monkeypatch):
+    """ADR 0075: the menu of (project, workflow) pairs and one section's settings."""
+    service = _SectionsQueryService()
+    client = _build_client(monkeypatch=monkeypatch, project_query_service=service)
+
+    menu = client.get("/api/v2/projects/sections")
+    detail = client.get("/api/v2/projects/p1/workflows/wf/section")
+    missing = client.get("/api/v2/projects/p1/workflows/missing/section")
+
+    assert menu.status_code == 200
+    assert menu.json()["data"] == {
+        "sections": [{"project_id": "p1", "workflow_id": "wf", "title": "Contracts"}]
+    }
+    assert menu.json()["meta"]["resource"] == "operator-sections"
+    assert detail.status_code == 200
+    assert detail.json()["data"]["workflow_id"] == "wf"
+    assert missing.status_code == 404
+    assert service.calls[1] == ("detail", "p1", "wf", "p1")
