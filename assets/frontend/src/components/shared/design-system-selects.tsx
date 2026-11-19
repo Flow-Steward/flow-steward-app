@@ -30,6 +30,8 @@ const FILTER_SEARCH_THRESHOLD = 10;
 
 /** The arrow keys walk the back row, the search box and the options, in order. */
 const FILTER_NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
+/** Inputs whose arrow keys change their value natively (date segments, number steps). */
+const NATIVE_STEP_INPUT_TYPES = new Set(["date", "datetime-local", "time", "month", "week", "number"]);
 
 /** One line per label: a long one ends in an ellipsis, and `title` keeps it whole. */
 function FilterMenuText({ option }: Readonly<{ option: Pick<DsOption, "label" | "description"> }>) {
@@ -566,6 +568,9 @@ export function AdvancedTableFilters({
     if (FILTER_NAV_KEYS.has(event.key)) {
       // Home and End belong to the caret while the search box has focus.
       if ((event.key === "Home" || event.key === "End") && event.target instanceof HTMLInputElement) return;
+      // A date, time or number field steps its own value with the arrows; only
+      // Escape and moving between items stay with the menu.
+      if (event.target instanceof HTMLInputElement && NATIVE_STEP_INPUT_TYPES.has(event.target.type)) return;
       event.preventDefault();
       moveFocus(event.key);
       return;
