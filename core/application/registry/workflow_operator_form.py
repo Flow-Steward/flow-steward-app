@@ -1033,6 +1033,15 @@ def blocking_save_issues(
     ]
 
 
+def _comparable(settings: OperatorSettings | None) -> dict[str, Any] | None:
+    """What the admin configured, without the server-owned acknowledgement."""
+    if settings is None:
+        return None
+    payload = settings.stored_dump()
+    payload.pop("effects_acknowledged", None)
+    return payload
+
+
 def prepare_operator_settings_for_save(
     *,
     existing: Mapping[str, Any],
@@ -1042,12 +1051,14 @@ def prepare_operator_settings_for_save(
 ) -> list[OperatorIssue]:
     """Normalize ``settings.operator`` of a workflow save in place; refuse a broken publication.
 
-    - malformed settings are refused whether published or not;
     - ``effects_acknowledged``: ``{"confirm": true}`` acknowledges the saved contract;
       the stored acknowledgement is kept while the contract is unchanged and is
       dropped when it changes;
-    - an error on a published configuration refuses the save; on an unpublished
-      one it is returned with the warnings for the editor to show.
+    - a save that changes ``settings.operator`` (publishing included) is refused when
+      the result is malformed, or published with an error;
+    - any other save goes through, even when a contract change breaks a published
+      form: the admin must always be able to edit the workflow. The issues are
+      returned, and the section shows ``runnable: false`` with them.
     """
     settings = final_payload.get("settings")
     if not isinstance(settings, dict) or OPERATOR_SETTING not in settings:
@@ -1056,8 +1067,12 @@ def prepare_operator_settings_for_save(
     if raw is None:
         settings.pop(OPERATOR_SETTING, None)
         return []
+    previous_raw = stored_operator_settings(existing)
     parsed, parse_issues = parse_operator_settings(raw)
     if parsed is None:
+        if raw == previous_raw:
+            # Stored as it was; this save does not touch it.
+            return parse_issues
         raise OperatorSettingsRejected(parse_issues)
     candidate = {**dict(existing), **final_payload, "settings": settings}
     if "steps" not in final_payload:
@@ -1072,12 +1087,13 @@ def prepare_operator_settings_for_save(
         revision=revision,
         enabled=bool(final_payload.get("enabled", existing.get("enabled", False))),
     )
-    previous, _ = parse_operator_settings(stored_operator_settings(existing))
+    previous, _ = parse_operator_settings(previous_raw)
     previous_ack = previous.effects_acknowledged if previous is not None else None
     ack = parsed.effects_acknowledged
+    confirmed = bool(ack and ack.confirm)
     if ack is None:
         parsed.effects_acknowledged = None
-    elif ack.confirm:
+    elif confirmed:
         moment = now or datetime.now(UTC)
         parsed.effects_acknowledged = EffectsAcknowledgement(
             by=str(actor_id or "").strip(),
@@ -1091,11 +1107,32 @@ def prepare_operator_settings_for_save(
         # A changed contract voids the acknowledgement; a caller cannot write one.
         parsed.effects_acknowledged = None
     issues = operator_settings_issues(parsed, contract)
-    blocking = blocking_save_issues(parsed, issues)
+    operator_changed = confirmed or _comparable(parsed) != _comparable(previous)
+    blocking = blocking_save_issues(parsed, issues) if operator_changed else []
     if blocking:
         raise OperatorSettingsRejected(blocking)
     settings[OPERATOR_SETTING] = parsed.stored_dump()
     return issues
+
+
+def portable_settings(settings: Any) -> Any:
+    """Settings as they may leave this installation: no operator acknowledgement.
+
+    The acknowledgement records one admin of one installation confirming real
+    effects; an export, import, template or clone keeps the rest of
+    ``settings.operator`` and asks the new owner to confirm again.
+    """
+    if not isinstance(settings, Mapping):
+        return settings
+    operator = settings.get(OPERATOR_SETTING)
+    if not isinstance(operator, Mapping) or "effects_acknowledged" not in operator:
+        return settings
+    return {
+        **dict(settings),
+        OPERATOR_SETTING: {
+            key: value for key, value in operator.items() if key != "effects_acknowledged"
+        },
+    }
 
 
 # --- Runtime view -------------------------------------------------------------
@@ -1372,6 +1409,7 @@ __all__ = [
     "operator_runtime_view",
     "operator_settings_issues",
     "parse_operator_settings",
+    "portable_settings",
     "prepare_operator_settings_for_save",
     "resolve_schema_path",
     "stored_operator_settings",

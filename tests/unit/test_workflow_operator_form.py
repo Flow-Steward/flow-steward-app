@@ -804,3 +804,160 @@ def test_the_save_route_stamps_the_acknowledgement_and_returns_issues(
     assert saved["effects_acknowledged"]["by"] == "admin-7"
     assert saved["effects_acknowledged"]["revision"] == 4
     assert saved["list"]["columns"][0]["id"] == "output.total"
+
+
+# --- A later change never blocks unrelated saves (coordinator rule) -----------------------
+
+_PUBLISHED_WITH_FILTER = {
+    "published": True,
+    "list": {
+        "filters": [{"id": "amount", "source": "input", "path": "amount", "type": "number_range"}]
+    },
+}
+
+
+def _published_existing() -> dict[str, Any]:
+    ack = {"by": "admin-1", "at": "t", "revision": 7, "contract_sha": _sha()}
+    return _workflow({**_PUBLISHED_WITH_FILTER, "effects_acknowledged": ack})
+
+
+def test_an_unrelated_contract_change_on_a_published_workflow_is_saved_but_not_runnable() -> None:
+    existing = _published_existing()
+    without_amount = [row for row in INPUTS if row["name"] != "amount"]
+
+    stored, issues = _save(
+        existing, copy.deepcopy(existing["settings"]["operator"]), inputs=without_amount
+    )
+
+    codes = [issue.code for issue in issues]
+    assert "list.filter_unknown_path" in codes
+    assert "operator.effects_not_acknowledged" in codes
+    assert stored["published"] is True
+    _model, view = operator_runtime_view(stored, _contract(without_amount))
+    assert view.runnable is False
+
+
+def test_changing_a_published_operator_config_that_has_errors_is_refused() -> None:
+    existing = _published_existing()
+    without_amount = [row for row in INPUTS if row["name"] != "amount"]
+    changed = {**copy.deepcopy(existing["settings"]["operator"]), "menu_title": "Renamed"}
+
+    with pytest.raises(OperatorSettingsRejected) as refused:
+        _save(existing, changed, inputs=without_amount)
+
+    assert [issue.code for issue in refused.value.issues] == ["list.filter_unknown_path"]
+
+
+def test_the_save_route_keeps_unrelated_saves_of_a_broken_publication(
+    monkeypatch, stored_workflow
+) -> None:
+    stored_workflow.get_workflow.return_value["settings"]["operator"] = {
+        **_PUBLISHED_WITH_FILTER,
+        "effects_acknowledged": {"by": "a", "at": "t", "revision": 3, "contract_sha": _sha()},
+    }
+    without_amount = [row for row in INPUTS if row["name"] != "amount"]
+
+    response = _route_client(monkeypatch, stored_workflow).patch(
+        "/api/workflows/orders",
+        json={
+            "settings": {"callable": _callable(without_amount)},
+            "expected_revision": 3,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    codes = [issue["code"] for issue in response.json()["operator_issues"]]
+    assert "list.filter_unknown_path" in codes
+    saved = stored_workflow.save_workflow.call_args.args[0]["settings"]["operator"]
+    assert saved["published"] is True
+    assert saved["effects_acknowledged"] is None
+
+
+# --- Portability drops the acknowledgement ------------------------------------------------
+
+
+def test_portable_settings_drop_only_the_acknowledgement() -> None:
+    from core.application.registry.workflow_operator_form import portable_settings
+
+    settings = {
+        "callable": _callable(),
+        "operator": {"published": True, "menu_title": "Docs", "effects_acknowledged": {"by": "a"}},
+    }
+
+    portable = portable_settings(settings)
+
+    assert portable["operator"] == {"published": True, "menu_title": "Docs"}
+    assert settings["operator"]["effects_acknowledged"] == {"by": "a"}, "the source is untouched"
+
+
+def test_export_and_import_keep_the_operator_form_without_the_acknowledgement() -> None:
+    import yaml
+
+    from core.application.workflows.workflow_portability import WorkflowPortabilityService
+    from tests.unit.test_workflow_portability import _resolved_db
+    from tests.unit.test_workflow_report_portability import _report_workflow
+
+    # A workflow without external dependencies, so the import needs no resolutions.
+    workflow = _report_workflow("docs")
+    workflow["settings"] = {
+        **dict(workflow.get("settings") or {}),
+        "operator": {
+            "published": True,
+            "menu_title": "Docs",
+            "effects_acknowledged": {
+                "by": "admin-1",
+                "at": "t",
+                "revision": 3,
+                "contract_sha": "x",
+            },
+        },
+    }
+
+    exported = WorkflowPortabilityService(_resolved_db(workflows={"docs": workflow})).export_yaml(
+        "docs"
+    )
+    bundle = yaml.safe_load(exported)
+    exported_operator = bundle["workflows"][0]["settings"]["operator"]
+    assert exported_operator == {"published": True, "menu_title": "Docs"}
+
+    # A bundle written elsewhere with an acknowledgement does not bring it in either.
+    bundle["workflows"][0]["settings"]["operator"]["effects_acknowledged"] = {
+        "by": "someone",
+        "contract_sha": "x",
+    }
+    import_db = _resolved_db()
+    WorkflowPortabilityService(import_db).apply_import(
+        yaml.safe_dump(bundle), target_workflow_id="docs_copy"
+    )
+    imported = import_db.workflows["docs_copy"]["settings"]["operator"]
+    assert imported == {"published": True, "menu_title": "Docs"}
+
+
+def test_a_clone_keeps_the_operator_form_without_the_acknowledgement() -> None:
+    from unittest.mock import MagicMock
+
+    from core.application.registry.db_store import RegistryDBStore
+
+    db = RegistryDBStore("postgres://unused")
+    source = {
+        "workflow_id": "wf_source",
+        "display_name": "Source",
+        "settings": {
+            "operator": {"published": True, "effects_acknowledged": {"by": "admin-1"}},
+        },
+        "steps": [],
+        "groups": [],
+    }
+    db.get_workflow = MagicMock(side_effect=[source, None])
+    db.save_workflow = MagicMock()
+
+    db.clone_workflow(
+        source_workflow_id="wf_source",
+        target_workflow_id="wf_copy",
+        account_id="acc-1",
+        scope_kind="account",
+    )
+
+    saved = db.save_workflow.call_args.args[0]["settings"]["operator"]
+    assert saved == {"published": True}
+    assert source["settings"]["operator"]["effects_acknowledged"] == {"by": "admin-1"}
