@@ -105,8 +105,13 @@ function appendNextParam(path: string, nextPath: string) {
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
 
+/**
+ * Where a successful sign-in goes: a safe explicit `next`, else the index, whose
+ * HomeGate sends each role to its own landing (admins to the Dashboard,
+ * operators and viewers to their sections, ADR 0075).
+ */
 function normalizeNextPath(raw: string | null) {
-  return raw && isSafeLocalPath(raw) ? raw : "/dashboard";
+  return raw && isSafeLocalPath(raw) ? raw : "/";
 }
 
 function payloadRecord(error: HttpError) {
