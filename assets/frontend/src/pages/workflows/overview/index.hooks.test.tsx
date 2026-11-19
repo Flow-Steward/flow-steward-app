@@ -116,7 +116,7 @@ describe("Workflow overview Hooks section", () => {
     // Hooks is a tab of its own after Projects, not a card of the Overview.
     expect(screen.getByRole("link", { name: "Hooks" })).toHaveAttribute("aria-current", "page");
     expect(within(screen.getByRole("navigation", { name: "Workflow views" })).getAllByRole("link").map((link) => link.textContent))
-      .toEqual(["Overview", "Projects", "Hooks", "Smart setup", "Automation", "History"]);
+      .toEqual(["Overview", "Projects", "Hooks", "Smart setup", "For operators", "Automation", "History"]);
     expect(screen.queryByRole("heading", { name: "Run statistics" })).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("Empty")).toBeInTheDocument());
     expect(screen.getByText("Adjust the customer name before the order is finished.")).toBeInTheDocument();
