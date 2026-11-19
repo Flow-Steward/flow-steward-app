@@ -507,7 +507,12 @@ def _is_uri(text: str) -> bool:
     if not separator or not rest or not _URI_SCHEME_PATTERN.fullmatch(scheme):
         return False
     if scheme.lower() in {"http", "https"}:
-        return bool(urlsplit(text).netloc)
+        try:
+            return bool(urlsplit(text).netloc)
+        except ValueError:
+            # A malformed authority ("http://[::1") is not a URI; it must stay a
+            # field error, never escape the request's 422 path.
+            return False
     return True
 
 

@@ -325,6 +325,9 @@ def test_object_properties_shape_outputs_too():
         ("email", "a.b@mail.example.lt", "two@@example.com"),
         ("uri", "https://example.com/path", "https://"),
         ("uri", "mailto:ops@example.com", "example.com"),
+        # A malformed authority makes urlsplit raise; it is a field error, not a crash.
+        ("uri", "http://[::1]:8080/x", "http://[::1"),
+        ("uri", "https://example.com", "https://[bad/path"),
     ],
 )
 def test_declared_format_is_checked(field_format, good, bad):
@@ -334,6 +337,14 @@ def test_declared_format_is_checked(field_format, good, bad):
     ok, _, message = coerce_contract_value(bad, field)
     assert ok is False
     assert "value" in message
+
+
+def test_a_malformed_uri_is_a_validation_error_not_an_exception():
+    interface = _interface({"name": "site", "type": "string", "format": "uri"})
+
+    result = _validate(interface, {"site": "http://[::1"})
+
+    assert not result.ok
 
 
 def test_format_is_checked_only_when_declared_and_empty_optional_passes():
