@@ -24,12 +24,15 @@ from core.application.release.installed_origin import (
     InstalledReleaseOriginPort,
     SourceInstallationOrigin,
 )
+from core.application.release.upgrade_review import (
+    MAINTENANCE_DISABLE_COMMAND as _MAINTENANCE_DISABLE_COMMAND,
+)
+from core.application.release.upgrade_review import upgrade_review
 
 if TYPE_CHECKING:
     from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
 
 _MAINTENANCE_ENABLE_COMMAND = "flow-steward maintenance enable --confirm"
-_MAINTENANCE_DISABLE_COMMAND = "flow-steward maintenance disable --confirm"
 _BACKUP_CREATE_COMMAND = "flow-steward backup create"
 _DATABASE_PREFLIGHT_COMMAND = "flow-steward database preflight"
 _DATABASE_UPGRADE_COMMAND = "flow-steward database upgrade --maintenance-confirmed --confirm"
@@ -571,54 +574,10 @@ class ReleaseService:
         )
 
     def review_upgrade(self, prepared: PreparedReleaseUpgrade) -> dict[str, object]:
-        review = self._review_upgrade(prepared)
+        review = upgrade_review(prepared)
         if self.workflow is not None:
             review.update(self.workflow.review(prepared))
         return review
-
-    def _review_upgrade(self, prepared: PreparedReleaseUpgrade) -> dict[str, object]:
-        installed = prepared.installed_release
-        target = prepared.target_release
-        if prepared.transition_binding is not None:
-            origin = prepared.transition_binding.installed_origin
-            return {
-                "status": "ready",
-                "installed_origin": "source",
-                "source_commit_sha": origin.commit_sha,
-                "semantic_ordering": "unknown",
-                "installation_mode_change": "source -> official",
-                "target_version": target.version,
-                "target_tag": target.tag,
-                "target_commit_sha": target.commit_sha,
-                "target_images": [image.model_dump(mode="json") for image in target.images],
-                "deployment_profile": prepared.deployment_profile,
-                "platform": prepared.platform,
-                "release_source": prepared.release_source,
-                "maintenance": "enabled (left enabled after success or failure)",
-                "migration_policy": (
-                    "Installer prechecks migrations and stops before service recreation when one "
-                    "is required; backup and database upgrade remain explicit operator commands."
-                ),
-                "resume_command": (
-                    f"flow-steward release upgrade --target-version {target.version} --confirm"
-                ),
-                "next_steps": [_MAINTENANCE_DISABLE_COMMAND],
-            }
-        assert installed is not None
-        return {
-            "status": "already_current" if target == installed else "ready",
-            "installed_version": installed.version,
-            "target_version": target.version,
-            "deployment_profile": prepared.deployment_profile,
-            "platform": prepared.platform,
-            "release_source": prepared.release_source,
-            "maintenance": "enabled (left enabled after success or failure)",
-            "migration_policy": (
-                "Installer prechecks migrations and stops before service recreation when one "
-                "is required; backup and database upgrade remain explicit operator commands."
-            ),
-            "next_steps": [_MAINTENANCE_DISABLE_COMMAND],
-        }
 
     def plan_upgrade(self, request: ReleaseUpgradeRequest) -> dict[str, object]:
         """Compatibility wrapper for callers that only need a review document."""

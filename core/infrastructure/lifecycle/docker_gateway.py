@@ -858,8 +858,10 @@ class DockerLifecycleGateway:
         input_text: str | None = None,
         separate_stderr: bool = False,
     ) -> Any:
-        if environment is None:
-            environment = self._compose_process_environment(target)
+        if environment is None:  # #30: the installed env file wins over this process
+            environment = docker_runtime_support.compose_process_environment(
+                self._project_root, target.env_file, _runtime_env
+            )
         return self._run(
             tuple(
                 self._compose_command(
@@ -876,22 +878,6 @@ class DockerLifecycleGateway:
             input_text=input_text,
             separate_stderr=separate_stderr,
         )
-
-    def _compose_process_environment(self, target: ComposeTarget) -> dict[str, str] | None:
-        """The process environment for Compose, without what the env file assigns.
-
-        #30: Compose prefers a variable of its own process over `--env-file`. The CLI
-        container was created from the env file as it was before `config apply`
-        rendered the new one, so its stale FS_ALLOW_PRIVATE_REMOTE_URLS=0 beat the
-        file's 1: the runtime kept 0 and was not even recreated. The installed env
-        file is the source of truth for every name it assigns.
-        """
-        names = docker_runtime_support.env_file_names(
-            docker_runtime_support.project_path(self._project_root, target.env_file)
-        )
-        if not names:
-            return None
-        return {name: value for name, value in _runtime_env.items() if name not in names}
 
     def _run(
         self,

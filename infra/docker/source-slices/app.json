@@ -804,6 +804,7 @@
     "core/application/release/installed_origin.py",
     "core/application/release/service.py",
     "core/application/release/update_notice.py",
+    "core/application/release/upgrade_review.py",
     "core/application/release/upgrade_workflow.py",
     "core/application/reports/__init__.py",
     "core/application/reports/activity_repository.py",
