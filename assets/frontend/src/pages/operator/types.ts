@@ -37,10 +37,14 @@ export type OperatorFilterView = {
 
 export type OperatorSubmission = { mode: "foreach" | "bulk"; target_input?: string };
 
+/** How a finished run shows one output (`settings.operator.result.fields`). */
+export type OperatorResultFieldConfig = { label?: string; display?: string; hidden?: boolean; decimals?: number | null };
+
 export type OperatorSettings = {
   published?: boolean;
   menu_title?: string;
   submission?: OperatorSubmission;
+  result?: { order?: string[]; fields?: Record<string, OperatorResultFieldConfig> };
   list?: { columns?: OperatorListColumn[]; filters?: Array<Omit<OperatorFilterView, "options">> };
   [key: string]: unknown;
 };
@@ -73,4 +77,34 @@ export type OperatorFileValue = {
   content_type?: string;
   size_bytes?: number;
   artifact_id?: string;
+};
+
+/** What a job of a section submitted and returned (`job_values` of the job's review read). */
+export type OperatorJobValues = {
+  status?: string;
+  submitted_by?: Record<string, unknown> | null;
+  inputs?: Record<string, unknown>;
+  /** Only once the run succeeded. */
+  outputs?: Record<string, unknown> | null;
+};
+
+/** One correction of a decided review: what the application found and what the person made of it. */
+export type OperatorReviewChange = { field: string; before?: unknown; after?: unknown };
+
+/**
+ * The last decided typed review of a job, here or on the Invoke child that held
+ * it. `access: "none"`: decided by people with access to that job; nothing else.
+ */
+export type OperatorReviewDecision = {
+  access: "read" | "none";
+  job_id?: string | null;
+  approval_id?: string | null;
+  approved?: boolean;
+  actor?: string | null;
+  actor_type?: string | null;
+  timestamp?: string | null;
+  comment?: string | null;
+  fields?: Array<{ name: string; label?: string; type?: string }>;
+  values?: Record<string, unknown>;
+  changes?: OperatorReviewChange[];
 };

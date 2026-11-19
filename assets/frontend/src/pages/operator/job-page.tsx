@@ -16,6 +16,7 @@ import { fetchJobsQueuePosition, type JobsQueuePosition } from "@/pages/jobs/lis
 
 import { fetchJobReview, fetchOperatorSection } from "./api";
 import { isTypingTarget, operatorJobPath, queueListFilters, sectionListPath } from "./queue";
+import { OperatorJobView } from "./operator-job-view";
 import { OperatorReviewPanel } from "./review-panel";
 import { reviewFileUrl, reviewPageDecides, type JobReview } from "./review-model";
 import "./operator.css";
@@ -95,8 +96,9 @@ function QueueBar({
  * A job of a section (ADR 0075), opened from the section's list with that list
  * in its address: "3 of 47", the previous and next job (K / J), and a way back
  * to the same list. A job waiting for a review with fields (its own, or one
- * down its Invoke chain) shows the review page; any other job the usual Job
- * Details. Without list context the queue is the section's default list.
+ * down its Invoke chain) shows the review page; any other job the operator
+ * view: submitted values, the configured result and the decided review.
+ * Without list context the queue is the section's default list.
  */
 export function OperatorJobPage() {
   const { t } = useI18n();
@@ -113,7 +115,7 @@ export function OperatorJobPage() {
   });
   const review = useQuery({
     queryKey: queryKeys.operatorJobReview(jobId),
-    queryFn: () => fetchJobReview(jobId),
+    queryFn: () => fetchJobReview(jobId, projectId, workflowId),
     enabled: Boolean(jobId),
     retry: false,
   });
@@ -158,10 +160,10 @@ export function OperatorJobPage() {
     if (!nextId) return;
     ignoreAsyncResult(
       queryClient
-        .prefetchQuery({ queryKey: queryKeys.operatorJobReview(nextId), queryFn: () => fetchJobReview(nextId), retry: false })
+        .prefetchQuery({ queryKey: queryKeys.operatorJobReview(nextId), queryFn: () => fetchJobReview(nextId, projectId, workflowId), retry: false })
         .then(() => prefetchOriginal(queryClient.getQueryData<JobReview>(queryKeys.operatorJobReview(nextId)))),
     );
-  }, [nextId, queryClient]);
+  }, [nextId, queryClient, projectId, workflowId]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -236,18 +238,12 @@ export function OperatorJobPage() {
       </PageContainer>
     );
   }
+  // Any other job, running, finished or waiting where the caller cannot decide:
+  // the operator view, never the technical step graph.
   return (
-    <>
-      <PageContainer width="standard">
-        {bar}
-        {data?.waiting && data.access === "none" ? (
-          <DsAlert
-            title={t("react.operator_review.waiting_elsewhere", "This job waits for a decision by people who have access to it.")}
-            tone="neutral"
-          />
-        ) : null}
-      </PageContainer>
-      <JobsDetailPage jobId={jobId} />
-    </>
+    <PageContainer width="standard">
+      {bar}
+      <OperatorJobView jobId={jobId} review={data} section={section.data} />
+    </PageContainer>
   );
 }

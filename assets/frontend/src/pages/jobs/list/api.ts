@@ -34,6 +34,8 @@ export type JobsListResponse = {
   total_pages?: number;
 };
 
+export type JobTaskSource = "workflow_test_run" | "manual_ui" | "mcp_workflow";
+
 export type JobsListFilters = {
   page: number;
   perPage: number;
@@ -43,7 +45,8 @@ export type JobsListFilters = {
   hideAcknowledged?: boolean;
   projectId: string | null;
   workflowId?: string | null;
-  taskSource?: "workflow_test_run";
+  /** How runs started: Test Runs, the UI form or the API/MCP (the server's history filter). */
+  taskSource?: JobTaskSource;
   /**
    * ADR 0075: a section's list. Needs both ids; rows carry `operator_values` for
    * the configured columns, and `filters` holds configured filter id → value.

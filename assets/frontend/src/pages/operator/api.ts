@@ -19,7 +19,10 @@ export function fetchOperatorSection(projectId: string, workflowId: string): Pro
 /**
  * The review a job waits for, here or down its Invoke chain, read with the
  * rights on the job that holds it: without read access only that it waits.
+ * The section's project and workflow go with it: a job of another section is
+ * not found.
  */
-export function fetchJobReview(jobId: string): Promise<JobReview> {
-  return fetchJson<JobReview>(`/api/v2/jobs/${encodeURIComponent(jobId)}/review`);
+export function fetchJobReview(jobId: string, projectId: string, workflowId: string): Promise<JobReview> {
+  const params = new URLSearchParams({ project_id: projectId, workflow_id: workflowId });
+  return fetchJson<JobReview>(`/api/v2/jobs/${encodeURIComponent(jobId)}/review?${params.toString()}`);
 }

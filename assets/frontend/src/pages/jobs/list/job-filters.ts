@@ -94,5 +94,19 @@ export function jobsListRequestFromUrl(params: URLSearchParams, today: string) {
     search: (params.get("search") || "").trim(),
     fromDate,
     toDate,
+    taskSource: runSourceFromUrl(params),
   };
+}
+
+/** The URL key of the run source filter of a section's list (how a run started). */
+export const RUN_SOURCE_PARAM = "source";
+
+/** Run sources a section's list filters by: the operator form or the API and MCP. */
+export const RUN_SOURCES = ["manual_ui", "mcp_workflow"] as const;
+export type RunSource = (typeof RUN_SOURCES)[number];
+
+/** The run source chosen in the URL; anything else (or nothing) is every source. */
+export function runSourceFromUrl(params: URLSearchParams): RunSource | undefined {
+  const value = (params.get(RUN_SOURCE_PARAM) || "").trim();
+  return RUN_SOURCES.find((source) => source === value);
 }

@@ -165,6 +165,13 @@ describe("OperatorSectionPage", () => {
     expect(screen.getByRole("link", { name: "page-1.jpg" })).toHaveAttribute("href", "/api/jobs/j1/artifacts/a1");
     expect(screen.getByRole("link", { name: "page-2.jpg" })).toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
+    // "+N" opens every file as a download link, reachable by keyboard.
+    const more = screen.getByRole("button", { name: "All files (3)" });
+    more.focus();
+    fireEvent.click(more);
+    const list = await screen.findByRole("list", { name: "All files (3)" });
+    expect(within(list).getByRole("link", { name: "page-3.jpg" })).toHaveAttribute("href", "/api/jobs/j1/artifacts/a3");
+    expect(within(list).getAllByRole("link")).toHaveLength(3);
     const request = jobRequests()[0];
     expect(request.searchParams.get("project_id")).toBe("p1");
     expect(request.searchParams.get("workflow_id")).toBe("wf.contracts");
@@ -189,6 +196,15 @@ describe("OperatorSectionPage", () => {
     expect(jobRequests().at(-1)?.searchParams.has("filters")).toBe(false);
     // The panel shows it as a built-in status option.
     expect(await screen.findByText("Status · Awaiting review")).toBeInTheDocument();
+  });
+
+  it("filters by how runs started, from the address", async () => {
+    serve(section("bulk"));
+    renderPage("/projects/p1/workflows/wf.contracts/work?source=manual_ui");
+    await screen.findByText("ACME Ltd");
+
+    await waitFor(() => expect(jobRequests().at(-1)?.searchParams.get("task_source")).toBe("manual_ui"));
+    expect(jobRequests().at(-1)?.searchParams.get("operator_view")).toBe("1");
   });
 
   it("sends a configured filter's value as the filters JSON", async () => {
@@ -270,6 +286,59 @@ describe("OperatorSectionPage", () => {
     await waitFor(() => expect(mockedRun).toHaveBeenCalledTimes(4));
     // The retry resends the same request under the same key.
     expect(mockedRun.mock.calls[3][2]).toBe(calls[1][2]);
+  });
+
+  it("never re-sends accepted items after a partial success; only failed ones or a new submission", async () => {
+    serve(section("foreach"));
+    mockedRun
+      .mockResolvedValueOnce({ job_id: "a" })
+      .mockRejectedValueOnce(new Error("Queue is full"))
+      .mockRejectedValueOnce(new Error("Queue is full"));
+    renderPage();
+    const dialog = await openForm();
+    fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
+    choosePages(dialog, ["r1.jpg", "r2.jpg", "r3.jpg"]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await screen.findByText("1 of 3 accepted");
+    const firstKeys = mockedRun.mock.calls.map(([, , key]) => key);
+
+    // Send is gone and submitting the form does nothing: the accepted item stays sent once.
+    expect(within(dialog).queryByRole("button", { name: "Send" })).not.toBeInTheDocument();
+    fireEvent.submit(dialog.querySelector("form") as HTMLFormElement);
+    expect(mockedRun).toHaveBeenCalledTimes(3);
+
+    mockedRun.mockResolvedValueOnce({ job_id: "b" }).mockRejectedValueOnce(new Error("Queue is full"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Retry 2 failed" }));
+    await screen.findByText("2 of 3 accepted");
+    const retryKeys = mockedRun.mock.calls.slice(3).map(([, , key]) => key);
+    expect(retryKeys).toEqual([firstKeys[1], firstKeys[2]]);
+    expect(retryKeys).not.toContain(firstKeys[0]);
+
+    // A new submission resets the form and starts a new id.
+    fireEvent.click(within(dialog).getByRole("button", { name: "New submission" }));
+    expect(await within(dialog).findByRole("button", { name: "Send" })).toBeInTheDocument();
+    expect(within(dialog).queryByText(/accepted/)).not.toBeInTheDocument();
+    mockedRun.mockResolvedValueOnce({ job_id: "d" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
+    choosePages(dialog, ["r9.jpg"]);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(mockedRun).toHaveBeenCalledTimes(6));
+    const newKey = mockedRun.mock.calls[5][2];
+    expect([...firstKeys, ...retryKeys]).not.toContain(newKey);
+    expect(mockedRun.mock.calls[5][1].files.map((file) => file.filename)).toEqual(["r9.jpg"]);
+  });
+
+  it("refuses a For each form whose target is not shown, without a request", async () => {
+    const hiddenTarget = section("foreach");
+    hiddenTarget.operator.form_fields = formFields.map((entry) => (entry.name === "pages" ? { ...entry, hidden: true } : entry));
+    serve(hiddenTarget);
+    renderPage();
+    const dialog = await openForm();
+    fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+
+    expect(await within(dialog).findByText(/the input it sends one by one is not shown/)).toBeInTheDocument();
+    expect(mockedRun).not.toHaveBeenCalled();
   });
 
   it("refuses files beyond the installation's limits before sending", async () => {

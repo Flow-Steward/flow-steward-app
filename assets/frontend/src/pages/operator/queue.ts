@@ -10,7 +10,7 @@ import { operatorFilterKey, operatorFiltersParam } from "./section-filters";
 import type { OperatorFilterView } from "./types";
 
 /** The list's own URL keys; anything else in the address is not list context. */
-const LIST_KEYS = ["search", "status", "hide_acknowledged", "period", "from_date", "to_date", "page", "per_page"];
+const LIST_KEYS = ["search", "status", "source", "hide_acknowledged", "period", "from_date", "to_date", "page", "per_page"];
 
 function isListKey(key: string): boolean {
   return LIST_KEYS.includes(key) || key.startsWith("f.");

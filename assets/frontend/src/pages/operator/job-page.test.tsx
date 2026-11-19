@@ -127,7 +127,7 @@ function Where() {
   return <output data-testid="location">{`${location.pathname}${location.search}`}</output>;
 }
 
-const LIST = "f.state=awaiting_review&search=acme&page=2";
+const LIST = "f.state=awaiting_review&search=acme&source=manual_ui&page=2";
 
 function renderPage(jobId = "j3", query = LIST) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -229,12 +229,19 @@ describe("OperatorJobPage review", () => {
     };
     const { container } = renderPage();
     await screen.findByTestId("operator-review");
-    fireEvent.change(frame(container, "total").querySelector("input") as HTMLInputElement, { target: { value: "318,5О" } });
+    const totalInput = () => frame(container, "total").querySelector("input") as HTMLInputElement;
+    // Text that is not a number is named at its field and nothing is sent.
+    fireEvent.change(totalInput(), { target: { value: "318,5О" } });
+    fireEvent.click(screen.getByTestId("review-approve-next"));
+    expect(await within(frame(container, "total")).findByText("Enter a number.")).toBeInTheDocument();
+    expect(decisions()).toHaveLength(0);
 
+    // A number the server still refuses is shown at its field from the server's answer.
+    fireEvent.change(totalInput(), { target: { value: "318,50" } });
     fireEvent.click(screen.getByTestId("review-approve-next"));
 
     expect(await within(frame(container, "total")).findByText("Total must be a number")).toBeInTheDocument();
-    expect(decisions()[0].body.values).toEqual({ total: "318,5О" });
+    expect(decisions()[0].body.values).toEqual({ total: 318.5 });
     expect(screen.getByTestId("location")).toHaveTextContent("/work/jobs/j3?");
   });
 
@@ -305,14 +312,16 @@ describe("OperatorJobPage review", () => {
 
     expect(await screen.findByText("This job waits for a decision by people who have access to it.")).toBeInTheDocument();
     expect(screen.queryByTestId("operator-review")).not.toBeInTheDocument();
-    expect(screen.getByTestId("job-detail")).toHaveTextContent("j3");
+    expect(screen.getByTestId("operator-job")).toBeInTheDocument();
+    expect(screen.queryByTestId("job-detail")).not.toBeInTheDocument();
   });
 
-  it("leads back to the same list and keeps a job without review fields on Job Details", async () => {
+  it("leads back to the same list and shows a job without review fields in the operator view", async () => {
     reviews.j3 = review("j3", "decide", { status: "completed", waiting: false, review_job_id: null, access: null, gate: null });
     renderPage();
 
-    expect(await screen.findByTestId("job-detail")).toHaveTextContent("j3");
+    expect(await screen.findByTestId("operator-job")).toBeInTheDocument();
+    expect(screen.queryByTestId("job-detail")).not.toBeInTheDocument();
     const back = screen.getByRole("link", { name: "Back to Contracts" });
     expect(back).toHaveAttribute("href", `/projects/p1/workflows/wf.contracts/work?${LIST}`);
     await waitFor(() => expect(screen.getByTestId("operator-queue-position")).toHaveTextContent("3 of 47"));
@@ -320,6 +329,7 @@ describe("OperatorJobPage review", () => {
       .map(([input]) => new URL(String(input), "https://example.test"))
       .find((url) => url.searchParams.get("around") === "j3");
     expect(around?.searchParams.get("filters")).toBe(JSON.stringify({ state: ["awaiting_review"] }));
+    expect(around?.searchParams.get("task_source")).toBe("manual_ui");
     expect(around?.searchParams.get("search")).toBe("acme");
     expect(around?.searchParams.has("page")).toBe(false);
   });
@@ -328,8 +338,108 @@ describe("OperatorJobPage review", () => {
     renderPage();
     await screen.findByTestId("operator-review");
 
-    await waitFor(() => expect(mockedFetchJson.mock.calls.some(([input]) => String(input) === "/api/v2/jobs/j4/review")).toBe(true));
+    await waitFor(() =>
+      expect(mockedFetchJson.mock.calls.some(([input]) => String(input) === "/api/v2/jobs/j4/review?project_id=p1&workflow_id=wf.contracts")).toBe(true),
+    );
+    // Every review read names the section, so the server refuses a job of another one.
+    const reads = mockedFetchJson.mock.calls.map(([input]) => new URL(String(input), "https://example.test")).filter((url) => url.pathname.endsWith("/review"));
+    expect(reads.every((url) => url.searchParams.get("project_id") === "p1" && url.searchParams.get("workflow_id") === "wf.contracts")).toBe(true);
     await waitFor(() => expect(document.head.querySelector('link[rel="prefetch"][href="/api/jobs/j4-child/artifacts/art-1/preview"]')).not.toBeNull());
+  });
+});
+
+describe("OperatorJobPage finished job", () => {
+  const withForm = {
+    ...SECTION,
+    operator: {
+      ...SECTION.operator,
+      settings: {
+        published: true,
+        result: { order: ["total", "supplier"], fields: { total: { label: "Amount", decimals: 2 }, internal: { hidden: true } } },
+      },
+      form_fields: [
+        { name: "doc_type", kind: "select", widget: "select", label: "Document type", options: ["invoice"], option_labels: { invoice: "Invoice" } },
+        { name: "pages", kind: "file_list", widget: "files", label: "Pages" },
+        { name: "ocr_model", kind: "string", widget: "text", label: "OCR model", hidden: true },
+      ],
+      output_schema: { properties: { supplier: { title: "Supplier" }, total: { type: "number" }, internal: { type: "string" } } },
+    },
+  } as unknown as OperatorSectionDetail;
+
+  function finished(overrides: Partial<JobReview> = {}): JobReview {
+    return {
+      job_id: "j3",
+      status: "completed",
+      waiting: false,
+      review_job_id: null,
+      access: null,
+      gate: null,
+      job_values: {
+        status: "completed",
+        submitted_by: { id: "u1", name: "Olga" },
+        inputs: { doc_type: "invoice", pages: [{ filename: "p1.jpg", artifact_id: "a1" }], ocr_model: "fast" },
+        outputs: { total: 318.5, supplier: "ACME", internal: "x" },
+      },
+      decision: {
+        access: "read",
+        job_id: "j3-child",
+        approved: true,
+        actor: "Marta",
+        timestamp: "2026-11-19T10:00:00Z",
+        fields: [
+          { name: "supplier", label: "Supplier", type: "string" },
+          { name: "total", label: "Total", type: "number" },
+        ],
+        values: { supplier: "ACME Ltd", total: 318.5 },
+        changes: [{ field: "total", before: 31.85, after: 318.5 }],
+      },
+      ...overrides,
+    };
+  }
+
+  function serveFinished(detail: JobReview) {
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = new URL(String(input), "https://example.test");
+      if (url.pathname === "/api/v2/projects/p1/workflows/wf.contracts/section") return withForm as never;
+      if (url.pathname === "/api/v2/jobs/j3/review") return detail as never;
+      if (url.pathname === "/api/v2/jobs") return { job_id: "j3", in_list: true, position: 3, total: 47, previous_job_id: null, next_job_id: null } as never;
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+  }
+
+  it("shows what was submitted, the configured result and the decided review of the Invoke child, never the step graph", async () => {
+    serveFinished(finished());
+    renderPage();
+
+    const submitted = await screen.findByTestId("operator-job-inputs");
+    expect(within(submitted).getByText("Document type")).toBeInTheDocument();
+    expect(within(submitted).getByText("Invoice")).toBeInTheDocument();
+    expect(within(submitted).getByRole("link", { name: "p1.jpg" })).toHaveAttribute("href", "/api/jobs/j3/artifacts/a1");
+    expect(within(submitted).queryByText("OCR model")).not.toBeInTheDocument();
+    expect(screen.getByText("Submitted by Olga")).toBeInTheDocument();
+
+    const result = screen.getByTestId("operator-job-outputs");
+    const labels = within(result).getAllByRole("term").map((term) => term.textContent);
+    expect(labels).toEqual(["Amount", "Supplier"]);
+    expect(within(result).getByText(/318[.,]50/)).toBeInTheDocument();
+
+    const decided = screen.getByTestId("operator-job-review");
+    expect(within(decided).getByText(/Approved by Marta/)).toBeInTheDocument();
+    expect(within(decided).getByText("ACME Ltd")).toBeInTheDocument();
+    expect(within(decided).getByTestId("decision-corrected-total")).toHaveTextContent("Was: 31.85");
+    expect(within(screen.getByTestId("operator-job-review-changes")).getByText(/Total/)).toBeInTheDocument();
+
+    expect(screen.queryByTestId("job-detail")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("operator-job-details-link")).not.toBeInTheDocument();
+  });
+
+  it("shows no result before the run succeeded and only that a review was decided without access", async () => {
+    serveFinished(finished({ status: "running", job_values: { status: "running", inputs: { doc_type: "invoice" }, outputs: null }, decision: { access: "none" } }));
+    renderPage();
+
+    expect(await screen.findByText("This job was reviewed by people who have access to it.")).toBeInTheDocument();
+    expect(screen.queryByTestId("operator-job-result")).not.toBeInTheDocument();
+    expect(screen.queryByText("Marta")).not.toBeInTheDocument();
   });
 });
 

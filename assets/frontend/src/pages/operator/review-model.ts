@@ -3,9 +3,11 @@
  * how each field is shown (the default widget of its type) and which edits a
  * decision sends.
  */
-import type { FormFieldView, FormValues } from "@/components/workflow-inputs/form-field";
-import { parseLocaleNumber } from "@/components/workflow-inputs/form-field";
+import type { FormFieldView, FormProblem, FormValues } from "@/components/workflow-inputs/form-field";
+import { formProblems, parseLocaleNumber } from "@/components/workflow-inputs/form-field";
 import { isHttpError } from "@/lib/http/errors";
+
+import type { OperatorJobValues, OperatorReviewDecision } from "./types";
 
 /** One field of a captured review: the workflow contract field with its editability. */
 export type ReviewField = {
@@ -49,6 +51,10 @@ export type JobReview = {
   review_job_id: string | null;
   access: "decide" | "read" | "none" | null;
   gate: ReviewGate | null;
+  /** What the job submitted and, once it succeeded, returned. */
+  job_values?: OperatorJobValues | null;
+  /** The last decided typed review of the job or of the Invoke child that held it. */
+  decision?: OperatorReviewDecision | null;
 };
 
 const STRING_WIDGETS: Record<string, string> = {
@@ -107,6 +113,18 @@ export function reviewFormField(field: ReviewField): FormFieldView | null {
     case "array": {
       const items = record(field.items);
       const itemType = String(items.type || "");
+      const scalar = SCALAR_LIST_ITEMS[itemType];
+      if (scalar) {
+        // A list of plain values is edited as a one-column repeater; the page
+        // turns each value into a row and back (reviewFormValues, reviewEdits).
+        return {
+          ...base,
+          kind: "object_list",
+          widget: "repeater",
+          layout: "table",
+          sub_fields: [{ name: LIST_ITEM_KEY, label: base.label, kind: scalar.kind, widget: scalar.widget }],
+        };
+      }
       if (itemType === "select") {
         const options = Array.isArray(items.options) ? items.options.map(String) : base.options;
         return { ...base, options, kind: "select_list", widget: "multiselect" };
@@ -120,6 +138,70 @@ export function reviewFormField(field: ReviewField): FormFieldView | null {
     default:
       return null;
   }
+}
+
+/** The one sub-field of a list of plain values edited as rows. */
+export const LIST_ITEM_KEY = "value";
+
+/** Plain list items the review page edits, with the default widget of their type. */
+const SCALAR_LIST_ITEMS: Record<string, { kind: "string" | "number"; widget: string }> = {
+  string: { kind: "string", widget: "text" },
+  paragraph: { kind: "string", widget: "textarea" },
+  number: { kind: "number", widget: "number" },
+};
+
+function scalarList(field: ReviewField): boolean {
+  return field.type === "array" && Boolean(SCALAR_LIST_ITEMS[String(record(field.items).type || "")]);
+}
+
+/** One value as the form holds it: a list of plain values as rows, at any depth. */
+function toFormValue(field: ReviewField, value: unknown): unknown {
+  if (scalarList(field)) return Array.isArray(value) ? value.map((item) => ({ [LIST_ITEM_KEY]: item })) : value;
+  if (field.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+    return toFormRecord(nestedFields(field.properties), record(value));
+  }
+  if (field.type === "array" && String(record(field.items).type || "") === "object" && Array.isArray(value)) {
+    const properties = nestedFields(record(field.items).properties);
+    return value.map((item) => (item && typeof item === "object" && !Array.isArray(item) ? toFormRecord(properties, record(item)) : item));
+  }
+  return value;
+}
+
+/** The form's value back as the review field's JSON value. */
+function fromFormValue(field: ReviewField, value: unknown): unknown {
+  if (scalarList(field)) {
+    if (!Array.isArray(value)) return value;
+    const numeric = String(record(field.items).type || "") === "number";
+    return value
+      .map((row) => record(row)[LIST_ITEM_KEY])
+      .filter((item) => item !== undefined && item !== null && item !== "")
+      .map((item) => (numeric && typeof item === "string" ? (parseLocaleNumber(item) ?? item) : item));
+  }
+  if (field.type === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+    return fromFormRecord(nestedFields(field.properties), record(value));
+  }
+  if (field.type === "array" && String(record(field.items).type || "") === "object" && Array.isArray(value)) {
+    const properties = nestedFields(record(field.items).properties);
+    return value.map((item) => (item && typeof item === "object" && !Array.isArray(item) ? fromFormRecord(properties, record(item)) : item));
+  }
+  return value;
+}
+
+function toFormRecord(fields: readonly ReviewField[], values: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...values };
+  for (const field of fields) if (field.name in next) next[field.name] = toFormValue(field, next[field.name]);
+  return next;
+}
+
+function fromFormRecord(fields: readonly ReviewField[], values: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...values };
+  for (const field of fields) if (field.name in next) next[field.name] = fromFormValue(field, next[field.name]);
+  return next;
+}
+
+/** The captured values as the review form holds them. */
+export function reviewFormValues(fields: readonly ReviewField[], values: Readonly<Record<string, unknown>>): FormValues {
+  return toFormRecord(fields, { ...values });
 }
 
 /** A file value of a review (`file` or a list of files) as file summaries. */
@@ -152,7 +234,8 @@ export function reviewValueChanged(initial: unknown, current: unknown): boolean 
 }
 
 /** The JSON value a decision sends for one field: a number typed in the person's locale as a number. */
-function sentValue(field: ReviewField, value: unknown): unknown {
+function sentValue(field: ReviewField, formValue: unknown): unknown {
+  const value = fromFormValue(field, formValue);
   if (field.type === "number") {
     if (value === "" || value === undefined) return null;
     if (typeof value === "string") return parseLocaleNumber(value) ?? value;
@@ -173,6 +256,18 @@ export function reviewEdits(fields: readonly ReviewField[], initial: FormValues,
     }
   }
   return edits;
+}
+
+/**
+ * Edited fields whose number text is not a number, nested ones included: the
+ * page names them and sends no decision rather than dropping or sending text.
+ */
+export function reviewNumberProblems(fields: readonly ReviewField[], initial: FormValues, current: FormValues): FormProblem[] {
+  const edited = fields
+    .filter((field) => field.editable && reviewValueChanged(initial[field.name], current[field.name]))
+    .map(reviewFormField)
+    .filter((field): field is FormFieldView => field !== null);
+  return formProblems(edited, current).filter((problem) => problem.code === "invalid_number" || problem.code === "row_invalid_number");
 }
 
 /** A refused decision that names one field (422 with `field`): shown at that field. */

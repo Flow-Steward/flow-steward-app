@@ -1,13 +1,14 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BlankCell, DsBadge } from "@/components/shared/design-system";
+import { DsPopover } from "@/components/shared/popover";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatCalendarDate, formatDate, formatDateTime } from "@/lib/time/date-time-format";
 import { jobStatusGroup, jobStatusGroupLabel, jobStatusGroupTone } from "@/pages/jobs/status-groups";
 
 import type { OperatorFileValue, OperatorListColumn } from "./types";
 
-/** Files past this many collapse into "+N" in a cell; the title lists them all. */
+/** Files past this many collapse into "+N" in a cell; it opens the list of them all. */
 const STRIP_VISIBLE_FILES = 2;
 
 function isFileValue(value: unknown): value is OperatorFileValue {
@@ -32,19 +33,53 @@ function FileLink({ jobId, file }: Readonly<{ jobId: string; file: OperatorFileV
   );
 }
 
-/** Several files in one cell: the first ones as links, the rest as a "+N" count. */
+/**
+ * Several files in one cell: the first ones as links, then a "+N" button that
+ * opens every file as a download link, so each one is reachable by keyboard.
+ */
 function FileStrip({ jobId, files }: Readonly<{ jobId: string; files: OperatorFileValue[] }>) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
   const visible = files.slice(0, STRIP_VISIBLE_FILES);
   const rest = files.length - visible.length;
+  const label = t("react.operator.all_files", "All files ({count})", { count: String(files.length) });
   return (
     <span className="fs-operator-file-strip" data-files={files.length}>
       {visible.map((file, index) => (
         <FileLink file={file} jobId={jobId} key={`${file.artifact_id ?? file.filename}-${index}`} />
       ))}
       {rest > 0 ? (
-        <span className="fs-operator-file-more" title={files.slice(STRIP_VISIBLE_FILES).map((file) => file.filename ?? "").join(", ")}>
-          +{rest}
-        </span>
+        <DsPopover
+          label={label}
+          onOpenChange={setOpen}
+          open={open}
+          portal
+          trigger={(props) => (
+            <button
+              {...props}
+              aria-label={label}
+              className="fs-operator-file-more"
+              onClick={(event) => {
+                // The row opens its job; this button only opens the list.
+                event.stopPropagation();
+                props.onClick();
+              }}
+              type="button"
+            >
+              +{rest}
+            </button>
+          )}
+        >
+          {/* The popover is portaled, but React events still bubble to the row. */}
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- only stops the row's click, not an action. */}
+          <ul aria-label={label} className="fs-operator-file-list" onClick={(event) => event.stopPropagation()}>
+            {files.map((file, index) => (
+              <li key={`${file.artifact_id ?? file.filename}-${index}`}>
+                <FileLink file={file} jobId={jobId} />
+              </li>
+            ))}
+          </ul>
+        </DsPopover>
       ) : null}
     </span>
   );
@@ -59,7 +94,16 @@ function numberText(value: number, decimals?: number): string {
  * `operator_values` by column id, shown by the column's format. Files are names
  * with download links; a missing value is a blank cell, never a guess.
  */
-export function OperatorCell({ column, row }: Readonly<{ column: OperatorListColumn; row: Record<string, unknown> }>) {
+export function OperatorCell({
+  column,
+  row,
+  decimals,
+}: Readonly<{
+  column: OperatorListColumn;
+  row: Record<string, unknown>;
+  /** Digits after the decimal mark of a number, as a result field configures it. */
+  decimals?: number | null;
+}>) {
   const { t } = useI18n();
   const values = row.operator_values && typeof row.operator_values === "object" ? (row.operator_values as Record<string, unknown>) : {};
   const value = values[column.id];
@@ -91,7 +135,7 @@ export function OperatorCell({ column, row }: Readonly<{ column: OperatorListCol
   } else if (format === "currency" && typeof value === "number") {
     shown = numberText(value, 2);
   } else if ((format === "number" || format === "auto") && typeof value === "number") {
-    shown = numberText(value);
+    shown = numberText(value, decimals ?? undefined);
   } else {
     shown = String(value);
   }

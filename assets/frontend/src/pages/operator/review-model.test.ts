@@ -1,11 +1,72 @@
 import { HttpError } from "@/lib/http/errors";
 
-import { rowContext, listContext, operatorJobPath, sectionListPath, isTypingTarget } from "./queue";
+import { rowContext, listContext, operatorJobPath, queueListFilters, sectionListPath, isTypingTarget } from "./queue";
 import { AWAITING_REVIEW_STATUS, jobStatusRequest, normalizeStatusList } from "@/pages/jobs/list/job-filters";
 
-import { reviewEdits, reviewFieldError, reviewFormField, reviewPageDecides, type ReviewField } from "./review-model";
+import {
+  reviewEdits,
+  reviewFieldError,
+  reviewFormField,
+  reviewFormValues,
+  reviewNumberProblems,
+  reviewPageDecides,
+  type ReviewField,
+} from "./review-model";
 
 describe("review fields", () => {
+  it("edit a list of plain values as rows and send it back as a list, nested ones too", () => {
+    const fields: ReviewField[] = [
+      { name: "tags", type: "array", required: true, editable: true, items: { type: "string" } },
+      { name: "amounts", type: "array", editable: true, items: { type: "number" } },
+      {
+        name: "party",
+        type: "object",
+        editable: true,
+        properties: [
+          { name: "name", type: "string" },
+          { name: "emails", type: "array", items: { type: "string" } },
+        ],
+      },
+    ];
+    expect(reviewFormField(fields[0])).toMatchObject({ kind: "object_list", widget: "repeater", sub_fields: [{ name: "value", kind: "string" }] });
+    expect(reviewFormField(fields[1])?.sub_fields?.[0]).toMatchObject({ kind: "number" });
+    const party = reviewFormField(fields[2]);
+    expect(party?.sub_fields?.map((sub) => `${sub.name}:${sub.kind}`)).toEqual(["name:string", "emails:object_list"]);
+
+    const captured = { tags: ["a"], amounts: [1.5], party: { name: "ACME", emails: ["x@acme.test"] } };
+    const initial = reviewFormValues(fields, captured);
+    expect(initial).toEqual({ tags: [{ value: "a" }], amounts: [{ value: 1.5 }], party: { name: "ACME", emails: [{ value: "x@acme.test" }] } });
+    expect(reviewEdits(fields, initial, { ...initial })).toEqual({});
+    const edited = {
+      tags: [{ value: "a" }, { value: "b" }, {}],
+      amounts: [{ value: "2,5" }],
+      party: { name: "ACME", emails: [{ value: "x@acme.test" }, { value: "y@acme.test" }] },
+    };
+    expect(reviewEdits(fields, initial, edited)).toEqual({
+      tags: ["a", "b"],
+      amounts: [2.5],
+      party: { name: "ACME", emails: ["x@acme.test", "y@acme.test"] },
+    });
+  });
+
+  it("name an edited number field holding text that is not a number, nested ones too", () => {
+    const fields: ReviewField[] = [
+      { name: "total", type: "number", editable: true },
+      { name: "confidence", type: "number", editable: false },
+      { name: "lines", type: "array", editable: true, items: { type: "object", properties: [{ name: "qty", type: "number" }] } },
+    ];
+    const initial = { total: 31.85, confidence: 0.6, lines: [{ qty: 2 }] };
+    expect(reviewNumberProblems(fields, initial, { ...initial })).toEqual([]);
+    expect(reviewNumberProblems(fields, initial, { ...initial, total: "318,50" })).toEqual([]);
+    expect(reviewNumberProblems(fields, initial, { ...initial, total: "" })).toEqual([]);
+    expect(reviewNumberProblems(fields, initial, { ...initial, total: "318,5О" })).toEqual([{ field: "total", code: "invalid_number" }]);
+    // A read-only field is never sent, so it is never refused.
+    expect(reviewNumberProblems(fields, initial, { ...initial, confidence: "x" })).toEqual([]);
+    expect(reviewNumberProblems(fields, initial, { ...initial, lines: [{ qty: "two" }] })).toEqual([
+      { field: "lines", code: "row_invalid_number", row: 1, subField: "qty" },
+    ]);
+  });
+
   it("map each type to its default widget", () => {
     const widget = (field: ReviewField) => {
       const form = reviewFormField(field);
@@ -54,6 +115,13 @@ describe("queue addresses", () => {
     expect(rowContext(params, 3, 50).toString()).toBe("f.state=awaiting_review&search=acme&page=3&per_page=50");
     expect(operatorJobPath("p 1", "wf", "j1", rowContext(params, 1, 25))).toBe("/projects/p%201/workflows/wf/work/jobs/j1?f.state=awaiting_review&search=acme");
     expect(sectionListPath("p1", "wf", new URLSearchParams())).toBe("/projects/p1/workflows/wf/work");
+  });
+
+  it("carry the run source filter into the queue, so neighbours are of the same list", () => {
+    const params = new URLSearchParams("source=manual_ui&search=acme");
+    expect(listContext(params).toString()).toBe("source=manual_ui&search=acme");
+    expect(queueListFilters("p1", "wf", [], params, "2026-11-19")).toMatchObject({ taskSource: "manual_ui", projectId: "p1", workflowId: "wf" });
+    expect(queueListFilters("p1", "wf", [], new URLSearchParams("source=workflow_test_run"), "2026-11-19").taskSource).toBeUndefined();
   });
 
   it("know when someone is typing", () => {

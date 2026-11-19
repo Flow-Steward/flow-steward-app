@@ -20,6 +20,8 @@ import {
   reviewFileUrl,
   reviewFiles,
   reviewFormField,
+  reviewFormValues,
+  reviewNumberProblems,
   reviewValueChanged,
   type JobReview,
   type ReviewField,
@@ -130,7 +132,9 @@ export function OperatorReviewPanel({
   const canApprove = canDecide && actions.has("approve");
   const canReject = canDecide && actions.has("reject");
   const fields = useMemo(() => captured?.fields ?? [], [captured]);
-  const initial = useMemo(() => ({ ...(captured?.values ?? {}) }), [captured]);
+  const capturedValues = useMemo(() => captured?.values ?? {}, [captured]);
+  // Lists of plain values are edited as rows; the decision sends them back as lists.
+  const initial = useMemo(() => reviewFormValues(fields, capturedValues), [fields, capturedValues]);
   const formFields = useMemo(() => {
     const shown: FormFieldView[] = [];
     const other: ReviewField[] = [];
@@ -165,6 +169,22 @@ export function OperatorReviewPanel({
     if (!approved && !comment.trim()) {
       setFormError(t("react.jobs.rejection_comment_required", "A rejection comment is required for this review gate."));
       return;
+    }
+    if (approved) {
+      const numbers = reviewNumberProblems(fields, initial, values);
+      if (numbers.length) {
+        const errors: Record<string, string> = {};
+        for (const entry of numbers) {
+          if (entry.code === "row_invalid_number") {
+            const sub = formFields.shown.find((field) => field.name === entry.field)?.sub_fields?.find((item) => item.name === entry.subField);
+            errors[entry.field] ??= t("react.operator.row_field_invalid_number", "Enter a number in {field} in row {row}.", { field: sub?.label ?? entry.subField, row: String(entry.row) });
+          } else {
+            errors[entry.field] ??= t("react.operator.field_invalid_number", "Enter a number.");
+          }
+        }
+        setFieldErrors(errors);
+        return;
+      }
     }
     const decision: ApprovalDecisionPayload = { approval_id: gate.approval_id, approved, comment: comment.trim() };
     const edits = approved ? reviewEdits(fields, initial, values) : {};
@@ -216,7 +236,7 @@ export function OperatorReviewPanel({
       notes[field.name] = (
         <span className="fs-operator-corrected" data-testid={`review-corrected-${field.name}`}>
           <DsBadge tone="orange">{t("react.operator_review.corrected", "Corrected")}</DsBadge>{" "}
-          {t("react.operator_review.was", "Was: {value}", { value: shownValue(initial[field.name], t) })}
+          {t("react.operator_review.was", "Was: {value}", { value: shownValue(capturedValues[field.name], t) })}
         </span>
       );
     }
@@ -247,7 +267,15 @@ export function OperatorReviewPanel({
             errors={errors}
             fields={formFields.shown}
             notes={notes}
-            onChange={(name, next) => setValues((current) => ({ ...current, [name]: next }))}
+            onChange={(name, next) => {
+              setValues((current) => ({ ...current, [name]: next }));
+              setFieldErrors((current) => {
+                if (!(name in current)) return current;
+                const rest = { ...current };
+                delete rest[name];
+                return rest;
+              });
+            }}
             readOnlyFields={readOnly}
             values={values}
           />

@@ -43,6 +43,8 @@ import {
   jobStatusRequest,
   normalizeStatusList,
   periodFromUrl,
+  RUN_SOURCE_PARAM,
+  runSourceFromUrl,
 } from "@/pages/jobs/list/job-filters";
 import {
   AdvancedTableFilters,
@@ -270,8 +272,19 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   const navigate = useNavigate();
   const scopeFilterFields = scope?.filterFields ?? NO_FILTER_FIELDS;
   const filterParamKeys = useMemo(
-    () => ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date", ...scopeFilterFields.map((field) => field.key)],
-    [scopeFilterFields],
+    () => [
+      "search",
+      "project_id",
+      "workflow_id",
+      "status",
+      "hide_acknowledged",
+      "period",
+      "from_date",
+      "to_date",
+      ...(scope ? [RUN_SOURCE_PARAM] : []),
+      ...scopeFilterFields.map((field) => field.key),
+    ],
+    [scope, scopeFilterFields],
   );
   const [searchParams, setSearchParams] = useFilterSearchParams(scope ? `section-jobs:${scope.key}` : "jobs", filterParamKeys);
   // The admin's filters of a section: panel values from the URL, sent as one JSON value.
@@ -279,6 +292,8 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
     scopeFilterFields.map((field) => [field.key, searchParams.get(field.key) ?? ""]),
   );
   const operatorFilters = scope?.filtersParam?.(scopeFilterValues) ?? null;
+  // A section's list filters by how runs started; the queue carries it too.
+  const runSource = scope ? runSourceFromUrl(searchParams) : undefined;
   const operatorFiltersKey = operatorFilters ? JSON.stringify(operatorFilters) : "";
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
@@ -331,7 +346,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   const [workspaceSelection, setSelectedWorkspaceId] = useState(selectedWorkspaceIdFromStorage);
   // The section's project decides; the shell's workspace choice does not narrow it.
   const selectedWorkspaceId = scope ? "" : workspaceSelection;
-  const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
+  const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey, runSource]);
   const selectionScopeRef = useRef({ key: filterScope, generation: 0 });
   if (selectionScopeRef.current.key !== filterScope) {
     selectionScopeRef.current = { key: filterScope, generation: selectionScopeRef.current.generation + 1 };
@@ -746,6 +761,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
         workflowId: workflowFilter || null,
         operatorView: Boolean(scope),
         operatorFilters,
+        taskSource: runSource,
         search: deferredSearch,
         workspaceId: selectedWorkspaceId || null,
         fromDate,
@@ -828,11 +844,11 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
 
   useEffect(() => {
     ignoreAsyncResult(refreshJobsRef.current());
-  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
+  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey, runSource]);
 
   useEffect(() => {
     setSelectedJobs(new Set());
-  }, [deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
+  }, [deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey, runSource]);
 
   // Every chosen status group stays in the URL, so a reload or a shared link
   // keeps it; a link that named stored statuses is rewritten to their groups.
@@ -1074,6 +1090,14 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
                       options: [{ value: AWAITING_REVIEW_STATUS, label: t("react.operator.status_awaiting_review", "Awaiting review") }, ...filterOptions.statuses],
                       multiple: true,
                     },
+                    {
+                      key: "source_filter",
+                      label: t("react.operator.filter_source", "Source"),
+                      options: [
+                        { value: "manual_ui", label: t("react.operator.source_form", "Form") },
+                        { value: "mcp_workflow", label: t("react.operator.source_api", "API and MCP") },
+                      ],
+                    },
                     ...scopeFilterFields,
                   ]
                 : [
@@ -1084,7 +1108,14 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
             }
             onChange={(key, value) => {
               setPage(1);
-              if (scopeFilterFields.some((field) => field.key === key)) {
+              if (key === "source_filter") {
+                setSearchParams((latest) => {
+                  const next = new URLSearchParams(latest);
+                  if (value) next.set(RUN_SOURCE_PARAM, value);
+                  else next.delete(RUN_SOURCE_PARAM);
+                  return next;
+                }, { replace: true });
+              } else if (scopeFilterFields.some((field) => field.key === key)) {
                 setSearchParams((latest) => {
                   const next = new URLSearchParams(latest);
                   if (value) next.set(key, value);
@@ -1106,6 +1137,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
                 setSearchParams((latest) => {
                   const next = new URLSearchParams(latest);
                   next.delete("status");
+                  next.delete(RUN_SOURCE_PARAM);
                   scopeFilterFields.forEach((field) => next.delete(field.key));
                   return next;
                 }, { replace: true });
@@ -1119,6 +1151,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
               project_filter: projectFilter,
               status_filter: statusFilter,
               workflow_filter: workflowFilter,
+              source_filter: runSource ?? "",
               ...scopeFilterValues,
             }}
           />

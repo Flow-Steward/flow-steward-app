@@ -95,3 +95,54 @@
   gap: var(--fs-space-050);
 }
 
+
+/* A job of a section: label and value rows (ADR 0075). */
+.fs-operator-values {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+}
+
+.fs-operator-value-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+  gap: var(--fs-space-075);
+  align-items: baseline;
+}
+
+.fs-operator-value-row dt {
+  color: var(--fs-text-tertiary);
+}
+
+.fs-operator-value-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .fs-operator-value-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.fs-operator-file-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.fs-operator-file-list {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 22rem;
+}
+
+.fs-operator-file-list .fs-operator-file-link {
+  max-width: 20rem;
+}
