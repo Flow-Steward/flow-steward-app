@@ -1,0 +1,119 @@
+/* Files previewed in the page (ADR 0077): text, PDF pages, sheets and Word documents. */
+.fs-file-preview {
+  display: grid;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fs-file-preview-status {
+  font-size: var(--fs-type-body-size);
+}
+
+.fs-file-preview-note {
+  margin: 0 0 var(--fs-space-075);
+  color: var(--fs-text-tertiary);
+  font-size: var(--fs-type-body-size);
+}
+
+.fs-file-preview-image {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+}
+
+.fs-file-preview-text {
+  max-height: 32rem;
+  overflow: auto;
+  margin: 0;
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+  background: var(--fs-bg-surface-muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fs-file-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075);
+  font-size: var(--fs-type-body-size);
+}
+
+.fs-file-preview-toolbar-gap {
+  flex: 1 1 auto;
+}
+
+.fs-file-preview-pdf {
+  display: grid;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-file-preview-pdf-page {
+  max-height: 75vh;
+  overflow: auto;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+  background: var(--fs-bg-surface-muted);
+}
+
+.fs-file-preview-pdf-page canvas {
+  display: block;
+  margin: 0 auto;
+}
+
+.fs-file-preview-sheet {
+  display: grid;
+  gap: var(--fs-space-075);
+  min-width: 0;
+}
+
+.fs-file-preview-sheet-scroll {
+  max-width: 100%;
+  max-height: 32rem;
+  overflow: auto;
+}
+
+.fs-file-preview-sheet-table {
+  --fs-table-min-width: 0;
+  width: auto;
+}
+
+.fs-file-preview-sheet-table th,
+.fs-file-preview-sheet-table td {
+  padding: var(--fs-space-050) var(--fs-space-100);
+  border: 1px solid var(--fs-border-subtle);
+  white-space: pre-wrap;
+  vertical-align: top;
+}
+
+.fs-file-preview-sheet-table thead th,
+.fs-file-preview-sheet-table tbody th {
+  position: sticky;
+  background: var(--fs-bg-surface-muted);
+  color: var(--fs-text-tertiary);
+  font-weight: 500;
+}
+
+.fs-file-preview-sheet-table thead th {
+  top: 0;
+  z-index: 1;
+}
+
+.fs-file-preview-sheet-table tbody th {
+  left: 0;
+  text-align: right;
+}
+
+.fs-file-preview-docx {
+  width: 100%;
+  height: 75vh;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-input-radius);
+  background: var(--fs-bg-surface-muted);
+}

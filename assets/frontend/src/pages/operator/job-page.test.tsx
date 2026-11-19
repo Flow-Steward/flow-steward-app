@@ -10,7 +10,8 @@ import { OperatorJobPage } from "./job-page";
 import type { JobReview, ReviewField } from "./review-model";
 import type { OperatorSectionDetail } from "./types";
 
-vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn(), fetchText: vi.fn() }));
+// A document original stays loading here; its previewer is covered by file-preview.test.tsx.
+vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn(), fetchText: vi.fn(), fetchArrayBuffer: vi.fn(() => new Promise<ArrayBuffer>(() => undefined)) }));
 vi.mock("@/pages/jobs/detail", () => ({
   JobsDetailPage: ({ jobId }: { jobId: string }) => <div data-testid="job-detail">{jobId}</div>,
 }));
@@ -192,7 +193,9 @@ describe("OperatorJobPage review", () => {
     expect(within(original).getByText("File 1 of 2")).toBeInTheDocument();
     expect(within(original).getByRole("img", { name: "page-1.png" })).toHaveAttribute("src", "/api/jobs/j3-child/artifacts/art-1/preview");
     fireEvent.click(within(original).getByRole("button", { name: "Next file" }));
-    expect(within(original).getByTitle("page-2.pdf")).toHaveAttribute("src", "/api/jobs/j3-child/artifacts/art-2/preview");
+    // A PDF is drawn by the page itself, never in the browser's PDF viewer.
+    expect(within(original).getByTestId("file-preview")).toHaveAttribute("data-kind", "pdf");
+    expect(container.querySelector("iframe")).toBeNull();
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Recognize again" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("operator-queue-position")).toHaveTextContent("3 of 47"));

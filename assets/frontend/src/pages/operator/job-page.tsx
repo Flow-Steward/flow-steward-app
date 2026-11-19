@@ -3,15 +3,16 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
+import { filePreviewKind, filePreviewUrl, previewTooLarge } from "@/components/file-preview/file-preview-model";
 import { DsAlert, DsPageHeader, PageContainer } from "@/components/shared/design-system";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
+import { useFilePreviewMaxBytes } from "@/lib/auth/file-preview-limit";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { queryKeys } from "@/lib/query/keys";
 import { todayIn } from "@/lib/time/calendar-days";
 import { useUserTimezone } from "@/lib/time/user-timezone";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { JobsDetailPage } from "@/pages/jobs/detail";
-import { filePreviewKind, filePreviewUrl } from "@/pages/jobs/detail/job-detail-file-preview-model";
 import { fetchJobsQueuePosition, type JobsQueuePosition } from "@/pages/jobs/list/api";
 
 import { fetchJobReview, fetchOperatorSection } from "./api";
@@ -23,11 +24,11 @@ import "./operator.css";
 
 const prefetched = new Set<string>();
 
-/** Load the first original of the next job ahead, so it shows at once. */
-function prefetchOriginal(review: JobReview | undefined) {
+/** Load the first original of the next job ahead, so it shows at once; never one over the preview limit. */
+function prefetchOriginal(review: JobReview | undefined, maxBytes: number | undefined) {
   const gate = review?.gate;
   const file = gate?.review?.original?.[0];
-  if (!gate || !file?.artifact_id || !filePreviewKind(file)) return;
+  if (!gate || !file?.artifact_id || !filePreviewKind(file) || previewTooLarge(file, maxBytes)) return;
   const url = filePreviewUrl(reviewFileUrl(gate.job_id, file));
   if (!url || prefetched.has(url) || typeof document === "undefined") return;
   prefetched.add(url);
@@ -106,6 +107,7 @@ export function OperatorJobPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const previewMaxBytes = useFilePreviewMaxBytes();
   const timezone = useUserTimezone();
   const section = useQuery({
     queryKey: queryKeys.operatorSection(projectId, workflowId),
@@ -161,9 +163,9 @@ export function OperatorJobPage() {
     ignoreAsyncResult(
       queryClient
         .prefetchQuery({ queryKey: queryKeys.operatorJobReview(nextId), queryFn: () => fetchJobReview(nextId, projectId, workflowId), retry: false })
-        .then(() => prefetchOriginal(queryClient.getQueryData<JobReview>(queryKeys.operatorJobReview(nextId)))),
+        .then(() => prefetchOriginal(queryClient.getQueryData<JobReview>(queryKeys.operatorJobReview(nextId)), previewMaxBytes)),
     );
-  }, [nextId, queryClient, projectId, workflowId]);
+  }, [nextId, queryClient, projectId, workflowId, previewMaxBytes]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {

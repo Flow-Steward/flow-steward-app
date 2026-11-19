@@ -1,15 +1,17 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { FilePreview } from "@/components/file-preview/file-preview";
+import { filePreviewKind, filePreviewUrl, previewTooLarge } from "@/components/file-preview/file-preview-model";
 import { DsAlert, DsBadge, DsCard } from "@/components/shared/design-system";
 import type { FormFieldView, FormValues } from "@/components/workflow-inputs/form-field";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { Button } from "@/components/ui/button";
+import { useFilePreviewMaxBytes } from "@/lib/auth/file-preview-limit";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { submitApprovalDecision, type ApprovalDecisionPayload } from "@/pages/jobs/detail/api";
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
-import { filePreviewKind, filePreviewUrl } from "@/pages/jobs/detail/job-detail-file-preview-model";
 import { ReadableDataFields } from "@/pages/jobs/detail/readable-data-fields";
 
 import {
@@ -28,9 +30,13 @@ import {
   type ReviewFile,
 } from "./review-model";
 
-/** One original file at a time, with its preview, and paging through several. */
+/**
+ * One original file at a time, with its preview, and paging through several.
+ * The page draws the preview itself (ADR 0077), the browser's PDF viewer never.
+ */
 export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files: readonly ReviewFile[] }>) {
   const { t } = useI18n();
+  const maxBytes = useFilePreviewMaxBytes();
   const [index, setIndex] = useState(0);
   if (!files.length) {
     return <p className="fs-empty-copy">{t("react.operator_review.no_original", "This review has no original file.")}</p>;
@@ -38,7 +44,7 @@ export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files
   const at = Math.min(index, files.length - 1);
   const file = files[at];
   const href = reviewFileUrl(jobId, file);
-  const kind = filePreviewKind(file);
+  const kind = previewTooLarge(file, maxBytes) ? "" : filePreviewKind(file);
   const preview = kind ? filePreviewUrl(href) : "";
   const name = file.filename || t("react.operator_review.original", "Original");
   return (
@@ -66,9 +72,8 @@ export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files
           </button>
         </div>
       ) : null}
-      <JobFileItem file={{ ...file, download_url: href }} fallbackName={name} />
-      {kind === "image" && preview ? <img alt={name} className="fs-operator-original-image" src={preview} /> : null}
-      {kind === "pdf" && preview ? <iframe className="fs-operator-original-frame" src={preview} title={name} /> : null}
+      <JobFileItem file={{ ...file, download_url: href }} fallbackName={name} preview={false} />
+      {kind && preview ? <FilePreview key={preview} kind={kind} name={name} url={preview} /> : null}
     </div>
   );
 }

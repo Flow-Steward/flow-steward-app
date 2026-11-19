@@ -1,88 +1,25 @@
-import { useI18n } from "@/lib/i18n/useI18n";
-/**
- * A generated file as the run view shows it: a thumbnail for an image, an
- * "Open" for a PDF, a "View" for TXT, Markdown or JSON, the name and size for
- * anything else, and a download.
- *
- * Seeing the file where it was made is faster than downloading it to find out
- * it is the wrong one. The preview comes from the job's own preview endpoint,
- * which serves only images, PDFs and UTF-8 text, so a preview never runs anything:
- * text is shown as characters, Markdown and HTML included.
- */
-
 import { useState } from "react";
 import { Info } from "lucide-react";
 
-import { DsLoader } from "@/components/shared/ds-loader";
+import { FilePreview } from "@/components/file-preview/file-preview";
+import { filePreviewKind, filePreviewUrl, previewTooLarge } from "@/components/file-preview/file-preview-model";
 import { FileThumbnail } from "@/components/shared/file-thumbnail";
-import { useLoaderDelay } from "@/components/shared/use-loader-delay";
-import { fetchText } from "@/lib/http/client";
-import { HttpError } from "@/lib/http/errors";
+import { useFilePreviewMaxBytes } from "@/lib/auth/file-preview-limit";
+import { useI18n } from "@/lib/i18n/useI18n";
 import { sizeLabel } from "@/pages/extensions/marketplace-model";
 import { firstReadableText, safeLinkHref, type Entity } from "@/pages/jobs/detail/job-detail-core";
-import { filePreviewKind, filePreviewUrl } from "@/pages/jobs/detail/job-detail-file-preview-model";
 
-type TextPreviewState =
-  | { status: "closed" }
-  | { status: "loading" }
-  | { status: "ready"; text: string }
-  | { status: "failed"; message: string };
-
-function textPreviewFailure(error: unknown, t: ReturnType<typeof useI18n>["t"]): string {
-  const status = error instanceof HttpError ? error.status : 0;
-  if (status === 413) {
-    return t("react.jobs.file_preview_too_large", "This file is larger than the preview limit. Download the original to read it.");
-  }
-  if (status === 422) {
-    return t("react.jobs.file_preview_not_utf8", "This file is not UTF-8 text, so it cannot be shown here. Download it instead.");
-  }
-  if (status === 415) {
-    return t("react.jobs.file_preview_unsupported", "This file type has no preview. Download it instead.");
-  }
-  return t("react.jobs.file_preview_failed", "The preview could not be loaded. Download the file instead.");
-}
-
-/** The text of a TXT, Markdown or JSON file, read on demand. */
-function useTextPreview(previewUrl: string) {
-  const { t } = useI18n();
-  const [state, setState] = useState<TextPreviewState>({ status: "closed" });
-  async function load() {
-    setState({ status: "loading" });
-    try {
-      setState({ status: "ready", text: await fetchText(previewUrl) });
-    } catch (error) {
-      setState({ status: "failed", message: textPreviewFailure(error, t) });
-    }
-  }
-  return {
-    state,
-    toggle() {
-      if (state.status === "closed") {
-        void load();
-      } else {
-        setState({ status: "closed" });
-      }
-    },
-  };
-}
-
-/** The text shown as characters: a Markdown or HTML file is never rendered. */
-function TextPreviewPanel({ name, state }: Readonly<{ name: string; state: TextPreviewState }>) {
-  const { t } = useI18n();
-  const loaderShown = useLoaderDelay(state.status === "loading");
-  if (state.status === "closed") return null;
-  return (
-    <div className="basis-full" data-testid="job-file-text-preview">
-      {loaderShown ? <p className="text-xs fs-ink-tertiary"><DsLoader variant="orbit-inline" label={t("react.jobs.file_preview_loading", "Loading preview…")} /></p> : null}
-      {state.status === "failed" ? <p className="text-xs fs-ink-danger" role="alert">{state.message}</p> : null}
-      {state.status === "ready" && !loaderShown ? (
-        <pre aria-label={name} className="mt-1 max-h-[32rem] overflow-auto whitespace-pre-wrap break-words rounded border border-subtle p-3 text-xs fs-surface-raised">
-          {state.text}
-        </pre>
-      ) : null}
-    </div>
-  );
-}
+/**
+ * A generated file as the run view shows it: a thumbnail for an image, a "View"
+ * that opens a PDF, spreadsheet, Word document or text file in the page, the
+ * name and size for anything else, and a download.
+ *
+ * Seeing the file where it was made is faster than downloading it to find out
+ * it is the wrong one. The preview comes from the job's own preview endpoint and
+ * is drawn by the page itself (ADR 0077), so a preview never runs anything: text
+ * is shown as characters, Markdown and HTML included. A file above the preview
+ * limit is offered as a download only.
+ */
 
 function fileSize(file: Entity): string {
   const size = Number(file.size_bytes);
@@ -94,26 +31,34 @@ export function JobFileItem({
   file,
   fallbackName = "file",
   showType = false,
-}: Readonly<{ file: Entity; fallbackName?: string; showType?: boolean }>) {
+  preview = true,
+}: Readonly<{
+  file: Entity;
+  fallbackName?: string;
+  showType?: boolean;
+  /** False where the caller shows the preview itself, as the review page's original does. */
+  preview?: boolean;
+}>) {
   const { t } = useI18n();
+  const maxBytes = useFilePreviewMaxBytes();
+  const [open, setOpen] = useState(false);
   const name = firstReadableText(file.filename, file.name, fallbackName);
   const href = safeLinkHref(
     file.download_url || file.job_attachment_url || file.href || file.url,
   );
   const available = file.available !== false && Boolean(href);
   // Over the preview limit, known from the start: no preview offered, the reason shown at once.
-  const tooLarge = available && file.preview_too_large === true;
+  const tooLarge = available && previewTooLarge(file, maxBytes);
   const kind = available && !tooLarge ? filePreviewKind(file) : "";
   const previewUrl = kind ? filePreviewUrl(href) : "";
-  const textPreviewUrl = kind === "text" ? previewUrl : "";
-  const textPreview = useTextPreview(textPreviewUrl);
+  const viewable = preview && Boolean(previewUrl) && kind !== "" && kind !== "image";
   const details = [
     showType ? firstReadableText(file.content_type, file.mime_type) : "",
     fileSize(file),
   ].filter(Boolean);
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3" data-preview-kind={previewUrl ? kind : "none"}>
-      {kind === "image" && previewUrl ? <FileThumbnail name={name} previewUrl={previewUrl} imageTestId="job-file-thumbnail" description={t("react.jobs.generated_by_this_run", "Generated by this run.")} /> : null}
+      {preview && kind === "image" && previewUrl ? <FileThumbnail name={name} previewUrl={previewUrl} imageTestId="job-file-thumbnail" description={t("react.jobs.generated_by_this_run", "Generated by this run.")} /> : null}
       <div className="min-w-0 flex-1">
         <p className="min-w-0 break-all font-medium fs-ink-primary">
           {kind === "pdf" ? <span className="mr-1 text-xs fs-ink-tertiary">PDF</span> : null}
@@ -127,14 +72,10 @@ export function JobFileItem({
           </p>
         ) : null}
       </div>
-      {textPreviewUrl ? (
-        <button aria-expanded={textPreview.state.status !== "closed"} className="fs-button secondary sm shrink-0" onClick={textPreview.toggle} type="button">
-          {textPreview.state.status === "closed" ? t("react.jobs.file_preview_view", "View") : t("react.jobs.file_preview_hide", "Hide")}
+      {viewable ? (
+        <button aria-expanded={open} className="fs-button secondary sm shrink-0" onClick={() => setOpen(!open)} type="button">
+          {open ? t("react.jobs.file_preview_hide", "Hide") : t("react.jobs.file_preview_view", "View")}
         </button>
-      ) : null}
-      {kind === "pdf" && previewUrl ? (
-        <a className="fs-button secondary sm shrink-0" href={previewUrl} rel="noopener noreferrer" target="_blank">
-          {t("settings.common.open", "Open")} </a>
       ) : null}
       {available ? (
         <a className="fs-button secondary sm shrink-0" download href={href}>
@@ -142,7 +83,11 @@ export function JobFileItem({
       ) : (
         <span className="shrink-0 text-xs fs-ink-tertiary">{t("react.jobs.download_unavailable", "Download unavailable")}</span>
       )}
-      <TextPreviewPanel name={name} state={textPreview.state} />
+      {viewable && open && kind ? (
+        <div className="min-w-0 basis-full">
+          <FilePreview kind={kind} name={name} url={previewUrl} />
+        </div>
+      ) : null}
     </div>
   );
 }

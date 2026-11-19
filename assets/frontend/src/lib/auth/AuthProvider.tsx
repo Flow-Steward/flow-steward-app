@@ -122,6 +122,8 @@ export type AuthSession = {
   registered_pages: RegisteredPageRecord[];
   shell_navigation: Record<string, ShellNavigationItem[]>;
   run_upload_limits?: RunUploadLimits;
+  /** Largest file the browser previews (FS_FILE_PREVIEW_MAX_BYTES); larger ones are download-only. */
+  file_preview_max_bytes?: number;
 };
 
 type AppBootstrapResponse = {
@@ -141,7 +143,7 @@ type AppBootstrapResponse = {
   i18n?: I18nBootstrap;
   feature_flags?: Record<string, boolean>;
   environment?: AppEnvironmentBootstrap;
-  limits?: { run_upload?: unknown };
+  limits?: { run_upload?: unknown; file_preview?: unknown };
   settings_pages?: unknown;
   registered_pages?: unknown;
   shell_navigation?: unknown;
@@ -157,6 +159,12 @@ function normalizeRunUploadLimits(payload: unknown): RunUploadLimits | undefined
     max_total_bytes: count(record.max_total_bytes),
     max_files: count(record.max_files),
   };
+}
+
+function normalizeFilePreviewMaxBytes(payload: unknown): number | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const value = (payload as Record<string, unknown>).max_bytes;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
 
 const fallbackI18n: I18nBootstrap = {
@@ -383,6 +391,7 @@ function toAuthSession(payload: AppBootstrapResponse): AuthSession {
     registered_pages: normalizeRegisteredPages(payload.registered_pages),
     shell_navigation: normalizeShellNavigation(payload.shell_navigation),
     run_upload_limits: normalizeRunUploadLimits(payload.limits?.run_upload),
+    file_preview_max_bytes: normalizeFilePreviewMaxBytes(payload.limits?.file_preview),
   };
 }
 

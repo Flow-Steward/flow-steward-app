@@ -2,10 +2,10 @@ import { fireEvent, render, screen, within, waitFor } from "@testing-library/rea
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
-import { filePreviewKind, filePreviewUrl } from "@/pages/jobs/detail/job-detail-file-preview-model";
+import { filePreviewKind, filePreviewUrl } from "@/components/file-preview/file-preview-model";
 
 describe("generated file previews", () => {
-  it("previews only a job's own artifacts, and only images and PDFs", () => {
+  it("previews only a job's own artifacts, and only the kinds the page can draw", () => {
     expect(filePreviewUrl("/api/jobs/job-1/artifacts/art-1")).toBe("/api/jobs/job-1/artifacts/art-1/preview");
     expect(filePreviewUrl("https://storage.example/art-1")).toBe("");
     expect(filePreviewUrl("/api/jobs/job-1/attachments/7")).toBe("");
@@ -15,7 +15,9 @@ describe("generated file previews", () => {
     expect(filePreviewKind({ filename: "photo.webp" })).toBe("image");
     expect(filePreviewKind({ content_type: "application/pdf" })).toBe("pdf");
     expect(filePreviewKind({ content_type: "image/svg+xml", filename: "logo.svg" })).toBe("");
-    expect(filePreviewKind({ content_type: "text/csv", filename: "a.png" })).toBe("");
+    // The declared type decides, whatever the name says.
+    expect(filePreviewKind({ content_type: "text/csv", filename: "a.png" })).toBe("spreadsheet");
+    expect(filePreviewKind({ content_type: "application/zip", filename: "a.png" })).toBe("");
   });
 
   it("shows a thumbnail for an image that opens larger", () => {
@@ -38,22 +40,24 @@ describe("generated file previews", () => {
     expect(screen.getByRole("img", { name: "cover.png" })).toBeInTheDocument();
   });
 
-  it("opens a PDF in a new tab and shows other files by name only", () => {
+  it("views a PDF in the page, never in the browser's viewer, and shows other files by name only", () => {
     const { rerender } = render(
       <JobFileItem
         file={{ filename: "report.pdf", content_type: "application/pdf", download_url: "/api/jobs/job-1/artifacts/art-2" }}
       />,
     );
-    expect(screen.getByRole("link", { name: "Open" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-2/preview");
+    expect(screen.getByRole("button", { name: "View" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
 
     rerender(
       <JobFileItem
-        file={{ filename: "export.csv", content_type: "text/csv", download_url: "/api/jobs/job-1/artifacts/art-3" }}
+        file={{ filename: "letter.doc", content_type: "application/msword", download_url: "/api/jobs/job-1/artifacts/art-3" }}
       />,
     );
-    expect(screen.queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("job-file-thumbnail")).not.toBeInTheDocument();
-    expect(screen.getByText("export.csv")).toBeInTheDocument();
+    expect(screen.getByText("letter.doc")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/api/jobs/job-1/artifacts/art-3");
   });
 
   it("previews TXT, Markdown and JSON as text, by type first and by name only without one", () => {
