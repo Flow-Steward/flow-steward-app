@@ -126,7 +126,16 @@ STEP_CONFIG_ALLOWED_KEYS: dict[str, frozenset[str]] = {
     STEP_KIND_IF: frozenset({"condition"}),
     STEP_KIND_SWITCH: frozenset({"cases", "selector"}),
     STEP_KIND_APPROVAL: frozenset(
-        {"message", "output_mapping", "response_mapping", "show_outputs"}
+        {
+            "approve_label",
+            "message",
+            "output_mapping",
+            "reject_label",
+            "response_mapping",
+            # Typed review fields (ADR 0075): ``approval_review``.
+            "review",
+            "show_outputs",
+        }
     ),
     STEP_KIND_WAIT: frozenset(
         {"duration_ms", "input_mapping", "event", "timeout_ms", "output_mapping"}

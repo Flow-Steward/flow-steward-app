@@ -423,6 +423,7 @@ def create_approval_query_service(
     approval_fallback_payload,
     to_json_obj,
     get_project_by_id=None,
+    resolve_artifact=None,
 ) -> ApprovalQueryService:
     return ApprovalQueryService(
         get_logger=get_logger,
@@ -430,6 +431,7 @@ def create_approval_query_service(
         approval_fallback_payload=approval_fallback_payload,
         to_json_obj=to_json_obj,
         get_project_by_id=get_project_by_id,
+        resolve_artifact=resolve_artifact,
     )
 
 

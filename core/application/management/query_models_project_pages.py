@@ -247,6 +247,9 @@ class ApprovalGateView(ViewModel):
     expires_at: str | None = None
     allowed_actions: list[str] = Field(default_factory=list)
     payload: dict[str, Any] = Field(default_factory=dict)
+    #: The typed review of an Approval step (ADR 0075): fields, captured values
+    #: and the original's file summaries; absent for a gate without one.
+    review: dict[str, Any] | None = None
 
 
 class ApprovalHistoryView(ViewModel):

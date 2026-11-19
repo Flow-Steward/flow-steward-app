@@ -197,6 +197,9 @@ def _build_composed_service_factories(
             *args, **kwargs
         ),
         to_json_obj=lambda value: runtime._to_json_obj(value),
+        resolve_artifact=ArtifactPresentationResolver(runtime._artifact_plane)
+        if runtime._artifact_plane is not None
+        else None,
     )
     extension_query_service = runtime._query_service_runtime.build_extension_query_service_factory(
         get_logger=get_identity_store,

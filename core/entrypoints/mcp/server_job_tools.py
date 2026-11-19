@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import Field
 
@@ -203,6 +203,17 @@ def job_approval_decide(
             )
         ),
     ] = "",
+    values: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description=(
+                "Corrections of the gate's review fields, by field name: only fields "
+                "job_approval lists as editable, typed as listed (send numbers as JSON "
+                "numbers). Omit when nothing changed; approve then keeps the values "
+                "job_approval shows. A gate without review fields refuses values."
+            )
+        ),
+    ] = None,
 ) -> McpToolResult:
     """Approve or reject a paused workflow thread.
 
@@ -213,6 +224,8 @@ def job_approval_decide(
     action='abort' with approved=false ends the run as cancelled and needs no
     comment. Take thread_id and approval_id from job_approval or
     job_approvals_pending; reuse the same idempotency_key to retry safely.
+    An Approval with review fields (job_approval's `review`) returns its checked
+    values as the step's outputs on approve; a refused value names its field.
     """
     return api_tool_response("job_approval_decide", locals())
 

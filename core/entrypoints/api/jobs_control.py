@@ -162,6 +162,15 @@ def create_jobs_control_router(
                                 "comment": {"type": "string", "maxLength": 10000},
                                 "approval_id": {"type": "string", "maxLength": 255},
                                 "override_content": {"type": "string"},
+                                "values": {
+                                    "type": "object",
+                                    "description": (
+                                        "Edits of the editable fields of the gate's review, "
+                                        "by field name. Only a gate with review fields "
+                                        "accepts them; a machine token may not send them."
+                                    ),
+                                    "additionalProperties": True,
+                                },
                                 "external_actor": {
                                     "type": "object",
                                     "required": ["id"],

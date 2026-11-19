@@ -171,6 +171,9 @@ class WorkflowPortabilityRewriteMixin:
                 override["invoke_workflow"] = invoke
             if "action" in invoke:
                 override["invoke_workflow"] = self._rewrite_action_invoke(invoke, resolution_index)
+            approval = _as_dict(override.get("approval"))
+            if approval:
+                override["approval"] = self._rewrite_review_hint(approval, resolution_index)
 
             connector_install_id = _text(override.get("connector_install_id"))
             mapped_install = self._mapped_ref("extension", connector_install_id, resolution_index)
@@ -210,6 +213,28 @@ class WorkflowPortabilityRewriteMixin:
                 override["connector"] = connector
             row["override"] = override
         return row
+
+    def _rewrite_review_hint(
+        self,
+        approval: dict[str, Any],
+        resolution_index: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Rebind an Approval review's ``fields_from_workflow`` like an Invoke target.
+
+        The reference is an editor hint: execution reads the step's own fields.
+        A source this import does not resolve is dropped and the fields stay.
+        """
+        review = _as_dict(approval.get("review"))
+        source = _text(review.get("fields_from_workflow"))
+        if not source:
+            return approval
+        mapped = self._mapped_ref("child_workflow", source, resolution_index)
+        review = dict(review)
+        if mapped:
+            review["fields_from_workflow"] = mapped
+        else:
+            review.pop("fields_from_workflow", None)
+        return {**approval, "review": review}
 
     def _rewrite_action_invoke(
         self,

@@ -17,10 +17,16 @@ from core.application.jobs.workflow_resume_state import (
     WorkflowResumeQueueRow,
     workflow_resume_revision,
 )
+from core.application.workflows.approval_review import (
+    ReviewDecisionError,
+    captured_review,
+    decide_review,
+)
 
 from .command_models_api_inputs import ApprovalDecisionInput
 from .errors import (
     ServiceConflictError,
+    ServiceError,
     ServiceNotFoundError,
     ServiceUnavailableError,
 )
@@ -36,8 +42,17 @@ def decode_job_meta(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
-def build_approval_resume_value(decision: ApprovalDecisionInput) -> dict[str, Any]:
-    """Build the one canonical graph-resume value persisted for worker execution."""
+def build_approval_resume_value(
+    decision: ApprovalDecisionInput,
+    *,
+    review_values: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the one canonical graph-resume value persisted for worker execution.
+
+    ``review_values`` are the checked values of an approved typed review: the
+    worker resumes with them, also after a restart, and they become the
+    Approval step's outputs.
+    """
     effective_approved = bool(decision.approved) or decision.action == "override"
     resume_value: dict[str, Any] = {
         "approved": effective_approved,
@@ -47,7 +62,40 @@ def build_approval_resume_value(decision: ApprovalDecisionInput) -> dict[str, An
         resume_value["action"] = decision.action
     if decision.override_content:
         resume_value["override_content"] = decision.override_content
+    if review_values is not None:
+        resume_value["review_values"] = dict(review_values)
     return resume_value
+
+
+def checked_review_decision(
+    payload: Mapping[str, Any], decision: ApprovalDecisionInput
+) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    """Check a decision against the review captured when its gate opened.
+
+    ``None`` for a gate without a captured review, which is decided the way it
+    always was; ``values`` on such a gate are refused. A refused value names
+    its field.
+    """
+    review = captured_review(payload)
+    if review is None:
+        if decision.values is not None:
+            raise ServiceError(
+                "This approval has no review fields; decide it without values",
+                status_code=422,
+                payload={
+                    "error": "This approval has no review fields; decide it without values",
+                    "code": "approval_review_not_supported",
+                },
+            )
+        return None
+    approved = bool(build_approval_resume_value(decision)["approved"])
+    try:
+        return decide_review(review, decision.values, approved=approved)
+    except ReviewDecisionError as exc:
+        payload_body: dict[str, Any] = {"error": exc.message, "code": exc.code}
+        if exc.field:
+            payload_body["field"] = exc.field
+        raise ServiceError(exc.message, status_code=422, payload=payload_body) from exc
 
 
 class ApprovalRepository:
@@ -99,6 +147,7 @@ class ApprovalRepository:
         payload: Mapping[str, Any],
         decision: ApprovalDecisionInput,
         scope: ScopeContext,
+        review_changes: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         entry: dict[str, Any] = {
             "approval_id": approval_id,
@@ -126,6 +175,10 @@ class ApprovalRepository:
                 entry["retry_ordinal"] = 1
         if decision.external_actor is not None:
             entry["external_actor"] = decision.external_actor.model_dump(mode="json")
+        if review_changes:
+            # What the application found and what the person made of it, with
+            # the actor above: the recognized values stay in the history.
+            entry["review_changes"] = [dict(change) for change in review_changes]
         return entry
 
     def persist_decision(
@@ -160,6 +213,7 @@ class ApprovalRepository:
                         "decision": serialize_approval_history_entry(existing),
                     },
                 )
+        review = checked_review_decision(payload, decision)
         resolution_ref = None
         if (
             state_values is not None
@@ -192,7 +246,11 @@ class ApprovalRepository:
             except ValueError as exc:  # includes ExternalEffectResolutionError
                 raise ServiceConflictError(str(exc), payload={"code": str(exc)}) from exc
         entry = self._history_entry(
-            approval_id=approval_id, payload=payload, decision=decision, scope=scope
+            approval_id=approval_id,
+            payload=payload,
+            decision=decision,
+            scope=scope,
+            review_changes=review[1] if review is not None else None,
         )
         approvals.append(entry)
         meta["approvals"] = approvals
@@ -201,7 +259,10 @@ class ApprovalRepository:
         effective_approved = bool(decision.approved) or decision.action == "override"
         resume_value = {
             "reason": RESUME_REASON_APPROVAL,
-            **build_approval_resume_value(decision),
+            **build_approval_resume_value(
+                decision,
+                review_values=review[0] if review is not None and effective_approved else None,
+            ),
         }
         if resolution_ref is not None:
             resume_value["external_effect_resolution_ref"] = resolution_ref
@@ -332,4 +393,9 @@ class ApprovalRepository:
         service.record_transition(**transition)
 
 
-__all__ = ["ApprovalRepository", "build_approval_resume_value", "decode_job_meta"]
+__all__ = [
+    "ApprovalRepository",
+    "build_approval_resume_value",
+    "checked_review_decision",
+    "decode_job_meta",
+]

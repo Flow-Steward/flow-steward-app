@@ -9,6 +9,7 @@ from core.application.jobs.public_approval_serializer import (
     serialize_token_approval_payload,
 )
 from core.application.jobs.workflow_identity import resolve_job_workflow_id
+from core.application.workflows.approval_review import REVIEW_PAYLOAD_KEY
 
 from .approval_decision_service import ApprovalDecisionService
 from .query_services_common import *  # NOSONAR
@@ -27,12 +28,31 @@ class ApprovalQueryService:
         approval_fallback_payload: Callable[[dict[str, Any]], dict[str, Any]],
         to_json_obj: Callable[[Any], Any] | None = None,
         get_project_by_id: Callable[[Any], dict[str, Any] | None] | None = None,
+        resolve_artifact: Callable[[str], dict[str, Any] | None] | None = None,
     ):
         self._get_logger = get_logger
         self._get_thread_state_snapshot = get_thread_state_snapshot
         self._approval_fallback_payload = approval_fallback_payload
         self._to_json_obj = to_json_obj or (lambda value: value)
         self._get_project_by_id = get_project_by_id
+        self._resolve_artifact = resolve_artifact
+
+    def _public_review(self, job: dict[str, Any], review: Any) -> dict[str, Any] | None:
+        """The review a caller who may see the job is shown, original files included."""
+        from core.application.jobs.workflow_run_projection import public_artifact_summaries
+        from core.application.workflows.approval_review import (
+            original_references,
+            public_review,
+        )
+
+        if not isinstance(review, dict):
+            return None
+        original = public_artifact_summaries(
+            original_references(review),
+            job=job,
+            resolve_artifact=self._resolve_artifact,
+        )
+        return public_review(review, original=original)
 
     def _project(self, bl: Any, project_id: Any) -> dict[str, Any] | None:
         if project_id in (None, ""):
@@ -133,6 +153,13 @@ class ApprovalQueryService:
             payload["approval_id"] = state_approval_id
         if isinstance(payload, dict):
             payload["allowed_actions"] = ApprovalDecisionService.normalized_allowed_actions(payload)
+        # The captured review leaves the raw payload and is shown in its public
+        # shape only, to browser and token callers alike.
+        review = (
+            self._public_review(job, payload.pop(REVIEW_PAYLOAD_KEY, None))
+            if isinstance(payload, dict)
+            else None
+        )
         if _is_token_principal(resolved):
             payload = serialize_token_approval_payload(payload)
 
@@ -159,6 +186,7 @@ class ApprovalQueryService:
             expires_at=expires_at,
             allowed_actions=[str(item) for item in allowed_actions if str(item).strip()],
             payload=payload if isinstance(payload, dict) else {},
+            review=review,
         )
 
     def list_history(

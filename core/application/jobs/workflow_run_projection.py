@@ -238,6 +238,28 @@ def _safe_artifact(
     return canonical
 
 
+def public_artifact_summaries(
+    references: list[Any],
+    *,
+    job: dict[str, Any],
+    resolve_artifact: Callable[[str], dict[str, Any] | None] | None,
+) -> list[dict[str, Any]]:
+    """Authorized summaries of file references this job owns; others are left out.
+
+    The same ownership rule as the job's artifact downloads, so every summary
+    shown can also be downloaded through the job.
+    """
+    summaries: list[dict[str, Any]] = []
+    for reference in references:
+        try:
+            summary = _safe_artifact(reference, job=job, resolve_artifact=resolve_artifact)
+        except ArtifactResolverUnavailable:
+            return []
+        if summary:
+            summaries.append(summary)
+    return summaries
+
+
 def build_public_result(
     job: dict[str, Any],
     status: str,
@@ -563,4 +585,5 @@ __all__ = [
     "build_public_error",
     "build_public_result",
     "ensure_single_approval_interrupt",
+    "public_artifact_summaries",
 ]

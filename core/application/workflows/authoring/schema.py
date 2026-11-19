@@ -87,6 +87,26 @@ _GROUP_NOT_CONVERTIBLE = (
 )
 
 
+_APPROVAL_REVIEW_GUIDANCE = (
+    "override.approval.review gives the person typed fields to check and correct before "
+    "deciding. Each of review.fields is a workflow contract field (name, label, type, "
+    "required, options, items, properties, min_items, max_items, format, description) "
+    "plus editable (the person may change it) and from (its initial value, the same "
+    "selector syntax as an invoke_workflow input mapping: "
+    "message.step.<step_id>.artifacts.<name>, state.<path> or literal:<json>). A field "
+    "without a type is a paragraph; secret fields are refused, and a required field that "
+    "is not editable needs a from. review.original names a file or a list of files shown "
+    "beside the fields; review.fields_from_workflow is an editor hint only. On approve the "
+    "checked values become the step's outputs message.step.<step_id>.artifacts.<field>, "
+    "which later steps map like any other output; message.step.<step_id>.artifacts.comment "
+    "carries the reviewer's comment, which is the feedback on the rejected branch, and "
+    "artifacts.decision is approved or rejected. Decisions send corrections as values "
+    "(job_approval_decide values): editable fields only, typed as listed. A template or "
+    "extension bundle that uses review declares the first Core version that has it: the "
+    "catalog entry's compatible.min or the bundle's runtime.compatibility.platform_min."
+)
+
+
 class WorkflowAuthoringSchema:
     """Expose existing schemas with the persisted locations their consumers read."""
 
@@ -145,6 +165,45 @@ class WorkflowAuthoringSchema:
                 "connector_id": "installed_tool",
                 "connector_install_id": "installed_extension",
                 "override": {kind: {"operation_id": "send"}},
+            }
+        elif kind == "approval":
+            result["review_guidance"] = _APPROVAL_REVIEW_GUIDANCE
+            result["example_step"] = {
+                "step_id": "check_before_accounting",
+                "step_kind": kind,
+                "override": {
+                    kind: {
+                        "message": "Compare the recognized document with the original",
+                        "approve_label": "Export to accounting",
+                        "reject_label": "Recognize again",
+                        "review": {
+                            "original": "state.inputs.files",
+                            "fields_from_workflow": "accounting_export",
+                            "fields": [
+                                {
+                                    "name": "supplier",
+                                    "type": "string",
+                                    "required": True,
+                                    "editable": True,
+                                    "from": "message.step.recognize.artifacts.supplier",
+                                },
+                                {
+                                    "name": "total",
+                                    "type": "number",
+                                    "required": True,
+                                    "editable": True,
+                                    "from": "message.step.recognize.artifacts.total",
+                                },
+                                {
+                                    "name": "confidence",
+                                    "type": "number",
+                                    "editable": False,
+                                    "from": "message.step.recognize.artifacts.confidence",
+                                },
+                            ],
+                        },
+                    }
+                },
             }
         elif kind == "agent":
             result["example_step"] = {

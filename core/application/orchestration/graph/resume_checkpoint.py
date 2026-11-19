@@ -267,6 +267,11 @@ def _build_state_based_approval_update(
         )
     ]
     if effective_approved:
+        review_values = resume_value.get("review_values")
+        if isinstance(review_values, dict):
+            # The checked values of a typed review; the Approval node makes them
+            # its outputs when it reads the decision from state.
+            update["approval_review_values"] = dict(review_values)
         approved_feedback = feedback or "Approved."
         update["review_feedback"] = approved_feedback
         update["reviewer_comments"] = approved_feedback

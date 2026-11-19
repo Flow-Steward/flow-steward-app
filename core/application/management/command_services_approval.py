@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping
 from contextlib import suppress
 from typing import Any
 
-from core.application.auth.principal import is_token_scoped_principal
+from core.application.auth.principal import is_machine_principal, is_token_scoped_principal
 from core.application.idempotency import (
     RequestIdempotencyService,
 )
@@ -357,6 +357,22 @@ class ApprovalCommandService:
             if decision.override_content:
                 raise ServiceValidationError(
                     "override_content is not supported for token decisions"
+                )
+            if decision.values is not None and is_machine_principal(
+                {
+                    "auth_source": getattr(resolved_scope, "auth_source", ""),
+                    "principal_type": getattr(resolved_scope, "principal_type", ""),
+                }
+            ):
+                # Automation may confirm a review but never replace the values a
+                # person checks; a personal token acts as its owner and may.
+                raise ServiceValidationError(
+                    "values are not accepted from a machine token",
+                    status_code=422,
+                    payload={
+                        "error": "values are not accepted from a machine token",
+                        "code": "approval_values_machine_token",
+                    },
                 )
             requires_rejection_comment = not decision.approved and decision.action != "abort"
             if requires_rejection_comment and not decision.comment.strip():
