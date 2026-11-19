@@ -20,7 +20,10 @@ from core.application.lifecycle.errors import LifecycleError
 from core.application.lifecycle.ports import ProgressSink
 from core.application.maintenance.contracts import MaintenanceStatusResult
 from core.application.maintenance.ports import MaintenanceServicePort
-from core.application.management.command_specs.contracts import OperationProgressEvent
+from core.application.management.command_specs.contracts import (
+    OperationProgressEvent,
+    OperationStepStatus,
+)
 from core.application.release.service import (
     PreparedReleaseUpgrade,
     ReleaseResult,
@@ -304,7 +307,11 @@ class ReleaseUpgradeWorkflow:
     def _progress(sinks: dict[str, object], step: str, label: str) -> None:
         sink = cast(ProgressSink | None, sinks.get("progress_sink"))
         if sink is not None:
-            sink(OperationProgressEvent(step_id=step, status="running", label=label))
+            sink(
+                OperationProgressEvent(
+                    step_id=step, status=OperationStepStatus.RUNNING, label=label
+                )
+            )
 
     @staticmethod
     def _resume_command(journal: ReleaseUpgradeJournal) -> str:
