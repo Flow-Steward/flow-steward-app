@@ -76,6 +76,22 @@ def _at_path(data: Any, path: str) -> Any:
     return node
 
 
+def _with_input_artifact(value: Any, files: Any) -> Any:
+    """Give an input file its stored artifact, matched by name, so it can be downloaded."""
+    if isinstance(value, list):
+        return [_with_input_artifact(item, files) for item in value]
+    if not isinstance(value, dict) or "artifact_id" in value or "filename" not in value:
+        return value
+    for stored in files if isinstance(files, list) else []:
+        if (
+            isinstance(stored, dict)
+            and stored.get("filename") == value.get("filename")
+            and stored.get("artifact_id")
+        ):
+            return {**value, "artifact_id": stored["artifact_id"]}
+    return value
+
+
 def section_row_values(
     section: ProjectUserSection, row: dict[str, Any], payload: dict[str, Any] | None
 ) -> dict[str, Any]:
@@ -90,10 +106,15 @@ def section_row_values(
             else:
                 value = row.get(_JOB_VALUES.get(column.path, ""), _MISSING)
         elif column.source == "input":
-            value = _at_path(stored.get("inputs") or {}, column.path)
+            value = _with_input_artifact(
+                _at_path(stored.get("inputs") or {}, column.path), stored.get("input_files")
+            )
         elif succeeded:
             outputs = stored.get("outputs") or {}
-            value = outputs.get(column.path, _MISSING)
+            # A returned file is kept with the run's artifacts, not its variables.
+            value = outputs.get(
+                column.path, (stored.get("output_files") or {}).get(column.path, _MISSING)
+            )
         else:
             value = _MISSING
         if value is not _MISSING and value is not None:

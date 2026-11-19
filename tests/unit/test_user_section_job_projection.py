@@ -117,6 +117,26 @@ def test_the_accepted_request_projection_shows_a_file_by_its_name() -> None:
     }
 
 
+def test_file_columns_carry_the_stored_artifact_for_download() -> None:
+    section = _section(
+        columns=[
+            {"id": "document", "source": "input", "path": "document", "format": "file"},
+            {"id": "report", "source": "output", "path": "report_pdf", "format": "file"},
+        ]
+    )
+    stored = {
+        "inputs": {"document": {"sha256": "abc", "filename": "inv-1.pdf", "size_bytes": 10}},
+        "input_files": [{"filename": "inv-1.pdf", "artifact_id": "art-in"}],
+        "outputs": {},
+        "output_files": {"report_pdf": {"artifact_id": "art-out", "filename": "report.pdf"}},
+    }
+
+    values = section_row_values(section, {"id": "j1", "status": "completed"}, stored)
+
+    assert values["document"]["artifact_id"] == "art-in"
+    assert values["report"] == {"artifact_id": "art-out", "filename": "report.pdf"}
+
+
 def test_secrets_and_storage_details_never_reach_the_table() -> None:
     section = _section(
         columns=[{"id": "key", "source": "input", "path": "api_key"}],

@@ -2,7 +2,7 @@ import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { RefreshCw, Search } from "lucide-react";
@@ -230,22 +230,45 @@ function jobWorkflowCell(row: Record<string, unknown>) {
   );
 }
 
-export function JobsListPage() {
+/**
+ * ADR 0075: a user section is this same list with its project and workflow fixed
+ * in the background. The section brings its own header (and its New button) and
+ * the columns an admin chose; Project and Workflow are known, so neither shows.
+ */
+export type JobsListScope = {
+  key: string;
+  projectId: string;
+  workflowId: string;
+  sectionId: string;
+  title: string;
+  description: string;
+  eyebrow: string;
+  action?: ReactNode;
+  notice?: ReactNode;
+  columns: Array<{ key: string; label: string; cell: (row: Record<string, unknown>) => ReactNode }>;
+};
+
+const SCOPED_HIDDEN_COLUMNS = new Set(["_workflow_display", "project_name"]);
+
+export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}) {
   const { t } = useI18n();
   const auth = useAuth();
   const userTimezone = useUserTimezone();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useFilterSearchParams("jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
+  const [searchParams, setSearchParams] = useFilterSearchParams(scope ? `section-jobs:${scope.key}` : "jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
   // Filter state lives in the URL (job-filters.ts): the published filter and
   // search controls are controlled, and the option lists never come from the
   // loaded jobs alone, so a filter never shrinks its own menu.
   const {
-    urlWorkflowFilter, search, setSearch, projectFilter, setProjectFilter, statusFilter,
-    setStatusFilter, hideAcknowledged, setHideAcknowledged, workflowFilter, setWorkflowFilter,
+    urlWorkflowFilter, search, setSearch, projectFilter: urlProjectFilter, setProjectFilter, statusFilter,
+    setStatusFilter, hideAcknowledged, setHideAcknowledged, workflowFilter: chosenWorkflowFilter, setWorkflowFilter,
   } = jobFiltersFromUrl(searchParams, setSearchParams);
+  // A section fixes its project and workflow; the person never picks them.
+  const projectFilter = scope ? scope.projectId : urlProjectFilter;
+  const workflowFilter = scope ? scope.workflowId : chosenWorkflowFilter;
   const deferredSearch = useDeferredValue(search);
   const [filterOptions, setFilterOptions] = useState<{
     projects: DsOption[];
@@ -276,7 +299,9 @@ export function JobsListPage() {
   const [actionError, setActionError] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const bulkBusyRef = useRef(false);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState(selectedWorkspaceIdFromStorage);
+  const [workspaceSelection, setSelectedWorkspaceId] = useState(selectedWorkspaceIdFromStorage);
+  // The section's project decides; the shell's workspace choice does not narrow it.
+  const selectedWorkspaceId = scope ? "" : workspaceSelection;
   const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
   const selectionScopeRef = useRef({ key: filterScope, generation: 0 });
   if (selectionScopeRef.current.key !== filterScope) {
@@ -641,6 +666,10 @@ export function JobsListPage() {
   }
 
   async function refreshJobsFromLegacy(): Promise<boolean> {
+    if (scope) {
+      // The old list has no section filter; showing other runs would mislead.
+      return false;
+    }
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -682,6 +711,7 @@ export function JobsListPage() {
         hideAcknowledged,
         projectId: projectFilter || null,
         workflowId: workflowFilter || null,
+        sectionId: scope?.sectionId ?? null,
         search: deferredSearch,
         workspaceId: selectedWorkspaceId || null,
         fromDate,
@@ -895,7 +925,15 @@ export function JobsListPage() {
           </RowActionMenu>
         );
       });
-    return columns.map((declared) => {
+    const visible = scope ? columns.filter((column) => !SCOPED_HIDDEN_COLUMNS.has(column.key)) : columns;
+    const withSection = scope
+      ? [
+          ...visible.filter((column) => column.key !== "actions"),
+          ...scope.columns.map((column) => ({ key: `section:${column.key}`, header: column.label, cell: column.cell })),
+          ...visible.filter((column) => column.key === "actions"),
+        ]
+      : visible;
+    return withSection.map((declared) => {
       const column = { ...declared, skeletonWidth: JOB_SKELETON_WIDTHS[declared.key] };
       if (column.key === "status") {
         return { ...column, cell: jobStatusCell };
@@ -908,7 +946,7 @@ export function JobsListPage() {
         cell: jobWorkflowCell,
       };
     });
-  }, [jobsConfig, rowMenu, t]);
+  }, [jobsConfig, rowMenu, t, scope]);
 
   const jobBulkActions = useMemo<DsBulkAction[]>(() => {
     const declared = Array.isArray(jobsConfig.bulk_actions) ? jobsConfig.bulk_actions : [];
@@ -933,20 +971,24 @@ export function JobsListPage() {
     <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader
         action={
-          <button
-            className="fs-button secondary"
-            onClick={() => {
-              ignoreAsyncResult(refreshJobs());
-            }}
-            type="button"
-          >
-            <RefreshCw aria-hidden="true" />
-            {t("account.tokens.refresh", "Refresh")} </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              className="fs-button secondary"
+              onClick={() => {
+                ignoreAsyncResult(refreshJobs());
+              }}
+              type="button"
+            >
+              <RefreshCw aria-hidden="true" />
+              {t("account.tokens.refresh", "Refresh")} </button>
+            {scope?.action}
+          </div>
         }
-        description={t("react.jobs.review_job_status_filter_active_runs_and_jump_straight_into_the_work_that_needs_attention", "Review job status, filter active runs, and jump straight into the work that needs attention.")}
-        eyebrow={t("jobs.page_title", "Jobs")}
-        title={t("react.jobs.jobs_list_and_triage", "Jobs list and triage")}
+        description={scope ? scope.description : t("react.jobs.review_job_status_filter_active_runs_and_jump_straight_into_the_work_that_needs_attention", "Review job status, filter active runs, and jump straight into the work that needs attention.")}
+        eyebrow={scope ? scope.eyebrow : t("jobs.page_title", "Jobs")}
+        title={scope ? scope.title : t("react.jobs.jobs_list_and_triage", "Jobs list and triage")}
       />
+      {scope?.notice}
 
       {loadError ? (
         <DsAlert title={t("react.jobs.jobs_could_not_be_loaded", "Jobs could not be loaded")} tone="danger">
@@ -977,11 +1019,15 @@ export function JobsListPage() {
             }}
           />
           <AdvancedTableFilters
-            fields={[
-              { key: "project_filter", label: t("events.columns.project", "Project"), options: filterOptions.projects },
-              { key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true },
-              { key: "workflow_filter", label: t("jobs.columns.workflow", "Workflow"), options: filterOptions.workflows },
-            ]}
+            fields={
+              scope
+                ? [{ key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true }]
+                : [
+                    { key: "project_filter", label: t("events.columns.project", "Project"), options: filterOptions.projects },
+                    { key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true },
+                    { key: "workflow_filter", label: t("jobs.columns.workflow", "Workflow"), options: filterOptions.workflows },
+                  ]
+            }
             onChange={(key, value) => {
               setPage(1);
               if (key === "project_filter") {

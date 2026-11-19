@@ -12,6 +12,9 @@ SELECT j.id::text AS job_id,
        -- their inputs in meta directly.
        COALESCE(j.meta -> 'invocation' -> 'mapped_inputs', j.meta -> 'inputs') AS inputs,
        j.meta -> 'workflow_outputs' -> 'outputs' AS outputs,
+       -- Stored files, so a file column can offer the download of this job's copy.
+       j.meta -> 'invocation' -> 'files' AS input_files,
+       j.meta -> 'workflow_outputs' -> 'artifacts' AS output_files,
        j.meta -> 'submitted_by' AS submitted_by
   FROM jobs j
   JOIN projects p ON p.id = j.project_id
@@ -37,6 +40,12 @@ def read_job_section_payloads(
             str(row["job_id"]): {
                 "inputs": row.get("inputs") if isinstance(row.get("inputs"), dict) else {},
                 "outputs": row.get("outputs") if isinstance(row.get("outputs"), dict) else {},
+                "input_files": row.get("input_files")
+                if isinstance(row.get("input_files"), list)
+                else [],
+                "output_files": row.get("output_files")
+                if isinstance(row.get("output_files"), dict)
+                else {},
                 "submitted_by": row.get("submitted_by")
                 if isinstance(row.get("submitted_by"), dict)
                 else None,
