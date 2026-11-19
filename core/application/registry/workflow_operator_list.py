@@ -172,6 +172,40 @@ def operator_row_values(
     return values
 
 
+def operator_job_values(row: dict[str, Any], payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Everything one job submitted and, once it succeeded, returned, as the list shows values.
+
+    Input files carry their own stored artifact; a returned file comes from the
+    run's artifacts when it is not among the output variables. A running or
+    failed run has no ``outputs``: a partial result is not its result.
+    """
+    stored = payload or {}
+    status = str(row.get("status") or "").strip().lower()
+    files = stored.get("input_files")
+    inputs = stored.get("inputs") if isinstance(stored.get("inputs"), dict) else {}
+    outputs: dict[str, Any] | None = None
+    if status in SUCCESS_STATUSES:
+        outputs = {
+            str(name): _public(value)
+            for name, value in (stored.get("outputs") or {}).items()
+            if value is not None
+        }
+        for name, value in (stored.get("output_files") or {}).items():
+            if value is not None:
+                outputs.setdefault(str(name), _public(value))
+    author = stored.get("submitted_by")
+    return {
+        "status": status,
+        "submitted_by": author if isinstance(author, dict) else None,
+        "inputs": {
+            str(name): _public(_with_input_artifact(value, files, str(name)))
+            for name, value in inputs.items()
+            if value is not None
+        },
+        "outputs": outputs,
+    }
+
+
 # --- Filters ---------------------------------------------------------------------
 
 
@@ -347,6 +381,7 @@ __all__ = [
     "JobValueFilter",
     "OperatorFilterError",
     "operator_filters",
+    "operator_job_values",
     "operator_row_values",
     "parse_filters_param",
 ]

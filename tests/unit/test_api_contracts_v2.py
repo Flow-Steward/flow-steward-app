@@ -762,8 +762,16 @@ class _ReviewQuery:
     def __init__(self):
         self.calls: list[dict] = []
 
-    def get_review(self, job_id, *, scope, can_decide):
-        self.calls.append({"job_id": job_id, "scope": scope, "can_decide": can_decide})
+    def get_review(self, job_id, *, scope, can_decide, project_id=None, workflow_id=None):
+        self.calls.append(
+            {
+                "job_id": job_id,
+                "scope": scope,
+                "can_decide": can_decide,
+                "project_id": project_id,
+                "workflow_id": workflow_id,
+            }
+        )
         return _Payload({"job_id": job_id, "waiting": True, "access": "none", "gate": None})
 
 
@@ -785,3 +793,19 @@ def test_v2_job_review_decides_only_for_operators_and_admins(monkeypatch, roles,
     assert response.json()["data"]["access"] == "none"
     assert review.calls[0]["job_id"] == "job-a"
     assert review.calls[0]["can_decide"] is can_decide
+    assert review.calls[0]["project_id"] is None
+
+
+def test_v2_job_review_passes_the_section_pair_to_the_service(monkeypatch):
+    review = _ReviewQuery()
+    client = _build_client(
+        monkeypatch=monkeypatch,
+        approval_query_service=review,
+        auth_user={"username": "person", "roles": ["operator"]},
+    )
+
+    response = client.get("/api/v2/jobs/job-a/review?project_id=p1&workflow_id=wf.contracts")
+
+    assert response.status_code == 200
+    assert review.calls[0]["project_id"] == "p1"
+    assert review.calls[0]["workflow_id"] == "wf.contracts"

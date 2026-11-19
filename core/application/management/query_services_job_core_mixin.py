@@ -633,6 +633,18 @@ class JobQueryServiceCoreMixin:
         if around_id:
             if normalized_group:
                 raise ServiceValidationError("around cannot be grouped", status_code=422)
+            if operator is not None:
+                # A section's queue steps only through its own jobs: a job of
+                # another project or workflow is not found, not positioned.
+                from core.application.management.query_services_approval import job_in_section
+
+                around_job = bl.get_job(around_id) if hasattr(bl, "get_job") else None
+                if not isinstance(around_job, dict) or not job_in_section(
+                    around_job,
+                    project_id=str(normalized_project_id or ""),
+                    workflow_id=str(normalized_workflow_id or ""),
+                ):
+                    raise ServiceNotFoundError("Job not found")
             restricted = bool(resolved.allowed_project_ids and normalized_project_id is None)
             neighbours = (
                 bl.list_job_neighbours(

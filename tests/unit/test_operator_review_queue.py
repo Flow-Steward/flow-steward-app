@@ -89,8 +89,13 @@ def test_only_an_awaiting_review_filter_carries_the_chain_depth(monkeypatch):
 # --- Neighbours -----------------------------------------------------------------------------
 
 
+def _section_job(job_id: str, *, project: str = PROJECT, workflow: str = WORKFLOW) -> dict:
+    return {"id": job_id, "project_id": project, "selected_workflow": workflow}
+
+
 def test_around_answers_the_position_with_the_lists_own_filters():
     bl = _bl()
+    bl.get_job.return_value = _section_job("j2")
     bl.list_job_neighbours.return_value = {
         "job_id": "j2",
         "in_list": False,
@@ -130,10 +135,29 @@ def test_around_answers_the_position_with_the_lists_own_filters():
 
 def test_around_a_job_outside_the_callers_list_is_not_found():
     bl = _bl()
+    bl.get_job.return_value = _section_job("foreign")
     bl.list_job_neighbours.return_value = None
 
     with pytest.raises(ServiceNotFoundError):
         _list(bl, around="foreign")
+
+
+@pytest.mark.parametrize(
+    "job",
+    [
+        _section_job("x", workflow="wf.other"),  # another workflow, same project
+        _section_job("x", project="project-other"),  # same workflow, another project
+        None,
+    ],
+)
+def test_around_a_job_of_another_section_is_not_found_and_not_positioned(job):
+    bl = _bl()
+    bl.get_job.return_value = job
+    bl.list_job_neighbours.return_value = {"job_id": "x", "in_list": False, "total": 1}
+
+    with pytest.raises(ServiceNotFoundError):
+        _list(bl, around="x")
+    bl.list_job_neighbours.assert_not_called()
 
 
 def test_around_cannot_be_grouped():
@@ -270,6 +294,25 @@ def test_a_deep_review_is_decided_on_the_job_that_holds_it():
     assert gate["review"]["values"] == {"total": 31.85, "confidence": 0.62}
 
 
+def test_a_section_reads_only_its_own_jobs_and_their_deep_reviews():
+    service = _approvals()
+
+    view = service.get_review(
+        "a", scope=_person(), can_decide=True, project_id=PROJECT, workflow_id=WORKFLOW
+    ).dump()
+    assert view["review_job_id"] == "c"
+
+    # A job of another workflow in the same project, opened from this section.
+    with pytest.raises(ServiceNotFoundError):
+        service.get_review("b", scope=_person(), project_id=PROJECT, workflow_id=WORKFLOW)
+    # The job holding the deep approval is not this section's root job either.
+    with pytest.raises(ServiceNotFoundError):
+        service.get_review("c", scope=_person(), project_id=PROJECT, workflow_id=WORKFLOW)
+    # The same workflow in another project.
+    with pytest.raises(ServiceNotFoundError):
+        service.get_review("a", scope=_person(), project_id="project-other", workflow_id=WORKFLOW)
+
+
 def test_a_reader_gets_fields_and_values_without_the_right_to_decide():
     view = _approvals().get_review("a", scope=_person(), can_decide=False).dump()
 
@@ -289,6 +332,14 @@ def test_without_read_on_the_child_no_fields_values_files_or_job_id_leave_the_se
         "review_job_id": None,
         "access": "none",
         "gate": None,
+        # The section's own job is readable: what it submitted, nothing of the child.
+        "job_values": {
+            "status": "awaiting_child",
+            "submitted_by": None,
+            "inputs": {},
+            "outputs": None,
+        },
+        "decision": None,
     }
     assert "31.85" not in json.dumps(view)
 

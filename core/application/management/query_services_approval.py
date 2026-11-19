@@ -15,6 +15,19 @@ from .approval_decision_service import ApprovalDecisionService
 from .query_services_common import *  # NOSONAR
 
 
+def job_in_section(job: dict[str, Any], *, project_id: str | None, workflow_id: str | None) -> bool:
+    """Whether a job belongs to the section (project and workflow) it is opened from.
+
+    Without a section pair the caller is not a section page and nothing is
+    narrowed; with one, both must match the job's own project and workflow.
+    """
+    if not project_id and not workflow_id:
+        return True
+    return str(job.get("project_id") or "") == str(project_id or "") and (
+        resolve_job_workflow_id(job) == str(workflow_id or "")
+    )
+
+
 def _is_token_principal(scope: ScopeContext) -> bool:
     return is_token_scoped_principal(scope)
 
@@ -39,20 +52,9 @@ class ApprovalQueryService:
 
     def _public_review(self, job: dict[str, Any], review: Any) -> dict[str, Any] | None:
         """The review a caller who may see the job is shown, original files included."""
-        from core.application.jobs.workflow_run_projection import public_artifact_summaries
-        from core.application.workflows.approval_review import (
-            original_references,
-            public_review,
-        )
+        from core.application.jobs.workflow_run_projection import public_review_projection
 
-        if not isinstance(review, dict):
-            return None
-        original = public_artifact_summaries(
-            original_references(review),
-            job=job,
-            resolve_artifact=self._resolve_artifact,
-        )
-        return public_review(review, original=original)
+        return public_review_projection(review, job=job, resolve_artifact=self._resolve_artifact)
 
     def _project(self, bl: Any, project_id: Any) -> dict[str, Any] | None:
         if project_id in (None, ""):
@@ -195,6 +197,8 @@ class ApprovalQueryService:
         *,
         scope: ScopeContext | None = None,
         can_decide: bool = False,
+        project_id: str | None = None,
+        workflow_id: str | None = None,
     ) -> JobReviewView:
         """The review this job waits for (ADR 0075), with the caller's access to it.
 
@@ -204,6 +208,11 @@ class ApprovalQueryService:
         it learns only that a decision is pending, never its fields, values,
         files or job id. ``can_decide`` is the caller's right to decide
         approvals (operator or admin); otherwise the review is read-only.
+
+        ``project_id`` and ``workflow_id`` name the section the job is opened
+        from: a job of another project or workflow is not found, so a section
+        page never reads a job of another section (nor, through it, the deep
+        approval of a chain that section does not own).
         """
         from core.application.workflows.approval_waiting_propagation import (
             STATUS_AWAITING_APPROVAL,
@@ -220,8 +229,15 @@ class ApprovalQueryService:
         if project:
             require_project_access(resolved, project)
         self._require_job_workflow_access(resolved, job)
+        if not job_in_section(job, project_id=project_id, workflow_id=workflow_id):
+            raise ServiceNotFoundError("Job not found")
         status = str(job.get("status") or "").strip().lower()
-        view = JobReviewView(job_id=str(job_id), status=status)
+        view = JobReviewView(
+            job_id=str(job_id),
+            status=status,
+            job_values=self._operator_job_values(bl, resolved, job, str(job_id)),
+            decision=self._last_review_decision(bl, scope, job, str(job_id)),
+        )
         if status == STATUS_AWAITING_APPROVAL:
             target_id = str(job_id)
         elif status == STATUS_AWAITING_CHILD:
@@ -245,6 +261,50 @@ class ApprovalQueryService:
         view.access = "decide" if can_decide else "read"
         view.gate = gate
         return view
+
+    @staticmethod
+    def _operator_job_values(
+        bl: Any, resolved: ScopeContext, job: dict[str, Any], job_id: str
+    ) -> dict[str, Any]:
+        """What the job submitted and returned, read and shown as the operator list does."""
+        from core.application.registry.workflow_operator_list import operator_job_values
+        from core.application.security.credential_redaction import redact
+
+        reader = getattr(bl, "read_job_operator_payloads", None)
+        payloads = (
+            reader(job_ids=[job_id], account_id=resolved.account_id) if callable(reader) else {}
+        )
+        payload = payloads.get(job_id) if isinstance(payloads, dict) else None
+        redacted = redact(operator_job_values(job, payload if isinstance(payload, dict) else None))
+        return dict(redacted) if isinstance(redacted, dict) else {}
+
+    def _can_read_job(self, bl: Any, scope: ScopeContext | None, row: dict[str, Any]) -> bool:
+        """The review endpoint's access rule for a job of the chain: project and workflow."""
+        resolved = self._scope(scope, project_id=row.get("project_id"))
+        try:
+            project = self._project(bl, row.get("project_id"))
+            if project:
+                require_project_access(resolved, project)
+            self._require_job_workflow_access(resolved, row)
+        except (ServiceForbiddenError, ServiceNotFoundError):
+            return False
+        return True
+
+    def _last_review_decision(
+        self, bl: Any, scope: ScopeContext | None, job: dict[str, Any], job_id: str
+    ) -> dict[str, Any] | None:
+        from core.application.workflows.approval_review_history import last_review_decision
+        from core.application.workflows.approval_waiting_propagation import (
+            invoke_chain_max_depth,
+        )
+
+        return last_review_decision(
+            bl,
+            job_id,
+            job,
+            can_read=lambda row: self._can_read_job(bl, scope, dict(row)),
+            max_depth=invoke_chain_max_depth(),
+        )
 
     def list_history(
         self,
@@ -287,4 +347,5 @@ class ApprovalQueryService:
 
 __all__ = [
     "ApprovalQueryService",
+    "job_in_section",
 ]

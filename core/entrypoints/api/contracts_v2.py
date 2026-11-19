@@ -286,11 +286,17 @@ def create_api_contracts_v2_router(
         "/api/v2/jobs/{job_id}/review",
         response_description="The review this job waits for, with the caller's access to it.",
     )
-    def api_v2_job_review(request: Request, job_id: str):
+    def api_v2_job_review(
+        request: Request,
+        job_id: str,
+        project_id: Annotated[str, Query(max_length=128)] = "",
+        workflow_id: Annotated[str, Query(max_length=255)] = "",
+    ):
         """ADR 0075: the approval a job waits for, here or down its Invoke chain.
 
         The fields, values and original come only with ``decide`` or ``read``
-        access to the job that holds the approval, checked on that job.
+        access to the job that holds the approval, checked on that job. A
+        section page names its project and workflow: a job outside them is 404.
         """
         if approval_query_service is None:
             return _service_error(
@@ -303,6 +309,8 @@ def create_api_contracts_v2_router(
                 job_id,
                 scope=request_scope(request),
                 can_decide=resolve_user_role(request) in {"admin", "operator"},
+                project_id=project_id.strip() or None,
+                workflow_id=workflow_id.strip() or None,
             )
             data = _payload_or_dump(payload)
         except ServiceError as exc:

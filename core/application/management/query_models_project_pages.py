@@ -259,6 +259,11 @@ class JobReviewView(ViewModel):
     ``decide``, ``read`` (fields and original, no decision) or ``none`` (only
     that a decision is pending; no fields, values or files and no job id).
     ``gate`` is that job's current approval gate for ``decide`` and ``read``.
+    ``job_values`` is what the job submitted and, once it succeeded, returned,
+    for the operator's view of the job. ``decision`` is the last decided typed
+    review of the job or of the Invoke child that held it, from the decision
+    history: masked accepted values, corrections and who decided, or only
+    ``access: "none"`` when the caller may not read the job that held it.
     """
 
     job_id: str
@@ -267,6 +272,8 @@ class JobReviewView(ViewModel):
     review_job_id: str | None = None
     access: str | None = None
     gate: ApprovalGateView | None = None
+    job_values: dict[str, Any] | None = None
+    decision: dict[str, Any] | None = None
 
 
 class ApprovalHistoryView(ViewModel):

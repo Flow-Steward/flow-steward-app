@@ -22,6 +22,7 @@ from core.application.workflows.approval_review import (
     captured_review,
     decide_review,
     public_review_changes,
+    public_review_decision,
 )
 
 from .command_models_api_inputs import ApprovalDecisionInput
@@ -149,6 +150,7 @@ class ApprovalRepository:
         decision: ApprovalDecisionInput,
         scope: ScopeContext,
         review_changes: list[dict[str, Any]] | None = None,
+        review_decision: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         entry: dict[str, Any] = {
             "approval_id": approval_id,
@@ -180,6 +182,10 @@ class ApprovalRepository:
             # What the application found and what the person made of it, with
             # the actor above: the recognized values stay in the history.
             entry["review_changes"] = [dict(change) for change in review_changes]
+        if review_decision:
+            # The accepted values with their fields, masked: the operator's view
+            # of the finished job shows what was accepted and by whom.
+            entry["review"] = dict(review_decision)
         return entry
 
     def persist_decision(
@@ -256,6 +262,11 @@ class ApprovalRepository:
             review_changes=(
                 public_review_changes(captured_review(payload) or {}, review[1])
                 if review is not None
+                else None
+            ),
+            review_decision=(
+                public_review_decision(captured_review(payload) or {}, review[0])
+                if review is not None and bool(build_approval_resume_value(decision)["approved"])
                 else None
             ),
         )
