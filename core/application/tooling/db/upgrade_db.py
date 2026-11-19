@@ -189,8 +189,13 @@ def upgrade_database(
     dsn: str | None = None,
     author: str = "system",
     maintenance_confirmed: bool = False,
+    skip_db_backup: bool = False,
     allow_unlabeled_sessions: bool = False,
 ) -> dict[str, Any]:
+    if skip_db_backup and not maintenance_confirmed:
+        raise RuntimeError(
+            "--skip-db-backup does not replace --maintenance-confirmed; runtime writers must be stopped."
+        )
     set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
@@ -269,6 +274,7 @@ def upgrade_database(
             applied_by=author,
             metadata={
                 "source": "flow-steward database upgrade",
+                "skip_db_backup": skip_db_backup,
                 "seed_fingerprint": canonical_seed_fingerprint(),
             },
         )
@@ -388,9 +394,14 @@ if __name__ == "__main__":
         "--maintenance-confirmed",
         action="store_true",
         help=(
-            "Confirm runtime writers are stopped and a verified backup exists "
-            "before applying database maintenance."
+            "Confirm runtime writers are stopped; a verified backup is expected "
+            "unless --skip-db-backup explicitly accepts proceeding without it."
         ),
+    )
+    parser.add_argument(
+        "--skip-db-backup",
+        action="store_true",
+        help="Explicitly accept database migration without a backup; writer safety checks remain mandatory.",
     )
     args = parser.parse_args()
 
@@ -433,6 +444,7 @@ if __name__ == "__main__":
         upgrade_database(
             author=str(args.author or "system"),
             maintenance_confirmed=bool(args.maintenance_confirmed),
+            skip_db_backup=bool(args.skip_db_backup),
             allow_unlabeled_sessions=bool(args.allow_unlabeled_sessions),
         )
     )

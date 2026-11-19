@@ -193,3 +193,9 @@ and mixed-placement durable-state boundaries remain unchanged.
 - Official update and Clone share the resolver and activation engine. Checkout
   installations use the existing source-build provenance and resume paths;
   they do not fabricate a published release identity from an untagged commit.
+
+## Automatic upgrade orchestration (0.9.20)
+
+[ADR 0074](0074-automatic-release-upgrade.md) owns maintenance, backup and migration
+orchestration around this installer handoff. The exact target, provenance,
+configuration binding and inherited lifecycle locks described here remain in force.

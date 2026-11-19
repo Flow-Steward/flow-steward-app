@@ -85,6 +85,7 @@ class DatabaseToolingService:
                 dsn=self._dsn(request.dsn),
                 author=request.author,
                 maintenance_confirmed=request.maintenance_confirmed,
+                skip_db_backup=request.skip_db_backup,
                 allow_unlabeled_sessions=request.allow_unlabeled_sessions,
             )
         except upgrade_db.DatabaseUpgradeBlockedError as exc:

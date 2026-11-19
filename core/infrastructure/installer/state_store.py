@@ -18,9 +18,15 @@ from uuid import uuid4
 from core.application.installer.contracts import InstallJournal
 from core.application.installer.errors import InstallerFailure
 from core.application.installer.redaction import redact_installer_text
+from core.application.lifecycle.contracts import (
+    LifecycleOperationJournal,
+    LifecycleOperationKind,
+    LifecycleOperationStatus,
+)
 from core.application.release.activation import ReleaseHandoffJournal
 from core.application.release.contracts import ReleaseIdentity
 from core.application.release.service import ReleaseTransitionBinding
+from core.application.release.upgrade_workflow import ReleaseUpgradeJournal
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.installer.secret_values import is_missing_or_placeholder_secret
 
@@ -57,6 +63,7 @@ class InstallerStateStore:
         self.installed_release_path = root / "installed-release.json"
         self.pending_release_path = root / "pending-release.json"
         self.release_handoff_path = root / "release-handoff.json"
+        self.release_upgrade_path = root / "release-upgrade-workflow.json"
         self.release_transition_binding_path = root / "release-transition-binding.json"
         self.release_handoff_secret_path = root / "release-handoff-secret.txt"
         self.lock_path = root / "install.lock"
@@ -122,6 +129,43 @@ class InstallerStateStore:
         return ReleaseHandoffJournal.model_validate_json(
             self.release_handoff_path.read_text(encoding="utf-8")
         )
+
+    def load_release_upgrade(self) -> ReleaseUpgradeJournal | None:
+        if not self.release_upgrade_path.exists():
+            return None
+        return ReleaseUpgradeJournal.model_validate_json(
+            self.release_upgrade_path.read_text(encoding="utf-8")
+        )
+
+    def save_release_upgrade(self, journal: ReleaseUpgradeJournal) -> None:
+        if not journal.completed:
+            self._write_json(self.release_upgrade_path, journal.model_dump(mode="json"))
+        # Existing maintenance/configuration guards must also observe an
+        # unfinished upgrade. Once activation finishes, only healthy reopening
+        # remains and MaintenanceService owns that last verification.
+        projection = LifecycleOperationJournal(
+            operation_id=journal.operation_id,
+            kind=LifecycleOperationKind.RELEASE_UPGRADE,
+            status=LifecycleOperationStatus.COMPLETED
+            if journal.activation_completed
+            else LifecycleOperationStatus.RECOVERY_REQUIRED,
+            parameters={
+                "target_version": journal.prepared.target_release.version,
+                "skip_db_backup": journal.prepared.skip_db_backup,
+            },
+            current_step="maintenance_disable"
+            if journal.activation_completed
+            else "release_upgrade",
+            recovery_command=f"flow-steward release upgrade --target-version {journal.prepared.target_release.version} --confirm",
+        )
+        for lock_path in self.lifecycle_lock_paths:
+            self._write_json(
+                lock_path.parent / f"{journal.operation_id}.json",
+                projection.model_dump(mode="json"),
+            )
+        if journal.completed:
+            # A failed projection must leave the primary journal resumable.
+            self._write_json(self.release_upgrade_path, journal.model_dump(mode="json"))
 
     def save_release_handoff(self, journal: ReleaseHandoffJournal) -> None:
         self._write_json(self.release_handoff_path, journal.model_dump(mode="json"))

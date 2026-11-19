@@ -68,9 +68,9 @@ RELEASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
         path=("release", "upgrade"),
         summary="Upgrade to an exact official release.",
         description=(
-            "Require enabled maintenance, preflight an exact stable release and official "
-            "image set, then hand activation to the installer. Database backup and migration "
-            "remain explicit operator actions."
+            "Preflight an exact release, enable maintenance, create a verified database "
+            "backup, apply migrations and activate the release. Disable maintenance after "
+            "healthy completion; leave it enabled on failure."
         ),
         examples=(
             "flow-steward release upgrade",
@@ -98,6 +98,14 @@ RELEASE_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 option_name="--dry-run",
                 description="Run read-only preflight and show the exact reviewed plan.",
                 examples=("true",),
+            ),
+            FieldSpec(
+                key="skip_db_backup",
+                label="Skip database backup",
+                type=FieldType.BOOLEAN,
+                default=False,
+                option_name="--skip-db-backup",
+                description="Accept the risk of upgrading without creating a database backup.",
             ),
             FieldSpec(
                 key="timeout_seconds",

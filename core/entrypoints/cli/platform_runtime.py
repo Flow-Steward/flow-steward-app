@@ -56,6 +56,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirmation", default="")
     parser.add_argument("--operation-id", default="")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--skip-db-backup", action="store_true")
     parser.add_argument("--target-version", default="")
     parser.add_argument("--timeout-seconds", type=int)
     parser.add_argument("--json", action="store_true")
@@ -97,12 +98,14 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "confirmation": bool(args.confirmation),
         "operation_id": bool(args.operation_id),
         "dry_run": args.dry_run,
+        "skip_db_backup": args.skip_db_backup,
         "target_version": bool(args.target_version),
         "timeout_seconds": args.timeout_seconds is not None,
         "passphrase_stdin": args.passphrase_stdin,
     }
     allowed = {
         "database-upgrade": {
+            "skip_db_backup",
             "author",
             "maintenance_confirmed",
             "allow_unlabeled_sessions",
@@ -114,7 +117,13 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "database-restore-parity-capture": {"output", "label", "confirm"},
         "database-restore-parity-verify": {"baseline", "output", "label", "confirm"},
         "backup-verify": {"backup"},
-        "release-upgrade": {"target_version", "timeout_seconds", "dry_run", "confirm"},
+        "release-upgrade": {
+            "target_version",
+            "timeout_seconds",
+            "dry_run",
+            "confirm",
+            "skip_db_backup",
+        },
         "clone-create": {"output", "passphrase_stdin", "confirm"},
         "clone-restore": {
             "archive",
@@ -142,6 +151,8 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         ]
         if args.allow_unlabeled_sessions:
             command.append("--allow-unlabeled-sessions")
+        if args.skip_db_backup:
+            command.append("--skip-db-backup")
     elif args.operation in {"maintenance-enable", "maintenance-disable"}:
         if not args.confirm:
             raise ValueError(f"{args.operation} requires --confirm")
@@ -184,6 +195,8 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             command.extend(("--target-version", args.target_version))
         if args.dry_run:
             command.append("--dry-run")
+        if args.skip_db_backup:
+            command.append("--skip-db-backup")
         if args.confirm:
             command.append("--confirm")
     elif args.operation == "clone-create":
