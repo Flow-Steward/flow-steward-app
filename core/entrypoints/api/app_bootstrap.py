@@ -12,7 +12,10 @@ from core.application.auth.effective_permissions import resolve_effective_permis
 from core.application.extensions.system_email import system_email_available
 from core.application.settings.date_time_format import stored_date_format, stored_time_format
 from core.infrastructure.config.installation_mode import installation_mode
-from core.infrastructure.config.workflow_file_limits import browser_run_upload_limits
+from core.infrastructure.config.workflow_file_limits import (
+    browser_run_upload_limits,
+    file_preview_max_bytes,
+)
 
 
 def _normalized_roles(auth_user: Mapping[str, Any] | None) -> list[str]:
@@ -249,11 +252,15 @@ def create_api_app_bootstrap_router(
                     "mode": installation_mode(),
                 },
                 # ADR 0075: the browser checks a real run's files against the same
-                # policy the server enforces, instead of a fixed size.
+                # policy the server enforces, instead of a fixed size. ADR 0077: a
+                # file over the preview limit is offered as a download only.
                 "limits": {
                     "run_upload": browser_run_upload_limits()
                     if include_authenticated_metadata
-                    else {}
+                    else {},
+                    "file_preview": {"max_bytes": file_preview_max_bytes()}
+                    if include_authenticated_metadata
+                    else {},
                 },
                 "i18n": i18n,
                 "settings_pages": _normalize_settings_pages(settings_pages),

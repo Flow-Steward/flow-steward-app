@@ -35,7 +35,7 @@ def workflow_test_file_max_bytes() -> int:
 
 
 def file_preview_max_bytes() -> int:
-    """Largest generated image or PDF the run view previews inline."""
+    """Largest file the browser previews: image, PDF, text, spreadsheet or Word document."""
     return _bounded_bytes(
         "FS_FILE_PREVIEW_MAX_BYTES", fallback=20 * _MIB, minimum=1024, maximum=256 * _MIB
     )

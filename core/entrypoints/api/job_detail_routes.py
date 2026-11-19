@@ -66,6 +66,26 @@ _TEXT_PREVIEW_EXTENSIONS = {
     ".md": "text/markdown",
     ".json": _JSON_MEDIA_TYPE,
 }
+_XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_XLS_MEDIA_TYPE = "application/vnd.ms-excel"
+_CSV_MEDIA_TYPE = "text/csv"
+_DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+#: Spreadsheets and Word documents the browser previews itself (ADR 0077). They
+#: are read by the page as bytes, never rendered by the browser: served as an
+#: opaque attachment in a sandbox, whatever their declared type.
+_DOCUMENT_PREVIEW_TYPES = frozenset(
+    {_XLSX_MEDIA_TYPE, _XLS_MEDIA_TYPE, _CSV_MEDIA_TYPE, "application/csv", _DOCX_MEDIA_TYPE}
+)
+#: A file without a declared type is previewed by its extension, as the run view
+#: chooses its preview: the text types, PDF and the documents above.
+_PREVIEW_EXTENSIONS = {
+    **_TEXT_PREVIEW_EXTENSIONS,
+    ".pdf": "application/pdf",
+    ".xlsx": _XLSX_MEDIA_TYPE,
+    ".xls": _XLS_MEDIA_TYPE,
+    ".csv": _CSV_MEDIA_TYPE,
+    ".docx": _DOCX_MEDIA_TYPE,
+}
 _PREVIEW_TOO_LARGE = "The file is too large to preview"
 
 
@@ -73,12 +93,12 @@ def _preview_media_type(declared: str, filename: str) -> str:
     """The type a preview is chosen by: the declared one, or the extension when none is.
 
     A declared type always wins, so a file recorded as, say, application/zip is not
-    previewed as text because its name ends in .txt. Only text types are inferred.
+    previewed as text because its name ends in .txt.
     """
     media_type = declared.split(";", 1)[0].strip().lower()
     if media_type:
         return media_type
-    return _TEXT_PREVIEW_EXTENSIONS.get(PurePosixPath(filename).suffix.lower(), "")
+    return _PREVIEW_EXTENSIONS.get(PurePosixPath(filename).suffix.lower(), "")
 
 
 def _text_preview_response(body: bytes, filename: str) -> Response:
@@ -94,6 +114,24 @@ def _text_preview_response(body: bytes, filename: str) -> Response:
         media_type="text/plain; charset=utf-8",
         headers={
             "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename, safe='')}",
+            "Cache-Control": "private, max-age=300",
+            "Content-Security-Policy": "sandbox; default-src 'none'",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _document_preview_response(body: bytes, filename: str) -> Response:
+    """A spreadsheet or Word document as bytes for the page's own previewer.
+
+    Never something the browser opens itself: an opaque attachment type, a
+    sandbox with no sources, and no sniffing.
+    """
+    return Response(
+        content=body,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename, safe='')}",
             "Cache-Control": "private, max-age=300",
             "Content-Security-Policy": "sandbox; default-src 'none'",
             "X-Content-Type-Options": "nosniff",
@@ -454,14 +492,16 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
 
     @router.get("/api/jobs/{job_id}/artifacts/{artifact_id}/preview")
     async def api_job_artifact_preview(request: Request, job_id: str, artifact_id: str):
-        """Serve a generated image, PDF or text file inline, so the run view can show it.
+        """Serve a generated file the run view can show: image, PDF, text or document.
 
         Same authorization as a download. Only types a browser renders without
         running anything are served inline (no SVG, no HTML), within a size
         bound (``FS_FILE_PREVIEW_MAX_BYTES``), and from any storage backend: the body is read here rather than
         redirected, because a storage URL is another origin the page's image
-        policy does not allow. TXT, Markdown and JSON come back as UTF-8
-        ``text/plain`` for the page to show as characters.
+        and connect policies do not allow. TXT, Markdown and JSON come back as UTF-8
+        ``text/plain`` for the page to show as characters. XLSX, XLS, CSV and
+        DOCX come back as opaque bytes that the page's own previewer reads
+        (ADR 0077); nothing is converted here.
         """
         try:
             download = job_query_service().get_job_artifact_download(
@@ -474,7 +514,9 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
                 str(download.content_type if preview_type is None else preview_type),
                 download.filename,
             )
-            if content_type not in _INLINE_PREVIEW_TYPES | _TEXT_PREVIEW_TYPES:
+            if content_type not in (
+                _INLINE_PREVIEW_TYPES | _TEXT_PREVIEW_TYPES | _DOCUMENT_PREVIEW_TYPES
+            ):
                 return JSONResponse({"error": "This file type has no preview"}, status_code=415)
             preview_limit = file_preview_max_bytes()
             if download.size_bytes > preview_limit:
@@ -494,6 +536,8 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
             return api_error_response(e)
         if content_type in _TEXT_PREVIEW_TYPES:
             return _text_preview_response(body, download.filename)
+        if content_type in _DOCUMENT_PREVIEW_TYPES:
+            return _document_preview_response(body, download.filename)
         encoded_filename = quote(download.filename, safe="")
         headers = {
             "Content-Disposition": f"inline; filename*=UTF-8''{encoded_filename}",

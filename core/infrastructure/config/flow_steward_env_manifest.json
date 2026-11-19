@@ -6150,7 +6150,7 @@
       "preserve_existing": true,
       "default": "20971520",
       "owner": "attachments",
-      "notes": "Largest generated image or PDF previewed inline in Job Details; larger files are download-only (range 1024 .. 268435456)."
+      "notes": "Largest file previewed in the browser (image, PDF, text, spreadsheet or Word document); larger files are download-only (range 1024 .. 268435456)."
     },
     {
       "name": "FS_TASK_UPLOAD_MAX_CONCURRENT_PREPARATIONS",

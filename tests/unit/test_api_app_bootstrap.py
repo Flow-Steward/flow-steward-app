@@ -173,6 +173,17 @@ def test_api_app_bootstrap_includes_user_permissions_and_memberships() -> None:
     assert body["shell_navigation"]["system"][0]["auth_user_present"] is True
 
 
+def test_api_app_bootstrap_gives_a_signed_in_user_the_file_preview_limit(monkeypatch) -> None:
+    """ADR 0077: a file over the server's preview limit is offered as a download only."""
+    monkeypatch.setenv("FS_FILE_PREVIEW_MAX_BYTES", "4096")
+
+    signed_in = _build_client(with_auth=True).get("/api/app/bootstrap").json()
+    anonymous = _build_client(with_auth=False).get("/api/app/bootstrap").json()
+
+    assert signed_in["limits"]["file_preview"] == {"max_bytes": 4096}
+    assert anonymous["limits"]["file_preview"] == {}
+
+
 def test_api_app_bootstrap_gives_a_user_without_a_valid_choice_the_default_formats() -> None:
     client = _build_client(with_auth=True, stored_date_time_format=("", "am/pm"))
 
