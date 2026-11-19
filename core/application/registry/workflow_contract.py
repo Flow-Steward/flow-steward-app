@@ -402,6 +402,14 @@ class WorkflowContractField(BaseModel):
         except ValidationError:
             return None
 
+    @property
+    def is_file_list(self) -> bool:
+        """Several uploaded files in one input: ``type: array`` with ``items.type: file``."""
+        if self.type != "array":
+            return False
+        item = self.item_field()
+        return item is not None and item.type == "file"
+
     def property_fields(self) -> list[WorkflowContractField] | None:
         """The ``object`` sub-fields; ``None`` when ``properties`` is malformed."""
         if self.properties is None:

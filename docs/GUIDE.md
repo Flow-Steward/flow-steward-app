@@ -657,10 +657,14 @@ to `workflow_trigger`; keep file fields out of `payload`. The example carries
 actual CSV bytes (`sku,quantity` and `A1,7`), not a server path or an artifact ID.
 The transport accepts up to 10 files and 1 MiB of decoded bytes in total;
 configured attachment type/size limits also apply. Base64 must be strict, with
-no whitespace, and each declared file input has exactly one upload. The server
+no whitespace. A `file` input takes exactly one upload; a list-of-files input
+(`type: array` with `items.type: file`) takes one entry per file with the same
+`input_name`, in order, within its `min_items`/`max_items`. The server
 validates every required input before creating a job and persists attachments
-before dispatch. The workflow receives server-created artifact descriptors in
-its named inputs and `files`; raw base64 is not retained in job metadata.
+before dispatch, each file as its own artifact. The workflow receives
+server-created artifact descriptors in its named inputs (a list of them, in
+upload order, for a list-of-files input) and `files`; raw base64 is not
+retained in job metadata.
 Filenames, URLs, local paths and fabricated artifact objects in `payload` do
 not satisfy a file input and are rejected before enqueue.
 

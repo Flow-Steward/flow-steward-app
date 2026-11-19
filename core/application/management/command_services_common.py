@@ -570,6 +570,13 @@ def _persist_file_refs(
                     "source_ref": f"{str(source_ref_prefix or 'file').strip()}:{index}",
                     "retention_class": str(meta.get("retention_class") or "run_window").strip()
                     or "run_window",
+                    # The declared input the upload was sent for: with several files in
+                    # one input (ADR 0075) it keeps each stored copy tied to its place.
+                    **(
+                        {"field_name": str(file_row["input_name"]).strip()}
+                        if str(file_row.get("input_name") or "").strip()
+                        else {}
+                    ),
                 }
             )
     except Exception:

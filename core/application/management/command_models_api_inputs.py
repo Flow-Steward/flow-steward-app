@@ -582,11 +582,11 @@ class WorkflowRunInput(ViewModel):
     @field_validator("files")
     @classmethod
     def validate_uploads(cls, value: list[WorkflowRunFileInput]) -> list[WorkflowRunFileInput]:
+        # Several entries may share an input_name: a file-list input (``type: array``,
+        # ``items.type: file``) takes one entry per file, in order. Whether a name
+        # takes one or several is the contract's, checked when uploads are bound.
         if sum(len(row.decoded_content()) for row in value) > 1_048_576:
             raise ValueError("File uploads exceed 1 MiB decoded total")
-        names = [row.input_name for row in value]
-        if len(set(names)) != len(names):
-            raise ValueError("Each file input must have exactly one upload")
         return value
 
     @field_validator("project_id", "workflow_id", mode="before")
@@ -663,11 +663,11 @@ class BuilderWorkflowRunInput(ViewModel):
         max_files = limits["max_files"]
         max_file = limits["max_file_bytes"]
         max_total = limits["max_total_bytes"]
+        # The count covers every input together. Several entries may share an
+        # input_name (a file-list input, in upload order); the contract decides
+        # whether a name takes one or several when the uploads are bound.
         if max_files and len(value) > max_files:
             raise ValueError(f"A run accepts at most {max_files} files")
-        names = [row.input_name for row in value]
-        if len(set(names)) != len(names):
-            raise ValueError("Each file input must have exactly one upload")
         if max_file:
             # Refuse an oversized body before decoding it.
             encoded_cap = _base64_length(max_file)

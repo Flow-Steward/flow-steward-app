@@ -94,18 +94,34 @@ def test_zero_keeps_its_meaning_of_no_limit(policy) -> None:
     assert len(request.files) == 12
 
 
-@pytest.mark.parametrize(
-    "files",
-    [
-        [_file("receipt", 0)],
-        [_file("receipt", 10), _file("receipt", 10)],
-    ],
-)
-def test_empty_files_and_two_uploads_for_one_input_are_refused(policy, files) -> None:
+def test_an_empty_file_is_refused(policy) -> None:
     policy(max_bytes=5 * _MIB)
 
     with pytest.raises(ValidationError):
-        _browser(files)
+        _browser([_file("receipt", 0)])
+
+
+def test_several_files_may_share_one_input_name_in_order(policy) -> None:
+    """A list-of-files input takes one entry per page; the contract decides (ADR 0075)."""
+    policy(max_bytes=5 * _MIB, max_files=4)
+
+    request = _browser([_file("pages", 10, filename=f"p{index}.jpg") for index in range(4)])
+
+    assert [row.filename for row in request.files] == ["p0.jpg", "p1.jpg", "p2.jpg", "p3.jpg"]
+
+
+def test_the_count_covers_several_files_of_one_input(policy) -> None:
+    policy(max_bytes=5 * _MIB, max_files=3)
+
+    with pytest.raises(ValidationError, match="at most 3 files"):
+        _browser([_file("pages", 10) for _ in range(4)])
+
+
+def test_one_oversized_page_refuses_the_run(policy) -> None:
+    policy(max_bytes=2 * _MIB)
+
+    with pytest.raises(ValidationError, match="larger than"):
+        _browser([_file("pages", 10), _file("pages", 2 * _MIB + 1, filename="big.jpg")])
 
 
 def test_the_api_launch_keeps_its_own_fixed_budget(policy) -> None:

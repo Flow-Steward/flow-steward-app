@@ -88,20 +88,56 @@ def _at_path(data: Any, path: str) -> Any:
     return node
 
 
-def _with_input_artifact(value: Any, files: Any) -> Any:
-    """Give an input file its stored artifact, matched by name, so it can be downloaded."""
-    if isinstance(value, list):
-        return [_with_input_artifact(item, files) for item in value]
-    if not isinstance(value, dict) or "artifact_id" in value or "filename" not in value:
-        return value
-    for stored in files if isinstance(files, list) else []:
+def _needs_artifact(value: Any) -> bool:
+    return isinstance(value, dict) and "artifact_id" not in value and "filename" in value
+
+
+def _with_input_artifact(value: Any, files: Any, input_name: str) -> Any:
+    """Give each input file its own stored artifact, so it can be downloaded.
+
+    The stored files of the run record the input each was sent for
+    (``field_name``) in upload order, so the n-th file of an input is its n-th
+    stored copy: two pages with the same filename still get their own
+    artifacts. Older runs without ``field_name`` are matched by filename, each
+    stored copy used once, in order.
+    """
+    stored = [
+        row
+        for row in (files if isinstance(files, list) else [])
+        if isinstance(row, dict) and row.get("artifact_id")
+    ]
+    own = [row for row in stored if row.get("field_name") == input_name]
+    pool = own or stored
+    used: set[int] = set()
+
+    def attach(item: Any, position: int) -> Any:
+        if not _needs_artifact(item):
+            return item
+        chosen: int | None = None
         if (
-            isinstance(stored, dict)
-            and stored.get("filename") == value.get("filename")
-            and stored.get("artifact_id")
+            own
+            and position < len(own)
+            and position not in used
+            and own[position].get("filename") == item.get("filename")
         ):
-            return {**value, "artifact_id": stored["artifact_id"]}
-    return value
+            chosen = position
+        else:
+            chosen = next(
+                (
+                    index
+                    for index, row in enumerate(pool)
+                    if index not in used and row.get("filename") == item.get("filename")
+                ),
+                None,
+            )
+        if chosen is None:
+            return item
+        used.add(chosen)
+        return {**item, "artifact_id": pool[chosen]["artifact_id"]}
+
+    if isinstance(value, list):
+        return [attach(item, position) for position, item in enumerate(value)]
+    return attach(value, 0)
 
 
 def operator_row_values(
@@ -119,7 +155,9 @@ def operator_row_values(
                 value = row.get(_JOB_VALUES.get(column.path, ""), _MISSING)
         elif column.source == "input":
             value = _with_input_artifact(
-                _at_path(stored.get("inputs") or {}, column.path), stored.get("input_files")
+                _at_path(stored.get("inputs") or {}, column.path),
+                stored.get("input_files"),
+                column.path.split(".", 1)[0].removesuffix("[]"),
             )
         elif succeeded:
             outputs = stored.get("outputs") or {}

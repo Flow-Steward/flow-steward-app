@@ -187,6 +187,47 @@ def test_several_files_of_one_input_each_get_their_artifact() -> None:
     assert [item["artifact_id"] for item in values["files"]] == ["a1", "a2"]
 
 
+def test_pages_with_the_same_filename_each_get_their_own_artifact() -> None:
+    """Stored files name their input in upload order; the n-th page is the n-th copy."""
+    columns = _columns([{"id": "pages", "source": "input", "path": "pages"}])
+    stored = {
+        "inputs": {
+            "pages": [{"filename": "scan.jpg"}, {"filename": "scan.jpg"}, {"filename": "x.jpg"}],
+            "cover": {"filename": "scan.jpg"},
+        },
+        "input_files": [
+            {"filename": "scan.jpg", "artifact_id": "cover-1", "field_name": "cover"},
+            {"filename": "scan.jpg", "artifact_id": "a1", "field_name": "pages"},
+            {"filename": "scan.jpg", "artifact_id": "a2", "field_name": "pages"},
+            {"filename": "x.jpg", "artifact_id": "a3", "field_name": "pages"},
+        ],
+    }
+
+    values = operator_row_values(
+        [*columns, *_columns([{"id": "cover", "source": "input", "path": "cover"}])],
+        {"status": "running"},
+        stored,
+    )
+
+    assert [item["artifact_id"] for item in values["pages"]] == ["a1", "a2", "a3"]
+    assert values["cover"]["artifact_id"] == "cover-1"
+
+
+def test_an_older_run_without_input_names_uses_each_stored_copy_once() -> None:
+    columns = _columns([{"id": "pages", "source": "input", "path": "pages"}])
+    stored = {
+        "inputs": {"pages": [{"filename": "scan.jpg"}, {"filename": "scan.jpg"}]},
+        "input_files": [
+            {"filename": "scan.jpg", "artifact_id": "a1"},
+            {"filename": "scan.jpg", "artifact_id": "a2"},
+        ],
+    }
+
+    values = operator_row_values(columns, {"status": "running"}, stored)
+
+    assert [item["artifact_id"] for item in values["pages"]] == ["a1", "a2"]
+
+
 def test_secrets_and_storage_details_never_reach_the_table() -> None:
     columns = _columns([{"id": "key", "source": "input", "path": "api_key"}])
 
