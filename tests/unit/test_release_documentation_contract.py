@@ -10,10 +10,10 @@ def test_install_docs_define_prebuilt_default_explicit_source_and_owner_only_tok
     guide = (ROOT / "docs/GUIDE.md").read_text(encoding="utf-8")
     combined = readme + "\n" + guide
 
-    assert (
-        "git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward"
-        in combined
-    )
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    clone = f"git clone --branch v{version} https://github.com/Flow-Steward/flow-steward-app.git flow-steward"
+    assert clone in readme
+    assert clone in guide
     assert "published installer" in readme
     assert "--from-source" in readme
     assert "no automatic source" in guide

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -715,10 +716,18 @@ def test_stable_release_waits_for_anonymous_installer_pulls_and_retains_evidence
     assert "anonymous-installer" in upload["with"]["path"]
 
 
-def test_readme_install_command_matches_candidate_version() -> None:
+def test_every_documented_install_clone_matches_candidate_version() -> None:
+    """A guide that still names an old tag sends new installs to that old release."""
     root = Path(__file__).resolve().parents[2]
     version = (root / "VERSION").read_text().strip()
-    assert (
-        f"git clone --branch v{version} https://github.com/Flow-Steward/flow-steward-app.git"
-        in (root / "README.md").read_text()
-    )
+    pattern = re.compile(r"git clone --branch (v\d+\.\d+\.\d+) \S*Flow-Steward/flow-steward-app")
+    documents = [root / "README.md", *sorted((root / "docs").rglob("*.md"))]
+    pinned = {
+        str(path.relative_to(root)): tag
+        for path in documents
+        if "releases" not in path.relative_to(root).parts
+        for tag in pattern.findall(path.read_text(encoding="utf-8"))
+    }
+    assert "README.md" in pinned
+    assert "docs/GUIDE.md" in pinned
+    assert {path: tag for path, tag in pinned.items() if tag != f"v{version}"} == {}
