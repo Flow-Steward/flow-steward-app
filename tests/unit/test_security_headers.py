@@ -3,7 +3,27 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
+import pytest
+from starlette.requests import Request
 from starlette.responses import Response
+
+
+def _request(host: str) -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "scheme": "https",
+            "path": "/",
+            "query_string": b"",
+            "server": (host, 443),
+            "headers": [(b"host", host.encode())],
+        }
+    )
+
+
+async def _ok(_request) -> Response:
+    return Response("ok")
 
 
 def test_security_headers_middleware_uses_declared_extension_browser_origins(
@@ -24,7 +44,9 @@ def test_security_headers_middleware_uses_declared_extension_browser_origins(
     async def call_next(_request) -> Response:
         return Response("ok")
 
-    response = asyncio.run(http_app_lifecycle._security_headers_middleware(object(), call_next))
+    response = asyncio.run(
+        http_app_lifecycle._security_headers_middleware(_request("flow.example.com"), call_next)
+    )
 
     assert response.headers["x-frame-options"] == "SAMEORIGIN"
     assert response.headers["x-content-type-options"] == "nosniff"
@@ -52,6 +74,40 @@ def test_security_headers_middleware_uses_declared_extension_browser_origins(
     assert response.headers["cross-origin-opener-policy"] == "same-origin"
     assert response.headers["cross-origin-embedder-policy"] == "credentialless"
     assert response.headers["cross-origin-resource-policy"] == "same-origin"
+    assert response.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains"
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "localhost",
+        "localhost:8443",
+        "LOCALHOST",
+        "app.localhost",
+        "127.0.0.1:8443",
+        "[::1]:8443",
+        "10.0.0.5",
+    ],
+)
+def test_no_hsts_for_localhost_or_ip_hosts(host: str) -> None:
+    """A two-year HSTS on localhost would force HTTPS on every other local app."""
+    from core.infrastructure.runtime import http_app_lifecycle
+
+    response = asyncio.run(http_app_lifecycle._security_headers_middleware(_request(host), _ok))
+
+    assert "strict-transport-security" not in response.headers
+    assert response.headers["x-frame-options"] == "SAMEORIGIN"
+
+
+@pytest.mark.parametrize(
+    "host", ["flow.example.com", "flow.example.com:8443", "localhost.example.com"]
+)
+def test_hsts_for_domain_names(host: str) -> None:
+    from core.infrastructure.runtime import http_app_lifecycle
+
+    response = asyncio.run(http_app_lifecycle._security_headers_middleware(_request(host), _ok))
+
+    assert response.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains"
 
 
 def test_extension_csp_core_is_provider_neutral_and_never_scans_bundles() -> None:
