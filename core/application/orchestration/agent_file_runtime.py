@@ -246,14 +246,37 @@ class AgentFileRuntime:
             value, error = resolve_expected_input_source(state, source, name)
             if error:
                 raise AgentFileAccessError("File binding is unavailable")
-            if isinstance(value, Mapping):
-                value = value.get("artifact_handle") or value.get("artifact_id")
-            value = str(value or "").strip()
-            artifact_id = value.removeprefix("artifact:")
-            files.append(self._authorize(name, artifact_id))
-            if sum(item.size_bytes for item in files) > _MAX_TOTAL_FILE_BYTES:
-                raise AgentFileAccessError("File size limit exceeded")
+            for file_name, handle in _bound_handles(name, value):
+                if file_name != name and file_name in names:
+                    raise AgentFileAccessError("Invalid file binding")
+                names.add(file_name)
+                files.append(self._authorize(file_name, _artifact_id(handle)))
+                if len(files) > _MAX_FILES:
+                    raise AgentFileAccessError("Too many bound files")
+                if sum(item.size_bytes for item in files) > _MAX_TOTAL_FILE_BYTES:
+                    raise AgentFileAccessError("File size limit exceeded")
         return AgentFileContext(self, files)
+
+
+def _artifact_id(value: Any) -> str:
+    if isinstance(value, Mapping):
+        value = value.get("artifact_handle") or value.get("artifact_id")
+    return str(value or "").strip().removeprefix("artifact:")
+
+
+def _bound_handles(name: str, value: Any) -> list[tuple[str, Any]]:
+    """One binding's files: a single file under its name, a file list numbered.
+
+    A file-list input (several uploads in one input, ADR 0075) binds each file
+    as ``<name>_1``, ``<name>_2``, ... in upload order, so one agent step can
+    read every page of one document.
+    """
+    if not isinstance(value, list):
+        return [(name, value)]
+    if not value:
+        raise AgentFileAccessError("File binding is unavailable")
+    stem = name[: 64 - len(f"_{len(value)}")]
+    return [(f"{stem}_{index}", item) for index, item in enumerate(value, start=1)]
 
 
 RuntimeBinding = AgentFileRuntime | Callable[[], AgentFileRuntime | None] | None
