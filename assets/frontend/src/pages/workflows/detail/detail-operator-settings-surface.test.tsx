@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
+import type { FormFieldView } from "@/components/workflow-inputs/form-field";
 import type { OperatorIssue } from "@/pages/operator/types";
 import { OperatorSettingsSurface } from "./detail-operator-settings-surface";
 import {
@@ -32,13 +33,13 @@ const compatibility = {
   },
 };
 
-function field(name: string, kind: string, widgets: string[], extra: Record<string, unknown> = {}) {
+function field(name: string, kind: string, widgets: string[], extra: Record<string, unknown> = {}): FormFieldView {
   return {
     name, kind, widget: widgets[0] ?? "", widgets, label: name, instructions: "", placeholder: "", prepend: "",
     append: "", width: null, required: false, fixed: false, hidden: false, options: [], option_labels: {},
     conditional_logic: [], layout: "", button_label: "", min_items: null, max_items: null, format: "", sub_fields: [],
     ...extra,
-  };
+  } as FormFieldView;
 }
 
 const view: OperatorEditorView = {

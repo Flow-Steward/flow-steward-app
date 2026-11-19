@@ -215,7 +215,7 @@ export function OperatorReviewPanel({
     if (field.editable && reviewValueChanged(initial[field.name], values[field.name])) {
       notes[field.name] = (
         <span className="fs-operator-corrected" data-testid={`review-corrected-${field.name}`}>
-          <DsBadge tone="warning">{t("react.operator_review.corrected", "Corrected")}</DsBadge>{" "}
+          <DsBadge tone="orange">{t("react.operator_review.corrected", "Corrected")}</DsBadge>{" "}
           {t("react.operator_review.was", "Was: {value}", { value: shownValue(initial[field.name], t) })}
         </span>
       );

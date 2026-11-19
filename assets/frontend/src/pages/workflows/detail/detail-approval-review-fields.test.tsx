@@ -12,11 +12,11 @@ const suggestions: WorkflowVariableSuggestionGroup[] = [
     key: "step",
     label: "Step variables",
     options: [
-      { value: "state.total", label: "Recognize → Total", meta: "", valueType: "number", stepId: "recognize", variant: "state_alias" },
-      { value: "state.supplier", label: "Recognize → Supplier", meta: "", valueType: "string", stepId: "recognize", variant: "state_alias" },
-      { value: "state.document_date", label: "Recognize → Document date", meta: "", valueType: "", stepId: "recognize", variant: "state_alias" },
-      { value: "state.notes.total", label: "Notes → Total", meta: "", valueType: "string", stepId: "notes", variant: "state_alias" },
-      { value: "state.scan", label: "Recognize → Scan", meta: "", valueType: "file", stepId: "recognize", variant: "state_alias" },
+      { value: "state.total", label: "Recognize → Total", meta: "", valueType: "number", stepId: "recognize", variant: "state_alias", description: "" },
+      { value: "state.supplier", label: "Recognize → Supplier", meta: "", valueType: "string", stepId: "recognize", variant: "state_alias", description: "" },
+      { value: "state.document_date", label: "Recognize → Document date", meta: "", valueType: "", stepId: "recognize", variant: "state_alias", description: "" },
+      { value: "state.notes.total", label: "Notes → Total", meta: "", valueType: "string", stepId: "notes", variant: "state_alias", description: "" },
+      { value: "state.scan", label: "Recognize → Scan", meta: "", valueType: "file", stepId: "recognize", variant: "state_alias", description: "" },
     ],
   },
 ];
