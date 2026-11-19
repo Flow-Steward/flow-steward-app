@@ -148,6 +148,26 @@ def serialize_approval_history_entry(entry: Mapping[str, Any]) -> dict[str, Any]
             for change in review_changes
             if isinstance(change, Mapping) and str(change.get("field") or "").strip()
         ]
+    review = entry.get("review")
+    if isinstance(review, Mapping):
+        from core.application.workflows.approval_review import (
+            REVIEW_DECISION_FIELD_KEYS,
+            masked_review_value,
+        )
+
+        # The accepted values of an approved typed review with their fields.
+        fields = [
+            {key: field.get(key) for key in REVIEW_DECISION_FIELD_KEYS}
+            for field in review.get("fields") or []
+            if isinstance(field, Mapping) and str(field.get("name") or "").strip()
+        ]
+        values = review.get("values") if isinstance(review.get("values"), Mapping) else {}
+        safe["review"] = {
+            "fields": fields,
+            "values": {
+                str(name): masked_review_value(value, key=name) for name, value in values.items()
+            },
+        }
     return safe
 
 

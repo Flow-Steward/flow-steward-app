@@ -55,7 +55,10 @@ REVIEW_PAYLOAD_KEY = "review"
 REVIEW_SCHEMA_VERSION = 1
 REVIEW_CONFIG_KEYS = frozenset({"fields", "original", "fields_from_workflow"})
 DEFAULT_REVIEW_FIELD_TYPE = "paragraph"
-#: Artifact names the decision message of an Approval step already carries.
+#: Artifact names the decision message of an Approval step already carries
+#: (``builder_approval_gate._decision_message``): a review field with one of
+#: these names would be silently shadowed by the gate's own value. ``_outcome``
+#: routes the decision to its branch.
 RESERVED_REVIEW_FIELD_NAMES = frozenset(
     {
         "decision",
@@ -66,8 +69,11 @@ RESERVED_REVIEW_FIELD_NAMES = frozenset(
         "step_kind",
         "step_id",
         "review_changes",
+        "_outcome",
     }
 )
+#: Item types of a list the review page edits (text, numbers, options, objects).
+EDITABLE_REVIEW_LIST_ITEMS = frozenset({"string", "paragraph", "number", "select", "object"})
 #: The bound of the captured values and of a decision's edits: the default body
 #: limit of a workflow run entrypoint, so a review holds what a run accepts.
 REVIEW_VALUES_MAX_BYTES = 1024 * 1024
@@ -160,7 +166,12 @@ def review_fields(review: Any) -> list[ReviewField]:
             field = parse_review_field(row)
         except ValidationError:
             continue
-        if not field.name or field.name in seen or field.is_secret:
+        if (
+            not field.name
+            or field.name in seen
+            or field.is_secret
+            or field.name in RESERVED_REVIEW_FIELD_NAMES
+        ):
             continue
         seen.add(field.name)
         fields.append(field)
@@ -200,6 +211,16 @@ def review_config_issues(review: Any, *, path: str) -> list[dict[str, Any]]:
                     f"{path}.{key}",
                 )
             )
+    if isinstance(review.get("original"), str) and review["original"].strip() == "state":
+        # A bare ``state`` reads the value named like the field; the original has
+        # no name of its own, so it needs a path.
+        issues.append(
+            _issue(
+                "workflow.approval_review_original_needs_path",
+                "Approval review original needs a path, for example state.files",
+                f"{path}.original",
+            )
+        )
     rows = review.get("fields")
     if rows is None:
         rows = []
@@ -304,6 +325,20 @@ def _field_issues(row: Any, *, path: str, seen: set[str]) -> list[dict[str, Any]
                 f"{path}.editable",
             )
         )
+    if field.editable and field.type == "array" and not field.is_file_list:
+        items = field.dump().get("items")
+        item_type = str(items.get("type") or "") if isinstance(items, Mapping) else ""
+        if item_type not in EDITABLE_REVIEW_LIST_ITEMS:
+            # The review page edits lists of text, numbers, options or objects;
+            # anything else would be a field the person sees but cannot fill.
+            issues.append(
+                _issue(
+                    "workflow.approval_review_field_list_not_editable",
+                    f"Approval review field '{name}' is a list the review page cannot edit; "
+                    "declare its items as text, number, select or object, or make it read-only",
+                    f"{path}.items",
+                )
+            )
     if field.type == "select" and not field.options:
         issues.append(
             _issue(
@@ -409,6 +444,15 @@ def _json_size(value: Any) -> int:
     return len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8"))
 
 
+def _field_selector(field: ReviewField) -> str:
+    """The selector a field reads: a bare ``state`` is the state value of the field's name.
+
+    Readiness resolves it the same way (as an Invoke input mapping does), so
+    the check and the run read the same value.
+    """
+    return f"state.{field.name}" if field.source == "state" else field.source
+
+
 def open_review(
     review: Any,
     *,
@@ -429,7 +473,7 @@ def open_review(
     for field in fields:
         raw: Any = None
         if field.source:
-            found, error = resolve(field.source)
+            found, error = resolve(_field_selector(field))
             raw = None if error else found
         if is_missing_contract_value(raw, field):
             values[field.name] = None
@@ -449,7 +493,7 @@ def open_review(
             invalid[field.name] = message
     original_from = str(review.get("original") or "").strip()
     original: Any = None
-    if original_from:
+    if original_from and original_from != "state":
         found, error = resolve(original_from)
         original = None if error else _json_safe(found)
     captured: dict[str, Any] = {
@@ -507,6 +551,12 @@ def decide_review(
     initial = review.get("values") if isinstance(review.get("values"), Mapping) else {}
     edits = dict(values or {})
     for name in edits:
+        if str(name) in RESERVED_REVIEW_FIELD_NAMES:
+            raise ReviewDecisionError(
+                "approval_review_field_reserved",
+                f"Review field '{name}' is a name of the Approval step's own result",
+                field=str(name),
+            )
         if name not in by_name:
             raise ReviewDecisionError(
                 "approval_review_field_unknown",
@@ -626,6 +676,48 @@ def original_references(review: Mapping[str, Any]) -> list[Any]:
     return list(original) if isinstance(original, list) else [original]
 
 
+#: What the decision history keeps of a field: enough to show a value by its type,
+#: a list of objects as a table with its columns included.
+REVIEW_DECISION_FIELD_KEYS = ("name", "label", "type", "format", "items", "properties")
+
+
+def _public_fields(review: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The captured fields a person may see: never a secret one."""
+    fields = []
+    for field in _captured_fields(review):
+        if field.is_secret:
+            continue
+        dumped = field.dump()
+        row: dict[str, Any] = {key: dumped.get(key) for key in _PUBLIC_FIELD_KEYS}
+        row["label"] = field.public_label()
+        row["required"] = bool(field.required)
+        row["editable"] = bool(field.editable)
+        row["options"] = list(field.options)
+        row["description"] = field.description
+        row["format"] = field.format or None
+        fields.append(row)
+    return fields
+
+
+def public_review_decision(review: Mapping[str, Any], values: Mapping[str, Any]) -> dict[str, Any]:
+    """The accepted values of an approved review with their fields, masked, for the history.
+
+    The operator's view of a finished job reads it back: what was accepted,
+    under which labels. Secret fields are left out, as in the public review.
+    """
+    fields = [
+        {key: row.get(key) for key in REVIEW_DECISION_FIELD_KEYS} for row in _public_fields(review)
+    ]
+    return {
+        "fields": fields,
+        "values": {
+            row["name"]: masked_review_value(values.get(row["name"]), key=row["name"])
+            for row in fields
+            if row["name"] in values
+        },
+    }
+
+
 def public_review(
     review: Mapping[str, Any] | None,
     *,
@@ -640,19 +732,7 @@ def public_review(
 
     if not isinstance(review, Mapping):
         return None
-    fields = []
-    for field in _captured_fields(review):
-        if field.is_secret:
-            continue
-        dumped = field.dump()
-        row: dict[str, Any] = {key: dumped.get(key) for key in _PUBLIC_FIELD_KEYS}
-        row["label"] = field.public_label()
-        row["required"] = bool(field.required)
-        row["editable"] = bool(field.editable)
-        row["options"] = list(field.options)
-        row["description"] = field.description
-        row["format"] = field.format or None
-        fields.append(row)
+    fields = _public_fields(review)
     names = {row["name"] for row in fields}
     values = review.get("values") if isinstance(review.get("values"), Mapping) else {}
     invalid = review.get("invalid") if isinstance(review.get("invalid"), Mapping) else {}
@@ -689,6 +769,7 @@ __all__ = [
     "parse_review_field",
     "public_review",
     "public_review_changes",
+    "public_review_decision",
     "review_config",
     "review_config_issues",
     "review_fields",

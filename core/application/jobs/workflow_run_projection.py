@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -448,6 +448,30 @@ def build_terminal_stop_error(
     )
 
 
+def public_review_projection(
+    review: Any,
+    *,
+    job: dict[str, Any],
+    resolve_artifact: Callable[[str], dict[str, Any] | None] | None,
+) -> dict[str, Any] | None:
+    """The one safe projection of an Approval's typed review (ADR 0075).
+
+    Masked values (secret references, detected secrets, values under
+    secret-like keys) and only the original files this job owns, as its
+    downloads authorize them. Every surface that shows a review uses it: the
+    dedicated approval read, the job detail and the workflow run snapshot.
+    Notifications never carry a review at all.
+    """
+    from core.application.workflows.approval_review import original_references, public_review
+
+    if not isinstance(review, Mapping):
+        return None
+    original = public_artifact_summaries(
+        original_references(review), job=job, resolve_artifact=resolve_artifact
+    )
+    return public_review(review, original=original)
+
+
 def _safe_approval(
     *,
     job: dict[str, Any],
@@ -455,6 +479,7 @@ def _safe_approval(
     gate: dict[str, Any],
     previous: PublicApprovalGateV1 | None,
     now: datetime,
+    resolve_artifact: Callable[[str], dict[str, Any] | None] | None = None,
 ) -> PublicApprovalGateV1 | None:
     if status != "awaiting_approval":
         return None
@@ -505,6 +530,9 @@ def _safe_approval(
         allowed_actions=allowed_actions,
         created_at=created_at,
         expires_at=_datetime(gate.get("expires_at")),
+        review=public_review_projection(
+            gate.get("review"), job=job, resolve_artifact=resolve_artifact
+        ),
     )
 
 
@@ -544,6 +572,7 @@ class WorkflowRunProjectionService:
             gate=dict(approval_gate or {}),
             previous=previous.approval if previous else None,
             now=now,
+            resolve_artifact=self.resolve_artifact,
         )
         result = build_public_result(job, status, resolve_artifact=self.resolve_artifact)
         error = build_public_error(job, status, list(job_errors or []))

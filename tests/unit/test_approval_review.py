@@ -46,12 +46,14 @@ from core.application.orchestration.run_definition import (
     prime_run_definition,
 )
 from core.application.workflows.approval_review import (
+    RESERVED_REVIEW_FIELD_NAMES,
     REVIEW_VALUES_MAX_BYTES,
     ReviewDecisionError,
     decide_review,
     open_review,
     public_review,
     review_config_issues,
+    review_fields,
     review_source_issues,
 )
 from core.application.workflows.workflow_definition_snapshot import definition_digest
@@ -250,6 +252,103 @@ def test_definition_issues_name_the_field_path(field: dict, code: str) -> None:
 
     assert [issue["path"].startswith("review.fields[0]") for issue in issues] == [True]
     assert code in issues[0]["code"]
+
+
+def test_every_artifact_the_gate_writes_is_a_reserved_review_field_name() -> None:
+    from core.application.orchestration.graph import builder_approval_gate
+
+    state = _state()
+    payload = _opened_payload(state)
+    gate = SimpleNamespace(
+        step_id="check",
+        approval_id=payload.get("approval_id"),
+        payload=payload,
+        current=None,
+    )
+    with patch(
+        "core.application.orchestration.agents.common.publish_agent_message",
+        lambda *_args, **_kwargs: None,
+    ):
+        message = builder_approval_gate._decision_message(
+            state, gate, approved=True, feedback="", comment="", state_updates={}
+        )
+    review_names = {field["name"] for field in REVIEW["fields"]}
+    gate_keys = set(message["artifacts"]) - review_names
+
+    assert gate_keys <= RESERVED_REVIEW_FIELD_NAMES
+    assert "_outcome" in gate_keys
+
+
+def test_a_review_field_named_like_the_routing_outcome_is_refused() -> None:
+    issues = review_config_issues(
+        {"fields": [{"name": "_outcome", "editable": True}]}, path="approval.review"
+    )
+    assert [issue["code"] for issue in issues] == ["workflow.approval_review_field_name_reserved"]
+
+    captured = {
+        "fields": [
+            {"name": "_outcome", "editable": True},
+            {"name": "total", "type": "number", "editable": True},
+        ],
+        "editable": ["_outcome", "total"],
+        "values": {"_outcome": "x", "total": 1},
+        "invalid": {},
+    }
+    with pytest.raises(ReviewDecisionError) as refused:
+        decide_review(captured, {"_outcome": {"name": "rejected"}}, approved=True)
+    assert refused.value.code == "approval_review_field_reserved"
+    assert [field.name for field in review_fields({"fields": captured["fields"]})] == ["total"]
+
+
+def test_a_bare_state_source_reads_the_state_value_named_like_the_field() -> None:
+    asked: list[str] = []
+
+    def resolve(selector: str) -> tuple[Any, str]:
+        asked.append(selector)
+        return {"state.supplier": "ACME"}.get(selector), ""
+
+    captured = open_review(
+        {"fields": [{"name": "supplier", "type": "string", "from": "state"}]}, resolve=resolve
+    )
+
+    assert captured is not None
+    assert captured["values"] == {"supplier": "ACME"}
+    assert asked == ["state.supplier"]
+
+
+def test_a_bare_state_original_is_refused_as_it_has_no_name() -> None:
+    issues = review_config_issues(
+        {"original": "state", "fields": [{"name": "total", "type": "number"}]},
+        path="approval.review",
+    )
+
+    assert [issue["code"] for issue in issues] == ["workflow.approval_review_original_needs_path"]
+
+
+@pytest.mark.parametrize(
+    ("items", "code"),
+    [
+        ({"type": "string"}, None),
+        ({"type": "number"}, None),
+        ({"type": "select", "options": ["a"]}, None),
+        ({"type": "object", "properties": [{"name": "x", "type": "string"}]}, None),
+        (None, "workflow.approval_review_field_list_not_editable"),
+        ({"type": "boolean"}, "workflow.approval_review_field_list_not_editable"),
+    ],
+)
+def test_an_editable_list_is_one_the_review_page_can_edit(items, code) -> None:
+    row: dict[str, Any] = {"name": "values", "type": "array", "editable": True, "required": True}
+    if items is not None:
+        row["items"] = items
+
+    codes = [
+        issue["code"] for issue in review_config_issues({"fields": [row]}, path="approval.review")
+    ]
+
+    if code:
+        assert code in codes
+    else:
+        assert codes == []
 
 
 def test_duplicate_names_and_unknown_keys_are_issues() -> None:
@@ -622,9 +721,38 @@ def test_test_run_resumes_from_state_with_checked_values() -> None:
 
     result = _registry_approval_gate_node({**state, **update})
 
-    assert update["approval_review_values"] == {"total": 318.5}
+    assert update["approval_review_values"]["values"] == {"total": 318.5}
+    assert update["approval_review_values"]["step_execution_id"]
     assert result.update["agent_messages"][-1]["artifacts"]["total"] == 318.5
     assert result.update["approval_review_values"] is None
+
+
+def test_stale_review_values_of_an_earlier_gate_are_not_applied() -> None:
+    state = _state(task_source="workflow_test_run")
+    update = _build_state_based_approval_update(
+        approved=True,
+        action=None,
+        comment="",
+        resume_value={"approved": True, "comment": ""},
+        state_values=state,
+    )
+    stale = {"step_execution_id": "an-earlier-gate", "values": {"total": 999}}
+
+    result = _registry_approval_gate_node({**state, **update, "approval_review_values": stale})
+
+    assert result.update["agent_messages"][-1]["artifacts"].get("total") != 999
+    assert result.update["approval_review_values"] is None
+
+
+def test_no_step_can_write_or_map_into_the_review_values_channel() -> None:
+    from core.application.orchestration.state_path_guards import is_reserved_state_target
+    from core.application.orchestration.step_templating import set_state_path
+
+    assert is_reserved_state_target("state.approval_review_values")
+    assert is_reserved_state_target("approval_review_values.values.total")
+    update: dict = {}
+    set_state_path(update, {}, "approval_review_values", {"values": {"total": 1}})
+    assert update == {}
 
 
 # --- Tokens --------------------------------------------------------------------------
@@ -940,6 +1068,58 @@ def test_gate_view_for_mcp_and_job_detail_masks_secret_like_review_values() -> N
     _no_raw_secret(gate)
 
 
+def test_workflow_run_snapshot_carries_the_same_safe_review() -> None:
+    from core.application.jobs.workflow_run_projection import _safe_approval
+
+    gate = {
+        "approval_id": "approval-1",
+        "message": "Check",
+        "allowed_actions": ["approve", "reject"],
+        "review": copy.deepcopy(SECRET_KEYS_REVIEW),
+    }
+
+    approval = _safe_approval(
+        job={"id": "job-1", "thread_id": "thread-1", "project_id": "project-1"},
+        status="awaiting_approval",
+        gate=gate,
+        previous=None,
+        now=datetime.now(UTC),
+    )
+
+    assert approval is not None
+    dumped = approval.model_dump(mode="json")
+    assert dumped["review"]["values"]["password"] == "[REDACTED]"
+    assert dumped["review"]["values"]["supplier"] == "ACME"
+    assert dumped["review"] == public_review(SECRET_KEYS_REVIEW, original=[])
+    _no_raw_secret(dumped)
+
+
+def test_approval_notifications_never_carry_review_fields_values_or_files() -> None:
+    from core.application.jobs.public_approval_serializer import (
+        build_approval_notification_payload,
+    )
+
+    payload = {
+        "approval_id": "approval-1",
+        "message": "Check",
+        "gate_kind": "approval",
+        "allowed_actions": ["approve", "reject"],
+        "review": {
+            **copy.deepcopy(SECRET_KEYS_REVIEW),
+            "original": [{"artifact_id": "art-1", "filename": "invoice.pdf"}],
+        },
+    }
+
+    notification = build_approval_notification_payload(payload)
+
+    assert notification["approval_id"] == "approval-1"
+    assert "review" not in notification
+    text = json.dumps(notification)
+    for leaked in ("ACME", "db.example", "invoice.pdf", "art-1", "supplier", "api_key"):
+        assert leaked not in text
+    _no_raw_secret(notification)
+
+
 def test_token_gate_response_keeps_the_review() -> None:
     from core.entrypoints.api.jobs import _token_approval_gate_response
 
@@ -1004,6 +1184,30 @@ def test_import_rebinds_or_drops_the_fields_hint_and_keeps_fields(
     assert review.get("fields_from_workflow") == expected
     assert review["fields"] == REVIEW["fields"]
     assert REVIEW["fields_from_workflow"] == "accounting_export"
+
+
+def test_import_keeps_the_fields_hint_when_the_workflow_exists_on_the_target() -> None:
+    step = {
+        "step_id": "check",
+        "step_kind": "approval",
+        "override": {"approval": {"review": REVIEW}},
+    }
+    existing = _Portability()
+    existing.db = SimpleNamespace(  # type: ignore[attr-defined]
+        get_workflow=lambda ref: {"workflow_id": ref} if ref == "accounting_export" else None
+    )
+    missing = _Portability()
+    missing.db = SimpleNamespace(get_workflow=lambda _ref: None)  # type: ignore[attr-defined]
+
+    kept = existing._rewrite_step(step, {})["override"]["approval"]["review"]
+    dropped = missing._rewrite_step(step, {})["override"]["approval"]["review"]
+    imported_too = _Portability()._rewrite_step(
+        step, {("workflow", "accounting_export"): {"action": "create"}}
+    )["override"]["approval"]["review"]
+
+    assert kept["fields_from_workflow"] == "accounting_export"
+    assert "fields_from_workflow" not in dropped
+    assert imported_too["fields_from_workflow"] == "accounting_export"
 
 
 def test_readiness_resolves_review_sources_like_an_invoke_mapping() -> None:
@@ -1079,7 +1283,8 @@ def test_readiness_resolves_review_sources_like_an_invoke_mapping() -> None:
                     "editable": True,
                     "from": "message.step.recognize.artifacts.total",
                 },
-                {"name": "files", "type": "array", "editable": True, "from": "inputs.files"},
+                # Read-only: an untyped list is not one the review page edits.
+                {"name": "files", "type": "array", "editable": False, "from": "inputs.files"},
             ],
         }
     ) == [

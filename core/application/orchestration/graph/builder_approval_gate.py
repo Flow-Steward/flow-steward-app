@@ -259,7 +259,6 @@ def _decide(
             review_values=review_values,
         )
         update.update(mapped_state)
-        update["approval_review_values"] = None
         update["user_approved"] = None
         update["pending_wait"] = None
         update["agent_messages"] = [*(state.get("agent_messages") or []), message]
@@ -274,6 +273,8 @@ def _decide(
                 )
     else:
         update["user_approved"] = approved
+    # Used once, by this decision only: never left for a later gate.
+    update["approval_review_values"] = None
     return Command(update=update, goto=HUB_NODE)
 
 
@@ -308,6 +309,22 @@ def _pause_test_run(gate: _Gate):
     )
 
 
+def _state_review_values(state: Mapping[str, Any], gate: _Gate) -> dict[str, Any] | None:
+    """The checked review values a state-based resume left for exactly this gate.
+
+    The Test Run path reads the decision from state; values bound to another
+    step execution (an earlier gate) are not this decision's and are ignored.
+    """
+    raw = state.get("approval_review_values")
+    if not isinstance(raw, Mapping) or gate.current is None:
+        return None
+    bound = str(raw.get("step_execution_id") or "")
+    values = raw.get("values")
+    if not bound or bound != gate.current.step_execution_id or not isinstance(values, Mapping):
+        return None
+    return dict(values)
+
+
 def _registry_approval_gate_node(state: OrchestratorState):
     """Pause the active step execution for a human decision, then return to the hub."""
     from langgraph.types import interrupt
@@ -329,7 +346,7 @@ def _registry_approval_gate_node(state: OrchestratorState):
             route="workflow test run state",
             prefer_state_notes=True,
             resolution_ref=state.get("external_effect_resolution_ref"),
-            review_values=state.get("approval_review_values"),
+            review_values=_state_review_values(state, gate),
         )
 
     while True:

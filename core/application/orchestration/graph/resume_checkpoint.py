@@ -270,8 +270,15 @@ def _build_state_based_approval_update(
         review_values = resume_value.get("review_values")
         if isinstance(review_values, dict):
             # The checked values of a typed review; the Approval node makes them
-            # its outputs when it reads the decision from state.
-            update["approval_review_values"] = dict(review_values)
+            # its outputs when it reads the decision from state. They are bound
+            # to the step execution decided, so a later gate never takes them.
+            from core.application.orchestration.active_step import active_step
+
+            current = active_step(state_values or {})
+            update["approval_review_values"] = {
+                "step_execution_id": current.step_execution_id if current else "",
+                "values": dict(review_values),
+            }
         approved_feedback = feedback or "Approved."
         update["review_feedback"] = approved_feedback
         update["reviewer_comments"] = approved_feedback

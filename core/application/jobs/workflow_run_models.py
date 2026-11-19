@@ -85,6 +85,9 @@ class PublicApprovalGateV1(_UtcTimestamps):
     allowed_actions: list[str] = Field(default_factory=list)
     created_at: datetime
     expires_at: datetime | None = None
+    #: The typed review of an Approval with fields (ADR 0075), in its one safe
+    #: projection (``public_review_projection``); never part of a notification.
+    review: dict[str, Any] | None = None
 
 
 class PublicWorkflowResultV1(_PublicModel):
