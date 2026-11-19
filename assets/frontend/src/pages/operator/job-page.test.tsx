@@ -332,3 +332,44 @@ describe("OperatorJobPage review", () => {
     await waitFor(() => expect(document.head.querySelector('link[rel="prefetch"][href="/api/jobs/j4-child/artifacts/art-1/preview"]')).not.toBeNull());
   });
 });
+
+describe("OperatorJobPage decisions the gate allows", () => {
+  function withActions(actions: string[]): JobReview {
+    const base = review("j3");
+    return { ...base, gate: base.gate ? { ...base.gate, allowed_actions: actions } : null };
+  }
+
+  it("offers only approval when the gate allows only approval", async () => {
+    reviews.j3 = withActions(["approve"]);
+    renderPage();
+    await screen.findByTestId("operator-review");
+
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    expect(screen.getByTestId("review-approve-next")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Recognize again" })).not.toBeInTheDocument();
+  });
+
+  it("offers neither approval nor Ctrl+Enter when the gate allows only rejection", async () => {
+    reviews.j3 = withActions(["reject"]);
+    renderPage();
+    await screen.findByTestId("operator-review");
+    await waitFor(() => expect(screen.getByTestId("operator-queue-position")).toHaveTextContent("3 of 47"));
+
+    expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("review-approve-next")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Recognize again" })).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "Enter", ctrlKey: true });
+    expect(decisions()).toHaveLength(0);
+    expect(screen.getByTestId("location")).toHaveTextContent("/work/jobs/j3?");
+  });
+
+  it("leaves a gate with override or abort to the existing review panel", async () => {
+    reviews.j3 = withActions(["approve", "override", "abort"]);
+    renderPage();
+
+    expect(await screen.findByTestId("job-detail")).toHaveTextContent("j3-child");
+    expect(screen.queryByTestId("operator-review")).not.toBeInTheDocument();
+    expect(screen.getByTestId("operator-queue")).toBeInTheDocument();
+  });
+});
+

@@ -2,8 +2,14 @@ import type { DsFilterField } from "@/components/shared/design-system";
 import { filterRangeParts } from "@/components/shared/filter-range";
 import type { I18nContextValue } from "@/lib/i18n/context";
 import { localizedStatusLabel } from "@/components/shared/localized-status-label";
+import { AWAITING_REVIEW_STATUS } from "@/pages/jobs/list/job-filters";
 
 import type { OperatorFilterView } from "./types";
+
+/** A job status as the filter offers it; "awaiting review" is the queue, not a stored status. */
+function statusOptionLabel(option: string, t: I18nContextValue["t"]): string {
+  return option === AWAITING_REVIEW_STATUS ? t("react.operator.status_awaiting_review", "Awaiting review") : localizedStatusLabel(option, t);
+}
 
 /** The Jobs list's filter-panel key of a configured filter; its URL key too. */
 export function operatorFilterKey(filter: Pick<OperatorFilterView, "id">): string {
@@ -21,7 +27,7 @@ export function operatorFilterFields(filters: readonly OperatorFilterView[], t: 
     const statusLabels = filter.source === "job" && filter.path === "status";
     const options = (filter.options ?? []).map((option) => ({
       value: option,
-      label: statusLabels ? localizedStatusLabel(option, t) : option,
+      label: statusLabels ? statusOptionLabel(option, t) : option,
     }));
     switch (filter.type) {
       case "search":

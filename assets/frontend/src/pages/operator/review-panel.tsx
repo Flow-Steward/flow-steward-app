@@ -13,6 +13,7 @@ import { filePreviewKind, filePreviewUrl } from "@/pages/jobs/detail/job-detail-
 import { ReadableDataFields } from "@/pages/jobs/detail/readable-data-fields";
 
 import {
+  gateActions,
   reviewConflict,
   reviewEdits,
   reviewFieldError,
@@ -124,6 +125,10 @@ export function OperatorReviewPanel({
   const reviewJobId = gate?.job_id ?? "";
   const payload = gate?.payload ?? {};
   const canDecide = review.access === "decide";
+  // Only the decisions the gate allows, as the existing review panel does.
+  const actions = gateActions(gate);
+  const canApprove = canDecide && actions.has("approve");
+  const canReject = canDecide && actions.has("reject");
   const fields = useMemo(() => captured?.fields ?? [], [captured]);
   const initial = useMemo(() => ({ ...(captured?.values ?? {}) }), [captured]);
   const formFields = useMemo(() => {
@@ -156,6 +161,7 @@ export function OperatorReviewPanel({
       return;
     }
     const approved = mode !== "reject";
+    if (approved ? !canApprove : !canReject) return;
     if (!approved && !comment.trim()) {
       setFormError(t("react.jobs.rejection_comment_required", "A rejection comment is required for this review gate."));
       return;
@@ -269,37 +275,43 @@ export function OperatorReviewPanel({
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                <Button
-                  aria-keyshortcuts="Control+Enter Meta+Enter"
-                  busy={pending === "approve_next"}
-                  busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-                  data-testid="review-approve-next"
-                  onClick={() => ignoreAsyncResult(decide("approve_next"))}
-                  type="button"
-                  variant="primary"
-                >
-                  {t("react.operator_review.approve_and_next", "{label} and next", { label: approveLabel })}
-                </Button>
-                <Button
-                  busy={pending === "approve"}
-                  busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-                  data-testid="review-approve"
-                  onClick={() => ignoreAsyncResult(decide("approve"))}
-                  type="button"
-                  variant="secondary"
-                >
-                  {approveLabel}
-                </Button>
-                <Button
-                  busy={pending === "reject"}
-                  busyLabel={t("react.jobs.rejecting", "Rejecting…")}
-                  data-testid="review-reject"
-                  onClick={() => ignoreAsyncResult(decide("reject"))}
-                  type="button"
-                  variant="danger"
-                >
-                  {rejectLabel}
-                </Button>
+                {canApprove ? (
+                  <>
+                  <Button
+                    aria-keyshortcuts="Control+Enter Meta+Enter"
+                    busy={pending === "approve_next"}
+                    busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+                    data-testid="review-approve-next"
+                    onClick={() => ignoreAsyncResult(decide("approve_next"))}
+                    type="button"
+                    variant="primary"
+                  >
+                    {t("react.operator_review.approve_and_next", "{label} and next", { label: approveLabel })}
+                  </Button>
+                  <Button
+                    busy={pending === "approve"}
+                    busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+                    data-testid="review-approve"
+                    onClick={() => ignoreAsyncResult(decide("approve"))}
+                    type="button"
+                    variant="secondary"
+                  >
+                    {approveLabel}
+                  </Button>
+                  </>
+                ) : null}
+                {canReject ? (
+                  <Button
+                    busy={pending === "reject"}
+                    busyLabel={t("react.jobs.rejecting", "Rejecting…")}
+                    data-testid="review-reject"
+                    onClick={() => ignoreAsyncResult(decide("reject"))}
+                    type="button"
+                    variant="danger"
+                  >
+                    {rejectLabel}
+                  </Button>
+                ) : null}
                 {onSkip ? (
                   <Button data-testid="review-skip" onClick={onSkip} type="button" variant="secondary">
                     {t("react.operator_review.skip", "Skip")}

@@ -1,7 +1,9 @@
 import { HttpError } from "@/lib/http/errors";
 
 import { rowContext, listContext, operatorJobPath, sectionListPath, isTypingTarget } from "./queue";
-import { reviewEdits, reviewFieldError, reviewFormField, type ReviewField } from "./review-model";
+import { AWAITING_REVIEW_STATUS, jobStatusRequest, normalizeStatusList } from "@/pages/jobs/list/job-filters";
+
+import { reviewEdits, reviewFieldError, reviewFormField, reviewPageDecides, type ReviewField } from "./review-model";
 
 describe("review fields", () => {
   it("map each type to its default widget", () => {
@@ -64,3 +66,20 @@ describe("queue addresses", () => {
     expect(isTypingTarget(document.body)).toBe(false);
   });
 });
+
+describe("review decisions and the built-in queue status", () => {
+  it("keep the review page to approve and reject", () => {
+    expect(reviewPageDecides({ job_id: "c", allowed_actions: ["approve", "reject"] })).toBe(true);
+    expect(reviewPageDecides({ job_id: "c", allowed_actions: ["Approve"] })).toBe(true);
+    expect(reviewPageDecides({ job_id: "c", allowed_actions: ["approve", "override"] })).toBe(false);
+    expect(reviewPageDecides({ job_id: "c", allowed_actions: ["abort"] })).toBe(false);
+  });
+
+  it("keep awaiting review in the status filter and send it with the group statuses", () => {
+    expect(normalizeStatusList(["failed", AWAITING_REVIEW_STATUS])).toBe("awaiting_review,failed");
+    expect(normalizeStatusList(["bogus"])).toBe("");
+    expect(jobStatusRequest("awaiting_review,failed")).toEqual(["awaiting_review", "failed", "max_iterations", "triage_needed"]);
+    expect(jobStatusRequest("completed")).toEqual(["completed"]);
+  });
+});
+

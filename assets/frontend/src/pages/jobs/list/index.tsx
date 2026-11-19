@@ -21,7 +21,6 @@ import { fetchWorkflows } from "@/pages/workflows/shared/api";
 import { fetchExtensions } from "@/pages/extensions/api";
 import {
   JOB_STATUS_GROUPS,
-  jobStatusesOfGroups,
   jobStatusGroup,
   jobStatusGroupLabel,
   jobStatusGroupTone,
@@ -37,7 +36,14 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { JOB_SKELETON_ROWS, JOB_SKELETON_WIDTHS } from "@/pages/jobs/list/job-skeleton";
-import { jobFiltersFromUrl, normalizeStatusList, periodFromUrl } from "@/pages/jobs/list/job-filters";
+import {
+  AWAITING_REVIEW_ROW_STATUSES,
+  AWAITING_REVIEW_STATUS,
+  jobFiltersFromUrl,
+  jobStatusRequest,
+  normalizeStatusList,
+  periodFromUrl,
+} from "@/pages/jobs/list/job-filters";
 import {
   AdvancedTableFilters,
   BulkActionBar,
@@ -362,6 +368,10 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   function matchesStatusFilter(job: JobListItem, filterValue: string): boolean {
     const groups = jobStatusParams(filterValue);
     if (!groups.length) {
+      return true;
+    }
+    // The server already read "awaiting review" down the Invoke chain.
+    if (groups.includes(AWAITING_REVIEW_STATUS) && AWAITING_REVIEW_ROW_STATUSES.has(normalizeStatus(job.status))) {
       return true;
     }
     const group = jobStatusGroup(normalizeStatus(job.status));
@@ -704,7 +714,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
       if (projectFilter) {
         params.set("project_id", projectFilter);
       }
-      jobStatusesOfGroups(jobStatusParams(statusFilter)).forEach((status) => params.append("status", status));
+      jobStatusRequest(statusFilter).forEach((status) => params.append("status", status));
       if (hideAcknowledged) {
         params.set("hide_acknowledged", "true");
       }
@@ -730,7 +740,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
       const payload = await fetchJobsList({
         page,
         perPage,
-        status: jobStatusesOfGroups(jobStatusParams(statusFilter)).join(","),
+        status: jobStatusRequest(statusFilter).join(","),
         hideAcknowledged,
         projectId: projectFilter || null,
         workflowId: workflowFilter || null,
@@ -1057,7 +1067,13 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
             fields={
               scope
                 ? [
-                    { key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true },
+                    {
+                      key: "status_filter",
+                      label: t("account_settings.card.status", "Status"),
+                      // The operator's main queue: built in, no admin setup (ADR 0075).
+                      options: [{ value: AWAITING_REVIEW_STATUS, label: t("react.operator.status_awaiting_review", "Awaiting review") }, ...filterOptions.statuses],
+                      multiple: true,
+                    },
                     ...scopeFilterFields,
                   ]
                 : [

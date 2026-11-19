@@ -6,11 +6,32 @@ import { jobStatusParams } from "@/pages/jobs/list/api";
 import { jobStatusesOfGroups, jobStatusGroupsFromValues } from "@/pages/jobs/status-groups";
 
 /**
- * The status filter is a comma list of status group keys; the URL repeats
- * `status` once per group. A stored status from an older link means its group.
+ * The operator queue (ADR 0075): no stored status and no group. The server
+ * matches a job waiting for approval itself or anywhere down its Invoke chain.
+ */
+export const AWAITING_REVIEW_STATUS = "awaiting_review";
+
+/** Statuses of a row the server may have matched as "awaiting review". */
+export const AWAITING_REVIEW_ROW_STATUSES: ReadonlySet<string> = new Set(["awaiting_approval", "awaiting_child"]);
+
+function asksForReview(values: readonly string[]): boolean {
+  return values.flatMap((value) => value.split(",")).some((value) => value.trim().toLowerCase() === AWAITING_REVIEW_STATUS);
+}
+
+/**
+ * The status filter is a comma list of status group keys, "awaiting review"
+ * first when chosen; the URL repeats `status` once per value. A stored status
+ * from an older link means its group.
  */
 export function normalizeStatusList(values: readonly string[]): string {
-  return jobStatusGroupsFromValues(values).join(",");
+  const groups: string[] = jobStatusGroupsFromValues(values);
+  return (asksForReview(values) ? [AWAITING_REVIEW_STATUS, ...groups] : groups).join(",");
+}
+
+/** The `status` values a filter sends: the stored statuses of its groups, and "awaiting review". */
+export function jobStatusRequest(statusFilter: string): string[] {
+  const values = jobStatusParams(statusFilter);
+  return [...(asksForReview(values) ? [AWAITING_REVIEW_STATUS] : []), ...jobStatusesOfGroups(values)];
 }
 
 /** `hide_acknowledged=1` (or `true`) in the URL turns the toggle on. */
@@ -68,7 +89,7 @@ export function periodFromUrl(params: URLSearchParams): PeriodValue {
 export function jobsListRequestFromUrl(params: URLSearchParams, today: string) {
   const { fromDate, toDate } = expandPeriod(periodFromUrl(params), today);
   return {
-    status: jobStatusesOfGroups(jobStatusParams(normalizeStatusList(params.getAll("status")))).join(","),
+    status: jobStatusRequest(normalizeStatusList(params.getAll("status"))).join(","),
     hideAcknowledged: hideAcknowledgedFromUrl(params.get("hide_acknowledged")),
     search: (params.get("search") || "").trim(),
     fromDate,

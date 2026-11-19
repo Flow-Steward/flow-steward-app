@@ -190,3 +190,21 @@ export function reviewConflict(error: unknown): boolean {
   const code = record(error.payload).code;
   return code === "approval_already_resolved" || code === "stale_approval_gate";
 }
+
+/** The decisions the review page itself offers; any other the existing review panel handles. */
+const REVIEW_PAGE_ACTIONS = new Set(["approve", "reject"]);
+
+/** The gate's allowed decisions, normalized. */
+export function gateActions(gate: ReviewGate | null | undefined): Set<string> {
+  return new Set((gate?.allowed_actions ?? []).map((action) => String(action).trim().toLowerCase()).filter(Boolean));
+}
+
+/**
+ * Whether the review page can offer every decision this gate allows. A gate
+ * that also offers override or abort (a recovery gate, an exhausted rework)
+ * stays on the existing review panel, which knows those decisions.
+ */
+export function reviewPageDecides(gate: ReviewGate | null | undefined): boolean {
+  return [...gateActions(gate)].every((action) => REVIEW_PAGE_ACTIONS.has(action));
+}
+

@@ -172,6 +172,25 @@ describe("OperatorSectionPage", () => {
     expect(request.searchParams.has("filters")).toBe(false);
   });
 
+  it("offers Awaiting review as a built-in status and keeps the rows the server matched", async () => {
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.startsWith("/api/v2/projects/p1/workflows/wf.contracts/section")) return section("bulk") as never;
+      if (url.startsWith("/api/v2/jobs")) {
+        return { jobs: [{ ...JOB_ROW, status: "awaiting_child" }], page: 1, per_page: 25, total: 1, total_pages: 1 } as never;
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    renderPage("/projects/p1/workflows/wf.contracts/work?status=awaiting_review");
+
+    // A row waiting on its Invoke child stays: the server read the chain.
+    expect(await screen.findByText("ACME Ltd")).toBeInTheDocument();
+    expect(jobRequests().at(-1)?.searchParams.getAll("status")).toEqual(["awaiting_review"]);
+    expect(jobRequests().at(-1)?.searchParams.has("filters")).toBe(false);
+    // The panel shows it as a built-in status option.
+    expect(await screen.findByText("Status · Awaiting review")).toBeInTheDocument();
+  });
+
   it("sends a configured filter's value as the filters JSON", async () => {
     serve(section("bulk"));
     renderPage();

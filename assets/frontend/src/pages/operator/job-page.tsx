@@ -17,7 +17,7 @@ import { fetchJobsQueuePosition, type JobsQueuePosition } from "@/pages/jobs/lis
 import { fetchJobReview, fetchOperatorSection } from "./api";
 import { isTypingTarget, operatorJobPath, queueListFilters, sectionListPath } from "./queue";
 import { OperatorReviewPanel } from "./review-panel";
-import { reviewFileUrl, type JobReview } from "./review-model";
+import { reviewFileUrl, reviewPageDecides, type JobReview } from "./review-model";
 import "./operator.css";
 
 const prefetched = new Set<string>();
@@ -204,6 +204,15 @@ export function OperatorJobPage() {
       sectionTitle={section.data.title}
     />
   );
+  if (data?.gate?.review && (data.access === "decide" || data.access === "read") && !reviewPageDecides(data.gate)) {
+    // Override, abort or a recovery gate: the existing review panel of the job that holds it.
+    return (
+      <>
+        <PageContainer width="standard">{bar}</PageContainer>
+        <JobsDetailPage jobId={data.gate.job_id} />
+      </>
+    );
+  }
   if (data?.gate?.review && (data.access === "decide" || data.access === "read")) {
     return (
       <PageContainer width="wide">
