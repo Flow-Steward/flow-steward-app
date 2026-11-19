@@ -30,6 +30,7 @@ from core.application.workflows.workflow_secret_default_service import (
 )
 from core.application.workflows.workflow_sample_file_service import WorkflowSampleFileError
 from core.application.registry.workflow_operator_form import (
+    OPERATOR_SETTING,
     OperatorSettingsRejected,
     prepare_operator_settings_for_save,
 )
@@ -376,7 +377,12 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
             **sanitized_trigger,
         }
     if "settings" in updates:
-        updates["settings"] = _merge_patch_dicts(existing.get("settings"), updates.get("settings"))
+        sent_settings = updates.get("settings")
+        updates["settings"] = _merge_patch_dicts(existing.get("settings"), sent_settings)
+        # The operator form is one configuration (ADR 0075): a sent one replaces the
+        # stored one whole, so a field setting or label removed in the editor is gone.
+        if isinstance(sent_settings, dict) and OPERATOR_SETTING in sent_settings:
+            updates["settings"][OPERATOR_SETTING] = sent_settings[OPERATOR_SETTING]
 
     merged = {**existing, **updates}
     merged = _with_service_owned_settings(_with_participants_in_settings(merged), existing)

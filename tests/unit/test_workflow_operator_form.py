@@ -543,7 +543,8 @@ def test_runtime_view_orders_the_form_and_leaves_secrets_out() -> None:
     assert [sub.name for sub in by_name["companies"].sub_fields] == ["name", "website", "email"]
     assert by_name["companies"].sub_fields[1].widget == "url"
     assert by_name["files"].min_items == 1
-    assert view.filters[0].options[0] == "queued"
+    # The operator queue leads the job status choices.
+    assert view.filters[0].options[:2] == ["awaiting_review", "queued"]
     assert view.runnable is False
     assert {issue.code for issue in view.issues} == {
         "operator.effects_not_acknowledged",
@@ -871,6 +872,47 @@ def test_the_save_route_keeps_unrelated_saves_of_a_broken_publication(
     saved = stored_workflow.save_workflow.call_args.args[0]["settings"]["operator"]
     assert saved["published"] is True
     assert saved["effects_acknowledged"] is None
+
+
+def test_a_patch_replaces_the_operator_form_whole(monkeypatch, stored_workflow) -> None:
+    ack = {"by": "a", "at": "t", "revision": 3, "contract_sha": _sha()}
+    stored_workflow.get_workflow.return_value["settings"]["operator"] = {
+        "menu_title": "Orders",
+        "effects_acknowledged": ack,
+        "form": {
+            "order": ["amount", "doc_type"],
+            "fields": {
+                "amount": {"label": "Amount", "prepend": "EUR"},
+                "doc_type": {"option_labels": {"contract": "Contract", "invoice": "Invoice"}},
+            },
+        },
+    }
+
+    response = _route_client(monkeypatch, stored_workflow).patch(
+        "/api/workflows/orders",
+        json={
+            "settings": {
+                "operator": {
+                    "menu_title": "Orders",
+                    "effects_acknowledged": ack,
+                    "form": {
+                        "order": ["doc_type"],
+                        "fields": {"doc_type": {"option_labels": {"invoice": "Invoice"}}},
+                    },
+                }
+            },
+            "expected_revision": 3,
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    saved = stored_workflow.save_workflow.call_args.args[0]["settings"]
+    assert saved["callable"] == _callable()
+    form = saved["operator"]["form"]
+    assert form["order"] == ["doc_type"]
+    assert list(form["fields"]) == ["doc_type"]
+    assert form["fields"]["doc_type"]["option_labels"] == {"invoice": "Invoice"}
+    assert saved["operator"]["effects_acknowledged"]["by"] == "a"
 
 
 # --- Portability drops the acknowledgement ------------------------------------------------
