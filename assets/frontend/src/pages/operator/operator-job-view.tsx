@@ -3,11 +3,13 @@ import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsCard, DsPageHeader } from "@/components/shared/design-system";
 import { optionLabel, type FormFieldView } from "@/components/workflow-inputs/form-field";
+import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDateTime } from "@/lib/time/date-time-format";
+import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
 
-import type { JobReview } from "./review-model";
+import { reviewFormField, reviewFormValues, type JobReview, type ReviewField } from "./review-model";
 import { OperatorCell } from "./section-cell";
 import type { OperatorListColumn, OperatorResultFieldConfig, OperatorReviewDecision, OperatorSectionDetail } from "./types";
 
@@ -30,6 +32,56 @@ function ValueCell({
   return <OperatorCell column={column} decimals={decimals} row={{ job_id: jobId, operator_values: { [column.id]: value } }} />;
 }
 
+/** Formatted text (WYSIWYG) through the Core Markdown renderer: React elements, never raw HTML. */
+function FormattedText({ text }: Readonly<{ text: string }>) {
+  return (
+    <div className="fs-workflow-markdown-preview" data-testid="operator-formatted-text">
+      {renderMarkdownBlocks(text)}
+    </div>
+  );
+}
+
+/**
+ * An object or a list of objects shown read-only with the form's own layout:
+ * a group, or the repeater table with one column per item property, scrolling
+ * inside its card on a narrow screen.
+ */
+function StructuredValue({ field, value }: Readonly<{ field: FormFieldView; value: unknown }>) {
+  return (
+    <div className="fs-operator-readonly-form" data-testid={`operator-structured-${field.name}`}>
+      <WorkflowInputFields disabled fields={[field]} onChange={() => undefined} values={{ [field.name]: value }} />
+    </div>
+  );
+}
+
+function isStructured(field: FormFieldView, value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (field.kind === "object_list") return Array.isArray(value);
+  return field.kind === "object" && typeof value === "object" && !Array.isArray(value);
+}
+
+/** A contract JSON Schema node as the form's field model, to show a value by its type. */
+function schemaFormField(name: string, label: string, node: unknown): FormFieldView | null {
+  const schema = record(node);
+  const type = String(schema.type ?? "");
+  const subFields = (properties: unknown) =>
+    Object.entries(record(properties))
+      .map(([key, sub]) => schemaFormField(key, String(record(sub).title ?? "") || key, sub))
+      .filter((sub): sub is FormFieldView => sub !== null);
+  if (type === "object") {
+    const sub_fields = subFields(schema.properties);
+    return sub_fields.length ? { name, label, kind: "object", widget: "group", sub_fields } : null;
+  }
+  if (type === "array" && record(schema.items).type === "object") {
+    const sub_fields = subFields(record(schema.items).properties);
+    return sub_fields.length ? { name, label, kind: "object_list", widget: "repeater", layout: "table", sub_fields } : null;
+  }
+  if (type === "number" || type === "integer") return { name, label, kind: "number", widget: "number" };
+  if (type === "boolean") return { name, label, kind: "boolean", widget: "true_false" };
+  if (type === "string") return { name, label, kind: "string", widget: "text" };
+  return null;
+}
+
 function ValueList({ rows, testId }: Readonly<{ rows: Row[]; testId: string }>) {
   return (
     <dl className="fs-operator-values" data-testid={testId}>
@@ -48,6 +100,13 @@ function shownInput(field: FormFieldView, value: unknown): unknown {
   if (field.kind === "select" && typeof value === "string") return optionLabel(field, value);
   if (field.kind === "select_list" && Array.isArray(value)) return value.map((item) => optionLabel(field, String(item)));
   return value;
+}
+
+/** A submitted value by its widget: formatted text, a group or table, else as the list shows it. */
+function SubmittedValue({ field, value, jobId }: Readonly<{ field: FormFieldView; value: unknown; jobId: string }>) {
+  if (field.widget === "wysiwyg" && typeof value === "string") return <FormattedText text={value} />;
+  if (isStructured(field, value)) return <StructuredValue field={field} value={value} />;
+  return <ValueCell jobId={jobId} name={field.name} source="input" value={shownInput(field, value)} />;
 }
 
 const RESULT_FORMATS: Record<string, string> = {
@@ -74,11 +133,16 @@ function resultRows(section: OperatorSectionDetail, outputs: Record<string, unkn
     const value = outputs[name];
     if (config?.hidden || value === undefined || value === null) continue;
     const label = config?.label || String(record(properties[name]).title ?? "") || name;
-    rows.push({
-      name,
-      label,
-      value: <ValueCell decimals={config?.decimals ?? null} format={RESULT_FORMATS[config?.display ?? ""] ?? "auto"} jobId={jobId} name={name} source="output" value={value} />,
-    });
+    const structure = schemaFormField(name, label, properties[name]);
+    let shown: ReactNode;
+    if (config?.display === "wysiwyg" && typeof value === "string") {
+      shown = <FormattedText text={value} />;
+    } else if (structure && isStructured(structure, value)) {
+      shown = <StructuredValue field={structure} value={value} />;
+    } else {
+      shown = <ValueCell decimals={config?.decimals ?? null} format={RESULT_FORMATS[config?.display ?? ""] ?? "auto"} jobId={jobId} name={name} source="output" value={value} />;
+    }
+    rows.push({ name, label, value: shown });
   }
   return rows;
 }
@@ -97,16 +161,25 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
   const fields = decision.fields ?? [];
   const labelOf = (name: string) => fields.find((field) => field.name === name)?.label || name;
   const values = decision.values ?? {};
-  const rows: Row[] = fields
+  const reviewFields: ReviewField[] = fields;
+  // Lists of plain values are rows in the form's table, as on the review page.
+  const formValues = reviewFormValues(reviewFields, values);
+  const rows: Row[] = reviewFields
     .filter((field) => field.name in values)
     .map((field) => {
       const change = changed.get(field.name);
+      const structure = reviewFormField(field);
+      const value = structure && isStructured(structure, formValues[field.name]) ? (
+        <StructuredValue field={structure} value={formValues[field.name]} />
+      ) : (
+        <ValueCell jobId={holder} name={field.name} source="output" value={values[field.name]} />
+      );
       return {
         name: field.name,
         label: field.label || field.name,
         value: (
           <>
-            <ValueCell jobId={holder} name={field.name} source="output" value={values[field.name]} />
+            {value}
             {change ? (
               <span className="fs-operator-corrected" data-testid={`decision-corrected-${field.name}`}>
                 {" "}
@@ -165,7 +238,7 @@ export function OperatorJobView({ section, jobId, review }: Readonly<{ section: 
     .map((field) => ({
       name: field.name,
       label: field.label || field.name,
-      value: <ValueCell jobId={jobId} name={field.name} source="input" value={shownInput(field, inputs[field.name])} />,
+      value: <SubmittedValue field={field} jobId={jobId} value={inputs[field.name]} />,
     }));
   const result = outputs ? resultRows(section, outputs, jobId) : [];
   const by = record(values?.submitted_by);

@@ -146,3 +146,26 @@
 .fs-operator-file-list .fs-operator-file-link {
   max-width: 20rem;
 }
+
+/* A value shown with the form's own layout, read-only (ADR 0075): no row
+   actions, and the field's label is the row's label beside it. */
+.fs-operator-readonly-form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fs-operator-readonly-form > .fs-workflow-form > .fs-workflow-field > .fs-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fs-operator-readonly-form .fs-workflow-repeater-actions,
+.fs-operator-readonly-form .fs-workflow-repeater-table th:last-child,
+.fs-operator-readonly-form .fs-workflow-repeater > div:last-child,
+.fs-operator-readonly-form .fs-workflow-repeater-row-head button {
+  display: none;
+}

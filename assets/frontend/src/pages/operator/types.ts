@@ -104,7 +104,8 @@ export type OperatorReviewDecision = {
   actor_type?: string | null;
   timestamp?: string | null;
   comment?: string | null;
-  fields?: Array<{ name: string; label?: string; type?: string }>;
+  /** Enough of each field to show its value by type: a list of objects as a table. */
+  fields?: Array<{ name: string; label?: string; type?: string; format?: string | null; items?: Record<string, unknown> | null; properties?: unknown }>;
   values?: Record<string, unknown>;
   changes?: OperatorReviewChange[];
 };

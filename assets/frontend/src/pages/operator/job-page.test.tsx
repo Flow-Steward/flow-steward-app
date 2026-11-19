@@ -433,6 +433,80 @@ describe("OperatorJobPage finished job", () => {
     expect(screen.queryByTestId("operator-job-details-link")).not.toBeInTheDocument();
   });
 
+  it("renders a formatted result through the Markdown renderer and a list of objects as a table", async () => {
+    const formatted = {
+      ...withForm,
+      operator: {
+        ...withForm.operator,
+        settings: { published: true, result: { order: ["notes", "lines"], fields: { notes: { label: "Notes", display: "wysiwyg" } } } },
+        output_schema: {
+          properties: {
+            notes: { type: "string" },
+            lines: {
+              type: "array",
+              title: "Lines",
+              items: { type: "object", properties: { item: { type: "string", title: "Item" }, qty: { type: "number", title: "Qty" }, price: { type: "number", title: "Price" } } },
+            },
+          },
+        },
+      },
+    } as unknown as OperatorSectionDetail;
+    const detail = finished({
+      job_values: {
+        status: "completed",
+        inputs: {},
+        outputs: {
+          notes: "## Checked\n\n- totals match\n- VAT ok\n\n<script>window.hacked = true</script><img src=x onerror=\"window.hacked = true\">",
+          lines: [
+            { item: "Paper", qty: 2, price: 3.5 },
+            { item: "Ink", qty: 1, price: 20 },
+          ],
+        },
+      },
+      decision: {
+        access: "read",
+        job_id: "j3-child",
+        approved: true,
+        actor: "Marta",
+        timestamp: "2026-11-19T10:00:00Z",
+        fields: [{ name: "lines", label: "Lines", type: "array", items: { type: "object", properties: [{ name: "item", type: "string" }, { name: "qty", type: "number" }] } }],
+        values: { lines: [{ item: "Paper", qty: 3 }] },
+        changes: [],
+      },
+    });
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = new URL(String(input), "https://example.test");
+      if (url.pathname === "/api/v2/projects/p1/workflows/wf.contracts/section") return formatted as never;
+      if (url.pathname === "/api/v2/jobs/j3/review") return detail as never;
+      if (url.pathname === "/api/v2/jobs") return { job_id: "j3", in_list: true, position: 3, total: 47, previous_job_id: null, next_job_id: null } as never;
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    const { container } = renderPage();
+
+    const result = await screen.findByTestId("operator-job-outputs");
+    const text = within(result).getByTestId("operator-formatted-text");
+    expect(within(text).getByRole("heading", { name: "Checked" })).toBeInTheDocument();
+    expect(within(text).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["totals match", "VAT ok"]);
+    // Raw HTML stays text: no element is created from it.
+    expect(container.querySelector("script, img")).toBeNull();
+    expect((window as unknown as { hacked?: boolean }).hacked).toBeUndefined();
+
+    const lines = within(result).getByTestId("operator-structured-lines");
+    const table = within(lines).getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent).filter(Boolean)).toEqual(["Item", "Qty", "Price"]);
+    expect(within(table).getAllByRole("row")).toHaveLength(3);
+    expect(within(table).getByDisplayValue("Paper")).toBeDisabled();
+    // The table scrolls inside its own frame, so a narrow screen never scrolls the page.
+    expect(table.parentElement).toHaveClass("fs-workflow-repeater-scroll");
+    // Read-only: no row actions.
+    expect(within(lines).queryByRole("button", { name: /add row/i })).toBeNull();
+    expect(within(lines).queryByRole("button", { name: /remove row/i })).toBeNull();
+
+    const decided = within(screen.getByTestId("operator-job-review")).getByTestId("operator-structured-lines");
+    expect(within(decided).getByRole("table")).toBeInTheDocument();
+    expect(within(decided).getByDisplayValue("3")).toBeInTheDocument();
+  });
+
   it("shows no result before the run succeeded and only that a review was decided without access", async () => {
     serveFinished(finished({ status: "running", job_values: { status: "running", inputs: { doc_type: "invoice" }, outputs: null }, decision: { access: "none" } }));
     renderPage();
