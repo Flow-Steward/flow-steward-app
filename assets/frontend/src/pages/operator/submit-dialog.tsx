@@ -63,6 +63,10 @@ export function OperatorSubmitDialog({
   const failureText = t("react.operator.send_failed", "Could not send");
   const failed = items.filter((item) => item.state === "failed");
   const accepted = items.filter((item) => item.state === "accepted").length;
+  // Once a run of this batch is accepted, its values are frozen: Send would start a
+  // new submission id and send the accepted items again. Only the failed ones are
+  // retried under their own keys, or the operator starts a new submission.
+  const batchLocked = accepted > 0;
   const labelOf = (name: string) => fields.find((field) => field.name === name)?.label ?? name;
 
   const reset = () => {
@@ -81,10 +85,18 @@ export function OperatorSubmitDialog({
         return t("react.operator.field_min_items", "Add at least {count}.", { count: String(entry.limit) });
       case "max_items":
         return t("react.operator.field_max_items", "Add at most {count}.", { count: String(entry.limit) });
-      case "row_required": {
+      case "invalid_number":
+        return t("react.operator.field_invalid_number", "Enter a number.");
+      case "row_required":
+      case "row_invalid_number": {
         const sub = fields.find((field) => field.name === entry.field)?.sub_fields?.find((item) => item.name === entry.subField);
-        return t("react.operator.row_field_required", "Fill in {field} in row {row}.", { field: sub?.label ?? entry.subField, row: String(entry.row) });
+        const vars = { field: sub?.label ?? entry.subField, row: String(entry.row) };
+        return entry.code === "row_required"
+          ? t("react.operator.row_field_required", "Fill in {field} in row {row}.", vars)
+          : t("react.operator.row_field_invalid_number", "Enter a number in {field} in row {row}.", vars);
       }
+      case "foreach_target_unavailable":
+        return t("react.operator.foreach_target_unavailable", "This form cannot be sent: the input it sends one by one is not shown. Ask an admin to check the section.");
       default:
         return t("react.operator.nothing_to_send", "Add at least one item to send.");
     }
@@ -145,6 +157,7 @@ export function OperatorSubmitDialog({
   };
 
   const submit = () => {
+    if (batchLocked) return;
     setProblem(null);
     setFieldErrors({});
     const { runs, problems } = prepareOperatorRuns({
@@ -155,6 +168,12 @@ export function OperatorSubmitDialog({
       files,
       submissionId: newSubmissionId(),
     });
+    const unavailable = problems.find((entry) => entry.code === "foreach_target_unavailable");
+    if (unavailable) {
+      // The target is not on the form, so there is no field to mark; nothing is sent.
+      setProblem({ title: problemText(unavailable), reasons: [] });
+      return;
+    }
     if (problems.length) {
       const errors: Record<string, string> = {};
       for (const entry of problems) errors[entry.field] ??= problemText(entry);
@@ -217,9 +236,15 @@ export function OperatorSubmitDialog({
           >
             {t("common.cancel", "Cancel")}
           </button>
-          <Button busy={busy} busyLabel={t("react.operator.sending_now", "Sending…")} form={formId} type="submit" variant="primary">
-            {t("react.operator.send", "Send")}
-          </Button>
+          {batchLocked ? (
+            <Button disabled={busy} onClick={reset} type="button" variant="primary">
+              {t("react.operator.new_submission", "New submission")}
+            </Button>
+          ) : (
+            <Button busy={busy} busyLabel={t("react.operator.sending_now", "Sending…")} form={formId} type="submit" variant="primary">
+              {t("react.operator.send", "Send")}
+            </Button>
+          )}
         </>
       }
       onClose={() => {
@@ -236,11 +261,16 @@ export function OperatorSubmitDialog({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          if (!busy) submit();
+          if (!busy && !batchLocked) submit();
         }}
       >
+        {batchLocked ? (
+          <p className="text-sm text-muted">
+            {t("react.operator.batch_locked", "Part of this submission was accepted. Retry the failed items, or start a new submission.")}
+          </p>
+        ) : null}
         <WorkflowInputFields
-          disabled={busy}
+          disabled={busy || batchLocked}
           errors={fieldErrors}
           fields={fields}
           files={files}

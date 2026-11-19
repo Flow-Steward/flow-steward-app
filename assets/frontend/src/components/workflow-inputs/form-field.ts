@@ -53,8 +53,10 @@ export type FormFiles = Record<string, File[]>;
 
 export type FormProblem =
   | { field: string; code: "required" }
+  /** A number field holds text that is not a number; it is never dropped silently. */
+  | { field: string; code: "invalid_number" }
   | { field: string; code: "min_items" | "max_items"; limit: number }
-  | { field: string; code: "row_required"; row: number; subField: string };
+  | { field: string; code: "row_required" | "row_invalid_number"; row: number; subField: string };
 
 export function isFileField(field: Pick<FormFieldView, "kind">): boolean {
   return field.kind === "file" || field.kind === "file_list";
@@ -99,6 +101,15 @@ export function parseLocaleNumber(text: string): number | null {
   if (!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(compact)) return null;
   const parsed = Number(compact);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+/**
+ * Whether a number field holds typed text that is not a number. The widget keeps
+ * such text as typed; sending would drop it (optional) or misreport it as
+ * missing (required), so the form names the field instead.
+ */
+export function isInvalidNumberText(field: Pick<FormFieldView, "kind">, raw: unknown): boolean {
+  return field.kind === "number" && typeof raw === "string" && raw.trim() !== "" && parseLocaleNumber(raw) === null;
 }
 
 /** What an option shows: the admin's label, or the option itself. */
@@ -262,9 +273,10 @@ function itemCount(field: FormFieldView, values: FormValues, files: FormFiles): 
 }
 
 /**
- * What the form refuses before sending, in field order: a shown required field
- * left empty, a list outside its contract bounds, a required sub-field left
- * empty in a filled repeater row or group. `exempt` skips the bounds of the For
+ * What the form refuses before sending, in field order: a number field holding
+ * text that is not a number, a shown required field left empty, a list outside
+ * its contract bounds, a required sub-field left empty or a number sub-field
+ * not a number in a filled repeater row or group. `exempt` skips the bounds of the For
  * each target, whose runs each get one item.
  */
 export function formProblems(
@@ -278,6 +290,10 @@ export function formProblems(
     const listLike = ["file_list", "select_list", "object_list"].includes(field.kind);
     const count = itemCount(field, values, files);
     const empty = isFileField(field) ? count === 0 : fieldValue(field, values[field.name]) === undefined;
+    if (isInvalidNumberText(field, values[field.name])) {
+      problems.push({ field: field.name, code: "invalid_number" });
+      continue;
+    }
     if (field.required && empty) {
       problems.push({ field: field.name, code: "required" });
       continue;
@@ -295,13 +311,20 @@ export function formProblems(
     const rows =
       field.kind === "object_list"
         ? asList(values[field.name]).map(asRecord)
-        : field.kind === "object" && !empty
+        : field.kind === "object" && !isEmptyValue(values[field.name])
           ? [asRecord(values[field.name])]
           : [];
     rows.forEach((row, index) => {
       if (field.kind === "object_list" && isEmptyValue(row)) return;
-      const missing = formProblems(field.sub_fields ?? [], row).find((problem) => problem.code === "required");
-      if (missing) problems.push({ field: field.name, code: "row_required", row: index + 1, subField: missing.field });
+      const inner = formProblems(field.sub_fields ?? [], row).find((problem) => problem.code === "required" || problem.code === "invalid_number");
+      if (inner) {
+        problems.push({
+          field: field.name,
+          code: inner.code === "invalid_number" ? "row_invalid_number" : "row_required",
+          row: index + 1,
+          subField: inner.field,
+        });
+      }
     });
   }
   return problems;

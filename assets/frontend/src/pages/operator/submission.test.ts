@@ -86,6 +86,33 @@ describe("prepareOperatorRuns", () => {
     expect(result.runs).toEqual([]);
     expect(result.problems).toEqual([{ field: "receipts", code: "nothing_to_send" }]);
   });
+
+  it("never downgrades For each to Bulk when its target is hidden, fixed, condition-hidden or missing", () => {
+    const send = (target: string, targetFields: FormFieldView[], targetValues: Record<string, unknown> = {}) =>
+      prepareOperatorRuns({
+        keyPrefix: "k",
+        submission: { mode: "foreach", target_input: target },
+        fields: targetFields,
+        values: targetValues,
+        files: { pages },
+        submissionId: "s",
+      });
+    const hidden = send("pages", [field("pages", "file_list", { hidden: true })]);
+    const fixed = send("pages", [field("pages", "file_list", { fixed: true })]);
+    const missing = send("ghost", fields, values);
+    const empty = send("", fields, values);
+    const conditional = send(
+      "pages",
+      [field("split", "boolean"), field("pages", "file_list", { conditional_logic: [[{ field: "split", operator: "==", value: true }]] })],
+      { split: false },
+    );
+    for (const result of [hidden, fixed, missing, conditional]) {
+      expect(result.runs).toEqual([]);
+      expect(result.problems).toEqual([{ field: result === missing ? "ghost" : "pages", code: "foreach_target_unavailable" }]);
+    }
+    expect(empty.runs).toEqual([]);
+    expect(empty.problems).toEqual([{ field: "", code: "foreach_target_unavailable" }]);
+  });
 });
 
 describe("runBreaksUploadLimits", () => {

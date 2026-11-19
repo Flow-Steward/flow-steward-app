@@ -28,7 +28,11 @@ export type PreparedRun = {
   files: { inputName: string; file: File }[];
 };
 
-export type SubmissionProblem = FormProblem | { field: string; code: "nothing_to_send" };
+export type SubmissionProblem =
+  | FormProblem
+  | { field: string; code: "nothing_to_send" }
+  /** For each splits an input the form does not show now; never sent as Bulk. */
+  | { field: string; code: "foreach_target_unavailable" };
 
 /** A file's identity within one submission: two receipts named alike stay two items. */
 function fileIdentity(file: File, index: number): string {
@@ -60,7 +64,14 @@ export function prepareOperatorRuns({
   submissionId: string;
 }>): { runs: PreparedRun[]; problems: SubmissionProblem[] } {
   const shown = shownFields(fields, values, files);
-  const targetField = submission?.mode === "foreach" ? shown.find((field) => field.name === submission.target_input) : undefined;
+  const forEach = submission?.mode === "foreach";
+  const targetName = forEach ? (submission?.target_input ?? "") : "";
+  const targetField = forEach ? shown.find((field) => field.name === targetName) : undefined;
+  if (forEach && !targetField) {
+    // A hidden, fixed, condition-hidden or unknown target leaves nothing to split;
+    // sending every value as one run would silently become Bulk.
+    return { runs: [], problems: [{ field: targetName, code: "foreach_target_unavailable" }] };
+  }
   const target = targetField?.name ?? "";
   const problems: SubmissionProblem[] = formProblems(fields, values, files, target);
   const key = (itemId: string) => `operator:${keyPrefix}:${submissionId}:${itemId}`;

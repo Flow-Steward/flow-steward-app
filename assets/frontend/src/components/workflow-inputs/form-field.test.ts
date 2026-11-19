@@ -116,6 +116,23 @@ describe("client checks", () => {
     ]);
   });
 
+  it("names a number field holding text that is not a number; an empty optional one stays omitted", () => {
+    const amount = field("amount", "number");
+    const total = field("total", "number", { required: true });
+    expect(formProblems([amount], { amount: "12abc" })).toEqual([{ field: "amount", code: "invalid_number" }]);
+    expect(formProblems([total], { total: "abc" })).toEqual([{ field: "total", code: "invalid_number" }]);
+    expect(formProblems([amount], { amount: "" })).toEqual([]);
+    expect(formProblems([amount], {})).toEqual([]);
+    expect(collectInputs([amount], { amount: "" })).toEqual({});
+    expect(formProblems([amount], { amount: 12.5 })).toEqual([]);
+    const lines = field("lines", "object_list", { sub_fields: [field("qty", "number"), field("item", "string")] });
+    expect(formProblems([lines], { lines: [{ qty: 2, item: "Paper" }, { qty: "two", item: "Ink" }] })).toEqual([
+      { field: "lines", code: "row_invalid_number", row: 2, subField: "qty" },
+    ]);
+    const address = field("address", "object", { sub_fields: [field("floor", "number")] });
+    expect(formProblems([address], { address: { floor: "x" } })).toEqual([{ field: "address", code: "row_invalid_number", row: 1, subField: "floor" }]);
+  });
+
   it("starts from the contract's defaults and a repeater's minimum rows", () => {
     const companies = field("companies", "object_list", { min_items: 2 });
     expect(initialFormValues([fields[0], companies], { properties: { doc_type: { default: "invoice" } } })).toEqual({
