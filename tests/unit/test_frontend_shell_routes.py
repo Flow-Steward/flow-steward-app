@@ -129,8 +129,8 @@ def test_frontend_shell_serves_index_and_assets(tmp_path: Path) -> None:
         "/jobs/42",
         "/projects",
         "/projects/42",
-        # ADR 0075: a user section and the operators' sections landing.
-        "/projects/42/sections/receipts",
+        # ADR 0075: a published workflow's section and the operators' landing.
+        "/projects/42/workflows/wf.receipts/work",
         "/sections",
         "/extensions",
         "/extensions/demo-connector",
@@ -179,6 +179,8 @@ def test_frontend_shell_serves_canonical_public_routes(tmp_path: Path, path: str
         "/projects/42/history",
         "/projects/42/scheduled-jobs",
         "/projects/42/queue",
+        # ADR 0075: sections are workflows bound to a project, not stored on it.
+        "/projects/42/sections/receipts",
     ],
 )
 def test_frontend_shell_does_not_serve_retired_project_routes(tmp_path: Path, path: str) -> None:

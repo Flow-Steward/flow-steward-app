@@ -146,11 +146,12 @@ def create_frontend_shell_router(
 
         @router.get("/projects", include_in_schema=False)
         @router.get("/projects/{project_id}", include_in_schema=False)
-        # ADR 0075: a user section, and the sections landing of operators and viewers.
-        @router.get("/projects/{project_id}/sections/{section_id}", include_in_schema=False)
+        # ADR 0075: a published workflow's section in one project, and the
+        # sections landing of operators and viewers.
+        @router.get("/projects/{project_id}/workflows/{workflow_id}/work", include_in_schema=False)
         @router.get("/sections", include_in_schema=False)
-        async def public_projects_shell(project_id: str = "", section_id: str = ""):
-            _ = (project_id, section_id)
+        async def public_projects_shell(project_id: str = "", workflow_id: str = ""):
+            _ = (project_id, workflow_id)
             return _shell_response()
 
     if "extensions" in enabled_public_groups:

@@ -79,11 +79,8 @@ def test_service_account_with_projects_write_still_changes_bindings() -> None:
     assert bl.update_project.called
 
 
-_SECTION = {"id": "receipts", "title": "Receipts", "workflow_id": "wf.receipts"}
-
-
 def test_service_account_keeps_its_plain_project_update() -> None:
-    """Contrast 1: the update a service account could make before still works."""
+    """The update a service account could make before still works."""
     service, bl = _service(current_workflows=["wf.receipts"])
 
     payload = service.update_project(
@@ -94,31 +91,6 @@ def test_service_account_keeps_its_plain_project_update() -> None:
 
     assert payload["status"] == "updated"
     assert bl.update_project.called
-
-
-def test_service_account_cannot_configure_user_sections() -> None:
-    """Contrast 2: user sections are new and admin-only; projects.write does not grant them."""
-    service, bl = _service(current_workflows=["wf.receipts"])
-    command = _update(["wf.receipts"]).model_copy(update={"user_sections": [_SECTION]})
-
-    with pytest.raises(ServiceForbiddenError, match="Admin role required"):
-        service.update_project(
-            7,
-            command,
-            scope=_scope("service_account", "machine", frozenset({"projects.write"})),
-        )
-    bl.update_project.assert_not_called()
-
-
-@pytest.mark.parametrize("sections", [[_SECTION], []])
-def test_only_an_admin_submits_user_sections_even_to_clear_them(sections) -> None:
-    service, bl = _service(current_workflows=["wf.receipts"])
-    command = _update(["wf.receipts"]).model_copy(update={"user_sections": sections})
-
-    for principal_type, auth_source in [("operator", "local"), ("operator", "pat")]:
-        with pytest.raises(ServiceForbiddenError, match="Admin role required"):
-            service.update_project(7, command, scope=_scope(principal_type, auth_source))
-    bl.update_project.assert_not_called()
 
 
 @pytest.mark.parametrize(

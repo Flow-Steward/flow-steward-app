@@ -328,7 +328,6 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/project_execution_store.py \
     core/infrastructure/db/project_registration_store.py \
     core/infrastructure/db/project_settings_store.py \
-    core/infrastructure/db/project_user_sections_store.py \
     core/infrastructure/db/scheduled_job_lock_store.py \
     core/infrastructure/db/schema_store.py \
     core/infrastructure/db/secret_storage_store.py \

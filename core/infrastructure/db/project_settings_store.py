@@ -6,7 +6,6 @@ import json
 from typing import Any
 
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
-from core.infrastructure.db.project_user_sections_store import stored_user_sections
 
 
 def get_project_settings_snapshot(
@@ -100,11 +99,6 @@ def get_project_settings_snapshot(
         ],
         "project_secret_keys": project_secret_keys,
     }
-    # ADR 0075: only present once the project has sections, so restoring an older
-    # snapshot leaves sections configured later as they are.
-    user_sections = stored_user_sections(project_row)
-    if user_sections is not None:
-        snapshot["user_sections"] = user_sections
     return json_clone(snapshot)
 
 
@@ -258,7 +252,6 @@ def restore_project_settings_revision(
     save_project_provider_binding,
     create_project_settings_revision,
     author: str = "system",
-    save_user_sections=None,
 ) -> dict[str, Any]:
     revision = get_project_settings_revision(project_id, revision_id)
     if not isinstance(revision, dict):
@@ -302,12 +295,6 @@ def restore_project_settings_revision(
     if callable(set_project_data_connections):
         snapshot_connection_ids = normalize_string_list(project_payload.get("data_connection_ids"))
         set_project_data_connections(str(project_id), snapshot_connection_ids)
-
-    snapshot_sections = snapshot.get("user_sections")
-    if callable(save_user_sections) and isinstance(snapshot_sections, list):
-        save_user_sections(
-            str(project_id), [dict(item) for item in snapshot_sections if isinstance(item, dict)]
-        )
 
     snapshot_providers = [
         row

@@ -167,8 +167,7 @@ def create_api_projects_router(
         "workflow_ids",
         "workspace_id",
     }
-    # ADR 0075: an admin saves the project's user sections with the project.
-    _api_project_update_fields: set[str] = {*_api_project_create_fields, "user_sections"}
+    _api_project_update_fields: set[str] = set(_api_project_create_fields)
 
     def _api_reject_unknown_project_fields(raw: dict[str, Any], allowed: set[str]) -> None:
         unknown = sorted(str(key) for key in raw if str(key) not in allowed)
@@ -306,18 +305,6 @@ def create_api_projects_router(
             for key in ("assigned_data_connections", "available_data_connections"):
                 if key in project_data:
                     project_data[key] = summarize_data_connection_rows(project_data[key])
-            # ADR 0075: sections are served only as the scoped projection below.
-            # The rest of the stored config keeps its keys for existing clients;
-            # the raw copy would show hidden sections and other workflows' ones.
-            config = project_data.get("config")
-            if isinstance(config, dict) and "user_sections" in config:
-                project_data["config"] = {
-                    key: value for key, value in config.items() if key != "user_sections"
-                }
-            project_data["user_sections"] = project_query_service().get_project_user_sections(
-                project_id,
-                scope=request_scope(request, project_id=project_id),
-            )
             return JSONResponse(_json_safe(project_data))
         except service_not_found_error_cls as exc:
             raise HTTPException(status_code=404, detail=PROJECT_NOT_FOUND_MESSAGE) from exc

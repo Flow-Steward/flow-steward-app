@@ -502,8 +502,6 @@ class ProjectUpdateInput(ViewModel):
     operator_default_workflow_id: str = ""
     default_provider: str = ""
     default_model: str = ""
-    #: ADR 0075: `None` keeps the stored sections, a list replaces them, `[]` clears.
-    user_sections: list[dict[str, Any]] | None = None
 
 
 class ProjectTaskFileInput(ViewModel):

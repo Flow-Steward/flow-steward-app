@@ -1,7 +1,6 @@
 # ruff: noqa: F403, F405
 from __future__ import annotations
 
-from core.application.projects.user_sections import section_briefs
 from core.application.workflows.workflow_action_contract import (
     is_installed_action_implementation,
 )
@@ -412,13 +411,6 @@ class ProjectQueryServiceCoreMixin:
                     ]
                     if row.get("operator_default_workflow_id") not in resolved.allowed_workflow_ids:
                         row["operator_default_workflow_id"] = ""
-                row["user_sections"] = [
-                    brief.model_dump()
-                    for brief in section_briefs(
-                        project.get("config") if isinstance(project, dict) else None,
-                        allowed_workflow_ids=resolved.allowed_workflow_ids or (),
-                    )
-                ]
                 page_rows.append(ProjectGridRowView.model_validate(row))
         except Exception:
             page_rows = []
@@ -718,33 +710,6 @@ class ProjectQueryServiceCoreMixin:
             project_id=str(project_id),
             policy=dict(policy or {}) if isinstance(policy, dict) else {},
         )
-
-    def get_project_user_sections(
-        self,
-        project_id: Any,
-        *,
-        scope: ScopeContext | None = None,
-    ) -> list[dict[str, Any]]:
-        """The project's user sections with their current contract (ADR 0075).
-
-        An admin also sees hidden sections to configure them; operators and viewers
-        see the visible ones. A token limited to some workflows sees only theirs.
-        """
-        from core.application.auth.principal import principal_type_has_minimum_role
-        from core.application.projects.user_sections_service import project_section_views
-
-        resolved = self._scope(scope, project_id=project_id)
-        bl = self._get_logger()
-        if not bl:
-            raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
-        project = self._require_project_in_scope(bl, str(project_id), resolved)
-        views = project_section_views(
-            bl,
-            dict(project),
-            include_hidden=principal_type_has_minimum_role(resolved.principal_type, "admin"),
-            allowed_workflow_ids=resolved.allowed_workflow_ids or (),
-        )
-        return [view.model_dump(mode="json") for view in views]
 
     def get_project_edit_form(
         self,

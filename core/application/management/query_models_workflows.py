@@ -17,8 +17,6 @@ class ProjectGridRowView(ViewModel):
     job_count: int = 0
     operator_default_workflow_id: str = ""
     workflow_ids: list[str] = Field(default_factory=list)
-    #: ADR 0075: visible user sections for navigation, `{id, title, icon, workflow_id, order}`.
-    user_sections: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ProjectsListView(ViewModel):

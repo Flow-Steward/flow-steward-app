@@ -15,7 +15,6 @@ from core.infrastructure.db.platform_logger_common import (
     _json_clone,
     _normalize_string_list,
 )
-from core.infrastructure.db.project_user_sections_store import save_project_user_sections
 
 
 class PlatformProjectSettingsHistoryMixin:
@@ -127,7 +126,4 @@ class PlatformProjectSettingsHistoryMixin:
             save_project_provider_binding=self.save_project_provider_binding,
             create_project_settings_revision=self.create_project_settings_revision,
             author=author,
-            save_user_sections=lambda project, sections: save_project_user_sections(
-                self.conn, project_id=project, sections=sections
-            ),
         )

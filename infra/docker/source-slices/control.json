@@ -521,7 +521,6 @@
     "core/infrastructure/db/project_execution_store.py",
     "core/infrastructure/db/project_registration_store.py",
     "core/infrastructure/db/project_settings_store.py",
-    "core/infrastructure/db/project_user_sections_store.py",
     "core/infrastructure/db/psycopg_runtime/__init__.py",
     "core/infrastructure/db/psycopg_runtime/_connection.py",
     "core/infrastructure/db/psycopg_runtime/errorcodes.py",
