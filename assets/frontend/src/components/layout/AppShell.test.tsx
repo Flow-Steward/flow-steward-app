@@ -703,6 +703,34 @@ describe("AppShell", () => {
     expect(sidebar).not.toHaveTextContent("Users & access");
   });
 
+  it.each([
+    ["admin", true],
+    ["operator", false],
+    ["viewer", false],
+  ])("shows Users & access in the account menu to %s: %s", async (role, visible) => {
+    mockAuthenticatedSession({
+      switchAccount: vi.fn(async () => undefined),
+      sessionOverrides: {
+        roles: [role],
+        user: { id: "7", account_id: "acct-primary", roles: [role] },
+      },
+    });
+    mockedUseIsAdmin.mockReturnValue(role === "admin");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><AppShell>content</AppShell></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+
+    const menu = screen.getByRole("menu", { name: "Account menu" });
+    if (visible) {
+      expect(within(menu).getByRole("menuitem", { name: "Users & access" })).toBeInTheDocument();
+    } else {
+      expect(within(menu).queryByRole("menuitem", { name: "Users & access" })).not.toBeInTheDocument();
+    }
+  });
+
   it("keeps workspace, theme, and account controls out of the Header", async () => {
     mockAuthenticatedSession({
       switchAccount: vi.fn(async () => undefined),

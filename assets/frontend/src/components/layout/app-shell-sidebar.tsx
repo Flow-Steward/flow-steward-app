@@ -63,6 +63,8 @@ function SidebarTooltip({
 }
 
 export type AppShellSidebarProps = {
+  /** Whether the account menu links to Users & access (the `administer_platform` capability). */
+  canManageUsers: boolean;
   loggingOut: boolean;
   onExpandRail: () => void;
   onLogout: () => Promise<void>;
@@ -276,6 +278,7 @@ function WorkspaceMenu({
 }
 
 type AccountMenuProps = {
+  canManageUsers: boolean;
   loggingOut: boolean;
   onLogout: () => Promise<void>;
   onOpenChange: (open: boolean) => void;
@@ -287,6 +290,7 @@ type AccountMenuProps = {
 };
 
 function AccountMenu({
+  canManageUsers,
   loggingOut,
   onLogout,
   onOpenChange,
@@ -350,16 +354,19 @@ function AccountMenu({
         </span>
         <span>{t("react.shared.account_profile", "Account profile")}</span>
       </NavLink>
-      <NavLink
-        className="fs-shell-menu__item"
-        role="menuitem"
-        to="/settings/users"
-      >
-        <span className="fs-shell-menu__icon">
-          <Users aria-hidden="true" size={16} strokeWidth={1.5} />
-        </span>
-        <span>{t("react.shared.users_amp_access", "Users & access")}</span>
-      </NavLink>
+      {/* The route is admin-only; operators and viewers do not see a dead link. */}
+      {canManageUsers ? (
+        <NavLink
+          className="fs-shell-menu__item"
+          role="menuitem"
+          to="/settings/users"
+        >
+          <span className="fs-shell-menu__icon">
+            <Users aria-hidden="true" size={16} strokeWidth={1.5} />
+          </span>
+          <span>{t("react.shared.users_amp_access", "Users & access")}</span>
+        </NavLink>
+      ) : null}
       <hr className="fs-shell-menu__separator" />
       <fieldset className="fs-shell-menu__section">
         <legend className="fs-shell-menu__label">{t("react.shared.appearance", "Appearance")}</legend>
@@ -510,6 +517,7 @@ function CollapsibleSidebarGroup({
 }
 
 export function AppShellSidebar({
+  canManageUsers,
   loggingOut,
   onExpandRail,
   onLogout,
@@ -590,6 +598,7 @@ export function AppShellSidebar({
       </nav>
       <footer className="fs-app-sidebar__footer">
         <AccountMenu
+          canManageUsers={canManageUsers}
           loggingOut={loggingOut}
           onLogout={onLogout}
           onOpenChange={(open) => setOpenMenu(open ? "account" : null)}

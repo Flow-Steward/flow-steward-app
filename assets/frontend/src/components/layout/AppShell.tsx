@@ -24,6 +24,7 @@ import {
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
+import { hasCapability } from "@/lib/auth/capabilities";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { fetchJson } from "@/lib/http/client";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -661,6 +662,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   ) : null;
   const sidebar = (
     <AppShellSidebar
+      canManageUsers={hasCapability(roles, "administer_platform")}
       loggingOut={loggingOut}
       onExpandRail={expandRail}
       onLogout={handleLogout}

@@ -72,6 +72,7 @@ function renderSidebar({
   render(
     <MemoryRouter initialEntries={[pathname]}>
       <AppShellSidebar
+        canManageUsers
         loggingOut={false}
         pathname={pathname}
         railState={railState}
