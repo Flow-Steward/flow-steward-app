@@ -31664,3 +31664,63 @@ msgstr "Reject button"
 
 msgid "react.workflows.operator.save_refused"
 msgstr "The operator form was not saved. Fix the issues shown at its fields."
+
+msgid "react.operator.foreach_target_unavailable"
+msgstr "This form cannot be sent: the input it sends one by one is not shown. Ask an admin to check the section."
+
+msgid "react.operator.batch_locked"
+msgstr "Part of this submission was accepted. Retry the failed items, or start a new submission."
+
+msgid "react.operator.field_invalid_number"
+msgstr "Enter a number."
+
+msgid "react.operator.row_field_invalid_number"
+msgstr "Enter a number in {field} in row {row}."
+
+msgid "react.operator_job.title"
+msgstr "Job"
+
+msgid "react.operator_job.full_details"
+msgstr "Full job details"
+
+msgid "react.operator_job.submitted_by"
+msgstr "Submitted by {name}"
+
+msgid "react.operator_job.submitted"
+msgstr "Submitted"
+
+msgid "react.operator_job.nothing_submitted"
+msgstr "No values were submitted."
+
+msgid "react.operator_job.result"
+msgstr "Result"
+
+msgid "react.operator_job.no_result"
+msgstr "This run returned nothing to show."
+
+msgid "react.operator_job.review"
+msgstr "Review"
+
+msgid "react.operator_job.review_hidden"
+msgstr "This job was reviewed by people who have access to it."
+
+msgid "react.operator_job.review_approved_by"
+msgstr "Approved by {actor} · {when}"
+
+msgid "react.operator_job.review_rejected_by"
+msgstr "Rejected by {actor} · {when}"
+
+msgid "react.operator_job.review_changes"
+msgstr "Corrected in the review"
+
+msgid "react.operator.all_files"
+msgstr "All files ({count})"
+
+msgid "react.operator.filter_source"
+msgstr "Source"
+
+msgid "react.operator.source_form"
+msgstr "Form"
+
+msgid "react.operator.source_api"
+msgstr "API and MCP"

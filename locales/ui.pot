@@ -30608,3 +30608,63 @@ msgstr ""
 
 msgid "react.workflows.operator.save_refused"
 msgstr ""
+
+msgid "react.operator.foreach_target_unavailable"
+msgstr ""
+
+msgid "react.operator.batch_locked"
+msgstr ""
+
+msgid "react.operator.field_invalid_number"
+msgstr ""
+
+msgid "react.operator.row_field_invalid_number"
+msgstr ""
+
+msgid "react.operator_job.title"
+msgstr ""
+
+msgid "react.operator_job.full_details"
+msgstr ""
+
+msgid "react.operator_job.submitted_by"
+msgstr ""
+
+msgid "react.operator_job.submitted"
+msgstr ""
+
+msgid "react.operator_job.nothing_submitted"
+msgstr ""
+
+msgid "react.operator_job.result"
+msgstr ""
+
+msgid "react.operator_job.no_result"
+msgstr ""
+
+msgid "react.operator_job.review"
+msgstr ""
+
+msgid "react.operator_job.review_hidden"
+msgstr ""
+
+msgid "react.operator_job.review_approved_by"
+msgstr ""
+
+msgid "react.operator_job.review_rejected_by"
+msgstr ""
+
+msgid "react.operator_job.review_changes"
+msgstr ""
+
+msgid "react.operator.all_files"
+msgstr ""
+
+msgid "react.operator.filter_source"
+msgstr ""
+
+msgid "react.operator.source_form"
+msgstr ""
+
+msgid "react.operator.source_api"
+msgstr ""

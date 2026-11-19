@@ -32092,3 +32092,63 @@ msgstr "Atmetimo mygtukas"
 
 msgid "react.workflows.operator.save_refused"
 msgstr "Operatoriaus forma neišsaugota. Ištaisykite prie jos laukų parodytas problemas."
+
+msgid "react.operator.foreach_target_unavailable"
+msgstr "Šios formos išsiųsti negalima: laukas, kurio reikšmės siunčiamos po vieną, nerodomas. Paprašykite administratoriaus patikrinti skiltį."
+
+msgid "react.operator.batch_locked"
+msgstr "Dalis šio pateikimo priimta. Pakartokite nepavykusius elementus arba pradėkite naują pateikimą."
+
+msgid "react.operator.field_invalid_number"
+msgstr "Įveskite skaičių."
+
+msgid "react.operator.row_field_invalid_number"
+msgstr "Įveskite skaičių lauke {field}, {row} eilutėje."
+
+msgid "react.operator_job.title"
+msgstr "Užduotis"
+
+msgid "react.operator_job.full_details"
+msgstr "Visa užduoties informacija"
+
+msgid "react.operator_job.submitted_by"
+msgstr "Pateikė {name}"
+
+msgid "react.operator_job.submitted"
+msgstr "Pateikta"
+
+msgid "react.operator_job.nothing_submitted"
+msgstr "Reikšmių nepateikta."
+
+msgid "react.operator_job.result"
+msgstr "Rezultatas"
+
+msgid "react.operator_job.no_result"
+msgstr "Šis vykdymas negrąžino nieko, ką būtų galima parodyti."
+
+msgid "react.operator_job.review"
+msgstr "Patikra"
+
+msgid "react.operator_job.review_hidden"
+msgstr "Šią užduotį patikrino žmonės, turintys prieigą prie jos."
+
+msgid "react.operator_job.review_approved_by"
+msgstr "Patvirtino {actor} · {when}"
+
+msgid "react.operator_job.review_rejected_by"
+msgstr "Atmetė {actor} · {when}"
+
+msgid "react.operator_job.review_changes"
+msgstr "Patikros metu pataisyta"
+
+msgid "react.operator.all_files"
+msgstr "Visi failai ({count})"
+
+msgid "react.operator.filter_source"
+msgstr "Šaltinis"
+
+msgid "react.operator.source_form"
+msgstr "Forma"
+
+msgid "react.operator.source_api"
+msgstr "API ir MCP"
