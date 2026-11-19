@@ -102,6 +102,10 @@ class ApprovalDecisionInput(ViewModel):
     override_content: str = ""
     approval_id: str
     external_actor: ExternalActorInput | None = None
+    #: Edits of a typed review's editable fields (ADR 0075): field name to value.
+    #: Absent when the person changed nothing; the server lays them over the
+    #: values captured when the review opened.
+    values: dict[str, Any] | None = None
 
     @field_validator("approval_id", mode="before")
     @classmethod
@@ -166,6 +170,10 @@ class ApprovalDecisionInput(ViewModel):
             raise ValueError("comment exceeds maximum length")
         if any(ord(ch) < 32 and ch not in "\t\n\r" for ch in self.comment):
             raise ValueError("comment contains control characters")
+        if self.values is not None and any(
+            not isinstance(name, str) or not name.strip() for name in self.values
+        ):
+            raise ValueError("values must name review fields")
         return self
 
 
