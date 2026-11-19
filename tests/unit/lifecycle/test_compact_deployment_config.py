@@ -366,8 +366,12 @@ def test_compact_file_tls_ships_certificate_through_the_copied_volume() -> None:
         "/source/certs/cert.pem",
         "/source/certs/key.pem",
     }
-    # The dynamic directory is a tmpfs: the start script moves the configuration in.
+    # The dynamic directory is a tmpfs: the start script moves the configuration in,
+    # and links the copied certificates where that configuration names them.
     assert 'cp "$files"/dynamic/*.yaml /run/traefik-dynamic/' in script
+    assert 'ln -sfn "$files/certs" /etc/traefik/certs' in script
+    # A Traefik created before #27 restarting from an updated checkout keeps its mounts.
+    assert "template=/etc/traefik/templates/public-router.yaml.tmpl" in script
 
 
 def test_compact_traefik_needs_nothing_from_the_host_after_a_restart() -> None:
@@ -413,10 +417,8 @@ def test_bundled_traefik_serves_the_installation_certificate_for_unmatched_sni(
     document = yaml.safe_load(Path(dynamic_config).read_text(encoding="utf-8"))
     default_certificate = document["tls"]["stores"]["default"]["defaultCertificate"]
 
-    # Compact copies the certificates into the traefik-files volume (#27).
-    directory = "/etc/traefik/files/certs" if "compact" in dynamic_config else "/etc/traefik/certs"
-    assert default_certificate["certFile"] == f"{directory}/cert.pem"
-    assert default_certificate["keyFile"] == f"{directory}/key.pem"
+    assert default_certificate["certFile"] == "/etc/traefik/certs/cert.pem"
+    assert default_certificate["keyFile"] == "/etc/traefik/certs/key.pem"
 
 
 @pytest.mark.parametrize("deployment_profile", ("compact", "scalable"))

@@ -1303,7 +1303,7 @@ def test_a_stale_installation_is_updated_not_reported_as_already_installed(
     # The install loop requires a pending first-administrator bootstrap, and the real
     # gateway raises when there is none -- which on an installation in use is always.
     assert gateway.require_first_admin is False
-    assert any("no database migration" in warning for warning in result.warnings)
+    assert any("no migration was left to apply" in warning for warning in result.warnings)
 
 
 def test_failed_update_keeps_previous_installed_identity_and_pending_target(
