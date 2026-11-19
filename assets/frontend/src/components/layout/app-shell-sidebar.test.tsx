@@ -98,6 +98,7 @@ describe("AppShellSidebar", () => {
       "react.shared.workspace_scope": "Darbo erdvės sritis",
     };
     const props = {
+      canManageUsers: true,
       loggingOut: false,
       pathname: "/projects",
       railState: "expanded" as const,
