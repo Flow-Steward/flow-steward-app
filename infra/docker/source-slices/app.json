@@ -798,6 +798,7 @@
     "core/application/registry/workflow_definition_rows.py",
     "core/application/registry/workflow_lookup.py",
     "core/application/registry/workflow_manifest.py",
+    "core/application/registry/workflow_operator_form.py",
     "core/application/registry/workflow_registry.py",
     "core/application/registry/workflow_returned_files.py",
     "core/application/registry/workflow_secret_defaults.py",

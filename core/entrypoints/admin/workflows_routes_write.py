@@ -29,6 +29,10 @@ from core.application.workflows.workflow_secret_default_service import (
     WorkflowSecretMutationError,
 )
 from core.application.workflows.workflow_sample_file_service import WorkflowSampleFileError
+from core.application.registry.workflow_operator_form import (
+    OperatorSettingsRejected,
+    prepare_operator_settings_for_save,
+)
 from core.infrastructure.config.workflow_file_limits import workflow_test_file_max_bytes
 from core.application.workflows.workflow_activation_service import (
     WorkflowActivationValidationError,
@@ -78,6 +82,30 @@ def _workflow_rename_guard(db: Any, scope: Any, workflow_id: str, existing: dict
         entity_id=workflow_id,
         current_display_name=effective_display_name(existing, workflow_id),
     )
+
+
+def _operator_settings_issues(existing: dict, final: dict, request: Request) -> list[dict]:
+    """Check ``settings.operator`` of a metadata save (ADR 0075) and stamp its acknowledgement.
+
+    A published configuration with an error is refused; an unpublished one is
+    saved and its issues are returned for the editor.
+    """
+    try:
+        issues = prepare_operator_settings_for_save(
+            existing=existing,
+            final_payload=final,
+            actor_id=str(_request_scope(request).actor_id or ""),
+        )
+    except OperatorSettingsRejected as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "workflow_operator_settings_invalid",
+                "message": "The operator form cannot be published with these issues.",
+                "issues": [issue.model_dump(mode="json") for issue in exc.issues],
+            },
+        ) from exc
+    return [issue.model_dump(mode="json") for issue in issues]
 
 
 def _raise_consumer_conflict(exc: WorkflowConsumerConflictError) -> None:
@@ -252,6 +280,7 @@ def update_workflow(workflow_id: str, body: WorkflowMetadataUpdate, request: Req
     data["scope_kind"] = "account"
     data["trigger"] = _sanitize_workflow_trigger(data.get("trigger"))
     data.pop("expected_revision", None)
+    operator_issues = _operator_settings_issues(existing, data, request)
     try:
         account_id = _normalize_text(data.get("account_id")) or scope.account_id
         final_enabled = bool(data.get("enabled", False))
@@ -295,6 +324,7 @@ def update_workflow(workflow_id: str, body: WorkflowMetadataUpdate, request: Req
         "workflow_id": workflow_id,
         "revision": saved_revision,
         "validation": validation,
+        "operator_issues": operator_issues,
     }
 
 
@@ -360,6 +390,7 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
     # Strip phases — PATCH only updates metadata, not phases/steps
     for k in ("phases", "_phases"):
         merged.pop(k, None)
+    operator_issues = _operator_settings_issues(existing, merged, request)
     try:
         account_id = _normalize_text(merged.get("account_id")) or scope.account_id
         final_enabled = bool(merged.get("enabled", False))
@@ -405,6 +436,7 @@ def patch_workflow(workflow_id: str, body: WorkflowPatch, request: Request):
         "enabled": final_enabled,
         "revision": saved_revision,
         "validation": validation,
+        "operator_issues": operator_issues,
     }
 
 

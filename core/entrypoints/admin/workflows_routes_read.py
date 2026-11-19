@@ -262,7 +262,31 @@ def get_workflow_contract(workflow_id: str, request: Request):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     interface = WorkflowInterfaceService().interface_from_definition(wf)
     payload["definition_issues"] = interface.definition_issues()
+    payload["operator"] = _operator_editor_view(wf, interface)
     return payload
+
+
+def _operator_editor_view(workflow: dict, interface: Any) -> dict[str, Any]:
+    """``settings.operator`` resolved against this contract, for Workflow Settings (ADR 0075)."""
+    from core.application.registry.workflow_operator_form import (
+        compatibility_tables,
+        operator_contract,
+        operator_runtime_view,
+        stored_operator_settings,
+    )
+
+    workflow_id = str(workflow.get("workflow_id") or "")
+    _settings, view = operator_runtime_view(
+        stored_operator_settings(workflow),
+        operator_contract(
+            interface,
+            workflow_id=workflow_id,
+            name=str(workflow.get("display_name") or workflow.get("name") or workflow_id),
+            revision=int(workflow.get("revision") or 0),
+            enabled=bool(workflow.get("enabled")) and not workflow.get("deleted_at"),
+        ),
+    )
+    return {**view.model_dump(mode="json"), "compatibility": compatibility_tables()}
 
 
 @router.get(
