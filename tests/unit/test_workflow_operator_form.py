@@ -502,6 +502,36 @@ def test_for_each_splits_a_list_or_a_file(target, code) -> None:
     assert _codes(settings) == ({code} if code else set())
 
 
+def test_for_each_refuses_a_target_the_form_does_not_show() -> None:
+    hidden = _settings(
+        submission={"mode": "foreach", "target_input": "tags"},
+        form={"fields": {"tags": {"hidden": True}}},
+    )
+    assert _codes(hidden) == {"submission.foreach_target_hidden"}
+    assert _issue_paths(hidden, "submission.foreach_target_hidden") == [
+        "settings.operator.submission.target_input"
+    ]
+
+    regions = {"name": "regions", "type": "array", "items": {"type": "string"}, "default": ["eu"]}
+    fixed_contract = _contract([*INPUTS, regions])
+    assert "regions" in fixed_contract.fixed_inputs
+    fixed = _settings(submission={"mode": "foreach", "target_input": "regions"})
+    assert "submission.foreach_target_hidden" in _codes(fixed, fixed_contract)
+
+
+def test_publishing_for_each_over_a_hidden_target_is_refused() -> None:
+    settings = {
+        "published": True,
+        "submission": {"mode": "foreach", "target_input": "tags"},
+        "form": {"fields": {"tags": {"hidden": True}}},
+    }
+
+    with pytest.raises(OperatorSettingsRejected) as refused:
+        _save(_workflow(None), settings)
+
+    assert "submission.foreach_target_hidden" in [issue.code for issue in refused.value.issues]
+
+
 # --- Publication -------------------------------------------------------------------------
 
 

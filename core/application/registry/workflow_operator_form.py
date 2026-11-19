@@ -915,6 +915,17 @@ def _submission_issues(
                 path,
             )
         ]
+    config = settings.form.fields.get(target)
+    if target in contract.fixed_inputs or (config is not None and config.hidden):
+        # The form never sends a hidden or fixed value, so the operator would
+        # have nothing to split; a silent single run would be a different mode.
+        return [
+            _issue(
+                "submission.foreach_target_hidden",
+                f"For each splits '{target}', but the form does not show it to the operator",
+                path,
+            )
+        ]
     node_type = node.get("type")
     if field_kind(node) != "file" and node_type != "array":
         return [
