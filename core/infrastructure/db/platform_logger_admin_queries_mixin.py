@@ -324,6 +324,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         started_after: datetime | None = None,
         started_before: datetime | None = None,
         exclude_task_source: str | None = None,
+        value_filters: list[dict[str, Any]] | None = None,
     ) -> list[dict]:
         """Return recent jobs with project metadata for operator job views."""
         return job_queries_store.list_jobs_for_attention(
@@ -338,6 +339,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             workflow_id=workflow_id,
             task_source=task_source,
             exclude_task_source=exclude_task_source,
+            value_filters=value_filters,
             search=search,
             account_id=account_id,
             workspace_id=workspace_id,
@@ -366,6 +368,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
         started_after: datetime | None = None,
         started_before: datetime | None = None,
         exclude_task_source: str | None = None,
+        value_filters: list[dict[str, Any]] | None = None,
     ) -> int:
         """Return total jobs count for operator job views."""
         return job_queries_store.count_jobs_for_attention(
@@ -378,6 +381,7 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             workflow_id=workflow_id,
             task_source=task_source,
             exclude_task_source=exclude_task_source,
+            value_filters=value_filters,
             search=search,
             account_id=account_id,
             workspace_id=workspace_id,
@@ -387,13 +391,13 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             started_before=started_before,
         )
 
-    def read_job_section_payloads(
+    def read_job_operator_payloads(
         self, *, job_ids: list[str], account_id: str
     ) -> dict[str, dict[str, Any]]:
-        """Inputs, outputs and author of one page of jobs for a section's table."""
-        from core.infrastructure.db.job_section_values_store import read_job_section_payloads
+        """Inputs, outputs and author of one page of jobs for a workflow's operator list."""
+        from core.infrastructure.db.job_operator_values_store import read_job_operator_payloads
 
-        return read_job_section_payloads(self.conn, job_ids=job_ids, account_id=account_id)
+        return read_job_operator_payloads(self.conn, job_ids=job_ids, account_id=account_id)
 
     def get_workflow_stats(
         self,

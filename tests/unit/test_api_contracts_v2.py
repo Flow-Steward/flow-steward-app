@@ -649,14 +649,50 @@ def test_v2_jobs_filters_ui_and_api_runs(monkeypatch, source):
     assert service.last_list_kwargs["task_source"] == source
 
 
-def test_v2_jobs_forwards_a_section_history_request(monkeypatch):
+def test_v2_jobs_forwards_an_operator_list_request(monkeypatch):
+    """ADR 0075: the operator list of one workflow in one project, with its filters."""
     service = _JobQueryService()
     client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
 
     response = client.get(
-        "/api/v2/jobs", params={"project_id": PROJECT_ID, "section_id": "receipts"}
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf.receipts",
+            "operator_view": "1",
+            "filters": '{"total": {"min": 10}}',
+        },
     )
 
     assert response.status_code == 200
-    assert service.last_list_kwargs["section_id"] == "receipts"
+    assert service.last_list_kwargs["operator_view"] is True
+    assert service.last_list_kwargs["filters"] == '{"total": {"min": 10}}'
+    assert service.last_list_kwargs["workflow_id"] == "wf.receipts"
     assert service.last_list_kwargs["project_id"] == PROJECT_ID
+
+
+def test_v2_jobs_returns_422_for_an_unknown_operator_filter(monkeypatch):
+    from core.application.management.errors import ServiceValidationError
+
+    class _Refusing(_JobQueryService):
+        def list_jobs(self, **kwargs):
+            raise ServiceValidationError(
+                "'ghost' is not a filter of this list",
+                status_code=422,
+                payload={"error": "'ghost' is not a filter of this list", "code": "unknown_filter"},
+            )
+
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=_Refusing())
+
+    response = client.get(
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf",
+            "operator_view": "1",
+            "filters": '{"ghost": 1}',
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["ok"] is False

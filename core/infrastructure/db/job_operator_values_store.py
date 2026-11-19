@@ -1,4 +1,4 @@
-"""One batch read of the values a section's history table shows (ADR 0075)."""
+"""One batch read of the values a workflow's operator jobs list shows (ADR 0075)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ SELECT j.id::text AS job_id,
 """
 
 
-def read_job_section_payloads(
+def read_job_operator_payloads(
     conn: Any, *, job_ids: list[str], account_id: str
 ) -> dict[str, dict[str, Any]]:
     """Accepted inputs, final outputs and author of one page of jobs, in one query.
@@ -54,4 +54,4 @@ def read_job_section_payloads(
         }
 
 
-__all__ = ["read_job_section_payloads"]
+__all__ = ["read_job_operator_payloads"]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -74,6 +74,64 @@ def _build_project_jobs_where(
     return SQL_AND.join(conditions), params
 
 
+_VALUE_FILTER_BASES = {
+    # Full input values written at run acceptance (ADR 0075), never the bounded
+    # display projection in meta.invocation.
+    "input": "(j.meta -> 'filter_values')",
+    "output": "(j.meta -> 'workflow_outputs' -> 'outputs')",
+}
+
+
+def _escape_like(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def _value_filter_sql(spec: Mapping[str, Any]) -> tuple[str, list[Any]]:
+    """One configured jobs-list filter as a predicate; names and values are parameters."""
+    source = str(spec.get("source") or "")
+    key = str(spec.get("key") or "")
+    filter_type = str(spec.get("type") or "")
+    value = spec.get("value")
+    if source == "job":
+        # The only job filter is its status (choice / choice_multi).
+        return "LOWER(COALESCE(j.status, '')) = ANY(%s)", [[str(item) for item in value]]
+    base = _VALUE_FILTER_BASES.get(source)
+    if base is None or not key:
+        raise ValueError(f"Unsupported jobs-list filter source: {source!r}")
+    node = f"({base} -> %s)"
+    if filter_type == "search":
+        return (
+            f"COALESCE({base} ->> %s, '') ILIKE %s ESCAPE '\\'",
+            [key, f"%{_escape_like(str(value))}%"],
+        )
+    if filter_type == "boolean":
+        return f"{node} = %s::jsonb", [key, "true" if value else "false"]
+    if filter_type in {"number_range", "date_range"}:
+        low, high = value
+        if filter_type == "number_range":
+            typed = f"(CASE WHEN jsonb_typeof({node}) = 'number' THEN ({base} ->> %s)::numeric END)"
+        else:
+            typed = f"(CASE WHEN jsonb_typeof({node}) = 'string' THEN LEFT({base} ->> %s, 10) END)"
+        parts: list[str] = []
+        params: list[Any] = []
+        for bound, operator in ((low, ">="), (high, "<=")):
+            if bound is not None:
+                parts.append(f"{typed} {operator} %s")
+                params.extend([key, key, bound])
+        return "(" + SQL_AND.join(parts) + ")", params
+    if filter_type in {"choice", "choice_multi"}:
+        options = [str(item) for item in value]
+        # A select holds a string, a multi-select an array of strings: any match.
+        return (
+            f"(CASE jsonb_typeof({node})"
+            f" WHEN 'array' THEN {node} ?| %s::text[]"
+            f" WHEN 'string' THEN ({base} ->> %s) = ANY(%s::text[])"
+            " ELSE false END)",
+            [key, key, options, key, options],
+        )
+    raise ValueError(f"Unsupported jobs-list filter type: {filter_type!r}")
+
+
 def _build_attention_where(
     *,
     column_exists: Callable[[str, str], bool],
@@ -93,6 +151,7 @@ def _build_attention_where(
     started_before: datetime | None = None,
     task_source: str | None = None,
     exclude_task_source: str | None = None,
+    value_filters: Sequence[Mapping[str, Any]] | None = None,
 ) -> tuple[str, list[Any]]:
     where, params = (
         (list(scope_conditions[0]), list(scope_conditions[1])) if scope_conditions else ([], [])
@@ -164,9 +223,13 @@ def _build_attention_where(
         where.append("j.task_source = %s")
         params.append(task_source)
     if exclude_task_source is not None:
-        # A section's history (ADR 0075) leaves Test Runs out of ordinary runs.
+        # The operator list of a workflow (ADR 0075) leaves Test Runs out.
         where.append("j.task_source IS DISTINCT FROM %s")
         params.append(exclude_task_source)
+    for spec in value_filters or ():
+        predicate, predicate_params = _value_filter_sql(spec)
+        where.append(predicate)
+        params.extend(predicate_params)
 
     normalized_search = " ".join(str(search or "").split())
     if normalized_search:
@@ -265,6 +328,7 @@ def list_jobs_for_attention(
     started_after: datetime | None = None,
     started_before: datetime | None = None,
     exclude_task_source: str | None = None,
+    value_filters: Sequence[Mapping[str, Any]] | None = None,
 ) -> list[dict]:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -275,6 +339,7 @@ def list_jobs_for_attention(
         workflow_id=workflow_id,
         task_source=task_source,
         exclude_task_source=exclude_task_source,
+        value_filters=value_filters,
         search=search,
         account_id=account_id,
         workspace_id=workspace_id,
@@ -352,6 +417,7 @@ def count_jobs_for_attention(
     started_after: datetime | None = None,
     started_before: datetime | None = None,
     exclude_task_source: str | None = None,
+    value_filters: Sequence[Mapping[str, Any]] | None = None,
 ) -> int:
     where_sql, params = _build_attention_where(
         column_exists=column_exists,
@@ -362,6 +428,7 @@ def count_jobs_for_attention(
         workflow_id=workflow_id,
         task_source=task_source,
         exclude_task_source=exclude_task_source,
+        value_filters=value_filters,
         search=search,
         account_id=account_id,
         workspace_id=workspace_id,
