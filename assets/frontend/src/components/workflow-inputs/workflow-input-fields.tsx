@@ -1,32 +1,49 @@
-import { useId, type ReactNode } from "react";
+import { Plus, Trash2, X } from "lucide-react";
+import { useId, useState, type CSSProperties, type ReactNode } from "react";
 
-import { DsCheckbox, DsRadio, DsSelect } from "@/components/shared/design-system";
+import { DsCheckbox, DsRadio, DsSelect, MultiCombobox } from "@/components/shared/design-system";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { buildInputFields, type InputFieldModel } from "@/pages/projects/user-sections/schema";
-import type { JsonSchema } from "@/pages/projects/user-sections/types";
+import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
+import "@/pages/dashboard/dashboard-segmented.css";
 
-export type InputValues = Record<string, unknown>;
+import {
+  asList,
+  asRecord,
+  isFileField,
+  optionLabel,
+  shownFields,
+  type FormFieldView,
+  type FormFiles,
+  type FormValues,
+} from "./form-field";
+import "./workflow-input-fields.css";
 
-type FieldProps = Readonly<{
-  field: InputFieldModel;
+export type InputValues = FormValues;
+
+/** How a control is named and described: by the field's visible label, or alone in a table cell. */
+type ControlProps = Readonly<{
+  field: FormFieldView;
   value: unknown;
   onChange: (value: unknown) => void;
   disabled?: boolean;
+  labelId?: string;
+  ariaLabel?: string;
+  describedBy?: string;
+  invalid?: boolean;
 }>;
 
-type FilesProps = Readonly<{
-  files: Record<string, File[]>;
-  onFiles: (name: string, files: File[]) => void;
-  /** File inputs that take several files: one run per file (For each). */
-  multipleFiles?: ReadonlySet<string>;
-}>;
+const INPUT_TYPES: Record<string, string> = {
+  text: "text",
+  email: "email",
+  url: "url",
+  date: "date",
+  date_time: "datetime-local",
+  time: "time",
+};
 
-function enumOptions(schema: JsonSchema | undefined) {
-  return (Array.isArray(schema?.enum) ? schema.enum : []).map((option) => ({
-    value: String(option),
-    label: String(option),
-  }));
+function textOf(value: unknown): string {
+  return value === null || value === undefined ? "" : String(value);
 }
 
 function numberOrEmpty(text: string): number | "" {
@@ -35,69 +52,186 @@ function numberOrEmpty(text: string): number | "" {
   return Number.isFinite(parsed) ? parsed : "";
 }
 
-function asList(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
+function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+function sameFile(left: File, right: File): boolean {
+  return left.name === right.name && left.size === right.size && left.lastModified === right.lastModified;
 }
 
-function FieldFrame({ field, children, labelId }: Readonly<{ field: InputFieldModel; children: ReactNode; labelId: string }>) {
+/** Prepend/append text around a single-line input, inside one input frame. */
+function Affixed({ field, children }: Readonly<{ field: FormFieldView; children: (className: string | undefined) => ReactNode }>) {
+  if (!field.prepend && !field.append) return <>{children("fs-input")}</>;
   return (
-    <div className="fs-field md:col-span-2" data-field={field.path}>
-      <span className="fs-field-label" id={labelId}>
-        {field.label}
-        {field.required ? <span aria-hidden="true" className="fs-required">*</span> : null}
-      </span>
-      {children}
-      {field.helpText ? <p className="text-sm text-muted">{field.helpText}</p> : null}
-    </div>
+    <span className="fs-input-shell">
+      {field.prepend ? <span className="fs-workflow-affix-text">{field.prepend}</span> : null}
+      {children(undefined)}
+      {field.append ? <span className="fs-workflow-affix-text">{field.append}</span> : null}
+    </span>
   );
 }
 
-function ScalarList({ field, value, onChange, disabled }: FieldProps) {
+/** WYSIWYG: the repository has no rich-text editor, so Markdown with the Core renderer's preview. */
+function MarkdownControl({ field, value, onChange, disabled, labelId, ariaLabel, describedBy, invalid }: ControlProps) {
   const { t } = useI18n();
-  const rows = asList(value);
-  const numeric = field.kind === "number_list";
-  const update = (index: number, next: unknown) => onChange(rows.map((row, at) => (at === index ? next : row)));
+  const [preview, setPreview] = useState(false);
+  const text = textOf(value);
   return (
-    <div className="space-y-2">
-      {rows.map((row, index) => (
-        <div className="flex gap-2" key={`${field.path}-${index}`}>
-          <input
-            aria-label={t("react.user_sections.list_item", "{label} item {index}", { label: field.label, index: String(index + 1) })}
-            className="fs-input"
-            disabled={disabled}
-            inputMode={numeric ? "decimal" : undefined}
-            onChange={(event) => update(index, numeric ? numberOrEmpty(event.target.value) : event.target.value)}
-            type={numeric ? "number" : "text"}
-            value={row === null || row === undefined ? "" : String(row)}
-          />
-          <button className="fs-button" disabled={disabled} onClick={() => onChange(rows.filter((_, at) => at !== index))} type="button">
-            {t("react.user_sections.remove", "Remove")}
-          </button>
-        </div>
-      ))}
-      <button className="fs-button" disabled={disabled} onClick={() => onChange([...rows, numeric ? "" : ""])} type="button">
-        {t("react.user_sections.add_item", "Add item")}
-      </button>
+    <div className="grid gap-2">
+      <div aria-label={t("react.operator_form.wysiwyg_mode", "Editor mode")} className="fs-seg" role="group">
+        <button aria-pressed={!preview} className="fs-seg__item" onClick={() => setPreview(false)} type="button">
+          {t("react.operator_form.wysiwyg_write", "Write")}
+        </button>
+        <button aria-pressed={preview} className="fs-seg__item" onClick={() => setPreview(true)} type="button">
+          {t("react.operator_form.wysiwyg_preview", "Preview")}
+        </button>
+      </div>
+      {preview ? (
+        <div className="fs-workflow-markdown-preview">{text.trim() ? renderMarkdownBlocks(text) : null}</div>
+      ) : (
+        <textarea
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          aria-label={ariaLabel}
+          aria-labelledby={labelId}
+          className="fs-input"
+          data-markdown=""
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={field.placeholder || t("react.operator_form.wysiwyg_placeholder", "Markdown works: **bold**, lists, links")}
+          rows={6}
+          value={text}
+        />
+      )}
     </div>
   );
 }
 
-function EnumList({ field, value, onChange, disabled }: FieldProps) {
-  const selected = new Set(asList(value).map(String));
+function TextControl(props: ControlProps) {
+  const { field, value, onChange, disabled, labelId, ariaLabel, describedBy, invalid } = props;
+  if (field.widget === "wysiwyg") return <MarkdownControl {...props} />;
+  const common = {
+    "aria-describedby": describedBy,
+    "aria-invalid": invalid || undefined,
+    "aria-label": ariaLabel,
+    "aria-labelledby": labelId,
+    disabled,
+    placeholder: field.placeholder || undefined,
+    value: textOf(value),
+  };
+  if (field.widget === "textarea") {
+    return <textarea {...common} className="fs-input" onChange={(event) => onChange(event.target.value)} rows={4} />;
+  }
   return (
-    <div className="flex flex-col gap-1">
-      {enumOptions(field.schema.items).map((option) => (
+    <Affixed field={field}>
+      {(className) => (
+        <input {...common} className={className} onChange={(event) => onChange(event.target.value)} type={INPUT_TYPES[field.widget] ?? "text"} />
+      )}
+    </Affixed>
+  );
+}
+
+function NumberControl({ field, value, onChange, disabled, labelId, ariaLabel, describedBy, invalid }: ControlProps) {
+  return (
+    <Affixed field={field}>
+      {(className) => (
+        <input
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          aria-label={ariaLabel}
+          aria-labelledby={labelId}
+          className={className}
+          disabled={disabled}
+          inputMode="decimal"
+          onChange={(event) => onChange(numberOrEmpty(event.target.value))}
+          placeholder={field.placeholder || undefined}
+          type="number"
+          value={textOf(value)}
+        />
+      )}
+    </Affixed>
+  );
+}
+
+function ChoiceControl({ field, value, onChange, disabled, labelId, ariaLabel }: ControlProps) {
+  const { t } = useI18n();
+  const name = useId();
+  const options = (field.options ?? []).map((option) => ({ value: option, label: optionLabel(field, option) }));
+  const text = textOf(value);
+  if (field.widget === "radio") {
+    return (
+      <div aria-label={ariaLabel} aria-labelledby={labelId} className="flex flex-col gap-1" role="radiogroup">
+        {options.map((option) => (
+          <DsRadio checked={text === option.value} disabled={disabled} key={option.value} name={name} onChange={() => onChange(option.value)} value={option.value}>
+            {option.label}
+          </DsRadio>
+        ))}
+      </div>
+    );
+  }
+  if (field.widget === "button_group") {
+    return (
+      <div aria-label={ariaLabel} aria-labelledby={labelId} className="fs-seg" role="group">
+        {options.map((option) => (
+          <button
+            aria-pressed={text === option.value}
+            className="fs-seg__item"
+            disabled={disabled}
+            key={option.value}
+            // An optional choice can be taken back; a required one only changed.
+            onClick={() => onChange(text === option.value && !field.required ? "" : option.value)}
+            type="button"
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <DsSelect
+      ariaLabel={ariaLabel || field.label}
+      disabled={disabled}
+      labelledBy={labelId}
+      onChange={(next) => onChange(next)}
+      options={options}
+      placeholder={field.placeholder || t("react.operator_form.choose", "Choose…")}
+      value={text}
+    />
+  );
+}
+
+function MultiChoiceControl({ field, value, onChange, disabled, labelId, ariaLabel }: ControlProps) {
+  const { t } = useI18n();
+  const selected = asList(value).map(String);
+  const options = (field.options ?? []).map((option) => ({ value: option, label: optionLabel(field, option) }));
+  if (field.widget === "multiselect") {
+    return (
+      <MultiCombobox
+        ariaLabel={ariaLabel || field.label}
+        disabled={disabled}
+        onChange={(next) => onChange(next)}
+        options={options}
+        placeholder={field.placeholder || t("react.operator_form.choose_several", "Choose one or more…")}
+        selected={selected}
+      />
+    );
+  }
+  return (
+    <div aria-label={ariaLabel} aria-labelledby={labelId} className="flex flex-col gap-1" role="group">
+      {options.map((option) => (
         <DsCheckbox
-          checked={selected.has(option.value)}
+          checked={selected.includes(option.value)}
           disabled={disabled}
           key={option.value}
           onChange={(checked) =>
-            onChange(checked ? [...selected, option.value] : [...selected].filter((item) => item !== option.value))
+            // The contract's order, not the click order.
+            onChange((field.options ?? []).filter((item) => (item === option.value ? checked : selected.includes(item))))
           }
+          value={option.value}
         >
           {option.label}
         </DsCheckbox>
@@ -106,13 +240,13 @@ function EnumList({ field, value, onChange, disabled }: FieldProps) {
   );
 }
 
-function ObjectGroup({ field, value, onChange, disabled }: FieldProps) {
+function GroupControl({ field, value, onChange, disabled, labelId, ariaLabel }: ControlProps) {
   const record = asRecord(value);
   return (
-    <div className="grid gap-3 fs-surface-radius border border-subtle fs-surface-inset p-3 md:grid-cols-2">
+    <div aria-label={ariaLabel} aria-labelledby={labelId} className="fs-workflow-group" role="group">
       <WorkflowInputFields
         disabled={disabled}
-        fields={buildInputFields(field.schema)}
+        fields={field.sub_fields ?? []}
         onChange={(name, next) => onChange({ ...record, [name]: next })}
         values={record}
       />
@@ -120,148 +254,227 @@ function ObjectGroup({ field, value, onChange, disabled }: FieldProps) {
   );
 }
 
-function ObjectRepeater({ field, value, onChange, disabled }: FieldProps) {
+function RepeaterControl({ field, value, onChange, disabled, labelId, ariaLabel }: ControlProps) {
   const { t } = useI18n();
   const rows = asList(value).map(asRecord);
-  const itemFields = buildInputFields(field.schema.items ?? {});
-  return (
-    <div className="space-y-3">
-      {rows.map((row, index) => (
-        <div className="space-y-2 fs-surface-radius border border-subtle fs-surface-inset p-3" key={`${field.path}-${index}`}>
-          <div className="grid gap-3 md:grid-cols-2">
-            <WorkflowInputFields
-              disabled={disabled}
-              fields={itemFields}
-              onChange={(name, next) => onChange(rows.map((item, at) => (at === index ? { ...item, [name]: next } : item)))}
-              values={row}
-            />
-          </div>
-          <button className="fs-button" disabled={disabled} onClick={() => onChange(rows.filter((_, at) => at !== index))} type="button">
-            {t("react.user_sections.remove", "Remove")}
-          </button>
+  const subFields = (field.sub_fields ?? []).filter((sub) => !sub.hidden && !sub.fixed && !isFileField(sub));
+  const min = typeof field.min_items === "number" ? field.min_items : 0;
+  const max = typeof field.max_items === "number" ? field.max_items : Number.POSITIVE_INFINITY;
+  const layout = field.layout || "table";
+  const update = (index: number, name: string, next: unknown) =>
+    onChange(rows.map((row, at) => (at === index ? { ...row, [name]: next } : row)));
+  const rowLabel = (index: number) =>
+    t("react.operator_form.row_number", "{label}, row {index}", { label: field.label, index: String(index + 1) });
+  const removeButton = (index: number) => (
+    <button
+      aria-label={t("react.operator_form.remove_row", "Remove row {index}", { index: String(index + 1) })}
+      className="fs-icon-button"
+      disabled={disabled || rows.length <= min}
+      onClick={() => onChange(rows.filter((_, at) => at !== index))}
+      type="button"
+    >
+      <Trash2 aria-hidden="true" />
+    </button>
+  );
+  let body: ReactNode = null;
+  if (layout === "table" && rows.length) {
+    body = (
+      <div className="fs-workflow-repeater-scroll">
+        <table className="fs-workflow-repeater-table">
+          <thead>
+            <tr>
+              <th aria-label={t("react.operator_form.row", "Row")} />
+              {subFields.map((sub) => (
+                <th key={sub.name} scope="col">
+                  {sub.label}
+                  {sub.required ? <span aria-hidden="true" className="fs-required">*</span> : null}
+                </th>
+              ))}
+              <th aria-label={t("react.operator_form.row_actions", "Row actions")} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => {
+              const shown = new Set(shownFields(subFields, row).map((sub) => sub.name));
+              return (
+                <tr data-row={index + 1} key={`${field.name}-${index}`}>
+                  <td className="fs-workflow-repeater-index">{index + 1}</td>
+                  {subFields.map((sub) => (
+                    <td key={sub.name}>
+                      {shown.has(sub.name) ? (
+                        <FieldInput
+                          ariaLabel={`${sub.label}, ${rowLabel(index)}`}
+                          disabled={disabled}
+                          field={sub}
+                          onChange={(next) => update(index, sub.name, next)}
+                          value={row[sub.name]}
+                        />
+                      ) : null}
+                    </td>
+                  ))}
+                  <td className="fs-workflow-repeater-actions">{removeButton(index)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  } else if (layout !== "table") {
+    body = rows.map((row, index) => (
+      <div aria-label={rowLabel(index)} className="fs-workflow-repeater-row" data-layout={layout} data-row={index + 1} key={`${field.name}-${index}`} role="group">
+        <div className="fs-workflow-repeater-row-head">
+          <span>{t("react.operator_form.row_heading", "Row {index}", { index: String(index + 1) })}</span>
+          {removeButton(index)}
         </div>
-      ))}
-      <button className="fs-button" disabled={disabled} onClick={() => onChange([...rows, {}])} type="button">
-        {t("react.user_sections.add_row", "Add row")}
-      </button>
+        <WorkflowInputFields disabled={disabled} fields={subFields} onChange={(name, next) => update(index, name, next)} values={row} />
+      </div>
+    ));
+  }
+  return (
+    <div aria-label={ariaLabel} aria-labelledby={labelId} className="fs-workflow-repeater" data-layout={layout} role="group">
+      {body}
+      <div>
+        <button className="fs-button" disabled={disabled || rows.length >= max} onClick={() => onChange([...rows, {}])} type="button">
+          <Plus aria-hidden="true" />
+          {field.button_label || t("react.operator_form.add_row", "Add row")}
+        </button>
+      </div>
     </div>
   );
 }
 
-function ScalarControl({ field, value, onChange, disabled, labelId }: FieldProps & { labelId: string }) {
-  const { t } = useI18n();
-  const text = value === null || value === undefined ? "" : String(value);
+/** The control of one non-file field, chosen by its kind and widget. */
+function FieldInput(props: ControlProps) {
+  const { field, value, onChange, disabled, ariaLabel, describedBy } = props;
   switch (field.kind) {
-    case "text":
-    case "text_long":
-      return field.widget === "textarea" ? (
-        <textarea aria-labelledby={labelId} className="fs-input" disabled={disabled} onChange={(event) => onChange(event.target.value)} rows={4} value={text} />
-      ) : (
-        <input aria-labelledby={labelId} className="fs-input" disabled={disabled} onChange={(event) => onChange(event.target.value)} type="text" value={text} />
-      );
+    case "string":
+      return <TextControl {...props} />;
     case "number":
-      return (
-        <input
-          aria-labelledby={labelId}
-          className="fs-input"
-          disabled={disabled}
-          inputMode="decimal"
-          onChange={(event) => onChange(numberOrEmpty(event.target.value))}
-          type="number"
-          value={text}
-        />
-      );
+      return <NumberControl {...props} />;
     case "boolean":
-      return field.widget === "switch" ? (
-        <DsSwitch checked={value === true} disabled={disabled} label={field.label} onCheckedChange={(checked) => onChange(checked)} />
-      ) : (
-        <DsCheckbox checked={value === true} disabled={disabled} onChange={(checked) => onChange(checked)}>
-          {field.label}
-        </DsCheckbox>
-      );
-    case "enum":
-      return field.widget === "radio" ? (
-        <div className="flex flex-col gap-1" role="radiogroup" aria-labelledby={labelId}>
-          {enumOptions(field.schema).map((option) => (
-            <DsRadio checked={text === option.value} disabled={disabled} key={option.value} name={field.path} onChange={() => onChange(option.value)} value={option.value}>
-              {option.label}
-            </DsRadio>
-          ))}
-        </div>
-      ) : (
-        <DsSelect
-          ariaLabel={field.label}
+      return (
+        <DsSwitch
+          checked={value === true}
+          describedBy={describedBy}
           disabled={disabled}
-          labelledBy={labelId}
-          onChange={(next) => onChange(next)}
-          options={enumOptions(field.schema)}
-          placeholder={t("react.user_sections.choose", "Choose…")}
-          value={text}
+          label={ariaLabel || field.label}
+          onCheckedChange={(checked) => onChange(checked)}
         />
       );
+    case "select":
+      return <ChoiceControl {...props} />;
+    case "select_list":
+      return <MultiChoiceControl {...props} />;
+    case "object":
+      return <GroupControl {...props} />;
+    case "object_list":
+      return <RepeaterControl {...props} />;
     default:
+      // A kind the form does not know: the server's issues already explain it.
       return null;
   }
 }
 
-function FieldControl({ field, value, onChange, disabled }: FieldProps) {
-  const labelId = useId();
-  let control: ReactNode;
-  if (field.kind === "string_list" || field.kind === "number_list") {
-    control = <ScalarList disabled={disabled} field={field} onChange={onChange} value={value} />;
-  } else if (field.kind === "enum_list") {
-    control = <EnumList disabled={disabled} field={field} onChange={onChange} value={value} />;
-  } else if (field.kind === "object") {
-    control = <ObjectGroup disabled={disabled} field={field} onChange={onChange} value={value} />;
-  } else if (field.kind === "object_list") {
-    control = <ObjectRepeater disabled={disabled} field={field} onChange={onChange} value={value} />;
-  } else {
-    control = <ScalarControl disabled={disabled} field={field} labelId={labelId} onChange={onChange} value={value} />;
-  }
-  return (
-    <FieldFrame field={field} labelId={labelId}>
-      {control}
-    </FieldFrame>
-  );
-}
-
-function FileControl({ field, files, onFiles, multiple, disabled }: Readonly<{
-  field: InputFieldModel;
+function FileControl({
+  field,
+  files,
+  onFiles,
+  multiple,
+  disabled,
+  labelId,
+  describedBy,
+}: Readonly<{
+  field: FormFieldView;
   files: File[];
   onFiles: (files: File[]) => void;
   multiple: boolean;
   disabled?: boolean;
+  labelId: string;
+  describedBy?: string;
 }>) {
   const { t } = useI18n();
-  const labelId = useId();
   return (
-    <FieldFrame field={field} labelId={labelId}>
-      {/* `accept` with images lets a phone offer its camera next to the gallery. */}
+    <div className="grid gap-2">
       <input
-        accept="image/*,application/pdf"
+        aria-describedby={describedBy}
         aria-labelledby={labelId}
         className="fs-input"
         disabled={disabled}
         multiple={multiple}
-        onChange={(event) => onFiles(Array.from(event.target.files ?? []))}
+        onChange={(event) => {
+          const picked = Array.from(event.target.files ?? []);
+          // Several files add up across picks (a phone camera takes one at a time).
+          onFiles(multiple ? [...files, ...picked.filter((file) => !files.some((known) => sameFile(known, file)))] : picked.slice(0, 1));
+          event.target.value = "";
+        }}
         type="file"
       />
       {files.length ? (
-        <p className="text-sm text-muted">
-          {t("react.user_sections.files_selected", "{count} selected: {names}", {
-            count: String(files.length),
-            names: files.map((file) => file.name).join(", "),
-          })}
+        <ul aria-label={t("react.operator_form.chosen_files", "Chosen files for {label}", { label: field.label })} className="fs-workflow-file-list">
+          {files.map((file, index) => (
+            <li key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
+              <span title={file.name}>{file.name}</span>
+              <span className="text-sm text-muted">{fileSize(file.size)}</span>
+              <button
+                aria-label={t("react.operator_form.remove_file", "Remove {name}", { name: file.name })}
+                className="fs-icon-button"
+                disabled={disabled}
+                onClick={() => onFiles(files.filter((_, at) => at !== index))}
+                type="button"
+              >
+                <X aria-hidden="true" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function FieldFrame({
+  field,
+  error,
+  children,
+}: Readonly<{
+  field: FormFieldView;
+  error?: string;
+  children: (ids: { labelId: string; describedBy?: string; invalid: boolean }) => ReactNode;
+}>) {
+  const labelId = useId();
+  const helpId = useId();
+  const errorId = useId();
+  const describedBy = [field.instructions ? helpId : "", error ? errorId : ""].filter(Boolean).join(" ") || undefined;
+  const width = typeof field.width === "number" && field.width > 0 && field.width < 100 ? field.width : null;
+  const style = width ? ({ "--fs-workflow-field-width": `${width}%` } as CSSProperties) : undefined;
+  return (
+    <div className="fs-field fs-workflow-field" data-field={field.name} data-widget={field.widget} data-width={width ?? undefined} style={style}>
+      <span className="fs-field-label" id={labelId}>
+        {field.label}
+        {field.required ? <span aria-hidden="true" className="fs-required">*</span> : null}
+      </span>
+      {children({ labelId, describedBy, invalid: Boolean(error) })}
+      {field.instructions ? (
+        <p className="fs-field-helper" id={helpId}>
+          {field.instructions}
         </p>
       ) : null}
-    </FieldFrame>
+      {error ? (
+        <p className="fs-field-helper error" id={errorId}>
+          {error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
 /**
- * The fields of a workflow's input contract as a form. Values are JSON values
- * (numbers, booleans, lists, objects); files are real File objects. Types and
- * requirements come from the contract; the section only chose labels and widgets.
+ * A workflow's input form from the server's `form_fields` (ADR 0075): each
+ * field by its widget, in order, with its labels, instructions and width.
+ * Hidden and fixed fields are never rendered; a field whose condition does not
+ * hold is not rendered either. Values are JSON values; files are File objects,
+ * kept apart because they travel as uploads.
  */
 export function WorkflowInputFields({
   fields,
@@ -271,28 +484,51 @@ export function WorkflowInputFields({
   files,
   onFiles,
   multipleFiles,
+  errors,
 }: Readonly<{
-  fields: InputFieldModel[];
+  fields: readonly FormFieldView[];
   values: InputValues;
   onChange: (name: string, value: unknown) => void;
   disabled?: boolean;
-}> & Partial<FilesProps>) {
+  files?: FormFiles;
+  onFiles?: (name: string, files: File[]) => void;
+  /** Single-file inputs that take several files here: For each sends one run per file. */
+  multipleFiles?: ReadonlySet<string>;
+  /** A message under a field, by field name. */
+  errors?: Readonly<Record<string, string>>;
+}>) {
   return (
-    <>
-      {fields.map((field) =>
-        field.kind === "file" ? (
-          <FileControl
-            disabled={disabled}
-            field={field}
-            files={files?.[field.name] ?? []}
-            key={field.path}
-            multiple={Boolean(multipleFiles?.has(field.name))}
-            onFiles={(next) => onFiles?.(field.name, next)}
-          />
-        ) : (
-          <FieldControl disabled={disabled} field={field} key={field.path} onChange={(next) => onChange(field.name, next)} value={values[field.name]} />
-        ),
-      )}
-    </>
+    <div className="fs-workflow-form">
+      {shownFields(fields, values, files).map((field) => {
+        if (isFileField(field) && !onFiles) return null;
+        return (
+          <FieldFrame error={errors?.[field.name]} field={field} key={field.name}>
+            {({ labelId, describedBy, invalid }) =>
+              isFileField(field) ? (
+                <FileControl
+                  describedBy={describedBy}
+                  disabled={disabled}
+                  field={field}
+                  files={files?.[field.name] ?? []}
+                  labelId={labelId}
+                  multiple={field.kind === "file_list" || Boolean(multipleFiles?.has(field.name))}
+                  onFiles={(next) => onFiles?.(field.name, next)}
+                />
+              ) : (
+                <FieldInput
+                  describedBy={describedBy}
+                  disabled={disabled}
+                  field={field}
+                  invalid={invalid}
+                  labelId={labelId}
+                  onChange={(next) => onChange(field.name, next)}
+                  value={values[field.name]}
+                />
+              )
+            }
+          </FieldFrame>
+        );
+      })}
+    </div>
   );
 }

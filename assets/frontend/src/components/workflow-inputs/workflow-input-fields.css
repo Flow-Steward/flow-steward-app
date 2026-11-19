@@ -1,0 +1,126 @@
+/* The operator form (ADR 0075): fields flow in rows; a field with a width takes
+   that share of the row, the rest take the whole row. Long forms scroll inside
+   the dialog, so nothing here fixes a height. */
+.fs-workflow-form {
+  --fs-workflow-form-gap: var(--fs-space-150);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fs-workflow-form-gap);
+  min-width: 0;
+}
+
+.fs-workflow-field {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.fs-workflow-field[data-width] {
+  flex: 0 1 calc(var(--fs-workflow-field-width) - var(--fs-workflow-form-gap));
+}
+
+/* On a phone every field takes the row: a 30% date box is unusable there. */
+@media (max-width: 640px) {
+  .fs-workflow-field[data-width] {
+    flex-basis: 100%;
+  }
+}
+
+.fs-workflow-affix-text {
+  flex: none;
+  color: var(--fs-text-tertiary);
+  white-space: nowrap;
+}
+
+.fs-workflow-group,
+.fs-workflow-repeater-row {
+  display: grid;
+  gap: var(--fs-space-100);
+  min-width: 0;
+  margin: 0;
+  padding: var(--fs-space-150);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+}
+
+.fs-workflow-repeater {
+  display: grid;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-workflow-repeater-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-secondary);
+}
+
+/* Row layout: the sub-fields of one row side by side while they fit. */
+.fs-workflow-repeater-row[data-layout="row"] > .fs-workflow-form > .fs-workflow-field {
+  flex: 1 1 0;
+  min-width: 10rem;
+}
+
+.fs-workflow-repeater-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.fs-workflow-repeater-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fs-workflow-repeater-table th,
+.fs-workflow-repeater-table td {
+  padding: var(--fs-space-050);
+  text-align: left;
+  vertical-align: top;
+}
+
+.fs-workflow-repeater-table th {
+  color: var(--fs-text-secondary);
+  font-weight: var(--fs-type-weight-medium);
+  white-space: nowrap;
+}
+
+.fs-workflow-repeater-table td {
+  min-width: 8rem;
+}
+
+.fs-workflow-repeater-table td.fs-workflow-repeater-index,
+.fs-workflow-repeater-table td.fs-workflow-repeater-actions {
+  min-width: 0;
+  width: 1%;
+  white-space: nowrap;
+}
+
+.fs-workflow-file-list {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fs-workflow-file-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-workflow-file-list li > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fs-workflow-markdown-preview {
+  min-height: 6rem;
+  padding: var(--fs-space-100);
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-control);
+}
