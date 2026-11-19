@@ -131,7 +131,9 @@ def test_frontend_shell_serves_index_and_assets(tmp_path: Path) -> None:
         "/projects/42",
         # ADR 0075: a published workflow's section and the operators' landing.
         "/projects/42/workflows/wf.receipts/work",
+        "/projects/42/workflows/wf.receipts/work/jobs/00000000-0000-0000-0000-000000000009",
         "/sections",
+        "/secrets",
         "/extensions",
         "/extensions/demo-connector",
         "/security",
