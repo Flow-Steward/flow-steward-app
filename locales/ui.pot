@@ -30668,3 +30668,42 @@ msgstr ""
 
 msgid "react.operator.source_api"
 msgstr ""
+
+msgid "react.jobs.file_preview_password"
+msgstr ""
+
+msgid "react.jobs.file_preview_unreadable"
+msgstr ""
+
+msgid "react.jobs.file_preview_previous_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_next_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_page_position"
+msgstr ""
+
+msgid "react.jobs.file_preview_zoom_out"
+msgstr ""
+
+msgid "react.jobs.file_preview_zoom_in"
+msgstr ""
+
+msgid "react.jobs.file_preview_fit_width"
+msgstr ""
+
+msgid "react.jobs.file_preview_pdf_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_rows_shown"
+msgstr ""
+
+msgid "react.jobs.file_preview_columns_shown"
+msgstr ""
+
+msgid "react.jobs.file_preview_sheets"
+msgstr ""
+
+msgid "react.jobs.file_preview_empty_sheet"
+msgstr ""

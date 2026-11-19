@@ -31724,3 +31724,42 @@ msgstr "Form"
 
 msgid "react.operator.source_api"
 msgstr "API and MCP"
+
+msgid "react.jobs.file_preview_password"
+msgstr "This file is protected with a password. Download it to open it."
+
+msgid "react.jobs.file_preview_unreadable"
+msgstr "This file could not be read for a preview. Download it to open it."
+
+msgid "react.jobs.file_preview_previous_page"
+msgstr "Previous page"
+
+msgid "react.jobs.file_preview_next_page"
+msgstr "Next page"
+
+msgid "react.jobs.file_preview_page_position"
+msgstr "Page {page} of {total}"
+
+msgid "react.jobs.file_preview_zoom_out"
+msgstr "Zoom out"
+
+msgid "react.jobs.file_preview_zoom_in"
+msgstr "Zoom in"
+
+msgid "react.jobs.file_preview_fit_width"
+msgstr "Fit to width"
+
+msgid "react.jobs.file_preview_pdf_page"
+msgstr "{name}, page {page}"
+
+msgid "react.jobs.file_preview_rows_shown"
+msgstr "Showing {shown} of {total} rows."
+
+msgid "react.jobs.file_preview_columns_shown"
+msgstr "Showing {shown} of {total} columns."
+
+msgid "react.jobs.file_preview_sheets"
+msgstr "Sheets of {name}"
+
+msgid "react.jobs.file_preview_empty_sheet"
+msgstr "This sheet is empty."

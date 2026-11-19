@@ -32152,3 +32152,42 @@ msgstr "Forma"
 
 msgid "react.operator.source_api"
 msgstr "API ir MCP"
+
+msgid "react.jobs.file_preview_password"
+msgstr "Šis failas apsaugotas slaptažodžiu. Atsisiųskite jį, kad atidarytumėte."
+
+msgid "react.jobs.file_preview_unreadable"
+msgstr "Šio failo nepavyko perskaityti peržiūrai. Atsisiųskite jį, kad atidarytumėte."
+
+msgid "react.jobs.file_preview_previous_page"
+msgstr "Ankstesnis puslapis"
+
+msgid "react.jobs.file_preview_next_page"
+msgstr "Kitas puslapis"
+
+msgid "react.jobs.file_preview_page_position"
+msgstr "{page} puslapis iš {total}"
+
+msgid "react.jobs.file_preview_zoom_out"
+msgstr "Sumažinti"
+
+msgid "react.jobs.file_preview_zoom_in"
+msgstr "Padidinti"
+
+msgid "react.jobs.file_preview_fit_width"
+msgstr "Pritaikyti pagal plotį"
+
+msgid "react.jobs.file_preview_pdf_page"
+msgstr "{name}, {page} puslapis"
+
+msgid "react.jobs.file_preview_rows_shown"
+msgstr "Rodoma {shown} eil. iš {total}."
+
+msgid "react.jobs.file_preview_columns_shown"
+msgstr "Rodoma {shown} stulp. iš {total}."
+
+msgid "react.jobs.file_preview_sheets"
+msgstr "{name} lapai"
+
+msgid "react.jobs.file_preview_empty_sheet"
+msgstr "Šis lapas tuščias."
