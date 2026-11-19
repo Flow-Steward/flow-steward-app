@@ -160,6 +160,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/identifier_keys.py \
     core/application/registry/tool_manifest.py \
     core/application/registry/workflow_contract.py \
+    core/application/registry/workflow_contract_shape.py \
     core/application/registry/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/management/command_specs/ core/application/management/command_specs/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/readiness/ core/application/readiness/

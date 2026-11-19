@@ -490,7 +490,7 @@ class WorkflowAuthoringSchema:
                 },
                 "interface": {
                     "persisted_location": "workflow.settings.callable",
-                    "description": "The public boundary: trigger_channels, expected_inputs and expected_outputs. report_output names one required output of type object that holds a report snapshot written by a Template step in format report (ADR 0059). Change it with the update_interface operation (a shallow patch; null removes a key), never with a raw settings write.",
+                    "description": "The public boundary: trigger_channels, expected_inputs and expected_outputs. A field may also declare its shape: items for an array element {type, options?, format?, properties?} (several files: type array with items.type file), properties for an object (sub-fields in the same model, at most 3 levels deep), min_items/max_items for an array, and format (date, date-time, time, email, uri) for string or paragraph; each is checked only when declared. report_output names one required output of type object that holds a report snapshot written by a Template step in format report (ADR 0059). Change it with the update_interface operation (a shallow patch; null removes a key), never with a raw settings write.",
                 },
                 "hook": {
                     "persisted_location": "steps[].override.invoke_workflow.hook",

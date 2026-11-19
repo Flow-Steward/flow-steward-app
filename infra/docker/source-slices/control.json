@@ -323,6 +323,7 @@
     "core/application/registry/tool_registry.py",
     "core/application/registry/workflow_contract.py",
     "core/application/registry/workflow_contract_service.py",
+    "core/application/registry/workflow_contract_shape.py",
     "core/application/registry/workflow_definition_rows.py",
     "core/application/registry/workflow_lookup.py",
     "core/application/registry/workflow_manifest.py",
