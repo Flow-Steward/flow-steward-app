@@ -21,6 +21,7 @@ from core.application.workflows.approval_review import (
     ReviewDecisionError,
     captured_review,
     decide_review,
+    public_review_changes,
 )
 
 from .command_models_api_inputs import ApprovalDecisionInput
@@ -250,7 +251,13 @@ class ApprovalRepository:
             payload=payload,
             decision=decision,
             scope=scope,
-            review_changes=review[1] if review is not None else None,
+            # The history is shown to whoever may read the job: masked as the
+            # public review is. The raw values stay in the interrupt payload.
+            review_changes=(
+                public_review_changes(captured_review(payload) or {}, review[1])
+                if review is not None
+                else None
+            ),
         )
         approvals.append(entry)
         meta["approvals"] = approvals

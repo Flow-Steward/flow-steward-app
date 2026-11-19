@@ -138,12 +138,12 @@ def serialize_approval_history_entry(entry: Mapping[str, Any]) -> dict[str, Any]
         from core.application.workflows.approval_review import masked_review_value
 
         # A typed review's edits (ADR 0075): the field, what the application
-        # found and what the person made of it.
+        # found and what the person made of it, masked by the field name too.
         safe["review_changes"] = [
             {
                 "field": str(change.get("field") or ""),
-                "before": masked_review_value(change.get("before")),
-                "after": masked_review_value(change.get("after")),
+                "before": masked_review_value(change.get("before"), key=change.get("field")),
+                "after": masked_review_value(change.get("after"), key=change.get("field")),
             }
             for change in review_changes
             if isinstance(change, Mapping) and str(change.get("field") or "").strip()

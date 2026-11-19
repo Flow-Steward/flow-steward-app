@@ -7,6 +7,7 @@ outputs that later steps map.
 
 from __future__ import annotations
 
+import copy
 import json
 import uuid
 from datetime import UTC, datetime
@@ -790,6 +791,153 @@ def test_public_review_masks_secret_references_and_hides_foreign_files() -> None
     assert public is not None
     assert public["values"] == {"note": {"key": "[REDACTED]"}}
     assert public["original"] == []
+
+
+SECRET_KEYS_REVIEW = {
+    "fields": [
+        {"name": "supplier", "type": "string", "editable": True},
+        {"name": "password", "type": "string", "editable": True},
+        {
+            "name": "connection",
+            "type": "object",
+            "editable": True,
+            "properties": [
+                {"name": "host", "type": "string"},
+                {
+                    "name": "credentials",
+                    "type": "object",
+                    "properties": [{"name": "api_key", "type": "string"}],
+                },
+            ],
+        },
+        {
+            "name": "accounts",
+            "type": "array",
+            "editable": True,
+            "items": {
+                "type": "object",
+                "properties": [
+                    {"name": "label", "type": "string"},
+                    {
+                        "name": "credentials",
+                        "type": "object",
+                        "properties": [{"name": "api_key", "type": "string"}],
+                    },
+                ],
+            },
+        },
+    ],
+    "editable": ["supplier", "password", "connection", "accounts"],
+    "values": {
+        "supplier": "ACME",
+        "password": "hunter2",
+        "connection": {"host": "db.example", "credentials": {"api_key": "key-123"}},
+        "accounts": [
+            {"label": "main", "credentials": {"api_key": "key-456"}},
+            {"label": "spare", "access_token": "tok-789"},
+        ],
+    },
+    "invalid": {"supplier": "Found ghp_" + "A" * 36 + " in the scan"},
+}
+
+
+def _no_raw_secret(value: Any) -> None:
+    text = json.dumps(value)
+    for raw in ("hunter2", "key-123", "key-456", "tok-789", "ghp_"):
+        assert raw not in text
+
+
+def test_public_review_masks_values_under_secret_like_keys_at_any_depth() -> None:
+    public = public_review(SECRET_KEYS_REVIEW, original=[])
+
+    assert public is not None
+    values = public["values"]
+    assert values["supplier"] == "ACME"
+    assert values["password"] == "[REDACTED]"
+    assert values["connection"] == {"host": "db.example", "credentials": "[REDACTED]"}
+    assert values["accounts"] == [
+        {"label": "main", "credentials": "[REDACTED]"},
+        {"label": "spare", "access_token": "[REDACTED]"},
+    ]
+    _no_raw_secret(public)
+
+
+def test_decision_history_keeps_only_masked_before_and_after() -> None:
+    payload = {"approval_id": "approval-1", "review": copy.deepcopy(SECRET_KEYS_REVIEW)}
+    payload["review"]["invalid"] = {}
+    # Every value must pass its shape on approve; the undeclared key stays out here.
+    payload["review"]["values"]["accounts"] = [
+        {"label": "main", "credentials": {"api_key": "key-456"}}
+    ]
+
+    meta = _persist(
+        payload,
+        _decision(
+            values={
+                "password": "correct-horse",
+                "connection": {"host": "db2.example", "credentials": {"api_key": "key-999"}},
+            }
+        ),
+    )
+
+    # The checked values travel raw to the resumed step only.
+    assert meta["workflow_resume"]["resume_value"]["review_values"]["password"] == "correct-horse"
+    stored = meta["approvals"][0]["review_changes"]
+    assert stored == [
+        {"field": "password", "before": "[REDACTED]", "after": "[REDACTED]"},
+        {
+            "field": "connection",
+            "before": {"host": "db.example", "credentials": "[REDACTED]"},
+            "after": {"host": "db2.example", "credentials": "[REDACTED]"},
+        },
+    ]
+    assert "correct-horse" not in json.dumps(meta["approvals"])
+    assert "key-999" not in json.dumps(meta["approvals"])
+
+
+def test_history_serializer_masks_raw_entries_by_field_name() -> None:
+    entry = {
+        "approval_id": "approval-1",
+        "approved": True,
+        "review_changes": [
+            {"field": "api_token", "before": "tok-789", "after": "tok-790"},
+            {
+                "field": "accounts",
+                "before": [{"credentials": {"api_key": "key-456"}}],
+                "after": [{"credentials": {"api_key": "key-123"}}],
+            },
+        ],
+    }
+
+    changes = serialize_approval_history_entry(entry)["review_changes"]
+
+    assert changes[0] == {"field": "api_token", "before": "[REDACTED]", "after": "[REDACTED]"}
+    assert changes[1]["after"] == [{"credentials": "[REDACTED]"}]
+    _no_raw_secret(changes)
+
+
+def test_gate_view_for_mcp_and_job_detail_masks_secret_like_review_values() -> None:
+    payload = {"approval_id": "approval-1", "review": copy.deepcopy(SECRET_KEYS_REVIEW)}
+    store = MagicMock()
+    store.get_job.return_value = {
+        "id": "job-1",
+        "status": "awaiting_approval",
+        "thread_id": "thread-1",
+        "project_id": "project-1",
+    }
+    store.get_project.return_value = {"id": "project-1", "account_id": DEFAULT_ACCOUNT_ID}
+    snapshot = MagicMock()
+    snapshot.tasks = [MagicMock(interrupts=[MagicMock(id="interrupt-1", value=payload)])]
+    service = ApprovalQueryService(
+        get_logger=lambda: store,
+        get_thread_state_snapshot=lambda _thread_id: snapshot,
+        approval_fallback_payload=lambda _job: {},
+    )
+
+    gate = service.get_current_gate("job-1").dump()
+
+    assert gate["review"]["values"]["password"] == "[REDACTED]"
+    _no_raw_secret(gate)
 
 
 def test_token_gate_response_keeps_the_review() -> None:

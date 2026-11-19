@@ -558,20 +558,64 @@ def decide_review(
 # --- Public projection -------------------------------------------------------
 
 
-def masked_review_value(value: Any) -> Any:
-    """A review value as shown publicly: secret references and detected secrets masked."""
+def masked_review_value(value: Any, *, key: Any = None) -> Any:
+    """A review value as shown publicly, at any depth.
+
+    A value under a secret-like key (``password``, ``api_key``, ``token``... by
+    the shared rule of the job input projections, ``is_secret_like_input``), a
+    secret reference and a secret detected in text are masked. ``key`` is the
+    name the value sits under: the field name at the top level, the property
+    name inside an object. A list's items keep the key of the list.
+    """
+    from core.application.jobs.job_invocation_artifacts import is_secret_like_input
     from core.application.jobs.public_secret_redaction import redact_public_secrets
     from core.infrastructure.security.secret_reference import SecretReference
 
-    if isinstance(value, dict):
-        if SecretReference.from_wire(value) is not None:
+    if value is None:
+        return None
+    if key is not None and is_secret_like_input(key):
+        return _REDACTED
+    if isinstance(value, Mapping):
+        if SecretReference.from_wire(dict(value)) is not None:
             return _REDACTED
-        return {key: masked_review_value(item) for key, item in value.items()}
-    if isinstance(value, list):
+        return {str(name): masked_review_value(item, key=str(name)) for name, item in value.items()}
+    if isinstance(value, (list, tuple)):
         return [masked_review_value(item) for item in value]
     if isinstance(value, str):
         return redact_public_secrets(value)
     return value
+
+
+def _masked_field_value(field: ReviewField | None, name: str, value: Any) -> Any:
+    """A field's value as shown publicly; a secret field never shows its value."""
+    if field is not None and field.is_secret and value is not None:
+        return _REDACTED
+    return masked_review_value(value, key=name)
+
+
+def public_review_changes(
+    review: Mapping[str, Any], changes: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """What a person changed, masked as the public review is, for the decision history.
+
+    The history is kept in the job and shown to whoever may read the job, so it
+    never holds a value the public review would mask. Only the interrupt
+    payload, which never leaves the server, keeps the captured values raw: the
+    decision is checked against them.
+    """
+    by_name = {field.name: field for field in _captured_fields(review)}
+    rows: list[dict[str, Any]] = []
+    for change in changes:
+        name = str(change.get("field") or "")
+        field = by_name.get(name)
+        rows.append(
+            {
+                "field": name,
+                "before": _masked_field_value(field, name, change.get("before")),
+                "after": _masked_field_value(field, name, change.get("after")),
+            }
+        )
+    return rows
 
 
 def original_references(review: Mapping[str, Any]) -> list[Any]:
@@ -592,6 +636,8 @@ def public_review(
     ``original`` is the caller's authorized artifact summaries of
     ``original_references``; references it could not authorize are not shown.
     """
+    from core.application.jobs.public_secret_redaction import redact_public_secrets
+
     if not isinstance(review, Mapping):
         return None
     fields = []
@@ -612,8 +658,16 @@ def public_review(
     invalid = review.get("invalid") if isinstance(review.get("invalid"), Mapping) else {}
     return {
         "fields": fields,
-        "values": {name: masked_review_value(values.get(name)) for name in names if name in values},
-        "invalid": {str(name): str(text) for name, text in invalid.items() if name in names},
+        "values": {
+            name: masked_review_value(values.get(name), key=name)
+            for name in names
+            if name in values
+        },
+        "invalid": {
+            str(name): redact_public_secrets(str(text))
+            for name, text in invalid.items()
+            if name in names
+        },
         "original": list(original or []),
     }
 
@@ -634,6 +688,7 @@ __all__ = [
     "original_references",
     "parse_review_field",
     "public_review",
+    "public_review_changes",
     "review_config",
     "review_config_issues",
     "review_fields",
