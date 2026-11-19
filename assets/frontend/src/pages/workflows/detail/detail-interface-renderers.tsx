@@ -3,6 +3,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { RequiredLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { ContractBlock } from "./detail-contract-block";
+import { FieldShapeControls } from "./detail-interface-shape-controls";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-refresh/only-export-components */
 import type { Dispatch, SetStateAction } from "react";
 
@@ -453,6 +454,13 @@ export function createWorkflowInterfaceRenderers(ctx: WorkflowInterfaceRenderCon
                   <p className="fs-field-helper mt-1" id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-options-help`}>{t("react.workflows.contract_options_help", "Separate the choices with commas.")}</p>
                 </div>
               ) : null}
+              <FieldShapeControls
+                controlId={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}`}
+                controlName={`workflow_interface_${editorKey}_${index}`}
+                direction={direction}
+                row={row}
+                updateRow={(patch) => updateRow(index, patch)}
+              />
               {direction === "input"
                 ? renderWorkflowFieldDefault(
                     row,

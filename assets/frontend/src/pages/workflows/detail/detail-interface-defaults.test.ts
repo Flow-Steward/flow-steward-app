@@ -256,3 +256,41 @@ describe("workflow interface row names", () => {
     expect(payload).toEqual({ name: "api_token", type: "secret", required: false });
   });
 });
+
+describe("declared field shapes in the contract editor", () => {
+  it("round-trips items, bounds, properties and format without adding keys elsewhere", () => {
+    const stored = [
+      { name: "photos", type: "array", required: true, items: { type: "file" }, min_items: 1, max_items: 4 },
+      { name: "kinds", type: "array", items: { type: "select", options: ["contract", "invoice"] } },
+      { name: "lines", type: "array", items: { type: "object", properties: [{ name: "qty", type: "number" }] } },
+      { name: "company", type: "object", properties: [{ name: "name", type: "string", required: true }] },
+      { name: "due", type: "string", format: "date" },
+      { name: "plain", type: "array" },
+    ];
+
+    const payload = workflowFieldPayload(stored.map((row) => fieldDraftFromContract(row)));
+
+    expect(payload).toEqual(stored.map((row) => ({ required: false, ...row })));
+  });
+
+  it("keeps an element format the editor does not show", () => {
+    const stored = { name: "dates", type: "array", items: { type: "string", format: "date" } };
+
+    const [payload] = workflowFieldPayload([fieldDraftFromContract(stored)]);
+
+    expect(payload.items).toEqual({ type: "string", format: "date" });
+  });
+
+  it("drops shape keys the new type does not take", () => {
+    const draft = fieldDraftFromContract({ name: "photos", type: "array", items: { type: "file" }, max_items: 2, format: "date" });
+
+    const [payload] = workflowFieldPayload([{ ...draft, type: "string" }]);
+
+    expect(payload).toEqual({ name: "photos", type: "string", required: false, format: "date" });
+  });
+
+  it("refuses properties that are not a JSON list and item counts that are not whole numbers", () => {
+    expect(() => workflowFieldPayload([createWorkflowInterfaceFieldDraft({ name: "company", type: "object", propertiesText: '{"name": "x"}' })])).toThrow(/JSON list of fields/u);
+    expect(() => workflowFieldPayload([createWorkflowInterfaceFieldDraft({ name: "files", type: "array", minItems: "1.5" })])).toThrow(/whole numbers/u);
+  });
+});
