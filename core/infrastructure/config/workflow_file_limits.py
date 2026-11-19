@@ -64,10 +64,17 @@ def browser_run_upload_limits() -> dict[str, int]:
     max_file_bytes = _bounded_count(
         "FS_ATTACHMENT_MAX_SIZE_BYTES", fallback=20 * _MIB, maximum=1024 * _MIB
     )
+    max_files = _bounded_count("FS_ATTACHMENT_MAX_FILES", fallback=10, maximum=1000)
+    # The policy limits each file and the count, as task attachments do; the run
+    # total follows from them, so four 6 MB pages fit a 20 MB policy. Zero on
+    # either side means no limit there, so no total either.
+    max_total_bytes = (
+        min(max_file_bytes * max_files, 1024 * _MIB) if max_file_bytes and max_files else 0
+    )
     return {
         "max_file_bytes": max_file_bytes,
-        "max_total_bytes": max_file_bytes,
-        "max_files": _bounded_count("FS_ATTACHMENT_MAX_FILES", fallback=10, maximum=1000),
+        "max_total_bytes": max_total_bytes,
+        "max_files": max_files,
     }
 
 

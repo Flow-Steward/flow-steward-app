@@ -52,7 +52,7 @@ def test_limits_come_from_the_attachment_policy(policy) -> None:
 
     assert browser_run_upload_limits() == {
         "max_file_bytes": 5 * _MIB,
-        "max_total_bytes": 5 * _MIB,
+        "max_total_bytes": 20 * _MIB,
         "max_files": 4,
     }
 
@@ -72,11 +72,20 @@ def test_a_file_over_the_policy_is_refused(policy) -> None:
         _browser([_file("receipt", 2 * _MIB + 1)])
 
 
-def test_files_over_the_total_are_refused(policy) -> None:
-    policy(max_bytes=2 * _MIB)
+def test_several_pages_each_under_the_policy_are_accepted(policy) -> None:
+    """Four pages of one contract: each file counts, not their sum (ADR 0075)."""
+    policy(max_bytes=2 * _MIB, max_files=4)
 
-    with pytest.raises(ValidationError, match="together"):
-        _browser([_file("front", _MIB + 10), _file("back", _MIB + 10)])
+    request = _browser([_file(f"page{index}", _MIB + 10) for index in range(4)])
+
+    assert len(request.files) == 4
+
+
+def test_the_total_follows_from_size_and_count(policy) -> None:
+    policy(max_bytes=2 * _MIB, max_files=2)
+    total = browser_run_upload_limits()["max_total_bytes"]
+
+    assert total == 4 * _MIB
 
 
 def test_more_files_than_the_policy_allows_are_refused(policy) -> None:
