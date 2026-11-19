@@ -20,6 +20,13 @@ from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
 from core.application.settings.timezone_service import day_boundaries_utc, resolve_effective_user_tz
+from core.application.workflows.approval_waiting_propagation import (
+    STATUS_AWAITING_APPROVAL,
+    STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_REVIEW,
+    awaiting_review_targets,
+    invoke_chain_max_depth,
+)
 from core.application.workflows.workflow_action_contract import action_run_label
 from core.application.workflows.workflow_hook_contract import hook_run_label
 
@@ -30,6 +37,22 @@ from .query_services_common import *  # NOSONAR
 _ATTENTION_PAGE_MAX = 2000
 #: History filters by how a run started: Test Run, the UI form or the API/MCP.
 SUPPORTED_JOB_TASK_SOURCES = frozenset({"workflow_test_run", "manual_ui", "mcp_workflow"})
+
+
+#: Statuses of a job that may wait for a person's review (ADR 0075 queue).
+_REVIEW_WAIT_STATUSES = frozenset({STATUS_AWAITING_APPROVAL, STATUS_AWAITING_CHILD})
+
+
+def _store_value_filters(items: Sequence[Any]) -> list[dict[str, Any]]:
+    """Checked operator filters as the store reads them; the status filter with the
+    Invoke depth its "awaiting review" value follows down a chain."""
+    specs: list[dict[str, Any]] = []
+    for item in items:
+        spec = asdict(item)
+        if spec.get("source") == "job" and STATUS_AWAITING_REVIEW in (spec.get("value") or ()):
+            spec["review_chain_depth"] = max(1, invoke_chain_max_depth())
+        specs.append(spec)
+    return specs
 
 
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
@@ -406,13 +429,36 @@ class JobQueryServiceCoreMixin:
             if callable(reader) and job_ids
             else {}
         )
+        targets = self._review_targets(bl, resolved, rows)
         for view, row in zip(views, rows, strict=False):
             job_id = str(row.get("id") or row.get("job_id") or "")
             payload = payloads.get(job_id)
             values = operator_row_values(columns, row, payload)
             view.operator_values = cast(dict[str, Any], redact(values))
             view.submitted_by = (payload or {}).get("submitted_by")
+            view.review_job_id = targets.get(job_id)
         return views
+
+    @staticmethod
+    def _review_targets(
+        bl: Any, resolved: ScopeContext, rows: list[dict[str, Any]]
+    ) -> dict[str, str]:
+        """Job id -> the job holding the approval it waits for, read for the page at once.
+
+        A target the caller may not read is left out: the row still says it
+        waits, but not where.
+        """
+        waiting = [
+            str(row.get("id") or row.get("job_id") or "")
+            for row in rows
+            if str(row.get("status") or "").strip().lower() in _REVIEW_WAIT_STATUSES
+        ]
+        found = awaiting_review_targets(bl, waiting) if waiting else {}
+        return {
+            job_id: str(target.get("review_job_id"))
+            for job_id, target in found.items()
+            if target.get("review_job_id") and job_row_in_scope(resolved, dict(target))
+        }
 
     def list_jobs(
         self,
@@ -434,7 +480,8 @@ class JobQueryServiceCoreMixin:
         to_date: str = "",
         operator_view: bool = False,
         filters: Any = None,
-    ) -> JobsListView | JobsAttentionGroupsView:
+        around: str = "",
+    ) -> JobsListView | JobsAttentionGroupsView | JobsQueuePositionView:
         """List jobs; ``status`` takes one status, several, or comma lists of them (any match).
 
         ``hide_acknowledged`` leaves out runs an operator has acknowledged.
@@ -445,6 +492,10 @@ class JobQueryServiceCoreMixin:
         configured filter id -> value) narrows it on full input and output values.
         ``from_date`` and ``to_date`` include whole local calendar days, using
         the start time or queued time for a run that has not started.
+        ``around`` (a job id) answers, instead of a page, where that job is in
+        this same list and which jobs come before and after it (the operator
+        queue): found by its sort key, so a job that has just left the filter
+        still has the right neighbours.
         """
         resolved = self._scope(scope)
         try:
@@ -542,7 +593,7 @@ class JobQueryServiceCoreMixin:
             if operator is not None:
                 filters["exclude_task_source"] = "workflow_test_run"
                 if operator[1]:
-                    filters["value_filters"] = [asdict(item) for item in operator[1]]
+                    filters["value_filters"] = _store_value_filters(operator[1])
             if normalized_search:
                 filters["search"] = normalized_search
             if hide_acknowledged:
@@ -552,6 +603,28 @@ class JobQueryServiceCoreMixin:
             if started_before is not None:
                 filters["started_before"] = started_before
             return filters
+
+        around_id = str(around or "").strip()
+        if around_id:
+            if normalized_group:
+                raise ServiceValidationError("around cannot be grouped", status_code=422)
+            restricted = bool(resolved.allowed_project_ids and normalized_project_id is None)
+            neighbours = (
+                bl.list_job_neighbours(
+                    job_id=around_id,
+                    project_id=None if restricted else normalized_project_id,
+                    project_ids=sorted(resolved.allowed_project_ids) if restricted else None,
+                    status=normalized_status,
+                    account_id=acct,
+                    **_list_filter_kwargs(),
+                    **_workspace_filter_kwargs(),
+                )
+                if workspace_allowed and hasattr(bl, "list_job_neighbours")
+                else None
+            )
+            if not neighbours:
+                raise ServiceNotFoundError("Job not found")
+            return JobsQueuePositionView.model_validate(neighbours)
 
         if not normalized_group:
             if not workspace_allowed:

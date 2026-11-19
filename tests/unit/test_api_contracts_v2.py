@@ -117,6 +117,7 @@ def _build_client(
     local_auth_enabled=False,
     auth_user=None,
     auth_principal=None,
+    approval_query_service=None,
 ):
     import core.entrypoints.api.contracts_v2 as contracts_v2
 
@@ -150,6 +151,9 @@ def _build_client(
             ),
             job_query_service=lambda: jobs_query_service or _JobQueryService(),
             job_command_service=lambda: _JobCommandService(),
+            approval_query_service=(lambda: approval_query_service)
+            if approval_query_service is not None
+            else None,
             project_query_service=lambda: project_query_service or _ProjectQueryService(),
             require_authenticated_user=require_authenticated_user
             or (
@@ -733,3 +737,51 @@ def test_v2_operator_sections_menu_and_detail(monkeypatch):
     assert detail.json()["data"]["workflow_id"] == "wf"
     assert missing.status_code == 404
     assert service.calls[1] == ("detail", "p1", "wf", "p1")
+
+
+def test_v2_jobs_around_passes_the_job_whose_neighbours_are_asked(monkeypatch):
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get(
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf",
+            "operator_view": "1",
+            "around": "j7",
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["around"] == "j7"
+    assert service.last_list_kwargs["operator_view"] is True
+
+
+class _ReviewQuery:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def get_review(self, job_id, *, scope, can_decide):
+        self.calls.append({"job_id": job_id, "scope": scope, "can_decide": can_decide})
+        return _Payload({"job_id": job_id, "waiting": True, "access": "none", "gate": None})
+
+
+@pytest.mark.parametrize(
+    ("roles", "can_decide"),
+    [(["operator"], True), (["admin"], True), (["viewer"], False)],
+)
+def test_v2_job_review_decides_only_for_operators_and_admins(monkeypatch, roles, can_decide):
+    review = _ReviewQuery()
+    client = _build_client(
+        monkeypatch=monkeypatch,
+        approval_query_service=review,
+        auth_user={"username": "person", "roles": roles},
+    )
+
+    response = client.get("/api/v2/jobs/job-a/review")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["access"] == "none"
+    assert review.calls[0]["job_id"] == "job-a"
+    assert review.calls[0]["can_decide"] is can_decide

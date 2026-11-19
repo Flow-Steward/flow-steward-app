@@ -77,6 +77,9 @@ class AttentionJobView(ViewModel):
     operator_values: dict[str, Any] | None = None
     #: Who started the run, recorded from the authenticated scope at launch.
     submitted_by: dict[str, Any] | None = None
+    #: ADR 0075, operator list: the job holding the approval this job waits for
+    #: (itself, or a child down its Invoke chain), when the caller may read it.
+    review_job_id: str | None = None
 
 
 class AwaitingApprovalJobView(ViewModel):
@@ -104,6 +107,19 @@ class AwaitingApprovalJobsPageView(ViewModel):
         default=False,
         description="True when later pages hold more approvals than this page lists.",
     )
+
+
+class JobsQueuePositionView(ViewModel):
+    """Where one job is in a jobs list and its neighbours there (ADR 0075 queue)."""
+
+    job_id: str
+    #: False when the job has left the list's filter (for example: just decided).
+    in_list: bool = False
+    #: 1-based position, or null when the job is no longer in the list.
+    position: int | None = None
+    total: int = 0
+    previous_job_id: str | None = None
+    next_job_id: str | None = None
 
 
 class JobsListView(ViewModel):

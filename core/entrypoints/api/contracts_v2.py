@@ -18,7 +18,7 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from core.application.management import ServiceError
+from core.application.management import ServiceError, ServiceUnavailableError
 from core.application.management.command_models import (
     ApiV2DashboardSummaryEnvelopeView,
     ApiV2JobDetailEnvelopeView,
@@ -214,6 +214,7 @@ def create_api_contracts_v2_router(
         ] = None,
         operator_view: Annotated[bool, Query()] = False,
         filters: Annotated[str, Query(max_length=8192)] = "",
+        around: Annotated[str, Query(max_length=64)] = "",
         search: Annotated[str, Query()] = "",
         hide_acknowledged: Annotated[bool, Query()] = False,
         from_date: Annotated[str, Query()] = "",
@@ -236,6 +237,7 @@ def create_api_contracts_v2_router(
                 to_date=to_date,
                 operator_view=operator_view,
                 filters=filters,
+                around=around,
                 scope=request_scope(
                     request,
                     project_id=project_id or None,
@@ -272,6 +274,35 @@ def create_api_contracts_v2_router(
                 resolve_artifact=api_dependencies.get_artifact_resolver(),
                 execution_step_limit=step_limit if compact else None,
                 include_workflow_run=not compact,
+            )
+            data = _payload_or_dump(payload)
+        except ServiceError as exc:
+            return _service_error(exc, kind="detail", resource="jobs")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="detail", resource="jobs")
+        return JSONResponse(_success_envelope(kind="detail", resource="jobs", data=data))
+
+    @router.get(
+        "/api/v2/jobs/{job_id}/review",
+        response_description="The review this job waits for, with the caller's access to it.",
+    )
+    def api_v2_job_review(request: Request, job_id: str):
+        """ADR 0075: the approval a job waits for, here or down its Invoke chain.
+
+        The fields, values and original come only with ``decide`` or ``read``
+        access to the job that holds the approval, checked on that job.
+        """
+        if approval_query_service is None:
+            return _service_error(
+                ServiceUnavailableError("Approvals are not available"),
+                kind="detail",
+                resource="jobs",
+            )
+        try:
+            payload = approval_query_service().get_review(
+                job_id,
+                scope=request_scope(request),
+                can_decide=resolve_user_role(request) in {"admin", "operator"},
             )
             data = _payload_or_dump(payload)
         except ServiceError as exc:

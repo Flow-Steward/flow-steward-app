@@ -189,6 +189,63 @@ class ApprovalQueryService:
             review=review,
         )
 
+    def get_review(
+        self,
+        job_id: str,
+        *,
+        scope: ScopeContext | None = None,
+        can_decide: bool = False,
+    ) -> JobReviewView:
+        """The review this job waits for (ADR 0075), with the caller's access to it.
+
+        A job ``awaiting_approval`` holds its own; an ``awaiting_child`` job waits
+        on the approval of a descendant down its Invoke chain. That approval is
+        read with the descendant's own access checks: a caller who may not read
+        it learns only that a decision is pending, never its fields, values,
+        files or job id. ``can_decide`` is the caller's right to decide
+        approvals (operator or admin); otherwise the review is read-only.
+        """
+        from core.application.workflows.approval_waiting_propagation import (
+            STATUS_AWAITING_APPROVAL,
+            STATUS_AWAITING_CHILD,
+            awaiting_review_targets,
+        )
+
+        bl = self._get_logger()
+        if not bl:
+            raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
+        job = self._require_job(bl, str(job_id))
+        resolved = self._scope(scope, project_id=job.get("project_id"))
+        project = self._project(bl, job.get("project_id"))
+        if project:
+            require_project_access(resolved, project)
+        self._require_job_workflow_access(resolved, job)
+        status = str(job.get("status") or "").strip().lower()
+        view = JobReviewView(job_id=str(job_id), status=status)
+        if status == STATUS_AWAITING_APPROVAL:
+            target_id = str(job_id)
+        elif status == STATUS_AWAITING_CHILD:
+            target = awaiting_review_targets(bl, [str(job_id)]).get(str(job_id)) or {}
+            target_id = str(target.get("review_job_id") or "")
+        else:
+            target_id = ""
+        if not target_id:
+            return view
+        view.waiting = True
+        try:
+            gate = self.get_current_gate(target_id, scope=scope)
+        except ServiceForbiddenError:
+            view.access = "none"
+            return view
+        except (ServiceNotFoundError, ServiceConflictError):
+            # Decided or gone since the chain was read: nothing waits any more.
+            view.waiting = False
+            return view
+        view.review_job_id = target_id
+        view.access = "decide" if can_decide else "read"
+        view.gate = gate
+        return view
+
     def list_history(
         self,
         job_id: str,

@@ -252,6 +252,23 @@ class ApprovalGateView(ViewModel):
     review: dict[str, Any] | None = None
 
 
+class JobReviewView(ViewModel):
+    """The review a job waits for, here or down its Invoke chain (ADR 0075).
+
+    ``access`` is what the caller may do with the job holding the approval:
+    ``decide``, ``read`` (fields and original, no decision) or ``none`` (only
+    that a decision is pending; no fields, values or files and no job id).
+    ``gate`` is that job's current approval gate for ``decide`` and ``read``.
+    """
+
+    job_id: str
+    status: str = ""
+    waiting: bool = False
+    review_job_id: str | None = None
+    access: str | None = None
+    gate: ApprovalGateView | None = None
+
+
 class ApprovalHistoryView(ViewModel):
     job_id: str
     approvals: list[dict[str, Any]] = Field(default_factory=list)

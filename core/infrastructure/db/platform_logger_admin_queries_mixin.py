@@ -387,6 +387,56 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
             started_before=started_before,
         )
 
+    def list_job_neighbours(
+        self,
+        *,
+        job_id: str,
+        project_id: str | None = None,
+        project_ids: list[str] | tuple[str, ...] | None = None,
+        status: str | Sequence[str] | None = None,
+        workflow_id: str | None = None,
+        task_source: str | None = None,
+        search: str | None = None,
+        account_id: str | None = None,
+        workspace_id: str | None = None,
+        include_trashed: bool = False,
+        scope: JobQueryScope | None = None,
+        hide_acknowledged: bool = False,
+        started_after: datetime | None = None,
+        started_before: datetime | None = None,
+        exclude_task_source: str | None = None,
+        value_filters: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
+        """Position and neighbours of one job in the jobs list with these filters."""
+        return job_queries_store.job_list_neighbours(
+            self.conn,
+            job_id=job_id,
+            column_exists=self._column_exists,
+            scope_conditions=self._job_scope_conditions(scope) if scope is not None else None,
+            project_id=project_id,
+            project_ids=project_ids,
+            status=status,
+            workflow_id=workflow_id,
+            task_source=task_source,
+            exclude_task_source=exclude_task_source,
+            value_filters=value_filters,
+            search=search,
+            account_id=account_id,
+            workspace_id=workspace_id,
+            include_trashed=include_trashed,
+            hide_acknowledged=hide_acknowledged,
+            started_after=started_after,
+            started_before=started_before,
+        )
+
+    def read_awaiting_review_targets(
+        self, *, job_ids: list[str], max_depth: int
+    ) -> dict[str, dict[str, Any]]:
+        """The job holding the approval each given job waits for, down its Invoke chain."""
+        from core.infrastructure.db.job_review_chain_store import read_awaiting_review_targets
+
+        return read_awaiting_review_targets(self.conn, job_ids=job_ids, max_depth=max_depth)
+
     def read_job_operator_payloads(
         self, *, job_ids: list[str], account_id: str
     ) -> dict[str, dict[str, Any]]:

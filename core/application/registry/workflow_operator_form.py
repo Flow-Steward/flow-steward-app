@@ -96,8 +96,10 @@ JOB_COLUMN_PATHS: frozenset[str] = frozenset(
 )
 #: Properties of the job a filter may use, with their filter types.
 JOB_FILTER_TYPES: dict[str, tuple[str, ...]] = {"status": ("choice", "choice_multi")}
-#: Choices of the job status filter.
+#: Choices of the job status filter. ``awaiting_review`` is the operator queue:
+#: a job waiting for approval itself or anywhere down its Invoke chain.
 JOB_STATUS_OPTIONS: tuple[str, ...] = (
+    "awaiting_review",
     "queued",
     "running",
     "awaiting_approval",

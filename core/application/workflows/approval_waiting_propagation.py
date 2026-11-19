@@ -46,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 STATUS_AWAITING_APPROVAL = "awaiting_approval"
 STATUS_AWAITING_CHILD = "awaiting_child"
+#: The operator list's status value (ADR 0075): waiting for approval here or
+#: anywhere down the Invoke chain (``job_review_chain_store`` reads it in SQL).
+STATUS_AWAITING_REVIEW = "awaiting_review"
 _DEFAULT_MAX_DEPTH = 5
 _PROPAGATED_MESSAGE = "A child workflow is waiting for approval."
 
@@ -63,7 +66,8 @@ def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
 
-def _max_depth() -> int:
+def invoke_chain_max_depth() -> int:
+    """How many Invoke links up (or down) a chain is followed: the Invoke depth limit."""
     try:
         from core.application.orchestration.invoke_workflow_step_node_common import (
             _resolve_invoke_workflow_max_depth,
@@ -203,7 +207,7 @@ def trusted_forwarded_approval_job(bl: Any, event: Mapping[str, Any]) -> str | N
     ):
         return None
     visited = {target_id}
-    for _ in range(max(1, _max_depth())):
+    for _ in range(max(1, invoke_chain_max_depth())):
         link = trusted_parent_link(bl, child_id, child)
         if link is None:
             return None
@@ -227,6 +231,23 @@ def trusted_forwarded_approval_job(bl: Any, event: Mapping[str, Any]) -> str | N
             return target_id
         child_id, child = parent_id, parent
     return None
+
+
+def awaiting_review_targets(bl: Any, job_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """The job holding the approval each given job waits for (ADR 0075).
+
+    A job ``awaiting_approval`` holds its own; an ``awaiting_child`` job maps to
+    the descendant whose Approval it waits on, at any depth up to
+    :func:`invoke_chain_max_depth`. The links are the ones this module walks
+    (:func:`trusted_parent_link`, :func:`ancestor_waits_on_child`), read for a
+    whole page in one statement by the host store. Each target carries its
+    project, workflow and account so the caller checks access to it.
+    """
+    reader = getattr(bl, "read_awaiting_review_targets", None)
+    ids = [str(job_id) for job_id in job_ids if str(job_id or "").strip()]
+    if not callable(reader) or not ids:
+        return {}
+    return dict(reader(job_ids=ids, max_depth=max(1, invoke_chain_max_depth())) or {})
 
 
 def propagated_payload(
@@ -294,7 +315,7 @@ def propagate_approval_waiting(
         return []
     visited = {child_id}
     results: list[dict[str, Any]] = []
-    for _ in range(max(1, max_depth if max_depth is not None else _max_depth())):
+    for _ in range(max(1, max_depth if max_depth is not None else invoke_chain_max_depth())):
         link = trusted_parent_link(bl, child_id, child_row)
         if link is None:
             break
@@ -348,7 +369,7 @@ def pending_child_approval_event(
     current_id = _text(parent_job_id)
     visited = {current_id}
     row = _get_job(bl, current_id)
-    for _ in range(max(1, max_depth if max_depth is not None else _max_depth())):
+    for _ in range(max(1, max_depth if max_depth is not None else invoke_chain_max_depth())):
         if _text(row.get("status")).lower() != STATUS_AWAITING_CHILD:
             return None
         wait = _mapping(_mapping(row.get("meta")).get("workflow_wait"))
@@ -409,7 +430,9 @@ def catch_up_child_approval(
 __all__ = [
     "ancestor_waits_on_child",
     "approval_still_pending",
+    "awaiting_review_targets",
     "catch_up_child_approval",
+    "invoke_chain_max_depth",
     "pending_child_approval_event",
     "propagate_approval_waiting",
     "propagated_payload",
