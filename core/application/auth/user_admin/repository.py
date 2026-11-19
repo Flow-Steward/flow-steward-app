@@ -23,6 +23,37 @@ def _lock_user_lifecycle(cur: Any) -> None:
     )
 
 
+#: The role every installation's first user gets, whatever the channel (CLI, API).
+FIRST_USER_ROLE = "admin"
+#: Roles of a user created without explicit roles once an installation has users.
+DEFAULT_USER_ROLES = ("viewer",)
+
+
+class FirstUserMustBeAdminError(ValueError):
+    """Explicit roles without admin for the first user would lock everyone out."""
+
+
+def _roles_for_new_user(cur: Any, roles: list[str]) -> list[str]:
+    """The roles to grant, decided under the user-lifecycle lock.
+
+    The first user of an installation is always an administrator: without roles
+    they get admin, and roles without admin are refused, so nobody ends up with
+    an installation no one can administer.
+    """
+    cur.execute("SELECT EXISTS (SELECT 1 FROM users)")
+    row = cur.fetchone()
+    users_exist = bool(row[0]) if row else False
+    if users_exist:
+        return list(roles) or list(DEFAULT_USER_ROLES)
+    if not roles:
+        return [FIRST_USER_ROLE]
+    if FIRST_USER_ROLE not in roles:
+        raise FirstUserMustBeAdminError(
+            "The first user must be an administrator: add the admin role or leave roles empty"
+        )
+    return list(roles)
+
+
 def _table_exists(bl: Any, table_name: str) -> bool:
     checker = getattr(bl, "_table_exists", None)
     if not callable(checker):
@@ -183,6 +214,8 @@ def create_auth_user(
 ) -> str:
     seed_default_roles(bl)
     with bl.conn.cursor() as cur:
+        _lock_user_lifecycle(cur)
+        roles = _roles_for_new_user(cur, roles)
         cur.execute(
             """
             INSERT INTO users (

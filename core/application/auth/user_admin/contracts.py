@@ -46,7 +46,9 @@ class UserCreateInput(ViewModel):
     email: str
     password: str
     display_name: str = ""
-    roles: list[str] = Field(default_factory=lambda: ["viewer"])
+    #: Empty means the default: admin for the first user of an installation,
+    #: viewer for everyone after.
+    roles: list[str] = Field(default_factory=list)
     is_active: bool = True
     must_change_password: bool = False
     account_id: str = ""

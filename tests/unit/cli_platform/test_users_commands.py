@@ -164,7 +164,10 @@ def test_users_role_help_distinguishes_create_default_from_required_set_roles() 
 
     assert create_help.exit_code == 0, create_help.output
     assert set_roles_help.exit_code == 0, set_roles_help.output
-    assert "Default: viewer." in create_help.output
+    create_text = " ".join(create_help.output.split())
+    # Without --role the server decides: admin for an installation's first user.
+    assert "first user of an installation becomes admin" in create_text
+    assert "Default: viewer." not in create_help.output
     assert "('viewer',)" not in create_help.output
     assert "Default: viewer." not in set_roles_help.output
     assert "--role" in set_roles_help.output
@@ -257,10 +260,13 @@ def test_existing_user_contracts_require_exactly_one_nonblank_selector(
         model(**selector, **extra)
 
 
-def test_user_role_contracts_keep_create_default_but_require_set_roles_values() -> None:
+def test_user_role_contracts_leave_create_default_to_the_server_but_require_set_roles_values() -> (
+    None
+):
     created = UserCreateInput(email="operator@example.com", password="StrongPass_123!")
 
-    assert created.roles == ["viewer"]
+    # Empty: admin for an installation's first user, viewer after (the repository decides).
+    assert created.roles == []
     with pytest.raises(ValidationError, match="at least one role"):
         UserRolesUpdateInput(user_id="u_1", roles=[])
 

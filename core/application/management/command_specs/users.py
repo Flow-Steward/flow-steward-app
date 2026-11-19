@@ -242,8 +242,11 @@ USERS_CREATE_SPEC = CommandSpec(
             label="Roles",
             type=FieldType.MULTI_SELECT,
             choices=ROLE_CHOICES,
-            default=["viewer"],
-            description="Initial local-auth roles granted to the new user.",
+            default=[],
+            description=(
+                "Initial local-auth roles granted to the new user. Without --role the first "
+                "user of an installation becomes admin and later users become viewer."
+            ),
             examples=("viewer", "operator"),
             option_name="--role",
         ),

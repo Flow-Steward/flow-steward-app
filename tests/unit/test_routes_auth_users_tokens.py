@@ -72,6 +72,10 @@ class _Cursor:
         if "INSERT INTO users" in normalized and "RETURNING id" in normalized:
             self._next_fetchone = (_USER_77,)
             return
+        if "SELECT EXISTS (SELECT 1 FROM users)" in normalized:
+            # The admin creating users through this router already exists.
+            self._next_fetchone = (True,)
+            return
         if "UPDATE auth_sessions" in normalized:
             self.rowcount = 2
 

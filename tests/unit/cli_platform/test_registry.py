@@ -717,7 +717,8 @@ def test_sensitive_and_dynamic_field_contracts_are_closed_and_canonical() -> Non
     roles = fields["roles"]
     assert roles.type is FieldType.MULTI_SELECT
     assert [choice.value for choice in roles.choices] == ["admin", "operator", "viewer"]
-    assert tuple(roles.default) == ("viewer",)
+    # No default role: the server gives the first user admin and later users viewer.
+    assert tuple(roles.default) == ()
     assert users_create.input_model is UserCreateInput
     user_input = users_create.input_model.model_validate(
         {
@@ -726,7 +727,7 @@ def test_sensitive_and_dynamic_field_contracts_are_closed_and_canonical() -> Non
             "roles": roles.default,
         }
     )
-    assert user_input.roles == ["viewer"]
+    assert user_input.roles == []
 
     extension_id = {field.key: field for field in specs["extensions.create"].fields}["extension_id"]
     assert extension_id.type is FieldType.EXTENSION_ID
