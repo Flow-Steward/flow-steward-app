@@ -102,8 +102,10 @@ _APPROVAL_REVIEW_GUIDANCE = (
     "carries the reviewer's comment, which is the feedback on the rejected branch, and "
     "artifacts.decision is approved or rejected. Decisions send corrections as values "
     "(job_approval_decide values): editable fields only, typed as listed. A template or "
-    "extension bundle that uses review declares the first Core version that has it: the "
-    "catalog entry's compatible.min or the bundle's runtime.compatibility.platform_min."
+    "extension bundle that uses review or the contract shape keys declares the first Core "
+    "version that has them, or its import is refused: the catalog entry's "
+    "compatible.min 0.9.20 or later, the bundle's runtime.compatibility.platform_min "
+    "1.10.0 or later."
 )
 
 

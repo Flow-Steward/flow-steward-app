@@ -92,7 +92,8 @@ EXTENSION_DESCRIPTOR_SCHEMA_VERSION = "extension_descriptor_v1"
 # 1.6.0: provider-neutral refresh-token import for extension OAuth connections.
 # 1.7.0: page query connections (ADR 0067); 1.8.0: workflow connection_slots (ADR 0068).
 # 1.9.0: generic raw-body signed callbacks (ADR 0072).
-DEFAULT_FS_RUNTIME_VERSION = "1.9.0"
+# 1.10.0: workflows with typed contract shapes and Approval review fields (ADR 0075).
+DEFAULT_FS_RUNTIME_VERSION = "1.10.0"
 
 RUNTIME_INTERFACE_SECTIONS = (
     "connection_types",

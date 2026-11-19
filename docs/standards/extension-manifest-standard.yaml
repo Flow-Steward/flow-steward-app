@@ -569,6 +569,11 @@ runtime:
     #          declarations require runtime.compatibility.platform_min 1.9.0;
     #          hub_signature source keeps its earlier floor through normalization.
     #          Product 0.9.18 ships host 1.9.0; SDK remains 0.5.0.
+    #   1.10.0 Workflows may declare typed contract fields (items, properties,
+    #          min_items, max_items, format) and Approval review fields
+    #          (ADR 0075). A bundle whose workflows use them requires
+    #          runtime.compatibility.platform_min 1.10.0; a catalog template
+    #          declares compatible_flow_steward.min 0.9.20 or later.
     # The settings panel also links to the extension's vendor.support_url (or
     # vendor.website_url) as "How to fill this in".
     # llm_provider:
