@@ -51,6 +51,7 @@ import {
   PageContainer,
   RowActionMenu,
   type DsBulkAction,
+  type DsFilterField,
   type DsOption,
 } from "@/components/shared/design-system";
 import { columnsFromGridConfig, visibleRowActions } from "@/components/shared/data-grid-adapter";
@@ -231,22 +232,32 @@ function jobWorkflowCell(row: Record<string, unknown>) {
 }
 
 /**
- * ADR 0075: a user section is this same list with its project and workflow fixed
- * in the background. The section brings its own header (and its New button) and
- * the columns an admin chose; Project and Workflow are known, so neither shows.
+ * ADR 0075: a section is this same list with its project and workflow fixed in
+ * the background (`operator_view=1`). The section brings its own header (and its
+ * New button), the columns and filters an admin chose, and the columns this
+ * person hid; Project and Workflow are known, so neither shows.
  */
 export type JobsListScope = {
   key: string;
   projectId: string;
   workflowId: string;
-  sectionId: string;
   title: string;
   description: string;
   eyebrow: string;
   action?: ReactNode;
   notice?: ReactNode;
+  /** Extra controls at the end of the toolbar (the column picker). */
+  toolbar?: ReactNode;
   columns: Array<{ key: string; label: string; cell: (row: Record<string, unknown>) => ReactNode }>;
+  /** Column keys (built-in or configured) this person hid. */
+  hiddenColumns?: ReadonlySet<string>;
+  /** Configured filters in the filter panel; their values live in the URL under their keys. */
+  filterFields?: DsFilterField[];
+  /** The `filters` query value for the current panel values, or null when none applies. */
+  filtersParam?: (values: Readonly<Record<string, string>>) => Record<string, unknown> | null;
 };
+
+const NO_FILTER_FIELDS: DsFilterField[] = [];
 
 const SCOPED_HIDDEN_COLUMNS = new Set(["_workflow_display", "project_name"]);
 
@@ -256,7 +267,18 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   const userTimezone = useUserTimezone();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useFilterSearchParams(scope ? `section-jobs:${scope.key}` : "jobs", ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date"]);
+  const scopeFilterFields = scope?.filterFields ?? NO_FILTER_FIELDS;
+  const filterParamKeys = useMemo(
+    () => ["search", "project_id", "workflow_id", "status", "hide_acknowledged", "period", "from_date", "to_date", ...scopeFilterFields.map((field) => field.key)],
+    [scopeFilterFields],
+  );
+  const [searchParams, setSearchParams] = useFilterSearchParams(scope ? `section-jobs:${scope.key}` : "jobs", filterParamKeys);
+  // The admin's filters of a section: panel values from the URL, sent as one JSON value.
+  const scopeFilterValues: Record<string, string> = Object.fromEntries(
+    scopeFilterFields.map((field) => [field.key, searchParams.get(field.key) ?? ""]),
+  );
+  const operatorFilters = scope?.filtersParam?.(scopeFilterValues) ?? null;
+  const operatorFiltersKey = operatorFilters ? JSON.stringify(operatorFilters) : "";
   const period = periodFromUrl(searchParams);
   const { fromDate, toDate } = expandPeriod(period, todayIn(userTimezone));
   // Filter state lives in the URL (job-filters.ts): the published filter and
@@ -302,7 +324,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   const [workspaceSelection, setSelectedWorkspaceId] = useState(selectedWorkspaceIdFromStorage);
   // The section's project decides; the shell's workspace choice does not narrow it.
   const selectedWorkspaceId = scope ? "" : workspaceSelection;
-  const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
+  const filterScope = JSON.stringify([deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
   const selectionScopeRef = useRef({ key: filterScope, generation: 0 });
   if (selectionScopeRef.current.key !== filterScope) {
     selectionScopeRef.current = { key: filterScope, generation: selectionScopeRef.current.generation + 1 };
@@ -711,7 +733,8 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
         hideAcknowledged,
         projectId: projectFilter || null,
         workflowId: workflowFilter || null,
-        sectionId: scope?.sectionId ?? null,
+        operatorView: Boolean(scope),
+        operatorFilters,
         search: deferredSearch,
         workspaceId: selectedWorkspaceId || null,
         fromDate,
@@ -794,11 +817,11 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
 
   useEffect(() => {
     ignoreAsyncResult(refreshJobsRef.current());
-  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
+  }, [deferredSearch, hideAcknowledged, page, perPage, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
 
   useEffect(() => {
     setSelectedJobs(new Set());
-  }, [deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate]);
+  }, [deferredSearch, hideAcknowledged, projectFilter, selectedWorkspaceId, statusFilter, workflowFilter, fromDate, toDate, operatorFiltersKey]);
 
   // Every chosen status group stays in the URL, so a reload or a shared link
   // keeps it; a link that named stored statuses is rewritten to their groups.
@@ -822,6 +845,12 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
 
   useEffect(() => {
     let active = true;
+    // A section knows its project and workflow; it offers neither as a filter.
+    if (scope) {
+      return () => {
+        active = false;
+      };
+    }
     fetchProjectsList({ page: 1, perPage: 200, search: "", workspaceId: selectedWorkspaceId })
       .then((payload) => {
         if (!active || !Array.isArray(payload?.projects)) return;
@@ -840,7 +869,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
   useEffect(() => {
     let active = true;
     // GET /api/workflows is for operators and admins; a viewer's options come from the jobs.
-    if (!roleFlags.canMutate) {
+    if (!roleFlags.canMutate || scope) {
       return () => {
         active = false;
       };
@@ -925,11 +954,16 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
           </RowActionMenu>
         );
       });
-    const visible = scope ? columns.filter((column) => !SCOPED_HIDDEN_COLUMNS.has(column.key)) : columns;
+    const hidden = scope?.hiddenColumns;
+    const visible = scope
+      ? columns.filter((column) => !SCOPED_HIDDEN_COLUMNS.has(column.key) && !hidden?.has(column.key))
+      : columns;
     const withSection = scope
       ? [
           ...visible.filter((column) => column.key !== "actions"),
-          ...scope.columns.map((column) => ({ key: `section:${column.key}`, header: column.label, cell: column.cell })),
+          ...scope.columns
+            .filter((column) => !hidden?.has(column.key))
+            .map((column) => ({ key: `section:${column.key}`, header: column.label, cell: column.cell })),
           ...visible.filter((column) => column.key === "actions"),
         ]
       : visible;
@@ -1021,7 +1055,10 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
           <AdvancedTableFilters
             fields={
               scope
-                ? [{ key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true }]
+                ? [
+                    { key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true },
+                    ...scopeFilterFields,
+                  ]
                 : [
                     { key: "project_filter", label: t("events.columns.project", "Project"), options: filterOptions.projects },
                     { key: "status_filter", label: t("account_settings.card.status", "Status"), options: filterOptions.statuses, multiple: true },
@@ -1030,7 +1067,14 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
             }
             onChange={(key, value) => {
               setPage(1);
-              if (key === "project_filter") {
+              if (scopeFilterFields.some((field) => field.key === key)) {
+                setSearchParams((latest) => {
+                  const next = new URLSearchParams(latest);
+                  if (value) next.set(key, value);
+                  else next.delete(key);
+                  return next;
+                }, { replace: true });
+              } else if (key === "project_filter") {
                 setProjectFilter(value);
               } else if (key === "status_filter") {
                 setStatusFilter(normalizeStatusList([value]));
@@ -1040,6 +1084,16 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
             }}
             onClear={() => {
               setPage(1);
+              if (scope) {
+                // One URL update: the status and the section's own filters go together.
+                setSearchParams((latest) => {
+                  const next = new URLSearchParams(latest);
+                  next.delete("status");
+                  scopeFilterFields.forEach((field) => next.delete(field.key));
+                  return next;
+                }, { replace: true });
+                return;
+              }
               setProjectFilter("");
               setStatusFilter("");
               setWorkflowFilter("");
@@ -1048,6 +1102,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
               project_filter: projectFilter,
               status_filter: statusFilter,
               workflow_filter: workflowFilter,
+              ...scopeFilterValues,
             }}
           />
           <DsCheckbox
@@ -1073,6 +1128,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
               value={search}
             />
           </label>
+          {scope?.toolbar}
         </div>
         <DsTable
           rowClickFocusable={false}

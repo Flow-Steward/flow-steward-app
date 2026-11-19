@@ -294,6 +294,34 @@
   font-weight: var(--fs-type-weight-medium);
 }
 
+/* A collapsible group's label is its toggle: same type, a chevron before it. */
+.fs-app-sidebar__group-toggle {
+  width: 100%;
+  gap: var(--fs-space-050);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-app-sidebar__group-toggle > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  transition: transform var(--fs-motion-background-hover);
+}
+
+.fs-app-sidebar__group-toggle[aria-expanded="false"] > svg {
+  transform: rotate(-90deg);
+}
+
+.fs-app-sidebar__group-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
+}
+
 .fs-app-sidebar__item {
   position: relative;
   display: flex;

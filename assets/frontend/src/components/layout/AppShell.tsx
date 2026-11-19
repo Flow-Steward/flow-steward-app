@@ -50,8 +50,8 @@ import {
 import { AppShellSidebar } from "@/components/layout/app-shell-sidebar";
 import {
   buildProjectSectionNavigation,
-  fetchSectionNavigationProjects,
 } from "@/components/layout/project-section-navigation";
+import { fetchOperatorSections } from "@/pages/operator/api";
 import { queryKeys } from "@/lib/query/keys";
 import { AdvancedSearchDialog } from "@/components/search/advanced-search-dialog";
 import {
@@ -270,12 +270,12 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   });
   const extensionUpdateCount = extensionUpdatesQuery.data?.count ?? 0;
   // ADR 0066 amendment: the registry is configuration, the admin's. Operators and
-  // viewers work in the project sections the admin configured (ADR 0075).
+  // viewers work in the sections of workflows the admin published (ADR 0075).
   const hasRegistryAccess = isAdmin || !auth.session?.user;
   const sectionsView = Boolean(auth.session?.user) && !isAdmin;
   const sectionNavigationQuery = useQuery({
-    queryKey: queryKeys.sectionNavigation,
-    queryFn: fetchSectionNavigationProjects,
+    queryKey: queryKeys.operatorSections,
+    queryFn: fetchOperatorSections,
     enabled: sectionsView,
     staleTime: 60_000,
   });
@@ -536,7 +536,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   const sidebarSections = sectionsView
     ? [
         ...buildProjectSectionNavigation(sectionNavigationQuery.data ?? [], {
-          singleLabel: t("react.user_sections.menu", "Sections"),
+          singleLabel: t("react.operator.menu", "Sections"),
         }),
         ...(operatorSettingsSection ? [operatorSettingsSection] : []),
       ]

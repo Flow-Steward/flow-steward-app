@@ -11,11 +11,9 @@ export const queryKeys = {
   projectsList: (params: { page: number; perPage: number; search: string }) =>
     ["projects", "list", params] as const,
   projectDetail: (projectId: string | number) => ["projects", "detail", stringFromUnknownValue(projectId)] as const,
-  /** ADR 0075: sections resolved against contracts, and one section's history page. */
-  projectSections: (projectId: string) => ["projects", "sections", projectId] as const,
-  sectionJobs: (projectId: string, sectionId: string, params: Record<string, unknown>) =>
-    ["projects", "sections", projectId, sectionId, "jobs", params] as const,
-  sectionNavigation: ["projects", "section-navigation"] as const,
+  /** ADR 0075: the operator and viewer menu, and one (project, workflow) section. */
+  operatorSections: ["operator", "sections"] as const,
+  operatorSection: (projectId: string, workflowId: string) => ["operator", "sections", projectId, workflowId] as const,
   eventsList: (params: {
     workflowId: string;
     eventFamily: string;

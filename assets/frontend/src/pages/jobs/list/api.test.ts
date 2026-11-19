@@ -37,3 +37,15 @@ it("sends date bounds alongside workflow and status filters", async () => {
   expect(requested.searchParams.get("workflow_id")).toBe("wf");
   expect(requested.searchParams.getAll("status")).toEqual(["failed"]);
 });
+
+it("asks for a section's operator view with the configured filters as one JSON value (ADR 0075)", async () => {
+  mockedFetchJson.mockResolvedValue({ jobs: [] });
+  await fetchJobsList({ page: 1, perPage: 25, status: "", projectId: "p1", workflowId: "wf", operatorView: true, operatorFilters: { "output.total": { min: 10 } } });
+  const requested = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(requested.searchParams.get("operator_view")).toBe("1");
+  expect(requested.searchParams.get("filters")).toBe('{"output.total":{"min":10}}');
+  mockedFetchJson.mockClear();
+  await fetchJobsList({ page: 1, perPage: 25, status: "", projectId: "p1", workflowId: "wf", operatorView: true, operatorFilters: null });
+  const unfiltered = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(unfiltered.searchParams.has("filters")).toBe(false);
+});

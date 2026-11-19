@@ -1,63 +1,51 @@
 import { LayoutList, type LucideIcon } from "lucide-react";
 
 import type { NavEntry, NavSection } from "@/components/layout/app-shell-helpers";
-import { fetchProjectsList, type ProjectListItem } from "@/pages/projects/list/api";
-import type { ProjectUserSectionBrief } from "@/pages/projects/user-sections/types";
+import type { OperatorSectionItem } from "@/pages/operator/types";
 
-export function sectionPath(projectId: string, sectionId: string): string {
-  return `/projects/${encodeURIComponent(projectId)}/sections/${encodeURIComponent(sectionId)}`;
+/** A section's page: both ids are in the address, also when the menu is flat. */
+export function sectionWorkPath(projectId: string, workflowId: string): string {
+  return `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/work`;
 }
 
-function briefs(project: ProjectListItem): ProjectUserSectionBrief[] {
-  const raw = project.user_sections;
-  return (Array.isArray(raw) ? (raw as ProjectUserSectionBrief[]) : [])
-    .filter((brief) => brief && typeof brief.id === "string" && typeof brief.title === "string")
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.title.localeCompare(b.title));
-}
-
-function entry(project: ProjectListItem, brief: ProjectUserSectionBrief, icon: LucideIcon): NavEntry {
+function entry(section: OperatorSectionItem, icon: LucideIcon): NavEntry {
   return {
-    // Project id in the key: the same section id or title in two projects stays two items.
-    key: `section:${project.id}:${brief.id}`,
-    label: brief.title,
-    to: sectionPath(project.id, brief.id),
+    // Project id in the key: the same workflow in two projects stays two items.
+    key: `section:${section.project_id}:${section.workflow_id}`,
+    label: section.title || section.workflow_name || section.workflow_id,
+    to: sectionWorkPath(section.project_id, section.workflow_id),
     icon,
   };
 }
 
 /**
- * The operator's and viewer's menu (ADR 0075): with one project its sections sit
- * at the top level; with several, each project is a group of its sections.
- * Projects without visible sections add nothing and do not change the choice.
+ * The operator's and viewer's menu (ADR 0075) from `GET /api/v2/projects/sections`:
+ * with one project its sections sit at the top level; with several, each project
+ * is a collapsible group of its sections, in the server's order. A project
+ * without sections is not in the answer, so it adds nothing. A blocked section
+ * stays: its page says why.
  */
 export function buildProjectSectionNavigation(
-  projects: readonly ProjectListItem[],
+  sections: readonly OperatorSectionItem[],
   { singleLabel, icon = LayoutList }: Readonly<{ singleLabel: string; icon?: LucideIcon }>,
 ): NavSection[] {
-  const withSections = projects
-    .map((project) => ({ project, sections: briefs(project) }))
-    .filter((item) => item.sections.length > 0);
-  if (withSections.length === 1) {
-    const [{ project, sections }] = withSections;
-    return [{ key: "sections", label: singleLabel, items: sections.map((brief) => entry(project, brief, icon)) }];
+  const groups = new Map<string, { name: string; items: NavEntry[] }>();
+  for (const section of sections) {
+    if (!section?.project_id || !section.workflow_id) continue;
+    const group = groups.get(section.project_id) ?? { name: section.project_name || section.project_id, items: [] };
+    group.items.push(entry(section, icon));
+    groups.set(section.project_id, group);
   }
-  return withSections.map(({ project, sections }) => ({
-    key: `project:${project.id}`,
-    label: project.name || project.id,
-    items: sections.map((brief) => entry(project, brief, icon)),
+  if (groups.size === 1) {
+    const [group] = groups.values();
+    return [{ key: "sections", label: singleLabel, items: group.items }];
+  }
+  return [...groups.entries()].map(([projectId, group]) => ({
+    key: `project:${projectId}`,
+    label: group.name,
+    items: group.items,
+    collapsible: true,
   }));
-}
-
-/** Every project the user may see, across pages, in one list for the menu. */
-export async function fetchSectionNavigationProjects(): Promise<ProjectListItem[]> {
-  const perPage = 200;
-  const projects: ProjectListItem[] = [];
-  for (let page = 1; page <= 50; page += 1) {
-    const payload = await fetchProjectsList({ page, perPage, search: "", includeAllWorkspaces: true });
-    projects.push(...(payload.projects ?? []));
-    if (page >= (payload.total_pages || 1)) break;
-  }
-  return projects;
 }
 
 /** The first section a user lands on, or "" when there is none. */

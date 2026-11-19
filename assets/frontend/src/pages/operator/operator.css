@@ -1,0 +1,28 @@
+/* Operator section list (ADR 0075): file cells and the column picker. */
+.fs-operator-file-strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-050);
+  max-width: 22rem;
+}
+
+.fs-operator-file-link {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.fs-operator-file-more {
+  color: var(--fs-text-tertiary);
+  white-space: nowrap;
+}
+
+.fs-operator-column-picker {
+  display: grid;
+  gap: var(--fs-space-075);
+  min-width: 12rem;
+}

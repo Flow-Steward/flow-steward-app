@@ -46,6 +46,10 @@ vi.mock("@/pages/projects/detail", () => ({
   ProjectsDetailPage: () => <div>Project detail rendered</div>,
 }));
 
+vi.mock("@/pages/operator/section-page", () => ({
+  OperatorSectionPage: () => <div>Operator section rendered</div>,
+}));
+
 vi.mock("@/pages/settings/hub", () => ({
   SettingsHubPage: () => <div>Settings hub</div>,
 }));
@@ -263,6 +267,24 @@ describe("AppRouter", () => {
       expect(screen.queryByText("Project detail rendered")).not.toBeInTheDocument();
     },
   );
+
+  it("opens a published workflow's section at /projects/:id/workflows/:id/work (ADR 0075)", async () => {
+    globalThis.history.pushState({}, "", "/projects/project-123/workflows/wf.receipts/work");
+    mockedUseAuth.mockReturnValue({
+      error: null,
+      isAuthenticated: true,
+      logout: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined),
+      switchAccount: vi.fn(async () => undefined),
+      session: createSession({ authenticated: true, roles: ["viewer"] }),
+      status: "authenticated",
+    });
+
+    render(createElement(AppRouter));
+
+    await waitFor(() => expect(screen.getByText("Operator section rendered")).toBeInTheDocument());
+    expect(screen.queryByText("Project detail rendered")).not.toBeInTheDocument();
+  });
 
   it("opens the project page for a role that cannot change projects", async () => {
     globalThis.history.pushState({}, "", "/projects/project-123?tab=policy");

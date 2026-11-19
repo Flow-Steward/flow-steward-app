@@ -23,7 +23,6 @@ import { ProjectConnectionsEditor } from "@/pages/projects/connections";
 import { ProjectWorkflowSecrets } from "@/pages/projects/workflows/project-workflow-secrets";
 import { ProjectDatasetsEditor } from "@/pages/projects/datasets";
 import type { ModelOption } from "@/lib/utils/model-options";
-import { ProjectUserSectionsEditor } from "@/pages/projects/user-sections/editor";
 
 /* Notifications (a read-only overview), Runtime Connections and Datasets
    persist through their own screens, so the shared submission never reaches them, and offering
@@ -268,7 +267,6 @@ export function ProjectEditForm({
       >
         <div className="fs-panel-stack">
           {renderWhen(historyActive, <ProjectHistoryPanel projectId={projectId} />)}
-          {renderWhen(activeTab === "user-sections" && !readOnly, <ProjectUserSectionsEditor projectId={projectId} />)}
           {/* Read-only is one switch for every section: a disabled fieldset
               disables each control inside it, the sections' own Save buttons
               included, while the data stays on screen. `contents` keeps the

@@ -394,3 +394,33 @@ describe("AppShellSidebar", () => {
     expect(screen.getByRole("link", { name: "Trash" })).toBeInTheDocument();
   });
 });
+
+describe("AppShellSidebar collapsible groups (ADR 0075)", () => {
+  const projectGroups: NavSection[] = [
+    {
+      key: "project:p1",
+      label: "Acme",
+      collapsible: true,
+      items: [{ key: "section:p1:wf", label: "Invoices", to: "/projects/p1/workflows/wf/work", icon: Workflow }],
+    },
+    {
+      key: "project:p2",
+      label: "Beta",
+      collapsible: true,
+      items: [{ key: "section:p2:wf", label: "Receipts", to: "/projects/p2/workflows/wf/work", icon: Workflow }],
+    },
+  ];
+
+  it("folds and unfolds a project's sections from its label", () => {
+    renderSidebar({ pathname: "/projects/p1/workflows/wf/work", sidebarSections: projectGroups });
+    const toggle = screen.getByRole("button", { name: "Acme" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Invoices" })).toBeVisible();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Invoices" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Receipts" })).toBeVisible();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("link", { name: "Invoices" })).toBeVisible();
+  });
+});

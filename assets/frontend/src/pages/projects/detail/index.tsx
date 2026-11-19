@@ -876,8 +876,6 @@ export function ProjectsDetailPage() {
     { key: "connections", label: t("react.projects.runtime_connections", "Runtime Connections") },
     { key: "datasets", label: t("react.projects.datasets", "Datasets") },
     { key: "history", label: t("react.projects.history", "History") },
-    // ADR 0075: the admin configures the sections operators and viewers work in.
-    ...(canMutate ? [{ key: "user-sections" as const, label: t("react.user_sections.tab", "User sections") }] : []),
   ];
   const workflowFilterItems: Array<{ key: WorkflowStatusFilter; label: string; count: number }> = [
     { key: "all", label: t("project_detail.jobs.all", "All"), count: availableWorkflowRows.length },

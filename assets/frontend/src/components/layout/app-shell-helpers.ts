@@ -38,6 +38,8 @@ export type NavSection = {
   key: string;
   label: string;
   items: NavEntry[];
+  /** The label folds and unfolds the items (an operator's project group, ADR 0075). */
+  collapsible?: boolean;
 };
 
 export type AccountMembership = {

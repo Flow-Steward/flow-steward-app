@@ -30,8 +30,8 @@ const JobsListPage = lazyNamed(() => import("@/pages/jobs/list"), "JobsListPage"
 const MonitoringPage = lazyNamed(() => import("@/pages/monitoring"), "MonitoringPage");
 const ProjectsDetailPage = lazyNamed(() => import("@/pages/projects/detail"), "ProjectsDetailPage");
 const ProjectsListPage = lazyNamed(() => import("@/pages/projects/list"), "ProjectsListPage");
-const ProjectSectionPage = lazyNamed(() => import("@/pages/projects/user-sections"), "ProjectSectionPage");
-const SectionsHomePage = lazyNamed(() => import("@/pages/projects/user-sections/home"), "SectionsHomePage");
+const OperatorSectionPage = lazyNamed(() => import("@/pages/operator/section-page"), "OperatorSectionPage");
+const OperatorSectionsHomePage = lazyNamed(() => import("@/pages/operator/home"), "OperatorSectionsHomePage");
 const RegistryAgentsPage = lazyNamed(() => import("@/pages/registry/agents"), "RegistryAgentsPage");
 const RegistryAgentsDetailPage = lazyNamed(
   () => import("@/pages/registry/agents/detail"),
@@ -271,7 +271,7 @@ function AppRoutes() {
 
         <Route element={<ProtectedLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="sections" element={<SectionsHomePage />} />
+          <Route path="sections" element={<OperatorSectionsHomePage />} />
           {/* ADR 0066 amendment: an operator replaces secret values (a changed
               mailbox password) without the registry; binding stays the admin's. */}
           <Route path="secrets" element={<RequireCapability capability="manage_secret_values"><RegistrySecretsPage /></RequireCapability>} />
@@ -288,8 +288,8 @@ function AppRoutes() {
             <Route index element={<ProjectsListPage />} />
             <Route path="new" element={<ShellNotFound />} />
             <Route path=":projectId" element={<ProjectsDetailPage />} />
-            {/* ADR 0075: where operators and viewers work. */}
-            <Route path=":projectId/sections/:sectionId" element={<ProjectSectionPage />} />
+            {/* ADR 0075: a published workflow in one project, where operators and viewers work. */}
+            <Route path=":projectId/workflows/:workflowId/work" element={<OperatorSectionPage />} />
             {/* The Notifications tab is a read-only overview; subscriptions are edited here. */}
             <Route path=":projectId/kb" element={<ShellNotFound />} />
           </Route>

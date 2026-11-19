@@ -44,8 +44,12 @@ export type JobsListFilters = {
   projectId: string | null;
   workflowId?: string | null;
   taskSource?: "workflow_test_run";
-  /** ADR 0075: one user section's history with its configured column values. */
-  sectionId?: string | null;
+  /**
+   * ADR 0075: a section's list. Needs both ids; rows carry `operator_values` for
+   * the configured columns, and `filters` holds configured filter id → value.
+   */
+  operatorView?: boolean;
+  operatorFilters?: Record<string, unknown> | null;
   search?: string;
   workspaceId?: string | null;
   fromDate?: string;
@@ -74,8 +78,11 @@ export async function fetchJobsList(filters: JobsListFilters) {
   if (filters.taskSource) {
     params.set("task_source", filters.taskSource);
   }
-  if (filters.sectionId?.trim()) {
-    params.set("section_id", filters.sectionId.trim());
+  if (filters.operatorView) {
+    params.set("operator_view", "1");
+    if (filters.operatorFilters && Object.keys(filters.operatorFilters).length) {
+      params.set("filters", JSON.stringify(filters.operatorFilters));
+    }
   }
   if (filters.search?.trim()) {
     params.set("search", filters.search.trim());
