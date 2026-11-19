@@ -6,3 +6,21 @@ contributors.
 
 The source code in this repository is licensed under the Apache License, Version 2.0.
 See the LICENSE file for details.
+
+Third-party components in the web UI document preview (ADR 0077)
+-----------------------------------------------------------------
+
+The browser previews PDF, spreadsheet and Word files with these libraries,
+bundled into lazily loaded chunks of the web UI. Each package's own LICENSE
+file holds its full license text.
+
+- PDF.js (npm pdfjs-dist) 6.5.438, Apache-2.0, Copyright Mozilla Foundation.
+  The preview also serves its JavaScript image decoders: JBIG2 (PDFium,
+  BSD-3-Clause, and Mozilla, Apache-2.0) and OpenJPEG (BSD-2-Clause).
+  The standard fonts and WebAssembly files of the package are not shipped.
+- SheetJS Community Edition (xlsx) 0.20.3, Apache-2.0, Copyright SheetJS LLC,
+  installed from https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz.
+- docx-preview 0.4.1, Apache-2.0, Copyright Volodymyr Baydalka.
+- JSZip 3.10.2, dual licensed MIT or GPL-3.0-or-later and used under MIT,
+  Copyright Stuart Knightley and contributors. Its browser build includes
+  pako 1.0.11, MIT AND Zlib, Copyright Vitaly Puzrin and Andrei Tuputcyn.
