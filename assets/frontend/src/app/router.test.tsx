@@ -7,6 +7,7 @@ import type { AuthSession } from "@/lib/auth/AuthProvider";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AppRouter, HomeGate } from "@/app/router";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
+import { sessionUser, type SystemRole } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -137,7 +138,7 @@ describe("HomeGate", () => {
       logout: vi.fn(async () => undefined),
       refresh: vi.fn(async () => undefined),
       switchAccount: vi.fn(async () => undefined),
-      session: createSession({ authenticated: true, roles: [role] }),
+      session: createSession({ authenticated: true, roles: [role], user: sessionUser(role as SystemRole) }),
       status: "authenticated",
     });
 

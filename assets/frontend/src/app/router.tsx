@@ -7,6 +7,8 @@ import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { PagePlaceholder } from "@/components/shared/page-placeholder";
 import { registeredPageComponents } from "@/app/extensions";
 import { RequireAdmin, RequireAuth, RequireCapability } from "@/lib/auth/guards";
+import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { BootstrapPage } from "@/pages/auth/bootstrap";
@@ -143,8 +145,8 @@ export function HomeGate() {
 
   if (!auth.isAuthenticated) return <Navigate replace to="/login" />;
   // An admin lands on the Dashboard; operators and viewers on their sections (ADR 0075).
-  const roles = (auth.session?.user?.roles ?? auth.session?.roles ?? []).map((role) => String(role).toLowerCase());
-  return <Navigate replace to={roles.includes("admin") ? "/dashboard" : "/sections"} />;
+  const administers = hasCapability(sessionPermissions(auth.session), "administer_platform");
+  return <Navigate replace to={administers ? "/dashboard" : "/sections"} />;
 }
 
 function ProtectedLayout() {
@@ -311,7 +313,7 @@ function AppRoutes() {
               <Route path="notifications" />
             </Route>
             <Route path="account" element={<SettingsAccountPage />} />
-            <Route path="users" element={<RequireCapability capability="administer_platform"><SettingsUsersPage /></RequireCapability>} />
+            <Route path="users" element={<RequireCapability capability="manage_users"><SettingsUsersPage /></RequireCapability>} />
             <Route path=":settingsPageKey" element={<RequireCapability capability="administer_platform"><SettingsDynamicRoute /></RequireCapability>} />
           </Route>
 

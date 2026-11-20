@@ -16,6 +16,7 @@ import {
   startExtensionOAuthAuthorization,
 } from "@/pages/extensions/extension-oauth-api";
 import { ExtensionOAuthSetup } from "@/pages/extensions/extension-oauth-setup";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/extension-oauth-api", () => ({
   deleteExtensionOAuthConfiguration: vi.fn(),
@@ -343,8 +344,9 @@ describe("the Connection page renders the manifest shapes Core actually emits", 
   });
 
   it.each([
+    // Pasting a refresh token configures a project connection (projects.write): the admin's.
     ["admin", "compiled"],
-    ["operator", "projected"],
+    ["admin", "projected"],
   ] as const)("renders the paste form for an %s from the %s manifest", async (role, shape) => {
     const manifest = pinnedManifests[shape];
     const pages = manifest.ui_manifest.pages as Record<string, unknown>[];
@@ -354,7 +356,7 @@ describe("the Connection page renders the manifest shapes Core actually emits", 
 
     render(
       <QueryClientProvider client={queryClient}>
-        <AuthContext.Provider value={{ session: { roles: [role] } } as never}>
+        <AuthContext.Provider value={{ session: { roles: [role], user: { roles: [role], permissions: permissionsForRoles([role]) } } } as never}>
           <ExtensionDetailPanel
             {...({
               activationBlockedReason: "",

@@ -7,6 +7,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { useParams } from "react-router";
 import { useWorkflowDetailDomBridge } from "@/pages/workflows/detail/detail-dom-bridge";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useWorkflowNormalRunController } from "./detail-normal-run-controller";
 import { useWorkflowTestRunController } from "@/pages/workflows/detail/detail-test-run-controller";
 import { useSelectedWorkflowTestRun } from "@/pages/workflows/detail/detail-selected-test-run";
@@ -214,7 +215,7 @@ function WorkflowDetailPageContent({
     navigationBusy: runNavigationBusy,
     historyDisabled: !currentSubmissionOwner,
     navigate: navigateSelectedRun,
-    roles: session?.user?.roles || session?.roles || [],
+    permissions: sessionPermissions(session),
     timezone: stringFromUnknownValue(session?.user?.timezone) || stringFromUnknownValue(objectOrEmpty(session).timezone),
     runAgainBusy: authorTestRun.workflowTestRunMutation.isPending,
     runAgainBlockedReason: wholeWorkflowRunBlockedReason || (authorTestRun.workflowTestRunPending ? t("react.workflows.run_again_active", "A Test Run is already active.") : ""),

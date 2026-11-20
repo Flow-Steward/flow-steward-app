@@ -25,6 +25,7 @@ import { useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { fetchJson } from "@/lib/http/client";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -74,7 +75,7 @@ import {
   type NavSection,
   type WorkspaceOption,
 } from "@/components/layout/app-shell-helpers";
-import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
+import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   EXTENSION_UPDATES_QUERY_KEY,
@@ -249,18 +250,9 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     };
   }, [themeMode]);
 
-  const roles = useMemo(() => {
-    const rawRoles = auth.session?.user?.roles || auth.session?.roles || [];
-    return rawRoles
-      .map((role) =>
-        firstStringFromUnknownValue([role, ""])
-          .trim()
-          .toLowerCase(),
-      )
-      .filter(isTruthy);
-  }, [auth.session]);
-
-  const isAdmin = roles.includes("admin");
+  // ADR 0076: menus follow the permissions the server computed for the person.
+  const permissions = useMemo(() => sessionPermissions(auth.session), [auth.session]);
+  const isAdmin = hasCapability(permissions, "administer_platform");
   // WordPress's count bubble on Plugins. Only administrators see Extensions in
   // the navigation, so only they ask; a failed check simply shows no count.
   const extensionUpdatesQuery = useQuery({
@@ -528,7 +520,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     .filter((section): section is NavSection => section !== null)
     .filter((section) => section.items.length > 0);
   // An operator also replaces secret values (a changed mailbox password); a viewer only reads.
-  const operatorSettingsSection: NavSection | null = roles.includes("operator")
+  const operatorSettingsSection: NavSection | null = hasCapability(permissions, "manage_secret_values")
     ? {
         key: "operator_settings",
         label: t("shell.nav.settings", "Settings"),
@@ -663,7 +655,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   ) : null;
   const sidebar = (
     <AppShellSidebar
-      canManageUsers={hasCapability(roles, "administer_platform")}
+      canManageUsers={hasCapability(permissions, "manage_users")}
       loggingOut={loggingOut}
       onExpandRail={expandRail}
       onLogout={handleLogout}

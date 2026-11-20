@@ -17,6 +17,7 @@ import {
 
 // Install the shared helper's API mocks before importing their real consumer.
 import { JobsDetailPage, type JobDetailExecutionOwner } from "./index";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 const authValue: AuthContextValue = {
   error: null, isAuthenticated: true, status: "authenticated",
@@ -25,7 +26,7 @@ const authValue: AuthContextValue = {
     authenticated: true, local_auth_enabled: true, bootstrap_required: false, external_auth_enabled: false,
     roles: ["admin"], permissions: {}, account_memberships: [],
     user: { id: "inspector-user", email: "inspector@example.test", username: "inspector", display_name: "Inspector",
-      roles: ["admin"], account_id: "account-test", account_ids: ["account-test"], account_memberships: [], timezone: "Europe/Vilnius" },
+      roles: ["admin"], permissions: permissionsForRoles(["admin"]), account_id: "account-test", account_ids: ["account-test"], account_memberships: [], timezone: "Europe/Vilnius" },
     i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
     feature_flags: {}, environment: { edition: "community", mode: "development" },
     settings_pages: [], registered_pages: [], shell_navigation: {},

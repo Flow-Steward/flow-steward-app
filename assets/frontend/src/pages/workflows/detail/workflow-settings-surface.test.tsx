@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { WorkflowsOverviewPage } from "@/pages/workflows/overview";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 const workflowId = "lazy-settings-fixture";
 const projectId = "project-settings-fixture";
@@ -30,7 +31,7 @@ function auth(role: "admin" | "operator"): AuthContextValue {
       user: {
         id: "settings-fixture-user", email: "settings-fixture@example.invalid",
         username: "settings-fixture", display_name: "Settings fixture",
-        roles: [role], account_id: "settings-fixture-account",
+        roles: [role], permissions: permissionsForRoles([role]), account_id: "settings-fixture-account",
         account_ids: ["settings-fixture-account"], account_memberships: [],
         timezone: "UTC", locale: "en",
       },

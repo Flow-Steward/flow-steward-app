@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { RequireCapability } from "@/lib/auth/guards";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
   return {
@@ -15,7 +16,7 @@ function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
     session: {
       authenticated: true,
       roles: [role],
-      user: { roles: [role] },
+      user: { roles: [role], permissions: permissionsForRoles([role]) },
     } as AuthContextValue["session"],
     status: "authenticated",
   };

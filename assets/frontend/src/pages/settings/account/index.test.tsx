@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
 import { AuthContext } from "@/lib/auth/context";
+import { sessionUser, type SystemRole } from "@/test/role-permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { interpolate } from "@/lib/i18n/interpolate";
 import type { TranslateParams } from "@/lib/i18n/context";
@@ -89,6 +90,7 @@ describe("SettingsAccountPage", () => {
         local_auth_enabled: true,
         system_email_available: true,
         roles: ["admin"],
+        user: sessionUser("admin"),
         permissions: { can_read: true, can_mutate: true },
         account_memberships: [],
         i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
@@ -223,7 +225,7 @@ describe("SettingsAccountPage", () => {
 
   it.each(["viewer", "operator"])("does not offer administrator access to a %s session", async (role) => {
     const current = mockedUseAuth();
-    mockedUseAuth.mockReturnValue({ ...current, session: { ...current.session!, roles: [role] } });
+    mockedUseAuth.mockReturnValue({ ...current, session: { ...current.session!, roles: [role], user: sessionUser(role as SystemRole) } });
     const user = userEvent.setup();
     renderPage("/settings/account?tab=tokens");
     await screen.findByRole("tabpanel", { name: "Personal tokens" });

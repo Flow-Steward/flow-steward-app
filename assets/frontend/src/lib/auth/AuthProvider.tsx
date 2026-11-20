@@ -23,6 +23,11 @@ export type AuthUser = {
   username: string;
   display_name: string;
   roles: string[];
+  /**
+   * ADR 0076: the permission keys the server computed for this person; the interface
+   * shows menus and buttons from these. `null` for a principal that is not role-based.
+   */
+  permissions?: string[] | null;
   account_id: string;
   account_ids: string[];
   account_memberships: Array<Record<string, unknown>>;

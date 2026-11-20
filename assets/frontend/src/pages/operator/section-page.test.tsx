@@ -12,10 +12,11 @@ import { runBuilderWorkflow } from "@/pages/workflows/shared/run-api";
 
 import { OperatorSectionPage } from "./section-page";
 import type { OperatorSectionDetail } from "./types";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 let uploadLimits: RunUploadLimits | undefined;
 
-vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { user: { roles: ["operator"] } } }) }));
+vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { user: { roles: ["operator"], permissions: permissionsForRoles(["operator"]) } } }) }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 vi.mock("@/lib/auth/run-upload-limits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/auth/run-upload-limits")>()),

@@ -28,6 +28,7 @@ import {
   type ExtensionCatalogListing,
   type ExtensionUpdateCheck,
 } from "@/pages/extensions/catalog-api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/api", () => ({
   checkExtensionHealth: vi.fn(),
@@ -206,7 +207,7 @@ function authValue(): AuthContextValue {
     session: {
       authenticated: true,
       roles: ["admin"],
-      user: { roles: ["admin"] },
+      user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) },
     } as AuthContextValue["session"],
     status: "authenticated",
   };

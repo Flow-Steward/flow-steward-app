@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { WORKSPACES_CHANGED_EVENT } from "@/lib/utils/workspace-selection";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -107,6 +108,7 @@ function mockAuthenticatedSession({
         username: "owner",
         display_name: "Owner",
         roles: ["admin"],
+        permissions: permissionsForRoles(["admin"]),
         account_id: "acct-primary",
         account_ids: ["acct-primary", "acct-ops"],
         account_memberships: userMemberships,
@@ -553,7 +555,7 @@ describe("AppShell", () => {
       switchAccount: vi.fn(async () => undefined),
       sessionOverrides: {
         roles: [role],
-        user: { id: "7", account_id: "acct-primary", roles: [role] },
+        user: { id: "7", account_id: "acct-primary", roles: [role], permissions: permissionsForRoles([role]) },
       },
     });
     mockedUseIsAdmin.mockReturnValue(role === "admin");
@@ -712,7 +714,7 @@ describe("AppShell", () => {
       switchAccount: vi.fn(async () => undefined),
       sessionOverrides: {
         roles: [role],
-        user: { id: "7", account_id: "acct-primary", roles: [role] },
+        user: { id: "7", account_id: "acct-primary", roles: [role], permissions: permissionsForRoles([role]) },
       },
     });
     mockedUseIsAdmin.mockReturnValue(role === "admin");
@@ -729,6 +731,58 @@ describe("AppShell", () => {
     } else {
       expect(within(menu).queryByRole("menuitem", { name: "Users & access" })).not.toBeInTheDocument();
     }
+  });
+
+  // ADR 0076: the menus come from the permissions in the session, not from role names.
+  it.each([
+    ["admin", { system: true, operatorSecrets: false, sections: false }],
+    ["operator", { system: false, operatorSecrets: true, sections: true }],
+    ["viewer", { system: false, operatorSecrets: false, sections: true }],
+  ] as const)("shows %s the menus of their permissions", async (role, expected) => {
+    mockAuthenticatedSession({
+      switchAccount: vi.fn(async () => undefined),
+      sessionOverrides: {
+        roles: [role],
+        user: { id: "7", account_id: "acct-primary", roles: [role], permissions: permissionsForRoles([role]) },
+      },
+    });
+    mockedUseIsAdmin.mockReturnValue(role === "admin");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><AppShell>content</AppShell></MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const sidebar = await screen.findByTestId("app-shell-sidebar");
+    const links = () => within(sidebar).queryAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(links().includes("/monitoring")).toBe(expected.system);
+    expect(links().includes("/trash")).toBe(expected.system);
+    expect(links().includes("/extensions")).toBe(expected.system);
+    expect(links().includes("/registry/secrets")).toBe(expected.system);
+    expect(links().includes("/secrets")).toBe(expected.operatorSecrets);
+    expect(links().includes("/dashboard")).toBe(!expected.sections);
+  });
+
+  it("shows a person whose session carries no permissions no configuration menus", async () => {
+    mockAuthenticatedSession({
+      switchAccount: vi.fn(async () => undefined),
+      sessionOverrides: {
+        roles: ["admin"],
+        // A principal that is not role-based: the interface does not guess from the role name.
+        user: { id: "7", account_id: "acct-primary", roles: ["admin"], permissions: null },
+      },
+    });
+    mockedUseIsAdmin.mockReturnValue(false);
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter><AppShell>content</AppShell></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Account menu" }));
+
+    const sidebar = screen.getByTestId("app-shell-sidebar");
+    expect(within(sidebar).queryByRole("link", { name: /Monitoring/ })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("menu", { name: "Account menu" })).queryByRole("menuitem", { name: "Users & access" })).not.toBeInTheDocument();
   });
 
   it("keeps workspace, theme, and account controls out of the Header", async () => {

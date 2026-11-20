@@ -21,6 +21,7 @@ import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { fetchExtensionOAuthConfigurations } from "@/pages/extensions/extension-oauth-api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/api", () => ({
   checkExtensionHealth: vi.fn(),
@@ -138,7 +139,7 @@ function authValue(locale: string): AuthContextValue {
     session: {
       authenticated: true,
       roles: ["admin"],
-      user: { roles: ["admin"] },
+      user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) },
       i18n: { locale, fallback_locale: "en", supported_locales: [], messages: {} },
     } as unknown as AuthContextValue["session"],
     status: "authenticated",

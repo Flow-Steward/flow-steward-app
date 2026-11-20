@@ -5,6 +5,7 @@ import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
 
 import { useAuth } from "@/lib/auth/useAuth";
+import { permissionsForRoles } from "@/test/role-permissions";
 import { ProjectHistoryPanel } from "@/pages/projects/history";
 import {
   fetchProjectHistory,
@@ -55,6 +56,7 @@ function authSessionForRole(role: string) {
       username: role,
       display_name: role,
       roles: [role],
+      permissions: permissionsForRoles([role]),
       account_id: "default",
       account_ids: ["default"],
       account_memberships: [],
@@ -130,16 +132,22 @@ describe("ProjectHistoryPanel", () => {
     await waitFor(() => expect(screen.getByRole("heading", { name: "History" })).toBeInTheDocument());
     expect(screen.getByText(/revision diff/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /restore this revision/i })).not.toBeInTheDocument();
-    expect(screen.getByText("Viewer mode is read-only on project history.")).toBeInTheDocument();
+    expect(screen.getByText("Only an admin restores a revision.")).toBeInTheDocument();
   });
 
-  it("keeps restore available for operators", async () => {
+  // ADR 0076: restoring is POST .../history/{revision}/restore, which needs
+  // projects.write. The server always refused it to an operator; the button now
+  // follows the same permission instead of offering a request that fails.
+  it.each([
+    ["admin", true],
+    ["operator", false],
+  ] as const)("offers restore to %s: %s", async (role, offered) => {
     mockedUseAuth.mockReturnValue({
       error: null,
       isAuthenticated: true,
       logout: vi.fn(),
       refresh: vi.fn(),
-      session: authSessionForRole("operator"),
+      session: authSessionForRole(role),
       status: "authenticated",
       switchAccount: vi.fn(),
     });
@@ -147,11 +155,12 @@ describe("ProjectHistoryPanel", () => {
     renderHistoryPage();
 
     expect(screen.getByText(/revision diff/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /restore this revision/i })).toBeInTheDocument();
+    if (offered) expect(screen.getByRole("button", { name: /restore this revision/i })).toBeInTheDocument();
+    else expect(screen.queryByRole("button", { name: /restore this revision/i })).not.toBeInTheDocument();
   });
 
   it("localizes restore confirmation and does not mutate a declined owner revision", async () => {
-    mockedUseAuth.mockReturnValue({ error: null, isAuthenticated: true, logout: vi.fn(), refresh: vi.fn(), session: authSessionForRole("operator"), status: "authenticated", switchAccount: vi.fn() });
+    mockedUseAuth.mockReturnValue({ error: null, isAuthenticated: true, logout: vi.fn(), refresh: vi.fn(), session: authSessionForRole("admin"), status: "authenticated", switchAccount: vi.fn() });
     vi.mocked(globalThis.confirm).mockReturnValue(false);
     mockedRestoreProjectHistoryRevision.mockClear();
     renderHistoryPage("/projects/project-123?tab=history&selected_revision_id=rev-2", "lt");
@@ -166,7 +175,7 @@ describe("ProjectHistoryPanel", () => {
       isAuthenticated: true,
       logout: vi.fn(),
       refresh: vi.fn(),
-      session: authSessionForRole("operator"),
+      session: authSessionForRole("admin"),
       status: "authenticated",
       switchAccount: vi.fn(),
     });

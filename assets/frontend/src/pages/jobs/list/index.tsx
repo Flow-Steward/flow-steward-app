@@ -9,6 +9,7 @@ import { RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router";
 import { appHref } from "@/lib/routing/app-href";
 
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { readStoredWorkspaceId } from "@/lib/utils/workspace-selection";
@@ -352,15 +353,16 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
     selectionScopeRef.current = { key: filterScope, generation: selectionScopeRef.current.generation + 1 };
   }
 
+  // ADR 0076: the actions follow the permissions of the routes they call.
   const roleFlags = useMemo(() => {
-    const roles = new Set((auth.session?.user?.roles || auth.session?.roles || [])
-      .map((role) => firstStringFromUnknownValue([role, ""]).trim().toLowerCase())
-      .filter(isTruthy));
-    const isAdmin = roles.has("admin");
-    const isOperator = roles.has("operator");
+    const permissions = sessionPermissions(auth.session);
     return {
-      isAdmin,
-      canMutate: isAdmin || isOperator,
+      // Bulk delete: POST /api/jobs/bulk-delete.
+      isAdmin: permissions.has("jobs.manage"),
+      // Cancel: POST /api/jobs/{id}/cancel.
+      canMutate: permissions.has("jobs.write"),
+      // The workflow filter's names: GET /api/workflows.
+      canReadRegistry: permissions.has("registry.read"),
     };
   }, [auth.session]);
 
@@ -895,8 +897,8 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
 
   useEffect(() => {
     let active = true;
-    // GET /api/workflows is for operators and admins; a viewer's options come from the jobs.
-    if (!roleFlags.canMutate || scope) {
+    // GET /api/workflows needs registry.read; a viewer's options come from the jobs.
+    if (!roleFlags.canReadRegistry || scope) {
       return () => {
         active = false;
       };
@@ -932,7 +934,7 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
     return () => {
       active = false;
     };
-  }, [roleFlags.canMutate]);
+  }, [roleFlags.canReadRegistry]);
 
   useEffect(() => {
     if (!urlWorkflowFilter) {

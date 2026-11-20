@@ -54,6 +54,7 @@ import {
 } from "@/pages/extensions/extension-oauth-api";
 import catalogBrowseStyles from "@/components/shared/catalog-browse.css?raw";
 import extensionStyles from "@/pages/extensions/extensions.css?raw";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/api", () => ({
   checkExtensionHealth: vi.fn(),
@@ -242,7 +243,7 @@ function authValue(
     session: {
       authenticated: true,
       roles: [role],
-      user: { id: "user-1", account_id: "account-1", ...identity, roles: [role] },
+      user: { id: "user-1", account_id: "account-1", ...identity, roles: [role], permissions: permissionsForRoles([role]) },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -349,18 +350,18 @@ function renderManualCallbackOwnerPage() {
   mockedFetchExtensionCallbacks.mockResolvedValue([{ ...registration, callback_url: "/webhook/extensions/example.connector/updates/<redacted>" }]);
   mockedCreateExtensionCallbackRegistration.mockResolvedValue(receipt);
   const entry = `/extensions/${extensionId}?project_id=project-1&extension_page=setup&extension_connection=connection-a`;
-  return { ...renderPage(entry, "operator"), receipt };
+  return { ...renderPage(entry, "admin"), receipt };
 }
 
 function unavailableCallbackAuth(
   state: "missing user" | "restoring user" | "restoring permissions",
 ): AuthContextValue {
-  const ready = authValue("operator");
+  const ready = authValue("admin");
   if (!ready.session) throw new Error("Expected an authenticated test session.");
   return {
     ...ready,
     status: state === "missing user" ? "authenticated" : "loading",
-    // Retain stale operator roles, including while the real user is absent.
+    // Retain the stale session roles, including while the real user is absent.
     session: { ...ready.session, user: state === "restoring permissions" ? ready.session.user : undefined },
   };
 }
@@ -1028,20 +1029,13 @@ describe("ExtensionsHubPage", () => {
 
       await waitFor(() => expect(screen.getByText("Smoke Guardrail Enforcement")).toBeInTheDocument());
       expect(mockedFetchExtensionPreview).not.toHaveBeenCalled();
-      if (role === "operator") {
-        expect(mockedFetchExtensionCallbacks).toHaveBeenCalledWith(
-          "smoke.guardrail.enforcement",
-          "project-1",
-        );
-        expect(screen.getByRole("button", { name: "Create and Configure" })).toBeVisible();
-        expect(screen.getByRole("button", { name: "Refresh Status" })).toBeVisible();
-      } else {
-        expect(mockedFetchExtensionCallbacks).not.toHaveBeenCalled();
-        expect(screen.getByText("Callback setup is managed by project managers.")).toBeVisible();
-        expect(screen.queryByText("not registered")).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Create and Configure" })).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Refresh Status" })).not.toBeInTheDocument();
-      }
+      // Registering a callback is POST /api/extensions/{id}/callbacks/{callback}: an
+      // admin's configuration (ADR 0066 amendment), so an operator reads like a viewer.
+      expect(mockedFetchExtensionCallbacks).not.toHaveBeenCalled();
+      expect(screen.getByText("Callback setup is managed by project managers.")).toBeVisible();
+      expect(screen.queryByText("not registered")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Create and Configure" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Refresh Status" })).not.toBeInTheDocument();
       expect(screen.getByRole("link", { name: "Back to project" })).toHaveAttribute(
         "href",
         "/projects/project-1",
@@ -1088,13 +1082,13 @@ describe("ExtensionsHubPage", () => {
     mockedFetchExtensionCallbacks.mockResolvedValue([{ ...registration, callback_url: "/webhook/extensions/example.connector/updates/<redacted>" }]);
     mockedCreateExtensionCallbackRegistration.mockResolvedValue(receipt);
     const entry = `/extensions/${extensionId}?project_id=project-1&extension_page=setup&extension_connection=connection-a`;
-    const view = renderPage(entry, "operator");
-    view.rerenderAuth(authValue("operator", { id: "user-1", account_id: "account-1" }));
+    const view = renderPage(entry, "admin");
+    view.rerenderAuth(authValue("admin", { id: "user-1", account_id: "account-1" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Create Callback" }));
     await waitFor(() => expect(screen.getByRole("button", { name: /copy verify token/i })).toBeVisible());
 
-    view.rerenderAuth(authValue("operator", nextIdentity));
+    view.rerenderAuth(authValue("admin", nextIdentity));
 
     expect(screen.getByTestId("location-probe")).toHaveTextContent(entry);
     expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled();
@@ -1123,7 +1117,7 @@ describe("ExtensionsHubPage", () => {
       expect(mockedCreateExtensionCallbackRegistration).toHaveBeenCalledTimes(1);
       expect(mockedRefreshExtensionCallbackStatus).not.toHaveBeenCalled();
 
-      view.rerenderAuth(authValue("operator"));
+      view.rerenderAuth(authValue("admin"));
 
       await waitFor(() => expect(screen.getByRole("button", { name: "Create Callback" })).toBeEnabled());
       expect(screen.queryByRole("button", { name: /copy callback url|copy verify token/i })).not.toBeInTheDocument();
@@ -1145,7 +1139,7 @@ describe("ExtensionsHubPage", () => {
 
     view.rerenderAuth(unavailableCallbackAuth("restoring user"));
     expectCallbackSetupUnavailable();
-    view.rerenderAuth(authValue("operator"));
+    view.rerenderAuth(authValue("admin"));
     const listCallsBeforeReceipt = mockedFetchExtensionCallbacks.mock.calls.length;
 
     await act(async () => { pending.resolve(view.receipt); await pending.promise; });
@@ -1273,7 +1267,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage(
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections",
-      "operator",
+      "admin",
     );
 
     await waitFor(() => expect(mockedFetchExtensionOAuthConfigurations).toHaveBeenCalledWith({
@@ -1356,7 +1350,7 @@ describe("ExtensionsHubPage", () => {
 
     renderPage(
       "/extensions/smoke.guardrail.enforcement?project_id=project-1&extension_page=connections",
-      "operator",
+      "admin",
     );
 
     await waitFor(() => expect(screen.getByRole("tab", { name: "Connections" })).toBeDisabled());

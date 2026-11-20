@@ -5,6 +5,7 @@ import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin"
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { persistWorkspaceSelection, WORKSPACE_STORAGE_KEY } from "@/lib/utils/workspace-selection";
 import { WorkflowsListPage } from "@/pages/workflows/list";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/use-is-admin", () => ({ useCanReadWorkflowRegistry: vi.fn(), useIsAdmin: vi.fn() }));
 vi.mock("@/pages/workflows/catalog/api", () => ({
@@ -223,7 +224,7 @@ function accountAuth(accountId: string): AuthContextValue {
       authenticated: true, local_auth_enabled: true, bootstrap_required: false, external_auth_enabled: false,
       roles: ["admin"], permissions: {}, account_memberships: [],
       user: { id: "filter-user", email: "filter@example.test", username: "filter-user", display_name: "Filter user",
-        roles: ["admin"], account_id: accountId, account_ids: [accountId], account_memberships: [] },
+        roles: ["admin"], permissions: permissionsForRoles(["admin"]), account_id: accountId, account_ids: [accountId], account_memberships: [] },
       i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
       feature_flags: {}, environment: { edition: "community", mode: "development" },
       settings_pages: [], registered_pages: [], shell_navigation: {},
