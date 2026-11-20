@@ -151,9 +151,11 @@ class TestRedaction:
             ("password: 'single quoted value'", "password:'[REDACTED]'"),
             # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="an escaped \" quote" suffix', 'password="[REDACTED]" suffix'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             (r"password='an escaped \' quote' suffix", "password='[REDACTED]' suffix"),
             # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="ends in a backslash \\" suffix', 'password="[REDACTED]" suffix'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             ('password="unfinished value; suffix', "password=[REDACTED]; suffix"),
             # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="unfinished \" quote; suffix', "password=[REDACTED]; suffix"),
