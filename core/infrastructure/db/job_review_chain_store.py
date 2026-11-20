@@ -152,10 +152,44 @@ def read_awaiting_review_targets(
         return {str(row["job_id"]): dict(row) for row in cur.fetchall()}
 
 
+def read_review_roots(
+    conn: Any, *, job_ids: Sequence[Any], max_depth: int
+) -> dict[str, dict[str, Any]]:
+    """For each given job holding a pending approval, the top of its Invoke chain.
+
+    The chain is followed upwards through ``awaiting_child`` parents, as the
+    review queue follows it down; the farthest ancestor is the root, the job an
+    operator opened in a section. A job without such a parent is not in the
+    answer: it is its own root. One statement per call.
+    """
+    ids = _uuid_texts(job_ids)
+    if not ids:
+        return {}
+    cte, cte_params = review_chain_cte(max_depth)
+    with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+        cur.execute(
+            f"""
+            WITH RECURSIVE {cte}
+            SELECT DISTINCT ON (chain.review_job_id)
+                chain.review_job_id::text AS review_job_id,
+                root.id::text AS root_job_id,
+                root.selected_workflow AS root_workflow,
+                root.project_id::text AS root_project_id
+            FROM review_chain chain
+            JOIN jobs root ON root.id = chain.ancestor_id
+            WHERE chain.review_job_id = ANY(%s::uuid[])
+            ORDER BY chain.review_job_id, chain.depth DESC
+            """,
+            (*cte_params, ids),
+        )
+        return {str(row["review_job_id"]): dict(row) for row in cur.fetchall()}
+
+
 __all__ = [
     "AWAITING_REVIEW_STATUS",
     "DEFAULT_REVIEW_CHAIN_DEPTH",
     "awaiting_review_predicate",
     "read_awaiting_review_targets",
+    "read_review_roots",
     "review_chain_cte",
 ]

@@ -93,6 +93,10 @@ class AwaitingApprovalJobView(ViewModel):
     started_at: str | None = None
     thread_id: str | None = None
     status: str | None = None
+    #: The job at the top of its Invoke chain and that job's workflow: what an
+    #: operator opened in a section (ADR 0075). The job itself when it has no parent.
+    root_job_id: str | None = None
+    root_workflow: str | None = None
 
 
 class AwaitingApprovalJobsPageView(ViewModel):

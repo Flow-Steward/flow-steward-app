@@ -58,6 +58,7 @@ import { AdvancedSearchDialog } from "@/components/search/advanced-search-dialog
 import {
   APPROVALS_REFRESH_EVENT,
   approvalJobId,
+  approvalJobPath,
   dedupeEntries,
   defaultSearchRoute,
   normalizeNavigationEntries,
@@ -589,7 +590,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     const jobId = approvalJobId(job);
     if (!jobId) return;
     setApprovalsOpen(false);
-    ignoreAsyncResult(navigate(`/jobs/${encodeURIComponent(jobId)}`));
+    ignoreAsyncResult(navigate(approvalJobPath(job, sectionsView ? sectionNavigationQuery.data : undefined)));
   }
 
   async function handleLogout() {
