@@ -37,7 +37,8 @@ ALTER TABLE ONLY public.user_roles
 
 
 ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT user_roles_user_id_role_id_key UNIQUE (user_id, role_id);
+    ADD CONSTRAINT user_roles_assignment_key
+        UNIQUE NULLS NOT DISTINCT (user_id, role_id, workspace_id, project_id, workflow_id);
 
 
 --

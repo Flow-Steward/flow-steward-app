@@ -6,6 +6,10 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.account_memberships import sync_user_account_memberships
+from core.application.auth.role_assignments import (
+    global_assignments,
+    replace_user_role_assignments,
+)
 from core.application.management.errors import ServiceConflictError, ServiceNotFoundError
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -242,17 +246,7 @@ def create_auth_user(
         user_id = str((row[0] if row else 0) or "").strip()
         if not user_id:
             raise RuntimeError("failed to create user")
-        cur.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
-        cur.execute(
-            """
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT %s, id
-            FROM roles
-            WHERE key = ANY(%s)
-            ON CONFLICT (user_id, role_id) DO NOTHING
-            """,
-            (user_id, roles),
-        )
+        replace_user_role_assignments(cur, user_id=user_id, assignments=global_assignments(roles))
         sync_user_account_memberships(
             bl,
             user_id=user_id,
@@ -312,18 +306,9 @@ def update_auth_user(
                 (bool(must_change_password), normalized_user_id),
             )
         if roles is not None:
-            cur.execute("DELETE FROM user_roles WHERE user_id = %s", (normalized_user_id,))
-            if roles:
-                cur.execute(
-                    """
-                    INSERT INTO user_roles (user_id, role_id)
-                    SELECT %s, id
-                    FROM roles
-                    WHERE key = ANY(%s)
-                    ON CONFLICT (user_id, role_id) DO NOTHING
-                    """,
-                    (normalized_user_id, roles),
-                )
+            replace_user_role_assignments(
+                cur, user_id=normalized_user_id, assignments=global_assignments(roles)
+            )
         if requested_account_ids is not None and primary_account_id is not None:
             cur.execute(
                 "UPDATE users SET account_id = %s WHERE id = %s",

@@ -74,10 +74,12 @@
     "core/application/auth/operator_work.py",
     "core/application/auth/password.py",
     "core/application/auth/password_reset_rate_limit.py",
+    "core/application/auth/permissions.py",
     "core/application/auth/principal.py",
     "core/application/auth/rate_limit.py",
     "core/application/auth/request_principal_runtime.py",
     "core/application/auth/resolve.py",
+    "core/application/auth/role_assignments.py",
     "core/application/auth/scope_contracts.py",
     "core/application/auth/secrets.py",
     "core/application/auth/serve_auth_runtime.py",
@@ -1932,6 +1934,10 @@
     },
     {
       "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120090000_role_permissions.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

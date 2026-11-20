@@ -323,3 +323,57 @@ CREATE INDEX idx_jobs_workflow_wait_event_key
 CREATE INDEX idx_jobs_workflow_wait_event_due
     ON public.jobs USING btree (((((meta -> 'workflow_wait'::text) ->> 'due_epoch_ms'::text))::bigint), id)
     WHERE (status = 'awaiting_event'::text);
+
+-- Role permissions and the scope of a role assignment (ADR 0076). The permission
+-- catalogue is code (core/application/auth/permissions.py); role_permissions records
+-- which keys a role holds. Migration 20261120090000_role_permissions.sql writes the
+-- system roles: admin holds every permission implicitly and has no rows, operator and
+-- viewer hold explicit lists. An assignment may be limited to a workspace, a project or
+-- one workflow of a project; this edition refuses such assignments and reads only the
+-- global ones. user_roles.role_is_system copies roles.is_system (the trigger fills it,
+-- the composite foreign key follows a change of the role) so that one partial unique
+-- index allows at most one system role per user and scope.
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_id_is_system_key UNIQUE (id, is_system);
+
+CREATE TABLE public.role_permissions (
+    role_id uuid NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    permission_key text NOT NULL
+        CHECK (permission_key ~ '^[a-z][a-z_]*(\.[a-z][a-z_]*){1,2}$'::text),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_key)
+);
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workspace_id_fkey FOREIGN KEY (workspace_id)
+        REFERENCES public.workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_project_id_fkey FOREIGN KEY (project_id)
+        REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_id)
+        REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_role_is_system_fkey FOREIGN KEY (role_id, role_is_system)
+        REFERENCES public.roles(id, is_system) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workflow_scope_check
+        CHECK (workflow_id IS NULL OR project_id IS NOT NULL);
+
+CREATE FUNCTION public.user_roles_copy_role_is_system() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    SELECT r.is_system INTO NEW.role_is_system FROM public.roles AS r WHERE r.id = NEW.role_id;
+    NEW.role_is_system := COALESCE(NEW.role_is_system, false);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_user_roles_role_is_system
+    BEFORE INSERT OR UPDATE OF role_id ON public.user_roles
+    FOR EACH ROW EXECUTE FUNCTION public.user_roles_copy_role_is_system();
+
+CREATE UNIQUE INDEX ux_user_roles_one_system_role_per_scope
+    ON public.user_roles (user_id, workspace_id, project_id, workflow_id) NULLS NOT DISTINCT
+    WHERE role_is_system;
