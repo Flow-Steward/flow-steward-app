@@ -174,6 +174,24 @@ def _account_matches(row: Mapping[str, Any], account_id: str) -> bool:
     return not row_account or row_account == account_id
 
 
+def install_usable(db: Any, install_id: str, *, account_id: str) -> bool:
+    """Whether a step in *account_id*'s workflow may call extension install *install_id*.
+
+    The one install rule for every save path: Builder Apply, revision restore and
+    AI/MCP drafts. An extension action step is judged by the install it calls,
+    the install the run resolves its contract from; whether that install
+    declares the step's operation is readiness, as it is for Apply.
+    """
+    from core.application.workflows.extension_connection_validation import (
+        _get_install_contract,
+    )
+
+    contract, authority = _get_install_contract(db, install_id=install_id, account_id=account_id)
+    if not authority:
+        return True  # a store that cannot answer leaves it to readiness
+    return isinstance(contract, Mapping) and _account_matches(contract, account_id)
+
+
 def store_reference_access(
     db: Any,
     *,
@@ -192,7 +210,6 @@ def store_reference_access(
     from core.application.registry.workflow_lookup import get_workflow_row
     from core.application.workflows.extension_connection_validation import (
         _get_connection_metadata,
-        _get_install_contract,
     )
 
     def agent(agent_id: str) -> bool:
@@ -216,12 +233,7 @@ def store_reference_access(
         )
 
     def install(install_id: str) -> bool:
-        contract, authority = _get_install_contract(
-            db, install_id=install_id, account_id=account_id
-        )
-        if not authority:
-            return True  # a store that cannot answer leaves it to readiness
-        return isinstance(contract, Mapping) and _account_matches(contract, account_id)
+        return install_usable(db, install_id, account_id=account_id)
 
     return ChangeReferenceAccess(
         agent=agent, workflow=workflow, connection=connection, install=install
@@ -235,6 +247,7 @@ __all__ = [
     "ChangeReferenceAccess",
     "authorize_change_operations",
     "authorize_definition_references",
+    "install_usable",
     "step_references",
     "store_reference_access",
 ]

@@ -665,3 +665,105 @@ def test_a_disabled_child_out_of_scope_keeps_the_generic_refusal(extra):
     codes = {issue["code"] for issue in result["issues"] if issue["blocking"]}
     assert "authoring.reference_not_permitted" in codes
     assert "authoring.reference_disabled" not in codes
+
+
+WP_EXTENSION = "flowsteward.wordpress-woocommerce"
+WP_INSTALL = "inst_wordpress"
+
+
+class ExtensionDraftDB(DraftDB):
+    """An active extension install whose action the discovery catalog does not project.
+
+    The Builder's connector catalog reads the install's release; discovery reads a
+    separate tool projection that can miss it. Saving through Apply succeeded and
+    the job ran, while a draft of the same step was refused (owner acceptance on
+    b6767c6682: 422 ``authoring.reference_not_permitted``).
+    """
+
+    def __init__(self, install_account=DEFAULT_ACCOUNT_ID):
+        super().__init__()
+        self.installs = {
+            WP_INSTALL: {
+                "install_id": WP_INSTALL,
+                "extension_id": WP_EXTENSION,
+                "account_id": install_account,
+                "state": "active",
+                "visibility": "account",
+            }
+        }
+
+    def get_extension_by_install_id(self, install_id, account_id=None):
+        row = self.installs.get(install_id)
+        return dict(row) if row else None
+
+    def get_extension_install_contract(self, install_id):
+        row = self.installs.get(install_id)
+        if not row:
+            return None
+        return {**row, "operation_manifest": [{"operation_id": "wp_create_post"}]}
+
+
+def _wordpress_step():
+    return {
+        "step_id": "publish",
+        "step_kind": "connector",
+        "connector_id": f"extension.{WP_EXTENSION}",
+        "connector_install_id": WP_INSTALL,
+        "override": {"connector": {"operation_id": "wp_create_post"}},
+    }
+
+
+def _wordpress_bundle():
+    parsed = yaml.safe_load(bundle())
+    lead_with(parsed, [_wordpress_step()])
+    return yaml.safe_dump(parsed)
+
+
+def _builder_accepts(db, step):
+    from core.application.workflows.workflow_change_authorization import (
+        authorize_change_operations,
+        store_reference_access,
+    )
+    from core.application.workflows.workflow_definition_service import (
+        WorkflowDefinitionChangeError,
+    )
+
+    access = store_reference_access(
+        db,
+        account_id=DEFAULT_ACCOUNT_ID,
+        workflow_visible=lambda _row: True,
+        project_visible=lambda _project_id: True,
+    )
+    try:
+        authorize_change_operations([{"op": "create_step", "step": step}], access)
+    except WorkflowDefinitionChangeError:
+        return False
+    return True
+
+
+def test_a_draft_accepts_an_extension_action_step_the_builder_accepts():
+    db = ExtensionDraftDB()
+    assert _builder_accepts(db, _wordpress_step())
+
+    result = service(db).validate(
+        scope=SCOPE, project_id="project", bundle_yaml=_wordpress_bundle()
+    )
+
+    blocking = [issue for issue in result["issues"] if issue["blocking"]]
+    assert not any(issue["code"] == "authoring.reference_not_permitted" for issue in blocking), (
+        blocking
+    )
+    assert result["can_save"] is True, result["issues"]
+
+
+def test_a_draft_refuses_an_extension_install_of_another_account_like_the_builder():
+    db = ExtensionDraftDB(install_account="other")
+    assert not _builder_accepts(db, _wordpress_step())
+
+    result = service(db).validate(
+        scope=SCOPE, project_id="project", bundle_yaml=_wordpress_bundle()
+    )
+
+    codes = {issue["code"] for issue in result["issues"] if issue["blocking"]}
+    assert "authoring.reference_not_permitted" in codes
+    assert result["can_save"] is False
