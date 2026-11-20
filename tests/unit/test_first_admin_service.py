@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+import pytest
+
 from core.application.auth.first_admin import FirstAdminAlreadyExists, FirstAdminService
 from core.application.auth.first_admin_repository import PostgresFirstAdminRepository
+from core.application.management.errors import ServiceValidationError
 from core.infrastructure.db.db_pool import PooledConnectionProxy, transaction_connection
 
 
@@ -20,22 +25,36 @@ def test_first_admin_service_uses_single_atomic_repository_operation() -> None:
     service = FirstAdminService(repository=repository, password_hash=lambda value: f"hash:{value}")
 
     result = service.create(
-        email="admin@example.com", password="strong-password", display_name="Admin"
+        email="admin@example.com", password="Strong-password-1!", display_name="Admin"
     )
 
     assert result["id"] == "1"
-    assert repository.calls == [("admin@example.com", "hash:strong-password", "Admin")]
+    assert repository.calls == [("admin@example.com", "hash:Strong-password-1!", "Admin")]
 
 
 def test_first_admin_service_reports_atomic_conflict() -> None:
     service = FirstAdminService(repository=_Repository(None), password_hash=lambda value: value)
 
     try:
-        service.create(email="second@example.com", password="strong-password", display_name="")
+        service.create(email="second@example.com", password="Strong-password-1!", display_name="")
     except FirstAdminAlreadyExists:
         pass
     else:
         raise AssertionError("zero-user invariant must fail closed")
+
+
+def test_first_admin_rejects_invalid_password_before_hashing_or_writing() -> None:
+    repository = _Repository(None)
+    hash_password = MagicMock()
+    service = FirstAdminService(repository=repository, password_hash=hash_password)
+
+    with pytest.raises(ServiceValidationError, match="uppercase and lowercase"):
+        service.create(
+            email="admin@example.com", password="incomplete-password-1", display_name="Admin"
+        )
+
+    hash_password.assert_not_called()
+    assert repository.calls == []
 
 
 def test_postgres_repository_locks_before_count_inside_default_pool_transaction() -> None:
@@ -108,8 +127,7 @@ def test_postgres_repository_locks_before_count_inside_default_pool_transaction(
     assert "pg_advisory_xact_lock" in cursor.queries[0][0]
     assert cursor.queries[1][0] == "SELECT COUNT(*) FROM users"
     assert any(
-        "INSERT INTO user_account_memberships" in query
-        and params == ("1", "account-1")
+        "INSERT INTO user_account_memberships" in query and params == ("1", "account-1")
         for query, params in cursor.queries
     )
     assert connection.commits == 1

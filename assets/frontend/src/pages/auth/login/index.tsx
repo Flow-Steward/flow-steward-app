@@ -27,6 +27,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -34,7 +35,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { z } from "@/lib/validation/zod";
 import { normalizeFlashMessage } from "@/pages/auth/login/flash";
-import { RECOMMENDED_PASSWORD_LENGTH } from "@/pages/auth/login/password-length-notice";
+import { LoginMfaField } from "@/pages/auth/login/verification-code-field";
 import { PasswordVisibilityToggle } from "@/pages/auth/password-visibility-toggle";
 import { ConfirmPasswordField, NewPasswordField } from "@/pages/auth/reset-password";
 import {
@@ -59,6 +60,7 @@ function getLoginschema(t: I18nContextValue["t"] = fallbackContext.t) {
   accountId: z.string(),
   newPassword: z.string(),
   confirmPassword: z.string(),
+  mfaCode: z.string(),
 });
 }
 
@@ -71,6 +73,7 @@ type AccountOption = {
 };
 
 type LoginResponse = {
+  password_expires_in_days?: number;
   user: {
     username: string;
   };
@@ -88,8 +91,7 @@ type ExternalSignInState = {
   status: "idle" | "loading" | "ready" | "unavailable";
 };
 
-/** A temporary password was accepted: it may only be replaced, never used to sign in. */
-type PasswordChange = { minLength: number };
+type PasswordChange = { minLength: number; expired: boolean };
 
 type AuthNotice = {
   copy: string;
@@ -212,7 +214,10 @@ function passwordChangeFromLoginError(error: unknown): PasswordChange | null {
   const payload = payloadRecord(error);
   if (!payload.password_change_required) return null;
   const minLength = Number(payload.password_min_length);
-  return { minLength: Number.isFinite(minLength) && minLength > 0 ? minLength : 10 };
+  return {
+    minLength: Number.isFinite(minLength) && minLength > 0 ? minLength : PASSWORD_MIN_LENGTH,
+    expired: payload.password_expired === true,
+  };
 }
 
 function newPasswordErrorFromLoginError(error: unknown): string {
@@ -292,13 +297,13 @@ function ExternalProviderSection({
   );
 }
 
-function LoginEmailField({ form }: Readonly<{ form: UseFormReturn<LoginFormValues> }>) {
+function LoginEmailField({ form, onCredentialsChanged }: Readonly<{ form: UseFormReturn<LoginFormValues>; onCredentialsChanged: () => void }>) {
   const { t } = useI18n();
   const error = form.formState.errors.email;
   return (
     <motion.div className="fs-public-auth__field" layout transition={{ layout: AUTH_LAYOUT_TRANSITION }}>
       <label className="fs-public-auth__field-label" htmlFor="email">{t("react.auth.email_address", "Email address")}</label>
-      <input {...form.register("email")} aria-describedby={error ? "email-error" : undefined} aria-invalid={Boolean(error)} autoCapitalize="none" autoComplete="username" className="fs-public-auth__input" id="email" inputMode="email" placeholder={t("react.auth.you_company_com", "you@company.com")} spellCheck={false} type="email" />
+      <input {...form.register("email", { onChange: onCredentialsChanged })} aria-describedby={error ? "email-error" : undefined} aria-invalid={Boolean(error)} autoCapitalize="none" autoComplete="username" className="fs-public-auth__input" id="email" inputMode="email" placeholder={t("react.auth.you_company_com", "you@company.com")} spellCheck={false} type="email" />
       <AnimatePresence initial={false}>{error ? <motion.span {...AUTH_FEEDBACK_MOTION} className="fs-public-auth__field-helper fs-public-auth__field-helper--error" id="email-error" key="email-error">{error.message}</motion.span> : null}</AnimatePresence>
     </motion.div>
   );
@@ -308,12 +313,14 @@ function LoginPasswordField({
   forgotPasswordAvailable,
   form,
   label,
+  onCredentialsChanged,
   passwordVisible,
   setPasswordVisible,
 }: Readonly<{
   forgotPasswordAvailable: boolean;
   form: UseFormReturn<LoginFormValues>;
   label?: string;
+  onCredentialsChanged: () => void;
   passwordVisible: boolean;
   setPasswordVisible: (updater: (visible: boolean) => boolean) => void;
 }>) {
@@ -323,7 +330,7 @@ function LoginPasswordField({
     <motion.div className="fs-public-auth__field" layout transition={{ layout: AUTH_LAYOUT_TRANSITION }}>
       <div className="fs-public-auth__field-label-row"><label className="fs-public-auth__field-label" htmlFor="password">{label || t("auth.common.password", "Password")}</label>{forgotPasswordAvailable ? <Link className="fs-public-auth__quiet-link" to="/forgot-password">{t("auth.login.forgot_password", "Forgot password?")}</Link> : null}</div>
       <span className="fs-public-auth__input-shell" data-password-state={passwordVisible ? "visible" : "masked"}>
-        <input {...form.register("password")} aria-describedby={error ? "password-error" : undefined} aria-invalid={Boolean(error)} autoComplete="current-password" className="fs-public-auth__input" id="password" onFocus={placeCaretAfterAutofilledPassword} placeholder={t("react.auth.enter_password", "Enter password")} type={passwordVisible ? "text" : "password"} />
+        <input {...form.register("password", { onChange: onCredentialsChanged })} aria-describedby={error ? "password-error" : undefined} aria-invalid={Boolean(error)} autoComplete="current-password" className="fs-public-auth__input" id="password" onFocus={placeCaretAfterAutofilledPassword} placeholder={t("react.auth.enter_password", "Enter password")} type={passwordVisible ? "text" : "password"} />
         <span aria-hidden="true" className="fs-public-auth__fixed-password-mask">••••••••••</span>
         <PasswordVisibilityToggle hideLabel={t("react.auth.hide_password", "Hide password")} onToggle={() => setPasswordVisible((visible) => !visible)} showLabel={t("react.auth.show_password", "Show password")} visible={passwordVisible} />
       </span>
@@ -387,6 +394,8 @@ function LocalLoginForm({
   enabled,
   forgotPasswordAvailable,
   form,
+  mfaRequired,
+  onCredentialsChanged,
   onSubmit,
   passwordChange,
   passwordVisible,
@@ -400,6 +409,8 @@ function LocalLoginForm({
   enabled: boolean;
   forgotPasswordAvailable: boolean;
   form: UseFormReturn<LoginFormValues>;
+  mfaRequired: boolean;
+  onCredentialsChanged: () => void;
   onSubmit: (values: LoginFormValues) => Promise<void>;
   passwordChange: PasswordChange | null;
   passwordVisible: boolean;
@@ -412,15 +423,23 @@ function LocalLoginForm({
   if (!enabled) return null;
   return (
     <form className="fs-public-auth__form" noValidate onSubmit={(event) => { ignoreAsyncResult(form.handleSubmit(onSubmit)(event)); }}>
-      <LoginEmailField form={form} />
-      <LoginPasswordField forgotPasswordAvailable={forgotPasswordAvailable} form={form} label={passwordChange ? t("react.auth.temporary_password", "Temporary password") : undefined} passwordVisible={passwordVisible} setPasswordVisible={setPasswordVisible} />
+      <LoginEmailField form={form} onCredentialsChanged={onCredentialsChanged} />
+      <LoginPasswordField
+        forgotPasswordAvailable={forgotPasswordAvailable}
+        form={form}
+        label={passwordChange && !passwordChange.expired ? t("react.auth.temporary_password", "Temporary password") : undefined}
+        onCredentialsChanged={onCredentialsChanged}
+        passwordVisible={passwordVisible}
+        setPasswordVisible={setPasswordVisible}
+      />
       {passwordChange ? (
         <>
-          <NewPasswordField form={form} helper={t("react.auth.use_at_least_count_characters", "Use at least {count} characters.", { count: passwordChange.minLength })} name="newPassword" passwordVisible={newPasswordVisible} setPasswordVisible={setNewPasswordVisible} />
+          <NewPasswordField form={form} helper={passwordRequirements(t, passwordChange.minLength)} name="newPassword" passwordVisible={newPasswordVisible} setPasswordVisible={setNewPasswordVisible} />
           <ConfirmPasswordField confirmationVisible={confirmationVisible} form={form} name="confirmPassword" setConfirmationVisible={setConfirmationVisible} />
         </>
       ) : null}
       <LoginAccountField accountOptions={accountOptions} accountRegistration={accountRegistration} accountSelectRef={accountSelectRef} form={form} />
+      {mfaRequired ? <LoginMfaField error={form.formState.errors.mfaCode?.message} registration={form.register("mfaCode")} /> : null}
       <label className="fs-public-auth__checkbox-label">
         <input {...form.register("rememberMe")} type="checkbox" />
         <motion.span animate={{ transform: rememberMe ? "scale(1)" : "scale(0.94)" }} aria-hidden="true" className="fs-public-auth__checkbox-mark" transition={{ bounce: 0, type: "spring", visualDuration: 0.16 }}>
@@ -453,6 +472,7 @@ export function LoginPage() {
   const [accountOptions, setAccountOptions] = useState<AccountOption[]>([]);
   const [notice, setNotice] = useState<AuthNotice | null>(null);
   const [passwordChange, setPasswordChange] = useState<PasswordChange | null>(null);
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [flashDismissed, setFlashDismissed] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [externalSignIn, setExternalSignIn] = useState<ExternalSignInState>({
@@ -479,6 +499,7 @@ export function LoginPage() {
       accountId: "",
       newPassword: "",
       confirmPassword: "",
+      mfaCode: "",
     },
     resolver: zodResolver(getLoginschema(t)),
   });
@@ -541,8 +562,20 @@ export function LoginPage() {
     return <Navigate replace to="/bootstrap" />;
   }
 
+  function resetLoginContinuation() {
+    if (!accountOptions.length && !passwordChange && !mfaRequired) return;
+    setAccountOptions([]);
+    setPasswordChange(null);
+    setMfaRequired(false);
+    setNotice(null);
+    form.resetField("accountId");
+    form.resetField("newPassword");
+    form.resetField("confirmPassword");
+    form.resetField("mfaCode");
+  }
+
   function newPasswordReady(values: LoginFormValues, change: PasswordChange): boolean {
-    if (values.newPassword.length < change.minLength) {
+    if (Array.from(values.newPassword).length < change.minLength) {
       form.setError("newPassword", {
         message: t("react.auth.use_at_least_count_characters", "Use at least {count} characters.", { count: change.minLength }),
         type: "minLength",
@@ -551,7 +584,9 @@ export function LoginPage() {
     }
     if (values.newPassword === values.password) {
       form.setError("newPassword", {
-        message: t("react.auth.choose_a_password_different_from_the_temporary_one", "Choose a password different from the temporary one."),
+        message: change.expired
+          ? t("react.auth.choose_a_different_password", "Choose a password different from your current one.")
+          : t("react.auth.choose_a_password_different_from_the_temporary_one", "Choose a password different from the temporary one."),
         type: "validate",
       });
       return false;
@@ -584,9 +619,17 @@ export function LoginPage() {
       return;
     }
     if (passwordChange && !newPasswordReady(values, passwordChange)) return;
+    const mfaCode = values.mfaCode.trim();
+    if (mfaRequired && !mfaCode) {
+      form.setError("mfaCode", {
+        message: t("react.auth.mfa_code_required", "Enter a code from your authenticator app or a recovery code."),
+        type: "required",
+      }, { shouldFocus: true });
+      return;
+    }
 
     try {
-      await fetchJson<LoginResponse>("/api/auth/login", {
+      const result = await fetchJson<LoginResponse>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({
           email: values.email,
@@ -594,14 +637,18 @@ export function LoginPage() {
           remember_me: values.rememberMe,
           account_id: values.accountId || undefined,
           new_password: passwordChange ? values.newPassword : undefined,
+          mfa_code: mfaRequired ? mfaCode : undefined,
         }),
       });
       await auth.refresh();
       const activePassword = passwordChange ? values.newPassword : values.password;
-      const showPasswordLengthNotice = Array.from(activePassword).length < RECOMMENDED_PASSWORD_LENGTH;
+      const showPasswordLengthNotice = Array.from(activePassword).length < PASSWORD_MIN_LENGTH;
       await navigate(nextPath, {
         replace: true,
-        state: showPasswordLengthNotice ? { showPasswordLengthNotice } : null,
+        state: {
+          showPasswordLengthNotice,
+          passwordExpiresInDays: result.password_expires_in_days,
+        },
       });
     } catch (error) {
       const accountSelection = accountSelectionFromLoginError(error);
@@ -624,14 +671,40 @@ export function LoginPage() {
         return;
       }
 
+      if (error instanceof HttpError && error.status === 403) {
+        const payload = payloadRecord(error);
+        if (payload.mfa_enrollment_required === true) {
+          setNotice({
+            copy: t("react.auth.mfa_contact_admin", "Contact your workspace administrator to set up multi-factor authentication."),
+            title: t("react.auth.mfa_enrollment_required", "Multi-factor authentication is required"),
+            tone: "danger",
+          });
+          return;
+        }
+        if (payload.mfa_required === true) {
+          setMfaRequired(true);
+          if (mfaCode) {
+            form.setValue("mfaCode", "");
+            form.setError("mfaCode", {
+              message: t("react.auth.mfa_code_invalid", "The code could not be verified. Enter a new code and try again."),
+              type: "server",
+            });
+          }
+          requestAnimationFrame(() => form.setFocus("mfaCode"));
+          return;
+        }
+      }
+
       const passwordChangeRequired = passwordChangeFromLoginError(error);
       if (passwordChangeRequired) {
         setPasswordChange(passwordChangeRequired);
-        setNotice({
-          copy: t("react.auth.your_temporary_password_worked_choose_a_new_password_to_finish_signing_in", "Your temporary password worked. Choose a new password to finish signing in."),
-          title: t("react.auth.set_a_new_password", "Set a new password"),
-          tone: "info",
-        });
+        if (!passwordChangeRequired.expired) {
+          setNotice({
+            copy: t("react.auth.your_temporary_password_worked_choose_a_new_password_to_finish_signing_in", "Your temporary password worked. Choose a new password to finish signing in."),
+            title: t("react.auth.set_a_new_password", "Set a new password"),
+            tone: "info",
+          });
+        }
         requestAnimationFrame(() => form.setFocus("newPassword"));
         return;
       }
@@ -683,8 +756,16 @@ export function LoginPage() {
             >
               <>
                 <header className="fs-public-auth__sign-in-header">
-                  <h2 id="public-auth-sign-in-title">{passwordChange ? t("react.auth.set_a_new_password", "Set a new password") : t("auth.login.heading", "Sign in")}</h2>
-                  <p>{passwordChange ? t("react.auth.your_administrator_set_a_temporary_password_replace_it_with_your_own_to_continue", "Your administrator set a temporary password. Replace it with your own to continue.") : t("react.auth.welcome_back_enter_your_details_to_continue", "Welcome back — enter your details to continue.")}</p>
+                  <h2 id="public-auth-sign-in-title">
+                    {passwordChange
+                      ? t("react.auth.set_a_new_password", "Set a new password")
+                      : mfaRequired
+                        ? t("react.auth.mfa_required", "Verify your sign-in")
+                        : t("auth.login.heading", "Sign in")}
+                  </h2>
+                  {passwordChange?.expired ? <p>{t("react.auth.password_expired", "Your password has expired. Choose a new password to sign in.")}</p> : null}
+                  {passwordChange && !passwordChange.expired ? <p>{t("react.auth.your_administrator_set_a_temporary_password_replace_it_with_your_own_to_continue", "Your administrator set a temporary password. Replace it with your own to continue.")}</p> : null}
+                  {!passwordChange && !mfaRequired ? <p>{t("react.auth.welcome_back_enter_your_details_to_continue", "Welcome back — enter your details to continue.")}</p> : null}
                 </header>
 
                 <ExternalProviderSection
@@ -707,6 +788,8 @@ export function LoginPage() {
                   enabled={localAuthEnabled}
                   forgotPasswordAvailable={Boolean(auth.session?.system_email_available)}
                   form={form}
+                  mfaRequired={mfaRequired}
+                  onCredentialsChanged={resetLoginContinuation}
                   onSubmit={onSubmit}
                   passwordChange={passwordChange}
                   passwordVisible={passwordVisible}

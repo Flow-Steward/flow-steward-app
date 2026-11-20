@@ -73,9 +73,12 @@ if [[ -n "${scan_files}" ]]; then
       | xargs grep -InE "(^|[^[:alnum:]_])${private_identity_word}([^[:alnum:]_]|$)" \
       || true
   )"
+  # Allow only the vetted authenticator import and its protocol assertion.
   legacy_private_auth_leaks="$(
     printf '%s\n' "${scan_files}" \
       | xargs grep -InEi "(^|[^[:alnum:]_])(${private_auth_pattern})([^[:alnum:]_]|$)|${private_auth_proxy_pattern}|${private_auth_proxy_env}|${private_auth_header}" \
+      | grep -vE '^core/application/auth/mfa_codes\.py:[0-9]+:from cryptography\.hazmat\.primitives\.twofactor\.totp import TOTP as _Totp$' \
+      | grep -vE '^tests/unit/test_auth_mfa_service\.py:[0-9]+:    assert uri\.netloc == "totp"$' \
       || true
   )"
   leaked_content="$(

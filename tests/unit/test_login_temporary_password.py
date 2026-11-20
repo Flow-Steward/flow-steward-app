@@ -7,6 +7,7 @@ email reset flow, and the temporary password must never open a session.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
@@ -20,7 +21,7 @@ from core.entrypoints.api.auth_sessions import create_auth_sessions_router
 
 _EMAIL = "new.user@example.com"
 _TEMPORARY = "temporary-pass-1"
-_PERMANENT = "permanent-pass-22"
+_PERMANENT = "Permanent-pass-22!"
 _MIN_LENGTH = 12
 
 
@@ -47,6 +48,7 @@ class _Cursor:
     def __init__(self, store: _Store) -> None:
         self._store = store
         self.rowcount = 0
+        self._locked = False
 
     def __enter__(self) -> _Cursor:
         return self
@@ -67,6 +69,8 @@ class _Cursor:
         elif normalized.startswith("UPDATE auth_sessions SET revoked = true"):
             self._store.sessions_revoked_for.append(str(params[0]))
             self.rowcount = 2
+        elif normalized.startswith("SELECT id FROM users"):
+            self._locked = True
         elif normalized.startswith("INSERT INTO auth_sessions"):
             self._store.sessions_inserted += 1
             self.rowcount = 1
@@ -75,14 +79,16 @@ class _Cursor:
         return []
 
     def fetchone(self) -> Any:
-        return None
+        return (self._store.user["id"],) if self._locked else None
 
 
-def _client(store: _Store) -> TestClient:
+def _client(store: _Store, *, authenticator_storage: bool = False) -> TestClient:
     bl = SimpleNamespace(
         conn=SimpleNamespace(cursor=lambda **_kwargs: _Cursor(store)),
         _column_exists=lambda _table, _column: False,
-        _table_exists=lambda _table: False,
+        _table_exists=lambda table: (
+            authenticator_storage and table in {"auth_totp_factors", "auth_mfa_recovery_codes"}
+        ),
     )
 
     def _record_failure(username: str, client_ip: str) -> tuple[bool, int]:
@@ -171,7 +177,8 @@ def test_temporary_password_alone_never_signs_in() -> None:
     ("new_password", "message"),
     [
         ("short-1", "at least 12 characters"),
-        (_TEMPORARY, "must differ from the temporary password"),
+        ("longpassword1234", "must include uppercase and lowercase"),
+        (_TEMPORARY, "must differ from the current password"),
     ],
 )
 def test_unusable_new_password_is_refused_without_a_session(
@@ -225,3 +232,72 @@ def test_new_password_is_not_a_second_way_to_change_an_ordinary_password() -> No
     assert "only when a password change is required" in response.json()["error"]
     assert not _has_session_cookie(response)
     assert verify_password(_TEMPORARY, store.user["password_hash"])
+
+
+def test_expired_local_password_requires_replacement_before_issuing_a_session() -> None:
+    store = _Store(must_change_password=False)
+    store.user["password_changed_at"] = datetime.now(UTC) - timedelta(days=366)
+    client = _client(store)
+
+    expired = _login(client, _TEMPORARY)
+    assert expired.status_code == 403
+    assert expired.json()["password_change_required"] is True
+    assert expired.json()["password_expired"] is True
+    assert not _has_session_cookie(expired)
+    assert store.sessions_inserted == 0
+
+    replacement = _login(client, _TEMPORARY, new_password="A-longer-secret-23!")
+    assert replacement.status_code == 200
+    assert _has_session_cookie(replacement)
+    assert "password_expires_in_days" not in replacement.json()
+    assert store.sessions_inserted == 1
+
+
+def test_local_login_warns_within_the_last_two_weeks() -> None:
+    store = _Store(must_change_password=False)
+    store.user["password_changed_at"] = datetime.now(UTC) - timedelta(days=352, hours=1)
+    client = _client(store)
+
+    response = _login(client, _TEMPORARY)
+    assert response.status_code == 200
+    assert response.json()["password_expires_in_days"] == 13
+
+
+def test_enrolled_user_cannot_replace_expired_password_without_factor(monkeypatch) -> None:
+    sessions = "core.entrypoints.api.auth_sessions"
+    monkeypatch.setattr(f"{sessions}.mfa_enabled", lambda *_args: True)
+    monkeypatch.setattr(f"{sessions}.verify_mfa", lambda _cur, _user, code: code == "918275")
+    store = _Store(must_change_password=False)
+    store.user["password_changed_at"] = datetime.now(UTC) - timedelta(days=366)
+    client = _client(store, authenticator_storage=True)
+
+    missing = _login(client, _TEMPORARY, new_password=_PERMANENT)
+    assert missing.status_code == 403
+    assert missing.json()["mfa_required"] is True
+    assert not _has_session_cookie(missing)
+    assert verify_password(_TEMPORARY, store.user["password_hash"])
+
+    wrong = _login(client, _TEMPORARY, new_password=_PERMANENT, mfa_code="111111")
+    assert wrong.status_code == 403
+    assert wrong.json()["mfa_required"] is True
+    assert store.failures == [(_EMAIL, "198.51.100.7")]
+    assert store.sessions_inserted == 0
+
+    verified = _login(client, _TEMPORARY, new_password=_PERMANENT, mfa_code="918275")
+    assert verified.status_code == 200
+    assert _has_session_cookie(verified)
+    assert store.sessions_inserted == 1
+
+
+def test_installation_requirement_blocks_unenrolled_account(monkeypatch) -> None:
+    sessions = "core.entrypoints.api.auth_sessions"
+    monkeypatch.setattr(f"{sessions}.installation_requires_mfa", lambda: True)
+    monkeypatch.setattr(f"{sessions}.mfa_enabled", lambda *_args: False)
+    store = _Store(must_change_password=False)
+    client = _client(store, authenticator_storage=True)
+
+    response = _login(client, _TEMPORARY)
+    assert response.status_code == 403
+    assert response.json()["mfa_enrollment_required"] is True
+    assert not _has_session_cookie(response)
+    assert store.sessions_inserted == 0

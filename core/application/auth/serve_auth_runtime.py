@@ -15,6 +15,10 @@ from urllib.parse import quote, urlparse
 import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
+from core.application.auth.local_credentials import (
+    local_session_credential_filter,
+    password_age_available,
+)
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 _AUTH_SESSION_ISSUE_GUARDS: list[Any] = []
@@ -253,6 +257,7 @@ def get_user_by_username(
             auth_user_locale_select_fn(bl, alias="u"),
             ", ",
             auth_user_account_id_select_fn(bl, alias="u"),
+            ", u.password_changed_at" if password_age_available(bl) else "",
             sql_from_users,
             "WHERE lower(u.username) = lower(%s)",
             auth_user_deleted_condition_fn(bl, alias="u"),
@@ -348,6 +353,7 @@ def get_user_by_session_token(
             "WHERE s.session_token_hash = %s",
             "  AND s.revoked = false",
             "  AND s.expires_at > now()",
+            local_session_credential_filter(bl),
             auth_user_deleted_condition_fn(bl, alias="u"),
             sql_limit_1,
         ]
@@ -792,6 +798,9 @@ def is_self_service_auth_write_route(path: str) -> bool:
         return False
     if path_text in {
         "/api/auth/change-password",
+        "/api/auth/multi-factor/enroll",
+        "/api/auth/multi-factor/verify",
+        "/api/auth/multi-factor/disable",
         "/api/auth/logout",
         "/api/auth/tokens",
         "/api/users/me/email-change/request",

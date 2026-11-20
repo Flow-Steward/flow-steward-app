@@ -17,6 +17,7 @@ import json
 import os
 import sys
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -396,7 +397,7 @@ class TestMCPAuthBootstrap:
         ):
             assert _CLIENT_SEED_BOOTSTRAP_USER(
                 "e2e_admin@example.com",
-                "protected-password",
+                "Protected-password-1!",
                 display_name="E2E Admin",
             )
 
@@ -660,7 +661,7 @@ class TestMCPAuthBootstrap:
             pytest.skip("core.application.orchestration.tools.mcp_tools not importable")
 
         fake_cursor = MagicMock()
-        fake_conn = MagicMock()
+        fake_conn = MagicMock(transaction=None, autocommit=True)
         fake_conn.cursor.return_value.__enter__.return_value = fake_cursor
         fake_bl = MagicMock(conn=fake_conn)
         fake_user = {
@@ -704,6 +705,78 @@ class TestMCPAuthBootstrap:
         assert fake_cursor.execute.call_args_list[0].args[1][1] == (
             "00000000-0000-0000-0000-000000000002"
         )
+
+    @pytest.mark.parametrize(
+        ("factor_enabled", "expired", "issues_session"),
+        [(True, False, False), (False, True, False), (False, False, True)],
+    )
+    def test_db_session_bootstrap_enforces_local_credential_policy(
+        self, monkeypatch, factor_enabled, expired, issues_session
+    ):
+        from core.application.auth import mfa_service, password, resolve
+        from core.application.orchestration.tools import mcp_tools
+
+        monkeypatch.delenv("FS_AUTH_MFA_REQUIRED", raising=False)
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = ("42",)
+        connection = MagicMock(transaction=None, autocommit=True)
+        connection.cursor.return_value = cursor
+        logger = SimpleNamespace(
+            conn=connection,
+            _table_exists=lambda _table: True,
+            _column_exists=lambda _table, _column: True,
+        )
+        password_changed_at = datetime.now(UTC) - timedelta(days=366 if expired else 1)
+        user = {
+            "id": "42",
+            "is_active": True,
+            "must_change_password": False,
+            "password_hash": "stored-hash",
+            "password_changed_at": password_changed_at,
+        }
+        monkeypatch.setattr(mcp_tools, "_get_platform_auth_logger", lambda: logger)
+        monkeypatch.setattr(resolve, "auth_tables_available", lambda _logger: True)
+        monkeypatch.setattr(resolve, "get_user_by_username", lambda _logger, _username: user)
+        monkeypatch.setattr(password, "verify_password", lambda _password, _hash: True)
+        enabled = MagicMock(return_value=factor_enabled)
+        monkeypatch.setattr(mfa_service, "mfa_enabled", enabled)
+
+        token = mcp_tools._bootstrap_fs_session_token("owner@example.com", "password")
+
+        assert bool(token) == issues_session
+        sql = [call.args[0] for call in cursor.execute.call_args_list]
+        assert any("INSERT INTO auth_sessions" in query for query in sql) == issues_session
+        if expired:
+            enabled.assert_not_called()
+            connection.cursor.assert_not_called()
+        else:
+            enabled.assert_called_once_with(cursor, "42")
+            assert "FOR UPDATE" in sql[0]
+            assert cursor.execute.call_args_list[0].args[1] == ("42", "stored-hash", False)
+
+    def test_required_authenticator_policy_declines_password_fallback_but_keeps_explicit_tokens(
+        self, monkeypatch
+    ):
+        from core.application.orchestration.tools import mcp_tools
+
+        monkeypatch.setenv("FS_AUTH_MFA_REQUIRED", "1")
+        monkeypatch.delenv("MCP_BEARER_TOKEN", raising=False)
+        monkeypatch.delenv("FS_SESSION_TOKEN", raising=False)
+        monkeypatch.setattr(mcp_tools, "_MCP_BEARER_TOKEN_CACHE", "previous-session")
+        auth_logger = MagicMock()
+        resolve_credentials = MagicMock()
+        monkeypatch.setattr(mcp_tools, "_get_platform_auth_logger", auth_logger)
+        monkeypatch.setattr(mcp_tools, "_resolve_backend_admin_creds", resolve_credentials)
+
+        assert mcp_tools._bootstrap_fs_session_token("owner@example.com", "password") == ""
+        assert mcp_tools._fs_mcp_bearer_token() == ""
+        assert mcp_tools._MCP_BEARER_TOKEN_CACHE is None
+        auth_logger.assert_not_called()
+        resolve_credentials.assert_not_called()
+
+        monkeypatch.setenv("MCP_BEARER_TOKEN", "explicit-token")
+        assert mcp_tools._fs_mcp_bearer_token() == "explicit-token"
 
     def test_bootstrap_seeds_local_auth_user_before_http_login(self):
         try:

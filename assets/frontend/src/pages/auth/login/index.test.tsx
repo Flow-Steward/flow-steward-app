@@ -370,6 +370,74 @@ describe("LoginPage", () => {
     }
   });
 
+  it("shows the expiry warning at the requested destination", async () => {
+    mockedFetchJson.mockResolvedValueOnce({ user: { username: "person@example.com" }, password_expires_in_days: 14 });
+    renderLogin({ route: "/login?next=/settings/security" });
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
+    expect(screen.getByText("Your password expires in 14 days. Change it before it expires.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change password" })).toHaveAttribute("href", "/settings/account?tab=signin");
+  });
+
+  it("keeps the replacement password while prompting for a second factor", async () => {
+    mockedFetchJson
+      .mockRejectedValueOnce(loginError(403, {
+        error: "Password change required",
+        password_change_required: true,
+        password_expired: true,
+        password_min_length: 12,
+      }))
+      .mockRejectedValueOnce(loginError(403, { error: "Multi-factor authentication is required", mfa_required: true }))
+      .mockResolvedValueOnce({ user: { username: "person@example.com" } });
+    const { refresh } = renderLogin();
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Your password has expired. Choose a new password to sign in.")).toBeInTheDocument());
+    const replacement = "test-Replacement1!";
+    fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: replacement } });
+    fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: replacement } });
+    fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+    const factor = await screen.findByLabelText("Authenticator or recovery code");
+    expect(screen.getByLabelText(/^New password$/i)).toHaveValue(replacement);
+    expect(refresh).not.toHaveBeenCalled();
+    fireEvent.change(factor, { target: { value: "abcd-efgh-jkmn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "person@example.com",
+        password: TEST_PASSWORD,
+        remember_me: true,
+        new_password: replacement,
+        mfa_code: "abcd-efgh-jkmn",
+      }),
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains how to recover access if Authenticator enrollment is required", async () => {
+    mockedFetchJson.mockRejectedValueOnce(loginError(403, {
+      error: "Authenticator enrollment is required",
+      mfa_enrollment_required: true,
+    }));
+    const { refresh } = renderLogin();
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Contact your workspace administrator to set up multi-factor authentication.")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Authenticator or recovery code")).not.toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("uses the canonical in-button loader while sign-in is pending", async () => {
     mockedFetchJson.mockReturnValueOnce(new Promise(() => undefined));
     renderLogin();
@@ -600,7 +668,7 @@ describe("LoginPage", () => {
     expect(screen.queryByText("Reset destination")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Forgot password?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^Temporary password$/i)).toHaveValue(temporary);
-    expect(screen.getByText("Use at least 12 characters.")).toBeInTheDocument();
+    expect(screen.getByText("Use at least 12 characters, including uppercase and lowercase letters, a number and a special character.")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: "short-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));

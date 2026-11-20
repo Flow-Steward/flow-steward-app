@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
+from core.application.auth.config import AUTH_PASSWORD_MIN_LENGTH
+from core.application.auth.password_policy import password_policy_error
+from core.application.management.errors import ServiceValidationError
+
 
 class FirstAdminAlreadyExists(Exception):
     """Raised when the zero-user bootstrap invariant no longer holds."""
@@ -24,6 +28,9 @@ class FirstAdminService:
         self._password_hash = password_hash
 
     def create(self, *, email: str, password: str, display_name: str) -> dict[str, Any]:
+        issue = password_policy_error(password, AUTH_PASSWORD_MIN_LENGTH)
+        if issue:
+            raise ServiceValidationError(issue)
         result = self._repository.create_if_empty(
             email=email,
             password_hash=self._password_hash(password),

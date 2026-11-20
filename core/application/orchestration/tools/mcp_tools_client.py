@@ -22,6 +22,7 @@ import httpx2
 from mcp import Client, MCPError
 from mcp.client.streamable_http import streamable_http_client
 
+from core.application.auth.local_credentials import installation_requires_mfa
 from core.application.observability.workflow_telemetry import current_workflow_span
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.observability import otel_instruments
@@ -200,6 +201,9 @@ def _get_platform_auth_logger():
 
 
 def _bootstrap_fs_session_token(username: str, password: str) -> str:
+    if installation_requires_mfa():
+        return ""
+
     normalized_username = str(username or "").strip()
     normalized_password = str(password or "")
     if not normalized_username or not normalized_password:
@@ -211,8 +215,15 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
 
     try:
         from core.application.auth.config import AUTH_SESSION_TTL_HOURS, DEFAULT_ACCOUNT_ID
+        from core.application.auth.local_credentials import (
+            authenticator_storage_available,
+            lock_local_user,
+        )
+        from core.application.auth.mfa_service import mfa_enabled
         from core.application.auth.password import session_token_hash, verify_password
+        from core.application.auth.password_policy import password_expires_in_days
         from core.application.auth.resolve import auth_tables_available, get_user_by_username
+        from core.infrastructure.db.db_pool import transaction_connection
     except Exception as e:
         logger.debug("MCP auth bootstrap: could not import auth helpers: %s", e)
         return ""
@@ -224,17 +235,32 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
         user = get_user_by_username(bl, normalized_username)
         if not user or not bool(user.get("is_active", True)):
             return ""
-        if bool(user.get("must_change_password", False)):
+        if (
+            bool(user.get("must_change_password", False))
+            or password_expires_in_days(user.get("password_changed_at")) == 0
+        ):
             return ""
-        if not verify_password(normalized_password, str(user.get("password_hash") or "")):
+        password_hash = str(user.get("password_hash") or "")
+        if not verify_password(normalized_password, password_hash):
             return ""
 
+        user_id = str(user.get("id") or "").strip()
+        if not user_id:
+            return ""
         session_token = secrets.token_urlsafe(48)
         account_id = str(user.get("account_id") or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
-        with bl.conn.cursor() as cur:
-            session_has_account_id = False
-            with suppress(Exception):
-                session_has_account_id = bool(bl._column_exists("auth_sessions", "account_id"))
+        session_has_account_id = False
+        with suppress(Exception):
+            session_has_account_id = bool(bl._column_exists("auth_sessions", "account_id"))
+        has_authenticator_storage = authenticator_storage_available(bl)
+        with transaction_connection(bl) as conn, conn.cursor() as cur:
+            if has_authenticator_storage and (
+                not lock_local_user(
+                    cur, user_id=user_id, password_hash=password_hash, must_change_password=False
+                )
+                or mfa_enabled(cur, user_id)
+            ):
+                return ""
             if session_has_account_id:
                 cur.execute(
                     """
@@ -248,7 +274,7 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
                     VALUES (%s, %s, %s, now() + make_interval(hours => %s), false)
                     """,
                     (
-                        str(user.get("id") or ""),
+                        user_id,
                         account_id,
                         session_token_hash(session_token),
                         int(AUTH_SESSION_TTL_HOURS),
@@ -261,16 +287,13 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
                     VALUES (%s, %s, now() + make_interval(hours => %s), false)
                     """,
                     (
-                        str(user.get("id") or ""),
+                        user_id,
                         session_token_hash(session_token),
                         int(AUTH_SESSION_TTL_HOURS),
                     ),
                 )
-        bl.conn.commit()
         return session_token
     except Exception as e:
-        with suppress(Exception):
-            bl.conn.rollback()
         logger.debug("MCP auth bootstrap via DB session failed for %s: %s", normalized_username, e)
         return ""
 
@@ -372,6 +395,9 @@ def _fs_mcp_bearer_token(*, force_refresh: bool = False) -> str:
     if explicit:
         _MCP_BEARER_TOKEN_CACHE = explicit
         return explicit
+    if installation_requires_mfa():
+        _clear_fs_mcp_bearer_token_cache()
+        return ""
     if not force_refresh and _MCP_BEARER_TOKEN_CACHE:
         return _MCP_BEARER_TOKEN_CACHE
 

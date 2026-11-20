@@ -11,6 +11,7 @@ import {
 import type { AccountProfileTabExtension } from "@/app/extensions";
 import type { RegisteredPageRecord } from "@/lib/auth/AuthProvider";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { addDays, formatCalendarDay, todayIn, wholeDaysBetween } from "@/lib/time/calendar-days";
@@ -43,6 +44,7 @@ function expiryLabel(value: ExpiryChoice, t: I18nContextValue["t"] = fallbackCon
 }
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
+import { AuthenticatorSettings } from "@/pages/settings/account/authenticator-settings";
 import { ConnectedAppsSection } from "@/pages/settings/account/connected-apps";
 import {
   changeAccountPassword,
@@ -348,7 +350,14 @@ export function SettingsAccountPage() {
   async function changePassword(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordChangeSucceeded(false);
-    if (!currentPassword || newPassword.length < 10 || newPassword !== confirmPassword) { setPasswordMessage(t("react.settings.enter_the_current_password_and_matching_new_passwords_of_at_least_10_characters", "Enter the current password and matching new passwords of at least 10 characters.")); return; }
+    if (!currentPassword || newPassword !== confirmPassword) {
+      setPasswordMessage(t("react.settings.enter_current_and_matching_new_passwords", "Enter your current password and matching new passwords."));
+      return;
+    }
+    if (Array.from(newPassword).length < PASSWORD_MIN_LENGTH) {
+      setPasswordMessage(passwordRequirements(t));
+      return;
+    }
     setPasswordSaving(true); setPasswordMessage("");
     try { await changeAccountPassword({ current_password: currentPassword, new_password: newPassword, revoke_other_sessions: revokeOtherSessions }); setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setPasswordMessage(t("react.auth.password_updated", "Password updated.")); setPasswordChangeSucceeded(true); }
     catch (error) { setPasswordMessage(error instanceof Error ? error.message : t("react.settings.password_could_not_be_changed", "Password could not be changed.")); }
@@ -457,13 +466,14 @@ export function SettingsAccountPage() {
       <DsCard title={t("auth.common.password", "Password")} description={t("react.settings.change_your_local_password_and_optionally_revoke_other_sessions", "Change your local password and optionally revoke other sessions.")} footer={<><span className="fs-footer-status">{t("react.settings.password_has_not_been_changed", "Password has not been changed")}</span><Button busy={passwordSaving} busyLabel={t("react.settings.saving", "Saving…")} form="password-change-form" type="submit" variant="primary">{t("react.settings.change_password", "Change password")}</Button></>}>
         <form className="fs-form-grid" id="password-change-form" noValidate onSubmit={(event) => ignoreAsyncResult(changePassword(event))}>
           <div className="fs-field full"><RequiredLabel>{t("react.settings.current_password", "Current password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.current_password", "Current password")} autoComplete="current-password" id="account-current-password" name="current-password" onChange={(event) => setCurrentPassword(event.target.value)} required value={currentPassword} /></div>
-          <div className="fs-field"><RequiredLabel>{t("react.settings.new_password", "New password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.new_password", "New password")} autoComplete="new-password" id="account-new-password" minLength={10} name="new-password" onChange={(event) => setNewPassword(event.target.value)} required value={newPassword} /></div>
-          <div className="fs-field"><RequiredLabel>{t("react.settings.confirm_new_password", "Confirm new password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.confirm_new_password", "Confirm new password")} autoComplete="new-password" id="account-confirm-password" minLength={10} name="confirm-password" onChange={(event) => setConfirmPassword(event.target.value)} required value={confirmPassword} /></div>
-          <ul className="fs-requirements full" aria-label={t("react.settings.password_requirements", "Password requirements")}><li>{t("react.settings.10_or_more_characters", "10 or more characters")}</li><li>{t("react.settings.passwords_must_match", "Passwords must match")}</li><li>{t("react.settings.backend_policy_may_require_more", "Backend policy may require more")}</li></ul>
+          <div className="fs-field"><RequiredLabel>{t("react.settings.new_password", "New password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.new_password", "New password")} autoComplete="new-password" id="account-new-password" minLength={PASSWORD_MIN_LENGTH} name="new-password" onChange={(event) => setNewPassword(event.target.value)} required value={newPassword} /></div>
+          <div className="fs-field"><RequiredLabel>{t("react.settings.confirm_new_password", "Confirm new password")}</RequiredLabel><SensitiveInput ariaLabel={t("react.settings.confirm_new_password", "Confirm new password")} autoComplete="new-password" id="account-confirm-password" minLength={PASSWORD_MIN_LENGTH} name="confirm-password" onChange={(event) => setConfirmPassword(event.target.value)} required value={confirmPassword} /></div>
+          <ul className="fs-requirements full" aria-label={t("react.settings.password_requirements", "Password requirements")}><li>{passwordRequirements(t)}</li><li>{t("react.settings.passwords_must_match", "Passwords must match")}</li><li>{t("react.settings.backend_policy_may_require_more", "Backend policy may require more")}</li></ul>
           <div className="fs-field full"><DsCheckbox checked={revokeOtherSessions} onChange={setRevokeOtherSessions}>{t("react.settings.revoke_other_sessions_after_changing_the_password", "Revoke other sessions after changing the password")}</DsCheckbox></div>
         </form>
         {passwordMessage ? <DsAlert tone={passwordChangeSucceeded ? "success" : "danger"} title={t("react.settings.password_update", "Password update")}>{passwordMessage}</DsAlert> : null}
       </DsCard>
+      {profile.id ? <AuthenticatorSettings key={profile.id} userId={profile.id} /> : null}
       </div>
     );
   }

@@ -1293,6 +1293,24 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_AUTH_MFA_REQUIRED",
+      "groups": [
+        "core_security_auth"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "0",
+      "owner": "security",
+      "notes": "Require an enrolled authenticator or recovery code for all local user sign-ins. Complete enrollment before enabling this setting."
+    },
+    {
       "name": "FS_AUTH_PASSWORD_ITERATIONS",
       "groups": [
         "core_security_auth"
@@ -1324,7 +1342,7 @@
       "doctor_secret": false,
       "secret": true,
       "preserve_existing": true,
-      "default": "10",
+      "default": "12",
       "owner": "security",
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },

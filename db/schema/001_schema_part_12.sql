@@ -323,3 +323,49 @@ CREATE INDEX idx_jobs_workflow_wait_event_key
 CREATE INDEX idx_jobs_workflow_wait_event_due
     ON public.jobs USING btree (((((meta -> 'workflow_wait'::text) ->> 'due_epoch_ms'::text))::bigint), id)
     WHERE (status = 'awaiting_event'::text);
+
+-- One local authenticator slot and user-bound recovery codes.
+CREATE TABLE public.auth_totp_factors (
+    user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    secret_enc text,
+    pending_secret_enc text,
+    pending_expires_at timestamp with time zone,
+    last_used_step bigint
+);
+
+CREATE TABLE public.auth_mfa_recovery_codes (
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    code_hash text NOT NULL,
+    PRIMARY KEY (user_id, code_hash)
+);
+
+-- Password age follows writes to the stored credential, including resets.
+CREATE FUNCTION public.update_password_changed_at() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+    AS $$
+DECLARE
+    old_deadline timestamp with time zone := OLD.password_changed_at + make_interval(hours => 8760);
+BEGIN
+    NEW.password_changed_at = clock_timestamp();
+    -- A pending enrollment was authorized by a password that has changed.
+    UPDATE public.auth_totp_factors
+    SET pending_secret_enc = NULL, pending_expires_at = NULL
+    WHERE user_id = NEW.id AND pending_secret_enc IS NOT NULL;
+    IF old_deadline <= NEW.password_changed_at THEN
+        -- Updating the credential must not restore access through old sessions.
+        UPDATE public.auth_sessions
+        SET expires_at = old_deadline
+        WHERE user_id = NEW.id
+          AND revoked = false
+          AND expires_at > old_deadline;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_users_password_changed
+    BEFORE UPDATE OF password_hash ON public.users
+    FOR EACH ROW
+    WHEN (OLD.password_hash IS DISTINCT FROM NEW.password_hash)
+    EXECUTE FUNCTION public.update_password_changed_at();

@@ -97,7 +97,7 @@ AUTH_REMEMBER_SESSION_TTL_HOURS = max(
 AUTH_PASSWORD_ITERATIONS = max(
     100_000, int(_runtime_env.get("FS_AUTH_PASSWORD_ITERATIONS", "260000"))
 )
-AUTH_PASSWORD_MIN_LENGTH = max(8, int(_runtime_env.get("FS_AUTH_PASSWORD_MIN_LENGTH", "10")))
+AUTH_PASSWORD_MIN_LENGTH = max(12, int(_runtime_env.get("FS_AUTH_PASSWORD_MIN_LENGTH", "12")))
 
 # ---------------------------------------------------------------------------
 # Login rate limiting

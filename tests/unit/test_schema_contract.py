@@ -162,6 +162,7 @@ def _canonical_column_rows() -> list[tuple[str, str, str, bool, str | None]]:
         ),
         ("users", "date_format", "character varying(16)", False, None),
         ("users", "time_format", "character varying(8)", False, None),
+        ("users", "password_changed_at", "timestamp with time zone", True, "now()"),
         ("user_account_memberships", "id", "uuid", True, "gen_random_uuid()"),
         ("user_account_memberships", "user_id", "uuid", True, None),
         ("user_account_memberships", "account_id", "uuid", True, None),
@@ -772,6 +773,8 @@ def test_required_runtime_schema_includes_canonical_user_admin_shape() -> None:
 
     assert "accounts" in REQUIRED_RUNTIME_TABLES
     assert "user_account_memberships" in REQUIRED_RUNTIME_TABLES
+    assert "auth_totp_factors" in REQUIRED_RUNTIME_TABLES
+    assert "auth_mfa_recovery_codes" in REQUIRED_RUNTIME_TABLES
     assert {
         ("users", "must_change_password"),
         ("users", "deleted_at"),
@@ -779,6 +782,9 @@ def test_required_runtime_schema_includes_canonical_user_admin_shape() -> None:
         ("users", "timezone"),
         ("users", "locale"),
         ("users", "account_id"),
+        ("users", "password_changed_at"),
+        ("auth_totp_factors", "last_used_step"),
+        ("auth_mfa_recovery_codes", "code_hash"),
     } <= set(REQUIRED_RUNTIME_COLUMNS)
 
 
