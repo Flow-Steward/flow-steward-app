@@ -31856,3 +31856,162 @@ msgstr "Address"
 
 msgid "react.agent_access.role_connected_instruction"
 msgstr "Add Flow Steward in {client} with the steps below; the address and your key are already filled in."
+
+msgid "react.oauth.role_access_narrower"
+msgstr "{client} asked for less than your role allows, so it gets only this part of your access."
+
+msgid "react.oauth.role_access_admin"
+msgstr "{client} will be able to do what you can do in Flow Steward."
+
+msgid "react.oauth.role_access_operator"
+msgstr "{client} will be able to see what you see and do the work you do: start workflows, decide approvals and control jobs. It cannot change how Flow Steward is set up."
+
+msgid "react.oauth.role_access_viewer"
+msgstr "{client} will be able to see what you see in Flow Steward. It cannot change anything."
+
+msgid "react.oauth.role_access_details"
+msgstr "What it can do"
+
+msgid "react.oauth.role_access_expiry"
+msgstr "Works for {days} days, until {date}. Connect again from the app to keep it working after that."
+
+msgid "react.oauth.role_access_description"
+msgstr "The app acts as you and can never do more than your own role allows."
+
+msgid "react.oauth.signed_in_as_role"
+msgstr "Signed in as {name} · {role}"
+
+msgid "react.oauth.signed_in_as"
+msgstr "Signed in as {name}"
+
+msgid "react.oauth.allow_short"
+msgstr "Allow"
+
+msgid "react.oauth.preset_my_role_description"
+msgstr "What your role lets you do, limited to what the app asked for."
+
+msgid "react.agent_access.connections_title"
+msgstr "Your connections"
+
+msgid "react.agent_access.connection_ends_on"
+msgstr "Works until {date}"
+
+msgid "react.agent_access.connection_no_end"
+msgstr "Has no end date"
+
+msgid "react.agent_access.connection_ending_title"
+msgstr "{client} stops working in {days} days, on {date}"
+
+msgid "react.agent_access.connection_reconnect_from_client"
+msgstr "To keep it working, connect Flow Steward again from {client}. Flow Steward asks you to allow it once more."
+
+msgid "react.agent_access.connection_connect_again_copy"
+msgstr "To keep it working, connect again: you get a new key to put into {client}."
+
+msgid "react.agent_access.oauth_role_access_summary"
+msgstr "{client} connects through OAuth: you allow it in Flow Steward when you connect."
+
+msgid "react.agent_access.oauth_role_access_body"
+msgstr "When you add Flow Steward in {client}, you sign in to Flow Steward and allow it. It gets the same access as you for {days} days; connecting again from {client} renews it."
+
+msgid "react.agent_access.expiry_notice_one"
+msgstr "Your AI agent connection {client} stops working on {date}."
+
+msgid "react.agent_access.expiry_notice_many"
+msgstr "{count} of your AI agent connections stop working soon."
+
+msgid "react.agent_access.expiry_notice_link"
+msgstr "Open AI agents"
+
+msgid "react.agent_access.expiry_notice_dismiss"
+msgstr "Dismiss"
+
+msgid "react.permissions.account_self"
+msgstr "Manage your own sign-in: sign out, change your password and email, your personal tokens, OAuth grants and AI agent connection"
+
+msgid "react.permissions.account_profile_write"
+msgstr "Change your own profile, time zone, language and date format, and switch account"
+
+msgid "react.permissions.jobs_read"
+msgstr "Read jobs, their results, files, logs and approvals"
+
+msgid "react.permissions.projects_read"
+msgstr "Read projects, their connections, schedules and history"
+
+msgid "react.permissions.workflows_read"
+msgstr "Read the workflows of a project, their contracts and validation"
+
+msgid "react.permissions.reports_read"
+msgstr "Read workflow reports"
+
+msgid "react.permissions.notify_read"
+msgstr "Read a project's notification routes and deliveries"
+
+msgid "react.permissions.secrets_read"
+msgstr "Read stored secrets' names, metadata and where they are used, never their values"
+
+msgid "react.permissions.extensions_read"
+msgstr "Read an installed extension's details"
+
+msgid "react.permissions.platform_read"
+msgstr "Read settings, security findings, monitoring, search and the trash"
+
+msgid "react.permissions.registry_read"
+msgstr "Read the workflow registry, its history, extensions, providers and workload"
+
+msgid "react.permissions.workflows_run"
+msgstr "Start a workflow and preview which workflow a submission would start"
+
+msgid "react.permissions.approvals_decide"
+msgstr "Decide approvals and override decisions of a run"
+
+msgid "react.permissions.jobs_write"
+msgstr "Cancel, restart, retry a step of, acknowledge and unacknowledge jobs"
+
+msgid "react.permissions.reports_write"
+msgstr "Generate a workflow report"
+
+msgid "react.permissions.notify_dispatch"
+msgstr "Send a notification through a route the admin configured"
+
+msgid "react.permissions.extensions_use"
+msgstr "Run an extension page's actions and queries and resolve an external effect"
+
+msgid "react.permissions.secrets_value_write"
+msgstr "Create a stored secret, replace its value and edit its metadata"
+
+msgid "react.permissions.projects_write"
+msgstr "Create, change and delete projects, their connections, schedules, routes and policy"
+
+msgid "react.permissions.workspaces_manage"
+msgstr "Create, change and archive workspaces"
+
+msgid "react.permissions.workflows_manage"
+msgstr "Author, import, change and delete workflows, their triggers and project bindings"
+
+msgid "react.permissions.registry_manage"
+msgstr "Change agents, tools, skills, data contracts, datasets, MCP connectors and providers"
+
+msgid "react.permissions.extensions_manage"
+msgstr "Install, configure, enable and remove extensions"
+
+msgid "react.permissions.jobs_manage"
+msgstr "Delete jobs, replay a step, redrive an event and recover or stop workers"
+
+msgid "react.permissions.secrets_bind"
+msgstr "Choose which stored secret a connection or workflow uses, or remove that choice"
+
+msgid "react.permissions.secrets_delete"
+msgstr "Delete a stored secret together with every place it is used"
+
+msgid "react.permissions.secrets_approve"
+msgstr "Approve a configuration's use of stored secrets; only a person signed in"
+
+msgid "react.permissions.users_manage"
+msgstr "Manage users, accounts and service accounts"
+
+msgid "react.permissions.settings_manage"
+msgstr "Change installation settings, security policy, model providers and updates"
+
+msgid "react.permissions.platform_manage"
+msgstr "Run generic commands, restore or purge the trash, and take agent and reaction intake"

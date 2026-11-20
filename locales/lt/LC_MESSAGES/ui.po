@@ -32284,3 +32284,162 @@ msgstr "Adresas"
 
 msgid "react.agent_access.role_connected_instruction"
 msgstr "Pridėkite Flow Steward programoje {client} pagal toliau pateiktus žingsnius; adresas ir jūsų raktas jau įrašyti."
+
+msgid "react.oauth.role_access_narrower"
+msgstr "{client} paprašė mažiau, nei leidžia jūsų vaidmuo, todėl gauna tik šią jūsų prieigos dalį."
+
+msgid "react.oauth.role_access_admin"
+msgstr "{client} galės daryti tai, ką Flow Steward galite jūs."
+
+msgid "react.oauth.role_access_operator"
+msgstr "{client} galės matyti tai, ką matote jūs, ir atlikti jūsų darbą: paleisti darbo eigas, priimti sprendimus dėl patvirtinimų ir valdyti užduotis. Flow Steward nustatymų keisti negalės."
+
+msgid "react.oauth.role_access_viewer"
+msgstr "{client} galės matyti tai, ką Flow Steward matote jūs. Nieko keisti negalės."
+
+msgid "react.oauth.role_access_details"
+msgstr "Ką galės daryti"
+
+msgid "react.oauth.role_access_expiry"
+msgstr "Veikia {days} d., iki {date}. Kad veiktų ir toliau, prisijunkite iš naujo iš programos."
+
+msgid "react.oauth.role_access_description"
+msgstr "Programa veikia jūsų vardu ir niekada negali daugiau, nei leidžia jūsų vaidmuo."
+
+msgid "react.oauth.signed_in_as_role"
+msgstr "Prisijungta kaip {name} · {role}"
+
+msgid "react.oauth.signed_in_as"
+msgstr "Prisijungta kaip {name}"
+
+msgid "react.oauth.allow_short"
+msgstr "Leisti"
+
+msgid "react.oauth.preset_my_role_description"
+msgstr "Tai, ką leidžia jūsų vaidmuo, apribota tuo, ko paprašė programa."
+
+msgid "react.agent_access.connections_title"
+msgstr "Jūsų ryšiai"
+
+msgid "react.agent_access.connection_ends_on"
+msgstr "Veikia iki {date}"
+
+msgid "react.agent_access.connection_no_end"
+msgstr "Neturi pabaigos datos"
+
+msgid "react.agent_access.connection_ending_title"
+msgstr "{client} nustos veikti po {days} d., {date}"
+
+msgid "react.agent_access.connection_reconnect_from_client"
+msgstr "Kad veiktų ir toliau, iš naujo prijunkite Flow Steward iš {client}. Flow Steward dar kartą paprašys jūsų leidimo."
+
+msgid "react.agent_access.connection_connect_again_copy"
+msgstr "Kad veiktų ir toliau, prijunkite iš naujo: gausite naują raktą, kurį reikės įrašyti į {client}."
+
+msgid "react.agent_access.oauth_role_access_summary"
+msgstr "{client} jungiasi per OAuth: prisijungdami leidžiate tai Flow Steward."
+
+msgid "react.agent_access.oauth_role_access_body"
+msgstr "Kai pridedate Flow Steward programoje {client}, prisijungiate prie Flow Steward ir tai leidžiate. {client} gauna tokią pačią prieigą kaip jūs {days} d.; prijungus iš naujo iš {client} ji atnaujinama."
+
+msgid "react.agent_access.expiry_notice_one"
+msgstr "Jūsų DI agento ryšys {client} nustos veikti {date}."
+
+msgid "react.agent_access.expiry_notice_many"
+msgstr "{count} jūsų DI agentų ryšiai netrukus nustos veikti."
+
+msgid "react.agent_access.expiry_notice_link"
+msgstr "Atverti DI agentus"
+
+msgid "react.agent_access.expiry_notice_dismiss"
+msgstr "Paslėpti"
+
+msgid "react.permissions.account_self"
+msgstr "Tvarkyti savo prisijungimą: atsijungti, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
+
+msgid "react.permissions.account_profile_write"
+msgstr "Keisti savo profilį, laiko juostą, kalbą ir datos formatą bei perjungti paskyrą"
+
+msgid "react.permissions.jobs_read"
+msgstr "Skaityti užduotis, jų rezultatus, failus, žurnalus ir patvirtinimus"
+
+msgid "react.permissions.projects_read"
+msgstr "Skaityti projektus, jų ryšius, tvarkaraščius ir istoriją"
+
+msgid "react.permissions.workflows_read"
+msgstr "Skaityti projekto darbo eigas, jų sutartis ir patikrą"
+
+msgid "react.permissions.reports_read"
+msgstr "Skaityti darbo eigų ataskaitas"
+
+msgid "react.permissions.notify_read"
+msgstr "Skaityti projekto pranešimų maršrutus ir pristatymus"
+
+msgid "react.permissions.secrets_read"
+msgstr "Skaityti saugomų slaptažodžių pavadinimus, metaduomenis ir kur jie naudojami, bet ne jų reikšmes"
+
+msgid "react.permissions.extensions_read"
+msgstr "Skaityti įdiegto plėtinio informaciją"
+
+msgid "react.permissions.platform_read"
+msgstr "Skaityti nustatymus, saugumo radinius, stebėseną, paiešką ir šiukšlinę"
+
+msgid "react.permissions.registry_read"
+msgstr "Skaityti darbo eigų registrą, jo istoriją, plėtinius, teikėjus ir apkrovą"
+
+msgid "react.permissions.workflows_run"
+msgstr "Paleisti darbo eigą ir peržiūrėti, kurią darbo eigą paleistų pateikimas"
+
+msgid "react.permissions.approvals_decide"
+msgstr "Priimti sprendimus dėl patvirtinimų ir pakeisti vykdymo sprendimus"
+
+msgid "react.permissions.jobs_write"
+msgstr "Atšaukti, paleisti iš naujo, pakartoti užduoties žingsnį, pažymėti ir atžymėti užduotis kaip peržiūrėtas"
+
+msgid "react.permissions.reports_write"
+msgstr "Sugeneruoti darbo eigos ataskaitą"
+
+msgid "react.permissions.notify_dispatch"
+msgstr "Siųsti pranešimą administratoriaus sukonfigūruotu maršrutu"
+
+msgid "react.permissions.extensions_use"
+msgstr "Vykdyti plėtinio puslapio veiksmus ir užklausas bei išspręsti išorinį poveikį"
+
+msgid "react.permissions.secrets_value_write"
+msgstr "Kurti saugomą slaptažodį, keisti jo reikšmę ir metaduomenis"
+
+msgid "react.permissions.projects_write"
+msgstr "Kurti, keisti ir trinti projektus, jų ryšius, tvarkaraščius, maršrutus ir politiką"
+
+msgid "react.permissions.workspaces_manage"
+msgstr "Kurti, keisti ir archyvuoti darbo sritis"
+
+msgid "react.permissions.workflows_manage"
+msgstr "Kurti, importuoti, keisti ir trinti darbo eigas, jų paleidiklius ir susiejimus su projektais"
+
+msgid "react.permissions.registry_manage"
+msgstr "Keisti agentus, įrankius, įgūdžius, duomenų sutartis, duomenų rinkinius, MCP jungtis ir teikėjus"
+
+msgid "react.permissions.extensions_manage"
+msgstr "Diegti, konfigūruoti, įjungti ir šalinti plėtinius"
+
+msgid "react.permissions.jobs_manage"
+msgstr "Trinti užduotis, pakartoti žingsnį, iš naujo perduoti įvykį ir atkurti ar sustabdyti vykdytojus"
+
+msgid "react.permissions.secrets_bind"
+msgstr "Pasirinkti, kurį saugomą slaptažodį naudoja ryšys ar darbo eiga, arba panaikinti šį pasirinkimą"
+
+msgid "react.permissions.secrets_delete"
+msgstr "Ištrinti saugomą slaptažodį kartu su visomis vietomis, kur jis naudojamas"
+
+msgid "react.permissions.secrets_approve"
+msgstr "Patvirtinti konfigūracijos saugomų slaptažodžių naudojimą; tik prisijungęs žmogus"
+
+msgid "react.permissions.users_manage"
+msgstr "Tvarkyti naudotojus, paskyras ir tarnybines paskyras"
+
+msgid "react.permissions.settings_manage"
+msgstr "Keisti diegimo nustatymus, saugumo politiką, modelių teikėjus ir atnaujinimus"
+
+msgid "react.permissions.platform_manage"
+msgstr "Vykdyti bendrąsias komandas, atkurti ar išvalyti šiukšlinę ir priimti agentų bei reakcijų užklausas"

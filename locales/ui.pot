@@ -30800,3 +30800,162 @@ msgstr ""
 
 msgid "react.agent_access.role_connected_instruction"
 msgstr ""
+
+msgid "react.oauth.role_access_narrower"
+msgstr ""
+
+msgid "react.oauth.role_access_admin"
+msgstr ""
+
+msgid "react.oauth.role_access_operator"
+msgstr ""
+
+msgid "react.oauth.role_access_viewer"
+msgstr ""
+
+msgid "react.oauth.role_access_details"
+msgstr ""
+
+msgid "react.oauth.role_access_expiry"
+msgstr ""
+
+msgid "react.oauth.role_access_description"
+msgstr ""
+
+msgid "react.oauth.signed_in_as_role"
+msgstr ""
+
+msgid "react.oauth.signed_in_as"
+msgstr ""
+
+msgid "react.oauth.allow_short"
+msgstr ""
+
+msgid "react.oauth.preset_my_role_description"
+msgstr ""
+
+msgid "react.agent_access.connections_title"
+msgstr ""
+
+msgid "react.agent_access.connection_ends_on"
+msgstr ""
+
+msgid "react.agent_access.connection_no_end"
+msgstr ""
+
+msgid "react.agent_access.connection_ending_title"
+msgstr ""
+
+msgid "react.agent_access.connection_reconnect_from_client"
+msgstr ""
+
+msgid "react.agent_access.connection_connect_again_copy"
+msgstr ""
+
+msgid "react.agent_access.oauth_role_access_summary"
+msgstr ""
+
+msgid "react.agent_access.oauth_role_access_body"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_one"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_many"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_link"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_dismiss"
+msgstr ""
+
+msgid "react.permissions.account_self"
+msgstr ""
+
+msgid "react.permissions.account_profile_write"
+msgstr ""
+
+msgid "react.permissions.jobs_read"
+msgstr ""
+
+msgid "react.permissions.projects_read"
+msgstr ""
+
+msgid "react.permissions.workflows_read"
+msgstr ""
+
+msgid "react.permissions.reports_read"
+msgstr ""
+
+msgid "react.permissions.notify_read"
+msgstr ""
+
+msgid "react.permissions.secrets_read"
+msgstr ""
+
+msgid "react.permissions.extensions_read"
+msgstr ""
+
+msgid "react.permissions.platform_read"
+msgstr ""
+
+msgid "react.permissions.registry_read"
+msgstr ""
+
+msgid "react.permissions.workflows_run"
+msgstr ""
+
+msgid "react.permissions.approvals_decide"
+msgstr ""
+
+msgid "react.permissions.jobs_write"
+msgstr ""
+
+msgid "react.permissions.reports_write"
+msgstr ""
+
+msgid "react.permissions.notify_dispatch"
+msgstr ""
+
+msgid "react.permissions.extensions_use"
+msgstr ""
+
+msgid "react.permissions.secrets_value_write"
+msgstr ""
+
+msgid "react.permissions.projects_write"
+msgstr ""
+
+msgid "react.permissions.workspaces_manage"
+msgstr ""
+
+msgid "react.permissions.workflows_manage"
+msgstr ""
+
+msgid "react.permissions.registry_manage"
+msgstr ""
+
+msgid "react.permissions.extensions_manage"
+msgstr ""
+
+msgid "react.permissions.jobs_manage"
+msgstr ""
+
+msgid "react.permissions.secrets_bind"
+msgstr ""
+
+msgid "react.permissions.secrets_delete"
+msgstr ""
+
+msgid "react.permissions.secrets_approve"
+msgstr ""
+
+msgid "react.permissions.users_manage"
+msgstr ""
+
+msgid "react.permissions.settings_manage"
+msgstr ""
+
+msgid "react.permissions.platform_manage"
+msgstr ""
