@@ -2717,13 +2717,15 @@ class TestLocalAuthEndpoints:
             patch.object(api_routes, "_auth_tables_available", return_value=True),
             patch.object(api_routes, "_get_user_by_session_token", return_value=session_user),
             patch.object(api_routes, "_get_user_by_username", return_value=user_row),
-            patch.object(api_routes, "_verify_password", return_value=True),
+            patch.object(
+                api_routes, "_verify_password", side_effect=lambda value, _hash: value == "old-pass"
+            ),
             patch.object(api_routes, "_password_hash", return_value="new-hash"),
         ):
             resp = client.post(
                 "/api/auth/change-password",
                 headers={"Authorization": "Bearer current-session-token"},
-                json={"current_password": "old-pass", "new_password": "new-password-123"},
+                json={"current_password": "old-pass", "new_password": "New-password-123!"},
             )
 
         assert resp.status_code == 200

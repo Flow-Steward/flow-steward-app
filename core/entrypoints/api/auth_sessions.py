@@ -17,8 +17,10 @@ from core.application.auth.local_credentials import (
     authenticator_storage_available,
     installation_requires_mfa,
     lock_local_user,
+    password_age_available,
 )
 from core.application.auth.mfa_service import mfa_enabled, verify_mfa
+from core.application.auth.password_history import PasswordReuseError, require_unused_password
 from core.application.auth.password_policy import (
     PASSWORD_WARNING_DAYS,
     password_expires_in_days,
@@ -238,7 +240,7 @@ def create_auth_sessions_router(
         )
 
     @router.post("/api/auth/login")
-    async def api_auth_login(body: AuthLoginRequest, request: Request):
+    def api_auth_login(body: AuthLoginRequest, request: Request):
         """Authenticate a local user and create the session cookie.
 
         Temporary and expired passwords can only authorize their own replacement.
@@ -456,16 +458,19 @@ def create_auth_sessions_router(
         revoked_sessions = 0
         try:
             with transaction_connection(bl) as conn, conn.cursor() as cur:
-                if storage_available:
-                    user_id = str(user["id"])
-                    if not lock_local_user(
-                        cur,
-                        user_id=user_id,
-                        password_hash=password_hash_value,
-                        must_change_password=change_flag,
-                    ):
-                        return JSONResponse({"error": "Invalid credentials"}, status_code=401)
+                user_id = str(user["id"])
+                needs_lock = storage_available or (
+                    must_change_password and password_age_available(bl)
+                )
+                if needs_lock and not lock_local_user(
+                    cur,
+                    user_id=user_id,
+                    password_hash=password_hash_value,
+                    must_change_password=change_flag,
+                ):
+                    return JSONResponse({"error": "Invalid credentials"}, status_code=401)
 
+                if storage_available:
                     if body.mfa_code:
                         locked, retry_after = _auth_login_lock_state(email, client_ip)
                         if locked:
@@ -486,8 +491,15 @@ def create_auth_sessions_router(
                         )
 
                 if must_change_password:
+                    require_unused_password(
+                        cur,
+                        user_id=user_id,
+                        password=new_password,
+                        current_hash=password_hash_value,
+                        verify=_verify_password,
+                    )
                     revoked_sessions = _replace_temporary_password(
-                        bl, cur, user_id=str(user["id"]), new_password=new_password
+                        bl, cur, user_id=user_id, new_password=new_password
                     )
                 session_has_account_id = False
                 try:
@@ -521,6 +533,8 @@ def create_auth_sessions_router(
                         """,
                         (str(user["id"]), token_hash, int(session_ttl_hours)),
                     )
+        except PasswordReuseError as exc:
+            return JSONResponse({"error": str(exc), "field": "new_password"}, status_code=400)
         except Exception as e:
             return _api_error_response(e)
 

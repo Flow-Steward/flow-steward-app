@@ -42,4 +42,8 @@ prior versions did not track password age. Older accounts can therefore
 require a change at their first sign-in after upgrade. A database trigger
 records subsequent password hash changes across the supported write paths.
 Sessions already expired by the old password deadline stay expired after rotation.
+The database retains ten prior salted password hashes per user. Password changes,
+administrator replacements, and reset flows reject the current password and all
+retained hashes while holding the credential lock. Existing users begin collecting
+history with their first change after migration.
 Programmatic credentials retain their own lifetime and rotation rules.

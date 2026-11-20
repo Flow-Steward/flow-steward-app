@@ -636,9 +636,13 @@ class TestAuthMe:
 
 
 class TestPasswordChange:
-    def test_change_password_success(self, auth_client, serve_module):
+    @pytest.mark.parametrize("reused", [False, True])
+    def test_change_password_success(self, auth_client, serve_module, reused):
         user = _make_admin_user()
         bl = _make_mock_bl()
+        cur = bl.conn.cursor.return_value
+        if reused:
+            cur.fetchall.return_value = [(_make_password_hash("NewStr0ngP@ss!"),)]
         with (
             _patch_app_db(auth_client, bl),
             patch(
@@ -663,6 +667,14 @@ class TestPasswordChange:
                 "/api/auth/change-password",
                 json={"current_password": "oldpassword1", "new_password": "NewStr0ngP@ss!"},
             )
+        if reused:
+            assert r.status_code == 400
+            assert r.json()["field"] == "new_password"
+            assert all(
+                "UPDATE users SET password_hash" not in str(call.args[0])
+                for call in cur.execute.call_args_list
+            )
+            return
         assert r.status_code == 200
         assert r.json().get("status") == "password_updated"
 
@@ -1122,7 +1134,8 @@ class TestPasswordReset:
         assert r.status_code == 200
         assert r.json().get("valid") is False
 
-    def test_confirm_resets_password(self, auth_client, serve_module):
+    @pytest.mark.parametrize("reused", [False, True])
+    def test_confirm_resets_password(self, auth_client, serve_module, reused):
         bl = _make_mock_bl()
         mock_row = {
             "id": 1,
@@ -1132,6 +1145,8 @@ class TestPasswordReset:
         }
         cur = MagicMock()
         cur.fetchone.return_value = mock_row
+        if reused:
+            cur.fetchall.return_value = [{"password_hash": _make_password_hash("N3wStr0ngP@ss!!")}]
         cur.rowcount = 0
         cur.__enter__ = MagicMock(return_value=cur)
         cur.__exit__ = MagicMock(return_value=False)
@@ -1168,6 +1183,15 @@ class TestPasswordReset:
                     "new_password": "N3wStr0ngP@ss!!",
                 },
             )
+        if reused:
+            assert r.status_code == 400
+            assert r.json()["field"] == "new_password"
+            writes = ("UPDATE users SET password_hash", "UPDATE auth_password_resets")
+            assert all(
+                not any(write in str(call.args[0]) for write in writes)
+                for call in cur.execute.call_args_list
+            )
+            return
         assert r.status_code == 200
         assert r.json().get("status") == "password_reset_confirmed"
 

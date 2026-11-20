@@ -39,6 +39,7 @@ class _Store:
             "roles": ["member"],
         }
         self.sessions_inserted = 0
+        self.password_history: list[str] = []
         self.sessions_revoked_for: list[str] = []
         self.failures: list[tuple[str, str]] = []
         self.audit: list[dict[str, Any]] = []
@@ -49,6 +50,7 @@ class _Cursor:
         self._store = store
         self.rowcount = 0
         self._locked = False
+        self._reading_history = False
 
     def __enter__(self) -> _Cursor:
         return self
@@ -69,6 +71,8 @@ class _Cursor:
         elif normalized.startswith("UPDATE auth_sessions SET revoked = true"):
             self._store.sessions_revoked_for.append(str(params[0]))
             self.rowcount = 2
+        elif "FROM auth_password_history" in normalized:
+            self._reading_history = True
         elif normalized.startswith("SELECT id FROM users"):
             self._locked = True
         elif normalized.startswith("INSERT INTO auth_sessions"):
@@ -76,7 +80,7 @@ class _Cursor:
             self.rowcount = 1
 
     def fetchall(self) -> list[Any]:
-        return []
+        return [(value,) for value in self._store.password_history] if self._reading_history else []
 
     def fetchone(self) -> Any:
         return (self._store.user["id"],) if self._locked else None
@@ -301,3 +305,18 @@ def test_installation_requirement_blocks_unenrolled_account(monkeypatch) -> None
     assert response.json()["mfa_enrollment_required"] is True
     assert not _has_session_cookie(response)
     assert store.sessions_inserted == 0
+
+
+def test_required_password_change_rejects_a_prior_password_before_signing_in() -> None:
+    store = _Store()
+    store.password_history.append(password_hash(_PERMANENT))
+    client = _client(store)
+
+    reused = _login(client, _TEMPORARY, new_password=_PERMANENT)
+
+    assert reused.status_code == 400
+    assert reused.json()["field"] == "new_password"
+    assert not _has_session_cookie(reused)
+    assert store.sessions_inserted == 0
+    assert store.user["must_change_password"] is True
+    assert verify_password(_TEMPORARY, store.user["password_hash"])

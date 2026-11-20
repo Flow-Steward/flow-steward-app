@@ -775,6 +775,7 @@ def test_required_runtime_schema_includes_canonical_user_admin_shape() -> None:
     assert "user_account_memberships" in REQUIRED_RUNTIME_TABLES
     assert "auth_totp_factors" in REQUIRED_RUNTIME_TABLES
     assert "auth_mfa_recovery_codes" in REQUIRED_RUNTIME_TABLES
+    assert "auth_password_history" in REQUIRED_RUNTIME_TABLES
     assert {
         ("users", "must_change_password"),
         ("users", "deleted_at"),
@@ -783,6 +784,9 @@ def test_required_runtime_schema_includes_canonical_user_admin_shape() -> None:
         ("users", "locale"),
         ("users", "account_id"),
         ("users", "password_changed_at"),
+        ("auth_password_history", "user_id"),
+        ("auth_password_history", "id"),
+        ("auth_password_history", "password_hash"),
         ("auth_totp_factors", "last_used_step"),
         ("auth_mfa_recovery_codes", "code_hash"),
     } <= set(REQUIRED_RUNTIME_COLUMNS)
