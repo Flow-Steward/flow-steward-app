@@ -833,10 +833,14 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 
 .fs-role-grid,
 .fs-control-grid { display: grid; gap: var(--fs-space-100) var(--fs-dashboard-grid-gap); }
-.fs-role-grid { grid-template-columns: repeat(3, max-content); justify-content: start; }
+/* One system role per user (ADR 0076): one choice per row, each with what it can do. */
+.fs-role-grid { grid-template-columns: minmax(0, 1fr); }
 .fs-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.fs-control-grid .fs-checkbox-label span:last-child { display: grid; gap: var(--fs-field-gap); }
+.fs-control-grid .fs-checkbox-label span:last-child,
+.fs-role-grid .fs-radio-label > span:last-child:not(.fs-radio-mark) { display: grid; gap: var(--fs-field-gap); }
+.fs-role-grid strong,
 .fs-control-grid strong { display: inline-flex; align-items: center; min-height: var(--fs-space-250); color: var(--fs-text-primary); line-height: var(--fs-space-250); }
+.fs-role-grid small,
 .fs-control-grid small { color: var(--fs-field-helper-color); font-size: var(--fs-field-helper-size); line-height: var(--fs-field-helper-line-height); }
 
 .fs-table-card { overflow: hidden; border-color: var(--fs-border-subtle); box-shadow: var(--fs-shadow-surface); }

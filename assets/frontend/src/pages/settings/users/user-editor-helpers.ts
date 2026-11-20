@@ -1,4 +1,4 @@
-import { userLabel, type EditorState, type EditorMode } from "./user-form-model";
+import { highestSystemRole, userLabel, type EditorState, type EditorMode } from "./user-form-model";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { createUser, updateUser } from "@/pages/settings/shared/api";
@@ -8,7 +8,7 @@ export const EMPTY_EDITOR: EditorState = {
   displayName: "",
   email: "",
   password: "",
-  roles: ["viewer"],
+  role: "viewer",
   active: true,
   mustChangePassword: true,
 };
@@ -29,7 +29,7 @@ export function editorForUser(user: UserRecord): EditorState {
     displayName: user.display_name,
     email: user.email,
     password: "",
-    roles: user.roles.length ? user.roles : ["viewer"],
+    role: highestSystemRole(user.roles) || "viewer",
     active: user.is_active,
     mustChangePassword: user.must_change_password,
   };
@@ -40,7 +40,7 @@ export function editorValidationError(
   mode: EditorMode, t: I18nContextValue["t"] = fallbackContext.t,
 ): string {
   if (!editor.displayName.trim()) return t("react.settings.display_name_is_required", "Display name is required.");
-  if (!editor.roles.length) return t("users.validation.select_role", "Select at least one role.");
+  if (!editor.role) return t("react.settings.choose_a_role", "Choose a role.");
   if (mode === "add" && (!editor.email.includes("@") || editor.password.length < 10)) {
     return t("react.settings.enter_a_valid_email_and_a_temporary_password_of_at_least_10_characters", "Enter a valid email and a temporary password of at least 10 characters.");
   }
@@ -52,7 +52,7 @@ export function createUserPayload(editor: EditorState): CreateUserInput {
     display_name: editor.displayName.trim(),
     email: editor.email.trim(),
     password: editor.password,
-    roles: editor.roles,
+    role: editor.role,
     is_active: editor.active,
     must_change_password: editor.mustChangePassword,
   };
@@ -62,7 +62,7 @@ export function updateUserPayload(editor: EditorState, user: UserRecord): Update
   const initial = editorForUser(user);
   const payload: UpdateUserInput = {};
   if (editor.displayName.trim() !== initial.displayName) payload.display_name = editor.displayName.trim();
-  if (JSON.stringify(editor.roles) !== JSON.stringify(initial.roles)) payload.roles = editor.roles;
+  if (editor.role !== initial.role) payload.role = editor.role;
   if (editor.active !== initial.active) payload.is_active = editor.active;
   if (editor.mustChangePassword !== initial.mustChangePassword) payload.must_change_password = editor.mustChangePassword;
   return payload;

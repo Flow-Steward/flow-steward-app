@@ -112,7 +112,8 @@ export type CreateUserInput = {
   display_name: string;
   email: string;
   password: string;
-  roles: string[];
+  /** One system role (ADR 0076 §7). */
+  role: string;
   account_ids?: string[];
   primary_account_id?: string;
   is_active: boolean;
@@ -124,7 +125,7 @@ export type UpdateUserInput = Partial<
     CreateUserInput,
     | "display_name"
     | "password"
-    | "roles"
+    | "role"
     | "account_ids"
     | "primary_account_id"
     | "is_active"
@@ -268,6 +269,18 @@ export type AgentSkillPackage = {
   description: string;
 };
 
+/**
+ * ADR 0076 §5: the access an agent gets from a person who does not choose one. An
+ * operator or a viewer connects with their role's permissions and the server's
+ * expiry; only an admin (`advanced_options`) chooses a preset, an expiry or projects.
+ */
+export type AgentRoleAccess = {
+  preset: "my_role";
+  scopes: string[];
+  expiry_days: number;
+  advanced_options: boolean;
+};
+
 export type AgentAccessSetup = {
   mcp_url: string;
   mcp_blocker: string;
@@ -277,6 +290,7 @@ export type AgentAccessSetup = {
   presets: OAuthConsentPreset[];
   expiry_days_options: number[];
   default_expiry_days: number;
+  role_access: AgentRoleAccess;
   first_request: AgentSetupStep;
   clients: AgentClient[];
 };
@@ -293,12 +307,16 @@ export type AgentAccessToken = {
   expired?: boolean;
 };
 
+/**
+ * Without `preset`, `expiry_days` and `project_ids` the token gets the person's role
+ * and the server's expiry; only an admin may send them (ADR 0076 §5).
+ */
 export type AgentAccessTokenRequest = {
   client_id: string;
   package_id: string;
-  preset: OAuthPresetId;
-  expiry_days: number;
-  project_ids: string[];
+  preset?: OAuthPresetId;
+  expiry_days?: number;
+  project_ids?: string[];
 };
 
 export type AgentAccessIssueResult = {

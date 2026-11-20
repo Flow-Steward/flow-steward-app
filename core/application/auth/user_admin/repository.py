@@ -53,7 +53,7 @@ def _roles_for_new_user(cur: Any, roles: list[str]) -> list[str]:
         return [FIRST_USER_ROLE]
     if FIRST_USER_ROLE not in roles:
         raise FirstUserMustBeAdminError(
-            "The first user must be an administrator: add the admin role or leave roles empty"
+            "The first user must be an administrator: choose the admin role or leave the role out"
         )
     return list(roles)
 

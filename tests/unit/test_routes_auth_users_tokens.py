@@ -396,7 +396,7 @@ def test_auth_users_router_success_paths() -> None:
             "email": "newuser@example.com",
             "password": "Password123!",
             "display_name": "New User",
-            "roles": ["viewer"],
+            "role": "viewer",
             "is_active": True,
             "must_change_password": False,
         },
@@ -410,7 +410,7 @@ def test_auth_users_router_success_paths() -> None:
         json={
             "display_name": "Updated Name",
             "password": "Password999!",
-            "roles": ["admin", "viewer"],
+            "role": "admin",
             "is_active": True,
             "must_change_password": True,
         },

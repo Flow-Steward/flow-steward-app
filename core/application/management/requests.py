@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.application.auth.permissions import highest_system_role
 from core.application.extensions.direct_effect_recovery_models import DirectEffectResolutionRef
 from core.application.extensions.identity import normalize_extension_id
 from core.application.management.command_models_extensions import McpHeaderSecretChoice
@@ -358,13 +359,47 @@ class AuthEmailChangeRequest(BaseModel):
         return str(self.email or "")
 
 
-class AuthUserCreateRequest(BaseModel):
+def _requested_system_role(role: str | None, roles: list[str] | None) -> str | None:
+    """The one system role a user request asks for (ADR 0076 §7).
+
+    ``role`` is the user form's input. ``roles`` is the list end-to-end fixtures and
+    smoke scripts in this repository still send: its highest system role is kept, as
+    the server keeps one system role per user. ``None`` when neither is sent.
+    """
+    if role is not None:
+        return role
+    if roles is None:
+        return None
+    listed = [str(item or "").strip() for item in roles if str(item or "").strip()]
+    if not listed:
+        return ""
+    # A list with no system role keeps its first value, which the contract refuses.
+    return highest_system_role(listed) or listed[0]
+
+
+class _UserRoleFields(BaseModel):
+    #: The user's one system role (ADR 0076 §7).
+    role: str | None = None
+    #: A list of roles, read only for clients that still send one; see
+    #: :func:`_requested_system_role`.
+    roles: list[str] | None = None
+
+    @model_validator(mode="after")
+    def one_role_field(self) -> _UserRoleFields:
+        if self.role is not None and self.roles is not None:
+            raise ValueError("send role or roles, not both")
+        return self
+
+    def requested_role(self) -> str | None:
+        return _requested_system_role(self.role, self.roles)
+
+
+class AuthUserCreateRequest(_UserRoleFields):
     model_config = ConfigDict(extra="forbid")
 
     email: str
     password: str
     display_name: str = ""
-    roles: list[str] = Field(default_factory=lambda: ["viewer"])
     is_active: bool = True
     must_change_password: bool = False
     account_ids: list[str] = Field(default_factory=list)
@@ -375,10 +410,9 @@ class AuthUserCreateRequest(BaseModel):
         return str(self.email or "")
 
 
-class AuthUserUpdateRequest(BaseModel):
+class AuthUserUpdateRequest(_UserRoleFields):
     display_name: str | None = None
     password: str | None = None
-    roles: list[str] | None = None
     is_active: bool | None = None
     must_change_password: bool | None = None
     account_ids: list[str] | None = None

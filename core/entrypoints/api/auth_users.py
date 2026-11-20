@@ -801,7 +801,8 @@ def create_auth_users_router(
                 email=body.email,
                 password=body.password,
                 display_name=body.display_name,
-                roles=body.roles or ["viewer"],
+                # Without a role the server's default applies: viewer once users exist.
+                role=body.requested_role() or "",
                 is_active=bool(body.is_active),
                 must_change_password=bool(body.must_change_password),
                 account_id=primary_account_id,
@@ -850,7 +851,7 @@ def create_auth_users_router(
                 is_active=body.is_active,
                 password=body.password,
                 must_change_password=body.must_change_password,
-                roles=body.roles,
+                role=body.requested_role(),
                 account_ids=body.account_ids,
                 account_id=body.primary_account_id,
                 actor=str(admin_user.get("username") or "admin"),

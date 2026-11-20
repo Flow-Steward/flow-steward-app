@@ -97,16 +97,18 @@ def _password_field() -> FieldSpec:
     )
 
 
-def _roles_field(*, default: list[str] | None = None) -> FieldSpec:
+def _role_field() -> FieldSpec:
     return FieldSpec(
-        key="roles",
-        label="Roles",
-        type=FieldType.MULTI_SELECT,
-        required=default is None,
+        key="role",
+        label="Role",
+        type=FieldType.SINGLE_SELECT,
+        required=True,
         choices=ROLE_CHOICES,
-        default=default,
-        description="Complete set of local-auth roles to assign to the user.",
-        examples=("operator", "viewer"),
+        description=(
+            "The user's one system role, which replaces the current one. A higher role "
+            "includes everything a lower one can do: viewer < operator < admin."
+        ),
+        examples=("operator",),
         option_name="--role",
     )
 
@@ -238,14 +240,14 @@ USERS_CREATE_SPEC = CommandSpec(
             option_name="--display-name",
         ),
         FieldSpec(
-            key="roles",
-            label="Roles",
-            type=FieldType.MULTI_SELECT,
+            key="role",
+            label="Role",
+            type=FieldType.SINGLE_SELECT,
             choices=ROLE_CHOICES,
-            default=[],
             description=(
-                "Initial local-auth roles granted to the new user. Without --role the first "
-                "user of an installation becomes admin and later users become viewer."
+                "The new user's one system role. Without --role the first user of an "
+                "installation becomes admin and later users become viewer; the first "
+                "user is always an admin."
             ),
             examples=("viewer", "operator"),
             option_name="--role",
@@ -428,12 +430,12 @@ USERS_SET_ACTIVE_SPEC = CommandSpec(
 USERS_SET_ROLES_SPEC = CommandSpec(
     command_id=_TOKEN_USERS_SET_ROLES,
     path=("users", "set-roles"),
-    summary="Replace user roles.",
-    description="Replace all local-auth roles assigned to a user.",
+    summary="Change a user's role.",
+    description="Give a user one system role, replacing the one they hold.",
     examples=("flow-steward users set-roles --email operator@example.com --role operator",),
     operation_type=OperationType.CHANGE,
     interactive_policy=InteractivePolicy.ALWAYS_REVIEW,
-    fields=(*_user_selector_fields(), _roles_field(), _actor_field()),
+    fields=(*_user_selector_fields(), _role_field(), _actor_field()),
     input_model=UserRolesUpdateInput,
     result_model=UserMutationResultView,
     plan_builder_ref=None,

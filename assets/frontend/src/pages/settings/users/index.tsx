@@ -10,6 +10,8 @@ import {
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
@@ -349,7 +351,7 @@ function UsersInventory({
         >
           <thead>
             <tr>
-              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("account.profile.roles", "Roles")}</th>
+              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.role", "Role")}</th>
               <th>{t("auth.common.password", "Password")}</th><th aria-label={t("monitoring.table.actions", "Actions")} />
             </tr>
           </thead>
@@ -394,7 +396,8 @@ export function SettingsUsersPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [params, setParams] = useFilterSearchParams("users", ["search", "role", "status"]);
-  const isAdmin = auth.session?.roles.includes("admin") || false;
+  // Users & access needs users.manage (ADR 0076), the permission of /api/auth/users.
+  const isAdmin = hasCapability(sessionPermissions(auth.session), "manage_users");
   const filters: UserFilters = {
     search: params.get("search") || "",
     role: params.get("role") || "",
@@ -428,7 +431,6 @@ export function SettingsUsersPage() {
   function openAdd() { setEditorMode("add"); setEditingUser(null); setEditor({ ...EMPTY_EDITOR }); setEditorError(""); setFeedback(null); }
   function openEdit(user: UserRecord) { setEditorMode("edit"); setEditingUser(user); setEditor(editorForUser(user)); setEditorError(""); setFeedback(null); setRowMenu(null); }
   function closeEditor() { if (!saving) { setEditorMode("closed"); setEditingUser(null); setEditorError(""); } }
-  function toggleRole(role: string, checked: boolean) { setEditor((value) => ({ ...value, roles: checked ? [...value.roles, role] : value.roles.filter((item) => item !== role) })); }
 
   async function refreshUsers() { await queryClient.invalidateQueries({ queryKey: ["settings", "users"] }); }
 
@@ -547,7 +549,6 @@ export function SettingsUsersPage() {
         onSubmit={(event) => ignoreAsyncResult(saveEditor(event))}
         saving={saving}
         setEditor={setEditor}
-        toggleRole={toggleRole}
       />
       <TemporaryPasswordDialog
         onClose={() => setPasswordUser(null)}

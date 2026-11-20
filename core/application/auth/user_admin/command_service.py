@@ -190,11 +190,11 @@ class UserAdminCommandService:
 
         password = require_password(command.password)
         display_name = str(command.display_name or "").strip() or email
-        # No roles means the default the repository decides under its lock: admin
+        # No role means the default the repository decides under its lock: admin
         # for an installation's first user, viewer after that.
         roles = (
-            normalized_roles(command.roles, normalize_roles_fn=self._normalize_requested_roles)
-            if command.roles
+            normalized_roles([command.role], normalize_roles_fn=self._normalize_requested_roles)
+            if command.role
             else []
         )
         if self._get_user_by_username(bl, email):
@@ -406,7 +406,7 @@ class UserAdminCommandService:
             UserUpdateInput(
                 user_id=command.user_id,
                 email=command.email,
-                roles=command.roles,
+                role=command.role,
                 actor=command.actor,
             ),
             audit_context=audit_context,
@@ -447,7 +447,7 @@ class UserAdminCommandService:
                 command.password,
                 command.is_active,
                 command.must_change_password,
-                command.roles,
+                command.role,
                 command.account_ids,
                 command.account_id,
             )
@@ -458,8 +458,8 @@ class UserAdminCommandService:
             require_password(command.password) if command.password is not None else None
         )
         roles = (
-            normalized_roles(command.roles, normalize_roles_fn=self._normalize_requested_roles)
-            if command.roles is not None
+            normalized_roles([command.role], normalize_roles_fn=self._normalize_requested_roles)
+            if command.role is not None
             else None
         )
         requested_account_ids: list[str] | None = None
@@ -516,7 +516,7 @@ class UserAdminCommandService:
                 "source": context.source,
                 "changed_display_name": command.display_name is not None,
                 "changed_password": command.password is not None,
-                "changed_roles": command.roles is not None,
+                "changed_roles": command.role is not None,
                 "changed_is_active": command.is_active is not None,
                 "changed_must_change_password": command.must_change_password is not None,
                 "changed_accounts": command.account_ids is not None

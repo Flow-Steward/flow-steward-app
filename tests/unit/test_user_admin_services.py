@@ -388,7 +388,7 @@ def test_user_command_service_delegates_create_persistence_to_repository() -> No
         UserCreateInput(
             email="repo@example.com",
             password="Password123!",
-            roles=["viewer"],
+            role="viewer",
         )
     )
 
@@ -436,7 +436,7 @@ def test_user_creation_logs_redacted_notification_failures_without_failing_creat
             UserCreateInput(
                 email="private-recipient@example.com",
                 password="Password123!",
-                roles=["viewer"],
+                role="viewer",
             )
         )
 

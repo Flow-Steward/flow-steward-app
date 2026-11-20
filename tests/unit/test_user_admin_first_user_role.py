@@ -52,8 +52,8 @@ def test_a_later_user_keeps_explicit_roles() -> None:
 
 
 def test_create_input_has_no_role_default() -> None:
-    """The CLI and API pass no roles unless asked; the repository decides."""
-    assert UserCreateInput(email="first@example.com", password="Password123!").roles == []
+    """The CLI and API pass no role unless asked; the repository decides."""
+    assert UserCreateInput(email="first@example.com", password="Password123!").role == ""
 
 
 def _service(repository: Any):
@@ -104,5 +104,15 @@ def test_the_service_reports_a_first_user_without_admin_as_a_validation_error() 
 
     with pytest.raises(ServiceValidationError, match="first user must be an administrator"):
         _service(repository).create_user(
-            UserCreateInput(email="first@example.com", password="Password123!", roles=["viewer"])
+            UserCreateInput(email="first@example.com", password="Password123!", role="viewer")
         )
+
+
+def test_the_service_passes_the_one_requested_role_to_the_repository() -> None:
+    repository = _Repository()
+
+    _service(repository).create_user(
+        UserCreateInput(email="first@example.com", password="Password123!", role="Admin")
+    )
+
+    assert repository.roles == ["admin"]

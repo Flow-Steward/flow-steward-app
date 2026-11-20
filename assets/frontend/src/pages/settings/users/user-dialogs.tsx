@@ -1,13 +1,29 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { DsAlert, DsCheckbox, DsDialog, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
+import { DsAlert, DsCheckbox, DsDialog, DsRadio, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import type { UserRecord } from "@/pages/settings/shared/types";
 import { ROLE_OPTIONS, userLabel, type EditorState, type EditorMode, type ConfirmActionKind } from "./user-form-model";
 
 function userEditorSubmitLabel(addingUser: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return addingUser ? t("react.settings.add_user", "Add user") : t("react.settings.save_changes", "Save changes");
+}
+
+/** The role's name in the user form. */
+function roleLabel(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (role === "admin") return t("react.settings.role_admin", "Admin");
+  if (role === "operator") return t("react.settings.role_operator", "Operator");
+  if (role === "viewer") return t("react.settings.role_viewer", "Viewer");
+  return role;
+}
+
+/** What a role can do, in one line: a higher role includes everything below it. */
+function roleDescription(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (role === "admin") return t("react.settings.role_admin_description", "Sets everything up: users, extensions, projects, workflows and secrets.");
+  if (role === "operator") return t("react.settings.role_operator_description", "Does the work: starts workflows, decides approvals and updates passwords in secrets.");
+  if (role === "viewer") return t("react.settings.role_viewer_description", "Sees history, results and files, and changes nothing.");
+  return "";
 }
 
 function confirmUserActionLabel(kind: ConfirmActionKind, t: I18nContextValue["t"] = fallbackContext.t): string {
@@ -103,7 +119,6 @@ export function UserEditorDialog({
   onSubmit,
   saving,
   setEditor,
-  toggleRole,
 }: Readonly<{
   authUserId?: string;
   editingUser: UserRecord | null;
@@ -114,7 +129,6 @@ export function UserEditorDialog({
   onSubmit: (event: React.SubmitEvent<HTMLFormElement>) => void;
   saving: boolean;
   setEditor: Dispatch<SetStateAction<EditorState>>;
-  toggleRole: (role: string, checked: boolean) => void;
 }>) {
   const { t } = useI18n();
   const addingUser = editorMode === "add";
@@ -172,17 +186,20 @@ export function UserEditorDialog({
         />
         <fieldset className="fs-field">
           <legend className="fs-field-label fs-required-label">
-            {t("account.profile.roles", "Roles")}<span aria-hidden="true" className="fs-required">*</span>
+            {t("react.settings.role", "Role")}<span aria-hidden="true" className="fs-required">*</span>
           </legend>
           <div className="fs-role-grid">
             {ROLE_OPTIONS.map((role) => (
-              <DsCheckbox
-                checked={editor.roles.includes(role)}
+              <DsRadio
+                checked={editor.role === role}
                 key={role}
-                onChange={(checked) => toggleRole(role, checked)}
+                name="user-role"
+                onChange={() => setEditor((value) => ({ ...value, role }))}
+                value={role}
               >
-                {role[0]?.toUpperCase() + role.slice(1)}
-              </DsCheckbox>
+                <strong>{roleLabel(role, t)}</strong>
+                <small>{roleDescription(role, t)}</small>
+              </DsRadio>
             ))}
           </div>
           {editingUser?.id === authUserId ? (

@@ -471,7 +471,7 @@ def test_command_specs_expose_the_approved_field_order_options_and_models() -> N
         "email",
         "password",
         "display_name",
-        "roles",
+        "role",
         "is_active",
         "must_change_password",
         "account_id",
@@ -714,20 +714,21 @@ def test_sensitive_and_dynamic_field_contracts_are_closed_and_canonical() -> Non
         for example in users_create.examples
     )
 
-    roles = fields["roles"]
-    assert roles.type is FieldType.MULTI_SELECT
-    assert [choice.value for choice in roles.choices] == ["admin", "operator", "viewer"]
+    role = fields["role"]
+    # ADR 0076 §7: one system role per user.
+    assert role.type is FieldType.SINGLE_SELECT
+    assert [choice.value for choice in role.choices] == ["admin", "operator", "viewer"]
     # No default role: the server gives the first user admin and later users viewer.
-    assert tuple(roles.default) == ()
+    assert role.default is None
+    assert role.required is False
     assert users_create.input_model is UserCreateInput
     user_input = users_create.input_model.model_validate(
         {
             "email": "operator@example.com",
             "password": "from-isolated-secret-stream",
-            "roles": roles.default,
         }
     )
-    assert user_input.roles == []
+    assert user_input.role == ""
 
     extension_id = {field.key: field for field in specs["extensions.create"].fields}["extension_id"]
     assert extension_id.type is FieldType.EXTENSION_ID
