@@ -42,10 +42,8 @@ def test_scope_and_route_tables_cover_exact_public_inventory() -> None:
 
 def test_all_tool_discovery_scopes_match_canonical_http_route_scopes() -> None:
     """A bearer advertised by MCP discovery must be accepted by the API route."""
-    from core.infrastructure.runtime.http_app_auth_runtime import (
-        _is_admin_only_route,
-        _is_registry_read_route,
-    )
+    from core.application.auth.route_permissions import route_admin_only
+    from core.infrastructure.runtime.http_app_auth_runtime import _is_registry_read_route
 
     mcp_scopes_by_route: dict[tuple[str, str], set[str]] = defaultdict(set)
     for tool, route in MCP_TOOL_ROUTES.items():
@@ -61,7 +59,7 @@ def test_all_tool_discovery_scopes_match_canonical_http_route_scopes() -> None:
                 path,
                 method,
                 admin_required=bool(
-                    _is_admin_only_route(path)
+                    route_admin_only(method, path)
                     or method == "DELETE"
                     or _is_workflow_authoring_create(path, method)
                 ),

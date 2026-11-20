@@ -116,3 +116,27 @@ def test_only_a_trusted_interactive_session_counts_as_a_person(fields) -> None:
     assert authority.is_interactive_human(scope) is False
     with pytest.raises(ServiceForbiddenError):
         authority.require_approval_authority(scope)
+
+
+def test_a_person_is_decided_by_the_stored_permissions_on_the_scope() -> None:
+    """ADR 0076: the request's permissions, read from ``role_permissions``, decide."""
+    operator = _scope(
+        principal_type="operator",
+        auth_source="local",
+        permissions=frozenset({"secrets.bind"}),
+    )
+    authority.require_secret_bind(operator)
+    with pytest.raises(ServiceForbiddenError, match="Operator role required"):
+        authority.require_secret_write(operator)
+
+
+def test_the_secret_checks_use_the_catalogue_keys() -> None:
+    from core.application.auth.permissions import PERMISSIONS
+
+    for key in (
+        authority.SECRET_VALUE_WRITE_PERMISSION,
+        authority.SECRET_DELETE_PERMISSION,
+        authority.SECRET_BIND_PERMISSION,
+        authority.SECRET_APPROVE_PERMISSION,
+    ):
+        assert PERMISSIONS[key].exact_match

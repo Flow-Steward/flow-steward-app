@@ -172,7 +172,8 @@ def _effective(principal: Any, resource: PermissionResource | None = None, **kwa
         ("admin", ALL_PERMISSION_KEYS),
         ("operator", OPERATOR_PERMISSIONS),
         ("viewer", VIEWER_PERMISSIONS),
-        ("nobody", frozenset()),
+        # A person without a system role was always checked as a viewer.
+        ("nobody", VIEWER_PERMISSIONS),
     ],
 )
 @pytest.mark.parametrize("source", ["local", "external"])

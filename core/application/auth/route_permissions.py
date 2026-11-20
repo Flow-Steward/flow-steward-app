@@ -11,12 +11,17 @@ A route no rule matches is unmapped. Reads end in a rule for every remaining API
 read, the default every role had; writes have no such rule, so an unmapped write is
 denied to everybody (closed by default) and the route-matrix test fails on it.
 
-The table replaces, for people, the operator allowlist in ``operator_work.py``, the
-admin-only patterns in ``config.AUTH_ADMIN_ONLY_PATTERNS``, the registry-read
-patterns and the middleware's "a person's write needs admin" default. Until the
-middleware reads it, ``tests/unit/test_route_permission_parity.py`` proves it gives
-the same answers. Resource checks (account, workspace, project, workflow, ownership,
-token allowlists) are not part of it.
+The middleware decides every request of a person (browser session, external sign-in)
+and of a person's own token with it: it replaced the operator allowlist, the
+admin-only route list and the "a person's write needs admin" default.
+``tests/unit/test_route_permission_parity.py`` proves against a frozen snapshot of
+those rules that no role's answer changed. Resource checks (account, workspace,
+project, workflow, ownership, token allowlists) are not part of it.
+
+A rule marked ``admin_only`` is a route that was on the admin-only list. That list
+still decides two rules ADR 0076 leaves as they are: the token scope a route needs
+(``admin:all`` for these) and the role a service account needs (admin). The flag is
+that list; the parity test proves it marks exactly the routes the list matched.
 """
 
 from __future__ import annotations
@@ -43,10 +48,15 @@ class RoutePermissionRule:
     methods: frozenset[str]
     pattern: re.Pattern[str]
     permission: str | None
+    #: The route needs ``admin:all`` from a token and the admin role from a service
+    #: account (the former admin-only route list).
+    admin_only: bool = False
 
 
-def _rule(methods: frozenset[str], pattern: str, permission: str | None) -> RoutePermissionRule:
-    return RoutePermissionRule(methods, re.compile(pattern), permission)
+def _rule(
+    methods: frozenset[str], pattern: str, permission: str | None, *, admin_only: bool = False
+) -> RoutePermissionRule:
+    return RoutePermissionRule(methods, re.compile(pattern), permission, admin_only)
 
 
 ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
@@ -60,7 +70,8 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
     _rule(_ANY, r"/\.well-known/oauth-authorization-server", None),
     _rule(_ANY, r"/webhook/(?:workflows|extensions|providers)/.+", None),
     _rule(_ANY, r"/api/extension-artifacts/.+", None),
-    _rule(_READ, rf"/api/mcp/oauth/client-metadata/{_SEG}\.json", None),
+    # Under /api/mcp, so a service account still needs the admin role for it.
+    _rule(_READ, rf"/api/mcp/oauth/client-metadata/{_SEG}\.json", None, admin_only=True),
     # --- the principal's own account ----------------------------------------------------
     _rule(_READ, r"/api/(?:auth/(?:me|introspect|tokens)|app/bootstrap)", None),
     _rule(_READ, r"/api/users/me/.+", None),
@@ -86,11 +97,26 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
     _rule(frozenset({"POST"}), r"/api/users/me/detect-timezone", "account.profile.write"),
     _rule(frozenset({"POST"}), r"/api/auth/switch-account", "account.profile.write"),
     # --- users, accounts, installation settings -----------------------------------------
-    _rule(_ANY, r"/api/auth/(?:users|accounts|service-accounts)(?:/.*)?", "users.manage"),
-    _rule(_ANY, r"/admin(?:/.*)?", "settings.manage"),
-    _rule(_ANY, r"/api/settings/mcp-oauth(?:/.*)?", "settings.manage"),
-    _rule(_ANY, r"/api/system/core-updates", "settings.manage"),
-    _rule(_ANY, r"/api/(?:model-providers|llm-provider-extensions)(?:/.*)?", "settings.manage"),
+    _rule(
+        _ANY,
+        r"/api/auth/(?:users|accounts|service-accounts)(?:/.*)?",
+        "users.manage",
+        admin_only=True,
+    ),
+    _rule(_ANY, r"/admin(?:/.*)?", "settings.manage", admin_only=True),
+    _rule(
+        _ANY,
+        r"/api/settings/mcp-oauth(?:/platform-clients(?:/.*)?)?",
+        "settings.manage",
+        admin_only=True,
+    ),
+    _rule(_ANY, r"/api/system/core-updates", "settings.manage", admin_only=True),
+    _rule(
+        _ANY,
+        r"/api/(?:model-providers|llm-provider-extensions)(?:/.*)?",
+        "settings.manage",
+        admin_only=True,
+    ),
     _rule(_WRITE, r"/api/(?:settings|system|security)(?:/.*)?", "settings.manage"),
     _rule(_READ, r"/api/security/posture", "registry.read"),
     _rule(_READ, r"/health/deep", "registry.read"),
@@ -100,6 +126,7 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
         r"/api/(?:agents|catalog-categories|tools|skills|data-contracts|datasets|fields"
         r"|guardrails|mcp|preview|published-blocks)(?:/.*)?",
         "registry.manage",
+        admin_only=True,
     ),
     _rule(_WRITE, r"/api/(?:providers|changelog|registry)(?:/.*)?", "registry.manage"),
     _rule(
@@ -107,7 +134,7 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
         r"/api/(?:providers|changelog)(?:/.*)?|/api/(?:model-selection/options|workload|runs)",
         "registry.read",
     ),
-    _rule(_ANY, r"/api/workspaces(?:/.*)?", "workspaces.manage"),
+    _rule(_ANY, r"/api/workspaces(?:/.*)?", "workspaces.manage", admin_only=True),
     # --- extensions -----------------------------------------------------------------------
     _rule(
         _READ,
@@ -123,6 +150,13 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
         "extensions.use",
     ),
     _rule(_READ, r"/api/extensions(?:/.*)?", "registry.read"),
+    # Importing a descriptor from a local file or URL and minting a runtime token.
+    _rule(
+        _WRITE,
+        r"/api/extensions/(?:descriptors/import/(?:file|url)|runtime/token)",
+        "extensions.manage",
+        admin_only=True,
+    ),
     _rule(_WRITE, r"/api/extensions(?:/.*)?", "extensions.manage"),
     # --- workflows ------------------------------------------------------------------------
     _rule(frozenset({"POST"}), rf"/api/workflows/{_SEG}/run", "workflows.run"),
@@ -155,8 +189,15 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
     _rule(frozenset({"DELETE"}), rf"/api/secrets/{_SEG}", "secrets.delete"),
     _rule(
         _WRITE,
-        rf"/api/projects/{_SEG}/(?:workflows|connections)/{_SEG}/secret-bindings/{_SEG}(?:/value)?",
+        rf"/api/projects/{_SEG}/(?:workflows|connections)/{_SEG}/secret-bindings/{_SEG}",
         "secrets.bind",
+    ),
+    # A value typed into a workflow's secret input becomes a catalog secret bound to it.
+    _rule(
+        _WRITE,
+        rf"/api/projects/{_SEG}/(?:workflows|connections)/{_SEG}/secret-bindings/{_SEG}/value",
+        "secrets.bind",
+        admin_only=True,
     ),
     _rule(
         frozenset({"POST"}),
@@ -175,8 +216,8 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
         rf"/api/projects/{_SEG}/workflows/{_SEG}/(?:contract|validate|suggestions)",
         "workflows.read",
     ),
-    _rule(_ANY, rf"/api/projects/{_SEG}/workflows(?:/.*)?", "workflows.manage"),
-    _rule(_ANY, rf"/api/projects/{_SEG}/providers(?:/.*)?", "projects.write"),
+    _rule(_ANY, rf"/api/projects/{_SEG}/workflows(?:/.*)?", "workflows.manage", admin_only=True),
+    _rule(_ANY, rf"/api/projects/{_SEG}/providers(?:/.*)?", "projects.write", admin_only=True),
     # --- projects -------------------------------------------------------------------------
     _rule(
         frozenset({"POST"}),
@@ -212,6 +253,13 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
         r"/api/(?:jobs|v2/jobs|approvals|dashboard|v2/dashboard|events|messages|watchdog|processes)"
         r"(?:/.*)?",
         "jobs.read",
+    ),
+    # Killing a worker process and recovering a job the watchdog found.
+    _rule(
+        _WRITE,
+        rf"/api/(?:processes/{_SEG}/kill|watchdog/jobs/{_SEG}/recover)",
+        "jobs.manage",
+        admin_only=True,
     ),
     _rule(
         _WRITE,
@@ -250,6 +298,12 @@ def route_permission(method: str, path: str) -> RoutePermission | None:
     return None
 
 
+def route_admin_only(method: str, path: str) -> bool:
+    """Whether the route was admin-only: a token needs ``admin:all``, a service account admin."""
+    match = route_permission(method, path)
+    return bool(match is not None and match.rule.admin_only)
+
+
 def route_allowed(method: str, path: str, permissions: frozenset[str] | set[str]) -> bool:
     """Whether a holder of ``permissions`` may make the request; unmapped routes are denied."""
     match = route_permission(method, path)
@@ -262,6 +316,7 @@ __all__ = [
     "ROUTE_PERMISSION_RULES",
     "RoutePermission",
     "RoutePermissionRule",
+    "route_admin_only",
     "route_allowed",
     "route_permission",
 ]

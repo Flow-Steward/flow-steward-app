@@ -1,7 +1,5 @@
 """Auth configuration constants — extracted from serve.py."""
 
-import re
-
 from core.infrastructure.config.platform_identity import (
     DEFAULT_ACCOUNT_ID as DEFAULT_ACCOUNT_ID,
 )
@@ -154,61 +152,3 @@ MACHINE_MUTATION_SCOPES = {
     "a2a:use",  # A2A deferred — not implemented; scope reserved for future use
 }
 METRICS_TOKEN = str(_runtime_env.get("FS_METRICS_TOKEN", "") or "").strip()
-
-# ---------------------------------------------------------------------------
-# Admin-only route patterns
-# ---------------------------------------------------------------------------
-AUTH_ADMIN_ONLY_PATTERNS = (
-    re.compile(r"^/api/system/core-updates$"),
-    re.compile(r"^/admin(?:/|$)"),
-    re.compile(r"^/api/agents(?:/|$)"),
-    re.compile(r"^/api/catalog-categories(?:/|$)"),
-    re.compile(r"^/api/tools(?:/|$)"),
-    re.compile(r"^/api/skills(?:/|$)"),
-    # NOTE: `/api/workflows` is intentionally NOT admin-only. It is covered by the
-    # registry-read patterns instead, so operators can READ the global workflow
-    # catalog/detail/contract (GET) while writes (POST/PUT/PATCH/DELETE) still
-    # require admin via the middleware's registry-read write gate. Viewers remain
-    # denied (registry read requires operator+). Keep this out of the admin-only
-    # list or the read gate is shadowed and operators get 403 on the catalog.
-    re.compile(r"^/api/data-contracts(?:/|$)"),
-    re.compile(r"^/api/datasets(?:/|$)"),
-    re.compile(r"^/api/fields(?:/|$)"),
-    re.compile(r"^/api/guardrails(?:/|$)"),
-    re.compile(r"^/api/mcp(?:/|$)"),
-    re.compile(r"^/api/model-providers(?:/|$)"),
-    re.compile(r"^/api/llm-provider-extensions(?:/|$)"),
-    re.compile(r"^/api/preview(?:/|$)"),
-    re.compile(r"^/api/published-blocks(?:/|$)"),
-    re.compile(r"^/api/workspaces(?:/|$)"),
-    re.compile(r"^/api/auth/users(?:/|$)"),
-    re.compile(r"^/api/auth/accounts(?:/|$)"),
-    re.compile(r"^/api/auth/service-accounts(?:/|$)"),
-    # ADR 0047 decision 16: the account switch for inbound OAuth.
-    re.compile(r"^/api/settings/mcp-oauth$"),
-    # ADR 0063 decision 2: platform OAuth clients are created and revoked by an admin.
-    re.compile(r"^/api/settings/mcp-oauth/platform-clients(?:/|$)"),
-    re.compile(r"^/api/projects/[^/]+/providers(?:/|$)"),
-    # Project workflow management is admin-only for writes (e.g. PUT workflow
-    # bindings), but the read-only diagnostics — contract / validate / suggestions
-    # GETs — are operator/viewer-readable for parity with the project
-    # workflow-catalog and workflow-entrypoints reads. A workflow's stored-secret
-    # binding and approval (ADR 0057) are the operator's own operations; the secret
-    # catalog service checks role, interactive session and scopes for each. The
-    # negative lookahead excludes exactly these leaf paths from the admin-only gate.
-    re.compile(
-        r"^(?!/api/projects/[^/]+/workflows/[^/]+/"
-        r"(?:contract|validate|suggestions|secret-approval|secret-bindings/[^/]+)$)"
-        r"/api/projects/[^/]+/workflows(?:/|$)"
-    ),
-    re.compile(r"^/api/processes/[^/]+/kill$"),
-    # Watchdog recovery (kill/retry) terminates workers and re-enqueues jobs;
-    # admin-only, mirroring the kill route above. The GET scan route is read-only
-    # and remains operator-readable; only the POST recover mutation is gated here.
-    re.compile(r"^/api/watchdog/jobs/[^/]+/recover$"),
-    # Extension deployment-lifecycle / runtime-admin endpoints. These read/write
-    # local extension paths, persist descriptor releases, or mint extension-runtime
-    # tokens and must be restricted to lifecycle/runtime admins, not operators.
-    re.compile(r"^/api/extensions/descriptors/import/(?:file|url)$"),
-    re.compile(r"^/api/extensions/runtime/token$"),
-)

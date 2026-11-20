@@ -1,7 +1,8 @@
 """ADR 0066 amendment (ADR 0075): admin configures, operator works, viewer reads.
 
 The matrix runs through the real middleware with the route flags the application
-computes, for a browser session, a person's own token and a service account.
+computes, for a browser session, a person's own token and a service account. People
+are decided by the ADR 0076 route table and the stored role permissions.
 """
 
 from __future__ import annotations
@@ -14,12 +15,12 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from core.application.auth import auth_http_runtime
-from core.application.auth.operator_work import is_operator_work_action
+from core.application.auth.permissions import OPERATOR_PERMISSIONS, SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.request_principal_runtime import roles_intersect
+from core.application.auth.route_permissions import route_allowed
 from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES
 from core.infrastructure.runtime.http_app_auth_runtime import (
-    _is_admin_only_route,
     _is_registry_read_route,
 )
 
@@ -62,7 +63,6 @@ def _run(path: str, method: str, principal: ResolvedPrincipal) -> Response:
             local_auth_bootstrap_required_fn=lambda _bl=None: False,
             auth_account_tables_available_fn=lambda _bl: False,
             roles_intersect_fn=roles_intersect,
-            is_admin_only_route_fn=lambda candidate: bool(_is_admin_only_route(candidate)),
             is_registry_read_route_fn=lambda candidate: bool(_is_registry_read_route(candidate)),
             is_self_service_auth_write_route_fn=lambda _path: False,
             csrf_request_valid_fn=lambda _request: True,
@@ -78,6 +78,7 @@ def _run(path: str, method: str, principal: ResolvedPrincipal) -> Response:
             err_operator_role_required="Operator role required",
             path_bootstrap="/bootstrap",
             path_login="/login",
+            load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
         )
     )
 
@@ -215,9 +216,13 @@ def test_configuration_writes_need_the_admin_role(method, path, make_principal) 
     assert admin.status_code == 204, admin.body
 
 
+def _operator_may_write(method: str, path: str) -> bool:
+    return method != "GET" and route_allowed(method, path, OPERATOR_PERMISSIONS)
+
+
 @pytest.mark.parametrize(("method", "path"), MOVED_TO_ADMIN)
-def test_no_configuration_write_is_listed_as_operator_work(method, path) -> None:
-    assert not is_operator_work_action(path, method)
+def test_no_configuration_write_needs_only_an_operator_permission(method, path) -> None:
+    assert not _operator_may_write(method, path)
 
 
 @pytest.mark.parametrize(
@@ -232,7 +237,7 @@ def test_no_configuration_write_is_listed_as_operator_work(method, path) -> None
     ],
 )
 def test_near_miss_paths_are_not_operator_work(method, path) -> None:
-    assert not is_operator_work_action(path, method)
+    assert not _operator_may_write(method, path)
 
 
 @pytest.mark.parametrize(

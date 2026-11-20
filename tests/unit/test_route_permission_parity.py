@@ -1,11 +1,12 @@
-"""ADR 0076 §6: the route table and the system-role matrix answer as the old rules do.
+"""ADR 0076 §6: the route table answers every request as the old role rules did.
 
-For every HTTP route the application registers and each of its methods, a person with
-the admin, operator or viewer role in a browser session is allowed or refused by the
-middleware today (operator allowlist, admin-only and registry-read patterns, "a
-person's write needs admin"). The same decision derived from
-``route_permissions`` and the matrix in ``permissions`` must be equal, so the
-middleware can switch to the table without changing what any role may do.
+``tests/fixtures/auth/adr0076_route_role_decisions.json`` froze, before the old rules
+were removed (the operator allowlist ``operator_work.py``, the admin-only route list
+and "a person's write needs admin"), which system roles the middleware let through on
+every route for a browser session, an external sign-in, a personal token and a service
+account, and which token scopes each route needed. The middleware now decides people
+and their tokens with ``route_permissions`` and the stored role permissions; these
+tests run it on every route of the application and compare.
 """
 
 from __future__ import annotations
@@ -16,13 +17,13 @@ import os
 import subprocess
 import sys
 from functools import cache
+from pathlib import Path
 
 import pytest
 from starlette.requests import Request
 from starlette.responses import Response
 
 from core.application.auth import auth_http_runtime
-from core.application.auth.effective_permissions import effective_permissions
 from core.application.auth.permissions import (
     ALL_PERMISSION_KEYS,
     SYSTEM_ROLE_PERMISSIONS,
@@ -34,20 +35,22 @@ from core.application.auth.route_permissions import (
     route_allowed,
     route_permission,
 )
-from core.application.auth.serve_auth_runtime import is_self_service_auth_write_route
-from core.infrastructure.runtime.http_app_auth_runtime import (
-    _is_admin_only_route,
-    _is_registry_read_route,
-)
+from core.infrastructure.runtime.http_app_auth_runtime import _is_registry_read_route
 
 ROLES = ("admin", "operator", "viewer")
+KINDS = ("session", "external", "pat", "machine")
+#: Every scope a route can ask for, so the role decision is what is compared.
+ALL_SCOPES = ["admin:all", "command:*", "secrets:write", "secrets:bind", "read:*"]
+SNAPSHOT = (
+    Path(__file__).resolve().parents[1] / "fixtures" / "auth" / "adr0076_route_role_decisions.json"
+)
 
 #: Public routes that authenticate by their protocol or a signed token. Called with a
-#: person's session cookie, the middleware still applies its role rules to them ("a
+#: person's session cookie, the old middleware still applied its role rules to them ("a
 #: person's write needs admin", the /api/mcp admin-only pattern); the table names
 #: them public. Their own handlers decide (a signed webhook, the sign-in form, the
-#: connector's client metadata); a session adds nothing, so the role gate there is an
-#: artefact of the order of checks, not a rule to carry over.
+#: connector's client metadata); a session adds nothing, so the role gate there was an
+#: artefact of the order of checks, not a rule carried over. Service accounts keep it.
 PUBLIC_ROUTE_EXCEPTIONS = frozenset(
     {
         ("GET", "/api/mcp/oauth/client-metadata/{connector_id}.json"),
@@ -100,7 +103,17 @@ def _routes() -> tuple[dict, ...]:
     return tuple(rows)
 
 
-def _request(path: str, method: str) -> Request:
+@cache
+def _snapshot() -> dict[str, dict]:
+    return json.loads(SNAPSHOT.read_text(encoding="utf-8"))["routes"]
+
+
+def _request(path: str, method: str, *, bearer: bool) -> Request:
+    headers = (
+        [(b"authorization", b"Bearer some-token")]
+        if bearer
+        else [(b"cookie", b"session=session-token")]
+    )
     return Request(
         {
             "type": "http",
@@ -110,7 +123,7 @@ def _request(path: str, method: str) -> Request:
             "path": path,
             "raw_path": path.encode(),
             "query_string": b"",
-            "headers": [(b"cookie", b"session=session-token")],
+            "headers": headers,
             "client": ("testclient", 50000),
             "server": ("testserver", 80),
             "root_path": "",
@@ -118,34 +131,231 @@ def _request(path: str, method: str) -> Request:
     )
 
 
-def _old_decision(path: str, method: str, role: str, *, public: bool) -> bool:
-    """Today's middleware, for a person signed in with a browser session."""
-    user = {"id": f"{role}-1", "username": role, "roles": [role], "auth_source": "local"}
+def _principal(kind: str, role: str) -> dict:
+    user = {"id": f"{role}-1", "username": role, "roles": [role]}
+    if kind == "session":
+        user["auth_source"] = "local"
+    elif kind == "external":
+        user["auth_source"] = "external"
+    elif kind == "pat":
+        user.update(auth_source="pat", scopes=list(ALL_SCOPES))
+    else:
+        user.update(
+            auth_source="machine", principal_type="service_account", scopes=list(ALL_SCOPES)
+        )
+    return user
+
+
+def middleware_decision(
+    path: str,
+    method: str,
+    user: dict,
+    *,
+    public: bool,
+    recorded: list | None = None,
+    stored: dict | None = None,
+    loader=None,
+) -> tuple[bool, object]:
+    """Run the real middleware once; ``recorded`` collects the token scopes it required."""
+    external = user.get("auth_source") == "external"
+    bearer = user.get("auth_source") in {"pat", "machine"}
+    seen: dict = {}
+
+    async def _call_next(request: Request) -> Response:
+        seen["state"] = request.state
+        return Response(status_code=204)
+
+    def _record(_user, required, **_kwargs):
+        if recorded is not None:
+            recorded.append(sorted(str(item) for item in required))
+        return True
+
+    original = auth_http_runtime.principal_has_required_scopes
+    auth_http_runtime.principal_has_required_scopes = _record
+    try:
+        response = asyncio.run(
+            auth_http_runtime.local_auth_middleware(
+                _request(path, method, bearer=bearer),
+                _call_next,
+                local_auth_enabled_fn=lambda: True,
+                external_auth_enabled=external,
+                is_public_auth_path_fn=lambda _path: public,
+                route_registered_fn=lambda _path, _method: True,
+                request_principal_resolver_fn=lambda _request, _bl: dict(user),
+                normalize_live_principal_fn=lambda raw, **_kwargs: (
+                    ResolvedPrincipal(**raw) if isinstance(raw, dict) else None
+                ),
+                get_logger_only_fn=lambda: object(),
+                auth_tables_available_fn=lambda _bl: True,
+                get_user_by_session_token_fn=lambda _bl, _token: dict(user),
+                local_auth_bootstrap_required_fn=lambda _bl=None: False,
+                auth_account_tables_available_fn=lambda _bl: False,
+                roles_intersect_fn=roles_intersect,
+                is_registry_read_route_fn=lambda candidate: bool(
+                    _is_registry_read_route(candidate)
+                ),
+                is_self_service_auth_write_route_fn=lambda _path: False,
+                csrf_request_valid_fn=lambda _request: True,
+                auth_cookie_name="session",
+                auth_unsafe_methods={"POST", "PUT", "PATCH", "DELETE"},
+                auth_admin_roles={"admin"},
+                auth_write_roles={"admin", "operator"},
+                err_database_not_configured="Database not configured",
+                err_auth_tables_not_available="Auth tables unavailable",
+                err_authentication_required="Authentication required",
+                err_account_disabled="Account is disabled",
+                err_admin_role_required="Admin role required",
+                err_operator_role_required="Operator role required",
+                path_bootstrap="/bootstrap",
+                path_login="/login",
+                load_role_permissions_fn=loader
+                or (lambda _bl: SYSTEM_ROLE_PERMISSIONS if stored is None else stored),
+            )
+        )
+    finally:
+        auth_http_runtime.principal_has_required_scopes = original
+    return response.status_code == 204, seen.get("state")
+
+
+def _decisions(row: dict, kind: str) -> tuple[str, list[str] | None]:
+    allowed, scopes = "", None
+    for role in ROLES:
+        recorded: list = []
+        ok, _state = middleware_decision(
+            row["sample"],
+            row["method"],
+            _principal(kind, role),
+            public=row["public"],
+            recorded=recorded,
+        )
+        if ok:
+            allowed += role[0]
+        if role == "admin":
+            scopes = recorded[0] if recorded else None
+    return allowed, scopes
+
+
+def _compared_routes() -> list[dict]:
+    snapshot = _snapshot()
+    rows = [row for row in _routes() if f"{row['method']} {row['path']}" in snapshot]
+    # Non-vacuity: the snapshot still describes the application.
+    assert len(rows) >= 0.95 * len(snapshot)
+    return rows
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_every_principal_kind_gets_the_frozen_answer_on_every_route(kind) -> None:
+    snapshot = _snapshot()
+    mismatches = {}
+    for row in _compared_routes():
+        key = f"{row['method']} {row['path']}"
+        expected = snapshot[key][kind]
+        allowed, scopes = _decisions(row, kind)
+        if (row["method"], row["path"]) in PUBLIC_ROUTE_EXCEPTIONS and kind != "machine":
+            # The documented exceptions: every role reaches the public handler.
+            if allowed != "aov":
+                mismatches[key] = (expected, allowed)
+        elif allowed != expected:
+            mismatches[key] = (expected, allowed)
+        if kind in {"pat", "machine"} and scopes != snapshot[key][f"{kind}_scopes"]:
+            mismatches[f"{key} scopes"] = (snapshot[key][f"{kind}_scopes"], scopes)
+
+    assert mismatches == {}
+
+
+def test_the_admin_only_flag_marks_exactly_the_former_admin_only_routes() -> None:
+    snapshot = _snapshot()
+    wrong = {}
+    for row in _compared_routes():
+        key = f"{row['method']} {row['path']}"
+        match = route_permission(row["method"], row["sample"])
+        flagged = bool(match is not None and match.rule.admin_only)
+        if flagged != snapshot[key]["admin_only"]:
+            wrong[key] = flagged
+
+    assert wrong == {}
+
+
+def test_the_documented_exceptions_are_the_routes_whose_old_answer_was_admin_only() -> None:
+    snapshot = _snapshot()
+    for method, path in PUBLIC_ROUTE_EXCEPTIONS:
+        assert snapshot[f"{method} {path}"]["session"] == "a"
+
+
+def test_the_middleware_puts_the_effective_permissions_on_the_request() -> None:
+    allowed, state = middleware_decision(
+        "/api/jobs", "GET", _principal("session", "operator"), public=False
+    )
+
+    assert allowed
+    assert state.effective_permissions.permissions == SYSTEM_ROLE_PERMISSIONS["operator"]
+    assert state.auth_user["permissions"] == sorted(SYSTEM_ROLE_PERMISSIONS["operator"])
+
+
+def test_a_personal_token_carries_its_owners_permissions_cut_to_its_scopes() -> None:
+    token = {**_principal("pat", "operator"), "scopes": ["read:*"]}
+
+    allowed, state = middleware_decision("/api/jobs", "GET", token, public=False)
+
+    assert allowed
+    assert "jobs.read" in state.effective_permissions.permissions
+    assert "jobs.write" not in state.effective_permissions.permissions
+
+
+def test_a_service_account_carries_no_role_permissions() -> None:
+    allowed, state = middleware_decision(
+        "/api/jobs", "GET", _principal("machine", "operator"), public=False
+    )
+
+    assert allowed
+    assert getattr(state, "effective_permissions", None) is None
+    assert "permissions" not in state.auth_user
+
+
+def test_the_stored_role_permissions_decide_not_the_code_matrix() -> None:
+    """The middleware reads ``role_permissions``: a row removed there is refused."""
+    stored = {
+        **SYSTEM_ROLE_PERMISSIONS,
+        "operator": SYSTEM_ROLE_PERMISSIONS["operator"] - {"jobs.write"},
+    }
+
+    allowed, _state = middleware_decision(
+        "/api/jobs/j1/cancel",
+        "POST",
+        _principal("session", "operator"),
+        public=False,
+        stored=stored,
+    )
+
+    assert allowed is False
+
+
+def test_role_permissions_that_cannot_be_read_refuse_the_request() -> None:
+    def _broken(_bl):
+        raise RuntimeError("relation role_permissions does not exist")
 
     async def _call_next(_request: Request) -> Response:
         return Response(status_code=204)
 
+    user = _principal("session", "operator")
     response = asyncio.run(
         auth_http_runtime.local_auth_middleware(
-            _request(path, method),
+            _request("/api/jobs", "GET", bearer=False),
             _call_next,
             local_auth_enabled_fn=lambda: True,
             external_auth_enabled=False,
-            is_public_auth_path_fn=lambda _path: public,
+            is_public_auth_path_fn=lambda _path: False,
             route_registered_fn=lambda _path, _method: True,
             request_principal_resolver_fn=lambda _request, _bl: None,
-            normalize_live_principal_fn=lambda raw, **_kwargs: (
-                ResolvedPrincipal(**raw) if isinstance(raw, dict) else None
-            ),
+            normalize_live_principal_fn=lambda raw, **_kwargs: ResolvedPrincipal(**raw),
             get_logger_only_fn=lambda: object(),
             auth_tables_available_fn=lambda _bl: True,
             get_user_by_session_token_fn=lambda _bl, _token: dict(user),
             local_auth_bootstrap_required_fn=lambda _bl=None: False,
             auth_account_tables_available_fn=lambda _bl: False,
             roles_intersect_fn=roles_intersect,
-            is_admin_only_route_fn=lambda candidate: bool(_is_admin_only_route(candidate)),
-            is_registry_read_route_fn=lambda candidate: bool(_is_registry_read_route(candidate)),
-            is_self_service_auth_write_route_fn=is_self_service_auth_write_route,
+            is_registry_read_route_fn=lambda _path: False,
+            is_self_service_auth_write_route_fn=lambda _path: False,
             csrf_request_valid_fn=lambda _request: True,
             auth_cookie_name="session",
             auth_unsafe_methods={"POST", "PUT", "PATCH", "DELETE"},
@@ -159,15 +369,44 @@ def _old_decision(path: str, method: str, role: str, *, public: bool) -> bool:
             err_operator_role_required="Operator role required",
             path_bootstrap="/bootstrap",
             path_login="/login",
+            load_role_permissions_fn=_broken,
         )
     )
-    return response.status_code == 204
+
+    assert response.status_code == 503
 
 
-def _new_decision(path: str, method: str, role: str) -> bool:
-    person = {"id": f"{role}-1", "roles": [role], "auth_source": "local"}
-    granted = effective_permissions(person, role_permissions=SYSTEM_ROLE_PERMISSIONS)
-    return route_allowed(method, path, granted.permissions)
+def test_an_unmapped_write_is_refused_even_to_an_admin() -> None:
+    allowed, _state = middleware_decision(
+        "/api/not-a-route", "POST", _principal("session", "admin"), public=False
+    )
+
+    assert allowed is False
+
+
+def test_a_write_an_edition_contributes_as_own_account_needs_account_self() -> None:
+    """The ``self_service_auth_write_paths`` registry still names own-account writes."""
+    from core.application.auth.auth_http_runtime import _person_route_permission
+
+    assert (
+        _person_route_permission(
+            "POST",
+            "/api/private/me",
+            interactive_source="local",
+            contributed_own_account_write=True,
+        )
+        == "account.self"
+    )
+    # Open owner question: an external sign-in writes to its own account as an operator.
+    assert (
+        _person_route_permission(
+            "POST",
+            "/api/auth/logout",
+            interactive_source="external",
+            contributed_own_account_write=True,
+        )
+        == "account.profile.write"
+    )
 
 
 def test_every_route_of_the_application_is_mapped() -> None:
@@ -190,27 +429,6 @@ def test_every_write_route_names_a_permission_unless_it_is_public() -> None:
             missing.append(f"{row['method']} {row['path']}")
 
     assert missing == []
-
-
-def test_the_table_gives_every_system_role_todays_answer_on_every_route() -> None:
-    mismatches: dict[tuple[str, str], dict[str, tuple[bool, bool]]] = {}
-    for row in _routes():
-        method, sample = row["method"], row["sample"]
-        for role in ROLES:
-            old = _old_decision(sample, method, role, public=row["public"])
-            new = _new_decision(sample, method, role)
-            if old != new:
-                mismatches.setdefault((method, row["path"]), {})[role] = (old, new)
-
-    unexplained = {
-        key: value for key, value in mismatches.items() if key not in PUBLIC_ROUTE_EXCEPTIONS
-    }
-    assert unexplained == {}
-    # The exceptions are exactly the documented ones, and each is a public route that
-    # the old order of checks gave to the admin only.
-    assert set(mismatches) == PUBLIC_ROUTE_EXCEPTIONS
-    for decisions in mismatches.values():
-        assert decisions == {"operator": (False, True), "viewer": (False, True)}
 
 
 def test_every_rule_is_used_by_a_route_or_documented() -> None:
@@ -268,3 +486,47 @@ def test_route_permission_examples(method: str, path: str, expected: str) -> Non
 def test_an_unmapped_write_is_refused_to_everybody() -> None:
     assert route_permission("POST", "/api/not-a-route") is None
     assert route_allowed("POST", "/api/not-a-route", ALL_PERMISSION_KEYS) is False
+
+
+class _Rows:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def execute(self, *_args):
+        return None
+
+    def fetchall(self):
+        return self.rows
+
+
+def test_the_middleware_reads_the_rows_and_falls_back_only_when_there_are_none(caplog) -> None:
+    from types import SimpleNamespace
+
+    from core.application.auth.auth_http_runtime import _stored_role_permissions
+
+    def store(rows):
+        return SimpleNamespace(conn=SimpleNamespace(cursor=lambda: _Rows(rows)))
+
+    stored = _stored_role_permissions(store([{"key": "operator", "permission_key": "jobs.read"}]))
+    assert stored == {"operator": frozenset({"jobs.read"})}
+    assert _stored_role_permissions(store([])) == SYSTEM_ROLE_PERMISSIONS
+    assert "holds no rows" in caplog.text
+
+
+def test_an_admin_needs_no_stored_rows() -> None:
+    """``admin`` holds the whole catalogue implicitly: nothing is read for it."""
+
+    def _unreadable(_bl):
+        raise AssertionError("an admin's request read role_permissions")
+
+    allowed, state = middleware_decision(
+        "/api/auth/users", "GET", _principal("session", "admin"), public=False, loader=_unreadable
+    )
+    assert allowed
+    assert state.effective_permissions.permissions == ALL_PERMISSION_KEYS

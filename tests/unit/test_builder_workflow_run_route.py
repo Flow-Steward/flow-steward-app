@@ -6,7 +6,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-from core.application.auth import auth_http_runtime, is_admin_only_route, serve_auth_runtime
+from core.application.auth import auth_http_runtime, serve_auth_runtime
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.request_principal_runtime import (
     normalize_live_principal,
@@ -59,7 +60,6 @@ def _auth_kwargs(user):
         "local_auth_bootstrap_required_fn": lambda _bl=None: False,
         "auth_account_tables_available_fn": lambda _bl: False,
         "roles_intersect_fn": roles_intersect,
-        "is_admin_only_route_fn": is_admin_only_route,
         "is_registry_read_route_fn": build_path_pattern_matcher(
             patterns=_AUTH_REGISTRY_READ_PATTERNS
         ),
@@ -82,6 +82,7 @@ def _auth_kwargs(user):
         "err_operator_role_required": "Operator role required",
         "path_bootstrap": "/bootstrap",
         "path_login": "/login",
+        "load_role_permissions_fn": lambda _bl: SYSTEM_ROLE_PERMISSIONS,
     }
 
 

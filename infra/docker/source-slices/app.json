@@ -64,7 +64,6 @@
     "core/application/auth/oauth_client_provider.py",
     "core/application/auth/oauth_client_tokens.py",
     "core/application/auth/oauth_client_values.py",
-    "core/application/auth/operator_work.py",
     "core/application/auth/password.py",
     "core/application/auth/password_reset_rate_limit.py",
     "core/application/auth/permissions.py",
@@ -73,6 +72,7 @@
     "core/application/auth/request_principal_runtime.py",
     "core/application/auth/resolve.py",
     "core/application/auth/role_assignments.py",
+    "core/application/auth/route_permissions.py",
     "core/application/auth/scope_contracts.py",
     "core/application/auth/secrets.py",
     "core/application/auth/serve_auth_runtime.py",
@@ -1720,7 +1720,7 @@
     },
     {
       "path": "core/application/extensions/provider_attachments.py",
-      "consumer": "core/entrypoints/api/app_factory.py:135 literal dynamic import of core.application.extensions.provider_attachments"
+      "consumer": "core/entrypoints/api/app_factory.py:137 literal dynamic import of core.application.extensions.provider_attachments"
     },
     {
       "path": "core/application/orchestration/tools/standard_array_actions.py",

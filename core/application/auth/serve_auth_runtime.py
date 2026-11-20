@@ -787,29 +787,6 @@ def is_public_auth_path(
     return path_text.startswith(("/static/", "/static-v/"))
 
 
-def is_self_service_auth_write_route(path: str) -> bool:
-    path_text = str(path or "").strip()
-    if not path_text:
-        return False
-    if path_text in {
-        "/api/auth/change-password",
-        "/api/auth/logout",
-        "/api/auth/tokens",
-        "/api/users/me/email-change/request",
-    }:
-        return True
-    if re.fullmatch(r"/api/auth/tokens/[^/]+/revoke", path_text):
-        return True
-    # ADR 0047: a user answers their own OAuth consent and revokes their own grants
-    # whatever their role; the service caps the access at the user's authority.
-    return bool(
-        re.fullmatch(r"/api/oauth/authorizations/[^/]+/decision", path_text)
-        or re.fullmatch(r"/api/auth/oauth-grants/[^/]+/revoke", path_text)
-        # Task 4: the wizard mints the caller's own token; the service caps its access.
-        or path_text == "/api/auth/agent-access/tokens"
-    )
-
-
 def optional_route_path_allowed(
     path: str,
     *,
@@ -862,7 +839,6 @@ __all__ = [
     "get_user_by_username",
     "get_user_roles",
     "is_public_auth_path",
-    "is_self_service_auth_write_route",
     "optional_route_path_allowed",
     "real_dict_cursor_kwargs",
     "request_client_ip",

@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from core.application.auth.auth_http_runtime import build_local_auth_middleware_handler
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.request_principal_runtime import roles_intersect
 from core.application.management.command_services import ProjectConnectionService
 from core.application.management.requests import (
@@ -158,7 +159,6 @@ def _authenticated_http_client(*, store, authenticated_user: dict) -> TestClient
         local_auth_bootstrap_required_fn=lambda _bl: False,
         auth_account_tables_available_fn=lambda _bl: False,
         roles_intersect_fn=roles_intersect,
-        is_admin_only_route_fn=lambda _path: False,
         is_registry_read_route_fn=lambda _path: False,
         is_self_service_auth_write_route_fn=lambda _path: False,
         csrf_request_valid_fn=lambda _request: True,
@@ -174,6 +174,7 @@ def _authenticated_http_client(*, store, authenticated_user: dict) -> TestClient
         err_operator_role_required="Operator role required",
         path_bootstrap="/setup",
         path_login="/login",
+        load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
     )
 
     @app.middleware("http")

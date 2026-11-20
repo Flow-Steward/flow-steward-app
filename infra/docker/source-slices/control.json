@@ -27,6 +27,7 @@
     "core/application/auth/oauth_client_tokens.py",
     "core/application/auth/oauth_client_values.py",
     "core/application/auth/password.py",
+    "core/application/auth/permissions.py",
     "core/application/auth/principal.py",
     "core/application/auth/rate_limit.py",
     "core/application/auth/resolve.py",

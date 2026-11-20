@@ -1,6 +1,7 @@
 import pytest
 
 from core.application.auth.auth_http_runtime import _required_http_scopes
+from core.application.auth.route_permissions import route_admin_only
 
 
 def _scopes(path: str, method: str) -> list[str]:
@@ -154,7 +155,7 @@ def test_changelog_role_classification_preserves_legacy_token_scope_contract(
         _required_http_scopes(
             path,
             method,
-            admin_required=http_app_auth_runtime._is_admin_only_route(path) or method == "DELETE",
+            admin_required=route_admin_only(method, path) or method == "DELETE",
             project_callback_write=False,
             registry_read=registry_route,
             registry_write=registry_route and method not in {"GET", "HEAD", "OPTIONS"},
@@ -167,9 +168,8 @@ _ROUTE_TABLE = """
 import json
 from core.entrypoints.api import app_factory
 from core.entrypoints.api.app import app
-from core.infrastructure.runtime.http_app_auth_runtime import (
-    _is_admin_only_route, _is_registry_read_route,
-)
+from core.application.auth.route_permissions import route_admin_only
+from core.infrastructure.runtime.http_app_auth_runtime import _is_registry_read_route
 rows = []
 for route in app.routes:
     path = getattr(route, "path", None)
@@ -181,7 +181,7 @@ for route in app.routes:
                 "path": path,
                 "sample": sample,
                 "public": bool(app_factory._is_public_auth_path(app, sample)),
-                "admin": bool(_is_admin_only_route(sample)),
+                "admin": bool(route_admin_only(method, sample)),
                 "registry": bool(_is_registry_read_route(sample)),
             })
 print(json.dumps(rows))

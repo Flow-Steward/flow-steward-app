@@ -157,7 +157,6 @@ class _LifecycleRuntimeBindings:
     local_auth_bootstrap_required: Callable[..., bool]
     auth_account_tables_available: Callable[[Any], bool]
     roles_intersect: Callable[[list[str], set[str]], bool]
-    is_admin_only_route: Callable[[str], bool]
     is_registry_read_route: Callable[[str], bool]
     is_self_service_auth_write_route: Callable[[str], bool]
     csrf_request_valid: Callable[[Request], bool]
@@ -805,7 +804,6 @@ async def _local_auth_middleware(request: Request, call_next):
         local_auth_bootstrap_required_fn=bindings.local_auth_bootstrap_required,
         auth_account_tables_available_fn=bindings.auth_account_tables_available,
         roles_intersect_fn=bindings.roles_intersect,
-        is_admin_only_route_fn=bindings.is_admin_only_route,
         is_registry_read_route_fn=bindings.is_registry_read_route,
         is_self_service_auth_write_route_fn=bindings.is_self_service_auth_write_route,
         csrf_request_valid_fn=bindings.csrf_request_valid,

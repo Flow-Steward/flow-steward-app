@@ -11,6 +11,7 @@ from core.application.auth.permissions import (
     ADMIN_ROLE,
     ALL_PERMISSION_KEYS,
     PERMISSIONS,
+    VIEWER_ROLE,
     role_level,
     token_grants_permission,
 )
@@ -155,14 +156,24 @@ def principal_permission_kind(principal: Any) -> str:
 
 
 def _principal_roles(principal: Any) -> list[str]:
+    """The person's roles; a person without a system role is a viewer (ADR 0066 ladder).
+
+    Every user is created with a system role. A principal without one (an external
+    identity the provider maps to no role) was always treated as a viewer: the role
+    checks asked only for admin or operator.
+    """
     roles = _field(principal, "roles")
     if isinstance(roles, str):
         roles = [roles]
     if roles:
-        return [str(role or "").strip().lower() for role in roles if str(role or "").strip()]
-    # A ScopeContext names the person's highest role as its principal type.
-    principal_type = str(_field(principal, "principal_type") or "").strip().lower()
-    return [principal_type] if role_level(principal_type) else []
+        names = [str(role or "").strip().lower() for role in roles if str(role or "").strip()]
+    else:
+        # A ScopeContext names the person's highest role as its principal type.
+        principal_type = str(_field(principal, "principal_type") or "").strip().lower()
+        names = [principal_type] if role_level(principal_type) else []
+    if not any(role_level(role) for role in names):
+        names.append(VIEWER_ROLE)
+    return names
 
 
 def _token_scopes(principal: Any) -> set[str]:
@@ -184,6 +195,32 @@ def _assignment_applies(assignment: RoleAssignment, resource: PermissionResource
             (assignment.project_id, resource.project_id),
             (assignment.workflow_id, resource.workflow_id),
         )
+    )
+
+
+def owner_role_permissions(
+    principal: Any,
+    resource: PermissionResource | None = None,
+    *,
+    role_permissions: Mapping[str, Iterable[str]],
+    assignments: Iterable[RoleAssignment] | None = None,
+) -> frozenset[str]:
+    """The permissions of the person's roles, ignoring any token they authenticated with.
+
+    For a person this is :func:`effective_permissions`; for a personal token it is the
+    owner's ceiling, which the HTTP role check applies before the token's own scope
+    check. Of the system roles that apply (every global assignment and every scoped one
+    that matches ``resource``) the highest decides; other roles add theirs.
+    """
+    if assignments is None:
+        assignments = global_assignments(_principal_roles(principal))
+    applicable = [item for item in assignments if _assignment_applies(item, resource)]
+    system_roles = [item.role for item in applicable if role_level(item.role)]
+    roles = {item.role for item in applicable if not role_level(item.role)}
+    if system_roles:
+        roles.add(max(system_roles, key=role_level))
+    return frozenset().union(
+        *(role_permission_keys(role, role_permissions) for role in sorted(roles))
     )
 
 
@@ -212,15 +249,8 @@ def effective_permissions(
     kind = principal_permission_kind(principal)
     if kind == NOT_ROLE_BASED:
         return EffectivePermissions(kind, frozenset())
-    if assignments is None:
-        assignments = global_assignments(_principal_roles(principal))
-    applicable = [item for item in assignments if _assignment_applies(item, resource)]
-    system_roles = [item.role for item in applicable if role_level(item.role)]
-    roles = {item.role for item in applicable if not role_level(item.role)}
-    if system_roles:
-        roles.add(max(system_roles, key=role_level))
-    granted: frozenset[str] = frozenset().union(
-        *(role_permission_keys(role, role_permissions) for role in sorted(roles))
+    granted = owner_role_permissions(
+        principal, resource, role_permissions=role_permissions, assignments=assignments
     )
     if kind == PERSONAL_TOKEN:
         scopes = _token_scopes(principal)

@@ -10,7 +10,6 @@ from core.application.auth.audit import (
     request_actor_context,
 )
 from core.application.auth.config import (
-    AUTH_ADMIN_ONLY_PATTERNS,
     AUTH_ADMIN_ROLES,
     AUTH_BOOTSTRAP_TOKEN_HEADER,
     AUTH_COOKIE_NAME,
@@ -44,7 +43,6 @@ from core.application.auth.csrf import (
 )
 from core.application.auth.enforce import (
     auth_enforced,
-    is_admin_only_route,
     is_public_auth_path,
     normalize_requested_roles,
     require_authenticated,
@@ -99,7 +97,6 @@ from core.application.auth.resolve import (
 )
 
 __all__ = [
-    "AUTH_ADMIN_ONLY_PATTERNS",
     "AUTH_ADMIN_ROLES",
     "AUTH_BOOTSTRAP_TOKEN_HEADER",
     "AUTH_COOKIE_NAME",
@@ -146,7 +143,6 @@ __all__ = [
     "get_user_by_session_token",
     "get_user_by_username",
     "get_user_roles",
-    "is_admin_only_route",
     "is_machine_principal",
     # enforce
     "is_public_auth_path",

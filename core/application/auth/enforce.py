@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 
 from core.application.auth.config import (
-    AUTH_ADMIN_ONLY_PATTERNS,
     AUTH_PUBLIC_PATHS,
     PUBLIC_FRONTEND_PATH_PREFIXES,
     PUBLIC_HEALTH_PATHS,
@@ -39,13 +38,6 @@ def is_public_auth_path(path: str) -> bool:
     ):
         return True
     return path_text.startswith(("/static/", "/static-v/"))
-
-
-def is_admin_only_route(path: str) -> bool:
-    path_text = str(path or "").strip()
-    if not path_text:
-        return False
-    return any(pattern.match(path_text) for pattern in AUTH_ADMIN_ONLY_PATTERNS)
 
 
 def require_authenticated(user: dict | None) -> dict:
