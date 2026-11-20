@@ -1,18 +1,23 @@
-import type { ReactNode } from "react";
+import { ArrowLeft, RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
-import { DsAlert, DsBadge, DsCard, DsPageHeader } from "@/components/shared/design-system";
-import { isFileField, optionLabel, type FormFieldView } from "@/components/workflow-inputs/form-field";
+import { DsAlert, DsBadge, DsCard } from "@/components/shared/design-system";
+import { Button } from "@/components/ui/button";
+import { isFileField, optionLabel, type FormFieldView, type FormFiles, type FormValues } from "@/components/workflow-inputs/form-field";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { fetchArrayBuffer } from "@/lib/http/client";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDateTime } from "@/lib/time/date-time-format";
 import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
+import { formatStepDuration } from "@/pages/jobs/detail/job-detail-execution";
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
 
 import { ReviewOriginal } from "./review-panel";
 import { reviewFileUrl, reviewFiles, reviewFormField, reviewFormValues, type JobReview, type ReviewField, type ReviewFile } from "./review-model";
 import { OperatorCell } from "./section-cell";
+import { OperatorSubmitDialog, type SubmissionPrefill } from "./submit-dialog";
 import type { OperatorListColumn, OperatorResultFieldConfig, OperatorReviewDecision, OperatorSectionDetail } from "./types";
 
 type Row = { label: string; value: ReactNode; name: string; formatted?: boolean };
@@ -171,6 +176,51 @@ function resultRows(section: OperatorSectionDetail, outputs: Record<string, unkn
   return rows;
 }
 
+/**
+ * "Send again": the job's visible values and its uploaded files, downloaded
+ * from the job, so the operator corrects what is needed and sends a new run
+ * without choosing the files again. A file that cannot be read is left out
+ * and named, with how many files its input had: the form does not send a
+ * shorter set until the operator adds them again or confirms sending without.
+ * An aborted load (the operator left the job) rejects instead of counting.
+ */
+async function resendPrefill(
+  fields: readonly FormFieldView[],
+  inputs: Record<string, unknown>,
+  jobId: string,
+  signal: AbortSignal,
+): Promise<SubmissionPrefill> {
+  const values: FormValues = {};
+  const files: FormFiles = {};
+  const missing: NonNullable<SubmissionPrefill["missing"]> = [];
+  const expected: Record<string, number> = {};
+  for (const field of fields) {
+    const value = inputs[field.name];
+    if (field.hidden || field.fixed || value === undefined || value === null) continue;
+    if (!isFileField(field)) {
+      values[field.name] = value;
+      continue;
+    }
+    const stored = reviewFiles(value);
+    expected[field.name] = stored.length;
+    const read = await Promise.all(
+      stored.map(async (file) => {
+        try {
+          const body = await fetchArrayBuffer(reviewFileUrl(jobId, file), { signal });
+          return new File([body], file.filename || "file", { type: file.content_type || "application/octet-stream" });
+        } catch (error) {
+          if (signal.aborted) throw error;
+          missing.push({ field: field.name, label: field.label || field.name, filename: file.filename || "" });
+          return null;
+        }
+      }),
+    );
+    const kept = read.filter((file): file is File => file !== null);
+    if (kept.length) files[field.name] = kept;
+  }
+  return { values, files, missing, expected };
+}
+
 function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDecision }>) {
   const { t } = useI18n();
   if (decision.access !== "read") {
@@ -238,7 +288,11 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
           ))}
         </ul>
       ) : null}
-      {decision.comment ? <p className="fs-field-helper">{decision.comment}</p> : null}
+      {decision.comment ? (
+        <p className={decision.approved ? "fs-field-helper" : undefined} data-testid="operator-job-review-comment">
+          {decision.approved ? decision.comment : t("react.operator_job.reject_reason", "Reason: {comment}", { comment: decision.comment })}
+        </p>
+      ) : null}
     </DsCard>
   );
 }
@@ -251,9 +305,34 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
  * review, here or on the Invoke child that held it). A text result gets the
  * wider column. No step graph; an admin keeps a link to the full Job Details.
  */
-export function OperatorJobView({ section, jobId, review }: Readonly<{ section: OperatorSectionDetail; jobId: string; review: JobReview | undefined }>) {
+export function OperatorJobView({
+  section,
+  jobId,
+  review,
+  listPath,
+  steps,
+  onResent,
+}: Readonly<{
+  section: OperatorSectionDetail;
+  jobId: string;
+  review: JobReview | undefined;
+  /** The section's list this job was opened from. */
+  listPath: string;
+  /** The previous and next job of that list. */
+  steps?: ReactNode;
+  /** The jobs "Send again" started. */
+  onResent?: (jobIds: string[]) => void;
+}>) {
   const { t } = useI18n();
   const isAdmin = useHasCapability("administer_platform");
+  const canRun = useHasCapability("run_workflows");
+  const runnable = Boolean(section.runnable && section.operator.runnable);
+  // The page keys this view by job, so its state never outlives its job; a
+  // load still running when the operator leaves is aborted and its result ignored.
+  const [resend, setResend] = useState<SubmissionPrefill | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const loading = useRef<AbortController | null>(null);
+  useEffect(() => () => loading.current?.abort(), []);
   const values = review?.job_values ?? null;
   const status = values?.status || review?.status || "";
   const inputs = values?.inputs ?? {};
@@ -275,24 +354,61 @@ export function OperatorJobView({ section, jobId, review }: Readonly<{ section: 
   const by = record(values?.submitted_by);
   const byName = String(by.name ?? by.display_name ?? by.id ?? "");
   const author = byName && by.kind === "service_account" ? t("react.operator.author_api", "{name} (API)", { name: byName }) : byName;
+  // The header names the job by what was sent, as the list does: its first file.
+  const firstName = originals[0]?.filename ?? "";
+  let title = t("react.operator_job.title", "Job");
+  if (firstName && originals.length > 1) {
+    title = t("react.operator_job.title_more", "{name} and {count} more", { name: firstName, count: String(originals.length - 1) });
+  } else if (firstName) {
+    title = firstName;
+  }
+  const meta = [values?.created_at ? formatDateTime(values.created_at) : "", author, formatStepDuration(values?.duration_ms)].filter(Boolean).join(" · ");
+  const startResend = async () => {
+    loading.current?.abort();
+    const controller = new AbortController();
+    loading.current = controller;
+    setPreparing(true);
+    try {
+      const prepared = await resendPrefill(section.operator.form_fields, inputs, jobId, controller.signal);
+      if (!controller.signal.aborted) setResend(prepared);
+    } catch {
+      // Aborted: the operator left this job; nothing opens.
+    } finally {
+      if (loading.current === controller) {
+        loading.current = null;
+        setPreparing(false);
+      }
+    }
+  };
   return (
     <>
-      <DsPageHeader
-        action={
-          isAdmin ? (
-            <Link className="fs-link" data-testid="operator-job-details-link" to={`/jobs/${encodeURIComponent(jobId)}`}>
-              {t("react.operator_job.full_details", "Full job details")}
-            </Link>
-          ) : undefined
-        }
-        description={author ? t("react.operator_job.submitted_by", "Submitted by {name}", { name: author }) : ""}
-        eyebrow={section.title}
-        title={t("react.operator_job.title", "Job")}
-      />
-      <div className="grid gap-4" data-testid="operator-job">
-        <div>
-          <ValueCell jobId={jobId} name="status" source="job" value={status} />
+      <header className="fs-operator-job-head" data-testid="operator-job-head">
+        <div className="fs-operator-job-head-main">
+          <Link
+            aria-label={t("react.operator_queue.back", "Back to {title}", { title: section.title })}
+            className="fs-button secondary sm fs-operator-job-back"
+            to={listPath}
+          >
+            <ArrowLeft aria-hidden="true" />
+            {section.title}
+          </Link>
+          <div className="min-w-0">
+            <h1 className="fs-page-title fs-operator-job-title">{title}</h1>
+            {meta ? (
+              <p className="fs-page-description" data-testid="operator-job-meta">
+                {meta}
+              </p>
+            ) : null}
+          </div>
         </div>
+        <div className="fs-operator-job-head-side">
+          <span data-testid="operator-job-status">
+            <ValueCell jobId={jobId} name="status" source="job" value={status} />
+          </span>
+          {steps}
+        </div>
+      </header>
+      <div className="grid gap-4" data-testid="operator-job">
         {review?.waiting && review.access === "none" ? (
           <DsAlert title={t("react.operator_review.waiting_elsewhere", "This job waits for a decision by people who have access to it.")} tone="neutral" />
         ) : null}
@@ -323,7 +439,36 @@ export function OperatorJobView({ section, jobId, review }: Readonly<{ section: 
             {review?.decision ? <ReviewDecisionCard decision={review.decision} /> : null}
           </div>
         </div>
+        <div className="fs-operator-job-foot">
+          {canRun && runnable ? (
+            <Button
+              busy={preparing}
+              busyLabel={t("react.operator_job.loading_files", "Loading the files…")}
+              data-testid="operator-job-send-again"
+              onClick={() => void startResend()}
+              type="button"
+              variant="secondary"
+            >
+              <RotateCcw aria-hidden="true" />
+              {t("react.operator_job.send_again", "Send again")}
+            </Button>
+          ) : null}
+          {isAdmin ? (
+            <Link className="fs-link fs-operator-job-details" data-testid="operator-job-details-link" to={`/jobs/${encodeURIComponent(jobId)}`}>
+              {t("react.operator_job.full_details", "Full job details")}
+            </Link>
+          ) : null}
+        </div>
       </div>
+      {resend ? (
+        <OperatorSubmitDialog
+          onClose={() => setResend(null)}
+          onSent={(jobIds) => onResent?.(jobIds)}
+          open
+          prefill={resend}
+          section={section}
+        />
+      ) : null}
     </>
   );
 }

@@ -38,6 +38,48 @@ function prefetchOriginal(review: JobReview | undefined, maxBytes: number | unde
   document.head.appendChild(link);
 }
 
+/** "3 of 47" between the previous (K) and next (J) job. */
+export function QueueSteps({
+  position,
+  onPrevious,
+  onNext,
+}: Readonly<{ position: JobsQueuePosition | undefined; onPrevious: (() => void) | null; onNext: (() => void) | null }>) {
+  const { t } = useI18n();
+  let where = "";
+  if (position?.position) {
+    where = t("react.operator_queue.position", "{position} of {total}", { position: String(position.position), total: String(position.total) });
+  } else if (position) {
+    where = t("react.operator_queue.left_list", "Not in the list any more · {total} left", { total: String(position.total) });
+  }
+  return (
+    <div className="fs-operator-queue-steps" data-testid="operator-queue-steps">
+      <button
+        aria-keyshortcuts="K"
+        aria-label={t("react.operator_queue.previous", "Previous job (K)")}
+        className="fs-icon-button"
+        disabled={!onPrevious}
+        onClick={() => onPrevious?.()}
+        type="button"
+      >
+        <ChevronLeft aria-hidden="true" />
+      </button>
+      <span aria-live="polite" data-testid="operator-queue-position">
+        {where}
+      </span>
+      <button
+        aria-keyshortcuts="J"
+        aria-label={t("react.operator_queue.next", "Next job (J)")}
+        className="fs-icon-button"
+        disabled={!onNext}
+        onClick={() => onNext?.()}
+        type="button"
+      >
+        <ChevronRight aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 function QueueBar({
   position,
   listPath,
@@ -52,43 +94,13 @@ function QueueBar({
   onNext: (() => void) | null;
 }>) {
   const { t } = useI18n();
-  let where = "";
-  if (position?.position) {
-    where = t("react.operator_queue.position", "{position} of {total}", { position: String(position.position), total: String(position.total) });
-  } else if (position) {
-    where = t("react.operator_queue.left_list", "Not in the list any more · {total} left", { total: String(position.total) });
-  }
   return (
     <nav aria-label={t("react.operator_queue.label", "Queue")} className="fs-operator-queue" data-testid="operator-queue">
       <Link className="fs-link fs-operator-queue-back" to={listPath}>
         <ArrowLeft aria-hidden="true" />
         {t("react.operator_queue.back", "Back to {title}", { title: sectionTitle })}
       </Link>
-      <div className="fs-operator-queue-steps">
-        <button
-          aria-keyshortcuts="K"
-          aria-label={t("react.operator_queue.previous", "Previous job (K)")}
-          className="fs-icon-button"
-          disabled={!onPrevious}
-          onClick={() => onPrevious?.()}
-          type="button"
-        >
-          <ChevronLeft aria-hidden="true" />
-        </button>
-        <span aria-live="polite" data-testid="operator-queue-position">
-          {where}
-        </span>
-        <button
-          aria-keyshortcuts="J"
-          aria-label={t("react.operator_queue.next", "Next job (J)")}
-          className="fs-icon-button"
-          disabled={!onNext}
-          onClick={() => onNext?.()}
-          type="button"
-        >
-          <ChevronRight aria-hidden="true" />
-        </button>
-      </div>
+      <QueueSteps onNext={onNext} onPrevious={onPrevious} position={position} />
     </nav>
   );
 }
@@ -241,11 +253,24 @@ export function OperatorJobPage() {
     );
   }
   // Any other job, running, finished or waiting where the caller cannot decide:
-  // the operator view, never the technical step graph.
+  // the operator view, never the technical step graph. Its own header holds the
+  // way back, the status and the steps through the queue.
   return (
     <PageContainer width="wide">
-      {bar}
-      <OperatorJobView jobId={jobId} review={data} section={section.data} />
+      <OperatorJobView
+        // One view per job: the Send again form and its file load belong to this job only.
+        key={jobId}
+        jobId={jobId}
+        listPath={listPath}
+        onResent={(jobIds) => {
+          void queryClient.invalidateQueries({ queryKey: ["operator", "queue"] });
+          // One new run: open it, with the same list around it.
+          if (jobIds.length === 1) open(jobIds[0]);
+        }}
+        review={data}
+        section={section.data}
+        steps={<QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />}
+      />
     </PageContainer>
   );
 }

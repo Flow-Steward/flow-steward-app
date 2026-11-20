@@ -32194,3 +32194,27 @@ msgstr "Šis lapas tuščias."
 
 msgid "react.operator_job.result_pending"
 msgstr "Rezultatas bus rodomas čia, kai vykdymas baigsis."
+
+msgid "react.operator_job.title_more"
+msgstr "{name} ir dar {count}"
+
+msgid "react.operator_job.send_again"
+msgstr "Siųsti dar kartą"
+
+msgid "react.operator_job.loading_files"
+msgstr "Įkeliami failai…"
+
+msgid "react.operator_job.files_not_loaded"
+msgstr "Nepavyko įkelti šio darbo failų: {count}. Pridėkite juos formoje."
+
+msgid "react.operator_job.reject_reason"
+msgstr "Priežastis: {comment}"
+
+msgid "react.operator_job.resend_missing"
+msgstr "Nepavyko įkelti šių ankstesnio darbo failų:"
+
+msgid "react.operator_job.resend_without_missing"
+msgstr "Siųsti be šių failų"
+
+msgid "react.operator_job.resend_missing_block"
+msgstr "Vėl pridėkite trūkstamus failus arba patvirtinkite siuntimą be jų."

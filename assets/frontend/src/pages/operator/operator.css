@@ -108,6 +108,53 @@
   }
 }
 
+/* The job's own header: back to the list, what was sent and when, then its
+   status and the steps through the list (ADR 0075). */
+.fs-operator-job-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  margin-bottom: var(--fs-space-150);
+}
+
+.fs-operator-job-head-main {
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-operator-job-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+  flex: none;
+}
+
+.fs-operator-job-title {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.fs-operator-job-head-side {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.fs-operator-job-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+}
+
+.fs-operator-job-details {
+  margin-left: auto;
+}
+
 /* A job of a section: label and value rows (ADR 0075). */
 .fs-operator-values {
   display: grid;

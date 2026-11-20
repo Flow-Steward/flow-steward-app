@@ -172,6 +172,13 @@ def operator_row_values(
     return values
 
 
+def _timestamp(value: Any) -> str | None:
+    """A stored time as ISO 8601 text, or None."""
+    if value is None or value == "":
+        return None
+    return value.isoformat() if hasattr(value, "isoformat") else str(value)
+
+
 def operator_job_values(row: dict[str, Any], payload: dict[str, Any] | None) -> dict[str, Any]:
     """Everything one job submitted and, once it succeeded, returned, as the list shows values.
 
@@ -194,9 +201,16 @@ def operator_job_values(row: dict[str, Any], payload: dict[str, Any] | None) -> 
             if value is not None:
                 outputs.setdefault(str(name), _public(value))
     author = stored.get("submitted_by")
+    duration = row.get("duration_ms")
     return {
         "status": status,
         "submitted_by": author if isinstance(author, dict) else None,
+        # When it was sent and how long it ran, for the job page's header.
+        "created_at": _timestamp(row.get("queued_at") or row.get("started_at")),
+        "finished_at": _timestamp(row.get("finished_at")),
+        "duration_ms": duration
+        if isinstance(duration, int) and not isinstance(duration, bool)
+        else None,
         "inputs": {
             str(name): _public(_with_input_artifact(value, files, str(name)))
             for name, value in inputs.items()

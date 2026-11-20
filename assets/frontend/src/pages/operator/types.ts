@@ -83,6 +83,10 @@ export type OperatorFileValue = {
 export type OperatorJobValues = {
   status?: string;
   submitted_by?: Record<string, unknown> | null;
+  /** When it was sent, when it ended and how long it ran (ISO 8601, milliseconds). */
+  created_at?: string | null;
+  finished_at?: string | null;
+  duration_ms?: number | null;
   inputs?: Record<string, unknown>;
   /** Only once the run succeeded. */
   outputs?: Record<string, unknown> | null;

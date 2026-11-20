@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
@@ -89,6 +90,65 @@ def test_a_rejection_keeps_no_accepted_values() -> None:
     )
 
     assert "review" not in meta["approvals"][0]
+    # It is still a decision on the review, so the operator's view finds it.
+    assert meta["approvals"][0]["typed_review"] is True
+
+
+def test_a_rejection_shows_who_rejected_it_and_why_but_none_of_its_edits() -> None:
+    meta = _decided_meta(
+        ApprovalDecisionInput(
+            approved=False,
+            approval_id="approval-1",
+            comment="QA queue: exact rejection note for audit.",
+            values={"total": 999.0},
+        )
+    )
+    # The rejected edit never reaches the workflow.
+    assert "review_values" not in meta["workflow_resume"]["resume_value"]
+    jobs = _chain(meta)
+    bl = SimpleNamespace(get_job=jobs.get)
+
+    decision = last_review_decision(
+        bl, "root-1", jobs["root-1"], can_read=lambda _row: True, max_depth=3
+    )
+
+    assert decision is not None
+    assert decision["access"] == "read"
+    assert decision["approved"] is False
+    assert decision["actor"] == "Olga"
+    assert decision["comment"] == "QA queue: exact rejection note for audit."
+    assert decision["values"] == {}
+    assert decision["changes"] == []
+    assert "999" not in json.dumps(decision)
+
+
+def test_a_plain_approval_without_fields_is_not_a_review_decision() -> None:
+    writes: list = []
+    ApprovalRepository().persist_decision(
+        bl=SimpleNamespace(conn=SimpleNamespace(cursor=lambda: _Cursor(writes))),
+        transaction_conn=None,
+        row={"id": "child-1", "project_id": "project-1", "task_id": "T-1", "meta": {}},
+        thread_id="thread-1",
+        approval_id="approval-1",
+        payload={"approval_id": "approval-1"},
+        decision=ApprovalDecisionInput(approved=False, approval_id="approval-1", comment="no"),
+        scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="Olga"),
+        record_in_progress=lambda **_kwargs: None,
+    )
+    meta = json.loads(writes[0][0])
+
+    assert "typed_review" not in meta["approvals"][0]
+    jobs = _chain(meta)
+    assert (
+        last_review_decision(
+            SimpleNamespace(get_job=jobs.get),
+            "root-1",
+            jobs["root-1"],
+            can_read=lambda _row: True,
+            max_depth=3,
+        )
+        is None
+    )
 
 
 def _chain(child_meta: dict, *, child_parent: str = "root-1") -> dict[str, dict]:
@@ -162,7 +222,16 @@ def test_job_values_show_inputs_with_their_files_and_outputs_only_on_success() -
         "submitted_by": {"id": "u1", "name": "Olga"},
     }
 
-    done = operator_job_values({"status": "completed"}, payload)
+    done = operator_job_values(
+        {
+            "status": "completed",
+            "queued_at": datetime(2026, 11, 19, 10, 42, tzinfo=UTC),
+            "started_at": datetime(2026, 11, 19, 10, 42, 1, tzinfo=UTC),
+            "finished_at": datetime(2026, 11, 19, 10, 42, 4, tzinfo=UTC),
+            "duration_ms": 3100,
+        },
+        payload,
+    )
     running = operator_job_values({"status": "running"}, payload)
 
     assert done["inputs"]["pages"] == [{"filename": "p1.jpg", "artifact_id": "a1"}]
@@ -172,6 +241,15 @@ def test_job_values_show_inputs_with_their_files_and_outputs_only_on_success() -
     }
     assert done["submitted_by"] == {"id": "u1", "name": "Olga"}
     assert running["outputs"] is None
+    # The header shows when it was sent and how long it ran.
+    assert done["created_at"] == "2026-11-19T10:42:00+00:00"
+    assert done["finished_at"] == "2026-11-19T10:42:04+00:00"
+    assert done["duration_ms"] == 3100
+    assert (running["created_at"], running["finished_at"], running["duration_ms"]) == (
+        None,
+        None,
+        None,
+    )
 
 
 def test_the_review_read_of_a_finished_job_carries_its_values_and_decision() -> None:

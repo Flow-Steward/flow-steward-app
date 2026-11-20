@@ -3,8 +3,10 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 
-import { fetchJson } from "@/lib/http/client";
+import { useHasCapability } from "@/lib/auth/capabilities";
+import { fetchArrayBuffer, fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
+import { runBuilderWorkflow } from "@/pages/workflows/shared/run-api";
 
 import { OperatorJobPage } from "./job-page";
 import type { JobReview, ReviewField } from "./review-model";
@@ -12,6 +14,12 @@ import type { OperatorSectionDetail } from "./types";
 
 // A document original stays loading here; its previewer is covered by file-preview.test.tsx.
 vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn(), fetchText: vi.fn(), fetchArrayBuffer: vi.fn(() => new Promise<ArrayBuffer>(() => undefined)) }));
+vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn(() => false) }));
+vi.mock("@/pages/workflows/shared/run-api", () => ({
+  runBuilderWorkflow: vi.fn(),
+  readWorkflowRunFile: (inputName: string, file: File) =>
+    Promise.resolve({ input_name: inputName, filename: file.name, mime_type: file.type, content_base64: "eA==" }),
+}));
 vi.mock("@/pages/jobs/detail", () => ({
   JobsDetailPage: ({ jobId }: { jobId: string }) => <div data-testid="job-detail">{jobId}</div>,
 }));
@@ -166,6 +174,9 @@ function decisions(): Array<{ url: string; body: Record<string, unknown> }> {
 
 beforeEach(() => {
   mockedFetchJson.mockReset();
+  vi.mocked(useHasCapability).mockReturnValue(false);
+  vi.mocked(fetchArrayBuffer).mockImplementation(() => new Promise<ArrayBuffer>(() => undefined));
+  vi.mocked(runBuilderWorkflow).mockReset();
   reviews = Object.fromEntries(["j1", "j2", "j3", "j4", "j5", "j6"].map((id) => [id, review(id)]));
   decide = () => ({ status: "in_progress", actor: "olga" });
   serve();
@@ -380,6 +391,8 @@ describe("OperatorJobPage finished job", () => {
       job_values: {
         status: "completed",
         submitted_by: { id: "u1", name: "Olga" },
+        created_at: "2026-11-19T10:42:00Z",
+        duration_ms: 3100,
         inputs: { doc_type: "invoice", pages: [{ filename: "p1.jpg", artifact_id: "a1" }], ocr_model: "fast" },
         outputs: { total: 318.5, supplier: "ACME", internal: "x" },
       },
@@ -430,7 +443,16 @@ describe("OperatorJobPage finished job", () => {
     expect(columns.children[0]).toBe(screen.getByTestId("operator-job-submitted"));
     expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-result"));
     expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-review"));
-    expect(screen.getByText("Submitted by Olga")).toBeInTheDocument();
+    // One header row: back to the list, the job named by its file, when, who and how long; then status and steps.
+    const head = screen.getByTestId("operator-job-head");
+    expect(within(head).getByRole("link", { name: "Back to Contracts" })).toBeInTheDocument();
+    expect(within(head).getByRole("heading", { level: 1 })).toHaveTextContent("p1.jpg");
+    expect(within(head).getByTestId("operator-job-meta")).toHaveTextContent(/Olga · 3\.1s$/);
+    expect(within(head).getByTestId("operator-job-status")).toHaveTextContent("Completed");
+    expect(within(head).getByTestId("operator-queue-steps")).toBeInTheDocument();
+    expect(screen.queryByTestId("operator-queue")).not.toBeInTheDocument();
+    // Anyone who may not run it gets no Send again.
+    expect(screen.queryByTestId("operator-job-send-again")).not.toBeInTheDocument();
 
     const result = screen.getByTestId("operator-job-outputs");
     const labels = within(result).getAllByRole("term").map((term) => term.textContent);
@@ -555,6 +577,152 @@ describe("OperatorJobPage finished job", () => {
     expect(within(result).getByText("report.pdf")).toBeInTheDocument();
     expect(within(result).getByRole("button", { name: "View" })).toBeInTheDocument();
     expect(within(result).getByRole("link", { name: /download/i })).toHaveAttribute("href", "/api/jobs/j3/artifacts/r1");
+  });
+
+  it("sends a job again with its values and files, then opens the new job", async () => {
+    vi.mocked(useHasCapability).mockImplementation((capability) => capability === "run_workflows");
+    vi.mocked(fetchArrayBuffer).mockImplementation(async (input) =>
+      String(input) === "/api/jobs/j3/artifacts/a1" ? new ArrayBuffer(8) : new Promise<ArrayBuffer>(() => undefined),
+    );
+    vi.mocked(runBuilderWorkflow).mockResolvedValue({ job_id: "j9" });
+    serveFinished(
+      finished({
+        job_values: {
+          status: "failed",
+          inputs: { doc_type: "invoice", pages: [{ filename: "contract.pdf", content_type: "application/pdf", artifact_id: "a1" }], ocr_model: "fast" },
+          outputs: null,
+        },
+        decision: null,
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("operator-job-send-again"));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Send again" })).toBeInTheDocument();
+    // The file was taken from the job: nothing to choose again.
+    expect(await within(dialog).findByText("contract.pdf")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(runBuilderWorkflow).toHaveBeenCalledTimes(1));
+    const [workflowId, request] = vi.mocked(runBuilderWorkflow).mock.calls[0];
+    expect(workflowId).toBe("wf.contracts");
+    expect(request.inputs).toEqual({ doc_type: "invoice" });
+    expect(request.files).toEqual([{ input_name: "pages", filename: "contract.pdf", mime_type: "application/pdf", content_base64: "eA==" }]);
+    // The new run opens with the same list around it.
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent(`/projects/p1/workflows/wf.contracts/work/jobs/j9?${LIST}`));
+  });
+
+  it("forgets a Send again started on a job the operator has left", async () => {
+    vi.mocked(useHasCapability).mockImplementation((capability) => capability === "run_workflows");
+    let release: (body: ArrayBuffer) => void = () => undefined;
+    let signal: AbortSignal | undefined;
+    vi.mocked(fetchArrayBuffer).mockImplementation((input, init) => {
+      if (String(input) !== "/api/jobs/j3/artifacts/a1") return new Promise<ArrayBuffer>(() => undefined);
+      signal = init?.signal ?? undefined;
+      return new Promise<ArrayBuffer>((resolve) => {
+        release = resolve;
+      });
+    });
+    const job = (id: string) =>
+      finished({
+        job_id: id,
+        job_values: { status: "failed", inputs: { doc_type: "invoice", pages: [{ filename: `${id}.pdf`, content_type: "application/pdf", artifact_id: "a1" }] }, outputs: null },
+        decision: null,
+      });
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = new URL(String(input), "https://example.test");
+      if (url.pathname === "/api/v2/projects/p1/workflows/wf.contracts/section") return withForm as never;
+      const match = /^\/api\/v2\/jobs\/([^/]+)\/review$/.exec(url.pathname);
+      if (match) return job(match[1]) as never;
+      if (url.pathname === "/api/v2/jobs") {
+        const first = url.searchParams.get("around") === "j3";
+        return { job_id: first ? "j3" : "j4", in_list: true, position: first ? 3 : 4, total: 47, previous_job_id: first ? null : "j3", next_job_id: first ? "j4" : null } as never;
+      }
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("operator-job-send-again"));
+    await waitFor(() => expect(signal).toBeDefined());
+    const next = screen.getByRole("button", { name: "Next job (J)" });
+    await waitFor(() => expect(next).toBeEnabled());
+    fireEvent.click(next);
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/work/jobs/j4?"));
+    expect(await screen.findByRole("heading", { level: 1, name: "j4.pdf" })).toBeInTheDocument();
+
+    // The first job's load is aborted, and its late answer opens nothing on the second job.
+    expect(signal?.aborted).toBe(true);
+    release(new ArrayBuffer(8));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByTestId("operator-job-send-again")).not.toHaveAttribute("aria-busy");
+  });
+
+  it("does not send a shorter set of files without the operator's say", async () => {
+    vi.mocked(useHasCapability).mockImplementation((capability) => capability === "run_workflows");
+    vi.mocked(fetchArrayBuffer).mockImplementation(async (input) => {
+      if (String(input) === "/api/jobs/j3/artifacts/a1") return new ArrayBuffer(8);
+      if (String(input) === "/api/jobs/j3/artifacts/a2") throw new Error("gone");
+      return new Promise<ArrayBuffer>(() => undefined);
+    });
+    vi.mocked(runBuilderWorkflow).mockResolvedValue({ job_id: "j9" });
+    serveFinished(
+      finished({
+        job_values: {
+          status: "failed",
+          inputs: {
+            doc_type: "invoice",
+            pages: [
+              { filename: "p1.pdf", content_type: "application/pdf", artifact_id: "a1" },
+              { filename: "p2.pdf", content_type: "application/pdf", artifact_id: "a2" },
+            ],
+          },
+          outputs: null,
+        },
+        decision: null,
+      }),
+    );
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("operator-job-send-again"));
+    const dialog = await screen.findByRole("dialog");
+    // The missing file is named inside the form, not under it on the page.
+    expect(within(dialog).getByTestId("resend-missing-files")).toHaveTextContent("Pages: p2.pdf");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    expect(await within(dialog).findByText("Add the missing files again, or confirm sending without them.")).toBeInTheDocument();
+    expect(runBuilderWorkflow).not.toHaveBeenCalled();
+
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Send without these files" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(runBuilderWorkflow).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(runBuilderWorkflow).mock.calls[0][1].files.map((file) => file.filename)).toEqual(["p1.pdf"]);
+  });
+
+  it("shows a rejected review with who rejected it and why, and no values", async () => {
+    serveFinished(
+      finished({
+        status: "failed",
+        job_values: { status: "failed", inputs: { doc_type: "invoice" }, outputs: null },
+        decision: {
+          access: "read",
+          job_id: "j3-child",
+          approved: false,
+          actor: "Marta",
+          timestamp: "2026-11-19T10:00:00Z",
+          comment: "QA queue: exact rejection note for audit.",
+          fields: [],
+          values: {},
+          changes: [],
+        },
+      }),
+    );
+    renderPage();
+
+    const decided = await screen.findByTestId("operator-job-review");
+    expect(within(decided).getByText(/Rejected by Marta/)).toBeInTheDocument();
+    expect(within(decided).getByTestId("operator-job-review-comment")).toHaveTextContent("Reason: QA queue: exact rejection note for audit.");
+    expect(within(decided).queryByTestId("operator-job-review-values")).not.toBeInTheDocument();
   });
 
   it("gives a text result the wider column", async () => {
