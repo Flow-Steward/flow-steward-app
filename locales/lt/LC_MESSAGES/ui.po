@@ -32218,3 +32218,9 @@ msgstr "Siųsti be šių failų"
 
 msgid "react.operator_job.resend_missing_block"
 msgstr "Vėl pridėkite trūkstamus failus arba patvirtinkite siuntimą be jų."
+
+msgid "react.operator_form.take_photo"
+msgstr "Fotografuoti"
+
+msgid "react.operator_form.preparing_photo"
+msgstr "Ruošiama nuotrauka…"

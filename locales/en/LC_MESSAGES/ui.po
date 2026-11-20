@@ -31790,3 +31790,9 @@ msgstr "Send without these files"
 
 msgid "react.operator_job.resend_missing_block"
 msgstr "Add the missing files again, or confirm sending without them."
+
+msgid "react.operator_form.take_photo"
+msgstr "Take a photo"
+
+msgid "react.operator_form.preparing_photo"
+msgstr "Preparing the photo…"
