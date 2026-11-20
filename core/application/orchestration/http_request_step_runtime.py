@@ -566,7 +566,6 @@ def _execute_http_request_step(
     if not rendered_url:
         raise ValueError("http_request url is required")
     rendered_url = _validate_http_request_url(rendered_url)
-    secret_boundary.request_url = rendered_url
     auth_mode = str(config.get("auth_mode") or "none").strip().lower()
     if auth_mode in {"basic", "bearer"}:
         _validate_static_https_auth_origin(url_template, rendered_url)
@@ -619,6 +618,13 @@ def _execute_http_request_step(
         presented["auth"] = input_auth
     if has_http_secret(presented):
         secret_boundary.has_references = True
+        headers = presented["headers"]
+        # The URL identifies the catalog secret's recipient when the client derives Host.
+        if not isinstance(headers, dict) or not any(
+            str(name).strip().lower() == "host" and value is not None
+            for name, value in headers.items()
+        ):
+            secret_boundary.request_url = rendered_url
         secret_boundary.check_origin(
             url_template, rendered_url, presented, _validate_static_https_auth_origin
         )

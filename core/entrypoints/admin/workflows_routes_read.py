@@ -110,6 +110,7 @@ def export_workflow_yaml(
             include_children=include_children,
             reference_only=reference_only,
             allowed_project_ids=frozenset(getattr(scope, "allowed_project_ids", None) or ()),
+            allowed_workspace_ids=frozenset(getattr(scope, "allowed_workspace_ids", None) or ()),
         )
     except WorkflowPortabilityError as exc:
         _raise_portability_http_error(exc)

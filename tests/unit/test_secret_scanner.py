@@ -7,11 +7,13 @@ Run:
 from __future__ import annotations
 
 import hashlib
+import re
 
 import pytest
 
 from core.infrastructure.security.policy import ScannerConfig
 from core.infrastructure.security.scanners.secrets import SecretScanner
+from core.infrastructure.security.secret_detection import SecretPattern
 
 
 @pytest.fixture
@@ -49,7 +51,9 @@ class TestTruePositives:
 
     def test_slack_bot_token(self, scanner, config):
         # Split so repository secret scanning does not report the fixture itself.
-        text = "xox" + "b-1234567890-9876543210-AbCdEfGhIjKlMnOpQrStUvWx"  # pragma: allowlist secret
+        text = (
+            "xox" + "b-1234567890-9876543210-AbCdEfGhIjKlMnOpQrStUvWx"  # pragma: allowlist secret
+        )
         findings = scanner.scan(text, "inbound", config)
         assert any(f.rule_id == "secret:slack_bot_token" for f in findings)
 
@@ -138,6 +142,28 @@ class TestRedaction:
         redacted = scanner.redact(text, [])
         assert redacted == text
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            ('password = "double quoted value"', 'password="[REDACTED]"'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            ("password: 'single quoted value'", "password:'[REDACTED]'"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            (r'password="an escaped \" quote" suffix', 'password="[REDACTED]" suffix'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            (r"password='an escaped \' quote' suffix", "password='[REDACTED]' suffix"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            (r'password="ends in a backslash \\" suffix', 'password="[REDACTED]" suffix'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            ('password="unfinished value; suffix', "password=[REDACTED]; suffix"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
+            (r'password="unfinished \" quote; suffix', "password=[REDACTED]; suffix"),
+        ],
+    )
+    def test_redact_credential_assignment_quotes(self, scanner, text, expected):
+        assert scanner.redact(text, []) == expected
+
 
 class TestAllowlist:
     def test_allowlisted_hash_skipped(self, scanner, config):
@@ -146,6 +172,35 @@ class TestAllowlist:
         findings = scanner.scan(f"key={key}", "inbound", config, allowlist_hashes={h})
         aws = [f for f in findings if f.rule_id == "secret:aws_access_key"]
         assert len(aws) == 0
+
+
+@pytest.mark.parametrize("allowlist_first", [False, True])
+def test_overlap_uses_existing_match_endpoints(config, allowlist_first):
+    patterns = [
+        ("start_empty", r"^"),
+        ("first", "cde"),
+        ("starts_inside", "ef"),
+        ("ends_inside", "bc"),
+        ("left_adjacent", "b"),
+        ("right_adjacent", "f"),
+        ("surrounds", "abcdefg"),
+        ("covered_empty", r"(?=c)"),
+        ("right_edge_empty", r"(?=h)"),
+        ("end_empty", r"$"),
+    ]
+    scanner = SecretScanner(
+        extra_patterns=[
+            SecretPattern(name, re.compile(regex), "high", name) for name, regex in patterns
+        ]
+    )
+    allowlist = {hashlib.sha256(b"cde").hexdigest()} if allowlist_first else None
+
+    findings = scanner.scan("abcdefgh", "inbound", config, allowlist_hashes=allowlist)
+
+    expected = ["start_empty", "left_adjacent", "right_adjacent", "surrounds", "end_empty"]
+    if not allowlist_first:
+        expected.insert(1, "first")
+    assert [finding.rule_id for finding in findings] == [f"secret:{name}" for name in expected]
 
 
 class TestSeverityThreshold:

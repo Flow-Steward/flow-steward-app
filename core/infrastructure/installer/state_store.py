@@ -28,6 +28,7 @@ from core.application.release.contracts import ReleaseIdentity
 from core.application.release.service import ReleaseTransitionBinding
 from core.application.release.upgrade_workflow import ReleaseUpgradeJournal
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.installer.doctor_probes import narrow_owned_entries
 from core.infrastructure.installer.secret_values import is_missing_or_placeholder_secret
 
 _SENSITIVE_KEY_PARTS = ("password", "secret", "token")
@@ -225,6 +226,25 @@ class InstallerStateStore:
 
     @contextmanager
     def operation_lock(self, *, held_locks: Mapping[str, int] | None = None):
+        with self._held_operation_lock(held_locks=held_locks) as locks:
+            self.narrow_owner_only_state()
+            yield locks
+
+    def narrow_owner_only_state(self) -> int:
+        """Leave every state entry this user owns readable by its owner only.
+
+        Earlier releases left some state wider than doctor's secrets_modes check allows
+        -- 0.9.15's install.sh wrote `.docker-desktop-mount-probe` as 0644 -- and only
+        `doctor --fix secrets_modes --confirm` repaired it. Every install and every
+        `release upgrade` (whose installer runs this release's code) passes here.
+        Only this store's own directory: a lifecycle or clone state root can be in
+        Compact's data volume, whose shared trees its roles read through their group.
+        A link in its place is not followed.
+        """
+        return narrow_owned_entries(self.root)
+
+    @contextmanager
+    def _held_operation_lock(self, *, held_locks: Mapping[str, int] | None = None):
         if held_locks is not None:
             with self._operation_lock_reusing(held_locks) as combined:
                 yield combined

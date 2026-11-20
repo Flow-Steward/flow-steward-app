@@ -21,8 +21,8 @@ from core.application.release.installed_origin import (
     OfficialInstallationOrigin,
     SourceInstallationOrigin,
 )
+from core.application.release.selector import OfficialReleaseSelector
 from core.application.release.service import (
-    OfficialReleaseSelector,
     PreparedReleaseUpgrade,
     ReleaseCheckRequest,
     ReleaseInfoRequest,
@@ -473,6 +473,28 @@ def test_info_and_check_use_durable_state_for_both_profiles(profile: str) -> Non
     assert check.target_version == "1.0.10"
     assert harness.resolver.calls == []
     assert harness.resolver.probe_calls == [("1.0.10", profile, "linux/amd64")]
+
+
+def test_info_reports_a_pending_upgrade_instead_of_only_the_installed_release() -> None:
+    # 0.9.15 -> 0.9.20 jump test: an upgrade stopped after `database upgrade` and
+    # `release info` still answered "installed 0.9.15", hiding release_upgrade_pending.
+    harness = Harness()
+    harness.state.pending = harness.target
+
+    info = harness.service.info(ReleaseInfoRequest())
+
+    assert info.status == "upgrade_pending"
+    assert info.current_release == harness.installed
+    assert info.target_version == harness.target.version
+    assert f"--target-version {harness.target.version} --confirm" in info.remediation
+    assert harness.resolver.probe_calls == []
+
+
+def test_info_ignores_a_crash_stale_pending_marker_for_the_installed_release() -> None:
+    harness = Harness()
+    harness.state.pending = harness.installed
+
+    assert harness.service.info(ReleaseInfoRequest()).status == "installed"
 
 
 def _source_origin(commit_sha: str = "c" * 40) -> SourceInstallationOrigin:

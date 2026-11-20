@@ -9,7 +9,7 @@ from __future__ import annotations
 import pytest
 
 from core.infrastructure.security.policy import PIIConfig
-from core.infrastructure.security.scanners.pii import PIIGuard, _luhn_valid
+from core.infrastructure.security.scanners.pii import _DETECTORS, PIIGuard, _luhn_valid
 
 
 @pytest.fixture
@@ -27,6 +27,51 @@ class TestDetection:
         text = "Contact john.doe@example.com for details."
         findings = guard.scan(text, "inbound", config)
         assert any(f.rule_id == "pii:email" for f in findings)
+
+    def test_email_detector_consumes_delimiter_bounded_runs(self):
+        detector = next(item for item in _DETECTORS if item.pii_type == "email")
+
+        assert callable(detector.regex)
+
+    @pytest.mark.parametrize(
+        ("text", "addresses", "redacted"),
+        [
+            (
+                "Primary alice.smith+news@example.co.uk.",
+                ["alice.smith+news@example.co.uk"],
+                "Primary [PII:email:REDACTED].",
+            ),
+            (
+                "Email a@example.com or news@example.org.",
+                ["a@example.com", "news@example.org"],
+                "Email [PII:email:REDACTED] or [PII:email:REDACTED].",
+            ),
+            (
+                "Alias alice@example.com-archive",
+                ["alice@example.com"],
+                "Alias [PII:email:REDACTED]-archive",
+            ),
+            (
+                "Example alice@example.com@example.net",
+                ["alice@example.com"],
+                "Example [PII:email:REDACTED]@example.net",
+            ),
+            (
+                "Examples are @work and alice@example.c.",
+                [],
+                "Examples are @work and alice@example.c.",
+            ),
+            ("Name alice@example.orgé", [], "Name alice@example.orgé"),
+        ],
+    )
+    def test_email_matching_and_redaction_preserve_boundaries(
+        self, guard, text, addresses, redacted
+    ):
+        detected = guard.scan(text, "tool", PIIConfig(mode="allow"))
+        findings = guard.scan(text, "tool", PIIConfig(mode="hard_redact"))
+
+        assert [f.redacted_preview for f in detected if f.rule_id == "pii:email"] == addresses
+        assert guard.redact(text, [f for f in findings if f.rule_id == "pii:email"]) == redacted
 
     def test_escaped_newline_before_python_decorator_is_not_email(self, guard, config):
         text = r'previous line\n@pytest.mark.parametrize("value", [1, 2])'
@@ -152,6 +197,17 @@ class TestAllowMode:
 
 
 class TestRedaction:
+    def test_overlapping_matches_cover_the_entire_original_span(self, guard):
+        text = "Office +442079460958@example.com."
+
+        findings = guard.scan(text, "tool", PIIConfig(mode="hard_redact"))
+
+        assert {finding.rule_id for finding in findings} >= {
+            "pii:email",
+            "pii:phone_international",
+        }
+        assert guard.redact(text, findings) == "Office [PII:phone_international:REDACTED]."
+
     def test_redact_replaces_pii(self, guard, config):
         text = "Email: john@example.com and SSN: 123-45-6789"
         findings = guard.scan(text, "inbound", config)

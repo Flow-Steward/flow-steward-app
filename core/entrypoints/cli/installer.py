@@ -48,8 +48,8 @@ from core.application.readiness.contracts import ReadinessReport
 from core.application.release.catalog import DEFAULT_RELEASE_REPOSITORY, GitHubReleaseDiscovery
 from core.application.release.checkout_release import published_release_for_checkout
 from core.application.release.environment import release_runtime_environment
+from core.application.release.selector import OfficialReleaseSelector
 from core.application.release.service import (
-    OfficialReleaseSelector,
     ReleaseInstallRequest,
     release_platform_for_machine,
 )

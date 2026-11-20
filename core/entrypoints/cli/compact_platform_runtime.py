@@ -33,6 +33,7 @@ from core.entrypoints.cli.maintenance_adapters import (
 )
 from core.infrastructure.config.installer_config import installer_state_root
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.installer.state_store import InstallerStateStore
 from core.infrastructure.lifecycle.backup_gateway import FilesystemBackupGateway, ProcessRunner
 from core.infrastructure.lifecycle.job_quiescence_gateway import (
     LifecycleJobQuiescenceGateway,
@@ -104,6 +105,7 @@ def _readiness_payload() -> dict[str, object]:
     try:
         payload = _compact_health_payload()
     except (OSError, RuntimeError, UnicodeError, json.JSONDecodeError) as exc:
+        detail, remediation = _unreachable_runtime(exc)
         return {
             "checks": [
                 {
@@ -111,8 +113,8 @@ def _readiness_payload() -> dict[str, object]:
                     "category": "core",
                     "title": "Compact runtime",
                     "status": "fail",
-                    "detail": f"Compact runtime health probe failed ({type(exc).__name__}).",
-                    "remediation": "Inspect the Compact container health and role logs.",
+                    "detail": detail,
+                    "remediation": remediation,
                 }
             ]
         }
@@ -142,6 +144,44 @@ def _readiness_payload() -> dict[str, object]:
         # Scalable's installer asks fs-app.
         checks.extend(_compact_application_checks())
     return {"checks": checks}
+
+
+def _unreachable_runtime(exc: BaseException) -> tuple[str, str]:
+    """What a failed health probe means, in the operator's words.
+
+    The 0.9.20 jump tests: `database upgrade` stops compact-runtime, and while the
+    upgrade waited for its next step `status` said only "health probe failed
+    (gaierror)" -- the stopped container's name no longer resolves on the network.
+    """
+    pending = _pending_release_version()
+    stopped = isinstance(exc, socket.gaierror)
+    if pending:
+        state = "is stopped" if stopped else "does not answer"
+        return (
+            f"compact-runtime {state}: the upgrade to release {pending} has not finished.",
+            f"Keep maintenance enabled and run ./flow-steward release upgrade "
+            f"--target-version {pending} --confirm; it starts the new release.",
+        )
+    if stopped:
+        return (
+            "compact-runtime is not running.",
+            "./flow-steward doctor --fix stack_stopped --confirm",
+        )
+    return (
+        f"Compact runtime health probe failed ({type(exc).__name__}).",
+        "Inspect the Compact container health and role logs.",
+    )
+
+
+def _pending_release_version() -> str:
+    """The release an unfinished upgrade is waiting to apply, or ""."""
+    state = InstallerStateStore(installer_state_root(_LIFECYCLE_ROOT))
+    try:
+        pending = state.load_pending_release()
+        installed = state.load_installed_release()
+    except (OSError, ValueError):
+        return ""
+    return pending.version if pending is not None and pending != installed else ""
 
 
 def _ingress_check() -> dict[str, str] | None:

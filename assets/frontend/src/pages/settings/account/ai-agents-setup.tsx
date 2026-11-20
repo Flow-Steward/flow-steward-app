@@ -100,7 +100,9 @@ export function AgentSetupSteps({
     try {
       // Loaded on demand: the package files are bundled only into this chunk.
       const { buildArchive } = await import("@/pages/settings/account/agent-package-archive");
-      downloadBlob(step.file_name, buildArchive(step.archive_layout as ArchiveLayout, packageId, { servers: fillToken(step.content, secret, ""), manifestDir: step.manifest_dir }));
+      const needsEmbeddedToken = step.uses_token && step.archive_layout !== "claude_marketplace";
+      const servers = needsEmbeddedToken ? fillToken(step.content, secret, "") : step.content;
+      downloadBlob(step.file_name, buildArchive(step.archive_layout as ArchiveLayout, packageId, { servers, manifestDir: step.manifest_dir }));
       setFeedback({ tone: "success", message: t("react.agent_access.downloaded", "Downloaded {name}.", { name: step.file_name }) });
     } catch {
       setFeedback({ tone: "danger", message: t("react.agent_access.download_failed", "The file could not be built. Reload the page and try again.") });
@@ -113,7 +115,7 @@ export function AgentSetupSteps({
       {steps.map((step) => {
         const description = stepDescription(step, t);
         const hint = stepHint(step, t);
-        const text = fillToken(step.content, secret, placeholder);
+        const text = step.uses_token ? fillToken(step.content, secret, placeholder) : step.content;
         const waitsForToken = step.uses_token && !secret;
         if (step.kind === "notice") {
           return <DsAlert key={step.id} title={stepTitle(step, t)}>{description}</DsAlert>;

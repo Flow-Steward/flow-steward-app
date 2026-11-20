@@ -3891,6 +3891,28 @@
     "variable_name": "FS_CANDIDATE_STATE_DIR"
   },
   {
+    "canonical_name": "FS_CLI_HOST_STATE_DIR",
+    "code_read_locations": [
+      "core/entrypoints/cli/platform/operation_log.py",
+      "infra/docker/docker-compose.compact.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Host path of the installation's state directory; set by the launcher for the Compact CLI container, which mounts that directory at /run/flow-steward-install-state, so the CLI reports log paths the operator can open on the host.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "api",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_CLI_HOST_STATE_DIR"
+  },
+  {
     "canonical_name": "FS_CLI_IMAGE",
     "code_read_locations": [
       "core/entrypoints/cli/scripts/flow_steward_launcher.sh",

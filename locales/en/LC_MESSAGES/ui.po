@@ -29161,6 +29161,15 @@ msgstr "Gemini CLI keeps the token in its own settings file. Run the command onl
 msgid "react.agent_access.step_claude_upload"
 msgstr "Upload the package"
 
+msgid "react.agent_access.step_claude_token"
+msgstr "Copy the token"
+
+msgid "react.agent_access.step_claude_token_description"
+msgstr "Paste it into the plugin's personal token field when {client} prompts for it."
+
+msgid "react.agent_access.step_claude_token_hint"
+msgstr "If there is no prompt, open `/plugin`, select the installed plugin, then choose Configure options."
+
 msgid "react.agent_access.step_claude_upload_description"
 msgstr "Download {archive} from the Flow Steward {core_version} release and upload it in Claude under Customize > Plugins > Upload plugin."
 
@@ -30539,6 +30548,9 @@ msgstr "The token expires on {date}."
 
 msgid "react.agent_access.setup_description_plugin"
 msgstr "The plugin carries this installation's MCP address and your token, so there is nothing to configure."
+
+msgid "react.agent_access.setup_description_claude_plugin"
+msgstr "The plugin includes this installation's MCP address. Enter the token in Claude when prompted."
 
 msgid "react.agent_access.setup_description_developer_plugin"
 msgstr "The plugin installs the Developer package. It needs no token."

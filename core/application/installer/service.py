@@ -34,9 +34,18 @@ from core.application.installer.ports import (
     InstallerState,
     ProgressSink,
 )
+from core.application.installer.readiness_wait import (
+    READINESS_RECONCILIATION_ATTEMPTS,
+    READINESS_RECONCILIATION_DELAY_SECONDS,
+    READINESS_RECONCILIATION_TIMEOUT_SECONDS,
+    RECONCILABLE_READINESS_IDS,
+    core_failed_ids,
+    core_failures_text,
+    wait_for_runtime_readiness,
+    warning_text,
+)
 from core.application.installer.spec import INSTALLER_SPEC
 from core.application.readiness import CoreReadinessService, ReadinessArea
-from core.application.readiness.contracts import ReadinessFinding
 from core.application.release.contracts import ReleaseIdentity
 
 _STEP_METHODS: tuple[tuple[str, str, str], ...] = (
@@ -89,10 +98,6 @@ _STEP_LABELS["migrations"] = (
 # The one step an update runs differently: the fresh-install preflight treats every
 # bound port as someone else's, and a running installation always holds its own.
 _UPDATE_METHODS = {"preflight": "update_preflight"}
-_RECONCILABLE_READINESS_IDS = frozenset({"security_posture", "workflow_knowledge_sync"})
-_READINESS_RECONCILIATION_ATTEMPTS = 30
-_READINESS_RECONCILIATION_DELAY_SECONDS = 2.0
-_READINESS_RECONCILIATION_TIMEOUT_SECONDS = 60.0
 
 
 class InstallerService:
@@ -304,9 +309,10 @@ class InstallerService:
                 )
                 if target_release is not None:
                     self._publish_release(config, target_release, log=log)
+                finished_from = self._finish_unrecorded_update(currency, log=log)
                 # AC17-R158: also finishes a cleanup an interrupted update left.
                 pruned = self.gateway.prune_superseded_releases(
-                    config, current=currency.source_revision, previous="", log=log
+                    config, current=currency.source_revision, previous=finished_from, log=log
                 )
                 changes = tuple(
                     item
@@ -316,6 +322,12 @@ class InstallerService:
                         recorded_change,
                         settings_change,
                         converged,
+                        (
+                            f"Recorded {currency.source_revision} as the installed release, "
+                            f"replacing {finished_from}."
+                            if finished_from
+                            else ""
+                        ),
                         pruned,
                         *self.gateway.take_notices(),
                     )
@@ -611,6 +623,10 @@ class InstallerService:
         operator's, by the owner's decision, and the schema refusal names them.
         """
         log.write(currency.reason)
+        if currency.running_revision and currency.running_revision != currency.source_revision:
+            # What a rerun reads if this run switches the runtime and stops before it
+            # is verified: the record below is only written at the end.
+            log.write(f"Updating from {currency.running_revision} to {currency.source_revision}.")
         for step_id in _UPDATE_STEPS:
             label, method_name = _STEP_LABELS[step_id]
             method_name = _UPDATE_METHODS.get(step_id, method_name)
@@ -697,6 +713,28 @@ class InstallerService:
             updated_from_revision=currency.running_revision,
             updated_to_revision=currency.source_revision,
         )
+
+    def _finish_unrecorded_update(self, currency: ImageCurrency, *, log: InstallerLog) -> str:
+        """Write the release record an update left behind; the revision it replaced, or "".
+
+        An update writes the record only once it is verified. One that switched the
+        runtime and then stopped -- readiness failed while the runtime was still
+        starting, 2026-11-20 -- leaves the new images running, so its rerun has nothing
+        to update and comes here, as "already installed", with the record still naming
+        the old revision as current. Only a verified run of these sources' own images
+        finishes it: what an operator pinned, or a runtime behind the sources, is not
+        what the update installed.
+        """
+        if not currency.running_revision or currency.running_revision != currency.source_revision:
+            return ""
+        previous = self.gateway.finish_installed_releases_record(current=currency.source_revision)
+        if previous:
+            log.write(
+                f"Updated from {previous} to {currency.source_revision}. An earlier run "
+                "switched the runtime and stopped before verifying it; this run verified it "
+                "and recorded the release."
+            )
+        return previous
 
     def _converge_compact_workers(
         self, config: InstallConfig, *, log: InstallerLog, changed: bool = False
@@ -848,13 +886,15 @@ class InstallerService:
     ) -> tuple[str, ...]:
         if self.readiness_service is None:
             return ()
-        report = self.readiness_service.check()
-        failed_ids = {
-            finding.check_id
-            for finding in report.findings
-            if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-        }
-        if failed_ids and failed_ids.issubset(_RECONCILABLE_READINESS_IDS):
+        report = wait_for_runtime_readiness(
+            self.readiness_service.check,
+            self.readiness_reprobe,
+            sleep=self._readiness_sleep,
+            clock=self._readiness_clock,
+            log=log,
+        )
+        failed_ids = core_failed_ids(report)
+        if failed_ids and failed_ids.issubset(RECONCILABLE_READINESS_IDS):
             if self.readiness_reprobe is None:
                 raise InstallerFailure(
                     code="core_readiness_blocked",
@@ -870,8 +910,8 @@ class InstallerService:
             self.gateway.reconcile_readiness_capabilities(
                 config, check_ids=tuple(sorted(failed_ids)), log=log
             )
-            deadline = self._readiness_clock() + _READINESS_RECONCILIATION_TIMEOUT_SECONDS
-            for attempt in range(_READINESS_RECONCILIATION_ATTEMPTS):
+            deadline = self._readiness_clock() + READINESS_RECONCILIATION_TIMEOUT_SECONDS
+            for attempt in range(READINESS_RECONCILIATION_ATTEMPTS):
                 remaining = deadline - self._readiness_clock()
                 if remaining <= 0:
                     break
@@ -885,18 +925,14 @@ class InstallerService:
                         retryable=True,
                         step="readiness",
                     )
-                failed_ids = {
-                    finding.check_id
-                    for finding in report.findings
-                    if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-                }
-                if not report.core_failed or not failed_ids.issubset(_RECONCILABLE_READINESS_IDS):
+                failed_ids = core_failed_ids(report)
+                if not report.core_failed or not failed_ids.issubset(RECONCILABLE_READINESS_IDS):
                     break
                 remaining = deadline - self._readiness_clock()
                 if remaining <= 0:
                     break
-                if attempt + 1 < _READINESS_RECONCILIATION_ATTEMPTS:
-                    self._readiness_sleep(min(_READINESS_RECONCILIATION_DELAY_SECONDS, remaining))
+                if attempt + 1 < READINESS_RECONCILIATION_ATTEMPTS:
+                    self._readiness_sleep(min(READINESS_RECONCILIATION_DELAY_SECONDS, remaining))
         write = getattr(log, "write", None)
         if callable(write):
             write(
@@ -904,14 +940,9 @@ class InstallerService:
                 f"core_failed={report.core_failed}, optional_warnings={report.optional_warnings}."
             )
         if report.core_failed:
-            failures = [
-                finding.title
-                for finding in report.findings
-                if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-            ]
             raise InstallerFailure(
                 code="core_readiness_blocked",
-                cause="Core readiness blockers remain: " + ", ".join(failures),
+                cause="Core readiness blockers remain: " + core_failures_text(report),
                 remediation="Run ./flow-steward doctor, resolve core blockers, and resume ./install.sh.",
                 exit_code=4,
                 retryable=True,
@@ -922,7 +953,7 @@ class InstallerService:
         # Recommendations are not warnings -- status and doctor list them -- and a bare
         # title such as "Worker Availability" told nobody anything.
         return tuple(
-            _warning_text(finding)
+            warning_text(finding)
             for finding in report.findings
             if finding.area is ReadinessArea.OPTIONAL
             and finding.status.value in {"warning", "failed"}
@@ -931,10 +962,3 @@ class InstallerService:
     def _emit(self, step_id: str, status: str, detail: str) -> None:
         if self.progress_sink is not None:
             self.progress_sink(step_id, status, detail)
-
-
-def _warning_text(finding: ReadinessFinding) -> str:
-    title = finding.title.replace("_", " ").strip()
-    title = title[:1].upper() + title[1:]
-    text = " ".join(part.strip() for part in (finding.detail, finding.remediation) if part.strip())
-    return f"{title}: {text}" if text else f"{title}."

@@ -37,8 +37,7 @@ const mockedProjects = vi.mocked(fetchProjectsList);
 
 const MCP = "https://fs.example.com/mcp";
 const SECRET = "fs_pat_secret_value"; // pragma: allowlist secret
-const SERVERS = `{"mcpServers": {"flow-steward": {"type": "http", "url": "${MCP}", "headers": {"Authorization": "Bearer {token}"}}}}`;
-const CONFIG = `[mcp_servers.flow-steward]\nurl = "${MCP}"\nhttp_headers = { "Authorization" = "Bearer {token}" }\n`;
+const TOKEN_TITLE = "Copy the token";
 
 function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
   return {
@@ -62,7 +61,8 @@ function step(overrides: Partial<AgentSetupStep>): AgentSetupStep {
 
 const download = step({ id: "download_package", kind: "link", title: "Download the package", url: "https://github.com/x/releases/tag/v0.9.6" });
 
-function operator(overrides: Partial<AgentClientPackage> = {}): AgentClientPackage {
+function operator(overrides: Partial<AgentClientPackage> = {}, mcpUrl = MCP): AgentClientPackage {
+  const servers = JSON.stringify({ mcpServers: { "flow-steward": { type: "http", url: mcpUrl } } });
   return {
     package_id: "flow-steward-operator",
     offered: true,
@@ -72,9 +72,9 @@ function operator(overrides: Partial<AgentClientPackage> = {}): AgentClientPacka
     message_key: "",
     message: "",
     steps: [
-      step({ id: "download_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-operator-claude-code.zip", title: "Download your plugin", content: SERVERS, uses_token: true, uses_mcp_url: true }),
+      step({ id: "download_plugin", kind: "package", archive_layout: "claude_marketplace", file_name: "flow-steward-operator-claude-code.zip", title: "Download your plugin", content: servers, uses_mcp_url: true }),
       step({ id: "install_plugin", kind: "command", title: "Install it", content: "claude plugin install flow-steward-operator@flow-steward-operator", hint_key: "react.agent_access.test_hint", hint: "To install a newer download, first run `claude plugin marketplace remove flow-steward-operator`." }),
-      step({ id: "mcp_config", kind: "file", file_name: "config.toml", title: "Add the server", content: CONFIG, uses_token: true, uses_mcp_url: true }),
+      step({ id: "configure_plugin_token", title: TOKEN_TITLE, content: "{token}", uses_token: true }),
     ],
     ...overrides,
   };
@@ -91,9 +91,9 @@ const developer: AgentClientPackage = {
   steps: [download],
 };
 
-function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSetup {
+function setupPayload(overrides: Partial<AgentAccessSetup> = {}, mcpUrl = MCP): AgentAccessSetup {
   return {
-    mcp_url: MCP,
+    mcp_url: mcpUrl,
     mcp_blocker: "",
     cloud_readiness: { ready: false, blockers: ["public_https_required"] },
     core_version: "0.9.6",
@@ -109,7 +109,7 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSet
     default_expiry_days: 30,
     first_request: step({ id: "first_request", title: "Make the first request", content: "List my Flow Steward projects and their enabled workflows." }),
     clients: [
-      { id: "claude_code", label: "Local agent", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator(), developer] },
+      { id: "claude_code", label: "Local agent", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator({}, mcpUrl), developer] },
       {
         id: "chatgpt",
         label: "ChatGPT",
@@ -161,7 +161,7 @@ async function createLocalToken() {
   mockedIssue.mockResolvedValue(created());
   await chooseLocalOperator();
   fireEvent.click(screen.getByRole("button", { name: "Create token" }));
-  return screen.findByLabelText("Add the server");
+  return screen.findByLabelText(TOKEN_TITLE);
 }
 
 function currentStep() {
@@ -207,7 +207,7 @@ describe("AiAgentsSection", () => {
     expect(screen.getByText("jobs.read")).toBeInTheDocument();
     expect(screen.getByText(/agents and skills belong to the whole account/)).toBeInTheDocument();
     expect(screen.getByText(/^The token expires on /)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(TOKEN_TITLE)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Download flow-steward-operator-claude-code/ })).not.toBeInTheDocument();
   });
 
@@ -231,7 +231,7 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue).toHaveBeenCalledTimes(1);
     expect(button).toHaveAttribute("aria-busy", "true");
     resolve(created());
-    await waitFor(() => expect(screen.getByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`));
+    await waitFor(() => expect(screen.getByLabelText(TOKEN_TITLE)).toHaveTextContent(SECRET));
     const [key, request] = mockedIssue.mock.calls[0];
     expect(key).toMatch(/^[\w-]{16,}$/);
     expect(request).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator", preset: "operational", expiry_days: 30, project_ids: [] });
@@ -240,8 +240,7 @@ describe("AiAgentsSection", () => {
     await waitFor(() => expect(screen.getByText("No request yet")).toBeInTheDocument());
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText(/^Monitor and run workflows · All projects · Expires /)).toBeInTheDocument();
-    expect(screen.getByText("The plugin carries this installation's MCP address and your token, so there is nothing to configure.")).toBeInTheDocument();
-    expect(screen.queryByText("Copy the token now")).not.toBeInTheDocument();
+    expect(screen.getByText("The plugin includes this installation's MCP address. Enter the token in Claude when prompted.")).toBeInTheDocument();
   });
 
   it("puts the update command of a hint in code under its block", async () => {
@@ -249,7 +248,8 @@ describe("AiAgentsSection", () => {
     expect(screen.getByText("claude plugin marketplace remove flow-steward-operator").tagName).toBe("CODE");
   });
 
-  it("downloads a plugin that already holds the address and the token", async () => {
+  it.each([MCP, `${MCP}?label={token}`])("downloads the plugin for %s without embedding the issued token", async (mcpUrl) => {
+    mockedSetup.mockResolvedValue(setupPayload({}, mcpUrl));
     mockedIssue.mockResolvedValue(created());
     const blobs: Blob[] = [];
     const original = { create: URL.createObjectURL, revoke: URL.revokeObjectURL };
@@ -266,8 +266,10 @@ describe("AiAgentsSection", () => {
       await waitFor(() => expect(screen.getByText("Downloaded flow-steward-operator-claude-code.zip.")).toBeInTheDocument());
       const files = readStoredZip(await blobBytes(blobs[0]));
       const manifest = JSON.parse(files.get("flow-steward-operator/.claude-plugin/plugin.json") || "{}");
-      expect(manifest.mcpServers["flow-steward"]).toEqual({ type: "http", url: MCP, headers: { Authorization: `Bearer ${SECRET}` } });
-      expect(manifest.userConfig).toBeUndefined();
+      expect(manifest.mcpServers["flow-steward"]).toEqual({ type: "http", url: mcpUrl, headers: { Authorization: "Bearer ${user_config.mcp_token}" } });
+      expect(manifest.userConfig).toEqual({ mcp_token: expect.objectContaining({ required: true, sensitive: true }) });
+      expect([...files.values()].join("\n")).not.toContain(SECRET);
+      expect(screen.getByLabelText(TOKEN_TITLE)).toHaveTextContent(SECRET);
     } finally {
       click.mockRestore();
       URL.createObjectURL = original.create;
@@ -280,10 +282,10 @@ describe("AiAgentsSection", () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
     try {
       await createLocalToken();
-      const block = screen.getByRole("group", { name: "Add the server" });
+      const block = screen.getByRole("group", { name: TOKEN_TITLE });
       fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
       await waitFor(() => expect(within(block).getByRole("button", { name: "Copied" })).toBeInTheDocument());
-      expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`Bearer ${SECRET}`));
+      expect(writeText).toHaveBeenCalledWith(SECRET);
       expect(screen.queryByText("Copied.")).not.toBeInTheDocument();
       await waitFor(() => expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument());
     } finally {
@@ -294,7 +296,7 @@ describe("AiAgentsSection", () => {
   it("keeps Copy and says so under the block when the clipboard is not available", async () => {
     Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
     await createLocalToken();
-    const block = screen.getByRole("group", { name: "Add the server" });
+    const block = screen.getByRole("group", { name: TOKEN_TITLE });
     fireEvent.click(within(block).getByRole("button", { name: "Copy" }));
     await waitFor(() => expect(within(block).getByRole("alert")).toHaveTextContent("Couldn't copy. Select the text and copy it manually."));
     expect(within(block).getByRole("button", { name: "Copy" })).toBeInTheDocument();
@@ -305,7 +307,7 @@ describe("AiAgentsSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create another token" }));
     expect(within(currentStep()).getByRole("heading", { name: "Step 3. Access" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create token" })).toBeEnabled();
-    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(TOKEN_TITLE)).not.toBeInTheDocument();
   });
 
   it("changing the client keeps the token and the other choices", async () => {
@@ -316,7 +318,7 @@ describe("AiAgentsSection", () => {
     expect(screen.getByRole("radio", { name: /Flow Steward Operator/ })).toBeChecked();
     clickContinue();
     expect(within(currentStep()).getByRole("heading", { name: "Step 4. Set up Local agent" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent(`Bearer ${SECRET}`);
+    expect(screen.getByLabelText(TOKEN_TITLE)).toHaveTextContent(SECRET);
     expect(mockedIssue).toHaveBeenCalledTimes(1);
   });
 
@@ -334,7 +336,7 @@ describe("AiAgentsSection", () => {
     expect(mockedIssue).toHaveBeenCalledTimes(2);
     expect(mockedIssue.mock.calls[1][0]).toBe(mockedIssue.mock.calls[0][0]);
     expect(mockedIssue.mock.calls[1][1]).toEqual(mockedIssue.mock.calls[0][1]);
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
+    expect(screen.getByLabelText(TOKEN_TITLE)).toHaveTextContent("<your personal token>");
   });
 
   it("a refusal creates nothing, and the next click is a new attempt", async () => {
@@ -359,7 +361,7 @@ describe("AiAgentsSection", () => {
     await waitFor(() => expect(screen.getByText("Revoked")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "Revoke" })).not.toBeInTheDocument();
     expect(screen.getByText(/Access used/)).toBeInTheDocument();
-    expect(screen.getByLabelText("Add the server")).toHaveTextContent("<your personal token>");
+    expect(screen.getByLabelText(TOKEN_TITLE)).toHaveTextContent("<your personal token>");
     expect(screen.getByText("This setup has no token")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Create another token" })[1]);
     expect(within(currentStep()).getByRole("heading", { name: "Step 3. Access" })).toBeInTheDocument();
@@ -403,7 +405,7 @@ describe("AiAgentsSection", () => {
     await chooseLocalOperator();
     expect(screen.getByText("This installation has no public address")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create token" })).toBeDisabled();
-    expect(screen.queryByLabelText("Add the server")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(TOKEN_TITLE)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Download flow-steward-operator-claude-code/ })).not.toBeInTheDocument();
   });
 

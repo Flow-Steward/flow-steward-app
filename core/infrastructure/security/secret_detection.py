@@ -206,7 +206,8 @@ SECRET_PATTERNS: tuple[SecretPattern, ...] = (
             r"token|secret|password|passwd|pwd|credential)"
             r"(?P=key_quote)\s*(?P<separator>[:=])\s*"
             r"(?:"
-            r"(?P<value_quote>[\"'])(?:\\.|(?!(?P=value_quote)).)*(?P=value_quote)"
+            # A backslash is consumed only as an escape. Never retry it as ordinary text.
+            r"(?P<value_quote>[\"'])(?:\\.|(?!(?P=value_quote))[^\\\n])*+(?P=value_quote)"
             r"|[^\r\n,;}]+"
             r")"
         ),

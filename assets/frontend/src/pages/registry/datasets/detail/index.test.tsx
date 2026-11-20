@@ -600,6 +600,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
     );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Add query" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add query" });
@@ -661,6 +662,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
     );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Add query" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add query" });
@@ -764,6 +766,7 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     await user.click(
       await screen.findByRole("tab", { name: "Saved queries" }),
     );
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Add query" }));
 
     const dialog = screen.getByRole("dialog", { name: "Add query" });
@@ -938,7 +941,8 @@ describe("RegistryDatasetsDetailPage saved queries", () => {
     installSqlQueryConnection();
     renderPage("/registry/datasets/events?tab=saved-queries");
 
-    await user.click(await screen.findByRole("button", { name: "Add query" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Add query" }));
     await waitFor(() => expect(screen.getByRole("dialog", { name: "Add query" })).toBeInTheDocument());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());

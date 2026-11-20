@@ -88,7 +88,9 @@ class WorkflowAuthoringCatalog:
         self.discovery = WorkflowCapabilityDiscovery(
             db, workflow_knowledge_backend=workflow_knowledge_backend
         )
-        self.portability = WorkflowPortabilityService(db)
+        self.portability = WorkflowPortabilityService(
+            db, get_project_store=lambda: self.project_store
+        )
 
     def project_scope(
         self, scope: ScopeContext | Mapping[str, Any], project_id: str
@@ -223,7 +225,12 @@ class WorkflowAuthoringCatalog:
             result["inputs"] = contract.get("expected_inputs") or []
             result["outputs"] = contract.get("expected_outputs") or []
             result["portability"] = self.portability.export_policy_for_workflow(row)
-            result["bundle_yaml"] = self.portability.export_yaml(identifier, include_children=False)
+            result["bundle_yaml"] = self.portability.export_yaml(
+                identifier,
+                include_children=False,
+                allowed_project_ids=resolved.allowed_project_ids,
+                allowed_workspace_ids=resolved.allowed_workspace_ids,
+            )
             result["step_kind"] = "invoke_workflow"
         elif kind == "tool":
             operations = tool_operations(row)

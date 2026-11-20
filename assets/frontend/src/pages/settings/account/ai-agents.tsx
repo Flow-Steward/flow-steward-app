@@ -401,8 +401,11 @@ export function AiAgentsSection() {
         ? t("react.agent_access.setup_description_developer_plugin", "The plugin installs the Developer package. It needs no token.")
         : t("react.agent_access.setup_description_no_mcp", "This package does not connect to this installation, so no token is needed.");
     }
-    if (steps.some((step) => step.kind === "package" && step.uses_mcp_url)) {
-      return t("react.agent_access.setup_description_plugin", "The plugin carries this installation's MCP address and your token, so there is nothing to configure.");
+    const configuredPlugin = steps.find((step) => step.kind === "package" && step.uses_mcp_url);
+    if (configuredPlugin) {
+      return configuredPlugin.archive_layout === "claude_marketplace"
+        ? t("react.agent_access.setup_description_claude_plugin", "The plugin includes this installation's MCP address. Enter the token in Claude when prompted.")
+        : t("react.agent_access.setup_description_plugin", "The plugin carries this installation's MCP address and your token, so there is nothing to configure.");
     }
     return t("react.agent_access.setup_description", "The address is this installation's public MCP address.");
   }

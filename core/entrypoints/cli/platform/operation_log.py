@@ -45,22 +45,52 @@ def operation_log_root() -> Path:
     return DEFAULT_OPERATION_LOG_ROOT
 
 
-def reported_log_path(path: Path) -> str:
+#: Where the Compose files mount the installation's state directory into a CLI
+#: container, and the part of it each mount is (docker-compose*.yaml).
+_STATE_MOUNTS = (
+    (Path("/run/flow-steward-install-state"), ""),
+    (Path("/run/flow-steward-logs"), "logs"),
+    (Path("/run/flow-steward-runtime"), "runtime"),
+)
+
+
+def reported_log_path(path: Path | str) -> str:
     """The log path as the operator reaches it, which is not always where it was written.
 
     2026-11-11: `database upgrade` runs in a one-shot application container that writes
     its log to /app/logs/cli, and the error said `Log: /app/logs/cli/...`, a path that
     does not exist on the host. The launcher names the host directory of that log root
     in FS_CLI_OPERATION_LOG_HOST_ROOT; a path under the log root is reported there.
+    The 0.9.20 jump tests found the same in the Compact CLI container, whose state
+    directory is mounted at /run/flow-steward-install-state: such a path is reported
+    under the installation's own state directory on the host.
     """
     host_root = str(_runtime_env.get("FS_CLI_OPERATION_LOG_HOST_ROOT") or "").strip()
-    if not host_root:
-        return str(path)
-    try:
-        relative = Path(path).resolve().relative_to(operation_log_root().resolve())
-    except ValueError:
-        return str(path)
-    return str(Path(host_root) / relative)
+    if host_root:
+        try:
+            relative = Path(path).resolve().relative_to(operation_log_root().resolve())
+        except ValueError:
+            pass
+        else:
+            return str(Path(host_root) / relative)
+    host_state = _host_state_dir()
+    if host_state is not None:
+        for mount, part in _STATE_MOUNTS:
+            try:
+                relative = Path(path).relative_to(mount)
+            except ValueError:
+                continue
+            return str(host_state / part / relative)
+    return str(path)
+
+
+def _host_state_dir() -> Path | None:
+    """The installation's state directory as the host names it."""
+    configured = str(_runtime_env.get("FS_CLI_HOST_STATE_DIR") or "").strip()
+    if configured:
+        return Path(configured)
+    project_root = str(_runtime_env.get("FS_DOCKER_HOST_PROJECT_ROOT") or "").strip()
+    return Path(project_root) / ".flow-steward" if project_root else None
 
 
 class OperationLogUnavailable(RuntimeError):
@@ -89,9 +119,28 @@ class OperationLog:
         self.operation_id = operation_id
         self.path = root / f"{command_id}-{timestamp}-{operation_id}.log"
         self._file = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        _give_to_directory_owner(self._file, root)
 
     def write(self, message: str) -> None:
         os.write(self._file, f"{datetime.now(UTC).isoformat()} {message}\n".encode())
 
     def close(self) -> None:
         os.close(self._file)
+
+
+def _give_to_directory_owner(descriptor: int, root: Path) -> None:
+    """A log a root process writes into a host user's directory belongs to that user.
+
+    Compact's `database upgrade` runs in a one-shot runtime container as root, with the
+    installation's logs directory mounted in. A root-owned log there is one the
+    operator cannot read and doctor reports as not theirs.
+    """
+    geteuid = getattr(os, "geteuid", None)
+    if geteuid is None or geteuid() != 0:
+        return
+    try:
+        owner = os.stat(root)
+        if owner.st_uid != 0:
+            os.fchown(descriptor, owner.st_uid, owner.st_gid)
+    except OSError:
+        return

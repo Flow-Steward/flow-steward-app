@@ -13,7 +13,7 @@ from core.application.lifecycle.errors import LifecycleError
 from core.application.release.catalog import PublishedRelease, ReleaseCoordinates, ReleaseVersion
 from core.application.release.contracts import ReleaseIdentity, ReleaseImageIdentity
 from core.application.release.images import release_image_roles
-from core.application.release.service import OfficialReleaseSelector
+from core.application.release.selector import OfficialReleaseSelector
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import OfficialReleaseResolver
 

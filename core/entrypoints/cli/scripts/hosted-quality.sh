@@ -107,8 +107,37 @@ case "${1:-}" in
       fi
     done
     ;;
+  merge-tier3)
+    # After "Re-run failed jobs" one run holds a part's artifact per attempt:
+    # each part's newest attempt is its result, so an earlier failure never
+    # overlays the passing re-run.
+    downloads="${2:?Usage: hosted-quality.sh merge-tier3 <download-directory>}"
+    declare -A newest=()
+    for artifact in "${downloads}"/tier3-*; do
+      name="${artifact##*/}"
+      if [[ -d "${artifact}" && "${name}" =~ ^tier3-([a-z0-9-]+)-${GITHUB_SHA:?}-([1-9][0-9]*)$ ]]; then
+        part="${BASH_REMATCH[1]}"
+        attempt="${BASH_REMATCH[2]}"
+        if (( attempt > ${newest[${part}]:-0} )); then
+          newest[${part}]="${attempt}"
+        fi
+      fi
+    done
+    if (( ${#newest[@]} == 0 )); then
+      echo "No Tier 3 part of ${GITHUB_SHA} under ${downloads}." >&2
+      exit 1
+    fi
+    mkdir -p logs
+    for part in "${!newest[@]}"; do
+      echo "Tier 3 ${part}: attempt ${newest[${part}]}"
+      # Not `cp -a`: it gave logs/quality the artifact's runner-only mode, undoing the
+      # group access prepare-quality grants the image user, and Sonar could no longer
+      # create logs/quality/sonar (run 44744006520). Existing directories keep theirs.
+      cp -R "${downloads}/tier3-${part}-${GITHUB_SHA}-${newest[${part}]}/." logs/
+    done
+    ;;
   *)
-    echo 'Usage: hosted-quality.sh check-candidate|prepare|prepare-postgres|diagnostics|cleanup|prepare-artifacts' >&2
+    echo 'Usage: hosted-quality.sh check-candidate|prepare|prepare-postgres|diagnostics|cleanup|prepare-artifacts|merge-tier3 <dir>' >&2
     exit 2
     ;;
 esac

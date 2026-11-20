@@ -24,6 +24,7 @@ from core.application.management.command_specs.contracts import (
 )
 from core.entrypoints.cli.platform.errors import map_exception
 from core.entrypoints.cli.platform.interrupts import lifecycle_interrupt_scope
+from core.entrypoints.cli.platform.operation_log import reported_log_path
 from core.entrypoints.cli.platform.redaction import (
     RedactionContext,
     redact,
@@ -138,7 +139,7 @@ def execute_command(
                 secret_fields=_result_secret_fields(spec.result_model),
             ),
             operation_id=_optional_text(getattr(validated, "operation_id", None)),
-            log_path=_optional_text(getattr(validated, "log_path", None)),
+            log_path=_host_log_path(getattr(validated, "log_path", None)),
         )
     # The public executor boundary maps every service exit (SystemExit, CancelledError,
     # GeneratorExit included) to a redacted CLI envelope; tests pin that contract.
@@ -175,7 +176,7 @@ def execute_command(
                 ),
                 exit_code=lifecycle_failure.exit_code,
                 operation_id=lifecycle_failure.operation_id,
-                log_path=lifecycle_failure.log_path,
+                log_path=_host_log_path(lifecycle_failure.log_path),
             )
         mapped = map_exception(
             exc,
@@ -231,6 +232,8 @@ def _public_result_payload(
     secret_fields: frozenset[str],
 ) -> dict[str, Any]:
     payload = value.model_dump(mode="json")
+    if isinstance(payload.get("log_path"), str) and payload["log_path"]:
+        payload["log_path"] = reported_log_path(payload["log_path"])
     redacted = redact_output(
         payload,
         context=context,
@@ -303,6 +306,12 @@ def _result_secret_fields(model: type[BaseModel]) -> frozenset[str]:
             if field.alias:
                 fields.add(str(field.alias))
     return frozenset(fields)
+
+
+def _host_log_path(value: object) -> str | None:
+    """A log path a service or a failure reports, as the operator's host names it."""
+    text = _optional_text(value)
+    return reported_log_path(text) if text else None
 
 
 def _optional_text(value: object) -> str | None:

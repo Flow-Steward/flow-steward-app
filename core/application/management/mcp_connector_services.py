@@ -50,6 +50,7 @@ from core.application.management.mcp_connector_protocol import (
     _normalize_transport,
 )
 from core.application.management.scope import ScopeContext
+from core.application.secrets.authority import require_secret_bind
 from core.infrastructure.db.db_pool import (
     transaction_connection,
 )
@@ -355,6 +356,10 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
         if not headers_mode and inp.headers is not None:
             updates["headers"] = dict(inp.headers)
 
+        existing_auth_mode = _normalize_auth_mode(str(existing.get("auth_mode") or "none"))
+        updated_auth_mode = _normalize_auth_mode(
+            str(updates.get("auth_mode") or existing_auth_mode)
+        )
         choices = plan_update_choices(
             bl,
             scope,
@@ -362,18 +367,13 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
             requested=inp.header_secret_choices,
             headers_mode=headers_mode,
             typed_headers=updates.get("headers"),
+            base_url=inp.base_url,
+            oauth_mode_changed=(existing_auth_mode == "oauth2") != (updated_auth_mode == "oauth2"),
         )
 
-        existing_auth_mode_for_transition = _normalize_auth_mode(
-            str(existing.get("auth_mode") or "none")
-        )
-        requested_auth_mode_for_transition = _normalize_auth_mode(
-            str(updates.get("auth_mode") or existing_auth_mode_for_transition)
-        )
         if (
-            existing_auth_mode_for_transition in {"bearer", "api_key"}
-            and requested_auth_mode_for_transition in {"none", "oauth2"}
-            and existing_auth_mode_for_transition != requested_auth_mode_for_transition
+            existing_auth_mode in {"bearer", "api_key"}
+            and updated_auth_mode in {"none", "oauth2"}
             and "headers" not in updates
             and not choices.requested
         ):
@@ -381,9 +381,8 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
                 "Switching away from credential headers requires headers_mode clear or replace"
             )
 
-        auth_mode_for_headers = str(updates.get("auth_mode") or existing.get("auth_mode") or "")
         headers_for_validation = header_names_after(choices, existing, updates.get("headers"))
-        _validate_oauth_headers(auth_mode_for_headers, headers_for_validation)
+        _validate_oauth_headers(updated_auth_mode, headers_for_validation)
 
         if requested_namespace_prefix is not None:
             updates["namespace_prefix"] = requested_namespace_prefix
@@ -456,14 +455,15 @@ class McpConnectorCommandService(McpConnectorDeletionMixin, McpConnectorProjecti
                 unchanged_headers = False
             if unchanged_headers:
                 del updates["headers"]
+            elif choices.existing_refs:
+                # The server can route requests carrying catalog secrets using any header.
+                require_secret_bind(scope)
         header_refs_changed = "headers" in updates or choices.changed
 
         updated = {**existing, **updates}
         if header_refs_changed or {"transport", "base_url", "auth_mode"} & set(updates):
             _connector_rpc_url(updated)
 
-        existing_auth_mode = _normalize_auth_mode(str(existing.get("auth_mode") or "none"))
-        updated_auth_mode = _normalize_auth_mode(str(updated.get("auth_mode") or "none"))
         binding_fields_changed = header_refs_changed or any(
             key in updates and existing.get(key) != updated.get(key)
             for key in ("transport", "base_url", "auth_mode")

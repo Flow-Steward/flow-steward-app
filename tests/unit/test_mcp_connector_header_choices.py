@@ -124,6 +124,18 @@ def _operator(**fields: Any) -> ScopeContext:
     )
 
 
+@pytest.fixture
+def admin_pat() -> ScopeContext:
+    return ScopeContext(
+        account_id="acct",
+        project_id="proj",
+        tenant_id="tenant",
+        principal_type="admin",
+        auth_source="pat",
+        token_scopes=frozenset({"admin:all"}),
+    )
+
+
 @pytest.fixture(autouse=True)
 def _stable_dns(monkeypatch):
     monkeypatch.setattr(
@@ -512,4 +524,196 @@ def test_changing_a_choice_needs_bind_authority(monkeypatch, bindings) -> None:
             CONNECTOR, McpConnectorUpdateInput(header_secret_choices={}), scope=token
         )
     assert json.dumps(rows, sort_keys=True, default=str) == before
+    assert bindings.events == []
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://new.example.test/mcp", "https://mcp.example.test/new-path"],
+)
+def test_changing_the_endpoint_with_a_catalog_header_needs_bind_authority(
+    monkeypatch, bindings, admin_pat, url
+) -> None:
+    bindings.bound = {"Authorization": "s1"}
+    existing = _existing_with_choice()
+    svc, rows, saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+    with pytest.raises(ServiceForbiddenError):
+        svc.update_connector(CONNECTOR, McpConnectorUpdateInput(base_url=url), scope=admin_pat)
+
+    assert rows[CONNECTOR] == existing
+    assert bindings.events == []
+    assert saves == []
+
+
+def test_changing_the_endpoint_with_bind_authority_keeps_the_catalog_header(
+    monkeypatch, bindings
+) -> None:
+    bindings.bound = {"Authorization": "s1"}
+    existing = _existing_with_choice()
+    svc, rows, saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+
+    view = svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(base_url="https://new.example.test/mcp"),
+        scope=_operator(),
+    )
+
+    assert view.base_url == "https://new.example.test/mcp"
+    assert (
+        rows[CONNECTOR][header_secrets.HEADER_SECRET_REFS_FIELD]
+        == existing[header_secrets.HEADER_SECRET_REFS_FIELD]
+    )
+    assert bindings.events == []
+    assert saves == []
+
+
+@pytest.mark.parametrize("base_url", [None, "https://mcp.example.test/mcp"])
+def test_metadata_update_with_a_catalog_header_does_not_require_bind_authority(
+    monkeypatch, bindings, admin_pat, base_url
+) -> None:
+    bindings.bound = {"Authorization": "s1"}
+    svc, _rows, _saves, _order = _service(monkeypatch, _Conn(), existing=_existing_with_choice())
+
+    view = svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(description="New description", base_url=base_url),
+        scope=admin_pat,
+    )
+
+    assert view.description == "New description"
+    assert bindings.events == []
+
+
+def test_changing_the_endpoint_with_a_typed_header_does_not_require_bind_authority(
+    monkeypatch, bindings, admin_pat
+) -> None:
+    existing = _row({"Authorization": TYPED_KEY})
+    svc, rows, _saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+
+    view = svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(base_url="https://new.example.test/mcp"),
+        scope=admin_pat,
+    )
+
+    assert view.base_url == "https://new.example.test/mcp"
+    assert (
+        rows[CONNECTOR][header_secrets.HEADER_SECRET_REFS_FIELD]
+        == existing[header_secrets.HEADER_SECRET_REFS_FIELD]
+    )
+    assert bindings.events == []
+
+
+@pytest.mark.parametrize("headers", [{"hOsT": "docs.example.test"}, {"X-Tenant": "new"}])
+def test_changing_typed_headers_with_a_catalog_header_needs_bind_authority(
+    monkeypatch, bindings, admin_pat, headers
+) -> None:
+    bindings.bound = {"Authorization": "s1"}
+    existing = _existing_with_choice()
+    svc, rows, saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+
+    with pytest.raises(ServiceForbiddenError):
+        svc.update_connector(
+            CONNECTOR,
+            McpConnectorUpdateInput(headers_mode="replace", headers=headers),
+            scope=admin_pat,
+        )
+
+    assert rows[CONNECTOR] == existing
+    assert bindings.events == []
+    assert saves == []
+
+
+def test_resubmitting_unchanged_typed_headers_with_a_catalog_header_needs_no_bind_authority(
+    monkeypatch, bindings, admin_pat, reader
+) -> None:
+    bindings.bound = {"Authorization": "s1"}
+    existing = _existing_with_choice()
+    conn = _Conn(typed_values={TYPED_KEY: "current"})
+    svc, rows, saves, _order = _service(monkeypatch, conn, existing=existing)
+
+    svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(headers_mode="replace", headers={"X-Tenant": "plain:current"}),
+        scope=admin_pat,
+    )
+
+    assert rows[CONNECTOR] == existing
+    assert bindings.events == []
+    assert saves == []
+
+
+def test_changing_typed_headers_without_a_catalog_header_needs_no_bind_authority(
+    monkeypatch, bindings, admin_pat
+) -> None:
+    svc, rows, saves, _order = _service(
+        monkeypatch, _Conn(), existing=_row({"Authorization": TYPED_KEY})
+    )
+
+    svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(headers_mode="replace", headers={"Authorization": "new"}),
+        scope=admin_pat,
+    )
+
+    assert rows[CONNECTOR][header_secrets.HEADER_SECRET_REFS_FIELD]["refs"]["Authorization"] != (
+        TYPED_KEY
+    )
+    assert bindings.events == []
+    assert saves == [{"Authorization": "new"}]
+
+
+@pytest.mark.parametrize(("before_mode", "after_mode"), [("none", "oauth2"), ("oauth2", "none")])
+def test_switching_oauth_mode_with_a_catalog_header_needs_bind_authority(
+    monkeypatch, bindings, admin_pat, before_mode, after_mode
+) -> None:
+    from core.application.auth import mcp_connector_oauth
+
+    monkeypatch.setattr(
+        mcp_connector_oauth,
+        "prepare_mcp_connector_oauth_reset",
+        lambda _conn, *, connector_row: connector_row,
+    )
+    monkeypatch.setattr(
+        mcp_connector_oauth,
+        "mcp_connector_oauth_reset_updates",
+        lambda _conn, **kwargs: {"auth_status": kwargs["auth_status"]},
+    )
+    bindings.bound = {"X-Service-Context": "s1"}
+    existing = {
+        **_row({"X-Service-Context": header_secrets.catalog_ref_entry(CATALOG_KEY)}),
+        "auth_mode": before_mode,
+    }
+    svc, rows, _saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+    update = McpConnectorUpdateInput(auth_mode=after_mode)
+
+    with pytest.raises(ServiceForbiddenError):
+        svc.update_connector(CONNECTOR, update, scope=admin_pat)
+
+    assert rows[CONNECTOR] == existing
+    assert bindings.events == []
+
+    view = svc.update_connector(CONNECTOR, update, scope=_operator())
+    assert view.auth_mode == after_mode
+    assert view.header_secret_choices == {"X-Service-Context": {"secret_id": "s1", "prefix": ""}}
+
+
+@pytest.mark.parametrize(("before_mode", "after_mode"), [("oauth2", "oauth2"), ("none", "bearer")])
+def test_preserving_oauth_behavior_with_a_catalog_header_needs_no_bind_authority(
+    monkeypatch, bindings, admin_pat, before_mode, after_mode
+) -> None:
+    bindings.bound = {"X-Service-Context": "s1"}
+    existing = {
+        **_row({"X-Service-Context": header_secrets.catalog_ref_entry(CATALOG_KEY)}),
+        "auth_mode": before_mode,
+    }
+    svc, _rows, _saves, _order = _service(monkeypatch, _Conn(), existing=existing)
+
+    view = svc.update_connector(
+        CONNECTOR,
+        McpConnectorUpdateInput(auth_mode=after_mode),
+        scope=admin_pat,
+    )
+
+    assert view.auth_mode == after_mode
     assert bindings.events == []

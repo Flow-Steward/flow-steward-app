@@ -442,9 +442,13 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
             _text(project_id) and _text(connection.get("project_id")) != _text(project_id)
         ):
             raise ServiceNotFoundError("Connection not found")
-        require_project_access(
-            scope, {"id": connection["project_id"], "account_id": scope.account_id}
-        )
+        if scope.allowed_workspace_ids:
+            self._project_in_scope(cur, scope, connection["project_id"])
+        else:
+            # Account-wide catalog cleanup can also unbind connections of trashed projects.
+            require_project_access(
+                scope, {"id": connection["project_id"], "account_id": scope.account_id}
+            )
         return connection
 
     @staticmethod

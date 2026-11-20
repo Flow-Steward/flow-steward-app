@@ -78,6 +78,9 @@ else
 fi
 state_env="$state_dir/compose.env"
 log_dir="$state_dir/logs"
+# The CLI container mounts the state directory elsewhere; it reports paths in it here.
+FS_CLI_HOST_STATE_DIR=$state_dir
+export FS_CLI_HOST_STATE_DIR
 secret_input_dir="$state_dir/secret-input"
 runtime_dir="$state_dir/runtime"
 runtime_identity_helper="$root_dir/core/infrastructure/cli_runtime/runtime_identity.sh"
@@ -1833,23 +1836,37 @@ run_compact_platform_command() {
     printf '%s' "$compact_maintenance_status" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true' && \
       printf '%s' "$compact_maintenance_status" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"enabled"' || \
       fail "Enable maintenance before upgrading the Compact database; nothing was migrated." 7
+    # The 0.9.20 jump test: the upgrade stopped compact-runtime and said nothing, so the
+    # stopped runtime looked like a fault. Said the way Scalable's stop_database_writers says it.
+    printf '%s\n' "Maintenance is on: stopping compact-runtime, the process that writes to the database." \
+      "Postgres, RabbitMQ and storage keep running. It stays stopped; the release upgrade starts the new release." >&2
     compose_command stop compact-runtime >&2 || \
       fail "Could not stop Compact writers; nothing was migrated. Keep maintenance enabled and retry." 7
+    # The one-shot container is removed when it exits, and its log with it: it printed
+    # `Log: /app/logs/cli/...`, a path that existed nowhere. The log goes to the
+    # installation's own logs directory and is reported there.
+    compact_cli_log_dir="$state_dir/logs/cli"
+    mkdir -p "$compact_cli_log_dir" && chmod 700 "$state_dir/logs" "$compact_cli_log_dir" || \
+      fail "Could not create $compact_cli_log_dir for the database upgrade log; nothing was migrated." 7
     if [ -n "${NO_COLOR:-}" ]; then
       exec_compose_command run --rm --no-deps $compact_no_tty_flag \
+        --volume "$compact_cli_log_dir:/app/logs/cli:rw" \
         -e "NO_COLOR=$NO_COLOR" \
         -e "TERM=${TERM:-}" \
         -e "COLORTERM=${COLORTERM:-}" \
         -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+        -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$compact_cli_log_dir" \
         -e "FS_CLI_HOST_NO_COLOR=$NO_COLOR" \
         -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
         --entrypoint python \
         compact-runtime -m core.entrypoints.cli.compact_container_cli "$@"
     fi
     exec_compose_command run --rm --no-deps $compact_no_tty_flag \
+      --volume "$compact_cli_log_dir:/app/logs/cli:rw" \
       -e "TERM=${TERM:-}" \
       -e "COLORTERM=${COLORTERM:-}" \
       -e "FS_CLI_OPERATION_LOG_ROOT=/app/logs/cli" \
+      -e "FS_CLI_OPERATION_LOG_HOST_ROOT=$compact_cli_log_dir" \
       -e "FS_CLI_HOST_NO_COLOR=" \
       -e "FS_CLI_INVOCATION=$FS_CLI_INVOCATION" \
       --entrypoint python \

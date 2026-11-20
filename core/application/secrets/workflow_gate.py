@@ -17,12 +17,14 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import urlsplit
 
+import httpx
+
 from core.application.canonical_json import canonical_json_hash
 from core.application.secrets.approval_gate import SecretConfigurationUnapproved
-from core.application.secrets.projection import normalized_origin
 from core.infrastructure.security.stored_secrets import StoredSecretError
 
 WORKFLOW_PROJECTION_VERSION = "workflow.v2"
+_HTTP_DEFAULT_PORTS = {"http": 80, "https": 443}
 #: Settings that are presentation or owned by other services, not executable content.
 _COSMETIC_SETTINGS = frozenset(
     {"canvas_annotations", "canvas_annotations_revision", "canvas_layout", "layout"}
@@ -90,6 +92,21 @@ def _steps(value: Any) -> list[dict[str, Any]]:
     return found
 
 
+def _http_origin(url: str) -> dict[str, Any] | None:
+    """Use the same authority representation as the workflow HTTP transport."""
+    try:
+        target = httpx.URL(url.strip())
+    except (httpx.InvalidURL, UnicodeError):
+        return None
+    default_port = _HTTP_DEFAULT_PORTS.get(target.scheme)
+    if default_port is None or not target.raw_host:
+        return None
+    port = target.port if target.port is not None else default_port
+    if not 1 <= port <= 65535:
+        return None
+    return {"scheme": target.scheme, "host": target.raw_host.decode("ascii"), "port": port}
+
+
 def _static_origin(url: str) -> dict[str, Any] | None:
     """The origin of a URL whose scheme and authority are literal; None when computed.
 
@@ -97,7 +114,7 @@ def _static_origin(url: str) -> dict[str, Any] | None:
     refuses a secret-bearing request whose rendered origin differs from it.
     """
     if "{{" not in url:
-        return normalized_origin(url)
+        return _http_origin(url)
     scheme_end = url.find("://")
     if scheme_end < 0 or "{{" in url[:scheme_end]:
         return None
@@ -108,7 +125,7 @@ def _static_origin(url: str) -> dict[str, Any] | None:
     )
     if authority_end < 0 or "{{" in rest[:authority_end]:
         return None
-    return normalized_origin(url[: scheme_end + 3 + authority_end])
+    return _http_origin(url[: scheme_end + 3 + authority_end])
 
 
 def http_destinations(definition: Any) -> tuple[list[dict[str, Any]], list[str]]:
@@ -197,7 +214,7 @@ def normalize_rule(rule: Any) -> dict[str, Any]:
         # Subdomain rules need a pinned Public Suffix List snapshot, which this
         # release does not ship; they are refused rather than approximated.
         raise ValueError(f"destination rule: '{kind}' is not supported")
-    origin = normalized_origin(f"{_text(rule.get('scheme')).lower()}://{_text(rule.get('host'))}")
+    origin = _http_origin(f"{_text(rule.get('scheme')).lower()}://{_text(rule.get('host'))}")
     if origin is None:
         raise ValueError("destination rule: scheme and host are required")
     port = int(rule.get("port") or origin["port"])
@@ -248,10 +265,14 @@ def _request_path(path: str) -> str | None:
 
 
 def url_allowed(url: Any, rules: list[dict[str, Any]]) -> bool:
-    origin = normalized_origin(url)
+    raw_url = str(url or "").strip()
+    origin = _http_origin(raw_url)
     if origin is None:
         return False
-    path = _request_path(urlsplit(str(url)).path or "/")
+    try:
+        path = _request_path(urlsplit(raw_url).path or "/")
+    except ValueError:
+        return False
     for rule in rules:
         if (rule.get("scheme"), rule.get("host"), int(rule.get("port") or 0)) != (
             origin["scheme"],

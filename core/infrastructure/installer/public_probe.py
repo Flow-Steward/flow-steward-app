@@ -10,6 +10,7 @@ import signal
 import socket
 import ssl
 import sys
+from typing import Any
 from urllib import parse as urlparse
 from urllib import request as urlrequest
 
@@ -125,12 +126,17 @@ def _routed_urlopen(
         raise
 
 
-def _probe_once() -> dict[str, object]:
-    """Read public trust data from stdin; emit only the bounded HTTP result."""
+def _read_request() -> tuple[dict[str, Any], ssl.SSLContext | None]:
+    """Read the probe request and its public trust data from stdin."""
     data = json.loads(sys.stdin.read(1024 * 1024))
     context = None
     if data["server_hostname"] is not None:
         context = ssl.create_default_context(cadata=data["ca_certificates"])
+    return data, context
+
+
+def _probe_once(data: dict[str, Any], context: ssl.SSLContext | None) -> dict[str, object]:
+    """Emit only the bounded HTTP result of one routed request."""
     request = urlrequest.Request(data["url"], headers={"Host": data["authority"]})
     with _routed_urlopen(
         request,
@@ -152,9 +158,13 @@ def main() -> None:
         raise TimeoutError("public probe exceeded its wall-clock deadline")
 
     signal.signal(signal.SIGALRM, deadline)
-    signal.alarm(15)
     try:
-        result = _probe_once()
+        # A public certificate's request carries the whole CA bundle (about
+        # 0.3 MB); how fast the caller writes it is the caller's to bound (it
+        # waits 30 s). The deadline bounds only the network probe.
+        data, context = _read_request()
+        signal.alarm(15)
+        result = _probe_once(data, context)
     except ssl.SSLCertVerificationError as exc:
         result = {"error_kind": "certificate", "message": str(exc)[:1024]}
     except (OSError, ValueError, KeyError, TypeError) as exc:

@@ -63,6 +63,7 @@ class WorkflowPortabilityExportMixin:
         project_id: str = "",
         reference_only: bool = False,
         allowed_project_ids: frozenset[str] = frozenset(),
+        allowed_workspace_ids: frozenset[str] = frozenset(),
     ) -> str:
         """The workflow (and, with *include_children*, what it calls) as one bundle.
 
@@ -74,8 +75,8 @@ class WorkflowPortabilityExportMixin:
 
         The bundle also carries the definitions of the agents, skills, manual data
         contracts and guardrails its workflows use, unless *reference_only* asks
-        for the earlier file that names them only. A caller restricted to
-        *allowed_project_ids* gets only those projects' guardrails.
+        for the earlier file that names them only. Project guardrails and their
+        extension dependencies must satisfy both of the caller's allowlists.
         """
         workflow = _call_db_get(self.db, "get_workflow", workflow_id)
         if workflow is None:
@@ -108,6 +109,7 @@ class WorkflowPortabilityExportMixin:
                 full_sources,
                 account_id=_text(workflow.get("account_id")),
                 allowed_project_ids=allowed_project_ids,
+                allowed_workspace_ids=allowed_workspace_ids,
             )
         )
         if definitions is not None:
@@ -116,6 +118,8 @@ class WorkflowPortabilityExportMixin:
                 self._extension_guardrail_dependencies(
                     {_text(agent.get("agent_id")) for agent in definitions["agents"]},
                     account_id=_text(workflow.get("account_id")),
+                    allowed_project_ids=allowed_project_ids,
+                    allowed_workspace_ids=allowed_workspace_ids,
                 ),
             )
         binding_entries = bindings.entries if bindings is not None else []

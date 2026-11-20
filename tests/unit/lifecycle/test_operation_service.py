@@ -427,6 +427,34 @@ def test_runner_emits_step_progress_heartbeats_and_redacted_full_output(
     }
 
 
+def test_a_heartbeat_called_after_its_step_returned_reports_nothing(
+    tmp_path: Path,
+) -> None:
+    """0.9.20 jump test: "still running" lines went on after the steps had finished."""
+    kept: list = []
+
+    class LateGateway(FakeLifecycleGateway):
+        def execute_step(self, _definition, step, *, output_sink, heartbeat, cancellation):
+            kept.append(heartbeat)
+            super().execute_step(
+                _definition,
+                step,
+                output_sink=output_sink,
+                heartbeat=heartbeat,
+                cancellation=cancellation,
+            )
+
+    events = []
+    runner = LifecycleOperationRunner(gateway=LateGateway(), state=LifecycleStateStore(tmp_path))
+    runner.execute(_definition(), progress_sink=events.append)
+    finished = len(events)
+
+    for heartbeat in kept:
+        heartbeat("late pulse")
+
+    assert len(events) == finished
+
+
 def test_resume_skips_completed_step_only_when_its_postcondition_still_holds(
     tmp_path: Path,
 ) -> None:

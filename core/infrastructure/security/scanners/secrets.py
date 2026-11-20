@@ -39,18 +39,18 @@ class SecretScanner:
             return []
 
         findings: list[ScanFinding] = []
-        seen_spans: set[tuple[int, int]] = set()
+        covered = bytearray(len(text) + 1)
 
         for pat in self._patterns:
             if not meets_severity_threshold(pat.severity, config.severity_threshold):
                 continue
 
             for match in pat.regex.finditer(text):
-                span = match.span()
-                # Skip overlapping matches
-                if any(s <= span[0] < e or s < span[1] <= e for s, e in seen_spans):
+                start, end = match.span()
+                # Preserve endpoint precedence, including allowlisted spans.
+                if covered[start] or (end > 0 and covered[end - 1]):
                     continue
-                seen_spans.add(span)
+                covered[start:end] = b"\x01" * (end - start)
 
                 matched = match.group(1) if match.lastindex else match.group(0)
 
