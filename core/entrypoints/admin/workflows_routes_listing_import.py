@@ -69,27 +69,14 @@ def list_workflows(
             if isinstance(row, dict)
             and (workflow_id := _normalize_text(row.get("workflow_id") or row.get("entity_id")))
         }
-        normalized_rows: list[dict[str, Any]] = []
-        for row in catalog_rows:
-            item = dict(row)
-            workflow_id = _normalize_text(item.get("workflow_id"))
-            if workflow_id not in matching_ids and not projected_catalog_row_matches(
-                item,
-                search,
-                fields=("workflow_id", "display_name", "description"),
-            ):
-                continue
-            if item.get("source_install_id"):
-                item = _annotate_extension_workflow_availability(
-                    db,
-                    item,
-                    account_id=scope.account_id,
-                )
-            if not _workflow_visible_to_scope(scope, item):
-                continue
-            item = portability.redact_protected_workflow(item)
-            normalized_rows.append(_with_viewer_extension_permission(item, request))
-        return normalized_rows
+        catalog_rows = [
+            row
+            for row in catalog_rows
+            if _normalize_text(row.get("workflow_id")) in matching_ids
+            or projected_catalog_row_matches(
+                row, search, fields=("workflow_id", "display_name", "description")
+            )
+        ]
     normalized_rows: list[dict[str, Any]] = []
     for row in catalog_rows:
         item = dict(row)
@@ -101,7 +88,9 @@ def list_workflows(
             )
         if not _workflow_visible_to_scope(scope, item):
             continue
+        extensions = portability.list_extension_associations(item, account_id=scope.account_id)
         item = portability.redact_protected_workflow(item)
+        item["extensions"] = extensions
         normalized_rows.append(_with_viewer_extension_permission(item, request))
     return normalized_rows
 

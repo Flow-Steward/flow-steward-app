@@ -2525,6 +2525,49 @@ class TestPortableExtensionIdentity:
             account_id=self.ACCOUNT,
         ), store
 
+    def test_list_associations_follow_current_steps_and_share_the_source_lookup(self):
+        service, store = self._service(
+            {
+                (self.INSTALL, self.ACCOUNT): {
+                    "extension_id": "example.gotenberg",
+                    "manifest": {"display_name": "Gotenberg"},
+                }
+            }
+        )
+        supplied = {
+            "source_install_id": self.INSTALL,
+            "projection_mode": "derived",
+        }
+        copied = {
+            "steps": [
+                {"connector_install_id": self.INSTALL},
+                {
+                    "step_kind": "invoke_workflow",
+                    "override": {
+                        "invoke_workflow": {"action": {"extension_id": "example.gotenberg"}}
+                    },
+                },
+            ],
+        }
+        expected = [{"extension_id": "example.gotenberg", "display_name": "Gotenberg"}]
+
+        assert service.list_extension_associations(supplied, account_id=self.ACCOUNT) == expected
+        assert service.redact_protected_workflow(supplied)["portability"][
+            "source_extension_id"
+        ] == ("example.gotenberg")
+        assert service.list_extension_associations(copied, account_id=self.ACCOUNT) == expected
+        assert service.list_extension_associations(
+            {"steps": copied["steps"][1:]}, account_id=self.ACCOUNT
+        ) == [{"extension_id": "example.gotenberg", "display_name": "example.gotenberg"}]
+        assert service.list_extension_associations({"steps": []}, account_id=self.ACCOUNT) == []
+        assert (
+            service.list_extension_associations(
+                {"steps": copied["steps"][:1]}, account_id="another-account"
+            )
+            == []
+        )
+        assert store.calls == [(self.INSTALL, self.ACCOUNT), (self.INSTALL, "another-account")]
+
     def _item(self):
         return {
             "dependency_type": "extension",

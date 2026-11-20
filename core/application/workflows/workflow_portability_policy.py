@@ -12,6 +12,12 @@ from core.application.registry.workflow_secret_defaults import (
     strip_workflow_secret_authority,
 )
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
+from core.application.workflows.extension_connection_validation import (
+    step_connector_install_id,
+    step_extension_id,
+)
+from core.application.workflows.workflow_action_contract import action_invoke_dependencies
+from core.application.workflows.workflow_catalog_identity import parse_projected_identity
 from core.application.workflows.workflow_hook_authoring_policy import (
     HOOK_DECLARATION_MODE_CODE,
     HOOK_DECLARATION_MODE_MESSAGE,
@@ -29,8 +35,10 @@ from core.application.workflows.workflow_portability_common import (
     _extension_owned,
     _is_mock,
     _redact_sensitive,
+    _step_child_workflow_ref,
     _text,
     _workflow_settings,
+    _workflow_steps,
 )
 from core.application.workflows.workflow_portability_definitions import (
     _portable_extension_identity,
@@ -109,6 +117,9 @@ class WorkflowPortabilityPolicyMixin:
         """
         install_id = _text(workflow.get("source_install_id"))
         account_id = _text(workflow.get("account_id")) or _text(getattr(self, "account_id", ""))
+        return self._extension_identity_for_install(install_id, account_id)
+
+    def _extension_identity_for_install(self, install_id: str, account_id: str) -> dict[str, Any]:
         store = getattr(self, "extension_install_store", None)
         if not install_id or not account_id or store is None or _is_mock(store):
             return {}
@@ -120,6 +131,40 @@ class WorkflowPortabilityPolicyMixin:
             )
             cache[key] = _portable_extension_identity(row, install_id=install_id) if row else {}
         return cache[key]
+
+    def list_extension_associations(
+        self, workflow: dict[str, Any], *, account_id: str
+    ) -> list[dict[str, str]]:
+        """Package identities from the workflow's source and current saved steps."""
+        owner_account_id = _text(workflow.get("account_id")) or account_id
+        install_ids = {_text(workflow.get("source_install_id"))}
+        labels: dict[str, str] = {}
+        for step in _workflow_steps(workflow):
+            extension_id = step_extension_id(step)
+            if extension_id:
+                labels[extension_id] = extension_id
+            install_ids.add(step_connector_install_id(step))
+            for ref in (_text(step.get("block_key")), _step_child_workflow_ref(step)):
+                install_ids.add(parse_projected_identity(ref).get("install_id", ""))
+            invoke = _as_dict(step.get("override")).get("invoke_workflow")
+            install_ids.update(
+                ref
+                for kind, ref, _ in action_invoke_dependencies(invoke)
+                if kind == "extension_install"
+            )
+
+        for install_id in sorted(install_ids - {""}):
+            identity = self._extension_identity_for_install(install_id, owner_account_id)
+            extension_id = _text(identity.get("extension_id"))
+            if extension_id:
+                label = _text(identity.get("display_name")) or extension_id
+                if labels.get(extension_id, extension_id) == extension_id:
+                    labels[extension_id] = label
+
+        return [
+            {"extension_id": extension_id, "display_name": labels[extension_id]}
+            for extension_id in sorted(labels)
+        ]
 
     def _export_policy_from_workflow(self, workflow: dict[str, Any]) -> dict[str, Any]:
         workflow_id = _text(workflow.get("workflow_id"))

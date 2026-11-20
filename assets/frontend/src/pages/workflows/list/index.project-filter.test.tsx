@@ -16,18 +16,19 @@ vi.mock("@/pages/workflows/catalog/api", () => ({
 // project list, so the page never asks a project for its workflows one by one.
 const alpha = { id: "project-alpha", name: "Alpha project", workflow_ids: ["alpha-only", "shared", "extension.install-7.example", "disabled-alpha"] };
 const beta = { id: "project-beta", name: "Beta project", workflow_ids: ["beta-only", "shared"] };
+const gotenberg = [{ extension_id: "example.gotenberg", display_name: "Gotenberg" }];
 const rows = [
   ...Array.from({ length: 28 }, (_, index) => ({ workflow_id: `other-${index}`, display_name: `Other ${index}`, enabled: true })),
-  { workflow_id: "alpha-only", display_name: "Alpha workflow", enabled: true, project_id: alpha.id },
-  { workflow_id: "beta-only", display_name: "Beta workflow", enabled: true, project_id: beta.id },
+  { workflow_id: "alpha-only", display_name: "Alpha workflow", enabled: true, project_id: alpha.id, extensions: gotenberg },
+  { workflow_id: "beta-only", display_name: "Beta workflow", enabled: true, project_id: beta.id, extensions: gotenberg },
   // Ownership differs from membership: Shared must appear in both projects.
   { workflow_id: "shared", display_name: "Shared workflow", enabled: true, project_id: alpha.id },
-  { workflow_id: "extension.install-7.example", display_name: "Installed workflow", enabled: true },
+  { workflow_id: "extension.install-7.example", display_name: "Installed workflow", enabled: true, extensions: gotenberg },
   { workflow_id: "unassigned", display_name: "Unassigned workflow", enabled: true },
   // Owned by Alpha but not bound to it: ownership alone does not list a workflow.
   { workflow_id: "inactive-association", display_name: "Inactive association workflow", enabled: true, project_id: alpha.id },
   { workflow_id: "shared-copy", display_name: "Unlinked workflow sharing a prefix", enabled: true },
-  { workflow_id: "disabled-alpha", display_name: "Disabled Alpha workflow", enabled: false },
+  { workflow_id: "disabled-alpha", display_name: "Disabled Alpha workflow", enabled: false, extensions: gotenberg },
 ];
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -101,6 +102,37 @@ it("filters the entire catalog by exact Alpha membership, including shared and i
   expect(table().getByRole("link", { name: "Disabled Alpha workflow" })).toBeInTheDocument();
   expect(requests.filter((url) => /^\/api\/projects\//.test(url.pathname))).toEqual([]);
 });
+it("finds both an installed workflow and a copy by extension alongside project and status", async () => {
+  installHttp();
+  const { router } = renderPage(`/registry/workflows?project_id=${alpha.id}&enabled=1`);
+  await table().findByRole("link", { name: "Alpha workflow" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Extension" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Gotenberg" }));
+
+  await waitFor(() => expect(screen.getByText("Extension · Gotenberg")).toBeInTheDocument());
+  expect(table().getByRole("link", { name: "Installed workflow" })).toBeInTheDocument();
+  expect(table().getByRole("link", { name: "Alpha workflow" })).toBeInTheDocument();
+  expect(table().queryByRole("link", { name: "Shared workflow" })).not.toBeInTheDocument();
+  expect(table().queryByRole("link", { name: "Beta workflow" })).not.toBeInTheDocument();
+  expect(table().queryByRole("link", { name: "Disabled Alpha workflow" })).not.toBeInTheDocument();
+  expect(new URLSearchParams(router.state.location.search).get("extension")).toBe("example.gotenberg");
+
+  const search = screen.getByRole("searchbox", { name: "Search workflows" });
+  fireEvent.change(search, { target: { value: "Installed" } });
+  await waitFor(() => {
+    expect(table().getByRole("link", { name: "Installed workflow" })).toBeInTheDocument();
+    expect(table().queryByRole("link", { name: "Alpha workflow" })).not.toBeInTheDocument();
+  });
+
+  fireEvent.change(search, { target: { value: "" } });
+  await table().findByRole("link", { name: "Alpha workflow" });
+  fireEvent.click(screen.getByRole("button", { name: "Remove Extension filter" }));
+  await waitFor(() => expect(table().getByRole("link", { name: "Shared workflow" })).toBeInTheDocument());
+  expect(new URLSearchParams(router.state.location.search).has("extension")).toBe(false);
+});
+
 it("names every project a workflow belongs to in its Project column", async () => {
   installHttp(); renderPage();
   await table().findByRole("link", { name: "Unassigned workflow" });
