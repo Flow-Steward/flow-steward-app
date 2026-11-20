@@ -59,6 +59,8 @@ def _build_client(
                 },
                 "timezone": "UTC",
                 "principal_type": "user",
+                # Set by the auth middleware from the stored role permissions.
+                "permissions": ["users.manage", "account.self", "jobs.read"],
             }
             return await call_next(request)
 
@@ -163,6 +165,9 @@ def test_api_app_bootstrap_includes_user_permissions_and_memberships() -> None:
     assert body["auth"]["user"]["date_format"] == "MM/DD/YYYY"
     assert body["auth"]["user"]["time_format"] == "12h"
     assert body["auth"]["permissions"]["can_mutate"] is True
+    # ADR 0076: the person's permission keys, sorted, beside the roles for now.
+    assert body["auth"]["user"]["permissions"] == ["account.self", "jobs.read", "users.manage"]
+    assert body["auth"]["user"]["roles"] == ["admin"]
     assert body["environment"]["edition"] == "private"
     assert body["feature_flags"]["identity_access"] is True
     assert body["auth"]["external_sign_in"]["providers_path"] == "/external-sign-in/providers"
@@ -382,3 +387,13 @@ def test_bootstrap_mode_refreshes_after_server_switch(monkeypatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "production")
 
     assert client.get("/api/app/bootstrap").json()["environment"]["mode"] == "production"
+
+
+def test_a_principal_without_role_permissions_gets_none() -> None:
+    """A service account calling the bootstrap holds no role permissions (ADR 0076 §3)."""
+    from core.entrypoints.api.app_bootstrap import _user_summary
+
+    summary = _user_summary({"id": "sa-1", "roles": ["operator"]})
+
+    assert summary is not None
+    assert summary["permissions"] is None

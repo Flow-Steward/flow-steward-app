@@ -46,11 +46,19 @@ def _request_effective_permissions(request: Request) -> dict[str, Any]:
         auth_perms = auth_user.get("effective_permissions")
         if isinstance(auth_perms, Mapping):
             merged.update(dict(auth_perms))
-
-    state_perms = getattr(request.state, "effective_permissions", None)
-    if isinstance(state_perms, Mapping):
-        merged.update(dict(state_perms))
     return merged
+
+
+def _permission_keys(auth_user: Mapping[str, Any]) -> list[str] | None:
+    """The ADR 0076 permissions the middleware computed for this person, sorted.
+
+    ``None`` for a principal that is not role-based (a service account, a system
+    actor): its own rules apply and it holds no role permissions.
+    """
+    raw = auth_user.get("permissions")
+    if not isinstance(raw, (list, tuple, set, frozenset)):
+        return None
+    return sorted({str(item).strip() for item in raw if str(item).strip()})
 
 
 def _principal_type(principal: Any, auth_user: Mapping[str, Any] | None) -> str:
@@ -80,6 +88,9 @@ def _user_summary(
         "email": str(auth_user.get("email") or auth_user.get("username") or ""),
         "display_name": str(auth_user.get("display_name") or ""),
         "roles": _normalized_roles(auth_user),
+        # ADR 0076: what the person may do; the interface derives menus and buttons
+        # from these keys. ``roles`` stays until the interface reads only these.
+        "permissions": _permission_keys(auth_user),
         "account_id": str(auth_user.get("account_id") or ""),
         "account_ids": list(auth_user.get("account_ids") or []),
         "account_memberships": list(auth_user.get("account_memberships") or []),
