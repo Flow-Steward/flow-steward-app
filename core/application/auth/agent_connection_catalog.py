@@ -56,7 +56,7 @@ ARCHIVE_LAYOUTS = frozenset(
     }
 )
 
-#: The usual ``mcp.json`` shape most MCP clients read, a Claude plugin's included.
+#: The usual ``mcp.json`` shape most MCP clients read.
 MCP_JSON_TEMPLATE = (
     '{\n  "mcpServers": {\n    "flow-steward": {\n'
     '      "type": "http",\n'
@@ -64,6 +64,8 @@ MCP_JSON_TEMPLATE = (
     '      "headers": {"Authorization": "Bearer {token}"}\n'
     "    }\n  }\n}\n"
 )
+#: The browser fills only the bundled Claude plugin's address. The plugin asks for the token.
+CLAUDE_PLUGIN_ADDRESS_TEMPLATE = '{"mcpServers":{"flow-steward":{"type":"http","url":"{mcp_url}"}}}'
 #: Cursor's ``mcp.json``: a remote entry without ``type``.
 CURSOR_MCP_JSON_TEMPLATE = (
     '{\n  "mcpServers": {\n    "flow-steward": {\n'
@@ -217,7 +219,7 @@ def _plugin_download(
     template: str = "",
     manifest_dir: str = "",
 ) -> SetupStep:
-    """The plugin archive. With a ``template`` it carries the MCP server, and so the token."""
+    """The plugin archive, with an MCP server if a template is provided."""
     common = {
         "id": "download_plugin",
         "kind": "package",
@@ -226,6 +228,12 @@ def _plugin_download(
         "template": template,
         "manifest_dir": manifest_dir,
     }
+    if template and layout == ARCHIVE_CLAUDE_MARKETPLACE:
+        return SetupStep(
+            **common,
+            title_key="react.agent_access.step_personal_plugin",
+            title="Download the plugin",
+        )
     if template:
         return SetupStep(
             **common,
@@ -360,9 +368,25 @@ def _local_developer(anchor: str, *, archive: str) -> ClientPackageSetup:
 
 
 def _claude_code(package_id: str, template: str = "") -> tuple[SetupStep, ...]:
-    return (
+    steps = (
         _plugin_download(package_id, "claude-code", ARCHIVE_CLAUDE_MARKETPLACE, template=template),
         _install_marketplace(package_id, "claude-code", "claude", "install"),
+    )
+    if not template:
+        return steps
+    return (
+        *steps,
+        SetupStep(
+            id="configure_plugin_token",
+            kind="value",
+            title_key="react.agent_access.step_claude_token",
+            title="Copy the token",
+            description_key="react.agent_access.step_claude_token_description",
+            description="Paste it into the plugin's personal token field when {client} prompts for it.",
+            hint_key="react.agent_access.step_claude_token_hint",
+            hint="If there is no prompt, open `/plugin`, select the installed plugin, then choose Configure options.",
+            template=TOKEN_PLACEHOLDER,
+        ),
     )
 
 
@@ -401,7 +425,7 @@ CLIENTS: tuple[AgentClient, ...] = (
                 auth=AUTH_PERSONAL_TOKEN,
                 verified=False,
                 readme_anchor="claude-code",
-                steps=_claude_code(OPERATOR_PACKAGE_ID, MCP_JSON_TEMPLATE),
+                steps=_claude_code(OPERATOR_PACKAGE_ID, CLAUDE_PLUGIN_ADDRESS_TEMPLATE),
             ),
             ClientPackageSetup(
                 package_id=DEVELOPER_PACKAGE_ID,

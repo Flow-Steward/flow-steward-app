@@ -33,7 +33,7 @@ describe("personal agent archives", () => {
     expect(packageFiles("flow-steward-unknown")).toEqual({});
   });
 
-  it("a Claude marketplace named after the package whose plugin already holds the address and the token", async () => {
+  it("a Claude marketplace whose plugin holds the address and asks Claude for the token", async () => {
     const files = readStoredZip(await blobBytes(buildArchive("claude_marketplace", OPERATOR, { servers: SERVERS })));
     // Several entries at the root: unpacking makes one folder named after the archive.
     expect(roots([...files.keys()])).toEqual([".claude-plugin", OPERATOR]);
@@ -42,8 +42,13 @@ describe("personal agent archives", () => {
     expect(marketplace.plugins.map((plugin: { name: string; source: string }) => [plugin.name, plugin.source])).toEqual([[OPERATOR, `./${OPERATOR}`]]);
     const manifest = JSON.parse(files.get(`${OPERATOR}/.claude-plugin/plugin.json`) || "{}");
     expect(manifest.name).toBe(OPERATOR);
-    expect(manifest.userConfig).toBeUndefined();
-    expect(manifest.mcpServers).toEqual({ "flow-steward": SERVER });
+    expect(manifest.userConfig).toEqual({
+      mcp_token: expect.objectContaining({ type: "string", required: true, sensitive: true }),
+    });
+    expect(manifest.mcpServers).toEqual({
+      "flow-steward": { type: "http", url: SERVER.url, headers: { Authorization: "Bearer ${user_config.mcp_token}" } },
+    });
+    expect([...files.values()].join("\n")).not.toContain(SERVER.headers.Authorization);
     expect(files.get(`${OPERATOR}/skills/flow-steward-workflow-authoring/SKILL.md`)).toContain("name: flow-steward-workflow-authoring");
     expect(files.size).toBe(Object.keys(packageFiles(OPERATOR)).length + 1);
   });

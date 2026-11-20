@@ -29589,6 +29589,15 @@ msgstr "Gemini CLI prieigos raktą laiko savo nustatymų faile. Komandą vykdyki
 msgid "react.agent_access.step_claude_upload"
 msgstr "Įkelkite paketą"
 
+msgid "react.agent_access.step_claude_token"
+msgstr "Nukopijuokite prieigos raktą"
+
+msgid "react.agent_access.step_claude_token_description"
+msgstr "Kai {client} paprašys, įklijuokite raktą į papildinio asmeninio prieigos rakto lauką."
+
+msgid "react.agent_access.step_claude_token_hint"
+msgstr "Jei raginimo nėra, atidarykite `/plugin`, pasirinkite įdiegtą papildinį ir spustelėkite „Configure options“."
+
 msgid "react.agent_access.step_claude_upload_description"
 msgstr "Atsisiųskite {archive} iš Flow Steward {core_version} leidimo ir įkelkite jį Claude skiltyje Customize > Plugins > Upload plugin."
 
@@ -30967,6 +30976,9 @@ msgstr "Prieigos raktas galioja iki {date}."
 
 msgid "react.agent_access.setup_description_plugin"
 msgstr "Įskiepyje yra šios diegties MCP adresas ir jūsų prieigos raktas, tad nieko konfigūruoti nereikia."
+
+msgid "react.agent_access.setup_description_claude_plugin"
+msgstr "Įskiepyje yra šios diegties MCP adresas. Kai Claude paprašys, įveskite prieigos raktą."
 
 msgid "react.agent_access.setup_description_developer_plugin"
 msgstr "Įskiepis įdiegia paketą „Developer“. Prieigos rakto jam nereikia."

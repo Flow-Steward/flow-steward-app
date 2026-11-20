@@ -8,11 +8,112 @@ applies (prompt, display, shell).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from functools import partial
 from typing import Literal, cast
 
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import InjectionConfig
+
+_JINJA_TOKENS = re.compile(r"\{\{|\}\}|(?:config|self|request|lipsum|cycler|joiner|namespace)\b|\n")
+_EXPRESSION_TOKENS = re.compile(r"\$\{|\}|\b(?:Runtime|ProcessBuilder|exec|eval|system)\b")
+_MARKDOWN_IMAGE_TOKENS = re.compile(r"!\[|\]\(https?://|\]|[?=)]|\s")
+
+
+def _jinja_spans(text: str) -> Iterator[tuple[int, int]]:
+    """Scan same-line expressions, retaining the earliest possible opener."""
+    start = None
+    found_name = False
+    for match in _JINJA_TOKENS.finditer(text):
+        token = match.group()
+        if token == "\n":
+            start = None
+        elif token == "{{":
+            if start is None:
+                start = match.start()
+                found_name = False
+        elif token == "}}":
+            if start is not None and found_name:
+                yield start, match.end()
+                start = None
+        elif start is not None:
+            found_name = True
+
+
+def _expression_spans(text: str) -> Iterator[tuple[int, int]]:
+    """Scan expressions through the first closing brace, including across lines."""
+    start = None
+    found_name = False
+    for match in _EXPRESSION_TOKENS.finditer(text):
+        token = match.group()
+        if token == "${":
+            if start is None:
+                start = match.start()
+                found_name = False
+        elif token == "}":
+            if start is not None and found_name:
+                yield start, match.end()
+            start = None
+        elif start is not None:
+            found_name = True
+
+
+def _markdown_image_spans(
+    text: str, *, require_query_data: bool = False
+) -> Iterator[tuple[int, int]]:
+    """Scan remote image links without retrying nested label and URL candidates."""
+    label_start = None
+    image_start = None
+    url_start = 0
+    found_query = False
+    found_pair = False
+
+    for match in _MARKDOWN_IMAGE_TOKENS.finditer(text):
+        token = match.group()
+        if token == "![":
+            if label_start is None:
+                label_start = match.start()
+        elif token.startswith("]"):
+            # Every label ends at its first closing bracket. In a URL without
+            # whitespace or a closing parenthesis, the earliest candidate can
+            # use any question mark and assignment available to later ones.
+            if label_start is not None and token != "]" and image_start is None:
+                image_start = label_start
+                url_start = match.end()
+                found_query = False
+                found_pair = False
+            label_start = None
+        elif image_start is not None:
+            if token == "?":
+                found_query = True
+            elif token == "=":
+                found_pair = found_query
+            else:
+                valid_url = found_pair if require_query_data else match.start() > url_start
+                if token == ")" and valid_url:
+                    yield image_start, match.end()
+                    label_start = None
+                image_start = None
+
+
+@dataclass(frozen=True)
+class _SpanPattern:
+    """Share the same forward-only matches between detection and redaction."""
+
+    _spans: Callable[[str], Iterator[tuple[int, int]]]
+
+    def search(self, text: str) -> bool:
+        return next(self._spans(text), None) is not None
+
+    def sub(self, replacement: str, text: str) -> str:
+        parts: list[str] = []
+        cursor = 0
+        for start, end in self._spans(text):
+            parts.extend((text[cursor:start], replacement))
+            cursor = end
+        parts.append(text[cursor:])
+        return "".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -21,7 +122,7 @@ from core.infrastructure.security.policy import InjectionConfig
 @dataclass(frozen=True)
 class InjectionRule:
     rule_id: str
-    pattern: re.Pattern
+    pattern: re.Pattern[str] | _SpanPattern
     contexts: list[str]
     severity: str
     confidence: float
@@ -96,9 +197,7 @@ _RULES: list[InjectionRule] = [
     # remote image in a prompt is suspect.
     InjectionRule(
         rule_id="injection:exfil_markdown_link",
-        pattern=re.compile(
-            r"!\[[^\]]*+\]\(https?://[^\s)]++\)",
-        ),
+        pattern=_SpanPattern(_markdown_image_spans),
         contexts=["prompt"],
         severity="high",
         confidence=0.7,
@@ -110,9 +209,7 @@ _RULES: list[InjectionRule] = [
     # still marks exfiltration is data carried in the URL's query.
     InjectionRule(
         rule_id="injection:exfil_markdown_link_data",
-        pattern=re.compile(
-            r"!\[[^\]]*+\]\(https?://[^\s)?]*+\?[^\s)=]*+=[^\s)]*+\)",
-        ),
+        pattern=_SpanPattern(partial(_markdown_image_spans, require_query_data=True)),
         contexts=["display"],
         severity="high",
         confidence=0.7,
@@ -147,9 +244,7 @@ _RULES: list[InjectionRule] = [
     # ---- Template injection ----
     InjectionRule(
         rule_id="injection:template_jinja",
-        pattern=re.compile(
-            r"\{\{.*?(?:config|self|request|lipsum|cycler|joiner|namespace)\b.*?\}\}"
-        ),
+        pattern=_SpanPattern(_jinja_spans),
         contexts=["prompt", "display"],
         severity="high",
         confidence=0.9,
@@ -158,7 +253,7 @@ _RULES: list[InjectionRule] = [
     ),
     InjectionRule(
         rule_id="injection:template_generic",
-        pattern=re.compile(r"\$\{[^}]*\b(?:Runtime|ProcessBuilder|exec|eval|system)\b[^}]*\}"),
+        pattern=_SpanPattern(_expression_spans),
         contexts=["prompt", "display"],
         severity="high",
         confidence=0.85,

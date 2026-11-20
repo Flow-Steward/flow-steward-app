@@ -280,7 +280,9 @@ def test_steps_are_filled_except_the_token(world) -> None:
     )
 
 
-def test_claude_code_gets_a_personal_plugin_with_the_address_and_a_token_slot(world) -> None:
+def test_claude_code_download_contains_only_the_address_and_offers_the_token_separately(
+    world,
+) -> None:
     store, _table = world
     view = _service(store).setup_view(_user())
     claude = next(client for client in view["clients"] if client["id"] == "claude_code")
@@ -288,13 +290,12 @@ def test_claude_code_gets_a_personal_plugin_with_the_address_and_a_token_slot(wo
     plugin = steps["download_plugin"]
     assert (plugin["kind"], plugin["archive_layout"]) == ("package", "claude_marketplace")
     assert plugin["file_name"] == "flow-steward-operator-claude-code.zip"
-    assert plugin["uses_token"] is True
-    assert json.loads(plugin["content"].replace("{token}", "fs_pat_x")) == {
+    assert plugin["uses_token"] is False
+    assert json.loads(plugin["content"]) == {
         "mcpServers": {
             "flow-steward": {
                 "type": "http",
                 "url": "https://fs.example.com/mcp",
-                "headers": {"Authorization": "Bearer fs_pat_x"},
             }
         }
     }
@@ -305,9 +306,13 @@ def test_claude_code_gets_a_personal_plugin_with_the_address_and_a_token_slot(wo
     ]
     assert steps["install_plugin"]["uses_token"] is False
     assert steps["install_plugin"]["values"]["package"] == "flow-steward-operator"
+    assert steps["configure_plugin_token"]["kind"] == "value"
+    assert steps["configure_plugin_token"]["uses_token"] is True
+    assert steps["configure_plugin_token"]["content"] == "{token}"
     developer = {step["id"]: step for step in claude["packages"][1]["steps"]}
     assert developer["download_plugin"]["file_name"] == "flow-steward-developer-claude-code.zip"
     assert developer["download_plugin"]["uses_token"] is False
+    assert "configure_plugin_token" not in developer
 
 
 def test_another_client_gets_plain_mcp_json_with_the_token(world) -> None:

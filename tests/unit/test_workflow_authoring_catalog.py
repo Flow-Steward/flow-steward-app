@@ -14,6 +14,7 @@ from core.application.workflows.discovery import capability_discovery as discove
 from core.application.workflows.discovery.capability_discovery import (
     WorkflowCapabilityDiscovery,
 )
+from tests._workflow_definitions import linear_workflow
 
 SCOPE = {"account_id": DEFAULT_ACCOUNT_ID, "project_id": "project"}
 
@@ -32,11 +33,13 @@ class CatalogDB:
         self.agents = {}
         self.skills = {}
         self.datasets = {}
+        self.projects = {}
+        self.guardrails = []
         self.connections = []
         self.workflow_reads = []
 
     def get_project(self, project_id):
-        return {"id": project_id, "account_id": DEFAULT_ACCOUNT_ID}
+        return self.projects.get(project_id, {"id": project_id, "account_id": DEFAULT_ACCOUNT_ID})
 
     def get_workflow(self, workflow_id, include_trashed=False):
         assert workflow_id, "catalog discovery must not load absent workflow context"
@@ -72,6 +75,9 @@ class CatalogDB:
 
     def list_datasets(self, **_):
         return list(self.datasets.values())
+
+    def list_guardrails(self, *, account_id):
+        return [deepcopy(row) for row in self.guardrails if row["account_id"] == account_id]
 
     def list_project_connections(self, **_):
         return self.connections
@@ -186,6 +192,66 @@ def test_examples_export_protected_workflow_as_reference_and_enforce_token_workf
     assert "secret_internal" not in str(result)
     with pytest.raises(ServiceNotFoundError):
         catalog.describe(scope=scope, project_id="project", ref="workflow:denied")
+
+
+@pytest.mark.parametrize(
+    ("restrictions", "expected_rules"),
+    [
+        ({"allowed_project_ids": {"project", "peer"}}, ["global", "own", "peer"]),
+        ({"allowed_workspace_ids": {"workspace"}}, ["global", "own", "peer"]),
+        ({}, ["global", "own", "peer", "other"]),
+    ],
+    ids=["projects", "workspace", "unrestricted"],
+)
+def test_capability_bundles_keep_guardrails_within_the_callers_project_scope(
+    restrictions, expected_rules
+):
+    db = CatalogDB()
+    db.workflows["publish"] = linear_workflow(
+        workflow_id="publish",
+        display_name="Publish",
+        account_id=DEFAULT_ACCOUNT_ID,
+        scope_kind="account",
+        settings={"participants": [{"participant_key": "writer", "agent_id": "writer"}]},
+    )
+    db.agents["writer"] = {"agent_id": "writer", "account_id": DEFAULT_ACCOUNT_ID}
+    project_store = CatalogDB()
+    project_store.projects = {
+        project_id: {
+            "id": project_id,
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "workspace_id": workspace_id,
+        }
+        for project_id, workspace_id in [
+            ("project", "workspace"),
+            ("peer", "workspace"),
+            ("other", "other-workspace"),
+        ]
+    }
+    db.guardrails = [
+        {
+            "id": rule_id,
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "project_id": project_id,
+            "_agents": ["writer"],
+        }
+        for rule_id, project_id in [
+            ("global", None),
+            ("own", "project"),
+            ("peer", "peer"),
+            ("other", "other"),
+        ]
+    ]
+    catalog = WorkflowAuthoringCatalog(db, project_store=project_store)
+    scope = {**SCOPE, **restrictions}
+
+    description = catalog.describe(scope=scope, project_id="project", ref="workflow:publish")
+    examples = catalog.examples(scope=scope, project_id="project", query="publish")["examples"]
+
+    assert [example["workflow_id"] for example in examples] == ["publish"]
+    for item in [description, *examples]:
+        bundle = yaml.safe_load(item["bundle_yaml"])
+        assert [rule["id"] for rule in bundle["definitions"]["guardrails"]] == expected_rules
 
 
 def test_graph_search_rechecks_live_scope_and_token_restrictions():

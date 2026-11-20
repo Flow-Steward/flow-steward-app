@@ -8,7 +8,8 @@ projection in the connector's ``header_secret_refs_jsonb`` (see
 the connector row, after the row exists.
 
 Choosing, changing or removing a choice needs bind authority
-(``require_secret_bind``); the connector's own project access check stays as it is.
+(``require_secret_bind``), as do changes to the endpoint, typed headers or
+OAuth mode of a connector using a choice.
 The value is never read here and never leaves the host.
 """
 
@@ -228,10 +229,12 @@ def plan_update_choices(
     requested: Mapping[str, Any] | None,
     headers_mode: str,
     typed_headers: Mapping[str, Any] | None,
+    base_url: str | None,
+    oauth_mode_changed: bool,
 ) -> HeaderChoicePlan:
     """``None`` keeps the choices (a typed header of the same name replaces one), a
     mapping is the complete new set, and ``headers_mode`` clear removes them all.
-    Checks bind authority before anything is written when the choices change."""
+    Checks bind authority for changes to choices, their destination or OAuth mode."""
     existing_refs = connector_header_catalog_refs(existing)
     current = existing_choice_state(conn, existing) if existing_refs else {}
     asked = normalize_header_choices(requested) if requested is not None else None
@@ -261,7 +264,10 @@ def plan_update_choices(
     plan = HeaderChoicePlan(
         existing_refs=existing_refs, current=current, final=final, requested=asked is not None
     )
-    if plan.changed:
+    endpoint_changed = (
+        base_url is not None and base_url.strip() != str(existing.get("base_url") or "").strip()
+    )
+    if plan.changed or (existing_refs and (endpoint_changed or oauth_mode_changed)):
         from core.application.secrets.authority import require_secret_bind
 
         require_secret_bind(scope)

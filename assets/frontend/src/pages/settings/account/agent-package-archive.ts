@@ -50,11 +50,19 @@ function claudeMarketplace(packageId: string): string {
   return json(manifest);
 }
 
-/** The Claude plugin manifest: no options to ask for, and the server when there is one. */
-function claudeManifest(source: string, servers: string): string {
-  const manifest = JSON.parse(source) as JsonObject;
-  delete manifest.userConfig;
-  if (servers) manifest.mcpServers = serverEntries(servers);
+/** Keep the bundled sensitive token option. Only the address comes from setup. */
+function claudeManifest(source: string, servers: JsonObject): string {
+  const manifest = JSON.parse(source) as {
+    userConfig?: JsonObject;
+    mcpServers?: Record<string, { url: string }>;
+  };
+  const bundledServer = manifest.mcpServers?.["flow-steward"];
+  const setupServer = servers["flow-steward"] as { url?: unknown } | undefined;
+  if (!bundledServer || !manifest.userConfig?.mcp_token || typeof setupServer?.url !== "string" || !setupServer.url) {
+    throw new Error("The Claude plugin needs a configured MCP address and a sensitive token option.");
+  }
+  bundledServer.url = setupServer.url;
+  delete manifest.userConfig.mcp_url;
   return json(manifest);
 }
 
@@ -95,7 +103,7 @@ export function archiveEntries(layout: ArchiveLayout, packageId: string, options
   const files = packageFiles(packageId);
   if (!Object.keys(files).length) throw new Error(`The package ${packageId} is not bundled.`);
   const servers = (options.servers || "").trim();
-  if (servers) serverEntries(servers);
+  const configuredServers = servers ? serverEntries(servers) : undefined;
   const entries = Object.entries(files);
   if (layout === "skills_folder") {
     return entries.filter(([path]) => path.startsWith("skills/")).map(([path, content]) => ({ path: path.slice("skills/".length), content }));
@@ -121,7 +129,7 @@ export function archiveEntries(layout: ArchiveLayout, packageId: string, options
     { path: ".claude-plugin/marketplace.json", content: claudeMarketplace(packageId) },
     ...entries.map(([path, content]) => ({
       path: `${packageId}/${path}`,
-      content: path === ".claude-plugin/plugin.json" ? claudeManifest(content, servers) : content,
+      content: path === ".claude-plugin/plugin.json" && configuredServers ? claudeManifest(content, configuredServers) : content,
     })),
   ];
 }

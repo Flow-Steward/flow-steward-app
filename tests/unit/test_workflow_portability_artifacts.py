@@ -476,3 +476,66 @@ def test_extension_guardrails_are_named_as_the_extension_they_come_with(store: _
     assert "install-guard" in {
         item["install_id"] for item in bundle["dependencies"].get("extensions", [])
     }
+
+
+@pytest.mark.parametrize(
+    ("restrictions", "expected_rules", "expected_installs"),
+    [
+        (
+            {"allowed_workspace_ids": frozenset({"shop-workspace"})},
+            [GLOBAL_RULE, PROJECT_RULE],
+            {"install-global", "install-shop"},
+        ),
+        (
+            {"allowed_project_ids": frozenset({"proj-blog"})},
+            [GLOBAL_RULE, OTHER_PROJECT_RULE],
+            {"install-global", "install-blog"},
+        ),
+        (
+            {
+                "allowed_workspace_ids": frozenset({"shop-workspace"}),
+                "allowed_project_ids": frozenset({"proj-blog", "proj-missing", "proj-foreign"}),
+            },
+            [GLOBAL_RULE],
+            {"install-global"},
+        ),
+    ],
+    ids=["workspace", "projects", "empty-intersection"],
+)
+def test_guardrail_definitions_and_extension_dependencies_share_export_scope(
+    store: _Store, restrictions, expected_rules, expected_installs
+) -> None:
+    for project_id, workspace_id, account_id in [
+        ("proj-shop", "shop-workspace", ACCOUNT),
+        ("proj-blog", "blog-workspace", ACCOUNT),
+        ("proj-foreign", "shop-workspace", OTHER_ACCOUNT),
+    ]:
+        store.projects.setdefault(project_id, {}).update(
+            id=project_id, workspace_id=workspace_id, account_id=account_id
+        )
+    for label, project_id, install_id in [
+        ("global", None, "install-global"),
+        ("shop", "proj-shop", "install-shop"),
+        ("blog", "proj-blog", "install-blog"),
+        ("missing", "proj-missing", "install-missing"),
+        ("foreign", "proj-foreign", "install-foreign"),
+        ("shared-install", "proj-missing", "install-global"),
+    ]:
+        store.guardrails.append(
+            {
+                "id": f"extension-rule-{label}",
+                "project_id": project_id,
+                "account_id": ACCOUNT,
+                "source_install_id": install_id,
+                "_agents": ["writer"],
+            }
+        )
+
+    bundle, _ = _export(store, **restrictions)
+
+    assert [rule["id"] for rule in bundle["definitions"]["guardrails"]] == expected_rules
+    extensions = bundle["dependencies"]["extensions"]
+    assert {item["install_id"] for item in extensions} == expected_installs
+    assert [item["sources"] for item in extensions if item["install_id"] == "install-global"] == [
+        ["guardrail.extension-rule-global"]
+    ]
