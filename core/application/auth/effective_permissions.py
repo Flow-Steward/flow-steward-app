@@ -258,3 +258,15 @@ def effective_permissions(
             key for key in granted if token_grants_permission(PERMISSIONS[key], scopes)
         )
     return EffectivePermissions(kind, granted)
+
+
+def person_role_permissions(person: Mapping[str, Any] | None, conn: Any) -> frozenset[str]:
+    """A signed-in person's role permissions: the middleware's for this request, or read.
+
+    The middleware puts the request's permissions on the principal; a caller without
+    them (a service call, a test) reads the stored role permissions from ``conn``.
+    """
+    computed = (person or {}).get("permissions")
+    if isinstance(computed, (list, tuple, set, frozenset)):
+        return frozenset(str(key) for key in computed)
+    return owner_role_permissions(dict(person or {}), role_permissions=load_role_permissions(conn))

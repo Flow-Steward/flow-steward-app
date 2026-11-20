@@ -310,10 +310,12 @@ class InvalidScopeError(ValueError):
     """A requested scope is not one this authorization server issues."""
 
 
-def parse_requested_scopes(raw: str | None) -> list[str]:
-    """Split ``scope`` on spaces, drop ``offline_access``, validate the rest.
+def parse_explicit_scopes(raw: str | None) -> list[str]:
+    """The scopes a client named: ``scope`` split on spaces, ``offline_access`` dropped.
 
-    An empty or absent scope means the operational preset's seven scopes.
+    Empty when the client named none, so the consent can tell "asked for nothing in
+    particular" (an operator or a viewer then gets their role, ADR 0076 §5) from an
+    explicit request.
     """
     values: list[str] = []
     for item in str(raw or "").split(" "):
@@ -324,8 +326,15 @@ def parse_requested_scopes(raw: str | None) -> list[str]:
             raise InvalidScopeError("scope is not supported")
         if scope not in values:
             values.append(scope)
-    # Absent, empty, or only offline_access: the operational preset's scopes.
-    return values or list(DEFAULT_REQUESTED_SCOPES)
+    return values
+
+
+def parse_requested_scopes(raw: str | None) -> list[str]:
+    """Split ``scope`` on spaces, drop ``offline_access``, validate the rest.
+
+    An empty or absent scope means the operational preset's seven scopes.
+    """
+    return parse_explicit_scopes(raw) or list(DEFAULT_REQUESTED_SCOPES)
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +516,7 @@ __all__ = [
     "oauth_introspection_fields",
     "oauth_issuer_and_resource",
     "oauth_principal_denied_route",
+    "parse_explicit_scopes",
     "parse_requested_scopes",
     "pkce_verifier_matches",
     "public_https_blocker",

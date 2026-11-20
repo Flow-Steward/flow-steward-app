@@ -558,6 +558,7 @@ def test_only_a_browser_session_reaches_the_wizard_routes() -> None:
         "/api/auth/agent-access/setup",
         "/api/auth/agent-access/tokens",
         "/api/auth/agent-access/tokens/abc",
+        "/api/auth/agent-access/connections",
     ):
         assert is_interactive_only_path(path)
         assert oauth_principal_denied_route(path, "POST")
@@ -685,3 +686,58 @@ def test_a_role_token_passes_the_scope_check_of_every_route_its_role_may_call() 
                 method, path = route.split(" ", 1)
                 match = route_permission(method, path.replace("{", "").replace("}", ""))
                 assert match is not None and match.permission == "account.self", route
+
+
+# --- ADR 0076 §5: every connection says when it ends ------------------------------------
+
+
+def test_the_connections_say_when_they_end_and_which_end_soon(world, monkeypatch) -> None:
+    from datetime import timedelta
+
+    store, _table = world
+    seen: list[tuple[str, datetime]] = []
+
+    def connections(_conn, user_id, *, now):
+        seen.append((user_id, now))
+        return [
+            {
+                "kind": "personal_token",
+                "id": "tok-1",
+                "label": f"AI agent · {CLAUDE_CODE_LABEL}",
+                "created_at": now - timedelta(days=85),
+                "expires_at": now + timedelta(days=5),
+                "last_used_at": None,
+            },
+            {
+                "kind": "oauth_grant",
+                "id": "grant-1",
+                "label": "ChatGPT",
+                "client_id": "https://chatgpt.com/client",
+                "created_at": now - timedelta(days=1),
+                "expires_at": now + timedelta(days=89),
+                "last_used_at": now,
+            },
+        ]
+
+    monkeypatch.setattr(service_module.connection_repo, "list_user_connections", connections)
+    response = _http(_service(store), _user("viewer")).get("/api/auth/agent-access/connections")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    payload = response.json()
+    assert seen == [("user-viewer", NOW)]
+    assert payload["reminder_days"] == 7
+    token, grant = payload["connections"]
+    assert token["client_id"] == "claude_code"
+    assert token["ends_at"] == (NOW + timedelta(days=5)).isoformat()
+    assert token["ending_soon"] is True
+    assert token["days_left"] == 5
+    assert token["renew"] == "connect_again"
+    assert grant["client_label"] == "ChatGPT"
+    assert grant["ending_soon"] is False
+    assert grant["renew"] == "reconnect_from_client"
+
+
+def test_the_wizard_labels_its_tokens_for_the_connection_list(world) -> None:
+    store, _table = world
+    _issue(_service(store), user=_user("operator"))
+    assert store.tokens[0]["label"] == f"AI agent · {CLAUDE_CODE_LABEL}"

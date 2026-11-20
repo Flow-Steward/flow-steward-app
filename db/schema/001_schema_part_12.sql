@@ -377,3 +377,12 @@ CREATE TRIGGER trg_user_roles_role_is_system
 CREATE UNIQUE INDEX ux_user_roles_one_system_role_per_scope
     ON public.user_roles (user_id, workspace_id, project_id, workflow_id) NULLS NOT DISTINCT
     WHERE role_is_system;
+
+-- When the owner was reminded that an AI agent connection is about to stop working
+-- (ADR 0076 §5): one email per personal agent token or OAuth grant, seven days before
+-- its end. Set before the email is sent, so a restart never sends a second one.
+-- Migration 20261120140000_agent_expiry_reminders.sql adds the same columns.
+ALTER TABLE ONLY public.personal_access_tokens
+    ADD COLUMN expiry_reminder_sent_at timestamp with time zone;
+ALTER TABLE ONLY public.oauth_grants
+    ADD COLUMN expiry_reminder_sent_at timestamp with time zone;

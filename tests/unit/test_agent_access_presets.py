@@ -78,3 +78,71 @@ def test_the_role_preset_never_grants_a_secret_scope() -> None:
 
     for permissions in (ALL_PERMISSION_KEYS, {"secrets.value.write", "jobs.read"}):
         assert EXACT_ONLY_SCOPES.isdisjoint(presets.role_preset_scopes(permissions))
+
+
+# --- ADR 0076 §5: "as my role" on the consent screen ---------------------------------
+
+
+def test_the_role_grant_is_the_role_intersected_with_the_request() -> None:
+    from core.application.auth.permissions import (
+        ALL_PERMISSION_KEYS,
+        OPERATOR_PERMISSIONS,
+        VIEWER_PERMISSIONS,
+    )
+
+    operational = list(presets.OPERATIONAL_SCOPES)
+    viewer = presets.role_preset_grant(VIEWER_PERMISSIONS, operational)
+    assert viewer.scopes == ("projects.read", "jobs.read", "reports.read", "workflows.read")
+    assert viewer.narrower is True
+    assert set(viewer.permissions) == {
+        "jobs.read",
+        "projects.read",
+        "workflows.read",
+        "reports.read",
+    }
+    # An operator holds everything the operational scopes carry: they are kept as asked.
+    operator = presets.role_preset_grant(OPERATOR_PERMISSIONS, operational)
+    assert operator.scopes == presets.OPERATIONAL_SCOPES
+    assert operator.narrower is True
+    admin = presets.role_preset_grant(ALL_PERMISSION_KEYS, operational)
+    assert admin.scopes == presets.OPERATIONAL_SCOPES
+
+
+def test_a_request_for_everything_gets_exactly_the_role() -> None:
+    from core.application.auth.permissions import (
+        ALL_PERMISSION_KEYS,
+        OPERATOR_PERMISSIONS,
+        VIEWER_PERMISSIONS,
+    )
+
+    for permissions in (VIEWER_PERMISSIONS, OPERATOR_PERMISSIONS, ALL_PERMISSION_KEYS):
+        grant = presets.role_preset_grant(permissions, ["admin:all"])
+        assert grant.scopes == presets.role_preset_scopes(permissions)
+        assert grant.narrower is False
+    # A scope the others cover is not repeated.
+    operator = presets.role_preset_grant(OPERATOR_PERMISSIONS, ["jobs.read", "admin:all"])
+    assert operator.scopes == ("read:*", "registry.read", "command:*")
+
+
+def test_the_role_grant_never_exceeds_the_role_or_the_request() -> None:
+    from core.application.auth.permissions import (
+        OPERATOR_PERMISSIONS,
+        VIEWER_PERMISSIONS,
+    )
+
+    assert presets.role_preset_grant(VIEWER_PERMISSIONS, ["jobs.write"]).scopes == ()
+    assert presets.role_preset_grant(VIEWER_PERMISSIONS, []).scopes == ()
+    for permissions in (VIEWER_PERMISSIONS, OPERATOR_PERMISSIONS):
+        for requested in (["jobs.read"], ["jobs.write", "workflows.read"], ["admin:all"]):
+            grant = presets.role_preset_grant(permissions, requested)
+            carried = presets.permissions_of_scopes(grant.scopes)
+            assert set(grant.permissions) <= set(permissions)
+            assert set(grant.permissions) == carried & set(permissions)
+            assert carried <= presets.permissions_of_scopes(requested)
+
+
+def test_only_an_admin_chooses_the_access() -> None:
+    assert presets.may_choose_agent_access({"roles": ["admin"]}) is True
+    assert presets.may_choose_agent_access({"roles": ["operator", "viewer"]}) is False
+    assert presets.may_choose_agent_access({"roles": "viewer"}) is False
+    assert presets.may_choose_agent_access(None) is False

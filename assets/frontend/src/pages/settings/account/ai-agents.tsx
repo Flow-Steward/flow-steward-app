@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDate, formatDateTime } from "@/lib/time/date-time-format";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { fetchProjectsList } from "@/pages/projects/list/api";
+import { AGENT_CONNECTIONS_QUERY_KEY, AgentConnectionsList } from "@/pages/settings/account/ai-agents-connections";
 import { AgentCodeBlock } from "@/pages/settings/account/ai-agents-copy";
 import { AgentRequestCheck, AgentSetupSteps, AgentStep, AgentTokenStep, type AgentStepStatus } from "@/pages/settings/account/ai-agents-setup";
 import {
@@ -24,6 +25,7 @@ import type {
   AgentAccessIssueResult,
   AgentAccessTokenRequest,
   AgentClient,
+  AgentConnection,
   OAuthPresetId,
 } from "@/pages/settings/shared/types";
 
@@ -45,7 +47,6 @@ type Attempt = { key: string; request: AgentAccessTokenRequest };
 type OpenStep = 1 | 2 | 3 | 4;
 
 const MICROSOFT_365_CLIENT_ID = "microsoft_365_copilot";
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 function newAttemptKey(): string {
   if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -115,6 +116,8 @@ export function AiAgentsSection() {
   const [secret, setSecret] = useState("");
   const attempt = useRef<Attempt | null>(null);
   const inFlight = useRef(false);
+  // "Connect again" from a connection that is ending: issue once the client is chosen.
+  const [renewing, setRenewing] = useState(false);
 
   const client: AgentClient | undefined = setup?.clients.find((item) => item.id === clientId);
   const choice = client?.packages.find((item) => item.package_id === packageId && item.available);
@@ -186,7 +189,10 @@ export function AiAgentsSection() {
       setSecret(issued.secret || "");
       setIssue({ kind: "done", result: issued });
       setOpenStep(4);
-      await queryClient.invalidateQueries({ queryKey: ["settings", "account", "tokens"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["settings", "account", "tokens"] }),
+        queryClient.invalidateQueries({ queryKey: AGENT_CONNECTIONS_QUERY_KEY }),
+      ]);
     } catch (error) {
       const message = definiteFailure(error, t);
       if (message === null) {
@@ -214,6 +220,30 @@ export function AiAgentsSection() {
     };
     ignoreAsyncResult(send(attempt.current));
   }
+
+  /**
+   * Renew a connection made with this page: the same client, a fresh token. An
+   * operator or a viewer gets it at once, as with Connect; an admin sees the access
+   * step with their options first.
+   */
+  function connectAgain(connection: AgentConnection) {
+    if (!setup?.clients.some((item) => item.id === connection.client_id)) return;
+    startOver();
+    chooseClient(connection.client_id);
+    setClientMissing(false);
+    setOpenStep(3);
+    setRenewing(!choosesAccess);
+  }
+
+  useEffect(() => {
+    if (!renewing || !client) return;
+    setRenewing(false);
+    if (!choice || choice.auth !== "personal_token") {
+      setOpenStep(2);
+      return;
+    }
+    createToken();
+  });
 
   if (setupQuery.isError) {
     return <DsAlert title={t("react.agent_access.setup_unavailable", "The AI agent setup could not be loaded")} tone="danger">{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert>;
@@ -329,14 +359,18 @@ export function AiAgentsSection() {
 
   function renderOauthAccess(status: AgentStepStatus) {
     if (!client) return null;
-    const summary = t("react.agent_access.oauth_access_summary", "{client} connects through OAuth: you choose access in Flow Steward when you connect.", { client: client.label });
+    const summary = choosesAccess
+      ? t("react.agent_access.oauth_access_summary", "{client} connects through OAuth: you choose access in Flow Steward when you connect.", { client: client.label })
+      : t("react.agent_access.oauth_role_access_summary", "{client} connects through OAuth: you allow it in Flow Steward when you connect.", { client: client.label });
     if (status === "done") return <AgentStep number={3} status="done" summary={summary} title={titles.access} />;
     const [before, after = ""] = t("react.agent_access.oauth_no_token", "No token is created on this page. The connection then appears in {link}.").split("{link}");
     return (
       <AgentStep number={3} status="current" summary={summary} title={titles.access}>
         {renderBlockers("warning")}
         {client.id === MICROSOFT_365_CLIENT_ID ? <p className="fs-agent-text">{t("react.agent_access.oauth_m365_admin", "Your organisation's administrator adds Flow Steward to Microsoft 365 once. After that, you sign in to Flow Steward when you connect and choose access there.")}</p> : null}
-        <p className="fs-agent-text">{t("react.agent_access.oauth_access_body", "When you add Flow Steward in {client}, you sign in to Flow Steward and choose there what the agent may do, which projects it reaches and when access expires, then confirm.", { client: client.label })}</p>
+        <p className="fs-agent-text">{choosesAccess
+          ? t("react.agent_access.oauth_access_body", "When you add Flow Steward in {client}, you sign in to Flow Steward and choose there what the agent may do, which projects it reaches and when access expires, then confirm.", { client: client.label })
+          : t("react.agent_access.oauth_role_access_body", "When you add Flow Steward in {client}, you sign in to Flow Steward and allow it. It gets the same access as you for {days} days; connecting again from {client} renews it.", { client: client.label, days: String(setup?.role_access?.expiry_days || 0) })}</p>
         <p className="fs-agent-text">{before}<a className="fs-agent-link" href="/settings/account?tab=tokens">{t("react.agent_access.connected_apps_link", "Personal tokens › Connected AI apps")}</a>{after}</p>
         <div className="fs-agent-step-footer"><button className="fs-button primary" onClick={() => setOpenStep(4)} type="button">{t("react.agent_access.continue", "Continue")}</button></div>
       </AgentStep>
@@ -353,7 +387,7 @@ export function AiAgentsSection() {
       return <AgentTokenStep createAnotherLabel={choosesAccess ? undefined : t("react.agent_access.connect_again", "Connect again")} disabled={changing} number={3} onCreateAnother={createAnotherToken} onRevoked={() => setSecret("")} presetLabel={oauthPresetLabel(chosenPreset, t)} title={titles.access} tokenId={tokenId} />;
     }
     if (!choosesAccess) return renderRoleAccess();
-    const expiresOn = formatDate(new Date(Date.now() + expiryDays * DAY_MS).toISOString());
+    const expiresOn = setup?.expiry_dates?.[String(expiryDays)] || "";
     const projectsSummary = projectIds.length
       ? t("react.oauth.project_count", "{value1} projects", { value1: String(projectIds.length) })
       : t("react.agent_access.all_projects", "All projects");
@@ -391,7 +425,7 @@ export function AiAgentsSection() {
             <fieldset className="fs-agent-fieldset" disabled={locked}>
               <legend className="fs-field-label">{t("react.settings.expiration", "Expiration")}</legend>
               <div className="fs-agent-inline-options">{setup?.expiry_days_options.map((days) => <DsRadio checked={expiryDays === days} key={days} name="agent-access-expiry" onChange={() => setExpiryDays(days)} value={String(days)}>{t("react.settings.value1_days", "{value1} days", { value1: String(days) })}</DsRadio>)}</div>
-              <span className="fs-field-helper">{t("react.agent_access.token_expires_on", "The token expires on {date}.", { date: expiresOn })}</span>
+              {expiresOn ? <span className="fs-field-helper">{t("react.agent_access.token_expires_on", "The token expires on {date}.", { date: formatDate(expiresOn) })}</span> : null}
             </fieldset>
           </>
         ) : null}
@@ -504,6 +538,7 @@ export function AiAgentsSection() {
   return (
     <div className="fs-panel-stack fs-agent-setup">
       <div className="fs-panel-heading"><div><h2 className="fs-panel-title">{t("react.agent_access.title", "AI agents")}</h2><p>{t("react.agent_access.description", "Connect an AI client to Flow Steward: pick the client and the package, get the settings filled in, and make the first request.")}</p></div></div>
+      <AgentConnectionsList busy={issue.kind === "submitting"} onConnectAgain={connectAgain} />
       <ol className="fs-agent-steps">
         {renderClientStep()}
         {renderPackageStep()}

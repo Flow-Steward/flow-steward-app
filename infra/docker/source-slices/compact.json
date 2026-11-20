@@ -43,6 +43,8 @@
     "core/application/auth/account_memberships.py",
     "core/application/auth/agent_access_presets.py",
     "core/application/auth/agent_connection_catalog.py",
+    "core/application/auth/agent_connection_reminders.py",
+    "core/application/auth/agent_connection_repository.py",
     "core/application/auth/agent_connection_service.py",
     "core/application/auth/audit.py",
     "core/application/auth/auth_http_runtime.py",
@@ -1942,6 +1944,10 @@
     },
     {
       "path": "db/migrations/20261120090000_role_permissions.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120140000_agent_expiry_reminders.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

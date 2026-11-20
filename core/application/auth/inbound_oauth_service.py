@@ -18,12 +18,22 @@ from typing import Any
 from core.application.auth import inbound_oauth_platform_clients as platform_clients
 from core.application.auth import inbound_oauth_repository as repo
 from core.application.auth.agent_access_presets import (
+    ADVANCED_OPTIONS_ADMIN_ONLY,
+    ADVANCED_OPTIONS_ADMIN_ONLY_MESSAGE,
+    EXCEEDS_AUTHORITY_REASON,
+    ROLE_PRESET_EXPIRY_DAYS,
+    ROLE_PRESET_ID,
+    RoleGrant,
     agent_access_preset,
     granted_preset_scopes,
+    may_choose_agent_access,
     offered_presets,
     preset_offers,
+    role_preset_grant,
+    role_preset_scopes,
 )
 from core.application.auth.audit import log_auth_audit_event
+from core.application.auth.effective_permissions import person_role_permissions
 from core.application.auth.inbound_oauth_clients import (
     ALLOWED_CLIENT_ID_HOSTS,
     ClientMetadataUnavailableError,
@@ -41,6 +51,7 @@ from core.application.auth.inbound_oauth_policy import (
     BLOCKER_DISABLED_BY_ADMIN,
     CODE_LIFETIME,
     DEFAULT_GRANT_EXPIRY_DAYS,
+    DEFAULT_REQUESTED_SCOPES,
     GRANT_EXPIRY_DAY_CHOICES,
     MAX_STATE_LENGTH,
     PENDING_AUTHORIZATION_LIFETIME,
@@ -58,13 +69,14 @@ from core.application.auth.inbound_oauth_policy import (
     new_browser_binding,
     new_refresh_token,
     normalize_resource,
-    parse_requested_scopes,
+    parse_explicit_scopes,
     pkce_verifier_matches,
     redirect_uri_matches,
     redirect_with_params,
     secret_digest,
     valid_code_challenge,
 )
+from core.application.auth.permissions import PERMISSIONS, VIEWER_ROLE, highest_system_role
 from core.application.auth.principal import (
     TokenAuthorityError,
     enforce_token_scope_within_caller_authority,
@@ -123,6 +135,16 @@ class _ExchangeResult:
     payload: dict[str, Any] | None = None
     error: OAuthProtocolError | None = None
     audit: tuple[str, dict[str, Any]] | None = None
+
+
+def _requested_scopes(row: Mapping[str, Any]) -> tuple[list[str], bool]:
+    """What the client asked for, and whether it named anything.
+
+    A request stored before clients could leave the scope open, or one that named
+    nothing, is read as the operational preset's scopes for the preset offers.
+    """
+    explicit = repo.json_list(row.get("requested_scopes_jsonb"))
+    return (explicit or list(DEFAULT_REQUESTED_SCOPES)), bool(explicit)
 
 
 @dataclass
@@ -348,7 +370,8 @@ class InboundOAuthService:
         if not resource or resource != normalize_resource(readiness.resource):
             return redirect_error("invalid_target")
         try:
-            requested_scopes = parse_requested_scopes(values.get("scope"))
+            # Stored as named: an empty list is "nothing in particular" (ADR 0076 §5).
+            requested_scopes = parse_explicit_scopes(values.get("scope"))
         except InvalidScopeError:
             return redirect_error("invalid_scope")
 
@@ -412,6 +435,53 @@ class InboundOAuthService:
     def _preset_offers(user: Mapping[str, Any], requested: list[str]) -> list[dict[str, Any]]:
         return preset_offers(user, requested)
 
+    def _role_grant(
+        self, conn: Any, caller: Mapping[str, Any], requested: list[str], *, explicit: bool
+    ) -> RoleGrant:
+        """The "as my role" access for this request: the role ∩ what the client asked for.
+
+        A client that named no scope asked for nothing in particular: the person's
+        role is the whole answer, never "narrower" than it.
+        """
+        permissions = person_role_permissions(caller, conn)
+        if not explicit:
+            return role_preset_grant(permissions, role_preset_scopes(permissions))
+        return role_preset_grant(permissions, requested)
+
+    @staticmethod
+    def _role_grant_available(caller: Mapping[str, Any], grant: RoleGrant) -> bool:
+        if not grant.scopes:
+            return False
+        try:
+            enforce_token_scope_within_caller_authority(
+                dict(caller),
+                requested_scopes=list(grant.scopes),
+                requested_project_ids=[],
+                requested_workflow_ids=[],
+            )
+        except TokenAuthorityError:
+            return False
+        return True
+
+    def _role_access_view(self, caller: Mapping[str, Any], grant: RoleGrant) -> dict[str, Any]:
+        """What the consent screen says the app gets "as my role", in catalogue words."""
+        roles = caller.get("roles") or []
+        if isinstance(roles, str):
+            roles = [roles]
+        return {
+            "preset": ROLE_PRESET_ID,
+            "role": highest_system_role(roles) or VIEWER_ROLE,
+            "scopes": list(grant.scopes),
+            "permissions": [
+                {"key": key, "description": PERMISSIONS[key].description}
+                for key in grant.permissions
+            ],
+            "narrower": grant.narrower,
+            "available": self._role_grant_available(caller, grant),
+            "expiry_days": ROLE_PRESET_EXPIRY_DAYS,
+            "expires_at": (self.clock() + timedelta(days=ROLE_PRESET_EXPIRY_DAYS)).isoformat(),
+        }
+
     def consent_view(
         self,
         request_id: str,
@@ -426,10 +496,24 @@ class InboundOAuthService:
                 conn, str(row["client_id"]), str(caller.get("account_id") or "")
             ):
                 raise ConsentError(ClientNotAllowedError.code, 403)
+            requested, explicit = _requested_scopes(row)
+            grant = self._role_grant(conn, caller, requested, explicit=explicit)
         self._account_ready(str(caller.get("account_id") or ""))
-        requested = repo.json_list(row.get("requested_scopes_jsonb"))
-        offers = self._preset_offers(caller, requested)
-        default = next((offer["id"] for offer in offers if offer["available"]), None)
+        role_access = self._role_access_view(caller, grant)
+        advanced = may_choose_agent_access(caller)
+        # ADR 0076 §5: an operator or a viewer is offered their role's access only; an
+        # admin also keeps the presets, the expiry and the projects, the role preselected.
+        role_offer = {
+            "id": ROLE_PRESET_ID,
+            "scopes": role_access["scopes"],
+            "available": role_access["available"],
+            "reason": "" if role_access["available"] else EXCEEDS_AUTHORITY_REASON,
+            "subset_of_preset": role_access["narrower"],
+        }
+        offers = [role_offer, *self._preset_offers(caller, requested)] if advanced else []
+        default = ROLE_PRESET_ID if role_access["available"] else None
+        if advanced and default is None:
+            default = next((offer["id"] for offer in offers if offer["available"]), None)
         client_id = str(row["client_id"])
         redirect_uri = str(row["redirect_uri"])
         return {
@@ -446,10 +530,17 @@ class InboundOAuthService:
                 "redirect_uri_host": host_of(redirect_uri),
                 "redirect_uri_loopback": is_loopback_redirect_uri(redirect_uri),
             },
+            "user": {
+                "username": str(caller.get("username") or ""),
+                "display_name": str(caller.get("display_name") or ""),
+                "role": role_access["role"],
+            },
             "requested_scopes": requested,
+            "role_access": role_access,
+            "advanced_options": advanced,
             "presets": offers,
             "default_preset": default,
-            "expiry_days_options": list(GRANT_EXPIRY_DAY_CHOICES),
+            "expiry_days_options": list(GRANT_EXPIRY_DAY_CHOICES) if advanced else [],
             "default_expiry_days": DEFAULT_GRANT_EXPIRY_DAYS,
         }
 
@@ -539,14 +630,36 @@ class InboundOAuthService:
         expiry_days: int | None,
         project_ids: list[str] | None,
     ) -> tuple[list[str], list[str], str, int]:
-        requested = repo.json_list(row.get("requested_scopes_jsonb"))
-        preset = agent_access_preset(str(preset_id or ""))
-        if preset is None or preset.id not in {item.id for item in offered_presets(requested)}:
-            raise ConsentError("invalid_preset", 400)
-        scopes = granted_preset_scopes(preset, requested)
+        requested, explicit = _requested_scopes(row)
+        chosen = str(preset_id or "").strip().lower()
+        projects = sorted({str(item).strip() for item in project_ids or [] if str(item).strip()})
+        if not may_choose_agent_access(caller) and (
+            chosen not in {"", ROLE_PRESET_ID} or expiry_days is not None or projects
+        ):
+            # ADR 0076 §5: an operator or a viewer gets their role's access for the
+            # server's expiry; only an admin chooses a preset, an expiry or projects.
+            raise ConsentError(
+                ADVANCED_OPTIONS_ADMIN_ONLY, 403, ADVANCED_OPTIONS_ADMIN_ONLY_MESSAGE
+            )
+        if chosen in {"", ROLE_PRESET_ID}:
+            scopes = list(self._role_grant(conn, caller, requested, explicit=explicit).scopes)
+            if not scopes:
+                raise ConsentError(
+                    "exceeds_authority",
+                    403,
+                    "The access this app asks for is more than your role allows.",
+                )
+            chosen = ROLE_PRESET_ID
+            if expiry_days is None:
+                expiry_days = ROLE_PRESET_EXPIRY_DAYS
+        else:
+            preset = agent_access_preset(chosen)
+            if preset is None or preset.id not in {item.id for item in offered_presets(requested)}:
+                raise ConsentError("invalid_preset", 400)
+            scopes = granted_preset_scopes(preset, requested)
+            chosen = preset.id
         if expiry_days not in GRANT_EXPIRY_DAY_CHOICES:
             raise ConsentError("invalid_expiry", 400)
-        projects = sorted({str(item).strip() for item in project_ids or [] if str(item).strip()})
         account_id = str(caller.get("account_id") or "")
         if projects and repo.accessible_project_ids(conn, account_id, projects) != set(projects):
             raise ConsentError("project_not_accessible", 403)
@@ -559,7 +672,7 @@ class InboundOAuthService:
             )
         except TokenAuthorityError as exc:
             raise ConsentError("exceeds_authority", exc.status_code, str(exc)) from exc
-        return scopes, projects, preset.id, int(expiry_days)
+        return scopes, projects, chosen, int(expiry_days)
 
     # ------------------------------------------------------------------
     # Token endpoint (decisions 7, 8)

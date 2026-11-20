@@ -8,6 +8,7 @@ import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
 import {
   fetchAgentAccessSetup,
   fetchAgentAccessToken,
+  fetchAgentConnections,
   fetchPersonalTokensCollection,
   issueAgentAccessToken,
   revokePersonalToken,
@@ -16,12 +17,14 @@ import type {
   AgentAccessIssueResult,
   AgentAccessSetup,
   AgentClientPackage,
+  AgentConnection,
   AgentSetupStep,
 } from "@/pages/settings/shared/types";
 
 vi.mock("@/pages/settings/shared/api", () => ({
   fetchAgentAccessSetup: vi.fn(),
   fetchAgentAccessToken: vi.fn(),
+  fetchAgentConnections: vi.fn(),
   fetchPersonalTokensCollection: vi.fn(),
   issueAgentAccessToken: vi.fn(),
   revokePersonalToken: vi.fn(),
@@ -29,6 +32,7 @@ vi.mock("@/pages/settings/shared/api", () => ({
 vi.mock("@/pages/projects/list/api", () => ({ fetchProjectsList: vi.fn() }));
 
 const mockedSetup = vi.mocked(fetchAgentAccessSetup);
+const mockedConnections = vi.mocked(fetchAgentConnections);
 const mockedIssue = vi.mocked(issueAgentAccessToken);
 const mockedToken = vi.mocked(fetchAgentAccessToken);
 const mockedTokens = vi.mocked(fetchPersonalTokensCollection);
@@ -106,6 +110,7 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSet
       { id: "full_authoring", scopes: ["admin:all"], available: false, reason: "exceeds_authority", subset_of_preset: false },
     ],
     expiry_days_options: [7, 30, 90],
+    expiry_dates: { "7": "2026-11-07T12:00:00Z", "30": "2026-11-30T12:00:00Z", "90": "2027-01-29T12:00:00Z" },
     default_expiry_days: 30,
     // The admin's view: the advanced options exist, folded away.
     role_access: { preset: "my_role", scopes: ["admin:all"], expiry_days: 90, advanced_options: true },
@@ -181,6 +186,7 @@ describe("AiAgentsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSetup.mockResolvedValue(setupPayload());
+    mockedConnections.mockResolvedValue({ connections: [], reminder_days: 7 });
     mockedProjects.mockResolvedValue({ projects: [{ id: "p-1", name: "Shop" }] } as never);
     mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: ["projects.read"], last_used_at: null, expires_at: "2026-11-30T12:00:00Z", allowed_project_ids: [] } });
     mockedTokens.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 25, total_pages: 1 } as never);
@@ -470,6 +476,67 @@ describe("AiAgentsSection", () => {
       clickContinue();
       fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
       await waitFor(() => expect(screen.getByText("Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects.")).toBeInTheDocument());
+    });
+  });
+
+  describe("ADR 0076: each connection says when it ends", () => {
+    function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
+      return {
+        id: "tok-9",
+        kind: "personal_token",
+        client_id: "claude_code",
+        client_label: "Local agent",
+        created_at: "2026-08-27T12:00:00Z",
+        ends_at: "2026-11-25T12:00:00Z",
+        last_used_at: null,
+        days_left: 5,
+        ending_soon: true,
+        renew: "connect_again",
+        ...overrides,
+      };
+    }
+
+    it("lists the connections with their end date and warns about one ending soon", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedConnections.mockResolvedValue({
+        reminder_days: 7,
+        connections: [
+          connection(),
+          connection({ id: "grant-1", kind: "oauth_grant", client_id: "", client_label: "ChatGPT", ends_at: "2027-01-20T12:00:00Z", days_left: 61, ending_soon: false, renew: "reconnect_from_client" }),
+        ],
+      });
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      expect(within(list).getByText("ChatGPT")).toBeInTheDocument();
+      expect(within(list).getByText(/^In the cloud · Works until /)).toHaveTextContent("2027");
+      expect(within(list).getByText(/^Local agent stops working in 5 days, on /)).toBeInTheDocument();
+      // Only the connection ending soon has a warning and an action.
+      expect(within(list).getAllByRole("button", { name: "Connect again" })).toHaveLength(1);
+    });
+
+    it("tells a cloud client's owner to connect again from the client", async () => {
+      mockedConnections.mockResolvedValue({
+        reminder_days: 7,
+        connections: [connection({ id: "grant-1", kind: "oauth_grant", client_id: "", client_label: "ChatGPT", renew: "reconnect_from_client" })],
+      });
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      expect(within(list).getByText("To keep it working, connect Flow Steward again from ChatGPT. Flow Steward asks you to allow it once more.")).toBeInTheDocument();
+      expect(within(list).queryByRole("button", { name: "Connect again" })).not.toBeInTheDocument();
+    });
+
+    it("Connect again issues a fresh token for the same client as the person's role", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedConnections.mockResolvedValue({ reminder_days: 7, connections: [connection()] });
+      mockedIssue.mockResolvedValue(created());
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      await screen.findByRole("radio", { name: /Local agent/ });
+      fireEvent.click(within(list).getByRole("button", { name: "Connect again" }));
+      await waitFor(() => expect(mockedIssue).toHaveBeenCalledTimes(1));
+      expect(mockedIssue.mock.calls[0][1]).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator" });
+      expect(await screen.findByLabelText("Add the server")).toBeInTheDocument();
+      await waitFor(() => expect(mockedConnections.mock.calls.length).toBeGreaterThan(1));
     });
   });
 

@@ -71,6 +71,14 @@ def create_agent_connection_router(
             return _error(error)
         return JSONResponse(payload, headers=_NO_STORE)
 
+    @router.get("/api/auth/agent-access/connections", include_in_schema=False)
+    async def agent_access_connections(request: Request):
+        try:
+            payload = await run_in_threadpool(_service().connections, _user(request))
+        except AgentConnectionError as error:
+            return _error(error)
+        return JSONResponse(payload, headers=_NO_STORE)
+
     @router.post("/api/auth/agent-access/tokens", include_in_schema=False)
     async def agent_access_issue_token(
         request: Request,

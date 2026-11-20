@@ -9,6 +9,10 @@
     "core/application/__init__.py",
     "core/application/auth/__init__.py",
     "core/application/auth/account_memberships.py",
+    "core/application/auth/agent_access_presets.py",
+    "core/application/auth/agent_connection_catalog.py",
+    "core/application/auth/agent_connection_reminders.py",
+    "core/application/auth/agent_connection_repository.py",
     "core/application/auth/audit.py",
     "core/application/auth/bootstrap_tokens.py",
     "core/application/auth/config.py",
@@ -16,6 +20,7 @@
     "core/application/auth/enforce.py",
     "core/application/auth/first_admin.py",
     "core/application/auth/first_admin_repository.py",
+    "core/application/auth/inbound_oauth_policy.py",
     "core/application/auth/mcp_connector_oauth.py",
     "core/application/auth/mcp_connector_oauth_policy.py",
     "core/application/auth/mcp_connector_oauth_provider.py",
@@ -122,6 +127,7 @@
     "core/application/extensions/secret_reflection.py",
     "core/application/extensions/semver.py",
     "core/application/extensions/service_support.py",
+    "core/application/extensions/system_email.py",
     "core/application/extensions/url_safety.py",
     "core/application/extensions/workflow_install_contract.py",
     "core/application/idempotency/__init__.py",
@@ -603,6 +609,7 @@
     "core/infrastructure/observability/process_metrics_runtime.py",
     "core/infrastructure/observability/runtime_logging.py",
     "core/infrastructure/observability/sentry.py",
+    "core/infrastructure/public_identity.py",
     "core/infrastructure/runtime/__init__.py",
     "core/infrastructure/runtime/app_factory.py",
     "core/infrastructure/runtime/artifact_storage_factory.py",
@@ -725,6 +732,10 @@
     },
     {
       "path": "db/migrations/20261120090000_role_permissions.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120140000_agent_expiry_reminders.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

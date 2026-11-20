@@ -43,6 +43,7 @@ import { AppShellHeader } from "@/components/layout/app-shell-header";
 import { ShellLayout } from "@/components/layout/app-shell-layout";
 import { MaintenanceBanner } from "@/components/layout/maintenance-banner";
 import { CoreUpdateBanner } from "@/components/layout/core-update-banner";
+import { AgentExpiryBanner } from "@/components/layout/agent-expiry-banner";
 import {
   readSidebarRailState,
   toggleSidebarRailState,
@@ -679,7 +680,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     <div className="app-shell-root" data-shell-theme={themeMode}>
       <ShellLayout
         header={header}
-        maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}</>}
+        maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}<AgentExpiryBanner /></>}
         railState={railState}
         sidebar={sidebar}
       >

@@ -30,12 +30,17 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
+from core.application.auth import agent_connection_repository as connection_repo
 from core.application.auth import inbound_oauth_repository as oauth_repo
 from core.application.auth.agent_access_presets import (
+    ADVANCED_OPTIONS_ADMIN_ONLY,
+    ADVANCED_OPTIONS_ADMIN_ONLY_MESSAGE,
     AGENT_ACCESS_SCOPES,
+    AGENT_EXPIRY_REMINDER_DAYS,
     ROLE_PRESET_EXPIRY_DAYS,
     ROLE_PRESET_ID,
     agent_access_preset,
+    may_choose_agent_access,
     preset_offers,
     role_preset_scopes,
 )
@@ -55,11 +60,9 @@ from core.application.auth.agent_connection_catalog import (
     agent_skill_package,
     client_package_setup,
 )
+from core.application.auth.agent_connection_reminders import connection_view
 from core.application.auth.audit import log_auth_audit_event
-from core.application.auth.effective_permissions import (
-    load_role_permissions,
-    owner_role_permissions,
-)
+from core.application.auth.effective_permissions import person_role_permissions
 from core.application.auth.inbound_oauth_policy import (
     DEFAULT_GRANT_EXPIRY_DAYS,
     GRANT_EXPIRY_DAY_CHOICES,
@@ -67,7 +70,6 @@ from core.application.auth.inbound_oauth_policy import (
     OAuthReadiness,
     current_oauth_environment,
 )
-from core.application.auth.permissions import ADMIN_ROLE, highest_system_role
 from core.application.auth.principal import (
     TokenAuthorityError,
     enforce_token_scope_within_caller_authority,
@@ -85,10 +87,6 @@ from core.infrastructure.public_identity import mcp_auth_urls, public_origin
 ISSUE_OPERATION = "auth.agent_access.issue_token"
 #: How long a repeat of the same attempt still answers with the token it created.
 REPLAY_WINDOW = timedelta(days=1)
-TOKEN_LABEL_PREFIX = "AI agent"
-
-#: An operator or a viewer sent a preset, an expiry or projects (ADR 0076 §5).
-ADVANCED_OPTIONS_ADMIN_ONLY = "advanced_options_admin_only"
 
 BLOCKER_PUBLIC_ADDRESS_MISSING = "public_address_missing"
 BLOCKER_INTERNAL_ADDRESS = "internal_address"
@@ -167,14 +165,6 @@ def _token_view(token: Mapping[str, Any]) -> dict[str, Any]:
         "revoked": bool(token.get("revoked", False)),
         "expired": bool(token.get("expired", False)),
     }
-
-
-def may_choose_agent_access(user: Mapping[str, Any] | None) -> bool:
-    """Whether the person chooses a preset, an expiry and projects: the admin only."""
-    roles = (user or {}).get("roles") or []
-    if isinstance(roles, str):
-        roles = [roles]
-    return highest_system_role(roles) == ADMIN_ROLE
 
 
 def _caller_ids(user: Mapping[str, Any] | None) -> tuple[str, str]:
@@ -332,6 +322,11 @@ class AgentConnectionService:
                 "advanced_options": may_choose_agent_access(user),
             },
             "expiry_days_options": list(GRANT_EXPIRY_DAY_CHOICES),
+            # The end date of each choice, so the page never computes a date itself.
+            "expiry_dates": {
+                str(days): (self.clock() + timedelta(days=days)).isoformat()
+                for days in GRANT_EXPIRY_DAY_CHOICES
+            },
             "default_expiry_days": DEFAULT_GRANT_EXPIRY_DAYS,
             "first_request": self._step(FIRST_REQUEST_STEP, {}),
             "clients": clients,
@@ -342,12 +337,7 @@ class AgentConnectionService:
     # ------------------------------------------------------------------
     def _owner_permissions(self, user: Mapping[str, Any] | None) -> frozenset[str]:
         """The person's role permissions: the middleware's, or read from the database."""
-        computed = (user or {}).get("permissions")
-        if isinstance(computed, (list, tuple, set, frozenset)):
-            return frozenset(str(key) for key in computed)
-        return owner_role_permissions(
-            dict(user or {}), role_permissions=load_role_permissions(self.bl.conn)
-        )
+        return person_role_permissions(user, self.bl.conn)
 
     def _issue_request(
         self,
@@ -375,10 +365,7 @@ class AgentConnectionService:
             requested_preset not in {"", ROLE_PRESET_ID} or expiry_days is not None or projects
         ):
             raise AgentConnectionError(
-                ADVANCED_OPTIONS_ADMIN_ONLY,
-                403,
-                "Your agent gets the access of your role; only an admin chooses the access, "
-                "the expiry and the projects.",
+                ADVANCED_OPTIONS_ADMIN_ONLY, 403, ADVANCED_OPTIONS_ADMIN_ONLY_MESSAGE
             )
         if requested_preset in {"", ROLE_PRESET_ID}:
             scopes = list(role_preset_scopes(self._owner_permissions(user)))
@@ -467,7 +454,7 @@ class AgentConnectionService:
             token = self.bl.create_pat(
                 user_id=user_id,
                 account_id=account_id,
-                label=f"{TOKEN_LABEL_PREFIX} · {client.label}",
+                label=f"{connection_repo.AGENT_TOKEN_LABEL_PREFIX}{client.label}",
                 scopes=scopes,
                 allowed_project_ids=projects,
                 allowed_workflow_ids=[],
@@ -534,6 +521,24 @@ class AgentConnectionService:
             "token": _token_view(token) if token else {"id": token_id},
             "secret": "",
             "secret_already_shown": True,
+        }
+
+    # ------------------------------------------------------------------
+    # The person's connections and when they end (ADR 0076 §5)
+    # ------------------------------------------------------------------
+    def connections(self, user: Mapping[str, Any] | None) -> dict[str, Any]:
+        """Every AI agent connection of the person that still works, soonest end first.
+
+        Each says when it ends, whether that is within the reminder window and how it is
+        renewed; the page and the app shell notice show these and compute no date.
+        """
+        user_id, _account_id = _caller_ids(user)
+        now = self.clock()
+        with transaction_connection(self.bl.conn) as conn:
+            rows = connection_repo.list_user_connections(conn, user_id, now=now)
+        return {
+            "connections": [connection_view(row, now) for row in rows],
+            "reminder_days": AGENT_EXPIRY_REMINDER_DAYS,
         }
 
     # ------------------------------------------------------------------
