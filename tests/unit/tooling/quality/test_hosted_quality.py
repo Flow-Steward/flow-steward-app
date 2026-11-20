@@ -249,6 +249,34 @@ def test_each_tier3_part_is_restored_from_its_newest_attempt(
     assert (restored / "backend.json").read_text() == "backend passed"
 
 
+def test_tier3_merge_keeps_the_shared_mode_of_existing_log_directories(
+    candidate: tuple[Path, dict[str, str]],
+) -> None:
+    """Run 44744006520: `cp -a` reset logs/quality to the artifact's 0755, and the
+    image user lost the group access prepare-quality had given it."""
+    _, env = candidate
+    root = Path(env["GITHUB_WORKSPACE"])
+    sha = env["GITHUB_SHA"]
+    shared = root / "logs/quality"
+    shared.mkdir(parents=True)
+    shared.chmod(0o775)
+    part = root / f"runner-temp/tier3/tier3-backend-{sha}-1/quality/evidence"
+    part.mkdir(parents=True)
+    (part / "backend.json").write_text("backend passed")
+    (part.parent).chmod(0o755)
+
+    result = subprocess.run(
+        ["bash", str(SCRIPT), "merge-tier3", str(root / "runner-temp/tier3")],
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (shared / "evidence/backend.json").read_text() == "backend passed"
+    assert shared.stat().st_mode & 0o777 == 0o775
+
+
 def test_tier3_merge_without_a_part_of_this_commit_fails(
     candidate: tuple[Path, dict[str, str]],
 ) -> None:

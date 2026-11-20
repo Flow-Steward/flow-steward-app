@@ -130,7 +130,10 @@ case "${1:-}" in
     mkdir -p logs
     for part in "${!newest[@]}"; do
       echo "Tier 3 ${part}: attempt ${newest[${part}]}"
-      cp -a "${downloads}/tier3-${part}-${GITHUB_SHA}-${newest[${part}]}/." logs/
+      # Not `cp -a`: it gave logs/quality the artifact's runner-only mode, undoing the
+      # group access prepare-quality grants the image user, and Sonar could no longer
+      # create logs/quality/sonar (run 44744006520). Existing directories keep theirs.
+      cp -R "${downloads}/tier3-${part}-${GITHUB_SHA}-${newest[${part}]}/." logs/
     done
     ;;
   *)
