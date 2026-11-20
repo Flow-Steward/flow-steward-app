@@ -4,6 +4,7 @@ import { DsAlert, DsCheckbox, DsDialog, DsSelect } from "@/components/shared/des
 import { AssignmentSelector } from "@/components/shared/assignment-selector";
 import { Button } from "@/components/ui/button";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { identifierFromName } from "@/lib/utils/identifier-from-name";
 import type { EntityForm, RegistryEntity } from "./catalog-surface-helpers";
 import type { RegistryConflict } from "./registry-conflict";
 import { SaveErrorAlert } from "./save-feedback";
@@ -30,6 +31,8 @@ type RegistryCreateDialogProps = {
   showsIdentifierField: boolean;
   idKey: string;
   requiresIdentifier: boolean;
+  /** The ID is prefilled from the display name (agents, tools, skills). */
+  derivesIdentifier: boolean;
   setCreateForm: Dispatch<SetStateAction<EntityForm>>;
   createForm: EntityForm;
   requiresDisplayName: boolean;
@@ -82,6 +85,7 @@ export function RegistryCreateDialog({
   showsIdentifierField,
   idKey,
   requiresIdentifier,
+  derivesIdentifier,
   setCreateForm,
   createForm,
   requiresDisplayName,
@@ -160,22 +164,6 @@ export function RegistryCreateDialog({
                 id={createModalId}
                 onSubmit={(event) => ignoreAsyncResult(handleCreate(event))}
               >
-                {renderWhen(showsIdentifierField, (
-                  <div className="fs-field">
-                    <label className="fs-field-label" htmlFor="create-identifier">
-                      {idKey.toUpperCase()}
-                      {renderWhen(requiresIdentifier, <span aria-hidden="true" className="fs-required">*</span>)}
-                    </label>
-                    <input
-                      className="fs-input"
-                      id="create-identifier"
-                      name={idKey}
-                      onChange={(event) => setCreateForm((current) => ({ ...current, identifier: event.target.value }))}
-                      required={requiresIdentifier}
-                      value={createForm.identifier}
-                    />
-                  </div>
-                ))}
                 <div className="fs-field">
                   <label className="fs-field-label" htmlFor="create-display-name">
                     {t("users.modal.display_name", "Display Name")}{renderWhen(requiresDisplayName, <span aria-hidden="true" className="fs-required">*</span>)}
@@ -184,11 +172,52 @@ export function RegistryCreateDialog({
                     className="fs-input"
                     id="create-display-name"
                     name="display_name"
-                    onChange={(event) => setCreateForm((current) => ({ ...current, display_name: event.target.value }))}
+                    onChange={(event) => {
+                      const displayName = event.target.value;
+                      // The ID follows the name until the user types an ID of their own.
+                      setCreateForm((current) => ({
+                        ...current,
+                        display_name: displayName,
+                        identifier: derivesIdentifier && !current.identifier_edited
+                          ? identifierFromName(displayName)
+                          : current.identifier,
+                      }));
+                    }}
                     required={requiresDisplayName}
                     value={createForm.display_name}
                   />
                 </div>
+                {renderWhen(showsIdentifierField, (
+                  <div className="fs-field">
+                    <label className="fs-field-label" htmlFor="create-identifier">
+                      {derivesIdentifier
+                        ? t("react.registry.value0_id", "{value0} ID", { value0: createLabel })
+                        : idKey.toUpperCase()}
+                      {renderWhen(requiresIdentifier, <span aria-hidden="true" className="fs-required">*</span>)}
+                    </label>
+                    <input
+                      aria-describedby={derivesIdentifier ? "create-identifier-help" : undefined}
+                      className="fs-input"
+                      id="create-identifier"
+                      name={idKey}
+                      onChange={(event) => {
+                        const identifier = event.target.value;
+                        // Clearing the ID hands it back to the display name.
+                        setCreateForm((current) => ({ ...current, identifier, identifier_edited: identifier !== "" }));
+                      }}
+                      required={requiresIdentifier}
+                      value={createForm.identifier}
+                    />
+                    {renderWhen(derivesIdentifier, (
+                      <span className="fs-field-helper" id="create-identifier-help">
+                        {t(
+                          "react.registry.identifier_follows_display_name",
+                          "Filled from the display name; you can change it. Lowercase letters, numbers and underscores, starting with a letter.",
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ))}
                 <div className="fs-field">
                   <label className="fs-field-label" htmlFor="create-description">
                     {t("registry.workflows.simulation.description", "Description")}</label>
@@ -403,7 +432,7 @@ export function RegistryCreateDialog({
                     conflict={createConflict}
                     error={createError}
                     onUseDisplayName={(value) => setCreateForm((current) => ({ ...current, display_name: value }))}
-                    onUseId={showsIdentifierField ? (value) => setCreateForm((current) => ({ ...current, identifier: value })) : undefined}
+                    onUseId={showsIdentifierField ? (value) => setCreateForm((current) => ({ ...current, identifier: value, identifier_edited: true })) : undefined}
                     title={t("react.registry.display_failed_create_entity", "Failed to create entity.")}
                   />
                 ) : renderWhen(Boolean(createError), <DsAlert title={createError} tone="danger" />)}

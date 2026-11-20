@@ -234,6 +234,21 @@ def test_internal_error_uses_generic_public_cause_and_redacted_technical_detail(
     assert "[REDACTED]" in mapped.technical_detail
 
 
+def test_internal_error_keeps_a_redacted_traceback_without_verbose() -> None:
+    def fail() -> None:
+        raise KeyError("api_key=hidden-value")
+
+    try:
+        fail()
+    except KeyError as exc:
+        mapped = map_exception(exc)
+
+    assert mapped.code == "internal_error"
+    assert "Traceback (most recent call last)" in mapped.technical_detail
+    assert "in fail" in mapped.technical_detail
+    assert "hidden-value" not in mapped.technical_detail
+
+
 def test_schema_contract_error_has_safe_actionable_recovery_message() -> None:
     mapped = map_exception(DatabaseSchemaRecoveryRequiredError("raw database driver detail"))
 
@@ -286,3 +301,16 @@ def test_error_mapping_owns_stable_exit_codes(
     assert mapped.summary
     assert mapped.cause
     assert mapped.remediation
+
+
+def test_a_docker_gateway_failure_names_docker_instead_of_an_internal_error() -> None:
+    """#28: a stopped compact-runtime surfaced as "An unexpected internal error"."""
+    from core.application.lifecycle.stack_models import StackGatewayError
+
+    mapped = map_exception(
+        StackGatewayError(action="maintenance", detail='service "compact-runtime" is not running')
+    )
+
+    assert mapped.code == "docker_operation_failed"
+    assert mapped.cause == 'service "compact-runtime" is not running'
+    assert "stack status" in mapped.remediation

@@ -146,7 +146,8 @@ async def _read_report(job_id: str, wait_seconds: int, correlation_id: str) -> d
         "after workflow_trigger gave its job_id. You receive the report's title, summary "
         "text and counts; the user sees the full report in the viewer. wait_seconds "
         f"(0-{MAX_WAIT_SECONDS}) waits for a running job; state 'pending' means call "
-        "again. Not operational analytics (see report_generate)."
+        "again. job_url is the run's page for the user. Not operational analytics "
+        "(see report_generate)."
     ),
 )
 async def workflow_run_report(

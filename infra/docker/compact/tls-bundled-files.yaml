@@ -1,6 +1,9 @@
+# The certificate reaches Traefik through traefik-files too (#27): see
+# ingress-bundled_traefik.yaml. render-public-router.sh moves the dynamic
+# certificate configuration into the active directory on every start.
 services:
-  traefik:
+  traefik-files:
     volumes:
-      - ./compact/public-certificate.yaml:/run/traefik-dynamic/compact-certificate.yaml:ro
-      - ${FS_TLS_CERTIFICATE_PATH:-../../.ssl/cert.pem}:/etc/traefik/certs/cert.pem:ro
-      - ${FS_TLS_PRIVATE_KEY_PATH:-../../.ssl/key.pem}:/etc/traefik/certs/key.pem:ro
+      - ./compact/public-certificate.yaml:/source/dynamic/compact-certificate.yaml:ro
+      - ${FS_TLS_CERTIFICATE_PATH:-../../.ssl/cert.pem}:/source/certs/cert.pem:ro
+      - ${FS_TLS_PRIVATE_KEY_PATH:-../../.ssl/key.pem}:/source/certs/key.pem:ro

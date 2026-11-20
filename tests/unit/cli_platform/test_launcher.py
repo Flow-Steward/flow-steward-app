@@ -287,6 +287,16 @@ def fake_repo(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Pa
                 exit "${FAKE_COMPOSE_EXIT:-0}"
                 ;;
               run)
+                case " $* " in
+                  *" fs-cli maintenance-status --json "*)
+                    if [ -n "${FAKE_MAINTENANCE_STATUS:-}" ]; then
+                      printf '%s\\n' "$FAKE_MAINTENANCE_STATUS"
+                    else
+                      printf '%s\\n' '{"ok":true,"result":{"status":"enabled"}}'
+                    fi
+                    exit 0
+                    ;;
+                esac
                 if [ "${FAKE_ECHO_STDIN:-0}" = "1" ]; then
                   cat
                 elif [ "${FAKE_CAPTURE_STDIN:-0}" = "1" ]; then
@@ -4773,7 +4783,7 @@ def test_compact_database_uses_candidate_image_and_runtime_secret_adapter(
 
     assert result.returncode == 0, result.stderr
     log = _log(fake_repo)
-    assert _count_action(fake_repo, "run") == 1
+    assert _count_action(fake_repo, "run") == 2
     assert _count_action(fake_repo, "exec") == 0
     assert _count_action(fake_repo, "up") == 0
     assert _count_action(fake_repo, "start") == 0
@@ -4790,7 +4800,7 @@ def test_compact_database_uses_candidate_image_and_runtime_secret_adapter(
         )
         in log
     )
-    assert "ARG=fs-cli" not in log
+    assert _arg_sequence("fs-cli", "maintenance-status", "--json") in log
     assert "ARG=--dsn" not in log
     assert "ARG=--dsn-file" not in log
     assert "ARG=--dsn-stdin" not in log
@@ -4817,7 +4827,7 @@ def test_compact_database_preserves_the_product_command_failure(
     )
 
     assert result.returncode == exit_code
-    assert _count_action(fake_repo, "run") == 1
+    assert _count_action(fake_repo, "run") == 2
     assert _count_action(fake_repo, "exec") == 0
 
 
@@ -5263,3 +5273,43 @@ def test_bootstrap_help_does_not_activate_management_recovery(fake_repo):
     assert result.returncode == 0, result.stderr
     assert "core.entrypoints.cli.bootstrap_recovery" not in _log(fake_repo)
     assert "--force-recreate" not in _log(fake_repo)
+
+
+def test_compact_database_waiver_still_stops_writers(fake_repo):
+    image = f"sha256:{'c' * 64}"
+    _write_compact_installation(fake_repo, image=image)
+    result = _run_launcher(
+        fake_repo,
+        "database",
+        "upgrade",
+        "--maintenance-confirmed",
+        "--confirm",
+        "--skip-db-backup",
+        env={"FAKE_IMAGE_REVISION": "test-revision", "FAKE_IMAGE_ID": image},
+    )
+    assert result.returncode == 0, result.stderr
+    log = _log(fake_repo)
+    assert _arg_sequence("stop", "compact-runtime") in log
+    assert log.index("ACTION=stop") < log.index("ARG=core.entrypoints.cli.compact_container_cli")
+    assert "ARG=--skip-db-backup" in log
+
+
+def test_compact_database_refuses_without_observed_maintenance(fake_repo):
+    image = f"sha256:{'c' * 64}"
+    _write_compact_installation(fake_repo, image=image)
+    result = _run_launcher(
+        fake_repo,
+        "database",
+        "upgrade",
+        "--maintenance-confirmed",
+        "--confirm",
+        "--skip-db-backup",
+        env={
+            "FAKE_IMAGE_REVISION": "test-revision",
+            "FAKE_IMAGE_ID": image,
+            "FAKE_MAINTENANCE_STATUS": '{"ok":true,"result":{"status":"disabled"}}',
+        },
+    )
+    assert result.returncode == 7
+    assert _count_action(fake_repo, "stop") == 0
+    assert "core.entrypoints.cli.compact_container_cli" not in _log(fake_repo)

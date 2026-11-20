@@ -826,6 +826,8 @@
     "core/application/release/installed_origin.py",
     "core/application/release/service.py",
     "core/application/release/update_notice.py",
+    "core/application/release/upgrade_review.py",
+    "core/application/release/upgrade_workflow.py",
     "core/application/reports/__init__.py",
     "core/application/reports/activity_repository.py",
     "core/application/reports/analytics_service.py",
@@ -1355,6 +1357,7 @@
     "core/entrypoints/mcp/server_runtime.py",
     "core/entrypoints/mcp/server_tool_annotations.py",
     "core/entrypoints/mcp/server_tool_scopes.py",
+    "core/entrypoints/mcp/server_ui_links.py",
     "core/entrypoints/mcp/server_workflow_authoring_tools.py",
     "core/entrypoints/mcp/server_workflow_hook_tools.py",
     "core/entrypoints/mcp/server_workflow_portability_tools.py",
@@ -1637,6 +1640,7 @@
     "core/infrastructure/release/github.py",
     "core/infrastructure/release/github_credentials.py",
     "core/infrastructure/release/installed_origin.py",
+    "core/infrastructure/release/upgrade_gateway.py",
     "core/infrastructure/rounding.py",
     "core/infrastructure/runtime/__init__.py",
     "core/infrastructure/runtime/app_factory.py",
@@ -1796,7 +1800,7 @@
     },
     {
       "path": "core/entrypoints/cli/lifecycle_click_app.py",
-      "consumer": "core/entrypoints/cli/platform_runtime.py:298 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
+      "consumer": "core/entrypoints/cli/platform_runtime.py:311 literal dynamic import of core.entrypoints.cli.lifecycle_click_app"
     },
     {
       "path": "core/entrypoints/cli/platform/service_bindings/config.py",

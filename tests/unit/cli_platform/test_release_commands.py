@@ -104,6 +104,7 @@ class _ReleaseService:
             deployment_profile="scalable",
             platform="linux/amd64",
             dry_run=request.dry_run,
+            skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
         )
 
@@ -254,17 +255,19 @@ def test_release_specs_are_exact_and_closed() -> None:
     assert tuple(field.key for field in upgrade.fields) == (
         "target_version",
         "dry_run",
+        "skip_db_backup",
         "timeout_seconds",
     )
     assert {field.key: field.option_name for field in upgrade.fields} == {
         "target_version": "--target-version",
         "dry_run": "--dry-run",
+        "skip_db_backup": "--skip-db-backup",
         "timeout_seconds": "--timeout-seconds",
     }
-    assert upgrade.fields[2].default == 1800
+    assert upgrade.fields[3].default == 1800
     assert ReleaseUpgradeRequest().timeout_seconds == 1800
     assert PreparedReleaseUpgrade.model_fields["timeout_seconds"].default == 1800
-    assert upgrade.fields[2].advanced is True
+    assert upgrade.fields[3].advanced is True
 
 
 def test_release_help_has_only_the_closed_public_inputs() -> None:
@@ -578,3 +581,10 @@ def test_release_progress_uses_the_common_lifecycle_channel() -> None:
 
 def test_legacy_release_argparse_module_is_deleted() -> None:
     assert importlib.util.find_spec("core.entrypoints.cli.release") is None
+
+
+def test_release_backup_waiver_survives_cli_review_binding():
+    app, runtime = _app()
+    result = CliRunner().invoke(app, ["release", "upgrade", "--skip-db-backup", "--confirm"])
+    assert result.exit_code == 0, result.output
+    assert runtime.release_service.calls[-1][1].skip_db_backup is True

@@ -1,5 +1,6 @@
 # ruff: noqa: F405, I001, RUF100
 # mypy: ignore-errors
+import ipaddress
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -862,6 +863,24 @@ async def _correlation_logging_middleware(request: Request, call_next):
     return response
 
 
+def _hsts_applies_to_host(hostname: str | None) -> bool:
+    """HSTS only for a real domain name.
+
+    A browser keeps HSTS per host name for every port, so a two-year policy
+    sent from localhost forces HTTPS on every other local app the user runs
+    (a dev server, n8n, ...) and a later plain-HTTP local install. Browsers
+    ignore HSTS for IP addresses, so it is not sent there either.
+    """
+    host = (hostname or "").strip().rstrip(".").lower()
+    if not host or host == "localhost" or host.endswith(".localhost"):
+        return False
+    try:
+        ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return True
+    return False
+
+
 async def _security_headers_middleware(request: Request, call_next):
     """Add protective security headers to all responses.
 
@@ -882,10 +901,11 @@ async def _security_headers_middleware(request: Request, call_next):
         origins = " ".join(browser_permissions.get(directive, ()))
         return "'self'" + (f" {origins}" if origins else "")
 
-    response.headers.setdefault(
-        "Strict-Transport-Security",
-        "max-age=63072000; includeSubDomains",
-    )
+    if _hsts_applies_to_host(request.url.hostname):
+        response.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=63072000; includeSubDomains",
+        )
     response.headers.setdefault(
         "Content-Security-Policy",
         (

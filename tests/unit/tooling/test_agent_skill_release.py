@@ -159,9 +159,12 @@ def test_build_refuses_a_drifted_tree_and_a_used_output(tmp_path: Path) -> None:
     build = _build_module()
     tree = tmp_path / "tree"
     shutil.copytree(SKILLS_DIR, tree / "docs" / "agent-skills")
-    icon = tree / "assets" / "frontend" / "public" / "favicon.svg"
+    icon_source = json.loads((SKILLS_DIR / "packages.json").read_text(encoding="utf-8"))[
+        "icon_source"
+    ]
+    icon = tree / icon_source
     icon.parent.mkdir(parents=True)
-    shutil.copy2(ROOT / "assets" / "frontend" / "public" / "favicon.svg", icon)
+    shutil.copy2(ROOT / icon_source, icon)
     used = tmp_path / "used"
     used.mkdir()
     (used / "old.zip").write_bytes(b"x")

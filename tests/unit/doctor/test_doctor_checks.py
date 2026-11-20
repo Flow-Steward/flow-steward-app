@@ -28,12 +28,16 @@ class _Probe:
     moved: str = ""
     images: list[tuple[str, str]] = field(default_factory=list)
     renames: list[tuple[str, str, str]] = field(default_factory=list)
+    unhealthy: list[str] = field(default_factory=list)
 
     def operation_running(self) -> str:
         return self.running
 
     def stopped_services(self) -> list[str]:
         return self.stopped
+
+    def unhealthy_services(self) -> list[str]:
+        return self.unhealthy
 
     def sources_differ_from_installation(self) -> str:
         return self.moved
@@ -78,10 +82,10 @@ def _operation(*, continuable: bool) -> InterruptedOperation:
 
 def test_every_check_id_is_unique_and_names_its_own_repair_command() -> None:
     ids = [check.check_id for check in checks.p1_checks()]
-    assert len(ids) == len(set(ids)) == 6  # non-vacuity: the P1 set
+    assert len(ids) == len(set(ids)) == 7  # non-vacuity: the P1 set
     # F1 (live on fs-acc): an unfinished operation is what explains a stopped stack, so
-    # it is reported, and fixed, before it.
-    assert ids[:2] == ["lifecycle_interrupted", "stack_stopped"]
+    # it is reported, and fixed, before it; health means something only once it runs.
+    assert ids[:3] == ["lifecycle_interrupted", "stack_stopped", "stack_unhealthy"]
 
 
 # Docker container IDs of the fs-acc recreate: hex, not secrets.
@@ -115,7 +119,7 @@ def test_a_stopped_stack_with_a_recreate_left_half_way_sends_to_container_names(
     finding = _diagnose("stack_stopped", _Probe(stopped=["compact-runtime"], renames=renames))
 
     assert not finding.repairable
-    assert finding.next_step == "./flow-steward doctor --fix container_names"
+    assert finding.next_step == "./flow-steward doctor --fix container_names --confirm"
 
 
 def test_an_interrupted_update_is_named_with_the_command_that_finishes_it() -> None:
@@ -215,7 +219,7 @@ def test_an_interrupted_operation_doctor_can_continue_is_offered_as_a_fix() -> N
     assert finding.status == "fail"
     assert finding.repairable
     assert "config apply op-1 stopped at apply_runtime (failed)" in finding.cause
-    assert finding.next_step == "./flow-steward doctor --fix lifecycle_interrupted"
+    assert finding.next_step == "./flow-steward doctor --fix lifecycle_interrupted --confirm"
 
 
 def test_an_interrupted_operation_doctor_cannot_continue_names_its_own_recovery() -> None:
@@ -322,3 +326,17 @@ def test_stale_graphs_are_named() -> None:
 
 def test_matching_graphs_pass() -> None:
     assert _diagnose("graph_catalog", _Probe()).status == "ok"
+
+
+def test_a_running_but_unhealthy_service_fails_the_doctor() -> None:
+    """#26: SeaweedFS stayed `unhealthy` for hours and doctor reported no problems."""
+    finding = _diagnose("stack_unhealthy", _Probe(unhealthy=["seaweedfs"]))
+
+    assert finding.status == "fail"
+    assert not finding.repairable
+    assert "seaweedfs" in finding.cause
+    assert "stack logs --service seaweedfs" in finding.next_step
+
+
+def test_healthy_services_pass_the_health_check() -> None:
+    assert _diagnose("stack_unhealthy", _Probe()).status == "ok"

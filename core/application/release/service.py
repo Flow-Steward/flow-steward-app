@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol, Self, cast
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -24,9 +24,15 @@ from core.application.release.installed_origin import (
     InstalledReleaseOriginPort,
     SourceInstallationOrigin,
 )
+from core.application.release.upgrade_review import (
+    MAINTENANCE_DISABLE_COMMAND as _MAINTENANCE_DISABLE_COMMAND,
+)
+from core.application.release.upgrade_review import upgrade_review
+
+if TYPE_CHECKING:
+    from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
 
 _MAINTENANCE_ENABLE_COMMAND = "flow-steward maintenance enable --confirm"
-_MAINTENANCE_DISABLE_COMMAND = "flow-steward maintenance disable --confirm"
 _BACKUP_CREATE_COMMAND = "flow-steward backup create"
 _DATABASE_PREFLIGHT_COMMAND = "flow-steward database preflight"
 _DATABASE_UPGRADE_COMMAND = "flow-steward database upgrade --maintenance-confirmed --confirm"
@@ -84,6 +90,7 @@ class ReleaseUpgradeRequest(_ClosedModel):
 
     target_version: str = ""
     dry_run: bool = False
+    skip_db_backup: bool = False
     timeout_seconds: int = Field(default=1800, ge=1, le=3600)
 
     @model_validator(mode="after")
@@ -132,6 +139,7 @@ class PreparedReleaseUpgrade(_ClosedModel):
     deployment_profile: DeploymentProfile
     platform: ReleasePlatform
     dry_run: bool = False
+    skip_db_backup: bool = False
     timeout_seconds: int = Field(
         default=ReleaseUpgradeRequest.model_fields["timeout_seconds"].default, ge=1, le=3600
     )
@@ -289,7 +297,7 @@ class OfficialReleaseSelector:
                 code="release_upgrade_pending",
                 cause=f"Release {pending.version} is pending and cannot be resumed by install.sh.",
                 remediation=(
-                    f"Enable maintenance and run `flow-steward release upgrade "
+                    f"Run `flow-steward release upgrade "
                     f"--target-version {pending.version} --confirm`."
                 ),
                 step="release_policy",
@@ -391,6 +399,7 @@ class ReleaseService:
         profile: DeploymentProfile,
         platform: ReleasePlatform,
         origin: InstalledReleaseOriginPort,
+        workflow: ReleaseUpgradeWorkflow | None = None,
     ) -> None:
         if profile not in {"compact", "scalable"}:
             raise ValueError("unsupported deployment profile")
@@ -404,6 +413,7 @@ class ReleaseService:
         self.profile = profile
         self.platform = platform
         self.origin = origin
+        self.workflow = workflow
         self.selector = OfficialReleaseSelector(
             discovery=discovery,
             state=state,
@@ -498,7 +508,7 @@ class ReleaseService:
                     "available."
                 ),
                 remediation=(
-                    f"Enable maintenance, then run `flow-steward release upgrade "
+                    f"Run `flow-steward release upgrade "
                     f"--target-version {target.version} --confirm`."
                 ),
             )
@@ -515,12 +525,16 @@ class ReleaseService:
             remediation=(
                 "No release action is required."
                 if status == "current"
-                else f"Enable maintenance, then run `flow-steward release upgrade "
+                else f"Run `flow-steward release upgrade "
                 f"--target-version {target.version} --confirm`."
             ),
         )
 
     def prepare_upgrade(self, request: ReleaseUpgradeRequest) -> PreparedReleaseUpgrade:
+        if self.workflow is not None:
+            resumed_workflow = self.workflow.prepare_resume(self, request)
+            if resumed_workflow is not None:
+                return resumed_workflow
         resumed = self._resume_source_transition(request)
         if resumed is not None:
             return resumed
@@ -544,6 +558,7 @@ class ReleaseService:
                 deployment_profile=self.profile,
                 platform=self.platform,
                 dry_run=request.dry_run,
+                skip_db_backup=request.skip_db_backup,
                 timeout_seconds=request.timeout_seconds,
             )
         installed, target, source = self._select_upgrade(request)
@@ -554,58 +569,35 @@ class ReleaseService:
             deployment_profile=self.profile,
             platform=self.platform,
             dry_run=request.dry_run,
+            skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
         )
 
     def review_upgrade(self, prepared: PreparedReleaseUpgrade) -> dict[str, object]:
-        installed = prepared.installed_release
-        target = prepared.target_release
-        if prepared.transition_binding is not None:
-            origin = prepared.transition_binding.installed_origin
-            return {
-                "status": "ready",
-                "installed_origin": "source",
-                "source_commit_sha": origin.commit_sha,
-                "semantic_ordering": "unknown",
-                "installation_mode_change": "source -> official",
-                "target_version": target.version,
-                "target_tag": target.tag,
-                "target_commit_sha": target.commit_sha,
-                "target_images": [image.model_dump(mode="json") for image in target.images],
-                "deployment_profile": prepared.deployment_profile,
-                "platform": prepared.platform,
-                "release_source": prepared.release_source,
-                "maintenance": "enabled (left enabled after success or failure)",
-                "migration_policy": (
-                    "Installer prechecks migrations and stops before service recreation when one "
-                    "is required; backup and database upgrade remain explicit operator commands."
-                ),
-                "resume_command": (
-                    f"flow-steward release upgrade --target-version {target.version} --confirm"
-                ),
-                "next_steps": [_MAINTENANCE_DISABLE_COMMAND],
-            }
-        assert installed is not None
-        return {
-            "status": "already_current" if target == installed else "ready",
-            "installed_version": installed.version,
-            "target_version": target.version,
-            "deployment_profile": prepared.deployment_profile,
-            "platform": prepared.platform,
-            "release_source": prepared.release_source,
-            "maintenance": "enabled (left enabled after success or failure)",
-            "migration_policy": (
-                "Installer prechecks migrations and stops before service recreation when one "
-                "is required; backup and database upgrade remain explicit operator commands."
-            ),
-            "next_steps": [_MAINTENANCE_DISABLE_COMMAND],
-        }
+        review = upgrade_review(prepared)
+        if self.workflow is not None:
+            review.update(self.workflow.review(prepared))
+        return review
 
     def plan_upgrade(self, request: ReleaseUpgradeRequest) -> dict[str, object]:
         """Compatibility wrapper for callers that only need a review document."""
         return self.review_upgrade(self.prepare_upgrade(request))
 
     def upgrade(
+        self,
+        request: ReleaseUpgradeRequest | PreparedReleaseUpgrade,
+        **operation_sinks: object,
+    ) -> ReleaseResult:
+        if self.workflow is not None:
+            prepared = (
+                request
+                if isinstance(request, PreparedReleaseUpgrade)
+                else self.prepare_upgrade(request)
+            )
+            return self.workflow.run(self, prepared, **operation_sinks)
+        return self._activate_upgrade(request, **operation_sinks)
+
+    def _activate_upgrade(
         self,
         request: ReleaseUpgradeRequest | PreparedReleaseUpgrade,
         **operation_sinks: object,
@@ -676,7 +668,7 @@ class ReleaseService:
                 maintenance=self.maintenance.status(),
                 remediation="The requested release is already installed.",
             )
-        if self.maintenance.status().status != "enabled":
+        if not prepared.dry_run and self.maintenance.status().status != "enabled":
             raise self._maintenance_required()
         if prepared.dry_run:
             return self._result(
@@ -729,7 +721,7 @@ class ReleaseService:
     def _select_source_transition(
         self, request: ReleaseUpgradeRequest
     ) -> tuple[ReleaseIdentity, str]:
-        if self.maintenance.status().status != "enabled":
+        if self.workflow is None and self.maintenance.status().status != "enabled":
             raise self._maintenance_required()
         try:
             published = (
@@ -781,6 +773,7 @@ class ReleaseService:
             deployment_profile=binding.deployment_profile,
             platform=binding.platform,
             dry_run=request.dry_run,
+            skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
         )
 
@@ -846,11 +839,15 @@ class ReleaseService:
                     ),
                     step="release_policy",
                 )
-            if self.maintenance.status().status != "enabled":
+            if self.workflow is None and self.maintenance.status().status != "enabled":
                 raise self._maintenance_required()
             target = self.selector.resolve(published)
             source = published.source
-        if target.version != installed.version and self.maintenance.status().status != "enabled":
+        if (
+            self.workflow is None
+            and target.version != installed.version
+            and self.maintenance.status().status != "enabled"
+        ):
             raise self._maintenance_required()
         if ReleaseVersion.parse(target.version) < ReleaseVersion.parse(installed.version):
             raise self._downgrade_refused(installed.version, target.version)

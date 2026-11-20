@@ -115,6 +115,42 @@ def inspection_service(item: Mapping[str, Any]) -> str:
     return str(labels.get("com.docker.compose.service") or "").strip()
 
 
+def env_file_names(path: Path) -> frozenset[str]:
+    """The variable names an env file assigns; empty when it cannot be read."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return frozenset()
+    names = set()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        line = line.removeprefix("export ").lstrip()
+        name, separator, _value = line.partition("=")
+        name = name.strip()
+        if separator and name.replace("_", "a").isalnum() and not name[0].isdigit():
+            names.add(name)
+    return frozenset(names)
+
+
+def compose_process_environment(
+    project_root: Path, env_file: str, environment: Mapping[str, str]
+) -> dict[str, str] | None:
+    """The process environment for Compose, without what the env file assigns.
+
+    #30: Compose prefers a variable of its own process over `--env-file`. The CLI
+    container was created from the env file as it was before `config apply`
+    rendered the new one, so its stale FS_ALLOW_PRIVATE_REMOTE_URLS=0 beat the
+    file's 1: the runtime kept 0 and was not even recreated. The installed env
+    file is the source of truth for every name it assigns.
+    """
+    names = env_file_names(project_path(project_root, env_file))
+    if not names:
+        return None
+    return {name: value for name, value in environment.items() if name not in names}
+
+
 def project_path(project_root: Path, raw_path: str) -> Path:
     candidate = Path(str(raw_path))
     resolved = (

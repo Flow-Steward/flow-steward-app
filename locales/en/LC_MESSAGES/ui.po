@@ -9251,6 +9251,9 @@ msgstr "id:"
 msgid "react.registry.identifier"
 msgstr "Identifier"
 
+msgid "react.registry.identifier_follows_display_name"
+msgstr "Filled from the display name; you can change it. Lowercase letters, numbers and underscores, starting with a letter."
+
 msgid "react.registry.implementation_contract"
 msgstr "Implementation contract"
 
@@ -11240,6 +11243,9 @@ msgstr "{value0} connectors"
 
 msgid "react.registry.value0_detail"
 msgstr "{value0} detail"
+
+msgid "react.registry.value0_id"
+msgstr "{value0} ID"
 
 msgid "react.registry.value0_inputs"
 msgstr "{value0} inputs"

@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.20 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -2288,11 +2288,13 @@ through the procedure for the installation's [deployment profile](operations/com
 
 ### Maintenance and release upgrade
 
-Release upgrade uses the same durable maintenance status surface as every other
-operator workflow. Maintenance must already be fully enabled before upgrade and
-remains enabled on success or failure. Only an explicit healthy disable reopens
-work. Unfinished mutations (config apply, release upgrade, restore, stack
-changes) block `maintenance disable` until they are resumed. A failed
+`release upgrade` enables maintenance, drains active work, creates and verifies a
+database backup, activates the pinned release and applies its database migrations
+when needed. After successful activation and mandatory health checks it disables
+maintenance. An error or interruption leaves maintenance enabled; rerun the same
+command to resume the pinned target. Unfinished mutations (config apply, release
+upgrade, restore, stack changes) block `maintenance disable` until their mutating
+steps have completed. A failed
 `backup create` does not: it changed nothing in the installation, so `status`
 and `doctor` only report it until a later backup succeeds, and the next
 `backup create` starts a new backup.
@@ -2323,14 +2325,27 @@ complete digest-pinned image set before its resumable checkout handoff.
 
 ```bash
 ./flow-steward release check
-./flow-steward backup create
-./flow-steward maintenance enable --confirm
 ./flow-steward release upgrade --confirm
-
-./flow-steward maintenance status
 ./flow-steward doctor
-./flow-steward maintenance disable --confirm
+
+# Explicitly accept updating without a database backup:
+./flow-steward release upgrade --skip-db-backup --confirm
 ```
+
+The review and `--dry-run` show the exact target and whether backup is enabled.
+`--confirm` skips the ordinary review prompt. `--skip-db-backup` explicitly accepts
+the risk of updating without a recoverable database dump; it never bypasses
+maintenance, writer shutdown, migration preflight, advisory locking or protected
+data verification. The choice is retained when an interrupted operation is
+resumed. A verified backup is reused for that operation; it is never replaced by
+a post-migration backup. If backup creation fails before activation, the same
+target can be resumed with an explicit `--skip-db-backup` waiver.
+
+Automatic orchestration requires CLI 0.9.20 or newer. When upgrading from an older
+CLI, follow that CLI's printed manual backup/migration/maintenance instructions
+for the initial update. Separate maintenance, backup and database commands remain
+available for operator-controlled workflows. Standalone database migration accepts
+`--skip-db-backup` together with `--maintenance-confirmed --confirm`.
 
 The reviewed `release upgrade --confirm` changes a source installation to the
 selected official installed identity, or upgrades an existing official
@@ -2442,7 +2457,7 @@ not interchangeable with either installed doctor command.
 
 ### Backup and recovery boundary
 
-Nothing backs the database up on its own; schedule `./flow-steward backup create`
+Outside release upgrades, schedule `./flow-steward backup create`
 with cron as described in [Scheduled maintenance](operations/scheduled-maintenance.md).
 Retention of trash, logs, jobs and revisions runs by itself in the control plane.
 

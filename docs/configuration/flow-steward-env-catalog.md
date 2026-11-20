@@ -28,7 +28,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `artifact_storage_external_s3` | External S3-compatible artifact storage. | `10` |
 | `artifact_storage_local_fs` | Local persistent filesystem artifact storage. | `2` |
 | `audit_tools` | Audit and security scanning helpers. | `33` |
-| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `45` |
+| `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `46` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
 | `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `176` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `829`
-- Cataloged variables from `.env.example*` or manifest: `606`
+- Raw env-like names discovered by audit: `830`
+- Cataloged variables from `.env.example*` or manifest: `607`
 - Raw audit-only names outside examples/manifest: `223`
 - Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `516`
+- Variables in canonical manifest: `517`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `139`
+- Internal Runtime: `140`
 - Public / Operator: `331`
 - Test Config: `34`
 - Test Only: `16`
@@ -282,11 +282,11 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### images
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
-| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.19` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
-| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.19` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
-| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.19` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
+| `FS_APP_IMAGE` | production_images | production | no | no | `flow-steward-app:0.9.20` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Immutable role image IDs exposed for candidate verification.; Public runtime; Immutable role image IDs deployed from the CI candidate artifacts. | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_CONTROL_IMAGE` | production_images | production | no | no | `flow-steward-control:0.9.20` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_FRONTEND_IMAGE` | local_development | local_development | no | no | `flow-steward-frontend:0.9.20` | - | Docker Compose (1) | Optional development frontend image; production application images already contain the built frontend shell. | `infra/docker/docker-compose.yaml` |
+| `FS_WORKER_IMAGE` | production_images | production | no | no | `flow-steward-worker:0.9.20` | .env.example.prod, .env.example.ops | Docker Compose (2) | Optional auth extensions / limits; Public runtime | `infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `MCP_IMAGE` | production_images | production | no | no | `flow-steward-mcp:0.9.20` | - | Docker Compose (1) | used but undocumented in .env.example surfaces | `infra/docker/docker-compose.prod.yaml` |
 | `POSTGRES_IMAGE` | production_images | production | no | no | `fs-postgres-extended:0.1.0-pgvector-0.8.5` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins; Official installs and upgrades pin the release's flow-steward-postgres digest (0.9.2+); Source installs build this versioned tag locally. Do not use a floating pg17/latest tag. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.postgres-extended.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `RABBITMQ_IMAGE` | production_images | production | no | no | `rabbitmq:3.13-management` | .env.example.prod | Docker Compose (3) | Official release discovery and third-party infrastructure pins | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `TRAEFIK_IMAGE` | production_images | production | no | no | `traefik:v3.3` | .env.example.prod | Docker Compose (4) | Official release discovery and third-party infrastructure pins | `infra/docker/compact/ingress-bundled_traefik.yaml`<br>`infra/docker/docker-compose.oauth-browser.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -785,6 +785,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_COMPACT_DATA_PLACEMENT` | compact_runtime | production | no | no | - | - | Infrastructure (1) | Set only by infra/docker/compact/data-host_directories.yaml: after a switch from Scalable the artifacts and extensions trees are the Scalable host directories, whose owner the Compact volume check then does not compare (their group and mode it still does). | `core/infrastructure/runtime/compact/volume.py` |
 | `FS_COMPACT_DATA_ROOT` | compact_runtime | production | no | no | `/data` | - | CLI (3) | Root of the single persistent volume the Compact runtime owns. | `core/entrypoints/cli/compact_container_cli.py`<br>`core/entrypoints/cli/compact_runtime.py`<br>`core/entrypoints/cli/platform_runtime.py` |
 | `FS_COMPACT_HEALTH_URL` | compact_runtime | production | no | no | `http://127.0.0.1:9100/health/details` | - | CLI (1) | Internal Compact operator endpoint; fs-cli uses the Compose service route while PID 1 uses loopback. | `core/entrypoints/cli/compact_platform_runtime.py` |
+| `FS_COMPACT_INGRESS_ADDRESS` | compact_runtime | production | no | no | - | - | CLI (1) | Internal Compact address of the bundled Traefik that fs-cli status probes; set by the bundled-ingress Compose overlay, unset for other ingress modes. | `core/entrypoints/cli/compact_platform_runtime.py` |
 | `FS_COMPACT_ROLE` | compact_runtime | production | no | no | - | - | Worker runtime (1) | Role a Compact supervisor child announces for itself, so a worker knows it runs inside the Compact runtime. | `core/infrastructure/runtime/worker/worker.py` |
 | `FS_COMPACT_WAIT_FOR_DEPENDENCIES` | compact_runtime | production | no | no | `0` | - | CLI (1) | Wait for canonical PostgreSQL and RabbitMQ protocols before Compact bootstrap when Docker restarts containers or a provider starts linked services concurrently. Compact Compose enables this guard. | `core/entrypoints/cli/compact_runtime.py` |
 | `FS_COMPOSE_DEV_FILE` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |

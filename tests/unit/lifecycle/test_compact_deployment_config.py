@@ -349,11 +349,47 @@ def test_bundled_traefik_selects_distinct_file_and_acme_tls_state() -> None:
     )
 
 
-def test_compact_file_tls_mounts_certificate_in_active_dynamic_directory() -> None:
-    compose = Path("infra/docker/compact/tls-bundled-files.yaml").read_text(encoding="utf-8")
+def test_compact_file_tls_ships_certificate_through_the_copied_volume() -> None:
+    import yaml
 
-    assert ":/run/traefik-dynamic/compact-certificate.yaml:ro" in compose
-    assert ":/etc/traefik/dynamic/compact-certificate.yaml:ro" not in compose
+    compose = yaml.safe_load(
+        Path("infra/docker/compact/tls-bundled-files.yaml").read_text(encoding="utf-8")
+    )
+    script = Path("infra/docker/compact/render-public-router.sh").read_text(encoding="utf-8")
+
+    assert set(compose["services"]) == {"traefik-files"}
+    targets = {
+        volume.rsplit(":", 2)[1] for volume in compose["services"]["traefik-files"]["volumes"]
+    }
+    assert targets == {
+        "/source/dynamic/compact-certificate.yaml",
+        "/source/certs/cert.pem",
+        "/source/certs/key.pem",
+    }
+    # The dynamic directory is a tmpfs: the start script moves the configuration in,
+    # and links the copied certificates where that configuration names them.
+    assert 'cp "$files"/dynamic/*.yaml /run/traefik-dynamic/' in script
+    assert 'ln -sfn "$files/certs" /etc/traefik/certs' in script
+    # A Traefik created before #27 restarting from an updated checkout keeps its mounts.
+    assert "template=/etc/traefik/templates/public-router.yaml.tmpl" in script
+
+
+def test_compact_traefik_needs_nothing_from_the_host_after_a_restart() -> None:
+    """#27: a bind mount from the checkout failed when Docker Desktop started before the
+    WSL distribution holding it; Docker never retried and the public URL stayed down.
+    Traefik itself mounts only named volumes; traefik-files copies the host files in."""
+    import yaml
+
+    compose = yaml.safe_load(
+        Path("infra/docker/compact/ingress-bundled_traefik.yaml").read_text(encoding="utf-8")
+    )
+    traefik = compose["services"]["traefik"]
+    named = set(compose["volumes"])
+
+    assert all(volume.split(":", 1)[0] in named for volume in traefik["volumes"])
+    assert traefik["depends_on"]["traefik-files"]["condition"] == "service_completed_successfully"
+    assert compose["services"]["traefik-files"]["image"] == traefik["image"]
+    assert traefik["entrypoint"] == ["/bin/sh", "/etc/traefik/files/render-public-router.sh"]
 
 
 @pytest.mark.parametrize(

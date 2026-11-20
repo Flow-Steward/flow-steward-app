@@ -670,9 +670,12 @@ class InstallerService:
             # Only true of a run that found the sources ahead and got through the
             # schema check itself. A run finishing an update an earlier run prepared
             # may be the one after the operator migrated the database.
+            # A release upgrade resumed after a separate `database upgrade` passes
+            # this check too; "carried no migration" told that operator his six
+            # migrations never happened (0.9.12 -> 0.9.19 jump, 2026-11-19).
             applied += (
-                " The schema check passed, so this update carried no database "
-                "migration and needed no backup."
+                " The database already matched this release, so no migration was left "
+                "to apply at activation."
             )
         log.write(applied)
         bootstrap_url, bootstrap_setup_url, bootstrap_instruction = self._bootstrap_handoff(

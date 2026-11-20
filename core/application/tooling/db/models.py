@@ -32,6 +32,7 @@ class DatabaseUpgradeRequest(_DatabaseRequest):
     dsn: str = ""
     author: str = "system"
     maintenance_confirmed: bool = False
+    skip_db_backup: bool = False
     allow_unlabeled_sessions: bool = False
 
 

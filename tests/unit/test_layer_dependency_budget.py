@@ -178,6 +178,15 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
                 "core.application.lifecycle.stack_service.StackGatewayError",
             }
         ),
+        # ADR 0074: the release-upgrade database step that docker_gateway
+        # delegates to; it runs the target image's database tooling.
+        "core/infrastructure/release/upgrade_gateway.py": frozenset(
+            {
+                "core.application.lifecycle.contracts.ComposeTarget",
+                "core.application.lifecycle.errors.LifecycleError",
+                "core.application.lifecycle.stack_service.StackGatewayError",
+            }
+        ),
     },
     "core/infrastructure/lifecycle/configuration_store.py": {
         "core/infrastructure/lifecycle/configuration_files.py": frozenset(

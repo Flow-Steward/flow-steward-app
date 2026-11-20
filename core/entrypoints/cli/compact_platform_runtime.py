@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 from functools import cached_property
 from http.client import HTTPConnection
 from pathlib import Path
@@ -130,6 +131,9 @@ def _readiness_payload() -> dict[str, object]:
             "remediation": "Inspect /health/details inside the Compact container.",
         }
     ]
+    ingress = _ingress_check()
+    if ingress is not None:
+        checks.append(ingress)
     if ready and not str(_runtime_env.get("FS_COMPACT_HEALTH_URL") or "").strip():
         # AC17-R164: the aggregate is built from role liveness, so the application's own
         # readiness -- a stale graph catalogue among it -- never reached ./install.sh on
@@ -138,6 +142,36 @@ def _readiness_payload() -> dict[str, object]:
         # Scalable's installer asks fs-app.
         checks.extend(_compact_application_checks())
     return {"checks": checks}
+
+
+def _ingress_check() -> dict[str, str] | None:
+    """#27: the bundled Traefik stayed down for days after a host restart while
+    `status` said ready, because only the runtime was asked. The Compose overlay of the
+    bundled ingress names its address; other ingress modes leave it unset."""
+    address = str(_runtime_env.get("FS_COMPACT_INGRESS_ADDRESS") or "").strip()
+    host, _, port = address.rpartition(":")
+    if not host or not port.isdigit():
+        return None
+    check = {
+        "id": "public_ingress",
+        "category": "core",
+        "title": "Public ingress",
+        "status": "pass",
+        "detail": "The bundled Traefik accepts connections.",
+        "remediation": "./flow-steward doctor --fix stack_stopped --confirm",
+    }
+    try:
+        with socket.create_connection((host, int(port)), timeout=3):
+            return check
+    except OSError as exc:
+        return {
+            **check,
+            "status": "fail",
+            "detail": (
+                "The bundled Traefik does not accept connections "
+                f"({type(exc).__name__}), so the public URL is unreachable."
+            ),
+        }
 
 
 def _compact_application_checks() -> list[dict[str, str]]:

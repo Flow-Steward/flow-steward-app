@@ -842,6 +842,13 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-table-card { overflow: hidden; border-color: var(--fs-border-subtle); box-shadow: var(--fs-shadow-surface); }
 .fs-table-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: calc(var(--fs-space-100) + var(--fs-space-025)); padding: var(--fs-space-150) var(--fs-space-200); }
 
+/* A toolbar checkbox shares one line with the filter controls. The label's
+   flex-start and the mark's top offset line the mark up with the first line of
+   wrapping text; here they park it in the top 20px of the 32px hit target,
+   above the centre of the 40px controls beside it. */
+.fs-table-toolbar > .fs-checkbox-label { align-items: center; }
+.fs-table-toolbar > .fs-checkbox-label > .fs-checkbox-mark { margin-top: 0; }
+
 /* A field, so its resting edge is the control role (token-architecture.md,
    Borders), like the Select and Input beside it in every list toolbar. */
 .fs-search { display: flex; align-items: center; gap: 7px; width: min(180px, 100%); height: var(--fs-hit-target-compact); margin-left: auto; border: 1px solid var(--fs-input-border); border-radius: var(--fs-input-radius); background: var(--fs-bg-input); padding: 0 11px; }
