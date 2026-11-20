@@ -25,9 +25,10 @@ from core.application.extensions.extension_contract_policies import (
 )
 from core.application.extensions.semver import compare_semver
 
-#: The first Flow Steward release with typed contract shapes and review fields:
-#: the release after 0.9.19, the last one without them.
-TYPED_CONTRACT_CORE_MIN = "0.9.20"
+#: The first Flow Steward release with typed contract shapes and review fields.
+#: 0.9.20 and 0.9.21 shipped without them, so the floor is the next release;
+#: it moves to the release that actually carries them if that is a later one.
+TYPED_CONTRACT_CORE_MIN = "0.9.22"
 #: Contract field keys an older Core does not know.
 TYPED_SHAPE_KEYS = ("items", "properties", "min_items", "max_items", "format")
 

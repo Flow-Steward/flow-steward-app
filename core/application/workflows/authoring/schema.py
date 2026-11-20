@@ -17,6 +17,10 @@ from core.application.workflows.workflow_definition_validation import (
     WAITING_STEP_KINDS,
     step_outcomes,
 )
+from core.application.workflows.workflow_feature_versions import (
+    TYPED_CONTRACT_CORE_MIN,
+    TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN,
+)
 from core.application.workflows.workflow_portability import BUNDLE_KIND, SCHEMA_VERSION
 from core.application.workflows.workflow_step_config_contracts import STEP_CONFIG_ALLOWED_KEYS
 from core.infrastructure.config.installation_mode import installation_mode
@@ -104,8 +108,8 @@ _APPROVAL_REVIEW_GUIDANCE = (
     "(job_approval_decide values): editable fields only, typed as listed. A template or "
     "extension bundle that uses review or the contract shape keys declares the first Core "
     "version that has them, or its import is refused: the catalog entry's "
-    "compatible.min 0.9.20 or later, the bundle's runtime.compatibility.platform_min "
-    "1.10.0 or later."
+    f"compatible.min {TYPED_CONTRACT_CORE_MIN} or later, the bundle's runtime.compatibility.platform_min "
+    f"{TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN} or later."
 )
 
 
