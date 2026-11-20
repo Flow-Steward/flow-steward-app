@@ -1021,6 +1021,7 @@
     "core/infrastructure/extension_sdk/public/flowsteward_extension_sdk/testing.py",
     "core/infrastructure/html_text.py",
     "core/infrastructure/installer/__init__.py",
+    "core/infrastructure/installer/doctor_probes.py",
     "core/infrastructure/installer/secret_values.py",
     "core/infrastructure/installer/state_store.py",
     "core/infrastructure/lifecycle/__init__.py",
