@@ -313,7 +313,11 @@ class CompactPruneReport:
         )
 
 
-_UPDATED = re.compile(r"Updated from (?P<previous>[0-9a-f]{40}) to (?P<current>[0-9a-f]{40})\.")
+# A verified update, and the start of one: a run that switched the runtime and then
+# stopped at a later check (readiness, most often) never wrote the first.
+_UPDATED = re.compile(
+    r"(?:Updated|Updating) from (?P<previous>[0-9a-f]{40}) to (?P<current>[0-9a-f]{40})\."
+)
 RECORD_NAME = "installed-releases.json"
 
 

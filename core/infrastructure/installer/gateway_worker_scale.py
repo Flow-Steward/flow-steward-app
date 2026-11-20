@@ -344,6 +344,32 @@ class WorkerScaleOperations:
                 json.dumps({"current": current, "previous": previous}, sort_keys=True) + "\n",
             )
 
+    def finish_installed_releases_record(self: DockerInstallerGateway, *, current: str) -> str:
+        """Record `current` as installed when the record still names what it replaced.
+
+        A run that switched the runtime to new images and then stopped at a later check
+        -- readiness while the runtime was still starting, 2026-11-20 -- never wrote the
+        record. The rerun finds those images running, so it is an "already installed"
+        run, and without this the record kept the old revision as current: the rollback
+        it names was wrong and pruning stopped protecting the release actually replaced.
+
+        The replaced revision is the record's own current one, or, for an installation
+        older than the record, what its logs say the update to `current` came from;
+        never mtime. Returns that revision when the record was written, else "".
+        """
+        if not current:
+            return ""
+        record = release_retention.read_record(self.state_store.root)
+        if record.get("current") == current:
+            return ""
+        previous = record.get("current") or release_retention.previous_from_logs(
+            self.state_store.logs_dir, current
+        )
+        if not previous:
+            return ""
+        self.record_installed_releases(current=current, previous=previous)
+        return previous
+
     def take_notices(self: DockerInstallerGateway) -> tuple[str, ...]:
         notices, self.notices = tuple(self.notices), []
         return notices

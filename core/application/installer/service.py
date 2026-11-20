@@ -304,9 +304,10 @@ class InstallerService:
                 )
                 if target_release is not None:
                     self._publish_release(config, target_release, log=log)
+                finished_from = self._finish_unrecorded_update(currency, log=log)
                 # AC17-R158: also finishes a cleanup an interrupted update left.
                 pruned = self.gateway.prune_superseded_releases(
-                    config, current=currency.source_revision, previous="", log=log
+                    config, current=currency.source_revision, previous=finished_from, log=log
                 )
                 changes = tuple(
                     item
@@ -316,6 +317,12 @@ class InstallerService:
                         recorded_change,
                         settings_change,
                         converged,
+                        (
+                            f"Recorded {currency.source_revision} as the installed release, "
+                            f"replacing {finished_from}."
+                            if finished_from
+                            else ""
+                        ),
                         pruned,
                         *self.gateway.take_notices(),
                     )
@@ -611,6 +618,10 @@ class InstallerService:
         operator's, by the owner's decision, and the schema refusal names them.
         """
         log.write(currency.reason)
+        if currency.running_revision and currency.running_revision != currency.source_revision:
+            # What a rerun reads if this run switches the runtime and stops before it
+            # is verified: the record below is only written at the end.
+            log.write(f"Updating from {currency.running_revision} to {currency.source_revision}.")
         for step_id in _UPDATE_STEPS:
             label, method_name = _STEP_LABELS[step_id]
             method_name = _UPDATE_METHODS.get(step_id, method_name)
@@ -697,6 +708,28 @@ class InstallerService:
             updated_from_revision=currency.running_revision,
             updated_to_revision=currency.source_revision,
         )
+
+    def _finish_unrecorded_update(self, currency: ImageCurrency, *, log: InstallerLog) -> str:
+        """Write the release record an update left behind; the revision it replaced, or "".
+
+        An update writes the record only once it is verified. One that switched the
+        runtime and then stopped -- readiness failed while the runtime was still
+        starting, 2026-11-20 -- leaves the new images running, so its rerun has nothing
+        to update and comes here, as "already installed", with the record still naming
+        the old revision as current. Only a verified run of these sources' own images
+        finishes it: what an operator pinned, or a runtime behind the sources, is not
+        what the update installed.
+        """
+        if not currency.running_revision or currency.running_revision != currency.source_revision:
+            return ""
+        previous = self.gateway.finish_installed_releases_record(current=currency.source_revision)
+        if previous:
+            log.write(
+                f"Updated from {previous} to {currency.source_revision}. An earlier run "
+                "switched the runtime and stopped before verifying it; this run verified it "
+                "and recorded the release."
+            )
+        return previous
 
     def _converge_compact_workers(
         self, config: InstallConfig, *, log: InstallerLog, changed: bool = False
