@@ -78,6 +78,7 @@ export function oauthNotice(code: string, t: Translate = fallbackContext.t): OAu
 export function oauthPresetLabel(preset: string, t: Translate = fallbackContext.t): string {
   if (preset === "full_authoring") return t("react.oauth.preset_full_authoring", "Full authoring");
   if (preset === "operational") return t("react.oauth.preset_operational", "Monitor and run workflows");
+  if (preset === "my_role") return t("react.oauth.preset_my_role", "Same access as you");
   return preset;
 }
 

@@ -107,6 +107,8 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}): AgentAccessSet
     ],
     expiry_days_options: [7, 30, 90],
     default_expiry_days: 30,
+    // The admin's view: the advanced options exist, folded away.
+    role_access: { preset: "my_role", scopes: ["admin:all"], expiry_days: 90, advanced_options: true },
     first_request: step({ id: "first_request", title: "Make the first request", content: "List my Flow Steward projects and their enabled workflows." }),
     clients: [
       { id: "claude_code", label: "Local agent", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator(), developer] },
@@ -150,11 +152,18 @@ async function chooseClient(name: RegExp) {
   await screen.findByRole("radio", { name: /Flow Steward Operator/ });
 }
 
+/** An admin on the access step, with the advanced options opened. */
 async function chooseLocalOperator() {
   renderSection();
   await chooseClient(/Local agent/);
   clickContinue();
   await screen.findByRole("button", { name: "Create token" });
+  fireEvent.click(screen.getByRole("button", { name: "Advanced options" }));
+}
+
+/** An operator's or a viewer's setup: the server says they choose nothing. */
+function roleSetup(): AgentAccessSetup {
+  return setupPayload({ role_access: { preset: "my_role", scopes: ["read:*", "registry.read", "command:*"], expiry_days: 90, advanced_options: false } });
 }
 
 async function createLocalToken() {
@@ -417,5 +426,65 @@ describe("AiAgentsSection", () => {
     expect(within(currentStep()).getByText("This package does not connect to this installation, so no token is needed.")).toBeInTheDocument();
     expect(within(currentStep()).getByRole("link", { name: "Open the release" })).toBeInTheDocument();
     expect(mockedIssue).not.toHaveBeenCalled();
+  });
+  describe("ADR 0076: an operator or a viewer connects as their role", () => {
+    it("offers one button and no access, scope, project or expiry choice", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      expect(await screen.findByText("Local agent gets the same access as you. It can never do more than you can.")).toBeInTheDocument();
+      expect(screen.getByText("Works for 90 days; you can connect again anytime.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+      expect(screen.queryByRole("radio", { name: /Monitor and run workflows/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Advanced options" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Expiration")).not.toBeInTheDocument();
+      expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+      expect(screen.queryByText("read:*")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
+      expect(mockedProjects).not.toHaveBeenCalled();
+    });
+
+    it("sends only the client and the package, then shows the address, Copy and one instruction", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedIssue.mockResolvedValue(created());
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+      const address = await screen.findByRole("group", { name: "Address" });
+      expect(mockedIssue).toHaveBeenCalledTimes(1);
+      expect(mockedIssue.mock.calls[0][1]).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator" });
+      expect(address).toHaveTextContent(MCP);
+      expect(within(address).getByRole("button", { name: "Copy" })).toBeInTheDocument();
+      expect(screen.getByText("Add Flow Steward in Local agent with the steps below; the address and your key are already filled in.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/^Same access as you · All projects · Expires /)).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: "Connect again" })).toBeInTheDocument();
+    });
+
+    it("says what an operator can do when the server refuses an admin-only option", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedIssue.mockRejectedValueOnce(new HttpError({ status: 403, url: "/api/auth/agent-access/tokens", payload: { error: "advanced_options_admin_only" } }));
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+      await waitFor(() => expect(screen.getByText("Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects.")).toBeInTheDocument());
+    });
+  });
+
+  it("folds an admin's access, expiry and projects away by default", async () => {
+    renderSection();
+    await chooseClient(/Local agent/);
+    clickContinue();
+    const toggle = await screen.findByRole("button", { name: "Advanced options" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Monitor and run workflows · 30 days · All projects")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Monitor and run workflows/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Expiration")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Hide advanced options" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeChecked();
+    expect(screen.getByText("Expiration")).toBeInTheDocument();
   });
 });

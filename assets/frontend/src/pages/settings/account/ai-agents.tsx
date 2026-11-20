@@ -76,6 +76,7 @@ function definiteFailure(error: unknown, t: Translate): string | null {
   if (code === "attempt_in_progress") return null;
   if (code === "exceeds_authority") return t("react.agent_access.exceeds_authority", "This access is more than your own role allows.");
   if (code === "project_not_accessible") return t("react.agent_access.project_not_accessible", "One of the selected projects is not available to you.");
+  if (code === "advanced_options_admin_only") return t("react.agent_access.advanced_options_admin_only", "Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects.");
   return error.message;
 }
 
@@ -87,6 +88,10 @@ function connectionLabel(client: AgentClient, t: Translate) {
  * Settings → Account → AI agents: connect an AI client in five steps. Each step
  * is a numbered card; a finished one folds into its choice with Change, and the
  * token, once created, stays with the account whatever client is chosen next.
+ *
+ * ADR 0076 §5: an operator or a viewer chooses nothing about access. One button
+ * connects the agent with their role's permissions for the server's number of
+ * days. An admin keeps the preset, the expiry and the projects, folded away.
  */
 export function AiAgentsSection() {
   const { t } = useI18n();
@@ -105,6 +110,7 @@ export function AiAgentsSection() {
   const [presetId, setPresetId] = useState<OAuthPresetId | "">("");
   const [expiryDays, setExpiryDays] = useState(30);
   const [projectIds, setProjectIds] = useState<string[]>([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [issue, setIssue] = useState<IssueState>({ kind: "idle" });
   const [secret, setSecret] = useState("");
   const attempt = useRef<Attempt | null>(null);
@@ -115,7 +121,9 @@ export function AiAgentsSection() {
   const packageMeta = setup?.packages.find((item) => item.id === choice?.package_id);
   const usesToken = choice?.auth === "personal_token";
   const locked = issue.kind !== "idle" && issue.kind !== "failed";
-  const projectsQuery = useQuery({ queryKey: ["settings", "account", "agent-access", "projects"], queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }), enabled: usesToken });
+  // Only an admin chooses the access; everyone else connects "as my role".
+  const choosesAccess = Boolean(setup?.role_access?.advanced_options);
+  const projectsQuery = useQuery({ queryKey: ["settings", "account", "agent-access", "projects"], queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }), enabled: usesToken && choosesAccess && advancedOpen });
   const projectOptions = (projectsQuery.data?.projects || []).map((project) => ({ value: String(project.id), label: project.name?.trim() || t("react.settings.unnamed_project", "Unnamed project") }));
   const wizardTokensQuery = useQuery({ queryKey: ["settings", "account", "tokens", "agent-access-lookup"], queryFn: () => fetchPersonalTokensCollection(1, 25), enabled: issue.kind === "uncertain" });
   const wizardTokens = (wizardTokensQuery.data?.tokens || []).filter((token) => token.label.startsWith("AI agent"));
@@ -194,10 +202,15 @@ export function AiAgentsSection() {
   }
 
   function createToken() {
-    if (!client || !choice || !presetId || inFlight.current) return;
+    if (!client || !choice || inFlight.current) return;
+    if (choosesAccess && !presetId) return;
     attempt.current ??= {
       key: newAttemptKey(),
-      request: { client_id: client.id, package_id: choice.package_id, preset: presetId, expiry_days: expiryDays, project_ids: projectIds },
+      // "As my role" sends the client and the package only: the server gives the
+      // role's access and its own expiry, and refuses anything more from a non-admin.
+      request: choosesAccess
+        ? { client_id: client.id, package_id: choice.package_id, preset: presetId || undefined, expiry_days: expiryDays, project_ids: projectIds }
+        : { client_id: client.id, package_id: choice.package_id },
     };
     ignoreAsyncResult(send(attempt.current));
   }
@@ -336,41 +349,71 @@ export function AiAgentsSection() {
     if (status === "skipped") return <AgentStep number={3} status="skipped" summary={notNeeded} title={titles.access} />;
     if (choice.auth === "oauth") return renderOauthAccess(status);
     if (status === "done" && tokenId) {
-      return <AgentTokenStep disabled={changing} number={3} onCreateAnother={createAnotherToken} onRevoked={() => setSecret("")} presetLabel={oauthPresetLabel(attempt.current?.request.preset || presetId, t)} title={titles.access} tokenId={tokenId} />;
+      const chosenPreset = choosesAccess ? attempt.current?.request.preset || presetId : setup?.role_access?.preset || "my_role";
+      return <AgentTokenStep createAnotherLabel={choosesAccess ? undefined : t("react.agent_access.connect_again", "Connect again")} disabled={changing} number={3} onCreateAnother={createAnotherToken} onRevoked={() => setSecret("")} presetLabel={oauthPresetLabel(chosenPreset, t)} title={titles.access} tokenId={tokenId} />;
     }
+    if (!choosesAccess) return renderRoleAccess();
     const expiresOn = formatDate(new Date(Date.now() + expiryDays * DAY_MS).toISOString());
+    const projectsSummary = projectIds.length
+      ? t("react.oauth.project_count", "{value1} projects", { value1: String(projectIds.length) })
+      : t("react.agent_access.all_projects", "All projects");
     return (
       <AgentStep number={3} status="current" summary={t("react.agent_access.token_access_description", "{client} uses a personal access token from your account. It can never do more than you can.", { client: client.label })} title={titles.access}>
         {renderBlockers("danger")}
-        <fieldset className="fs-agent-fieldset" disabled={locked}>
-          <legend className="fs-field-label">{t("react.agent_access.access_level", "What the agent may do")}</legend>
-          <div className="fs-agent-options">
-            {/* Only what this user can choose; an option they cannot pick is not shown. */}
-            {setup?.presets.filter((preset) => preset.available).map((preset) => (
-              <div className="fs-agent-option" key={preset.id}>
-                <DsRadio checked={presetId === preset.id} name="agent-access-preset" onChange={() => setPresetId(preset.id)} value={preset.id}><span className="fs-agent-option-name">{oauthPresetLabel(preset.id, t)}</span></DsRadio>
-                <span className="fs-agent-option-description">{oauthPresetDescription(preset.id, t)}</span>
-                <span className="fs-agent-option-chips">{preset.scopes.map((scope) => <DsValueChip key={scope}>{scope}</DsValueChip>)}</span>
-              </div>
-            ))}
-          </div>
-        </fieldset>
         <div className="fs-agent-fieldset">
-          <OptionalLabel id={projectsLabelId}>{t("react.oauth.column_projects", "Projects")}</OptionalLabel>
-          <MultiCombobox ariaLabel={t("react.oauth.column_projects", "Projects")} disabled={locked} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
-          <span className="fs-field-helper">{t("react.agent_access.projects_help", "Leave empty for every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account.")}</span>
+          <p className="fs-agent-text">{[oauthPresetLabel(presetId, t), t("react.settings.value1_days", "{value1} days", { value1: String(expiryDays) }), projectsSummary].join(" · ")}</p>
+          <div className="fs-footer-actions">
+            <button aria-expanded={advancedOpen} className="fs-button ghost sm" disabled={locked} onClick={() => setAdvancedOpen((open) => !open)} type="button">
+              {advancedOpen ? t("react.agent_access.hide_advanced_options", "Hide advanced options") : t("react.agent_access.advanced_options", "Advanced options")}
+            </button>
+          </div>
         </div>
-        <fieldset className="fs-agent-fieldset" disabled={locked}>
-          <legend className="fs-field-label">{t("react.settings.expiration", "Expiration")}</legend>
-          <div className="fs-agent-inline-options">{setup?.expiry_days_options.map((days) => <DsRadio checked={expiryDays === days} key={days} name="agent-access-expiry" onChange={() => setExpiryDays(days)} value={String(days)}>{t("react.settings.value1_days", "{value1} days", { value1: String(days) })}</DsRadio>)}</div>
-          <span className="fs-field-helper">{t("react.agent_access.token_expires_on", "The token expires on {date}.", { date: expiresOn })}</span>
-        </fieldset>
-        {renderIssue()}
+        {advancedOpen ? (
+          <>
+            <fieldset className="fs-agent-fieldset" disabled={locked}>
+              <legend className="fs-field-label">{t("react.agent_access.access_level", "What the agent may do")}</legend>
+              <div className="fs-agent-options">
+                {/* Only what this user can choose; an option they cannot pick is not shown. */}
+                {setup?.presets.filter((preset) => preset.available).map((preset) => (
+                  <div className="fs-agent-option" key={preset.id}>
+                    <DsRadio checked={presetId === preset.id} name="agent-access-preset" onChange={() => setPresetId(preset.id)} value={preset.id}><span className="fs-agent-option-name">{oauthPresetLabel(preset.id, t)}</span></DsRadio>
+                    <span className="fs-agent-option-description">{oauthPresetDescription(preset.id, t)}</span>
+                    <span className="fs-agent-option-chips">{preset.scopes.map((scope) => <DsValueChip key={scope}>{scope}</DsValueChip>)}</span>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+            <div className="fs-agent-fieldset">
+              <OptionalLabel id={projectsLabelId}>{t("react.oauth.column_projects", "Projects")}</OptionalLabel>
+              <MultiCombobox ariaLabel={t("react.oauth.column_projects", "Projects")} disabled={locked} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
+              <span className="fs-field-helper">{t("react.agent_access.projects_help", "Leave empty for every project within your access. Choosing projects limits runs, jobs and workflows to them; agents and skills belong to the whole account.")}</span>
+            </div>
+            <fieldset className="fs-agent-fieldset" disabled={locked}>
+              <legend className="fs-field-label">{t("react.settings.expiration", "Expiration")}</legend>
+              <div className="fs-agent-inline-options">{setup?.expiry_days_options.map((days) => <DsRadio checked={expiryDays === days} key={days} name="agent-access-expiry" onChange={() => setExpiryDays(days)} value={String(days)}>{t("react.settings.value1_days", "{value1} days", { value1: String(days) })}</DsRadio>)}</div>
+              <span className="fs-field-helper">{t("react.agent_access.token_expires_on", "The token expires on {date}.", { date: expiresOn })}</span>
+            </fieldset>
+          </>
+        ) : null}
+        {renderIssue(t("react.settings.create_token", "Create token"), !presetId || mcpBlocked)}
       </AgentStep>
     );
   }
 
-  function renderIssue() {
+  /** An operator's or a viewer's access step: what the agent gets, and one button. */
+  function renderRoleAccess() {
+    if (!client) return null;
+    const days = setup?.role_access?.expiry_days || 0;
+    return (
+      <AgentStep number={3} status="current" summary={t("react.agent_access.role_access_summary", "{client} gets the same access as you. It can never do more than you can.", { client: client.label })} title={titles.access}>
+        {renderBlockers("danger")}
+        {days ? <p className="fs-agent-text">{t("react.agent_access.role_access_expiry", "Works for {days} days; you can connect again anytime.", { days: String(days) })}</p> : null}
+        {renderIssue(t("react.agent_access.connect", "Connect"), mcpBlocked)}
+      </AgentStep>
+    );
+  }
+
+  function renderIssue(createLabel: string, createDisabled: boolean) {
     if (issue.kind === "uncertain") {
       return (
         <DsAlert title={t("react.agent_access.uncertain_title", "We could not confirm whether the token was created")} tone="warning">
@@ -388,7 +431,7 @@ export function AiAgentsSection() {
       <>
         {issue.kind === "failed" ? <DsAlert title={t("react.settings.token_could_not_be_created", "Token could not be created")} tone="danger">{issue.message}</DsAlert> : null}
         <div className="fs-agent-step-footer">
-          <Button busy={issue.kind === "submitting"} busyLabel={t("react.settings.creating", "Creating…")} disabled={!presetId || mcpBlocked} onClick={createToken} type="button" variant="primary">{t("react.settings.create_token", "Create token")}</Button>
+          <Button busy={issue.kind === "submitting"} busyLabel={t("react.settings.creating", "Creating…")} disabled={createDisabled} onClick={createToken} type="button" variant="primary">{createLabel}</Button>
         </div>
       </>
     );
@@ -427,8 +470,15 @@ export function AiAgentsSection() {
             <p>{result?.secret_already_shown
               ? t("react.agent_access.secret_already_shown_copy", "This attempt created the token earlier and the secret cannot be shown again. If you did not save it, revoke the token in step 3 and create a new one.")
               : t("react.agent_access.token_missing_copy", "A token is shown only once, so this page cannot fill it in again. Create another token to fill in this setup.")}</p>
-            <div className="fs-footer-actions"><button className="fs-button" onClick={createAnotherToken} type="button">{t("react.agent_access.create_another_token", "Create another token")}</button></div>
+            <div className="fs-footer-actions"><button className="fs-button" onClick={createAnotherToken} type="button">{choosesAccess ? t("react.agent_access.create_another_token", "Create another token") : t("react.agent_access.connect_again", "Connect again")}</button></div>
           </DsAlert>
+        ) : null}
+        {!choosesAccess && usesToken && secret && !mcpBlocked && setup?.mcp_url ? (
+          <div className="fs-agent-sub">
+            <h4 className="fs-agent-sub-title">{t("react.agent_access.address_title", "Address")}</h4>
+            <AgentCodeBlock label={t("react.agent_access.address_title", "Address")} text={setup.mcp_url} />
+            <p className="fs-agent-text">{t("react.agent_access.role_connected_instruction", "Add Flow Steward in {client} with the steps below; the address and your key are already filled in.", { client: client.label })}</p>
+          </div>
         ) : null}
         {/* Blocked: only the package steps; no address to paste and no token to use. */}
         <AgentSetupSteps packageId={choice.package_id} packageVersion={packageMeta?.version || ""} secret={usesToken ? secret : ""} steps={mcpBlocked ? steps.filter((step) => !step.uses_mcp_url && !step.uses_token) : steps} />
