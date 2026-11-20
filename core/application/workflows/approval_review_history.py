@@ -81,7 +81,8 @@ def _review_entries(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     return [
         dict(entry)
         for entry in (approvals if isinstance(approvals, list) else [])
-        if isinstance(entry, Mapping) and ("review" in entry or "review_changes" in entry)
+        if isinstance(entry, Mapping)
+        and (entry.get("typed_review") or "review" in entry or "review_changes" in entry)
     ]
 
 
@@ -111,19 +112,22 @@ def last_review_decision(
     if not can_read(holder):
         return {"access": "none"}
     public = serialize_approval_history_entry(entry)
-    review = public.get("review") if isinstance(public.get("review"), dict) else {}
+    approved = bool(public.get("approved"))
+    # A rejection accepted nothing: no values and no corrections, only who
+    # rejected it and why. Edits made before rejecting never reached the workflow.
+    review = public.get("review") if approved and isinstance(public.get("review"), dict) else {}
     return {
         "access": "read",
         "job_id": holder_id,
         "approval_id": public.get("approval_id"),
-        "approved": bool(public.get("approved")),
+        "approved": approved,
         "actor": public.get("actor"),
         "actor_type": public.get("actor_type"),
         "timestamp": public.get("timestamp"),
         "comment": public.get("comment"),
         "fields": list(review.get("fields") or []),
         "values": dict(review.get("values") or {}),
-        "changes": list(public.get("review_changes") or []),
+        "changes": list(public.get("review_changes") or []) if approved else [],
     }
 
 

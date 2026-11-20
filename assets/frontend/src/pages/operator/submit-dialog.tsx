@@ -1,6 +1,6 @@
 import { useId, useMemo, useRef, useState } from "react";
 
-import { DsAlert, DsDialog } from "@/components/shared/design-system";
+import { DsAlert, DsCheckbox, DsDialog } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { initialFormValues, type FormFiles, type FormProblem, type FormValues } from "@/components/workflow-inputs/form-field";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
@@ -33,29 +33,56 @@ function newSubmissionId(): string {
 }
 
 /**
+ * What "Send again" fills the form with: an earlier job's values and its files.
+ * `missing` names the files that could not be loaded, `expected` how many files
+ * each file input had, so a shorter set is never sent without the operator's say.
+ */
+export type SubmissionPrefill = {
+  values: FormValues;
+  files: FormFiles;
+  missing?: { field: string; label: string; filename: string }[];
+  expected?: Record<string, number>;
+};
+
+/**
  * The New dialog of a section (ADR 0075): the form the admin configured, sent
  * as one run (Bulk) or one run per item (For each) with limited concurrency,
  * "N of M accepted" and a retry of the failed ones under their own keys.
+ * With `prefill` it is "Send again": the same form, filled with an earlier
+ * job's values and files, sent as a new submission.
  */
 export function OperatorSubmitDialog({
   section,
   open,
   onClose,
   onSent,
-}: Readonly<{ section: OperatorSectionDetail; open: boolean; onClose: () => void; onSent: () => void }>) {
+  prefill,
+}: Readonly<{
+  section: OperatorSectionDetail;
+  open: boolean;
+  onClose: () => void;
+  /** The jobs this send started. */
+  onSent: (jobIds: string[]) => void;
+  prefill?: SubmissionPrefill;
+}>) {
   const { t } = useI18n();
   const formId = useId();
   const uploadLimits = useRunUploadLimits();
   const operator = section.operator;
   const fields = operator.form_fields;
   const submission = operator.settings?.submission;
-  const initialValues = useMemo(() => initialFormValues(fields, operator.input_schema), [fields, operator.input_schema]);
+  const initialValues = useMemo(
+    () => ({ ...initialFormValues(fields, operator.input_schema), ...prefill?.values }),
+    [fields, operator.input_schema, prefill],
+  );
+  const initialFiles = useMemo<FormFiles>(() => prefill?.files ?? {}, [prefill]);
   const [values, setValues] = useState<FormValues>(initialValues);
-  const [files, setFiles] = useState<FormFiles>({});
+  const [files, setFiles] = useState<FormFiles>(initialFiles);
   const [items, setItems] = useState<ItemState[]>([]);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [problem, setProblem] = useState<{ title: string; reasons: string[] } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sendShorter, setSendShorter] = useState(false);
   const generation = useRef(0);
   const target = submission?.mode === "foreach" ? submission.target_input ?? "" : "";
   const multipleFiles = useMemo(() => new Set(target ? [target] : []), [target]);
@@ -68,13 +95,18 @@ export function OperatorSubmitDialog({
   // retried under their own keys, or the operator starts a new submission.
   const batchLocked = accepted > 0;
   const labelOf = (name: string) => fields.find((field) => field.name === name)?.label ?? name;
+  // Files of the earlier job that could not be loaded, while their input still has fewer files than it had.
+  const unresolvedMissing = (prefill?.missing ?? []).filter(
+    (entry) => (files[entry.field]?.length ?? 0) < (prefill?.expected?.[entry.field] ?? 0),
+  );
 
   const reset = () => {
     setValues(initialValues);
-    setFiles({});
+    setFiles(initialFiles);
     setItems([]);
     setFieldErrors({});
     setProblem(null);
+    setSendShorter(false);
   };
 
   const problemText = (entry: SubmissionProblem | FormProblem): string => {
@@ -107,6 +139,7 @@ export function OperatorSubmitDialog({
     setBusy(true);
     setProblem(null);
     let failures = 0;
+    const started: string[] = [];
     const single = runs.length === 1 && items.length <= 1;
     const update = (itemId: string, patch: Partial<ItemState>) =>
       setItems((previous) => previous.map((item) => (item.run.itemId === itemId ? { ...item, ...patch } : item)));
@@ -131,6 +164,7 @@ export function OperatorSubmitDialog({
             item.run.idempotencyKey,
           );
           update(item.run.itemId, { state: "accepted", jobId: result.job_id });
+          started.push(result.job_id);
         } catch (error) {
           failures += 1;
           const view = describeRunError(error, fieldNames, failureText);
@@ -149,7 +183,7 @@ export function OperatorSubmitDialog({
     );
     if (generation.current !== current) return;
     setBusy(false);
-    onSent();
+    onSent(started);
     if (!failures) {
       reset();
       onClose();
@@ -160,6 +194,10 @@ export function OperatorSubmitDialog({
     if (batchLocked) return;
     setProblem(null);
     setFieldErrors({});
+    if (unresolvedMissing.length && !sendShorter) {
+      setProblem({ title: t("react.operator_job.resend_missing_block", "Add the missing files again, or confirm sending without them."), reasons: [] });
+      return;
+    }
     const { runs, problems } = prepareOperatorRuns({
       keyPrefix: `${section.project_id}:${section.workflow_id}`,
       submission,
@@ -253,7 +291,7 @@ export function OperatorSubmitDialog({
         onClose();
       }}
       open={open}
-      title={t("react.operator.new_submission", "New submission")}
+      title={prefill ? t("react.operator_job.send_again", "Send again") : t("react.operator.new_submission", "New submission")}
     >
       <form
         className="fs-dialog-form"
@@ -264,6 +302,20 @@ export function OperatorSubmitDialog({
           if (!busy && !batchLocked) submit();
         }}
       >
+        {unresolvedMissing.length ? (
+          <DsAlert title={t("react.operator_job.resend_missing", "These files of the earlier job could not be loaded:")} tone="warning">
+            <ul data-testid="resend-missing-files">
+              {unresolvedMissing.map((entry, index) => (
+                <li key={`${entry.field}-${entry.filename}-${index}`}>
+                  {entry.label}: {entry.filename || "—"}
+                </li>
+              ))}
+            </ul>
+            <DsCheckbox checked={sendShorter} onChange={setSendShorter}>
+              {t("react.operator_job.resend_without_missing", "Send without these files")}
+            </DsCheckbox>
+          </DsAlert>
+        ) : null}
         {batchLocked ? (
           <p className="text-sm text-muted">
             {t("react.operator.batch_locked", "Part of this submission was accepted. Retry the failed items, or start a new submission.")}

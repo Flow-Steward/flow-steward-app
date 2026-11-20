@@ -101,6 +101,10 @@ def test_a_template_with_typed_fields_must_declare_the_core_that_has_them() -> N
     with pytest.raises(WorkflowTemplateCatalogError) as refused:
         _require_typed_contract_minimum(_template("0.9.19"), _bundle(REVIEWED))
     assert refused.value.code == "workflow_template_min_version_too_low"
+    # 0.9.20 and 0.9.21 were released without typed fields: they are not enough.
+    for released_without in ("0.9.20", "0.9.21"):
+        with pytest.raises(WorkflowTemplateCatalogError):
+            _require_typed_contract_minimum(_template(released_without), _bundle(REVIEWED))
     with pytest.raises(WorkflowTemplateCatalogError):
         _require_typed_contract_minimum(_template(""), _bundle(RELEASED, SHAPED))
 

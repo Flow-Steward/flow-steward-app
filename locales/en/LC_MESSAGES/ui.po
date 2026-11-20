@@ -31766,3 +31766,27 @@ msgstr "This sheet is empty."
 
 msgid "react.operator_job.result_pending"
 msgstr "The result appears here when the run finishes."
+
+msgid "react.operator_job.title_more"
+msgstr "{name} and {count} more"
+
+msgid "react.operator_job.send_again"
+msgstr "Send again"
+
+msgid "react.operator_job.loading_files"
+msgstr "Loading the files…"
+
+msgid "react.operator_job.files_not_loaded"
+msgstr "{count} files of this job could not be loaded. Add them in the form."
+
+msgid "react.operator_job.reject_reason"
+msgstr "Reason: {comment}"
+
+msgid "react.operator_job.resend_missing"
+msgstr "These files of the earlier job could not be loaded:"
+
+msgid "react.operator_job.resend_without_missing"
+msgstr "Send without these files"
+
+msgid "react.operator_job.resend_missing_block"
+msgstr "Add the missing files again, or confirm sending without them."

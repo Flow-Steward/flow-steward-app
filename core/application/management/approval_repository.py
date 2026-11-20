@@ -151,6 +151,7 @@ class ApprovalRepository:
         scope: ScopeContext,
         review_changes: list[dict[str, Any]] | None = None,
         review_decision: dict[str, Any] | None = None,
+        typed_review: bool = False,
     ) -> dict[str, Any]:
         entry: dict[str, Any] = {
             "approval_id": approval_id,
@@ -178,6 +179,10 @@ class ApprovalRepository:
                 entry["retry_ordinal"] = 1
         if decision.external_actor is not None:
             entry["external_actor"] = decision.external_actor.model_dump(mode="json")
+        if typed_review:
+            # A decision on an Approval with fields, approved or rejected: the
+            # operator's view of the job shows it, a rejection with its reason.
+            entry["typed_review"] = True
         if review_changes:
             # What the application found and what the person made of it, with
             # the actor above: the recognized values stay in the history.
@@ -269,6 +274,7 @@ class ApprovalRepository:
                 if review is not None and bool(build_approval_resume_value(decision)["approved"])
                 else None
             ),
+            typed_review=captured_review(payload) is not None,
         )
         approvals.append(entry)
         meta["approvals"] = approvals
