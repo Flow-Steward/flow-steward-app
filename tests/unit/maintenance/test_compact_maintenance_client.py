@@ -288,3 +288,62 @@ def test_compact_status_is_read_only_while_installer_lock_is_held(tmp_path: Path
         )
         assert _client(tmp_path, process).status().status == "disabled"
     assert not (root / "operations").exists()
+
+
+class ComposeLikeProcess:
+    """Streams as the real process runner does: stderr joins stdout unless separated.
+
+    Compose reports "Container ... Creating" on stderr for every `run`; 0.9.20 read
+    those lines in front of the JSON and could not finish a Compact upgrade.
+    """
+
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+        self.commands: list[tuple[str, ...]] = []
+
+    def run(self, command: list[str], **kwargs: object):
+        self.commands.append(tuple(command))
+        separate = bool(kwargs.get("separate_stderr"))
+        if "exec" in command:
+            stderr, stdout, code = 'service "compact-runtime" is not running\n', "", 1
+        elif "ps" in command:
+            stderr, stdout, code = "", "", 0
+        else:
+            stderr = (
+                " Container owned-compact-compact-runtime-run-1a2b Creating \n"
+                " Container owned-compact-compact-runtime-run-1a2b Created \n"
+            )
+            stdout, code = self.answer, 0
+        if separate:
+            return SimpleNamespace(returncode=code, stdout=stdout, stderr=stderr)
+        return SimpleNamespace(returncode=code, stdout=stderr + stdout, stderr="")
+
+
+def test_compact_status_reads_a_stopped_runtime_through_a_disposable_operator(
+    tmp_path: Path,
+) -> None:
+    result = {
+        "status": "enabled",
+        "activated_at": "2026-11-20T10:00:00Z",
+        "owner_kind": "manual",
+    }
+    answer = json.dumps(
+        {
+            "schema": "flow-steward.cli.v1",
+            "ok": True,
+            "command": "maintenance.status",
+            "result": result,
+        }
+    )
+    process = ComposeLikeProcess(answer)
+
+    status = _client(tmp_path, process).status()
+
+    assert status.status == "enabled"
+    assert [
+        next(arg for arg in cmd if arg in {"exec", "ps", "run"}) for cmd in process.commands
+    ] == [
+        "exec",
+        "ps",
+        "run",
+    ]
