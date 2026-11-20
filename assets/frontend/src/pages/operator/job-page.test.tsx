@@ -417,8 +417,19 @@ describe("OperatorJobPage finished job", () => {
     const submitted = await screen.findByTestId("operator-job-inputs");
     expect(within(submitted).getByText("Document type")).toBeInTheDocument();
     expect(within(submitted).getByText("Invoice")).toBeInTheDocument();
-    expect(within(submitted).getByRole("link", { name: "p1.jpg" })).toHaveAttribute("href", "/api/jobs/j3/artifacts/a1");
     expect(within(submitted).queryByText("OCR model")).not.toBeInTheDocument();
+    // The uploaded pages are shown, not listed as links: the previewer above the values.
+    expect(within(submitted).queryByText("Pages")).not.toBeInTheDocument();
+    const original = within(screen.getByTestId("operator-job-submitted")).getByTestId("review-original");
+    expect(within(original).getByText("p1.jpg")).toBeInTheDocument();
+    expect(within(original).getByRole("link", { name: /download/i })).toHaveAttribute("href", "/api/jobs/j3/artifacts/a1");
+    // What was sent beside what came back, as the approved wireframe.
+    const columns = screen.getByTestId("operator-job-columns");
+    expect(columns).toHaveClass("fs-operator-job-columns");
+    expect(columns).not.toHaveClass("fs-operator-job-columns--text");
+    expect(columns.children[0]).toBe(screen.getByTestId("operator-job-submitted"));
+    expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-result"));
+    expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-review"));
     expect(screen.getByText("Submitted by Olga")).toBeInTheDocument();
 
     const result = screen.getByTestId("operator-job-outputs");
@@ -510,12 +521,75 @@ describe("OperatorJobPage finished job", () => {
     expect(within(decided).getByDisplayValue("3")).toBeInTheDocument();
   });
 
+  it("previews a submitted PDF on the left and offers a result file with its preview and download", async () => {
+    const withReport = {
+      ...withForm,
+      operator: {
+        ...withForm.operator,
+        settings: { published: true, result: { order: ["report"], fields: {} } },
+        output_schema: { properties: { report: { title: "Report" } } },
+      },
+    } as unknown as OperatorSectionDetail;
+    const detail = finished({
+      job_values: {
+        status: "completed",
+        inputs: { pages: [{ filename: "contract.pdf", content_type: "application/pdf", size_bytes: 2048, artifact_id: "a1" }] },
+        outputs: { report: { filename: "report.pdf", content_type: "application/pdf", size_bytes: 4096, artifact_id: "r1" } },
+      },
+      decision: null,
+    });
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = new URL(String(input), "https://example.test");
+      if (url.pathname === "/api/v2/projects/p1/workflows/wf.contracts/section") return withReport as never;
+      if (url.pathname === "/api/v2/jobs/j3/review") return detail as never;
+      if (url.pathname === "/api/v2/jobs") return { job_id: "j3", in_list: true, position: 3, total: 47, previous_job_id: null, next_job_id: null } as never;
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    renderPage();
+
+    const submitted = await screen.findByTestId("operator-job-submitted");
+    expect(await within(submitted).findByTestId("file-preview")).toHaveAttribute("data-kind", "pdf");
+    expect(within(submitted).queryByText("No values were submitted.")).not.toBeInTheDocument();
+
+    const result = screen.getByTestId("operator-job-outputs");
+    expect(within(result).getByText("report.pdf")).toBeInTheDocument();
+    expect(within(result).getByRole("button", { name: "View" })).toBeInTheDocument();
+    expect(within(result).getByRole("link", { name: /download/i })).toHaveAttribute("href", "/api/jobs/j3/artifacts/r1");
+  });
+
+  it("gives a text result the wider column", async () => {
+    const textOnly = {
+      ...withForm,
+      operator: {
+        ...withForm.operator,
+        settings: { published: true, result: { order: ["notes"], fields: { notes: { label: "Post", display: "wysiwyg" } } } },
+        output_schema: { properties: { notes: { type: "string" } } },
+      },
+    } as unknown as OperatorSectionDetail;
+    const detail = finished({ job_values: { status: "completed", inputs: { doc_type: "invoice" }, outputs: { notes: "## Coffee machines" } }, decision: null });
+    mockedFetchJson.mockImplementation(async (input) => {
+      const url = new URL(String(input), "https://example.test");
+      if (url.pathname === "/api/v2/projects/p1/workflows/wf.contracts/section") return textOnly as never;
+      if (url.pathname === "/api/v2/jobs/j3/review") return detail as never;
+      if (url.pathname === "/api/v2/jobs") return { job_id: "j3", in_list: true, position: 3, total: 47, previous_job_id: null, next_job_id: null } as never;
+      throw new Error(`unexpected ${url.pathname}`);
+    });
+    renderPage();
+
+    expect(await screen.findByTestId("operator-formatted-text")).toBeInTheDocument();
+    expect(screen.getByTestId("operator-job-columns")).toHaveClass("fs-operator-job-columns--text");
+  });
+
   it("shows no result before the run succeeded and only that a review was decided without access", async () => {
     serveFinished(finished({ status: "running", job_values: { status: "running", inputs: { doc_type: "invoice" }, outputs: null }, decision: { access: "none" } }));
     renderPage();
 
     expect(await screen.findByText("This job was reviewed by people who have access to it.")).toBeInTheDocument();
     expect(screen.queryByTestId("operator-job-result")).not.toBeInTheDocument();
+    // The right column keeps its place and says where the result will be.
+    expect(within(screen.getByTestId("operator-job-columns")).getByTestId("operator-job-result-pending")).toHaveTextContent(
+      "The result appears here when the run finishes.",
+    );
     expect(screen.queryByText("Marta")).not.toBeInTheDocument();
   });
 });

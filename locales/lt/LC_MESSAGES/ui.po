@@ -32191,3 +32191,6 @@ msgstr "{name} lapai"
 
 msgid "react.jobs.file_preview_empty_sheet"
 msgstr "Šis lapas tuščias."
+
+msgid "react.operator_job.result_pending"
+msgstr "Rezultatas bus rodomas čia, kai vykdymas baigsis."

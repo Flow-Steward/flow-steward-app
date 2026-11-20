@@ -31763,3 +31763,6 @@ msgstr "Sheets of {name}"
 
 msgid "react.jobs.file_preview_empty_sheet"
 msgstr "This sheet is empty."
+
+msgid "react.operator_job.result_pending"
+msgstr "The result appears here when the run finishes."

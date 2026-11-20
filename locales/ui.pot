@@ -30707,3 +30707,6 @@ msgstr ""
 
 msgid "react.jobs.file_preview_empty_sheet"
 msgstr ""
+
+msgid "react.operator_job.result_pending"
+msgstr ""

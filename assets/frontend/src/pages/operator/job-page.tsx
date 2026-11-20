@@ -243,7 +243,7 @@ export function OperatorJobPage() {
   // Any other job, running, finished or waiting where the caller cannot decide:
   // the operator view, never the technical step graph.
   return (
-    <PageContainer width="standard">
+    <PageContainer width="wide">
       {bar}
       <OperatorJobView jobId={jobId} review={data} section={section.data} />
     </PageContainer>

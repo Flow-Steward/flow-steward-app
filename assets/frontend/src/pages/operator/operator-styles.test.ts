@@ -1,6 +1,14 @@
 import repeaterStyles from "@/components/workflow-inputs/workflow-input-fields.css?raw";
 import operatorStyles from "@/pages/operator/operator.css?raw";
 
+describe("operator job view layout", () => {
+  it("puts what was sent beside what came back, the text result wider, one column when narrow", () => {
+    expect(operatorStyles).toMatch(/\.fs-operator-job-columns\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\);/);
+    expect(operatorStyles).toMatch(/\.fs-operator-job-columns--text\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 2fr\);/);
+    expect(operatorStyles).toMatch(/@media \(max-width: 960px\)\s*\{\s*\.fs-operator-job-columns,\s*\.fs-operator-job-columns--text\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
+  });
+});
+
 describe("operator job view at narrow width", () => {
   it("scrolls a result table inside its card, never the page", () => {
     // The repeater table scrolls sideways in its own frame...

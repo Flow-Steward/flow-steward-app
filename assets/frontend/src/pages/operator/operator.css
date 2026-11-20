@@ -82,6 +82,32 @@
 }
 
 
+/* A job of a section (ADR 0075): what was sent beside what came back; a text
+   result gets the wider column. One column on a narrow screen. */
+.fs-operator-job-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--fs-space-150);
+  align-items: start;
+}
+
+.fs-operator-job-columns--text {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.fs-operator-job-side {
+  display: grid;
+  gap: var(--fs-space-150);
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .fs-operator-job-columns,
+  .fs-operator-job-columns--text {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* A job of a section: label and value rows (ADR 0075). */
 .fs-operator-values {
   display: grid;

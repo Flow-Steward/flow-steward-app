@@ -2,18 +2,20 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { DsAlert, DsBadge, DsCard, DsPageHeader } from "@/components/shared/design-system";
-import { optionLabel, type FormFieldView } from "@/components/workflow-inputs/form-field";
+import { isFileField, optionLabel, type FormFieldView } from "@/components/workflow-inputs/form-field";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDateTime } from "@/lib/time/date-time-format";
 import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
+import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
 
-import { reviewFormField, reviewFormValues, type JobReview, type ReviewField } from "./review-model";
+import { ReviewOriginal } from "./review-panel";
+import { reviewFileUrl, reviewFiles, reviewFormField, reviewFormValues, type JobReview, type ReviewField, type ReviewFile } from "./review-model";
 import { OperatorCell } from "./section-cell";
 import type { OperatorListColumn, OperatorResultFieldConfig, OperatorReviewDecision, OperatorSectionDetail } from "./types";
 
-type Row = { label: string; value: ReactNode; name: string };
+type Row = { label: string; value: ReactNode; name: string; formatted?: boolean };
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -50,6 +52,24 @@ function StructuredValue({ field, value }: Readonly<{ field: FormFieldView; valu
   return (
     <div className="fs-operator-readonly-form" data-testid={`operator-structured-${field.name}`}>
       <WorkflowInputFields disabled fields={[field]} onChange={() => undefined} values={{ [field.name]: value }} />
+    </div>
+  );
+}
+
+/** Files only: one file, or a list where every item is a stored file. */
+function filesOf(value: unknown): ReviewFile[] {
+  const files = reviewFiles(value);
+  const count = Array.isArray(value) ? value.length : 1;
+  return files.length && files.length === count ? files : [];
+}
+
+/** Result files with their name, size, preview on demand and download, as Job Details shows them. */
+function ResultFiles({ jobId, files }: Readonly<{ jobId: string; files: ReviewFile[] }>) {
+  return (
+    <div className="grid gap-2">
+      {files.map((file, index) => (
+        <JobFileItem file={{ ...file, download_url: reviewFileUrl(jobId, file) }} key={`${file.artifact_id}-${index}`} />
+      ))}
     </div>
   );
 }
@@ -134,15 +154,19 @@ function resultRows(section: OperatorSectionDetail, outputs: Record<string, unkn
     if (config?.hidden || value === undefined || value === null) continue;
     const label = config?.label || String(record(properties[name]).title ?? "") || name;
     const structure = schemaFormField(name, label, properties[name]);
+    const files = filesOf(value);
+    const formatted = config?.display === "wysiwyg" && typeof value === "string";
     let shown: ReactNode;
-    if (config?.display === "wysiwyg" && typeof value === "string") {
+    if (formatted) {
       shown = <FormattedText text={value} />;
+    } else if (files.length) {
+      shown = <ResultFiles files={files} jobId={jobId} />;
     } else if (structure && isStructured(structure, value)) {
       shown = <StructuredValue field={structure} value={value} />;
     } else {
       shown = <ValueCell decimals={config?.decimals ?? null} format={RESULT_FORMATS[config?.display ?? ""] ?? "auto"} jobId={jobId} name={name} source="output" value={value} />;
     }
-    rows.push({ name, label, value: shown });
+    rows.push({ name, label, value: shown, formatted });
   }
   return rows;
 }
@@ -220,11 +244,12 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
 }
 
 /**
- * A job of a section as operators and viewers see it (ADR 0075): what was
- * submitted with the form's labels, the result as the admin configured it once
- * the run succeeded, files as download links and the decided review (here or on
- * the Invoke child that held it). No step graph; an admin keeps a link to the
- * full Job Details.
+ * A job of a section as operators and viewers see it (ADR 0075), laid out as
+ * the approved wireframe: what was sent on the left (the uploaded files with
+ * their preview, then the form's values), what came back on the right (the
+ * result as the admin configured it once the run succeeded, then the decided
+ * review, here or on the Invoke child that held it). A text result gets the
+ * wider column. No step graph; an admin keeps a link to the full Job Details.
  */
 export function OperatorJobView({ section, jobId, review }: Readonly<{ section: OperatorSectionDetail; jobId: string; review: JobReview | undefined }>) {
   const { t } = useI18n();
@@ -233,14 +258,20 @@ export function OperatorJobView({ section, jobId, review }: Readonly<{ section: 
   const status = values?.status || review?.status || "";
   const inputs = values?.inputs ?? {};
   const outputs = values?.outputs ?? null;
-  const submitted: Row[] = section.operator.form_fields
-    .filter((field) => !field.hidden && !field.fixed && inputs[field.name] !== undefined && inputs[field.name] !== null)
+  const shownFields = section.operator.form_fields.filter(
+    (field) => !field.hidden && !field.fixed && inputs[field.name] !== undefined && inputs[field.name] !== null,
+  );
+  // Every uploaded file in one previewer, paged; its fields leave the value list.
+  const originals = shownFields.filter(isFileField).flatMap((field) => reviewFiles(inputs[field.name]));
+  const submitted: Row[] = shownFields
+    .filter((field) => !(isFileField(field) && filesOf(inputs[field.name]).length))
     .map((field) => ({
       name: field.name,
       label: field.label || field.name,
       value: <SubmittedValue field={field} jobId={jobId} value={inputs[field.name]} />,
     }));
   const result = outputs ? resultRows(section, outputs, jobId) : [];
+  const textResult = result.length > 0 && result.every((row) => row.formatted);
   const by = record(values?.submitted_by);
   const byName = String(by.name ?? by.display_name ?? by.id ?? "");
   const author = byName && by.kind === "service_account" ? t("react.operator.author_api", "{name} (API)", { name: byName }) : byName;
@@ -265,23 +296,33 @@ export function OperatorJobView({ section, jobId, review }: Readonly<{ section: 
         {review?.waiting && review.access === "none" ? (
           <DsAlert title={t("react.operator_review.waiting_elsewhere", "This job waits for a decision by people who have access to it.")} tone="neutral" />
         ) : null}
-        <DsCard testId="operator-job-submitted" title={t("react.operator_job.submitted", "Submitted")}>
-          {submitted.length ? (
-            <ValueList rows={submitted} testId="operator-job-inputs" />
-          ) : (
-            <p className="fs-empty-copy">{t("react.operator_job.nothing_submitted", "No values were submitted.")}</p>
-          )}
-        </DsCard>
-        {review?.decision ? <ReviewDecisionCard decision={review.decision} /> : null}
-        {outputs ? (
-          <DsCard testId="operator-job-result" title={t("react.operator_job.result", "Result")}>
-            {result.length ? (
-              <ValueList rows={result} testId="operator-job-outputs" />
-            ) : (
-              <p className="fs-empty-copy">{t("react.operator_job.no_result", "This run returned nothing to show.")}</p>
-            )}
+        <div className={textResult ? "fs-operator-job-columns fs-operator-job-columns--text" : "fs-operator-job-columns"} data-testid="operator-job-columns">
+          <DsCard className="min-w-0" testId="operator-job-submitted" title={t("react.operator_job.submitted", "Submitted")}>
+            <div className="grid gap-3">
+              {originals.length ? <ReviewOriginal files={originals} jobId={jobId} /> : null}
+              {submitted.length ? <ValueList rows={submitted} testId="operator-job-inputs" /> : null}
+              {originals.length || submitted.length ? null : (
+                <p className="fs-empty-copy">{t("react.operator_job.nothing_submitted", "No values were submitted.")}</p>
+              )}
+            </div>
           </DsCard>
-        ) : null}
+          <div className="fs-operator-job-side">
+            {outputs ? (
+              <DsCard className="min-w-0" testId="operator-job-result" title={t("react.operator_job.result", "Result")}>
+                {result.length ? (
+                  <ValueList rows={result} testId="operator-job-outputs" />
+                ) : (
+                  <p className="fs-empty-copy">{t("react.operator_job.no_result", "This run returned nothing to show.")}</p>
+                )}
+              </DsCard>
+            ) : (
+              <DsCard className="min-w-0" testId="operator-job-result-pending" title={t("react.operator_job.result", "Result")}>
+                <p className="fs-empty-copy">{t("react.operator_job.result_pending", "The result appears here when the run finishes.")}</p>
+              </DsCard>
+            )}
+            {review?.decision ? <ReviewDecisionCard decision={review.decision} /> : null}
+          </div>
+        </div>
       </div>
     </>
   );
