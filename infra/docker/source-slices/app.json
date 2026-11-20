@@ -1504,6 +1504,7 @@
     "core/infrastructure/installer/__init__.py",
     "core/infrastructure/installer/bootstrap_snapshot.py",
     "core/infrastructure/installer/core_dependency_images.py",
+    "core/infrastructure/installer/doctor_probes.py",
     "core/infrastructure/installer/gateway.py",
     "core/infrastructure/installer/gateway_cli_runtime.py",
     "core/infrastructure/installer/gateway_configuration.py",
