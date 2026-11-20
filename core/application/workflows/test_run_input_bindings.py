@@ -12,7 +12,7 @@ from core.application.registry.workflow_contract import WorkflowContractField, W
 from core.application.registry.workflow_contract_service import (
     _contains_secret_reference,
     _resolved_default,
-    coerce_contract_value,
+    coerce_public_input_value,
 )
 
 
@@ -56,7 +56,7 @@ def _materialize_protected_value(
         # Only this helper can have created a reference: external references were rejected.
         if is_secret_reference(value):
             return value, "", ""
-        ok, normalized, message = coerce_contract_value(value, field)
+        ok, normalized, message = coerce_public_input_value(value, field)
         return normalized, "" if ok else "workflow.input.invalid_type", message
     if not present:
         value = {}

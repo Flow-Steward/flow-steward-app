@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from unittest.mock import Mock
+
+import httpx
 import pytest
 
 from core.application.secrets.workflow_gate import (
@@ -146,6 +149,19 @@ def test_a_template_after_the_authority_keeps_the_origin(url, origin) -> None:
 def test_path_prefixes_match_on_segment_boundaries(url, allowed) -> None:
     rule = normalize_rule({"scheme": "https", "host": "api.test", "path_prefix": "/api/"})
     assert url_allowed(url, [rule]) is allowed
+
+
+def test_destination_check_uses_the_http_client_parser(monkeypatch) -> None:
+    url = "https://bücher.example/api"
+    rule = normalize_rule({"scheme": "https", "host": "xn--bcher-kva.example"})
+    different_origin = httpx.URL("https://different.example/api")
+    parser = Mock(wraps=httpx.URL)
+    monkeypatch.setattr(httpx, "URL", parser)
+
+    assert url_allowed(url, [rule])
+    parser.assert_called_once_with(url)
+    parser.return_value = different_origin
+    assert not url_allowed(url, [rule])
 
 
 def test_unsupported_rules_are_refused_not_approximated() -> None:

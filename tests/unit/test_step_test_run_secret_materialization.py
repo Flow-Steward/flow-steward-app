@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 
 from core.application.management.query_models_workflow_editor import WorkflowEditorTestRunResultView
 from core.application.orchestration.state import build_initial_orchestrator_state
+from core.application.registry import workflow_contract_service
 from core.application.registry.workflow_contract import WorkflowInterface
 from core.application.workflows.platform_test_run_runtime import (
     _workflow_test_run_payload_from_state,
@@ -132,6 +134,26 @@ def test_bound_alias_rejects_external_secret_references(nested: bool) -> None:
     envelope = _envelope(value)
     with pytest.raises(InputRejected):
         _materialize(envelope)
+
+
+def test_preview_binding_checks_public_object_after_json_coercion(monkeypatch) -> None:
+    source = "state.outputs.value"
+    preview = {"optional": [{"name": "header", "source": source, "type": "object"}]}
+    contains_reference = workflow_contract_service._contains_secret_reference
+    monkeypatch.setattr(
+        workflow_contract_service,
+        "_contains_secret_reference",
+        lambda candidate: candidate == {"fixture": "opaque"} or contains_reference(candidate),
+    )
+
+    with pytest.raises(InputRejected) as exc:
+        _materialize(
+            _envelope(json.dumps({"fixture": "opaque"}), source=source),
+            step_contract_preview=preview,
+        )
+
+    assert exc.value.errors[0]["code"] == "workflow.input.invalid_type"
+    assert exc.value.errors[0]["path"] == "inputs.header"
 
 
 @pytest.mark.parametrize("value", ["configured-value", "", None])
