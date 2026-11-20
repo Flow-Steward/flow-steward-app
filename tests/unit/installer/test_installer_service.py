@@ -19,6 +19,7 @@ from core.application.installer import (
 from core.application.installer.errors import InstallerFailure
 from core.application.installer.service import InstallerService
 from core.application.readiness import CoreReadinessService
+from core.infrastructure.installer.gateway import DockerInstallerGateway
 from core.infrastructure.installer.state_store import InstallerStateStore
 
 
@@ -72,6 +73,11 @@ class FakeGateway:
     def record_installed_releases(self, *, current, previous):
         self.calls.append("record_installed_releases")
         self.recorded_releases = (current, previous)
+
+    def finish_installed_releases_record(self, *, current):
+        del current
+        self.calls.append("finish_installed_releases_record")
+        return ""
 
     def publish_release_environment(self, _config, release):
         self.calls.append("publish_release_environment")
@@ -369,6 +375,9 @@ def test_completed_install_repairs_worker_identity_before_verification(tmp_path:
         "verify_public_route",
         "verify_bootstrap",
         "shared_readiness",
+        # Only once verified: the record an update that stopped after switching the
+        # runtime never wrote (2026-11-20), before the cleanup reads it
+        "finish_installed_releases_record",
         # AC17-R158: finishes a release cleanup an interrupted update left
         "prune_superseded_releases",
     ]
@@ -1048,18 +1057,20 @@ def _installed_service(tmp_path: Path, gateway: FakeGateway) -> InstallerService
     return service
 
 
-def _installed_gateway(currency: ImageCurrency) -> FakeGateway:
-    gateway = FakeGateway(
-        InstallationEvidence(
-            journal_exists=True,
-            journal_completed=True,
-            config_exists=True,
-            env_exists=True,
-            project_identity="flow-steward-test",
-            observed_project_identity="flow-steward-test",
-            durable_secrets_present=True,
-        )
+def _installed_evidence() -> InstallationEvidence:
+    return InstallationEvidence(
+        journal_exists=True,
+        journal_completed=True,
+        config_exists=True,
+        env_exists=True,
+        project_identity="flow-steward-test",
+        observed_project_identity="flow-steward-test",
+        durable_secrets_present=True,
     )
+
+
+def _installed_gateway(currency: ImageCurrency) -> FakeGateway:
+    gateway = FakeGateway(_installed_evidence())
     gateway.currency = currency
     return gateway
 
@@ -1830,6 +1841,111 @@ def test_finishing_an_update_an_earlier_run_left_is_not_reported_as_a_to_a(
 
     assert not any("Updated from" in line for line in result.warnings)
     assert any("that an earlier run left unfinished" in line for line in result.warnings)
+
+
+_OLDER = "0" * 40
+
+
+class _RecordingGateway(FakeGateway):
+    """The fake installation, with the real release record in its own state directory."""
+
+    def __init__(self, root: Path) -> None:
+        super().__init__(_installed_evidence())
+        self.currency = _stale()
+        self.releases = DockerInstallerGateway(
+            repo_root=root,
+            state_store=InstallerStateStore(root / ".flow-steward"),
+            environment={},
+        )
+
+    def record_installed_releases(self, *, current, previous):
+        super().record_installed_releases(current=current, previous=previous)
+        self.releases.record_installed_releases(current=current, previous=previous)
+
+    def finish_installed_releases_record(self, *, current):
+        self.calls.append("finish_installed_releases_record")
+        return self.releases.finish_installed_releases_record(current=current)
+
+
+@pytest.mark.parametrize("earlier_record", [True, False], ids=["record", "logs-only"])
+def test_an_update_stopped_at_readiness_is_recorded_by_the_rerun_that_verifies_it(
+    tmp_path: Path, earlier_record: bool
+) -> None:
+    """2026-11-20, a local Compact stand: run 1 switched the runtime to the new images and
+    failed `core_readiness_blocked` while it was still starting; run 2 found those images
+    running, took "already installed", and left installed-releases.json at the old
+    revision -- the wrong rollback, and the replaced release no longer protected."""
+    record_path = tmp_path / ".flow-steward/installed-releases.json"
+    record_path.parent.mkdir(parents=True)
+    if earlier_record:
+        record_path.write_text(json.dumps({"current": _OLD, "previous": _OLDER}), encoding="utf-8")
+    core = {"status": "fail"}
+    readiness = CoreReadinessService(
+        probe=lambda: {"checks": [{"id": "database", "category": "core", **core}]}
+    )
+    gateway = _RecordingGateway(tmp_path)
+    service, store = _service(tmp_path, gateway, readiness_service=readiness)
+    store.save_journal(
+        InstallJournal(
+            operation_id="done",
+            status="completed",
+            project_identity="flow-steward-test",
+            config=InstallConfig(),
+            completed_steps=("manifest",),
+        )
+    )
+
+    with pytest.raises(InstallerFailure) as raised:
+        service.install(InstallConfig())
+
+    assert raised.value.code == "core_readiness_blocked"
+    assert "start_runtime" in gateway.calls  # the runtime is on the new images already
+    assert "record_installed_releases" not in gateway.calls
+
+    core["status"] = "pass"
+    gateway.currency = ImageCurrency(source_revision=_NEW, running_revision=_NEW)
+    gateway.calls.clear()
+
+    result = service.install(InstallConfig())
+
+    assert result.status == "already_installed"
+    assert json.loads(record_path.read_text(encoding="utf-8")) == {
+        "current": _NEW,
+        "previous": _OLD,  # the release the unfinished update replaced, not _OLDER
+    }
+    assert gateway.pruned_with == (_NEW, _OLD)  # its rollback stays protected
+    assert f"Recorded {_NEW} as the installed release, replacing {_OLD}." in result.changes
+    calls = gateway.calls
+    assert calls.index("finish_installed_releases_record") < calls.index(
+        "prune_superseded_releases"
+    )
+
+    gateway.calls.clear()
+    again = service.install(InstallConfig())  # the record is current now: nothing to say
+
+    assert not any(change.startswith("Recorded ") for change in again.changes)
+    assert json.loads(record_path.read_text(encoding="utf-8"))["previous"] == _OLD
+
+
+def test_an_already_installed_run_behind_its_sources_leaves_the_record_alone(
+    tmp_path: Path,
+) -> None:
+    """Only a verified run of these sources' own images finishes the record."""
+    record_path = tmp_path / ".flow-steward/installed-releases.json"
+    record_path.parent.mkdir(parents=True)
+    record_path.write_text(json.dumps({"current": _OLD, "previous": _OLDER}), encoding="utf-8")
+    gateway = _RecordingGateway(tmp_path)
+    gateway.currency = ImageCurrency(source_revision=_NEW, running_revision=_OLD)
+    service = _installed_service(tmp_path, gateway)
+
+    result = service.install(InstallConfig())
+
+    assert result.status == "already_installed"
+    assert "finish_installed_releases_record" not in gateway.calls
+    assert json.loads(record_path.read_text(encoding="utf-8")) == {
+        "current": _OLD,
+        "previous": _OLDER,
+    }
 
 
 def test_an_installed_run_brings_a_stopped_stack_back_up(tmp_path: Path) -> None:
