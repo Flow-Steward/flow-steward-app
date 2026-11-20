@@ -25,8 +25,11 @@ from core.application.webhooks.provider_delivery_repository import (
 from core.entrypoints.api.provider_webhook_callbacks import (
     _MESSAGE_INVALID_WEBHOOK_SIGNATURE,
     _MESSAGE_INVALID_WEBHOOK_SIGNATURE_FOR_ROUTING_PROJECT,
+    _MESSAGE_PROVIDER_PAYLOAD_INVALID,
     _MESSAGE_PROVIDER_PROJECT_STATE_UPDATE_FAILED,
+    _MESSAGE_TASK_PROVIDER_EXTENSION_REQUIRED,
     NotificationWebhookCallbacks,
+    TaskProviderExtensionRequired,
     TriggerWebhookCallbacks,
 )
 from core.entrypoints.api.provider_webhook_notifications import handle_notification_provider_webhook
@@ -390,7 +393,12 @@ def create_provider_webhooks_router(
                 apply_project_state_updates=False,
                 deferred_project_state_updates=deferred_project_state_updates,
             )
-        except ValueError as e:
+        except ValueError as exc:
+            detail = _MESSAGE_PROVIDER_PAYLOAD_INVALID
+            if isinstance(exc, TaskProviderExtensionRequired):
+                detail = _MESSAGE_TASK_PROVIDER_EXTENSION_REQUIRED.format(
+                    provider_key=str(provider.get("provider_key") or "").strip().lower()
+                )
             _record_provider_ingress_event(
                 bl,
                 provider_key=normalized_provider_key,
@@ -399,11 +407,11 @@ def create_provider_webhooks_router(
                 workflow_id=None,
                 request=request,
                 reason="provider_payload_invalid",
-                detail=str(e),
+                detail=detail,
                 status_code=400,
                 payload_summary=base_payload_summary,
             )
-            return JSONResponse({"error": str(e)}, status_code=400)
+            return JSONResponse({"error": detail}, status_code=400)
         except Exception as e:
             _record_provider_ingress_event(
                 bl,

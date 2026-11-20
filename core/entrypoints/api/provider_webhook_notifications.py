@@ -13,6 +13,7 @@ from core.application.management.command_models import (
 from core.application.management.errors import ServiceError
 from core.entrypoints.api.provider_webhook_callbacks import (
     _MESSAGE_INVALID_WEBHOOK_SIGNATURE_FOR_ROUTING_PROJECT,
+    _MESSAGE_PROVIDER_PAYLOAD_INVALID,
     _MESSAGE_PROVIDER_PROJECT_STATE_UPDATE_FAILED,
     NotificationWebhookCallbacks,
 )
@@ -55,7 +56,7 @@ def handle_notification_provider_webhook(
             apply_project_state_updates=False,
             deferred_project_state_updates=deferred_project_state_updates,
         )
-    except ValueError as e:
+    except ValueError:
         _record_provider_ingress_event(
             bl,
             provider_key=normalized_provider_key,
@@ -64,11 +65,11 @@ def handle_notification_provider_webhook(
             workflow_id=None,
             request=request,
             reason="provider_payload_invalid",
-            detail=str(e),
+            detail=_MESSAGE_PROVIDER_PAYLOAD_INVALID,
             status_code=400,
             payload_summary=base_payload_summary,
         )
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"error": _MESSAGE_PROVIDER_PAYLOAD_INVALID}, status_code=400)
     except Exception as e:
         _record_provider_ingress_event(
             bl,
