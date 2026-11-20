@@ -9,6 +9,8 @@ from core.application.management.errors import ServiceNotFoundError
 from core.application.management.scope import ScopeContext
 from core.application.workflows.authoring.catalog import WorkflowAuthoringCatalog
 from core.application.workflows.discovery.scoped_capability_catalog import ScopedCapabilityRef
+from core.application.workflows.extension_connection_validation import step_connector_install_id
+from core.application.workflows.workflow_change_authorization import install_usable
 from core.application.workflows.workflow_portability import (
     WorkflowPortabilityError,
     WorkflowPortabilityService,
@@ -17,6 +19,9 @@ from core.application.workflows.workflow_portability import (
 from core.application.workflows.workflow_step_config_contracts import STEP_CONFIG_ALLOWED_KEYS
 
 ALLOWED_RESOLUTION_ACTIONS = frozenset({"use_existing", "map_existing"})
+#: A connector step naming an extension package (``extension.<extension_id>``) or an
+#: install-scoped projection of one (``extension.<install_id>.<local_id>``).
+_EXTENSION_CONNECTOR_PREFIX = "extension."
 REFERENCE_NOT_PERMITTED_CODE = "authoring.reference_not_permitted"
 REFERENCE_DISABLED_CODE = "authoring.reference_disabled"
 #: Kinds whose disabled state is worth naming: (what to call it, the tool that enables it).
@@ -36,6 +41,17 @@ _RESOLUTION_TYPES = frozenset(
         "project_connection",
     }
 )
+
+
+def _not_permitted_issue(path: str) -> dict[str, Any]:
+    return {
+        "code": REFERENCE_NOT_PERMITTED_CODE,
+        "path": path,
+        "message": "Reference is not available in the selected account/project scope.",
+        "severity": "error",
+        "blocking": True,
+        "repair_guidance": "Search for a permitted existing component in this project.",
+    }
 
 
 class DraftReferences:
@@ -249,17 +265,24 @@ class DraftReferences:
             disabled = self._disabled_reference_issue(scope, project_id, kind, ref, path)
             if disabled is not None:
                 return [disabled]
-            return [
-                {
-                    "code": REFERENCE_NOT_PERMITTED_CODE,
-                    "path": path,
-                    "message": "Reference is not available in the selected account/project scope.",
-                    "severity": "error",
-                    "blocking": True,
-                    "repair_guidance": "Search for a permitted existing component in this project.",
-                }
-            ]
+            return [_not_permitted_issue(path)]
         return []
+
+    def _extension_step_issues(
+        self, scope: ScopeContext, step: dict[str, Any], install_id: str
+    ) -> list[dict[str, Any]]:
+        """Judge an extension action step by its install, with the Builder's rule.
+
+        The discovery catalog's tool projection is a search index and can miss an
+        action the install provides (and the Builder offers), so it does not
+        decide whether a draft may name it: Apply and the run both resolve the
+        step through its install.
+        """
+        if install_usable(self.db, install_id, account_id=scope.account_id):
+            return []
+        return [
+            _not_permitted_issue(f"workflow.steps.{step.get('step_id', '')}.connector_install_id")
+        ]
 
     def _disabled_reference_issue(
         self,
@@ -312,6 +335,12 @@ class DraftReferences:
                     )
                 )
         for step in self._steps(payload.get("steps") or []):
+            install_id = step_connector_install_id(step)
+            extension_step = bool(install_id) and str(step.get("connector_id") or "").startswith(
+                _EXTENSION_CONNECTOR_PREFIX
+            )
+            if extension_step:
+                issues.extend(self._extension_step_issues(scope, step, install_id))
             for field, kind in (
                 ("agent_id", "agent"),
                 ("skill_id", "skill"),
@@ -320,6 +349,8 @@ class DraftReferences:
                 ("block_key", "published_block"),
             ):
                 ref = str(step.get(field) or "")
+                if field == "connector_id" and extension_step:
+                    continue  # judged by its install above
                 if ref:
                     issues.extend(
                         self._reference_issues(
