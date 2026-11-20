@@ -824,6 +824,7 @@
     "core/application/release/contracts.py",
     "core/application/release/images.py",
     "core/application/release/installed_origin.py",
+    "core/application/release/selector.py",
     "core/application/release/service.py",
     "core/application/release/update_notice.py",
     "core/application/release/upgrade_review.py",

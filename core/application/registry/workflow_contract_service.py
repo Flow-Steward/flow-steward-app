@@ -31,7 +31,7 @@ from core.application.workflow_documents.report_schemas_v1 import SNAPSHOT_SCHEM
 from core.infrastructure.security.secret_reference import SecretReference
 
 _TOKEN_WORKFLOW_INPUT_INVALID_TYPE = "workflow.input.invalid_type"
-_INTERNAL_SECRET_REFERENCE_MESSAGE = "Workflow inputs must not contain an internal secret reference"
+_INTERNAL_SECRET_REFERENCE_MESSAGE = "Workflow inputs must not contain an internal secret reference"  # pragma: allowlist secret - a message
 
 
 class WorkflowInterfaceLookupError(RuntimeError):

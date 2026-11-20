@@ -5,7 +5,7 @@ from __future__ import annotations
 from core.application.lifecycle.errors import LifecycleError
 from core.application.release.catalog import ReleaseCoordinates, ReleaseError
 from core.application.release.contracts import ReleaseIdentity
-from core.application.release.service import OfficialReleaseSelector
+from core.application.release.selector import OfficialReleaseSelector
 
 RELEASE_IMAGES_UNAVAILABLE = "release_images_unavailable"
 

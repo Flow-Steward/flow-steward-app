@@ -34,9 +34,18 @@ from core.application.installer.ports import (
     InstallerState,
     ProgressSink,
 )
+from core.application.installer.readiness_wait import (
+    READINESS_RECONCILIATION_ATTEMPTS,
+    READINESS_RECONCILIATION_DELAY_SECONDS,
+    READINESS_RECONCILIATION_TIMEOUT_SECONDS,
+    RECONCILABLE_READINESS_IDS,
+    core_failed_ids,
+    core_failures_text,
+    wait_for_runtime_readiness,
+    warning_text,
+)
 from core.application.installer.spec import INSTALLER_SPEC
 from core.application.readiness import CoreReadinessService, ReadinessArea
-from core.application.readiness.contracts import ReadinessFinding, ReadinessReport
 from core.application.release.contracts import ReleaseIdentity
 
 _STEP_METHODS: tuple[tuple[str, str, str], ...] = (
@@ -89,18 +98,6 @@ _STEP_LABELS["migrations"] = (
 # The one step an update runs differently: the fresh-install preflight treats every
 # bound port as someone else's, and a running installation always holds its own.
 _UPDATE_METHODS = {"preflight": "update_preflight"}
-_RECONCILABLE_READINESS_IDS = frozenset({"security_posture", "workflow_knowledge_sync"})
-_READINESS_RECONCILIATION_ATTEMPTS = 30
-_READINESS_RECONCILIATION_DELAY_SECONDS = 2.0
-_READINESS_RECONCILIATION_TIMEOUT_SECONDS = 60.0
-# A Compact update verified the public route and then failed shared readiness two
-# seconds later, on `compact_runtime`, while a role or worker of the recreated runtime
-# was still starting; a rerun a minute later passed. The public /health answers before
-# every role is up, so after the route the installer waits for the runtime the same
-# way it waits for the route (90 x 2 s) and fails only on what still fails at the end.
-_RUNTIME_STARTING_READINESS_IDS = frozenset({"compact_runtime"})
-_RUNTIME_READINESS_ATTEMPTS = 90
-_RUNTIME_READINESS_DELAY_SECONDS = 2.0
 
 
 class InstallerService:
@@ -889,13 +886,15 @@ class InstallerService:
     ) -> tuple[str, ...]:
         if self.readiness_service is None:
             return ()
-        report = self._wait_for_runtime_readiness(self.readiness_service, log=log)
-        failed_ids = {
-            finding.check_id
-            for finding in report.findings
-            if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-        }
-        if failed_ids and failed_ids.issubset(_RECONCILABLE_READINESS_IDS):
+        report = wait_for_runtime_readiness(
+            self.readiness_service.check,
+            self.readiness_reprobe,
+            sleep=self._readiness_sleep,
+            clock=self._readiness_clock,
+            log=log,
+        )
+        failed_ids = core_failed_ids(report)
+        if failed_ids and failed_ids.issubset(RECONCILABLE_READINESS_IDS):
             if self.readiness_reprobe is None:
                 raise InstallerFailure(
                     code="core_readiness_blocked",
@@ -911,8 +910,8 @@ class InstallerService:
             self.gateway.reconcile_readiness_capabilities(
                 config, check_ids=tuple(sorted(failed_ids)), log=log
             )
-            deadline = self._readiness_clock() + _READINESS_RECONCILIATION_TIMEOUT_SECONDS
-            for attempt in range(_READINESS_RECONCILIATION_ATTEMPTS):
+            deadline = self._readiness_clock() + READINESS_RECONCILIATION_TIMEOUT_SECONDS
+            for attempt in range(READINESS_RECONCILIATION_ATTEMPTS):
                 remaining = deadline - self._readiness_clock()
                 if remaining <= 0:
                     break
@@ -926,18 +925,14 @@ class InstallerService:
                         retryable=True,
                         step="readiness",
                     )
-                failed_ids = {
-                    finding.check_id
-                    for finding in report.findings
-                    if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-                }
-                if not report.core_failed or not failed_ids.issubset(_RECONCILABLE_READINESS_IDS):
+                failed_ids = core_failed_ids(report)
+                if not report.core_failed or not failed_ids.issubset(RECONCILABLE_READINESS_IDS):
                     break
                 remaining = deadline - self._readiness_clock()
                 if remaining <= 0:
                     break
-                if attempt + 1 < _READINESS_RECONCILIATION_ATTEMPTS:
-                    self._readiness_sleep(min(_READINESS_RECONCILIATION_DELAY_SECONDS, remaining))
+                if attempt + 1 < READINESS_RECONCILIATION_ATTEMPTS:
+                    self._readiness_sleep(min(READINESS_RECONCILIATION_DELAY_SECONDS, remaining))
         write = getattr(log, "write", None)
         if callable(write):
             write(
@@ -947,7 +942,7 @@ class InstallerService:
         if report.core_failed:
             raise InstallerFailure(
                 code="core_readiness_blocked",
-                cause="Core readiness blockers remain: " + _core_failures_text(report),
+                cause="Core readiness blockers remain: " + core_failures_text(report),
                 remediation="Run ./flow-steward doctor, resolve core blockers, and resume ./install.sh.",
                 exit_code=4,
                 retryable=True,
@@ -958,96 +953,12 @@ class InstallerService:
         # Recommendations are not warnings -- status and doctor list them -- and a bare
         # title such as "Worker Availability" told nobody anything.
         return tuple(
-            _warning_text(finding)
+            warning_text(finding)
             for finding in report.findings
             if finding.area is ReadinessArea.OPTIONAL
             and finding.status.value in {"warning", "failed"}
         )
 
-    def _wait_for_runtime_readiness(
-        self, readiness_service: CoreReadinessService, *, log: InstallerLog
-    ) -> ReadinessReport:
-        """Recheck while only a still-starting runtime blocks readiness, within a bound."""
-        report = readiness_service.check()
-        if not _runtime_starting(report):
-            return report
-        write = getattr(log, "write", None)
-        window = _RUNTIME_READINESS_ATTEMPTS * _RUNTIME_READINESS_DELAY_SECONDS
-        deadline = self._readiness_clock() + window
-        for attempt in range(1, _RUNTIME_READINESS_ATTEMPTS + 1):
-            remaining = deadline - self._readiness_clock()
-            if remaining <= 0:
-                break
-            if callable(write):
-                write(
-                    f"Waiting for shared readiness ({attempt}/{_RUNTIME_READINESS_ATTEMPTS}): "
-                    f"{_core_failures_text(report)}; retrying in "
-                    f"{_RUNTIME_READINESS_DELAY_SECONDS:g}s."
-                )
-            self._readiness_sleep(min(_RUNTIME_READINESS_DELAY_SECONDS, remaining))
-            remaining = deadline - self._readiness_clock()
-            if remaining <= 0:
-                break
-            report = (
-                self.readiness_reprobe(remaining)
-                if self.readiness_reprobe is not None
-                else readiness_service.check()
-            )
-            if not _runtime_starting(report):
-                if callable(write):
-                    write(
-                        f"Shared readiness: the runtime finished starting after {attempt} rechecks."
-                    )
-                return report
-        if callable(write):
-            write(
-                f"Shared readiness still failing after waiting {window:g}s for the runtime: "
-                f"{_core_failures_text(report)}."
-            )
-        return report
-
     def _emit(self, step_id: str, status: str, detail: str) -> None:
         if self.progress_sink is not None:
             self.progress_sink(step_id, status, detail)
-
-
-def _core_failed_findings(report: ReadinessReport) -> tuple[ReadinessFinding, ...]:
-    return tuple(
-        finding
-        for finding in report.findings
-        if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-    )
-
-
-def _runtime_starting(report: ReadinessReport) -> bool:
-    """Whether a starting runtime is among the failures and nothing else blocks.
-
-    Derived capabilities that the installer reconciles may fail alongside it; they are
-    reconciled once the runtime is up. Any other core failure fails at once, as before.
-    """
-    failed_ids = {finding.check_id for finding in _core_failed_findings(report)}
-    return bool(failed_ids & _RUNTIME_STARTING_READINESS_IDS) and failed_ids.issubset(
-        _RUNTIME_STARTING_READINESS_IDS | _RECONCILABLE_READINESS_IDS
-    )
-
-
-def _core_failures_text(report: ReadinessReport) -> str:
-    """Each failed core check by title and id, with the last reason it gave."""
-    parts = []
-    for finding in _core_failed_findings(report):
-        title = finding.title.strip()
-        name = (
-            f"{title} ({finding.check_id})"
-            if title and title != finding.check_id
-            else finding.check_id
-        )
-        detail = finding.detail.strip()
-        parts.append(f"{name}: {detail}" if detail else name)
-    return "; ".join(parts) or f"{report.core_failed} core check(s)"
-
-
-def _warning_text(finding: ReadinessFinding) -> str:
-    title = finding.title.replace("_", " ").strip()
-    title = title[:1].upper() + title[1:]
-    text = " ".join(part.strip() for part in (finding.detail, finding.remediation) if part.strip())
-    return f"{title}: {text}" if text else f"{title}."

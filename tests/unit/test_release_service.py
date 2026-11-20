@@ -21,8 +21,8 @@ from core.application.release.installed_origin import (
     OfficialInstallationOrigin,
     SourceInstallationOrigin,
 )
+from core.application.release.selector import OfficialReleaseSelector
 from core.application.release.service import (
-    OfficialReleaseSelector,
     PreparedReleaseUpgrade,
     ReleaseCheckRequest,
     ReleaseInfoRequest,

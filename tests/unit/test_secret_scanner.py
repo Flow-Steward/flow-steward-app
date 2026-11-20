@@ -145,12 +145,17 @@ class TestRedaction:
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             ('password = "double quoted value"', 'password="[REDACTED]"'),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             ("password: 'single quoted value'", "password:'[REDACTED]'"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="an escaped \" quote" suffix', 'password="[REDACTED]" suffix'),
             (r"password='an escaped \' quote' suffix", "password='[REDACTED]' suffix"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="ends in a backslash \\" suffix', 'password="[REDACTED]" suffix'),
             ('password="unfinished value; suffix', "password=[REDACTED]; suffix"),
+            # pragma: allowlist nextline secret -- synthetic credential fixture
             (r'password="unfinished \" quote; suffix', "password=[REDACTED]; suffix"),
         ],
     )
