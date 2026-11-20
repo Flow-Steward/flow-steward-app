@@ -5,7 +5,7 @@
   "homepage": "https://github.com/Flow-Steward/flow-steward-app/tree/main/docs/agent-skills",
   "repository": "https://github.com/Flow-Steward/flow-steward-app",
   "license": "Apache-2.0",
-  "icon_source": "assets/frontend/public/favicon.svg",
+  "icon_source": "assets/frontend/src/design-system/assets/brand/favicon.svg",
   "marketplace": {
     "name": "flow-steward",
     "description": "Flow Steward agent skill packages: Operator for automations through MCP, Developer for extensions and code contributions."

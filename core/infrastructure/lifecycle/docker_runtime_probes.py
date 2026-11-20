@@ -138,14 +138,51 @@ def compact_maintenance_operation(
     )
     if operation != "maintenance-status":
         arguments += ("--confirm",)
-    outcome = run_compose(
-        target,
-        arguments,
-        action="maintenance",
-        # Observation is bounded; native cooperative job drain retains its
-        # existing execution policy and can legitimately exceed 30 seconds.
-        timeout_seconds=_DOCKER_TIMEOUT_SECONDS if operation == "maintenance-status" else None,
-    )
+    try:
+        # The JSON answer is read from stdout alone: Compose reports its own
+        # progress ("Container ... Creating") and warnings on stderr.
+        outcome = run_compose(
+            target,
+            arguments,
+            action="maintenance",
+            timeout_seconds=_DOCKER_TIMEOUT_SECONDS if operation == "maintenance-status" else None,
+            separate_stderr=True,
+        )
+    except StackGatewayError:
+        if operation != "maintenance-status":
+            raise
+        running = run_compose(
+            target,
+            ("ps", "--status", "running", "--services", "compact-runtime"),
+            action="maintenance",
+            timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
+            separate_stderr=True,
+        )
+        if str(running.stdout or "").strip():
+            raise
+        # Migration deliberately stops the runtime writers. Observe the same
+        # volume-owned marker in a disposable operator; never start the app.
+        outcome = run_compose(
+            target,
+            (
+                "run",
+                "--rm",
+                "--no-deps",
+                "-T",
+                "--user",
+                "10007:10007",
+                "--entrypoint",
+                "python",
+                "compact-runtime",
+                "-m",
+                "core.entrypoints.cli.platform_runtime",
+                "maintenance-status",
+                "--json",
+            ),
+            action="maintenance",
+            timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
+            separate_stderr=True,
+        )
     raw = str(outcome.stdout or "")
     try:
         if len(raw.encode("utf-8")) > 64 * 1024:

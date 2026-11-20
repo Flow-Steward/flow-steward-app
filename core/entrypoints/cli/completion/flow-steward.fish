@@ -317,6 +317,8 @@ complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_se
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l author -r -F
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l maintenance-confirmed
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l no-maintenance-confirmed
+complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l skip-db-backup
+complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l no-skip-db-backup
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l allow-unlabeled-sessions
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l no-allow-unlabeled-sessions
 complete -c flow-steward -n '__fish_seen_subcommand_from database; and __fish_seen_subcommand_from upgrade' -l help -d 'Show help'
@@ -830,6 +832,8 @@ complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_see
 complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l target-version -r -F
 complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l dry-run
 complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l no-dry-run
+complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l skip-db-backup
+complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l no-skip-db-backup
 complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l timeout-seconds -r -F
 complete -c flow-steward -n '__fish_seen_subcommand_from release; and __fish_seen_subcommand_from upgrade' -l help -d 'Show help'
 complete -c flow-steward -n '__fish_seen_subcommand_from reports; and __fish_seen_subcommand_from diagnostics' -l json -d 'Emit JSON output'

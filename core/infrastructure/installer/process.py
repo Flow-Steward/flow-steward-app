@@ -30,6 +30,7 @@ class ProcessOutcome:
 # Where the CLI container mounts the host's state directory (fs-cli in
 # docker-compose.prod.yaml: `${FS_CANDIDATE_STATE_DIR}:/run/flow-steward-candidate-state`).
 CONTAINER_STATE_MOUNT = Path("/run/flow-steward-candidate-state")
+COMPACT_CONTAINER_STATE_MOUNT = Path("/run/flow-steward-install-state")
 
 
 class DockerHostStateUnavailable(RuntimeError):
@@ -67,7 +68,7 @@ def docker_host_state_dir(state_root: Path, *env_files: Path) -> str | None:
     stops instead of creating that directory.
     """
     configured = _recorded_host_state_dir(env_files)
-    if state_root == CONTAINER_STATE_MOUNT:
+    if state_root in {CONTAINER_STATE_MOUNT, COMPACT_CONTAINER_STATE_MOUNT}:
         if not configured:
             raise DockerHostStateUnavailable(
                 f"{state_root} is the CLI container's mount of the installer state, and "

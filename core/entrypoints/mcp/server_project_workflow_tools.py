@@ -95,7 +95,8 @@ def workflow_trigger(
     Pass declared inputs in payload. Inputs with a configured default are fixed
     (`caller_may_supply: false` in workflow_contract) and must not be sent: the
     workflow runs with the configured value and a supplied value is refused with
-    workflow.input.override_forbidden. Returns job_id for status and approval polling.
+    workflow.input.override_forbidden. Returns job_id for status and approval polling,
+    and job_url, the run's page, to give the user.
     """
     return api_tool_response("workflow_trigger", locals())
 

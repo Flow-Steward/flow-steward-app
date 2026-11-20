@@ -445,7 +445,8 @@ describe("RegistryCatalogSurface", () => {
     fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
     const form = screen.getByTestId("registry-create-form");
 
-    fireEvent.change(screen.getByLabelText(/^AGENT_ID/), {
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Bad agent" } });
+    fireEvent.change(screen.getByLabelText(/^Agent ID/), {
       target: { value: "BAD TEST bad id!@#" },
     });
     expect(screen.queryByRole("combobox", { name: "Agent Type" })).not.toBeInTheDocument();
@@ -457,6 +458,39 @@ describe("RegistryCatalogSurface", () => {
 
     await waitFor(() => expect(screen.getAllByText("Agent ID must start with a lowercase letter and use only lowercase letters, numbers, and underscores.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+  });
+
+  it("asks for the display name first and prefills the agent id from it until the user edits the id", async () => {
+    mockedFetchRegistryList.mockResolvedValue([]);
+    mockCatalogCategories();
+    renderCatalogSurface({
+      createLabel: "Agent",
+      description: "Agent catalog",
+      endpoint: "/api/agents",
+      idKey: "agent_id",
+      listQueryKey: ["registry", "agents"],
+      title: "Agents catalog",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "New Agent" }));
+    const name = screen.getByLabelText(/^Display Name/);
+    const id = screen.getByLabelText(/^Agent ID/);
+    expect(name).toBeRequired();
+    expect(id).toBeRequired();
+    expect(name.compareDocumentPosition(id) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(id).toHaveAccessibleDescription(/Filled from the display name/);
+
+    fireEvent.change(name, { target: { value: "Order Sync (EU)" } });
+    expect(id).toHaveValue("order_sync_eu");
+
+    fireEvent.change(id, { target: { value: "eu_orders" } });
+    fireEvent.change(name, { target: { value: "Order Sync (EU) v2" } });
+    expect(id).toHaveValue("eu_orders");
+
+    // Clearing the ID hands it back to the display name.
+    fireEvent.change(id, { target: { value: "" } });
+    fireEvent.change(name, { target: { value: "Order Sync" } });
+    expect(id).toHaveValue("order_sync");
   });
 
   it("blocks agent creation and offers retry when model catalog loading fails", async () => {
@@ -496,7 +530,7 @@ describe("RegistryCatalogSurface", () => {
     expect(screen.queryByText("Model catalog is unavailable.")).not.toBeInTheDocument();
   });
 
-  it("requires tool id, display name and category before creating a tool", async () => {
+  it("requires display name, tool id and category before creating a tool", async () => {
     mockCatalogCategories();
     renderCatalogSurface({
       createLabel: "Tool",
@@ -511,25 +545,27 @@ describe("RegistryCatalogSurface", () => {
     const form = screen.getByTestId("registry-create-form");
 
     fireEvent.submit(form);
+    await waitFor(() => expect(screen.getAllByText("Display name is required.")).not.toHaveLength(0));
+    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/^Display Name/), {
+      target: { value: "Review Tool" },
+    });
+    expect(screen.getByLabelText(/^Tool ID/)).toHaveValue("review_tool");
+    fireEvent.change(screen.getByLabelText(/^Tool ID/), { target: { value: "" } });
+    fireEvent.submit(form);
     await waitFor(() => expect(screen.getAllByText("Tool ID is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/^TOOL_ID/), {
+    fireEvent.change(screen.getByLabelText(/^Tool ID/), {
       target: { value: "BAD TEST bad id!@#" },
     });
     fireEvent.submit(form);
     await waitFor(() => expect(screen.getAllByText("Tool ID must start with a lowercase letter and use only lowercase letters, numbers, underscores, and dots between segments.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/^TOOL_ID/), {
+    fireEvent.change(screen.getByLabelText(/^Tool ID/), {
       target: { value: "std.review_tool" },
-    });
-    fireEvent.submit(form);
-    await waitFor(() => expect(screen.getAllByText("Display name is required.")).not.toHaveLength(0));
-    expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
-
-    fireEvent.change(screen.getByLabelText(/^Display Name/), {
-      target: { value: "Review Tool" },
     });
     fireEvent.submit(form);
     await waitFor(() => expect(screen.getAllByText("Category is required.")).not.toHaveLength(0));
@@ -654,7 +690,7 @@ describe("RegistryCatalogSurface", () => {
     });
   });
 
-  it("requires skill id before creating a skill", async () => {
+  it("requires a display name, then a valid skill id, before creating a skill", async () => {
     renderCatalogSurface({
       createLabel: "Skill",
       description: "Skill catalog",
@@ -668,10 +704,11 @@ describe("RegistryCatalogSurface", () => {
     const form = screen.getByTestId("registry-create-form");
     fireEvent.submit(form);
 
-    await waitFor(() => expect(screen.getAllByText("Skill ID is required.")).not.toHaveLength(0));
+    await waitFor(() => expect(screen.getAllByText("Display name is required.")).not.toHaveLength(0));
     expect(mockedCreateRegistryEntity).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/^SKILL_ID/), {
+    fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Summary writer" } });
+    fireEvent.change(screen.getByLabelText(/^Skill ID/), {
       target: { value: "BAD TEST bad id!@#" },
     });
     fireEvent.submit(form);
@@ -999,7 +1036,7 @@ describe("registry create id conflict", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "New Skill" }));
-    fireEvent.change(screen.getByLabelText(/^SKILL_ID/), { target: { value: "summary" } });
+    fireEvent.change(screen.getByLabelText(/^Skill ID/), { target: { value: "summary" } });
     fireEvent.change(screen.getByLabelText(/^Display Name/), { target: { value: "Summary writer" } });
     await chooseOption("Category", "Marketing");
     fireEvent.submit(screen.getByTestId("registry-create-form"));
@@ -1011,7 +1048,7 @@ describe("registry create id conflict", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Use the ID “summary_1”" }));
 
-    expect(screen.getByLabelText(/^SKILL_ID/)).toHaveValue("summary_1");
+    expect(screen.getByLabelText(/^Skill ID/)).toHaveValue("summary_1");
     expect(screen.getByLabelText(/^Display Name/)).toHaveValue("Summary writer");
     expect(mockedCreateRegistryEntity).toHaveBeenCalledTimes(1);
   });

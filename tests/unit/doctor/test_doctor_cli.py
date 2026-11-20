@@ -173,6 +173,10 @@ class _StoppedCompact:
     def __init__(self) -> None:
         self.reads: list[str] = []
 
+    def unhealthy_services(self, _config, *, log) -> list[str]:
+
+        return []
+
     def stopped_services(self, _config, *, log) -> list[str]:
         return ["compact-runtime", "pg-fs", "rabbitmq-fs", "traefik"]
 
@@ -284,6 +288,10 @@ def test_the_doctor_reads_compact_state_where_the_compact_runtime_keeps_it() -> 
 
 class _RuntimeStopped:
     """Compact with the runtime -- its workers -- down and RabbitMQ up: no consumers."""
+
+    def unhealthy_services(self, _config, *, log) -> list[str]:
+
+        return []
 
     def stopped_services(self, _config, *, log) -> list[str]:
         return ["compact-runtime"]

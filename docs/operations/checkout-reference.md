@@ -63,7 +63,7 @@ mismatch or download failure stops installation, without source fallback. Only
 explicit `./install.sh --from-source` builds the current checkout:
 
 ```bash
-git clone --branch v0.9.12 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.21 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```
@@ -438,8 +438,9 @@ Production with external S3 and later return to Development. PostgreSQL-backed
 users, workflows, and system configuration remain; objects are neither copied
 nor migrated between the local and external storage backends.
 
-Release upgrades require durable Maintenance Mode to be fully enabled before
-changing the checkout or runtime, and they never reopen work automatically.
+Release upgrades enable and drain durable Maintenance Mode before changing the
+checkout or runtime. They create and verify a database backup, apply required
+migrations and reopen work only after successful activation and health checks.
 
 #### Official release upgrade
 
@@ -454,18 +455,20 @@ before changing the checkout.
 
 ```bash
 ./flow-steward release check
-./flow-steward backup create
-./flow-steward maintenance enable --confirm
 ./flow-steward release upgrade --confirm
-./flow-steward maintenance status
 ./flow-steward doctor
-./flow-steward maintenance disable --confirm
+
+# Explicitly accept proceeding without a database backup:
+./flow-steward release upgrade --skip-db-backup --confirm
 ```
 
 The reviewed `release upgrade --confirm` transitions a source installation onto
 the selected official installed identity, or upgrades an existing official
-installation. The handoff is resumable and keeps maintenance enabled on success
-or failure; follow its printed recovery action and rerun the same command.
+installation. The handoff is resumable and keeps maintenance enabled on failure;
+follow its printed recovery action and rerun the same command. The backup waiver
+is retained on resume and never disables writer/session safety checks. Automatic
+orchestration requires CLI 0.9.21 or newer; for the initial update from an older
+CLI, see "Upgrading from 0.9.20 or older" in the 0.9.21 release notes.
 Official release upgrades resolve the complete role set from GHCR,
 then Docker Hub as a whole-set fallback. They never mix registries, use floating
 tags, or build product images locally. From 0.9.2 the set includes the PostgreSQL
@@ -495,8 +498,8 @@ becomes public to return to anonymous discovery.
 See [official release publication](../../docs/operations/official-release-publication.md)
 for the native two-architecture release process.
 
-On success or failure, inspect the reported recovery details and keep
-maintenance enabled until health, storage, and preservation checks are green.
+On failure, inspect the reported recovery details and keep maintenance enabled
+until health, storage, and preservation checks are green.
 
 #### Destructive installation Clone
 

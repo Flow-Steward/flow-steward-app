@@ -305,7 +305,7 @@ The installer compares three things: the sources, the images it recorded, and wh
 
 What follows depends on whether the release changes the database, and the installer tells you which case you are in.
 
-**A code-only update** — no pending migration — is complete at that point. The result adds that the schema check passed, so the update carried no database migration and needed no backup.
+**A code-only update** — no pending migration — is complete at that point. The result adds that the database already matched the release, so no migration was left to apply at activation (also after a separate `database upgrade`).
 
 **An update that carries a database migration** stops at the schema step with `schema_baseline_failed` and output saying the migration history does not match this release. The installer applies no migration and takes no backup itself. The running application was not restarted and stays on its previous version and its previous schema. Then:
 

@@ -80,7 +80,7 @@ _flow_steward_complete() {
         "database restore-parity-verify") words="--json --plain --no-color --verbose --non-interactive --confirm --dsn-file --dsn-stdin --label --baseline --output --help" ;;
         "database status") words="--json --plain --no-color --verbose --non-interactive --dsn-file --dsn-stdin --help" ;;
         "database tune-env") words="--json --plain --no-color --verbose --non-interactive --confirm --memory-gb --max-connections --storage --help" ;;
-        "database upgrade") words="--json --plain --no-color --verbose --non-interactive --confirm --dsn-file --dsn-stdin --author --maintenance-confirmed --no-maintenance-confirmed --allow-unlabeled-sessions --no-allow-unlabeled-sessions --help" ;;
+        "database upgrade") words="--json --plain --no-color --verbose --non-interactive --confirm --dsn-file --dsn-stdin --author --maintenance-confirmed --no-maintenance-confirmed --skip-db-backup --no-skip-db-backup --allow-unlabeled-sessions --no-allow-unlabeled-sessions --help" ;;
         "doctor") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "environment show") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "environment switch") words="--json --plain --no-color --verbose --non-interactive --confirm --file-storage --s3-endpoint --s3-bucket --s3-region --s3-credentials-file --allow-insecure-s3-http --no-allow-insecure-s3-http --artifact-decision --help" ;;
@@ -134,7 +134,7 @@ _flow_steward_complete() {
         "quality verify") words="--json --plain --no-color --verbose --non-interactive --confirm --input-json --tier --evidence-mode --fingerprint-source --trust --commit-sha --repository-root --evidence-root --timeout-seconds --help" ;;
         "release check") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "release info") words="--json --plain --no-color --verbose --non-interactive --help" ;;
-        "release upgrade") words="--json --plain --no-color --verbose --non-interactive --confirm --target-version --dry-run --no-dry-run --timeout-seconds --help" ;;
+        "release upgrade") words="--json --plain --no-color --verbose --non-interactive --confirm --target-version --dry-run --no-dry-run --skip-db-backup --no-skip-db-backup --timeout-seconds --help" ;;
         "reports diagnostics") words="--json --plain --no-color --verbose --non-interactive --input-json --host --doctor --help" ;;
         "reports generate") words="--json --plain --no-color --verbose --non-interactive --confirm --params --persist --no-persist --help" ;;
         "reports get") words="--json --plain --no-color --verbose --non-interactive --help" ;;

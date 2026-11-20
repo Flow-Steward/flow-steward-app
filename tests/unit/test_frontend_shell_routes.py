@@ -1,4 +1,6 @@
+import re
 from pathlib import Path
+from xml.etree import ElementTree
 
 import pytest
 from fastapi import APIRouter, FastAPI
@@ -114,6 +116,21 @@ def test_frontend_shell_serves_index_and_assets(tmp_path: Path) -> None:
     assert "<div id='root'></div>" in public_shell.text
     assert asset.status_code == 200
     assert asset.headers["cache-control"] == "public, max-age=31536000, immutable"
+
+
+@pytest.mark.parametrize("path", ["/login", "/app/dashboard"])
+def test_built_frontend_shell_favicon_serves_svg_instead_of_html(path: str) -> None:
+    client = _build_client(Path("assets/frontend/dist"))
+    shell = client.get(path)
+    assert shell.status_code == 200
+    icon_links = re.findall(r'<link\b[^>]*rel="icon"[^>]*href="([^"]+)"', shell.text)
+    assert len(icon_links) == 1
+
+    icon = client.get(icon_links[0])
+
+    assert icon.status_code == 200
+    assert icon.headers["content-type"].split(";")[0] == "image/svg+xml"
+    assert ElementTree.fromstring(icon.content).tag == "{http://www.w3.org/2000/svg}svg"
 
 
 @pytest.mark.parametrize(

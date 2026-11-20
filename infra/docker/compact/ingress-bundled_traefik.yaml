@@ -1,8 +1,37 @@
+# #27: Traefik used to bind-mount its start script and template straight from the
+# checkout. After a Windows restart Docker Desktop starts containers before the WSL
+# distribution holding the checkout is available, the bind mount fails (Exited 127),
+# and Docker never retries a container that failed to start, so the public URL stayed
+# down for days while every other role came back. traefik-files copies those files
+# into a named volume, the way seaweedfs-config does for SeaweedFS; a restarted
+# Traefik needs nothing from the host. Compose reruns the copy on every `up`.
 services:
+  # `status` asks the ingress too, not only the runtime (#27).
+  fs-cli:
+    environment:
+      FS_COMPACT_INGRESS_ADDRESS: traefik:${APP_PORT:-8099}
+
+  traefik-files:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
+    restart: "no"
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-euc"]
+    command:
+      - |
+        find /files -mindepth 1 -delete
+        cp -Rp /source/. /files/
+    volumes:
+      - traefik-files:/files
+      - ./compact/render-public-router.sh:/source/render-public-router.sh:ro
+      - ./compact/public-router.yaml.tmpl:/source/public-router.yaml.tmpl:ro
+
   traefik:
     image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
     restart: unless-stopped
-    entrypoint: ["/bin/sh", "/etc/traefik/render-public-router.sh"]
+    depends_on:
+      traefik-files:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/etc/traefik/files/render-public-router.sh"]
     environment:
       FS_RUNTIME_HTTP_PORT: ${FS_RUNTIME_HTTP_PORT:?FS_RUNTIME_HTTP_PORT is required}
     command:
@@ -19,7 +48,9 @@ services:
       - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${HTTP_PORT:-8080}:${HTTP_PORT:-8080}"
       - "${FS_PUBLIC_BIND_HOST:-0.0.0.0}:${APP_PORT:-8099}:${APP_PORT:-8099}"
     volumes:
-      - ./compact/render-public-router.sh:/etc/traefik/render-public-router.sh:ro
-      - ./compact/public-router.yaml.tmpl:/etc/traefik/templates/public-router.yaml.tmpl:ro
+      - traefik-files:/etc/traefik/files:ro
     tmpfs:
       - /run/traefik-dynamic
+
+volumes:
+  traefik-files:

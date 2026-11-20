@@ -15,6 +15,8 @@ export type EntityForm = {
   display_name: string;
   enabled: boolean;
   identifier: string;
+  /** The user typed an ID; it no longer follows the display name. */
+  identifier_edited: boolean;
 };
 
 export const EMPTY_FORM: EntityForm = {
@@ -22,6 +24,7 @@ export const EMPTY_FORM: EntityForm = {
   display_name: "",
   enabled: false,
   identifier: "",
+  identifier_edited: false,
 };
 
 export function objectOrEmpty(value: unknown): RegistryEntity {

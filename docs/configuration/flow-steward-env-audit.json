@@ -4318,6 +4318,26 @@
     "variable_name": "FS_COMPACT_IMAGE_ROLE"
   },
   {
+    "canonical_name": "FS_COMPACT_INGRESS_ADDRESS",
+    "code_read_locations": [
+      "core/entrypoints/cli/compact_platform_runtime.py"
+    ],
+    "conditional_groups": [
+      "compact_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production"
+    ],
+    "notes": "Internal Compact address of the bundled Traefik that fs-cli status probes; set by the bundled-ingress Compose overlay, unset for other ingress modes.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_COMPACT_INGRESS_ADDRESS"
+  },
+  {
     "canonical_name": "FS_COMPACT_KILL_RESERVE_SECONDS",
     "code_read_locations": [
       "infra/docker/docker-compose.compact.yaml"

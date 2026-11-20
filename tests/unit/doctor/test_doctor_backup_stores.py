@@ -39,6 +39,9 @@ def _verified_backup(root: Path) -> Path:
 
 def _probe(root: Path, *, rows=(), stopped: bool = False, error: bool = False):
     class Runtime:
+        def unhealthy_services(self, _config, *, log):
+            return []
+
         def stopped_services(self, _config, *, log):
             return ["compact-runtime"] if stopped else []
 

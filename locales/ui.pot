@@ -9285,6 +9285,9 @@ msgstr ""
 msgid "react.registry.identifier"
 msgstr ""
 
+msgid "react.registry.identifier_follows_display_name"
+msgstr ""
+
 msgid "react.registry.implementation_contract"
 msgstr ""
 
@@ -11167,6 +11170,9 @@ msgid "react.registry.value0_connectors"
 msgstr ""
 
 msgid "react.registry.value0_detail"
+msgstr ""
+
+msgid "react.registry.value0_id"
 msgstr ""
 
 msgid "react.registry.value0_inputs"

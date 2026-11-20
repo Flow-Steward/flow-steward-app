@@ -33,7 +33,8 @@ def _no_preflight_or_phases(monkeypatch):
     monkeypatch.setattr(upgrade_db.upgrade_phases, "run_pending_phases", lambda *_a, **_k: {})
 
 
-def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
+@pytest.mark.parametrize("skip_backup", [False, True])
+def test_upgrade_database_runs_upgrade_sequence(monkeypatch, skip_backup) -> None:
     calls: list[str] = []
 
     monkeypatch.setattr(upgrade_db, "_resolved_dsn", lambda _dsn=None: "postgresql://example")
@@ -159,7 +160,16 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch) -> None:
             calls.append(f"state:{applied_by}") or {"schema_fingerprint": "abc123"}
         ),
     )
-    summary = upgrade_db.upgrade_database(author="release-bot")
+    monkeypatch.setattr(
+        upgrade_db.vector_lifecycle,
+        "capture_protected_data_snapshot",
+        lambda _conn: {"content": {"rows": 42}},
+    )
+    summary = upgrade_db.upgrade_database(
+        author="release-bot", maintenance_confirmed=skip_backup, skip_db_backup=skip_backup
+    )
+    assert summary["protected_data_before"] == ({"content": {"rows": 42}} if skip_backup else {})
+    assert summary["protected_data_after"] == summary["protected_data_before"]
 
     assert calls == [
         "validate",
@@ -801,3 +811,12 @@ def test_inspect_database_upgrade_flags_a_pre_release_ledger(monkeypatch) -> Non
 
     assert status["needs_upgrade"] is True
     assert status["pre_release_migrations"] == sorted(_PRE_RELEASE_LEDGER)
+
+
+def test_skip_backup_never_waives_writer_confirmation(monkeypatch):
+    def connect(*args, **kwargs):
+        raise AssertionError("must refuse before connecting")
+
+    monkeypatch.setattr(upgrade_db.psycopg_runtime, "connect", connect)
+    with pytest.raises(RuntimeError, match="writers must be stopped"):
+        upgrade_db.upgrade_database(skip_db_backup=True)

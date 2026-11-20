@@ -712,6 +712,17 @@ class LifecycleCLIRuntime:
             )
         )
 
+    def _installed_compose_target(self) -> ComposeTarget:
+        active = self.configuration_service.read_active()
+        if active is None:
+            raise LifecycleError.stable_failure(
+                code="release_installed_configuration_missing",
+                cause="The installed configuration is unavailable for the database upgrade.",
+                remediation="Run flow-steward doctor and repair the installation, then rerun.",
+                step="database_upgrade",
+            )
+        return self.configuration_service.derive_target(active)
+
     @cached_property
     def release_service(self) -> ReleaseService:
         active = self.configuration_service.read_active(required=False)
@@ -760,6 +771,9 @@ class LifecycleCLIRuntime:
                     step="release_policy",
                 )
 
+        from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
+        from core.infrastructure.release.upgrade_gateway import TargetReleaseMigration
+
         return ReleaseService(
             discovery=discovery,
             state=state,
@@ -777,6 +791,16 @@ class LifecycleCLIRuntime:
             profile=profile,
             platform=_release_platform(),
             origin=origin_reader,
+            workflow=ReleaseUpgradeWorkflow(
+                state=state,
+                maintenance=self.maintenance_service,
+                backup=self.backup_service,
+                migration=TargetReleaseMigration(
+                    target_provider=self._installed_compose_target,
+                    upgrade=self.docker_lifecycle_gateway.upgrade_release_database,
+                    environment_provider=_installed_runtime_environment,
+                ),
+            ),
         )
 
     @cached_property

@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from core.application.extensions.scaffold_contracts import ExtensionScaffoldConflictError
 from core.application.lifecycle.errors import DatabaseSchemaRecoveryRequiredError, LifecycleError
+from core.application.lifecycle.stack_models import StackGatewayError
 from core.application.management.command_specs.contracts import (
     ExitCode,
     FieldIssue,
@@ -183,6 +184,20 @@ def map_exception(
             technical_detail,
             context=context,
         )
+    if isinstance(exc, StackGatewayError):
+        # #28: `service "compact-runtime" is not running` reached the operator as
+        # "An unexpected internal error occurred". Docker's own answer is safe to show
+        # (the adapter strips credentials) and is what says what to do.
+        return _mapped(
+            ExitCode.DEPENDENCY,
+            "docker_operation_failed",
+            exc,
+            "Check ./flow-steward stack status and the named service, then rerun this "
+            "command; an unfinished upgrade resumes with the same release upgrade.",
+            True,
+            technical_detail,
+            context=context,
+        )
     if isinstance(exc, ServiceError):
         return _mapped(
             ExitCode.STABLE_FAILURE,
@@ -226,13 +241,15 @@ def map_exception(
         exit_code = ExitCode.RECOVERY_REQUIRED
         remediation = "Inspect the current operation state before retrying."
         retryable = False
+    # An unexpected error has no public cause, so the operation log must carry
+    # the traceback: otherwise nothing anywhere says what failed (#28).
     return _mapped(
         exit_code,
         "internal_error",
         exc,
         remediation,
         retryable,
-        technical_detail,
+        _technical_detail(exc, context=context, verbose=True),
         context=context,
     )
 

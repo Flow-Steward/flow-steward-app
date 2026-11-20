@@ -605,3 +605,68 @@ def test_compact_cli_health_url_uses_selected_runtime_port() -> None:
     assert (
         "FS_COMPACT_HEALTH_URL: http://compact-runtime:${FS_RUNTIME_HTTP_PORT:-8080}/health/ready"
     ) in compose
+
+
+@pytest.mark.parametrize("operation", ["release-upgrade", "database-upgrade"])
+def test_platform_dispatcher_forwards_backup_waiver(operation):
+    from core.entrypoints.cli.platform_runtime import _canonical_argv, _parser
+
+    flags = ["--maintenance-confirmed", "--confirm"] if operation == "database-upgrade" else []
+    assert "--skip-db-backup" in _canonical_argv(
+        _parser().parse_args([operation, "--skip-db-backup", *flags])
+    )
+
+
+def test_compact_status_reports_a_stopped_bundled_ingress(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#27: Traefik stayed down after a host restart while `status` said ready."""
+    import socket
+
+    from core.entrypoints.cli.compact_platform_runtime import _ingress_check
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        free_port = probe.getsockname()[1]
+    monkeypatch.setenv("FS_COMPACT_INGRESS_ADDRESS", f"127.0.0.1:{free_port}")
+
+    check = _ingress_check()
+
+    assert check is not None
+    assert check["status"] == "fail"
+    assert check["category"] == "core"
+    assert check["remediation"] == "./flow-steward doctor --fix stack_stopped --confirm"
+
+
+def test_compact_status_passes_a_listening_ingress_and_skips_other_modes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import socket
+
+    from core.entrypoints.cli.compact_platform_runtime import _ingress_check
+
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        monkeypatch.setenv("FS_COMPACT_INGRESS_ADDRESS", f"127.0.0.1:{listener.getsockname()[1]}")
+        listening = _ingress_check()
+    monkeypatch.delenv("FS_COMPACT_INGRESS_ADDRESS")
+
+    assert listening is not None and listening["status"] == "pass"
+    assert _ingress_check() is None
+
+
+def test_bundled_ingress_overlay_names_the_address_status_probes() -> None:
+    import yaml
+
+    overlay = yaml.safe_load(
+        (
+            Path(__file__).resolve().parents[2]
+            / "infra/docker/compact/ingress-bundled_traefik.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert (
+        overlay["services"]["fs-cli"]["environment"]["FS_COMPACT_INGRESS_ADDRESS"]
+        == "traefik:${APP_PORT:-8099}"
+    )

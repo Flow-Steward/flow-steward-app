@@ -215,6 +215,7 @@ def test_database_mutation_commands_delegate_only_after_review_confirmation(
                     "dsn": "",
                     "author": "operator",
                     "maintenance_confirmed": True,
+                    "skip_db_backup": False,
                     "allow_unlabeled_sessions": False,
                 },
             ),
@@ -337,3 +338,12 @@ def test_database_binding_has_no_legacy_parser_or_transport_boundary() -> None:
     )
     for token in forbidden:
         assert token not in source
+
+
+def test_database_backup_waiver_reaches_typed_request():
+    app, runtime = _app()
+    result = CliRunner().invoke(
+        app, ["database", "upgrade", "--maintenance-confirmed", "--skip-db-backup", "--confirm"]
+    )
+    assert result.exit_code == 0, result.output
+    assert runtime.database_tooling_service.calls[-1][1]["skip_db_backup"] is True

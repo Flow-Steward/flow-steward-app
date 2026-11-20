@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[3]
         ("docker-compose.compact.yaml", "memory-postgres-extensions", "no"),
         ("docker-compose.compact.yaml", "fs-cli", "no"),
         ("compact/storage-bundled.yaml", "seaweedfs-config", "no"),
+        ("compact/ingress-bundled_traefik.yaml", "traefik-files", "no"),
     ],
 )
 def test_compact_role_restart_contract(compose_file: str, service: str, policy: str) -> None:

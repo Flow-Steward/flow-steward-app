@@ -220,7 +220,9 @@ export function RegistryCatalogSurface({
   );
   const showsIdentifierField = endpoint !== "/api/guardrails";
   const requiresIdentifier = endpoint === "/api/agents" || endpoint === "/api/tools" || endpoint === "/api/skills";
-  const requiresDisplayName = endpoint === "/api/tools" || endpoint === "/api/skills" || endpoint === "/api/guardrails";
+  // Agents, tools and skills: the user names the entry and the ID is prefilled from that name.
+  const derivesIdentifier = requiresIdentifier;
+  const requiresDisplayName = requiresIdentifier || endpoint === "/api/guardrails";
   const guardrailAgentIdSet = useMemo(() => new Set(guardrailAgentIds), [guardrailAgentIds]);
   const guardrailAgentOptions = useMemo(
     () => (Array.isArray(guardrailAgentsQuery.data) ? guardrailAgentsQuery.data : []),
@@ -755,6 +757,7 @@ export function RegistryCatalogSurface({
             showsIdentifierField,
             idKey,
             requiresIdentifier,
+            derivesIdentifier,
             setCreateForm,
             createForm,
             requiresDisplayName,

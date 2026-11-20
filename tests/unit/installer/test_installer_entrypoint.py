@@ -670,6 +670,10 @@ def test_private_upgrade_bootstrap_rechecks_maintenance_before_installer(
         # Only the existing runtime operator can observe its private marker.
         def run_operator(self, command, **_kwargs):
             assert command[command.index("-p") + 1] == compose_project
+            if command[-5:] == ["ps", "--status", "running", "--services", "compact-runtime"]:
+                # ADR 0074: a failed exec asks whether the runtime runs; it does,
+                # so the operator's own failure stands.
+                return ProcessOutcome(tuple(command), 0, "compact-runtime\n")
             assert command[-10:] == [
                 "exec",
                 "-T",

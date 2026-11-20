@@ -133,3 +133,5 @@ had its own 0054 and reserved 0055. Comments in
 still say "ADR 0054" and "ADR 0055" for these two: the migration's checksum and the
 baseline fingerprint are recorded in `db/released_migrations.json`, so those bytes are
 not edited for a renumbering.
+
+- [0074: Automatic release upgrade](0074-automatic-release-upgrade.md)
