@@ -22,6 +22,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import requests
 import urllib3
@@ -398,7 +399,7 @@ def _stage(
     *,
     input_text: str | None = None,
 ) -> tuple[int, str]:
-    print(f"\n{'=' * 80}\n[NIGHTFIRE] {label}\n$ {' '.join(cmd)}\n", flush=True)
+    print(f"\n{'=' * 80}\n[NIGHTFIRE] {label}\n", flush=True)
     completed = subprocess.run(
         cmd,
         env=env,
@@ -438,6 +439,17 @@ def _report_path(explicit: str | None) -> Path:
         return Path(explicit).expanduser().resolve()
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     return Path("logs/nightfire") / f"nightfire-{stamp}.md"
+
+
+def _report_origin(url: str) -> str:
+    """Identify the target without recording URL credentials, paths, or query values."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return "<unavailable>"
+    if parts.scheme not in {"http", "https"} or not parts.hostname:
+        return "<unavailable>"
+    return f"{parts.scheme}://{parts.netloc.rsplit('@', 1)[-1]}"
 
 
 def _append_stage_report(
@@ -880,8 +892,8 @@ def _run_nightfire_regression_args(
     report_rows: list[str] = [
         "# Nightfire Regression Extension",
         "",
-        f"- Base URL: `{args.base_url}`",
-        f"- MCP base URL: `{mcp_base_url}`",
+        f"- App origin: `{_report_origin(args.base_url)}`",
+        f"- MCP origin: `{_report_origin(mcp_base_url)}`",
         f"- Lane: `{resolved.lane}`",
         f"- Test project id: `{project_id}`",
         f"- Test project name: `{resolved.project_name}`",

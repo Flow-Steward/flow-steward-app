@@ -3521,6 +3521,9 @@ msgstr "Pasirinkite naują slaptažodį"
 msgid "react.auth.choose_a_password_different_from_the_temporary_one"
 msgstr "Pasirinkite kitą slaptažodį nei laikinasis."
 
+msgid "react.auth.choose_a_different_password"
+msgstr "Pasirinkite slaptažodį, kuris skiriasi nuo dabartinio."
+
 msgid "react.auth.choose_an_account"
 msgstr "Pasirinkite paskyrą"
 
@@ -3629,6 +3632,24 @@ msgstr ""
 "Vietinis prisijungimo nustatymas aktyvus, nes naudotojų dar nėra. Sukurkite "
 "pirmąją administratoriaus paskyrą ir grįžkite prie prisijungimo."
 
+msgid "react.auth.mfa_code"
+msgstr "Autentifikavimo arba atkūrimo kodas"
+
+msgid "react.auth.mfa_code_invalid"
+msgstr "Nepavyko patvirtinti kodo. Įveskite naują kodą ir bandykite dar kartą."
+
+msgid "react.auth.mfa_code_required"
+msgstr "Įveskite autentifikavimo programėlės kodą arba atkūrimo kodą."
+
+msgid "react.auth.mfa_contact_admin"
+msgstr "Norėdami nustatyti kelių veiksnių autentifikavimą, kreipkitės į darbo srities administratorių."
+
+msgid "react.auth.mfa_enrollment_required"
+msgstr "Būtinas kelių veiksnių autentifikavimas"
+
+msgid "react.auth.mfa_required"
+msgstr "Patvirtinkite prisijungimą"
+
 msgid "react.auth.new_password"
 msgstr "Naujas slaptažodis"
 
@@ -3642,6 +3663,21 @@ msgstr ""
 
 msgid "react.auth.or_use_your_password"
 msgstr "arba naudokite slaptažodį"
+
+msgid "react.auth.password_composition"
+msgstr "Naudokite bent {count} simbolių, tarp jų didžiųjų ir mažųjų raidžių, bent vieną skaitmenį ir specialųjį simbolį."
+
+msgid "react.auth.password_expired"
+msgstr "Baigėsi jūsų slaptažodžio galiojimas. Norėdami prisijungti, pasirinkite naują slaptažodį."
+
+msgid "react.auth.password_expiry_warning"
+msgstr "Jūsų slaptažodis galios dar {count} d. Pakeiskite jį iki galiojimo pabaigos."
+
+msgid "react.auth.password_expiry_warning_one"
+msgstr "Jūsų slaptažodis galios dar 1 dieną. Pakeiskite jį iki galiojimo pabaigos."
+
+msgid "react.auth.password_length_recommendation"
+msgstr "Jūsų slaptažodis trumpesnis nei {count} simbolių. Pasirinkite ilgesnį slaptažodį."
 
 msgid "react.auth.password_recovery_is_temporarily_unavailable"
 msgstr "Slaptažodžio atkūrimas laikinai nepasiekiamas."
@@ -11709,6 +11745,57 @@ msgstr "API versija"
 msgid "react.settings.applies_after_the_profile_refresh_completes"
 msgstr "Pritaikoma baigus profilio atnaujinimą."
 
+msgid "react.settings.authenticator_continue_setup"
+msgstr "Tęsti"
+
+msgid "react.settings.authenticator_description"
+msgstr "Pridėkite antrą prisijungimo žingsnį naudodami autentifikavimo programėlę."
+
+msgid "react.settings.authenticator_disable"
+msgstr "Išjungti autentifikavimo programėlę"
+
+msgid "react.settings.authenticator_error"
+msgstr "Nepavyko atnaujinti autentifikavimo programėlės nustatymų"
+
+msgid "react.settings.authenticator_loading"
+msgstr "Įkeliami autentifikavimo programėlės nustatymai…"
+
+msgid "react.settings.authenticator_open"
+msgstr "Atidaryti autentifikavimo programėlėje"
+
+msgid "react.settings.authenticator_policy_required"
+msgstr "Šioje sistemoje būtinas kelių veiksnių autentifikavimas."
+
+msgid "react.settings.authenticator_recovery_codes"
+msgstr "Išsaugokite atkūrimo kodus"
+
+msgid "react.settings.authenticator_recovery_instructions"
+msgstr "Laikykite šiuos kodus saugioje vietoje. Kiekvienas kodas galioja vieną kartą, o kodai rodomi tik dabar."
+
+msgid "react.settings.authenticator_replace"
+msgstr "Pakeisti autentifikavimo programėlę"
+
+msgid "react.settings.authenticator_request_failed"
+msgstr "Nepavyko atnaujinti autentifikavimo programėlės nustatymų."
+
+msgid "react.settings.authenticator_setup"
+msgstr "Nustatyti autentifikavimo programėlę"
+
+msgid "react.settings.authenticator_setup_instructions"
+msgstr "Naudodami šį nustatymo raktą, programėlėje pridėkite paskyrą su pagal laiką generuojamais kodais. Tada įveskite šešių skaitmenų kodą."
+
+msgid "react.settings.authenticator_status_error"
+msgstr "Nepavyko įkelti autentifikavimo programėlės nustatymų"
+
+msgid "react.settings.authenticator_title"
+msgstr "Autentifikavimo programėlė"
+
+msgid "react.settings.authenticator_verification_code"
+msgstr "Autentifikavimo programėlės kodas"
+
+msgid "react.settings.authenticator_verify"
+msgstr "Patvirtinti ir įjungti"
+
 msgid "react.settings.backend_policy_may_require_more"
 msgstr "Serverio politika gali reikalauti daugiau"
 
@@ -12114,6 +12201,9 @@ msgstr ""
 
 msgid "react.settings.enter_a_valid_new_email_address"
 msgstr "Įveskite tinkamą naują el. pašto adresą."
+
+msgid "react.settings.enter_current_and_matching_new_passwords"
+msgstr "Įveskite dabartinį slaptažodį ir du kartus įrašykite naująjį."
 
 msgid "react.settings.enter_the_current_password_and_matching_new_passwords_of_at_least_10_characters"
 msgstr ""

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from core.entrypoints.api.auth_mfa import create_auth_mfa_router
 from core.entrypoints.api.auth_passwords import create_auth_passwords_router
 from core.entrypoints.api.auth_sessions import create_auth_sessions_router
 from core.entrypoints.api.auth_tokens_accounts import create_auth_tokens_accounts_router
@@ -183,6 +184,24 @@ def register_auth_routes(
         err_too_many_password_reset_requests=err_too_many_password_reset_requests,
     )
     app.include_router(auth_passwords_router)
+
+    app.include_router(
+        create_auth_mfa_router(
+            local_auth_enabled=local_auth_enabled,
+            get_logger_only=get_logger_only,
+            require_authenticated_user=require_authenticated_user,
+            get_user_by_id=get_user_by_id,
+            verify_password=verify_password,
+            session_token_hash=session_token_hash,
+            auth_cookie_name=auth_cookie_name,
+            csrf_request_valid=csrf_request_valid,
+            request_client_ip=request_client_ip,
+            auth_login_lock_state=auth_login_lock_state,
+            auth_login_record_failure=auth_login_record_failure,
+            api_error_response=api_error_response,
+            log_auth_audit_event=log_auth_audit_event,
+        )
+    )
 
     auth_sessions_router = create_auth_sessions_router(
         get_logger_only=get_logger_only,

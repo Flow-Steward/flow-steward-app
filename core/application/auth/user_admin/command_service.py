@@ -107,7 +107,8 @@ class UserAdminCommandRepository(Protocol):
         existing_user: dict[str, Any],
         display_name: str | None,
         is_active: bool | None,
-        password_hash_value: str | None,
+        password: str | None,
+        password_hasher: PasswordHasher,
         must_change_password: bool | None,
         roles: list[str] | None,
         requested_account_ids: list[str] | None,
@@ -480,9 +481,8 @@ class UserAdminCommandService:
             existing_user=user,
             display_name=command.display_name,
             is_active=command.is_active,
-            password_hash_value=(
-                self._password_hash(password_value) if password_value is not None else None
-            ),
+            password=password_value,
+            password_hasher=self._password_hash,
             must_change_password=command.must_change_password,
             roles=roles,
             requested_account_ids=requested_account_ids,

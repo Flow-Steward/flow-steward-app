@@ -29,8 +29,8 @@ SCOPE = {
 class _Store:
     """Records deliveries; a (key, type) already stored is a duplicate."""
 
-    def __init__(self, *, fail: bool = False) -> None:
-        self.fail = fail
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        self.failure = failure
         self.calls: list[dict] = []
         self.seen: set[tuple[str, str]] = set()
 
@@ -38,8 +38,8 @@ class _Store:
         return self
 
     def deliver(self, **kwargs):
-        if self.fail:
-            raise RuntimeError("database is gone")
+        if self.failure is not None:
+            raise self.failure
         self.calls.append(kwargs)
         stored = []
         for item in kwargs["items"]:
@@ -93,14 +93,19 @@ def test_items_are_stored_with_the_trusted_scope_never_the_responses() -> None:
 
 def test_a_second_delivery_of_the_same_key_and_type_is_a_logged_duplicate(caplog) -> None:
     store = _Store()
-    item = {"correlation_key": "run-42", "event_type": "run_completed"}
+    correlator = "fixture-correlator-42"
+    item = {"correlation_key": correlator, "event_type": "run_completed"}
     _deliver(_invocation([item]), store)
 
     with caplog.at_level("INFO"):
         outcome = _deliver(_invocation([item, {**item, "event_type": "run_failed"}]), store)
 
     assert outcome == {"stored": 1, "duplicates": [0], "rejected": []}
-    assert "duplicate event run_completed" in caplog.text
+    assert store.calls[1]["items"][0].correlation_key == correlator
+    assert "duplicate event at resume_waits index 0 ignored" in caplog.text
+    for field in (correlator, item["event_type"], SCOPE["extension_id"]):
+        assert field not in caplog.text
+        assert all(field not in repr(record.args) for record in caplog.records)
 
 
 @pytest.mark.parametrize(
@@ -174,13 +179,21 @@ def test_without_a_project_context_nothing_is_stored() -> None:
     assert outcome["rejected"][0]["code"] == "resume_waits_scope_missing"
 
 
-def test_a_storage_failure_fails_the_action_so_the_sender_retries() -> None:
+def test_a_storage_failure_fails_the_action_so_the_sender_retries(caplog) -> None:
     invocation = _invocation([{"correlation_key": "k", "event_type": "done"}])
+    diagnostic = "fixture database diagnostic detail"
 
-    _deliver(invocation, _Store(fail=True))
+    with caplog.at_level("WARNING"):
+        outcome = _deliver(invocation, _Store(failure=RuntimeError(diagnostic)))
 
+    assert outcome == {"stored": 0, "duplicates": [], "rejected": []}
     assert invocation["status"] == "failed"
     assert invocation["detail"] == "wait_event_delivery_failed"
+    assert "resume_waits not stored (error_type=RuntimeError)" in caplog.text
+    for field in (diagnostic, SCOPE["extension_id"]):
+        assert field not in caplog.text
+        assert all(field not in repr(record.args) for record in caplog.records)
+    assert all(record.exc_info is None for record in caplog.records)
 
 
 @pytest.mark.parametrize(

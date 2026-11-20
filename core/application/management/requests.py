@@ -225,6 +225,7 @@ class AuthLoginRequest(BaseModel):
     # Sent together with a temporary password: the only thing a temporary
     # password can do is replace itself with this one (B3).
     new_password: str = ""
+    mfa_code: str = Field(default="", max_length=128)
 
     @property
     def username(self) -> str:

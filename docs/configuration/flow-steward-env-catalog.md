@@ -32,7 +32,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
 | `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `177` |
-| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `36` |
+| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `37` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
 | `openapi_docs` | Curated public/internal OpenAPI schema and Swagger UI exposure controls. | `6` |
@@ -51,16 +51,16 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `831`
-- Cataloged variables from `.env.example*` or manifest: `608`
+- Raw env-like names discovered by audit: `832`
+- Cataloged variables from `.env.example*` or manifest: `609`
 - Raw audit-only names outside examples/manifest: `223`
-- Unique variables in shipped `.env.example*` files: `378`
-- Variables in canonical manifest: `518`
+- Unique variables in shipped `.env.example*` files: `379`
+- Variables in canonical manifest: `519`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
 - Internal Runtime: `141`
-- Public / Operator: `331`
+- Public / Operator: `332`
 - Test Config: `34`
 - Test Only: `16`
 - Tooling Internal: `81`
@@ -545,8 +545,9 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_AUTH_LOGIN_LOCKOUT_SECONDS` | core_security_auth | production, local_development | no | no | `900` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_AUTH_LOGIN_MAX_ATTEMPTS` | core_security_auth | production, local_development | no | no | `5` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_AUTH_LOGIN_RATE_WINDOW_SECONDS` | core_security_auth | production, local_development | no | no | `300` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
+| `FS_AUTH_MFA_REQUIRED` | core_security_auth | production, local_development | no | no | `0` | .env.example.ops | Docker Compose (3) | Require an enrolled authenticator or recovery code for all local user sign-ins. Complete enrollment before enabling this setting. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_AUTH_PASSWORD_ITERATIONS` | core_security_auth | production, local_development | no | yes | `260000` | .env.example.ops | Application (1), Tests (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py`<br>`tests/e2e/conftest.py` |
-| `FS_AUTH_PASSWORD_MIN_LENGTH` | core_security_auth | production, local_development | no | yes | `10` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
+| `FS_AUTH_PASSWORD_MIN_LENGTH` | core_security_auth | production, local_development | no | yes | `12` | .env.example.ops | Application (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_AUTH_PASSWORD_RESET_LOCKOUT_SECONDS` | core_security_auth | production, local_development | no | yes | `900` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_AUTH_PASSWORD_RESET_MAX_ATTEMPTS` | core_security_auth | production, local_development | no | yes | `5` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |
 | `FS_AUTH_PASSWORD_RESET_RATE_WINDOW_SECONDS` | core_security_auth | production, local_development | no | yes | `300` | .env.example.ops | Application (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/application/auth/config.py` |

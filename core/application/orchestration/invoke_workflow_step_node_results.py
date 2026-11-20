@@ -281,7 +281,9 @@ def _child_error_row(bl: Any, child_job_id: str) -> dict[str, Any]:
     try:
         rows = list_job_errors(str(child_job_id), limit=20) or []
     except Exception as exc:  # The reason is a courtesy; its absence never fails the step.
-        logger.debug("invoke_workflow: child errors unavailable for %s: %s", child_job_id, exc)
+        logger.debug(
+            "invoke_workflow: child errors unavailable (error_type=%s)", type(exc).__name__
+        )
         return {}
     rows = [dict(row) for row in rows if isinstance(row, dict)]
     return next(

@@ -94,7 +94,11 @@ def _make_mock_bl(*, cursor_factory_rows=None, cursor_fetchone=None, rowcount=0)
         rowcount=rowcount,
     )
     bl.conn.cursor.return_value = cur
-    bl._table_exists.return_value = True
+    # The scoped authenticator tests provide their own factor store. These
+    # generic auth fixtures do not represent its rows or queries.
+    bl._table_exists.side_effect = lambda table: (
+        table not in {"auth_totp_factors", "auth_mfa_recovery_codes"}
+    )
     return bl
 
 
@@ -632,9 +636,13 @@ class TestAuthMe:
 
 
 class TestPasswordChange:
-    def test_change_password_success(self, auth_client, serve_module):
+    @pytest.mark.parametrize("reused", [False, True])
+    def test_change_password_success(self, auth_client, serve_module, reused):
         user = _make_admin_user()
         bl = _make_mock_bl()
+        cur = bl.conn.cursor.return_value
+        if reused:
+            cur.fetchall.return_value = [(_make_password_hash("NewStr0ngP@ss!"),)]
         with (
             _patch_app_db(auth_client, bl),
             patch(
@@ -648,7 +656,6 @@ class TestPasswordChange:
             patch(
                 "core.entrypoints.api.route_registration._get_user_by_username", return_value=user
             ),
-            patch("core.entrypoints.api.route_registration._verify_password", return_value=True),
             patch(
                 "core.entrypoints.api.route_registration._auth_user_column_exists",
                 return_value=True,
@@ -660,8 +667,48 @@ class TestPasswordChange:
                 "/api/auth/change-password",
                 json={"current_password": "oldpassword1", "new_password": "NewStr0ngP@ss!"},
             )
+        if reused:
+            assert r.status_code == 400
+            assert r.json()["field"] == "new_password"
+            assert all(
+                "UPDATE users SET password_hash" not in str(call.args[0])
+                for call in cur.execute.call_args_list
+            )
+            return
         assert r.status_code == 200
         assert r.json().get("status") == "password_updated"
+
+    def test_change_password_does_not_overwrite_a_concurrent_replacement(self, auth_client):
+        user = _make_admin_user()
+        bl = _make_mock_bl()
+        bl._column_exists.side_effect = lambda table, column: (
+            (table, column) == ("users", "password_changed_at")
+        )
+        with (
+            _patch_app_db(auth_client, bl),
+            patch(
+                "core.entrypoints.api.route_registration._auth_tables_available", return_value=True
+            ),
+            patch(
+                "core.entrypoints.api.route_registration._get_user_by_session_token",
+                return_value=user,
+            ),
+            patch(
+                "core.entrypoints.api.route_registration._get_user_by_username",
+                return_value=user,
+            ),
+            patch("core.entrypoints.api.route_registration._csrf_request_valid", return_value=True),
+        ):
+            auth_client.cookies.set("fs_session", "fake-token")
+            response = auth_client.post(
+                "/api/auth/change-password",
+                json={"current_password": "oldpassword1", "new_password": "NewStr0ngP@ss!"},
+            )
+
+        assert response.status_code == 409
+        statements = [call.args[0] for call in bl.conn.cursor.return_value.execute.call_args_list]
+        assert any("FOR UPDATE" in str(query) for query in statements)
+        assert all("UPDATE users SET password_hash" not in str(query) for query in statements)
 
     def test_change_password_wrong_current(self, auth_client, serve_module):
         user = _make_admin_user()
@@ -892,7 +939,9 @@ class TestPasswordReset:
                 "core.entrypoints.api.route_registration._password_reset_debug_reveal_token",
                 return_value=True,
             ),
-            patch("core.entrypoints.api.route_registration._auth_login_clear_user_failures"),
+            patch(
+                "core.entrypoints.api.route_registration._auth_login_clear_user_failures"
+            ) as clear_login_failures,
             patch("core.entrypoints.api.route_registration._log_auth_audit_event"),
         ):
             r = auth_client.post(
@@ -906,6 +955,7 @@ class TestPasswordReset:
         assert data.get("status") == "accepted"
         # Debug mode reveals token
         assert "reset_token" in data
+        clear_login_failures.assert_not_called()
 
     def test_request_legacy_forgot_password_alias_removed(self, auth_client, serve_module):
         r = auth_client.post("/api/auth/forgot-password", json={"email": "admin@example.com"})
@@ -1084,7 +1134,8 @@ class TestPasswordReset:
         assert r.status_code == 200
         assert r.json().get("valid") is False
 
-    def test_confirm_resets_password(self, auth_client, serve_module):
+    @pytest.mark.parametrize("reused", [False, True])
+    def test_confirm_resets_password(self, auth_client, serve_module, reused):
         bl = _make_mock_bl()
         mock_row = {
             "id": 1,
@@ -1094,6 +1145,8 @@ class TestPasswordReset:
         }
         cur = MagicMock()
         cur.fetchone.return_value = mock_row
+        if reused:
+            cur.fetchall.return_value = [{"password_hash": _make_password_hash("N3wStr0ngP@ss!!")}]
         cur.rowcount = 0
         cur.__enter__ = MagicMock(return_value=cur)
         cur.__exit__ = MagicMock(return_value=False)
@@ -1130,6 +1183,15 @@ class TestPasswordReset:
                     "new_password": "N3wStr0ngP@ss!!",
                 },
             )
+        if reused:
+            assert r.status_code == 400
+            assert r.json()["field"] == "new_password"
+            writes = ("UPDATE users SET password_hash", "UPDATE auth_password_resets")
+            assert all(
+                not any(write in str(call.args[0]) for write in writes)
+                for call in cur.execute.call_args_list
+            )
+            return
         assert r.status_code == 200
         assert r.json().get("status") == "password_reset_confirmed"
 

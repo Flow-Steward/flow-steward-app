@@ -13,12 +13,34 @@ from fastapi.responses import JSONResponse
 from core.application.auth.account_memberships import resolve_login_account_memberships
 from core.application.auth.email import normalize_email_address, normalize_login_identifier
 from core.application.auth.first_admin import FirstAdminAlreadyExists, FirstAdminService
+from core.application.auth.local_credentials import (
+    authenticator_storage_available,
+    installation_requires_mfa,
+    lock_local_user,
+    password_age_available,
+)
+from core.application.auth.mfa_service import mfa_enabled, verify_mfa
+from core.application.auth.password_history import PasswordReuseError, require_unused_password
+from core.application.auth.password_policy import (
+    PASSWORD_WARNING_DAYS,
+    password_expires_in_days,
+    password_policy_error,
+)
 from core.application.management.requests import AuthBootstrapRequest, AuthLoginRequest
+from core.infrastructure.db.db_pool import transaction_connection
 
 _DUMMY_LOGIN_PASSWORD_HASH = (
     "pbkdf2_sha256$100000$00000000000000000000000000000000$"
     "0000000000000000000000000000000000000000000000000000000000000000"
 )
+
+
+def _check_login_factor(cur: Any, *, user_id: str, code: str, required: bool) -> str:
+    if not mfa_enabled(cur, user_id):
+        return "mfa_enrollment_required" if required else ""
+    if not code.strip():
+        return "mfa_required"
+    return "" if verify_mfa(cur, user_id, code) else "mfa_invalid_code"
 
 
 def create_auth_sessions_router(
@@ -78,7 +100,7 @@ def create_auth_sessions_router(
     ERR_LOCAL_AUTH_DISABLED = err_local_auth_disabled
     ERR_AUTH_TABLES_NOT_AVAILABLE = err_auth_tables_not_available
     ERR_TOO_MANY_LOGIN_ATTEMPTS = err_too_many_login_attempts
-    _AUTH_PASSWORD_MIN_LENGTH = auth_password_min_length
+    _AUTH_PASSWORD_MIN_LENGTH = max(12, auth_password_min_length)
     _AUTH_SESSION_TTL_HOURS = auth_session_ttl_hours
     _AUTH_REMEMBER_SESSION_TTL_HOURS = auth_remember_session_ttl_hours
     _AUTH_COOKIE_NAME = auth_cookie_name
@@ -94,15 +116,15 @@ def create_auth_sessions_router(
         if callable(rollback):
             rollback()
 
-    def _new_password_issue(*, must_change: bool, temporary: str, new: str) -> str:
+    def _new_password_issue(*, must_change: bool, current: str, new: str) -> str:
         """Why ``new`` cannot replace the temporary password, or ``""``."""
         if not must_change:
             return "new_password is accepted only when a password change is required"
         if len(new) < _AUTH_PASSWORD_MIN_LENGTH:
             return f"new_password must be at least {_AUTH_PASSWORD_MIN_LENGTH} characters"
-        if secrets.compare_digest(new.encode("utf-8"), temporary.encode("utf-8")):
-            return "new_password must differ from the temporary password"
-        return ""
+        if secrets.compare_digest(new.encode("utf-8"), current.encode("utf-8")):
+            return "new_password must differ from the current password"
+        return password_policy_error(new, _AUTH_PASSWORD_MIN_LENGTH, field="new_password")
 
     def _replace_temporary_password(bl: Any, cur: Any, *, user_id: str, new_password: str) -> int:
         """Store the new password, clear the flag and revoke every session."""
@@ -146,11 +168,9 @@ def create_auth_sessions_router(
             return JSONResponse({"error": str(exc)}, status_code=400)
         password = str(body.password or "")
         display_name = str(body.display_name or "").strip()
-        if len(password) < _AUTH_PASSWORD_MIN_LENGTH:
-            return JSONResponse(
-                {"error": f"password must be at least {_AUTH_PASSWORD_MIN_LENGTH} characters"},
-                status_code=400,
-            )
+        issue = password_policy_error(password, _AUTH_PASSWORD_MIN_LENGTH)
+        if issue:
+            return JSONResponse({"error": issue}, status_code=400)
 
         try:
             user_row = _first_admin_service_factory(bl).create(
@@ -190,14 +210,42 @@ def create_auth_sessions_router(
             "status": "bootstrapped",
         }
 
+    def _factor_error_response(
+        bl: Any, *, factor_error: str, email: str, client_ip: str
+    ) -> JSONResponse:
+        if factor_error == "mfa_enrollment_required":
+            return JSONResponse(
+                {"error": "Multi-factor authentication setup is required", factor_error: True},
+                status_code=403,
+            )
+        if factor_error == "mfa_invalid_code":
+            throttled, retry_after = _auth_login_record_failure(email, client_ip)
+            _log_auth_audit_event(
+                bl,
+                action="login",
+                username=email,
+                actor="auth",
+                status="rejected",
+                detail={"reason": "mfa_invalid_code", "client_ip": client_ip},
+            )
+            if throttled:
+                return JSONResponse(
+                    {"error": ERR_TOO_MANY_LOGIN_ATTEMPTS, "retry_after_seconds": retry_after},
+                    headers={"Retry-After": str(retry_after)},
+                    status_code=429,
+                )
+        return JSONResponse(
+            {"error": "An authenticator or recovery code is required", "mfa_required": True},
+            status_code=403,
+        )
+
     @router.post("/api/auth/login")
-    async def api_auth_login(body: AuthLoginRequest, request: Request):
+    def api_auth_login(body: AuthLoginRequest, request: Request):
         """Authenticate a local user and create the session cookie.
 
-        A temporary password (``must_change_password``) never signs in by itself:
-        it answers 403 ``password_change_required`` until the same request also
-        carries ``new_password``, which replaces it, revokes the user's other
-        sessions and then signs in.
+        Temporary and expired passwords can only authorize their own replacement.
+        An enrolled user supplies an authenticator or recovery code before issuing
+        a session or committing any password replacement.
         """
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
@@ -292,9 +340,11 @@ def create_auth_sessions_router(
                 )
             return JSONResponse({"error": "Invalid credentials"}, status_code=401)
 
-        _auth_login_clear_failures(email, client_ip)
-        must_change_password = bool(user.get("must_change_password", False))
-        new_password = str(body.new_password or "")
+        days_until_expiry = password_expires_in_days(user.get("password_changed_at"))
+        password_expired = days_until_expiry == 0
+        change_flag = bool(user.get("must_change_password", False))
+        must_change_password = change_flag or password_expired
+        new_password = body.new_password
         if must_change_password and not new_password:
             _log_auth_audit_event(
                 bl,
@@ -309,13 +359,14 @@ def create_auth_sessions_router(
                     "error": "Password change required",
                     "password_change_required": True,
                     "password_min_length": _AUTH_PASSWORD_MIN_LENGTH,
+                    **({"password_expired": True} if password_expired else {}),
                 },
                 status_code=403,
             )
         if new_password:
             new_password_issue = _new_password_issue(
                 must_change=must_change_password,
-                temporary=str(body.password or ""),
+                current=body.password,
                 new=new_password,
             )
             if new_password_issue:
@@ -394,6 +445,11 @@ def create_auth_sessions_router(
         if guard_response is not None:
             return guard_response
 
+        storage_available = authenticator_storage_available(bl)
+        require_factor = installation_requires_mfa()
+        if require_factor and not storage_available:
+            return JSONResponse({"error": ERR_AUTH_TABLES_NOT_AVAILABLE}, status_code=503)
+
         session_token = secrets.token_urlsafe(48)
         token_hash = _session_token_hash(session_token)
         session_ttl_hours = (
@@ -401,10 +457,49 @@ def create_auth_sessions_router(
         )
         revoked_sessions = 0
         try:
-            with bl.conn.cursor() as cur:
+            with transaction_connection(bl) as conn, conn.cursor() as cur:
+                user_id = str(user["id"])
+                needs_lock = storage_available or (
+                    must_change_password and password_age_available(bl)
+                )
+                if needs_lock and not lock_local_user(
+                    cur,
+                    user_id=user_id,
+                    password_hash=password_hash_value,
+                    must_change_password=change_flag,
+                ):
+                    return JSONResponse({"error": "Invalid credentials"}, status_code=401)
+
+                if storage_available:
+                    if body.mfa_code:
+                        locked, retry_after = _auth_login_lock_state(email, client_ip)
+                        if locked:
+                            return JSONResponse(
+                                {
+                                    "error": ERR_TOO_MANY_LOGIN_ATTEMPTS,
+                                    "retry_after_seconds": retry_after,
+                                },
+                                headers={"Retry-After": str(retry_after)},
+                                status_code=429,
+                            )
+                    factor_error = _check_login_factor(
+                        cur, user_id=user_id, code=body.mfa_code, required=require_factor
+                    )
+                    if factor_error:
+                        return _factor_error_response(
+                            bl, factor_error=factor_error, email=email, client_ip=client_ip
+                        )
+
                 if must_change_password:
+                    require_unused_password(
+                        cur,
+                        user_id=user_id,
+                        password=new_password,
+                        current_hash=password_hash_value,
+                        verify=_verify_password,
+                    )
                     revoked_sessions = _replace_temporary_password(
-                        bl, cur, user_id=str(user["id"]), new_password=new_password
+                        bl, cur, user_id=user_id, new_password=new_password
                     )
                 session_has_account_id = False
                 try:
@@ -438,12 +533,12 @@ def create_auth_sessions_router(
                         """,
                         (str(user["id"]), token_hash, int(session_ttl_hours)),
                     )
-            _conn_commit(bl.conn)
+        except PasswordReuseError as exc:
+            return JSONResponse({"error": str(exc), "field": "new_password"}, status_code=400)
         except Exception as e:
-            with suppress(Exception):
-                _conn_rollback(bl.conn)
             return _api_error_response(e)
 
+        _auth_login_clear_failures(email, client_ip)
         if must_change_password:
             _log_auth_audit_event(
                 bl,
@@ -452,7 +547,9 @@ def create_auth_sessions_router(
                 actor=str(user.get("username") or email),
                 status="ok",
                 detail={
-                    "reason": "temporary_password_replaced",
+                    "reason": "expired_password_replaced"
+                    if password_expired
+                    else "temporary_password_replaced",
                     "revoked_sessions": revoked_sessions,
                     "client_ip": client_ip,
                 },
@@ -471,6 +568,12 @@ def create_auth_sessions_router(
             },
             "expires_in_hours": session_ttl_hours,
         }
+        if (
+            not must_change_password
+            and days_until_expiry is not None
+            and days_until_expiry <= PASSWORD_WARNING_DAYS
+        ):
+            payload["password_expires_in_days"] = days_until_expiry
         csrf_token = secrets.token_urlsafe(32)
         payload["csrf_token"] = csrf_token
         response = JSONResponse(payload)

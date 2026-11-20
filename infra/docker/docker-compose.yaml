@@ -80,6 +80,8 @@ x-role-common-environment: &role-common-environment
 
 x-app-worker-environment: &app-worker-environment
   <<: *role-common-environment
+  FS_AUTH_MFA_REQUIRED: ${FS_AUTH_MFA_REQUIRED:-0}
+  FS_AUTH_PASSWORD_MIN_LENGTH: ${FS_AUTH_PASSWORD_MIN_LENGTH:-12}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-local-dev-encryption-key-not-for-production}
   FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED: ${FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED:-1}
   FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}

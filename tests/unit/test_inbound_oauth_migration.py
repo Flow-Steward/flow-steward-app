@@ -153,5 +153,7 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         "20261114150000_scheduled_job_name.sql",
         "20261114160000_workflow_wait_events.sql",
         "20261114190000_raw_body_callback_auth.sql",
+        "20261120160000_local_auth_credentials.sql",
+        "20261120160100_local_password_history.sql",
     ]
     assert status["needs_upgrade"] is True

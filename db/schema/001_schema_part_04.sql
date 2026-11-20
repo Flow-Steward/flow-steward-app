@@ -1030,7 +1030,8 @@ CREATE TABLE public.users (
     locale character varying(16),
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     date_format character varying(16),
-    time_format character varying(8)
+    time_format character varying(8),
+    password_changed_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 

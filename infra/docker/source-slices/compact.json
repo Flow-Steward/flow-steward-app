@@ -61,17 +61,23 @@
     "core/application/auth/inbound_oauth_policy.py",
     "core/application/auth/inbound_oauth_repository.py",
     "core/application/auth/inbound_oauth_service.py",
+    "core/application/auth/local_credentials.py",
     "core/application/auth/mcp_connector_oauth.py",
     "core/application/auth/mcp_connector_oauth_policy.py",
     "core/application/auth/mcp_connector_oauth_provider.py",
     "core/application/auth/mcp_connector_oauth_repository.py",
     "core/application/auth/mcp_connector_oauth_rpc.py",
     "core/application/auth/mcp_connector_oauth_tokens.py",
+    "core/application/auth/mfa_codes.py",
+    "core/application/auth/mfa_repository.py",
+    "core/application/auth/mfa_service.py",
     "core/application/auth/oauth_client.py",
     "core/application/auth/oauth_client_provider.py",
     "core/application/auth/oauth_client_tokens.py",
     "core/application/auth/oauth_client_values.py",
     "core/application/auth/password.py",
+    "core/application/auth/password_history.py",
+    "core/application/auth/password_policy.py",
     "core/application/auth/password_reset_rate_limit.py",
     "core/application/auth/principal.py",
     "core/application/auth/rate_limit.py",
@@ -1197,6 +1203,7 @@
     "core/entrypoints/api/app_bootstrap.py",
     "core/entrypoints/api/app_factory.py",
     "core/entrypoints/api/approval_decision_transport.py",
+    "core/entrypoints/api/auth_mfa.py",
     "core/entrypoints/api/auth_passwords.py",
     "core/entrypoints/api/auth_personal_token_routes.py",
     "core/entrypoints/api/auth_route_bindings.py",
@@ -1927,6 +1934,14 @@
     },
     {
       "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120160000_local_auth_credentials.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120160100_local_password_history.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

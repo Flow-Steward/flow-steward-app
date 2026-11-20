@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.auth.password import password_hash
+from core.application.auth.password_history import PasswordReuseError
 from core.application.auth.user_admin import (
     UserAdminCommandService,
     UserAdminQueryService,
@@ -484,7 +487,9 @@ def test_set_password_delegates_persistence_and_preserves_audit_semantics() -> N
 
     assert result.status == "password_updated"
     assert result.revoked_sessions == 2
-    assert repository.update_calls[0]["password_hash_value"] == "hash:Password123!"
+    update = repository.update_calls[0]
+    assert update["password"] == "Password123!"
+    assert update["password_hasher"](update["password"]) == "hash:Password123!"
     assert repository.update_calls[0]["revoke_sessions"] is True
     assert not any(key.startswith("sql_") for key in repository.update_calls[0])
     assert audits == [
@@ -500,6 +505,50 @@ def test_set_password_delegates_persistence_and_preserves_audit_semantics() -> N
             },
         }
     ]
+
+
+@pytest.mark.parametrize("reuse_current", [True, False], ids=["current", "history"])
+def test_admin_repository_rejects_reused_password_before_any_user_mutation(
+    reuse_current: bool,
+) -> None:
+    from core.application.auth.user_admin.repository import update_auth_user
+
+    new_password = "ReusedPwd-123!"
+    current_hash = password_hash(new_password if reuse_current else "CurrentPwd-345!")
+    older_hash = password_hash("OlderPwd-345!" if reuse_current else new_password)
+    cursor = MagicMock()
+    cursor.__enter__.return_value = cursor
+    cursor.fetchone.return_value = (current_hash,)
+    cursor.fetchall.return_value = [(older_hash,)]
+    conn = MagicMock(conn=None, transaction=None, autocommit=True)
+    conn.cursor.return_value = cursor
+    logger = MagicMock(conn=conn)
+    hasher = MagicMock()
+
+    with pytest.raises(PasswordReuseError):
+        update_auth_user(
+            logger,
+            user_id="u_target",
+            existing_user={"username": "target@example.com", "is_active": False},
+            display_name="New display name",
+            is_active=True,
+            password=new_password,
+            password_hasher=hasher,
+            must_change_password=True,
+            roles=["viewer"],
+            requested_account_ids=None,
+            primary_account_id=None,
+            revoke_sessions=True,
+        )
+
+    conn.rollback.assert_called_once()
+    conn.commit.assert_not_called()
+    hasher.assert_not_called()
+    sql = [" ".join(call.args[0].split()) for call in cursor.execute.call_args_list]
+    assert (
+        sql[1] == "SELECT password_hash FROM users WHERE id = %s AND deleted_at IS NULL FOR UPDATE"
+    )
+    assert all(not query.startswith(("UPDATE", "INSERT", "DELETE")) for query in sql)
 
 
 def test_force_password_reset_delegates_persistence_to_repository() -> None:

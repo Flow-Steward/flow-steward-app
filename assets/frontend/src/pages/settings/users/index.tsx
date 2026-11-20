@@ -10,6 +10,7 @@ import {
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
@@ -450,7 +451,11 @@ export function SettingsUsersPage() {
 
   async function saveTemporaryPassword(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!passwordUser || temporaryPassword.length < 10) { setFeedback({ tone: "danger", message: t("react.settings.enter_a_temporary_password_of_at_least_10_characters", "Enter a temporary password of at least 10 characters.") }); return; }
+    if (!passwordUser) return;
+    if (Array.from(temporaryPassword).length < PASSWORD_MIN_LENGTH) {
+      setFeedback({ tone: "danger", message: passwordRequirements(t) });
+      return;
+    }
     setSaving(true);
     try { await setTemporaryUserPassword(passwordUser.id, temporaryPassword, temporaryRequireChange); setFeedback({ tone: "success", message: t("react.settings.temporary_password_set_for_value1", "Temporary password set for {value1}.", { value1: String(userLabel(passwordUser)) }) }); setPasswordUser(null); setTemporaryPassword(""); setTemporaryRequireChange(true); await refreshUsers(); }
     catch (error) { setFeedback({ tone: "danger", message: error instanceof Error ? error.message : t("react.settings.temporary_password_could_not_be_set", "Temporary password could not be set.") }); }

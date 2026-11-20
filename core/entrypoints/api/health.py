@@ -14,7 +14,10 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 
 from core.application.auth.enforce import require_roles
 from core.application.monitoring.health_query import HealthCountsQueryService
-from core.application.monitoring.readiness_projection import public_readiness_checks
+from core.application.monitoring.readiness_projection import (
+    operations_readiness_checks,
+    public_readiness_checks,
+)
 from core.entrypoints.admin import deps
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.config.version import APP_VERSION
@@ -143,7 +146,7 @@ def health_deep(request: Request):
         "status": "ready" if bool(readiness.get("ready")) else "not_ready",
         "service": "platform-orchestrator",
         "ready": bool(readiness.get("ready")),
-        "checks": readiness.get("checks") or {},
+        "checks": operations_readiness_checks(readiness.get("checks")),
         "meta": meta,
         "time": datetime.now(UTC).isoformat(),
     }

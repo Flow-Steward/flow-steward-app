@@ -331,6 +331,41 @@ def test_monitoring_summary_api_returns_combined_payload(api_client):
     assert "containers" not in body
 
 
+def test_monitoring_summary_keeps_operator_state_without_internal_details(api_client):
+    diagnostic = "sample readiness diagnostic marker"
+    delivery_detail = "RabbitMQ delivery is retrying before execution has safely started."
+    checks = {
+        "postgres": {"ok": False, "error": diagnostic},
+        "queue_delivery": {
+            "ok": True,
+            "state": "retrying_delivery",
+            "retrying_delivery_jobs": 2,
+            "detail": delivery_detail,
+            "unexpected": diagnostic,
+        },
+    }
+    with (
+        patch("core.entrypoints.api.system_monitoring.deps.get_logger_only", return_value=object()),
+        patch(
+            "core.entrypoints.api.system_monitoring.deps.compute_readiness",
+            return_value={"ready": False, "checks": checks},
+        ),
+        patch("core.entrypoints.api.system_monitoring.build_monitoring_meta", return_value={}),
+    ):
+        response = api_client.get("/api/system/monitoring/summary")
+
+    assert response.status_code == 200
+    assert diagnostic not in response.text
+    body = response.json()
+    assert body["summary"]["failed_checks"] == ["postgres"]
+    assert body["checks"]["queue_delivery"] == {
+        "ok": True,
+        "state": "retrying_delivery",
+        "retrying_delivery_jobs": 2,
+        "detail": delivery_detail,
+    }
+
+
 def test_monitoring_summary_is_a_successful_response_when_the_deployment_is_not_ready(
     api_client,
 ):
@@ -548,6 +583,55 @@ def test_monitoring_storage_api_masks_internal_exception(api_client):
     assert "secret" not in response.text
 
 
+def test_monitoring_storage_keeps_backend_state_without_internal_details(api_client):
+    diagnostic = "sample storage diagnostic marker"
+    vector_error = "pgvector extension is not installed in this database."
+    store = MagicMock()
+    store.runtime_status.return_value = {
+        "ok": False,
+        "graph_name": "platform_workflow_graph",
+        "graph": {
+            "available": False,
+            "extension_installed": True,
+            "labels_ready": False,
+            "error": diagnostic,
+            "unexpected": diagnostic,
+        },
+        "vector": {"available": False, "extension_installed": False, "error": vector_error},
+    }
+    fake_bl = MagicMock()
+    fake_bl.conn.cursor.return_value.__enter__.return_value.fetchall.return_value = []
+    with (
+        patch("core.entrypoints.api.system_monitoring.deps.get_logger_only", return_value=fake_bl),
+        patch(
+            "core.infrastructure.config.memory_config.load_memory_runtime_config",
+            return_value=SimpleNamespace(vector_backend="null"),
+        ),
+        patch(
+            "core.infrastructure.config.memory_config.redacted_memory_backend_matrix",
+            return_value={"vector": "null"},
+        ),
+        patch(
+            "core.infrastructure.db.workflow_knowledge_store.PostgresAgeWorkflowKnowledgeStore",
+            return_value=store,
+        ),
+    ):
+        response = api_client.get("/api/system/monitoring/storage")
+
+    assert response.status_code == 200
+    assert diagnostic not in response.text
+    storage = response.json()["workflow_knowledge"]
+    assert storage["available"] is False
+    assert storage["graph_name"] == "platform_workflow_graph"
+    assert storage["graph"]["available"] is False
+    assert storage["graph"]["extension_installed"] is True
+    assert storage["graph"]["labels_ready"] is False
+    assert storage["graph"]["error"]
+    assert "unexpected" not in storage["graph"]
+    assert storage["vector"]["extension_installed"] is False
+    assert storage["vector"]["error"] == vector_error
+
+
 def test_build_storage_monitoring_payload_handles_missing_embedding_column():
     import core.application.monitoring.system as system_monitoring
 
@@ -571,8 +655,14 @@ def test_build_storage_monitoring_payload_handles_missing_embedding_column():
     fake_workflow_knowledge_store.runtime_status.return_value = {
         "ok": False,
         "graph_name": "platform_workflow_graph",
-        "graph": {"available": False, "error": "Apache AGE extension is missing."},
-        "vector": {"available": False, "error": "pgvector extension is missing."},
+        "graph": {
+            "available": False,
+            "error": "Apache AGE extension is not installed in this database.",
+        },
+        "vector": {
+            "available": False,
+            "error": "pgvector extension is not installed in this database.",
+        },
     }
 
     with (
@@ -597,7 +687,10 @@ def test_build_storage_monitoring_payload_handles_missing_embedding_column():
     assert payload["vector"]["configured"] is False
     assert payload["vector"]["rows"] == []
     assert payload["workflow_knowledge"]["available"] is False
-    assert payload["workflow_knowledge"]["graph"]["error"] == "Apache AGE extension is missing."
+    assert (
+        payload["workflow_knowledge"]["graph"]["error"]
+        == "Apache AGE extension is not installed in this database."
+    )
 
 
 def test_cleanup_orphan_storage_scope_rejects_memory_scope_with_project_row():
