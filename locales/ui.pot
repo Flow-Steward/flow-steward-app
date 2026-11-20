@@ -3480,6 +3480,9 @@ msgstr ""
 msgid "react.auth.or_use_your_password"
 msgstr ""
 
+msgid "react.auth.password_length_recommendation"
+msgstr ""
+
 msgid "react.auth.password_recovery_is_temporarily_unavailable"
 msgstr ""
 

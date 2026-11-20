@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { BootstrapPage } from "@/pages/auth/bootstrap";
 import { LoginPage } from "@/pages/auth/login";
+import { PasswordLengthNotice } from "@/pages/auth/login/password-length-notice";
 import { PublicAuthMotionLayout } from "@/pages/auth/public-auth-motion";
 import { ResetPasswordPage } from "@/pages/auth/reset-password";
 import { DashboardPage } from "@/pages/dashboard";
@@ -235,6 +236,8 @@ export function AppRouter() {
 function AppRoutes() {
   const { t } = useI18n();
   return (
+    <>
+      <PasswordLengthNotice />
       <Routes>
         <Route index element={<HomeGate />} />
         <Route path="bootstrap" element={<BootstrapPage />} />
@@ -360,5 +363,6 @@ function AppRoutes() {
           }
         />
       </Routes>
+    </>
   );
 }

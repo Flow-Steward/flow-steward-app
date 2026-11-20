@@ -3643,6 +3643,9 @@ msgstr ""
 msgid "react.auth.or_use_your_password"
 msgstr "arba naudokite slaptažodį"
 
+msgid "react.auth.password_length_recommendation"
+msgstr "Jūsų slaptažodis trumpesnis nei {count} simbolių. Pasirinkite ilgesnį slaptažodį."
+
 msgid "react.auth.password_recovery_is_temporarily_unavailable"
 msgstr "Slaptažodžio atkūrimas laikinai nepasiekiamas."
 

@@ -34,6 +34,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { z } from "@/lib/validation/zod";
 import { normalizeFlashMessage } from "@/pages/auth/login/flash";
+import { RECOMMENDED_PASSWORD_LENGTH } from "@/pages/auth/login/password-length-notice";
 import { PasswordVisibilityToggle } from "@/pages/auth/password-visibility-toggle";
 import { ConfirmPasswordField, NewPasswordField } from "@/pages/auth/reset-password";
 import {
@@ -532,7 +533,7 @@ export function LoginPage() {
     };
   }, [externalSignInProvidersPath, shouldLoadExternalSignIn]);
 
-  if (auth.isAuthenticated) {
+  if (auth.isAuthenticated && !form.formState.isSubmitting) {
     return <Navigate replace to={nextPath} />;
   }
 
@@ -596,7 +597,12 @@ export function LoginPage() {
         }),
       });
       await auth.refresh();
-      ignoreAsyncResult(navigate(nextPath, { replace: true }));
+      const activePassword = passwordChange ? values.newPassword : values.password;
+      const showPasswordLengthNotice = Array.from(activePassword).length < RECOMMENDED_PASSWORD_LENGTH;
+      await navigate(nextPath, {
+        replace: true,
+        state: showPasswordLengthNotice ? { showPasswordLengthNotice } : null,
+      });
     } catch (error) {
       const accountSelection = accountSelectionFromLoginError(error);
       if (accountSelection.required) {
