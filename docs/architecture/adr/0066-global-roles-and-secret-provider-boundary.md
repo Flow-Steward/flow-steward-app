@@ -74,6 +74,10 @@ without changing transports or workflow definitions. They must not bypass
 ownership checks, token limits, runtime grants or reference authorization.
 Do not add unused policy registries, membership tables, configuration switches
 or user-facing controls in anticipation of that work.
+[ADR 0076](0076-permission-catalogue-and-role-permissions.md) narrows this
+rule: the `role_permissions` table, the system-role flag and the optional
+scope of a role assignment are allowed, because every permission check and the
+open-source refusal of scoped assignments use them.
 
 ### Stable references and provider-independent resolution
 
