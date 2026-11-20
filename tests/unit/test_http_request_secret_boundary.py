@@ -493,6 +493,56 @@ def test_an_external_reader_resolves_a_stored_reference_without_local_decryption
     assert _FIXTURE_VALUE not in json.dumps(result)
 
 
+@pytest.mark.parametrize(
+    ("catalog", "host_value", "allowed"),
+    [
+        pytest.param(True, "{{ state.inputs.authority }}", False, id="catalog-custom-host"),
+        pytest.param(True, "", False, id="catalog-empty-host"),
+        pytest.param(True, None, True, id="catalog-no-host-override"),
+        pytest.param(False, "example.test", True, id="ordinary-stored-reference"),
+    ],
+)
+def test_catalog_http_uses_url_authority(boundary_io, monkeypatch, catalog, host_value, allowed):
+    from core.application.secrets import workflow_gate
+
+    if catalog:
+        monkeypatch.setattr(
+            workflow_gate,
+            "_catalog_secret",
+            lambda *_args: {"id": "fixture-secret", "account_id": "fixture-account"},
+        )
+        approval = {
+            "projection_jsonb": {
+                "approved_destinations": [{"scheme": "https", "host": "example.test", "port": 443}],
+            },
+        }
+        monkeypatch.setattr(
+            workflow_gate, "run_approval", lambda *_args, **_kwargs: (approval, "fixture-project")
+        )
+
+    state = _state(SecretReference(name="login", ref_key=_FIXTURE_KEY))
+    state["inputs"]["authority"] = "example.test"
+    config = _config()
+    config["headers"][" hOsT "] = host_value
+    reader = _ExternalReader(value=_FIXTURE_VALUE)
+
+    result = runtime.execute_http_request_step(config=config, state=state, secret_reader=reader)
+
+    assert result["ok"] is allowed
+    if not allowed:
+        assert result["failure_reason"] == "secret_destination_not_allowed"
+        assert result["definitely_no_external_effect"] is True
+        assert reader.reads == []
+        assert boundary_io.captured == []
+        return
+    assert reader.reads
+    assert len(boundary_io.captured) == 1
+    sent = boundary_io.captured[0]
+    assert sent["url"] == config["url"]
+    assert sent["headers"]["X-Ordinary"] == "kept"
+    assert sent["headers"].get("hOsT") == host_value
+
+
 def test_an_inline_reference_is_decrypted_locally_and_never_reaches_the_reader(boundary_io):
     reader = _ExternalReader(error=AssertionError("inline value asked of the stored reader"))
     reference = SecretReference(name="login", ciphertext=_FIXTURE_ENVELOPE)

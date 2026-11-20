@@ -28146,6 +28146,15 @@ msgstr ""
 msgid "react.agent_access.step_claude_upload"
 msgstr ""
 
+msgid "react.agent_access.step_claude_token"
+msgstr ""
+
+msgid "react.agent_access.step_claude_token_description"
+msgstr ""
+
+msgid "react.agent_access.step_claude_token_hint"
+msgstr ""
+
 msgid "react.agent_access.step_claude_upload_description"
 msgstr ""
 
@@ -29522,6 +29531,9 @@ msgid "react.agent_access.token_expires_on"
 msgstr ""
 
 msgid "react.agent_access.setup_description_plugin"
+msgstr ""
+
+msgid "react.agent_access.setup_description_claude_plugin"
 msgstr ""
 
 msgid "react.agent_access.setup_description_developer_plugin"

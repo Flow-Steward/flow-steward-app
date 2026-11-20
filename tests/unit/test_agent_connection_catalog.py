@@ -128,21 +128,22 @@ def test_package_steps_name_a_known_layout_and_an_archive() -> None:
                 assert step.file_name.endswith(".zip"), (client.id, step.id)
                 agents = step.archive_layout == catalog.ARCHIVE_AGENTS_MARKETPLACE
                 assert bool(step.manifest_dir) is agents, (client.id, step.id)
-                # A plugin carries the server, and so the token, exactly when the
-                # package works through MCP; the skills folder never does.
+                # Claude takes its token as sensitive user configuration.
                 carries_server = setup.auth == catalog.AUTH_PERSONAL_TOKEN and (
                     step.archive_layout != catalog.ARCHIVE_SKILLS_FOLDER
                 )
-                assert step.uses_token is carries_server, (client.id, step.id)
+                embeds_token = carries_server and (
+                    step.archive_layout != catalog.ARCHIVE_CLAUDE_MARKETPLACE
+                )
+                assert step.uses_token is embeds_token, (client.id, step.id)
                 if carries_server:
                     filled = step.template.replace("{mcp_url}", "https://x/mcp").replace(
                         "{token}", "t"
                     )
                     server = json.loads(filled)["mcpServers"]["flow-steward"]
                     assert server["url"] == "https://x/mcp"
-                    assert (server.get("headers") or server.get("http_headers")) == {
-                        "Authorization": "Bearer t"
-                    }
+                    headers = {"Authorization": "Bearer t"} if embeds_token else None
+                    assert (server.get("headers") or server.get("http_headers")) == headers
 
 
 def test_every_mcp_json_template_is_valid_json_with_the_token_header() -> None:

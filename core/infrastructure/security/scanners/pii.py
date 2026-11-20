@@ -9,12 +9,41 @@ from __future__ import annotations
 import hashlib
 import hmac
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal, cast
 
 from core.infrastructure.security.config import SECURITY_PII_SALT
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import PIIConfig
+
+_EMAIL_LOCAL_RUN = re.compile(r"[A-Za-z0-9._%+-]+")
+_EMAIL_LOCAL_START = re.compile(r"(?<!\\)\b(?=[A-Za-z0-9._%+-])")
+_EMAIL_DOMAIN_RUN = re.compile(r"[A-Za-z0-9.-]+")
+_EMAIL_DOMAIN_SUFFIX = re.compile(r"\.[A-Za-z]{2,}\b")
+
+
+def _email_spans(text: str) -> Iterator[tuple[int, int]]:
+    """Find legacy email matches by scanning each delimiter-separated run once."""
+    previous_end = 0
+    for local in _EMAIL_LOCAL_RUN.finditer(text):
+        at = local.end()
+        if not text.startswith("@", at):
+            continue
+        start = _EMAIL_LOCAL_START.search(text, max(local.start(), previous_end), at)
+        domain = _EMAIL_DOMAIN_RUN.match(text, at + 1)
+        if start is None or domain is None:
+            continue
+
+        # The greedy legacy match takes the rightmost valid suffix, provided it
+        # leaves at least one domain character before its dot. Include one more
+        # character in the search bound so \b sees the actual right neighbor.
+        address_end = None
+        for suffix in _EMAIL_DOMAIN_SUFFIX.finditer(text, domain.start() + 1, domain.end() + 1):
+            address_end = suffix.end()
+        if address_end is not None:
+            previous_end = address_end
+            yield start.start(), address_end
 
 
 # ---------------------------------------------------------------------------
@@ -23,16 +52,22 @@ from core.infrastructure.security.policy import PIIConfig
 @dataclass(frozen=True)
 class PIIDetector:
     pii_type: str
-    regex: re.Pattern
+    regex: re.Pattern[str] | Callable[[str], Iterator[tuple[int, int]]]
     severity: str
     description: str
     validator: str | None = None  # optional post-match validation function name
+
+    def spans(self, text: str) -> Iterator[tuple[int, int]]:
+        if isinstance(self.regex, re.Pattern):
+            yield from (match.span() for match in self.regex.finditer(text))
+        else:
+            yield from self.regex(text)
 
 
 _DETECTORS: list[PIIDetector] = [
     PIIDetector(
         pii_type="email",
-        regex=re.compile(r"(?<!\\)\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+        regex=_email_spans,
         severity="medium",
         description="Email address",
     ),
@@ -250,8 +285,8 @@ class PIIGuard:
             if not meets_severity_threshold(detector.severity, config.severity_threshold):
                 continue
 
-            for match in detector.regex.finditer(text):
-                matched = match.group(0)
+            for start, end in detector.spans(text):
+                matched = text[start:end]
 
                 # Post-match validation
                 if detector.validator:
@@ -298,31 +333,34 @@ class PIIGuard:
 
     def redact(self, text: str, findings: list[ScanFinding]) -> str:
         """Apply redaction/pseudonymization to text based on findings."""
-        result = text
-        # Process detectors in reverse order of match position to avoid offset issues
-        replacements: list[tuple[int, int, str]] = []
+        previews: dict[str, str] = {}
+        for finding in findings:
+            previews.setdefault(finding.rule_id, finding.redacted_preview)
 
+        replacements: list[tuple[int, int, str]] = []
         for detector in _DETECTORS:
-            matching = [f for f in findings if f.rule_id == f"pii:{detector.pii_type}"]
-            if not matching:
+            preview = previews.get(f"pii:{detector.pii_type}")
+            if preview is None:
                 continue
 
-            for match in detector.regex.finditer(text):
-                matched = match.group(0)
-                if detector.validator:
-                    vfn = _VALIDATORS.get(detector.validator)
-                    if vfn and not vfn(matched):
-                        continue
+            validator = _VALIDATORS.get(detector.validator) if detector.validator else None
+            for start, end in detector.spans(text):
+                if validator and not validator(text[start:end]):
+                    continue
+                replacements.append((start, end, preview))
 
-                # Find the corresponding finding's preview
-                preview = matching[0].redacted_preview
-                replacements.append((match.start(), match.end(), preview))
-
-        # Apply replacements from end to start
-        for start, end, replacement in sorted(replacements, reverse=True):
-            result = result[:start] + replacement + result[end:]
-
-        return result
+        # Merge overlaps against the original offsets. The first span's preview
+        # represents the union, with the longer span winning equal starts.
+        parts: list[str] = []
+        cursor = 0
+        for start, end, preview in sorted(replacements, key=lambda span: (span[0], -span[1])):
+            if start < cursor:
+                cursor = max(cursor, end)
+                continue
+            parts.extend((text[cursor:start], preview))
+            cursor = end
+        parts.append(text[cursor:])
+        return "".join(parts)
 
     @staticmethod
     def _detector_enabled(config: PIIConfig, pii_type: str) -> bool:

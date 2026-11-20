@@ -55,6 +55,9 @@ jobs:
       actions: read
     outputs:
       evidence_imported: ${{ steps.copy-restored-evidence.outcome == 'success' }}
+      # "Re-run failed jobs" keeps this job's artifacts and outputs from the
+      # attempt that produced them; the jobs after it name artifacts by it.
+      attempt: ${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1 (Node 24)
         with:
@@ -599,7 +602,7 @@ jobs:
       - name: Restore Tier 2 and earlier evidence from the quality job
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: quality-stage-${{ github.sha }}-${{ github.run_attempt }}
+          name: quality-stage-${{ github.sha }}-${{ needs.quality.outputs.attempt }}
           path: logs
       - uses: ./.github/actions/prepare-quality
         with:
@@ -609,7 +612,7 @@ jobs:
       - name: Download the PostgreSQL image built once for this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: postgres-image-${{ github.sha }}-${{ github.run_attempt }}
+          name: postgres-image-${{ github.sha }}-${{ needs.quality.outputs.attempt }}
           path: ${{ runner.temp }}/postgres-image
       - name: Load the exact PostgreSQL image of this run
         run: zstd -dc "$RUNNER_TEMP/postgres-image/postgres-image.tar.zst" | docker load
@@ -677,14 +680,15 @@ jobs:
       - name: Restore Tier 2 evidence
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: quality-stage-${{ github.sha }}-${{ github.run_attempt }}
+          name: quality-stage-${{ github.sha }}-${{ needs.quality.outputs.attempt }}
           path: logs
-      - name: Restore every Tier 3 part's evidence
+      - name: Download every Tier 3 part's evidence
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          pattern: tier3-*-${{ github.sha }}-${{ github.run_attempt }}
-          merge-multiple: true
-          path: logs
+          pattern: tier3-*-${{ github.sha }}-*
+          path: ${{ runner.temp }}/tier3
+      - name: Restore each part's newest attempt
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh merge-tier3 "$RUNNER_TEMP/tier3"
       - uses: ./.github/actions/prepare-quality
         with:
           # PostgreSQL comes from the build-push step or the run's prebuilt image.
@@ -693,7 +697,7 @@ jobs:
       - name: Download the PostgreSQL image built once for this run
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: postgres-image-${{ github.sha }}-${{ github.run_attempt }}
+          name: postgres-image-${{ github.sha }}-${{ needs.quality.outputs.attempt }}
           path: ${{ runner.temp }}/postgres-image
       - name: Load the exact PostgreSQL image of this run
         run: zstd -dc "$RUNNER_TEMP/postgres-image/postgres-image.tar.zst" | docker load
@@ -757,15 +761,17 @@ jobs:
           cache-to: 'false'
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          name: ${{ (env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full') && 'quality-stage' || 'quality' }}-${{ github.sha }}-${{ github.run_attempt }}
+          name: ${{ (env.QUALITY_MODE == 'release' || env.QUALITY_MODE == 'release-sonar' || env.QUALITY_MODE == 'release-full') && 'quality-stage' || 'quality' }}-${{ github.sha }}-${{ needs.quality.outputs.attempt }}
           path: logs
-      - name: Restore Tier 3 coverage from this run's parts
+      - name: Download Tier 3 coverage from this run's parts
         if: needs.tier3.result == 'success' || needs.tier3.result == 'failure'
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2 (Node 24)
         with:
-          pattern: tier3-*-${{ github.sha }}-${{ github.run_attempt }}
-          merge-multiple: true
-          path: logs
+          pattern: tier3-*-${{ github.sha }}-*
+          path: ${{ runner.temp }}/tier3
+      - name: Restore each part's newest attempt
+        if: needs.tier3.result == 'success' || needs.tier3.result == 'failure'
+        run: ./core/entrypoints/cli/scripts/hosted-quality.sh merge-tier3 "$RUNNER_TEMP/tier3"
       - name: Identify diagnostic analysis after failed tests
         if: needs.quality.result == 'failure' || needs.tier3.result == 'failure'
         run: |

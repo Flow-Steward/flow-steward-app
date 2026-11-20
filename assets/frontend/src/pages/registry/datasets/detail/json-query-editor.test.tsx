@@ -27,7 +27,11 @@ it.each([false, true])("saves JSON exactly, recovers malformed input and preview
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/registry/datasets/events?tab=saved-queries"]}><Routes><Route path="/registry/datasets/:datasetId" element={<RegistryDatasetsDetailPage />} /></Routes></MemoryRouter></QueryClientProvider>);
   await userEvent.click(await screen.findByRole("tab", { name: "Saved queries" }));
-  if (create) await userEvent.click(await screen.findByRole("button", { name: "Add query" }));
+  if (create) {
+    // Add query stays disabled until the connection details load.
+    await waitFor(() => expect(screen.getByRole("button", { name: "Add query" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Add query" }));
+  }
   else { await userEvent.click(await screen.findByRole("button", { name: "Actions for JSON query" })); await userEvent.click(await screen.findByRole("menuitem", { name: "Edit" })); }
   const dialog = await screen.findByRole("dialog", { name: create ? "Add query" : "Edit query" });
   const editor = within(dialog).getByLabelText("JSON query definition");

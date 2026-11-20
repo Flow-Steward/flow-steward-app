@@ -36,7 +36,7 @@ from core.application.installer.ports import (
 )
 from core.application.installer.spec import INSTALLER_SPEC
 from core.application.readiness import CoreReadinessService, ReadinessArea
-from core.application.readiness.contracts import ReadinessFinding
+from core.application.readiness.contracts import ReadinessFinding, ReadinessReport
 from core.application.release.contracts import ReleaseIdentity
 
 _STEP_METHODS: tuple[tuple[str, str, str], ...] = (
@@ -93,6 +93,14 @@ _RECONCILABLE_READINESS_IDS = frozenset({"security_posture", "workflow_knowledge
 _READINESS_RECONCILIATION_ATTEMPTS = 30
 _READINESS_RECONCILIATION_DELAY_SECONDS = 2.0
 _READINESS_RECONCILIATION_TIMEOUT_SECONDS = 60.0
+# A Compact update verified the public route and then failed shared readiness two
+# seconds later, on `compact_runtime`, while a role or worker of the recreated runtime
+# was still starting; a rerun a minute later passed. The public /health answers before
+# every role is up, so after the route the installer waits for the runtime the same
+# way it waits for the route (90 x 2 s) and fails only on what still fails at the end.
+_RUNTIME_STARTING_READINESS_IDS = frozenset({"compact_runtime"})
+_RUNTIME_READINESS_ATTEMPTS = 90
+_RUNTIME_READINESS_DELAY_SECONDS = 2.0
 
 
 class InstallerService:
@@ -304,9 +312,10 @@ class InstallerService:
                 )
                 if target_release is not None:
                     self._publish_release(config, target_release, log=log)
+                finished_from = self._finish_unrecorded_update(currency, log=log)
                 # AC17-R158: also finishes a cleanup an interrupted update left.
                 pruned = self.gateway.prune_superseded_releases(
-                    config, current=currency.source_revision, previous="", log=log
+                    config, current=currency.source_revision, previous=finished_from, log=log
                 )
                 changes = tuple(
                     item
@@ -316,6 +325,12 @@ class InstallerService:
                         recorded_change,
                         settings_change,
                         converged,
+                        (
+                            f"Recorded {currency.source_revision} as the installed release, "
+                            f"replacing {finished_from}."
+                            if finished_from
+                            else ""
+                        ),
                         pruned,
                         *self.gateway.take_notices(),
                     )
@@ -611,6 +626,10 @@ class InstallerService:
         operator's, by the owner's decision, and the schema refusal names them.
         """
         log.write(currency.reason)
+        if currency.running_revision and currency.running_revision != currency.source_revision:
+            # What a rerun reads if this run switches the runtime and stops before it
+            # is verified: the record below is only written at the end.
+            log.write(f"Updating from {currency.running_revision} to {currency.source_revision}.")
         for step_id in _UPDATE_STEPS:
             label, method_name = _STEP_LABELS[step_id]
             method_name = _UPDATE_METHODS.get(step_id, method_name)
@@ -697,6 +716,28 @@ class InstallerService:
             updated_from_revision=currency.running_revision,
             updated_to_revision=currency.source_revision,
         )
+
+    def _finish_unrecorded_update(self, currency: ImageCurrency, *, log: InstallerLog) -> str:
+        """Write the release record an update left behind; the revision it replaced, or "".
+
+        An update writes the record only once it is verified. One that switched the
+        runtime and then stopped -- readiness failed while the runtime was still
+        starting, 2026-11-20 -- leaves the new images running, so its rerun has nothing
+        to update and comes here, as "already installed", with the record still naming
+        the old revision as current. Only a verified run of these sources' own images
+        finishes it: what an operator pinned, or a runtime behind the sources, is not
+        what the update installed.
+        """
+        if not currency.running_revision or currency.running_revision != currency.source_revision:
+            return ""
+        previous = self.gateway.finish_installed_releases_record(current=currency.source_revision)
+        if previous:
+            log.write(
+                f"Updated from {previous} to {currency.source_revision}. An earlier run "
+                "switched the runtime and stopped before verifying it; this run verified it "
+                "and recorded the release."
+            )
+        return previous
 
     def _converge_compact_workers(
         self, config: InstallConfig, *, log: InstallerLog, changed: bool = False
@@ -848,7 +889,7 @@ class InstallerService:
     ) -> tuple[str, ...]:
         if self.readiness_service is None:
             return ()
-        report = self.readiness_service.check()
+        report = self._wait_for_runtime_readiness(self.readiness_service, log=log)
         failed_ids = {
             finding.check_id
             for finding in report.findings
@@ -904,14 +945,9 @@ class InstallerService:
                 f"core_failed={report.core_failed}, optional_warnings={report.optional_warnings}."
             )
         if report.core_failed:
-            failures = [
-                finding.title
-                for finding in report.findings
-                if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
-            ]
             raise InstallerFailure(
                 code="core_readiness_blocked",
-                cause="Core readiness blockers remain: " + ", ".join(failures),
+                cause="Core readiness blockers remain: " + _core_failures_text(report),
                 remediation="Run ./flow-steward doctor, resolve core blockers, and resume ./install.sh.",
                 exit_code=4,
                 retryable=True,
@@ -928,9 +964,86 @@ class InstallerService:
             and finding.status.value in {"warning", "failed"}
         )
 
+    def _wait_for_runtime_readiness(
+        self, readiness_service: CoreReadinessService, *, log: InstallerLog
+    ) -> ReadinessReport:
+        """Recheck while only a still-starting runtime blocks readiness, within a bound."""
+        report = readiness_service.check()
+        if not _runtime_starting(report):
+            return report
+        write = getattr(log, "write", None)
+        window = _RUNTIME_READINESS_ATTEMPTS * _RUNTIME_READINESS_DELAY_SECONDS
+        deadline = self._readiness_clock() + window
+        for attempt in range(1, _RUNTIME_READINESS_ATTEMPTS + 1):
+            remaining = deadline - self._readiness_clock()
+            if remaining <= 0:
+                break
+            if callable(write):
+                write(
+                    f"Waiting for shared readiness ({attempt}/{_RUNTIME_READINESS_ATTEMPTS}): "
+                    f"{_core_failures_text(report)}; retrying in "
+                    f"{_RUNTIME_READINESS_DELAY_SECONDS:g}s."
+                )
+            self._readiness_sleep(min(_RUNTIME_READINESS_DELAY_SECONDS, remaining))
+            remaining = deadline - self._readiness_clock()
+            if remaining <= 0:
+                break
+            report = (
+                self.readiness_reprobe(remaining)
+                if self.readiness_reprobe is not None
+                else readiness_service.check()
+            )
+            if not _runtime_starting(report):
+                if callable(write):
+                    write(
+                        f"Shared readiness: the runtime finished starting after {attempt} rechecks."
+                    )
+                return report
+        if callable(write):
+            write(
+                f"Shared readiness still failing after waiting {window:g}s for the runtime: "
+                f"{_core_failures_text(report)}."
+            )
+        return report
+
     def _emit(self, step_id: str, status: str, detail: str) -> None:
         if self.progress_sink is not None:
             self.progress_sink(step_id, status, detail)
+
+
+def _core_failed_findings(report: ReadinessReport) -> tuple[ReadinessFinding, ...]:
+    return tuple(
+        finding
+        for finding in report.findings
+        if finding.area is ReadinessArea.CORE and finding.status.value == "failed"
+    )
+
+
+def _runtime_starting(report: ReadinessReport) -> bool:
+    """Whether a starting runtime is among the failures and nothing else blocks.
+
+    Derived capabilities that the installer reconciles may fail alongside it; they are
+    reconciled once the runtime is up. Any other core failure fails at once, as before.
+    """
+    failed_ids = {finding.check_id for finding in _core_failed_findings(report)}
+    return bool(failed_ids & _RUNTIME_STARTING_READINESS_IDS) and failed_ids.issubset(
+        _RUNTIME_STARTING_READINESS_IDS | _RECONCILABLE_READINESS_IDS
+    )
+
+
+def _core_failures_text(report: ReadinessReport) -> str:
+    """Each failed core check by title and id, with the last reason it gave."""
+    parts = []
+    for finding in _core_failed_findings(report):
+        title = finding.title.strip()
+        name = (
+            f"{title} ({finding.check_id})"
+            if title and title != finding.check_id
+            else finding.check_id
+        )
+        detail = finding.detail.strip()
+        parts.append(f"{name}: {detail}" if detail else name)
+    return "; ".join(parts) or f"{report.core_failed} core check(s)"
 
 
 def _warning_text(finding: ReadinessFinding) -> str:

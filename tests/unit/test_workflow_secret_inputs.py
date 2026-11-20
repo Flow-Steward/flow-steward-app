@@ -13,6 +13,7 @@ import json
 
 import pytest
 
+from core.application.registry import workflow_contract_service
 from core.application.registry.workflow_contract import WorkflowInterface
 from core.application.registry.workflow_contract_service import WorkflowInterfaceService
 from core.infrastructure.security.prompt_safety import (
@@ -401,21 +402,61 @@ def test_a_structured_value_is_not_accepted_as_a_secret() -> None:
     assert "workflow.input.invalid_type" in codes
 
 
-def test_a_public_caller_cannot_supply_a_secret_reference_wire() -> None:
-    forged = SecretReference(
+@pytest.mark.parametrize("as_set", [False, True], ids=["wire", "native-set"])
+def test_a_public_caller_cannot_supply_an_internal_secret_reference(as_set: bool) -> None:
+    reference = SecretReference(
         name="credential",
         ciphertext="replayable-ciphertext",
-    ).to_wire()
+    )
+    supplied = {reference} if as_set else reference.to_wire()
 
     result = WorkflowInterfaceService().validate_inputs(
         _dynamic_interface(name="credential"),
-        {"credential": forged},
+        {"credential": supplied},
         channel="api",
     )
 
     assert not result.ok
     assert result.inputs == {}
     assert "replayable-ciphertext" not in json.dumps(result.errors)
+
+
+@pytest.mark.parametrize(
+    ("field_type", "wrap"),
+    [("object", dict), ("array", lambda value: [value])],
+)
+def test_public_structured_inputs_are_checked_after_json_coercion(
+    monkeypatch, field_type, wrap
+) -> None:
+    interface = WorkflowInterface.from_settings(
+        {
+            "callable": {
+                "enabled": True,
+                "trigger_channels": ["api"],
+                "expected_inputs": [{"name": "payload", "type": field_type}],
+            }
+        }
+    )
+    contains_reference = workflow_contract_service._contains_secret_reference
+    monkeypatch.setattr(
+        workflow_contract_service,
+        "_contains_secret_reference",
+        lambda candidate: candidate == {"fixture": "opaque"} or contains_reference(candidate),
+    )
+
+    service = WorkflowInterfaceService()
+    ordinary = wrap({"fixture": "ordinary"})
+    accepted = service.validate_inputs(interface, {"payload": json.dumps(ordinary)}, channel="api")
+    assert accepted.ok
+    assert accepted.inputs["payload"] == ordinary
+
+    result = service.validate_inputs(
+        interface, {"payload": json.dumps(wrap({"fixture": "opaque"}))}, channel="api"
+    )
+
+    assert not result.ok
+    assert result.errors[0]["code"] == "workflow.input.invalid_type"
+    assert result.errors[0]["path"] == "inputs.payload"
 
 
 def test_inline_reference_requires_launch_authority_even_when_ciphertext_decrypts() -> None:

@@ -31,6 +31,7 @@ from core.application.workflow_documents.report_schemas_v1 import SNAPSHOT_SCHEM
 from core.infrastructure.security.secret_reference import SecretReference
 
 _TOKEN_WORKFLOW_INPUT_INVALID_TYPE = "workflow.input.invalid_type"
+_INTERNAL_SECRET_REFERENCE_MESSAGE = "Workflow inputs must not contain an internal secret reference"
 
 
 class WorkflowInterfaceLookupError(RuntimeError):
@@ -216,7 +217,7 @@ class WorkflowInterfaceService:
                 errors=[
                     _error(
                         _TOKEN_WORKFLOW_INPUT_INVALID_TYPE,
-                        "Workflow inputs must not contain an internal secret reference",
+                        _INTERNAL_SECRET_REFERENCE_MESSAGE,
                         path="inputs",
                         channel=channel,
                     )
@@ -338,7 +339,7 @@ class WorkflowInterfaceService:
             coercer = (
                 _coerce_delegated_contract_value
                 if accept_trusted_secret_references
-                else coerce_contract_value
+                else coerce_public_input_value
             )
             ok, value, message = coercer(raw_inputs.get(name), row)
             if not ok:
@@ -611,7 +612,7 @@ def _contains_secret_reference(value: Any) -> bool:
         return True
     if isinstance(value, dict):
         return any(_contains_secret_reference(item) for item in value.values())
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, set)):
         return any(_contains_secret_reference(item) for item in value)
     return False
 
@@ -719,6 +720,22 @@ def coerce_contract_value(value: Any, field: WorkflowContractField) -> tuple[boo
     if field_type == "file":
         return (not _is_empty_value(value)), value, f"Workflow field '{name}' must be a file"
     return False, None, f"Workflow field '{name}' has unsupported type '{field_type}'"
+
+
+def coerce_public_input_value(
+    value: Any,
+    field: WorkflowContractField,
+) -> tuple[bool, Any, str]:
+    """Guard newly decoded input after the ingress has checked the raw payload."""
+    ok, normalized, message = coerce_contract_value(value, field)
+    if (
+        ok
+        and isinstance(value, str)
+        and field.type in {"object", "array"}
+        and _contains_secret_reference(normalized)
+    ):
+        return False, None, _INTERNAL_SECRET_REFERENCE_MESSAGE
+    return ok, normalized, message
 
 
 def _coerce_delegated_contract_value(

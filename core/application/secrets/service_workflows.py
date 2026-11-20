@@ -11,9 +11,11 @@ from typing import Any
 
 from core.application.management.errors import (
     ServiceConflictError,
+    ServiceForbiddenError,
     ServiceNotFoundError,
     ServiceValidationError,
 )
+from core.application.management.guards import require_workflow_access
 from core.application.management.scope import ScopeContext
 from core.application.secrets import repository
 from core.application.secrets.authority import (
@@ -50,21 +52,21 @@ class WorkflowSecretInputsMixin:
         from core.application.secrets.workflow_gate import current_definition, workflow_row
 
         owner_project = self._project_in_scope(cur, scope, project_id)
+        identifier = _text(workflow_id)
+        require_workflow_access(scope, identifier)
         cur.execute(
             """
             SELECT 1 FROM project_workflows
              WHERE project_id::text = %s AND workflow_id = %s AND deleted_at IS NULL
             """,
-            (owner_project, _text(workflow_id)),
+            (owner_project, identifier),
         )
         linked = cur.fetchone() is not None
-        workflow = workflow_row(cur, account_id=scope.account_id, workflow_id=_text(workflow_id))
+        workflow = workflow_row(cur, account_id=scope.account_id, workflow_id=identifier)
         if not linked or workflow is None:
             raise ServiceNotFoundError("Workflow not found")
         # The approved document is the one a run pins: steps, Groups, graph, settings.
-        definition = current_definition(
-            conn, account_id=scope.account_id, workflow_id=_text(workflow_id)
-        )
+        definition = current_definition(conn, account_id=scope.account_id, workflow_id=identifier)
         if definition is None:
             raise ServiceValidationError("This workflow cannot run, so it cannot be approved")
         return {"workflow": workflow, "definition": definition, "project_id": owner_project}
@@ -330,7 +332,7 @@ class WorkflowSecretInputsMixin:
             for workflow_id, display_name in linked:
                 try:
                     found = self._workflow_in_project(conn, cur, scope, workflow_id, owner_project)
-                except (ServiceNotFoundError, ServiceValidationError):
+                except (ServiceForbiddenError, ServiceNotFoundError, ServiceValidationError):
                     continue
                 view = self._workflow_status_view(cur, scope, found)
                 if view["secret_inputs"]:

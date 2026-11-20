@@ -20,6 +20,7 @@ from core.application.workflows.workflow_portability_common import (
     _as_dict,
     _as_list,
     _call_db_get,
+    _call_db_get_scoped,
     _call_db_list,
     _normalize_participants,
     _text,
@@ -173,6 +174,7 @@ class WorkflowPortabilityArtifactsMixin:
         *,
         account_id: str,
         allowed_project_ids: frozenset[str] = frozenset(),
+        allowed_workspace_ids: frozenset[str] = frozenset(),
     ) -> dict[str, list[dict[str, Any]]]:
         """Every owned agent, skill, manual data contract and guardrail the workflows use."""
         definitions = empty_definitions()
@@ -220,7 +222,10 @@ class WorkflowPortabilityArtifactsMixin:
         definitions["data_contracts"] = contracts
         definitions["skills"] = [self._portable_skill(row, contract_ids) for row in skill_rows]
         definitions["guardrails"] = self._export_guardrails(
-            exported_agents, account_id=account_id, allowed_project_ids=allowed_project_ids
+            exported_agents,
+            account_id=account_id,
+            allowed_project_ids=allowed_project_ids,
+            allowed_workspace_ids=allowed_workspace_ids,
         )
         return definitions
 
@@ -348,33 +353,65 @@ class WorkflowPortabilityArtifactsMixin:
             place(contract_id)
         return ordered
 
+    def _guardrail_rows_for_export(
+        self,
+        agent_ids: set[str],
+        *,
+        account_id: str,
+        allowed_project_ids: frozenset[str],
+        allowed_workspace_ids: frozenset[str],
+    ) -> list[dict[str, Any]]:
+        if not agent_ids or not account_id:
+            return []
+        rows: list[dict[str, Any]] = []
+        project_workspaces: dict[str, str] = {}
+        for row in _call_db_list(self.db, "list_guardrails", account_id=account_id):
+            if not agent_ids.intersection(map(_text, _as_list(row.get("_agents")))):
+                continue
+            project_id = _text(row.get("project_id"))
+            if project_id and allowed_project_ids and project_id not in allowed_project_ids:
+                continue
+            if project_id and allowed_workspace_ids:
+                if project_id not in project_workspaces:
+                    project_workspaces[project_id] = self._guardrail_project_workspace(
+                        project_id, account_id=account_id
+                    )
+                if project_workspaces[project_id] not in allowed_workspace_ids:
+                    continue
+            rows.append(row)
+        return rows
+
+    def _guardrail_project_workspace(self, project_id: str, *, account_id: str) -> str:
+        project = _call_db_get_scoped(
+            self.db, "_get_project_scope", project_id, account_id=account_id
+        )
+        if project is None:
+            get_store = getattr(self, "get_project_store", None)
+            store = get_store() if callable(get_store) else None
+            project = _call_db_get(store or self.db, "get_project", project_id)
+        if project is None or _text(project.get("account_id")) != account_id:
+            return ""
+        return _text(project.get("workspace_id"))
+
     def _export_guardrails(
         self,
         agent_ids: set[str],
         *,
         account_id: str,
         allowed_project_ids: frozenset[str] = frozenset(),
+        allowed_workspace_ids: frozenset[str] = frozenset(),
     ) -> list[dict[str, Any]]:
-        """The account's rules for the exported agents, global and every project's.
-
-        A caller restricted to some projects gets only those projects' rules; an empty
-        *allowed_project_ids* means the caller is not restricted.
-        """
-        if not agent_ids or not account_id:
-            return []
-        rows = _call_db_list(self.db, "list_guardrails", account_id=account_id)
         portable: list[dict[str, Any]] = []
-        for row in rows:
-            if not isinstance(row, dict) or _durable_projection_install_id(row):
-                continue
-            agents = [
-                _text(agent) for agent in _as_list(row.get("_agents")) if _text(agent) in agent_ids
-            ]
-            if not agents:
+        for row in self._guardrail_rows_for_export(
+            agent_ids,
+            account_id=account_id,
+            allowed_project_ids=allowed_project_ids,
+            allowed_workspace_ids=allowed_workspace_ids,
+        ):
+            if _durable_projection_install_id(row):
                 continue
             project_id = _text(row.get("project_id"))
-            if allowed_project_ids and project_id and project_id not in allowed_project_ids:
-                continue
+            agents = agent_ids.intersection(map(_text, _as_list(row.get("_agents"))))
             rule = {
                 "id": _text(row.get("id")),
                 "display_name": _text(row.get("display_name")),
@@ -387,7 +424,7 @@ class WorkflowPortabilityArtifactsMixin:
                 "prompt_text": _text(row.get("prompt_text")),
                 "agent_prompt": _text(row.get("agent_prompt")),
                 "sort_order": int(row.get("sort_order") or 0),
-                "agents": sorted(dict.fromkeys(agents)),
+                "agents": sorted(agents),
                 "scope": "project" if project_id else "global",
             }
             if project_id:
@@ -398,23 +435,27 @@ class WorkflowPortabilityArtifactsMixin:
         return portable
 
     def _extension_guardrail_dependencies(
-        self, agent_ids: set[str], *, account_id: str
+        self,
+        agent_ids: set[str],
+        *,
+        account_id: str,
+        allowed_project_ids: frozenset[str],
+        allowed_workspace_ids: frozenset[str],
     ) -> dict[str, list[dict[str, Any]]]:
         """Extensions whose guardrails cover the exported agents.
 
         Those rules come with the extension, so the file does not carry them; it names
         the extension instead, and an import without it says the extension is missing.
         """
-        if not agent_ids or not account_id:
-            return {}
         snapshots: list[dict[str, Any]] = []
-        for row in _call_db_list(self.db, "list_guardrails", account_id=account_id):
-            if not isinstance(row, dict):
-                continue
+        for row in self._guardrail_rows_for_export(
+            agent_ids,
+            account_id=account_id,
+            allowed_project_ids=allowed_project_ids,
+            allowed_workspace_ids=allowed_workspace_ids,
+        ):
             install_id = _durable_projection_install_id(row)
-            if not install_id or not agent_ids.intersection(
-                map(_text, _as_list(row.get("_agents")))
-            ):
+            if not install_id:
                 continue
             snapshots.append(
                 self._dependency_snapshot(
