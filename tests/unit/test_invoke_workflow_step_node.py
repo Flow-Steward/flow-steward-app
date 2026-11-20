@@ -3415,3 +3415,23 @@ def test_an_unticked_result_stays_inside_the_child_and_is_not_returned(
     assert invoke["declared_artifacts"] == ["attachments", "receipt"]
     assert "report" not in invoke["returned_files"]
     assert "child_report" not in result["workflow_data"]
+
+
+def test_child_error_lookup_failure_keeps_internal_details_out_of_logs(caplog):
+    from core.application.orchestration.invoke_workflow_step_node_results import child_failure
+
+    def unavailable_job_errors(_job_id, *, limit):
+        raise RuntimeError("example job storage diagnostic")
+
+    logger = "core.application.orchestration.invoke_workflow_step_node_results"
+    with caplog.at_level("DEBUG", logger=logger):
+        failure = child_failure(
+            SimpleNamespace(list_job_errors=unavailable_job_errors),
+            child_job_id="example-child",
+            child_status="failed",
+            fallback_message="Child failed",
+        )
+
+    assert failure["child_error_message"] == "Child failed"
+    assert any("child errors unavailable" in record.getMessage() for record in caplog.records)
+    assert "example job storage diagnostic" not in caplog.text

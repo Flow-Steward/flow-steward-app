@@ -555,3 +555,21 @@ def test_editing_a_schedule_keeps_its_name_unless_a_new_one_is_given() -> None:
     update = ProjectScheduledJobUpdateInput(workflow_id="scrape", cron_expr="0 10 * * *")
     values.update({name: value for name, value in update.dump().items() if value is not None})
     assert ProjectScheduledJobCreateInput(**values).name == "Supplier A"
+
+
+def test_run_title_failure_keeps_internal_loader_details_out_of_logs(caplog):
+    def unavailable_workflow(_workflow_id, _account_id):
+        raise RuntimeError("example workflow storage diagnostic")
+
+    with caplog.at_level("DEBUG", logger="core.application.workflows.workflow_run_title"):
+        meta = stamp_run_title(
+            {"run_label": "Keep this label"},
+            workflow_id="example-workflow",
+            account_id="example-account",
+            inputs={},
+            load_workflow=unavailable_workflow,
+        )
+
+    assert meta["run_title"] == "Keep this label"
+    assert any("Run title not rendered" in record.getMessage() for record in caplog.records)
+    assert "example workflow storage diagnostic" not in caplog.text
