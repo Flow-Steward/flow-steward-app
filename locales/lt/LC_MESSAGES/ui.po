@@ -32224,3 +32224,57 @@ msgstr "Fotografuoti"
 
 msgid "react.operator_form.preparing_photo"
 msgstr "Ruošiama nuotrauka…"
+
+msgid "react.settings.choose_a_role"
+msgstr "Pasirinkite vaidmenį."
+
+msgid "react.settings.role_admin"
+msgstr "Administratorius"
+
+msgid "react.settings.role_operator"
+msgstr "Operatorius"
+
+msgid "react.settings.role_viewer"
+msgstr "Stebėtojas"
+
+msgid "react.settings.role_admin_description"
+msgstr "Viską paruošia: naudotojus, plėtinius, projektus, darbo eigas ir slaptažodžius."
+
+msgid "react.settings.role_operator_description"
+msgstr "Atlieka darbą: paleidžia darbo eigas, priima sprendimus dėl patvirtinimų ir atnaujina slaptažodžius."
+
+msgid "react.settings.role_viewer_description"
+msgstr "Mato istoriją, rezultatus ir failus, nieko nekeičia."
+
+msgid "react.projects.history_restore_admin_only"
+msgstr "Reviziją atkurti gali tik administratorius."
+
+msgid "react.oauth.preset_my_role"
+msgstr "Tokia pati prieiga kaip jūsų"
+
+msgid "react.agent_access.advanced_options_admin_only"
+msgstr "Jūsų agentas gauna jūsų vaidmens prieigą; prieigą, galiojimo laiką ir projektus pasirenka tik administratorius."
+
+msgid "react.agent_access.advanced_options"
+msgstr "Išplėstinės parinktys"
+
+msgid "react.agent_access.hide_advanced_options"
+msgstr "Slėpti išplėstines parinktis"
+
+msgid "react.agent_access.role_access_summary"
+msgstr "{client} gauna tokią pačią prieigą kaip jūs. Jis niekada negali daugiau nei jūs."
+
+msgid "react.agent_access.role_access_expiry"
+msgstr "Veikia {days} d.; bet kada galite prisijungti iš naujo."
+
+msgid "react.agent_access.connect"
+msgstr "Prijungti"
+
+msgid "react.agent_access.connect_again"
+msgstr "Prijungti iš naujo"
+
+msgid "react.agent_access.address_title"
+msgstr "Adresas"
+
+msgid "react.agent_access.role_connected_instruction"
+msgstr "Pridėkite Flow Steward programoje {client} pagal toliau pateiktus žingsnius; adresas ir jūsų raktas jau įrašyti."

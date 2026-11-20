@@ -30740,3 +30740,57 @@ msgstr ""
 
 msgid "react.operator_form.preparing_photo"
 msgstr ""
+
+msgid "react.settings.choose_a_role"
+msgstr ""
+
+msgid "react.settings.role_admin"
+msgstr ""
+
+msgid "react.settings.role_operator"
+msgstr ""
+
+msgid "react.settings.role_viewer"
+msgstr ""
+
+msgid "react.settings.role_admin_description"
+msgstr ""
+
+msgid "react.settings.role_operator_description"
+msgstr ""
+
+msgid "react.settings.role_viewer_description"
+msgstr ""
+
+msgid "react.projects.history_restore_admin_only"
+msgstr ""
+
+msgid "react.oauth.preset_my_role"
+msgstr ""
+
+msgid "react.agent_access.advanced_options_admin_only"
+msgstr ""
+
+msgid "react.agent_access.advanced_options"
+msgstr ""
+
+msgid "react.agent_access.hide_advanced_options"
+msgstr ""
+
+msgid "react.agent_access.role_access_summary"
+msgstr ""
+
+msgid "react.agent_access.role_access_expiry"
+msgstr ""
+
+msgid "react.agent_access.connect"
+msgstr ""
+
+msgid "react.agent_access.connect_again"
+msgstr ""
+
+msgid "react.agent_access.address_title"
+msgstr ""
+
+msgid "react.agent_access.role_connected_instruction"
+msgstr ""

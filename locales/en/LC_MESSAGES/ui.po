@@ -31796,3 +31796,57 @@ msgstr "Take a photo"
 
 msgid "react.operator_form.preparing_photo"
 msgstr "Preparing the photo…"
+
+msgid "react.settings.choose_a_role"
+msgstr "Choose a role."
+
+msgid "react.settings.role_admin"
+msgstr "Admin"
+
+msgid "react.settings.role_operator"
+msgstr "Operator"
+
+msgid "react.settings.role_viewer"
+msgstr "Viewer"
+
+msgid "react.settings.role_admin_description"
+msgstr "Sets everything up: users, extensions, projects, workflows and secrets."
+
+msgid "react.settings.role_operator_description"
+msgstr "Does the work: starts workflows, decides approvals and updates passwords in secrets."
+
+msgid "react.settings.role_viewer_description"
+msgstr "Sees history, results and files, and changes nothing."
+
+msgid "react.projects.history_restore_admin_only"
+msgstr "Only an admin restores a revision."
+
+msgid "react.oauth.preset_my_role"
+msgstr "Same access as you"
+
+msgid "react.agent_access.advanced_options_admin_only"
+msgstr "Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects."
+
+msgid "react.agent_access.advanced_options"
+msgstr "Advanced options"
+
+msgid "react.agent_access.hide_advanced_options"
+msgstr "Hide advanced options"
+
+msgid "react.agent_access.role_access_summary"
+msgstr "{client} gets the same access as you. It can never do more than you can."
+
+msgid "react.agent_access.role_access_expiry"
+msgstr "Works for {days} days; you can connect again anytime."
+
+msgid "react.agent_access.connect"
+msgstr "Connect"
+
+msgid "react.agent_access.connect_again"
+msgstr "Connect again"
+
+msgid "react.agent_access.address_title"
+msgstr "Address"
+
+msgid "react.agent_access.role_connected_instruction"
+msgstr "Add Flow Steward in {client} with the steps below; the address and your key are already filled in."
