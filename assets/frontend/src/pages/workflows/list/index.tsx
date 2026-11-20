@@ -310,7 +310,7 @@ export function WorkflowsListPage() {
   const location = useLocation();
   const routeParams = new URLSearchParams(location.search);
   const showingCatalog = routeParams.get("tab") === "catalog" || routeParams.get("create") === "template";
-  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id"], !showingCatalog);
+  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id", "extension"], !showingCatalog);
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.

@@ -4,6 +4,7 @@ import { createMemoryRouter, RouterProvider, useLocation } from "react-router";
 import { useCanReadWorkflowRegistry, useIsAdmin } from "@/lib/auth/use-is-admin";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { persistWorkspaceSelection, WORKSPACE_STORAGE_KEY } from "@/lib/utils/workspace-selection";
+import { filterStorageKey } from "@/lib/filters/use-filter-state";
 import { WorkflowsListPage } from "@/pages/workflows/list";
 
 vi.mock("@/lib/auth/use-is-admin", () => ({ useCanReadWorkflowRegistry: vi.fn(), useIsAdmin: vi.fn() }));
@@ -262,6 +263,30 @@ function accountAuth(accountId: string): AuthContextValue {
     },
   };
 }
+
+it("remembers an extension after leaving Workflows and lets an explicit extension link replace saved filters", async () => {
+  installHttp();
+  const auth = accountAuth("extension-filter-account");
+  const storageKey = filterStorageKey("extension-filter-account", "filter-user", "query/workflows");
+  localStorage.setItem(storageKey, JSON.stringify("search=unmatched&enabled=1&project_id=project-beta"));
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const router = createMemoryRouter([
+    { path: "/registry/workflows", element: <WorkflowsListPage /> },
+    { path: "/elsewhere", element: <div>Elsewhere</div> },
+  ], { initialEntries: ["/registry/workflows?extension=example.gotenberg"] });
+  render(<AuthContext.Provider value={auth}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>);
+
+  await table().findByRole("link", { name: "Installed workflow" });
+  expect(screen.getByRole("searchbox", { name: "Search workflows" })).toHaveValue("");
+  expect(screen.queryByText(/^Project ·|^Status ·/)).not.toBeInTheDocument();
+  expect(localStorage.getItem(storageKey)).toBe(JSON.stringify("extension=example.gotenberg"));
+
+  await act(async () => { await router.navigate("/elsewhere"); });
+  await act(async () => { await router.navigate("/registry/workflows"); });
+  await waitFor(() => expect(screen.getByText("Extension · Gotenberg")).toBeInTheDocument());
+  expect(table().queryByRole("link", { name: "Shared workflow" })).not.toBeInTheDocument();
+  expect(router.state.location.search).toBe("?extension=example.gotenberg");
+});
 
 it("withdraws the previous account's rows and project options on the same QueryClient", async () => {
   const { state } = installHttp();

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 
+from core.application.extensions.projected_dataset_bridge import projection_bridge_install_id
 from core.application.registry.workflow_secret_defaults import (
     preserve_secret_references,
     strip_workflow_secret_authority,
@@ -35,6 +36,7 @@ from core.application.workflows.workflow_portability_common import (
     _extension_owned,
     _is_mock,
     _redact_sensitive,
+    _resolve_named_step_extension,
     _step_child_workflow_ref,
     _text,
     _workflow_settings,
@@ -119,7 +121,9 @@ class WorkflowPortabilityPolicyMixin:
         account_id = _text(workflow.get("account_id")) or _text(getattr(self, "account_id", ""))
         return self._extension_identity_for_install(install_id, account_id)
 
-    def _extension_identity_for_install(self, install_id: str, account_id: str) -> dict[str, Any]:
+    def _extension_identity_for_install(
+        self, install_id: str, account_id: str, *, include_global: bool = False
+    ) -> dict[str, Any]:
         store = getattr(self, "extension_install_store", None)
         if not install_id or not account_id or store is None or _is_mock(store):
             return {}
@@ -130,7 +134,20 @@ class WorkflowPortabilityPolicyMixin:
                 store, "get_extension_install_for_operator", install_id, account_id=account_id
             )
             cache[key] = _portable_extension_identity(row, install_id=install_id) if row else {}
-        return cache[key]
+        if cache[key] or not include_global:
+            return cache[key]
+        visible_key = (install_id, account_id, "global")
+        if visible_key not in cache:
+            row = _call_db_get_scoped(
+                store,
+                "get_extension_by_install_id_for_runtime_gate",
+                install_id,
+                account_id=account_id,
+            )
+            cache[visible_key] = (
+                _portable_extension_identity(row, install_id=install_id) if row else {}
+            )
+        return cache[visible_key]
 
     def list_extension_associations(
         self, workflow: dict[str, Any], *, account_id: str
@@ -141,11 +158,19 @@ class WorkflowPortabilityPolicyMixin:
         labels: dict[str, str] = {}
         for step in _workflow_steps(workflow):
             extension_id = step_extension_id(step)
+            if not extension_id:
+                named = _resolve_named_step_extension(self.db, step)
+                extension_id = named.extension_id if named else ""
             if extension_id:
                 labels[extension_id] = extension_id
             install_ids.add(step_connector_install_id(step))
-            for ref in (_text(step.get("block_key")), _step_child_workflow_ref(step)):
-                install_ids.add(parse_projected_identity(ref).get("install_id", ""))
+            block = parse_projected_identity(_text(step.get("block_key")))
+            install_ids.add(block.get("install_id", ""))
+            child = _step_child_workflow_ref(step)
+            install_ids.add(
+                parse_projected_identity(child).get("install_id")
+                or projection_bridge_install_id(child)
+            )
             invoke = _as_dict(step.get("override")).get("invoke_workflow")
             install_ids.update(
                 ref
@@ -154,7 +179,9 @@ class WorkflowPortabilityPolicyMixin:
             )
 
         for install_id in sorted(install_ids - {""}):
-            identity = self._extension_identity_for_install(install_id, owner_account_id)
+            identity = self._extension_identity_for_install(
+                install_id, owner_account_id, include_global=True
+            )
             extension_id = _text(identity.get("extension_id"))
             if extension_id:
                 label = _text(identity.get("display_name")) or extension_id
