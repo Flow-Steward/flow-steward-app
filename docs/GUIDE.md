@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.20 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.21 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -2341,9 +2341,12 @@ resumed. A verified backup is reused for that operation; it is never replaced by
 a post-migration backup. If backup creation fails before activation, the same
 target can be resumed with an explicit `--skip-db-backup` waiver.
 
-Automatic orchestration requires CLI 0.9.20 or newer. When upgrading from an older
-CLI, follow that CLI's printed manual backup/migration/maintenance instructions
-for the initial update. Separate maintenance, backup and database commands remain
+Automatic orchestration requires CLI 0.9.21 or newer (on Compact, the 0.9.20 CLI
+could not read maintenance once migration had stopped the runtime). From an older
+CLI, run `maintenance enable --confirm`, then `release upgrade`. If that older CLI
+stops with `release_migration_required`, the checkout already holds the new
+release: run `database upgrade --maintenance-confirmed --confirm`, then repeat the
+same `release upgrade`, which the new CLI now finishes. Separate maintenance, backup and database commands remain
 available for operator-controlled workflows. Standalone database migration accepts
 `--skip-db-backup` together with `--maintenance-confirmed --confirm`.
 

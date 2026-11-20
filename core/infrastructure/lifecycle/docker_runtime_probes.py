@@ -139,11 +139,14 @@ def compact_maintenance_operation(
     if operation != "maintenance-status":
         arguments += ("--confirm",)
     try:
+        # The JSON answer is read from stdout alone: Compose reports its own
+        # progress ("Container ... Creating") and warnings on stderr.
         outcome = run_compose(
             target,
             arguments,
             action="maintenance",
             timeout_seconds=_DOCKER_TIMEOUT_SECONDS if operation == "maintenance-status" else None,
+            separate_stderr=True,
         )
     except StackGatewayError:
         if operation != "maintenance-status":
@@ -153,6 +156,7 @@ def compact_maintenance_operation(
             ("ps", "--status", "running", "--services", "compact-runtime"),
             action="maintenance",
             timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
+            separate_stderr=True,
         )
         if str(running.stdout or "").strip():
             raise
@@ -177,6 +181,7 @@ def compact_maintenance_operation(
             ),
             action="maintenance",
             timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
+            separate_stderr=True,
         )
     raw = str(outcome.stdout or "")
     try:

@@ -63,7 +63,7 @@ mismatch or download failure stops installation, without source fallback. Only
 explicit `./install.sh --from-source` builds the current checkout:
 
 ```bash
-git clone --branch v0.9.20 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.21 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```
@@ -467,8 +467,8 @@ the selected official installed identity, or upgrades an existing official
 installation. The handoff is resumable and keeps maintenance enabled on failure;
 follow its printed recovery action and rerun the same command. The backup waiver
 is retained on resume and never disables writer/session safety checks. Automatic
-orchestration requires CLI 0.9.20 or newer; for the initial update from an older
-CLI, follow that CLI's printed manual backup/migration/maintenance instructions.
+orchestration requires CLI 0.9.21 or newer; for the initial update from an older
+CLI, see "Upgrading from 0.9.20 or older" in the 0.9.21 release notes.
 Official release upgrades resolve the complete role set from GHCR,
 then Docker Hub as a whole-set fallback. They never mix registries, use floating
 tags, or build product images locally. From 0.9.2 the set includes the PostgreSQL
