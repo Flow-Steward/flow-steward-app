@@ -33,8 +33,10 @@ class AgentAccessTokenRequest(BaseModel):
 
     client_id: str = Field(min_length=1, max_length=64)
     package_id: str = Field(min_length=1, max_length=64)
-    preset: str = Field(min_length=1, max_length=64)
-    expiry_days: int
+    # ADR 0076 §5: without these the token gets the person's role and the server's
+    # expiry; only an admin may send them.
+    preset: str | None = Field(default=None, min_length=1, max_length=64)
+    expiry_days: int | None = None
     project_ids: list[str] = Field(default_factory=list, max_length=500)
 
 

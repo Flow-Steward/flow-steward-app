@@ -8,7 +8,10 @@ registry. This module owns every rule the wizard depends on:
   (``FS_PUBLIC_BASE_URL`` through :func:`mcp_auth_urls`), never a container address;
 * the blockers a cloud client meets (the inbound OAuth readiness of the account);
 * the access presets of :mod:`agent_access_presets`, each checked against the caller's
-  authority with the check every token issuance uses;
+  authority with the check every token issuance uses. An operator or a viewer gets
+  one access, "as my role" (ADR 0076 §5): the token carries their role's permissions
+  and the server chooses its expiry; only an admin chooses a preset, an expiry or
+  projects;
 * exactly-once token issuance per attempt through :class:`RequestIdempotencyService`.
 
 Issuance claims the attempt, creates the token and records the replay answer in one
@@ -30,8 +33,11 @@ from urllib.parse import urlsplit
 from core.application.auth import inbound_oauth_repository as oauth_repo
 from core.application.auth.agent_access_presets import (
     AGENT_ACCESS_SCOPES,
+    ROLE_PRESET_EXPIRY_DAYS,
+    ROLE_PRESET_ID,
     agent_access_preset,
     preset_offers,
+    role_preset_scopes,
 )
 from core.application.auth.agent_connection_catalog import (
     AUTH_PERSONAL_TOKEN,
@@ -50,6 +56,10 @@ from core.application.auth.agent_connection_catalog import (
     client_package_setup,
 )
 from core.application.auth.audit import log_auth_audit_event
+from core.application.auth.effective_permissions import (
+    load_role_permissions,
+    owner_role_permissions,
+)
 from core.application.auth.inbound_oauth_policy import (
     DEFAULT_GRANT_EXPIRY_DAYS,
     GRANT_EXPIRY_DAY_CHOICES,
@@ -57,6 +67,7 @@ from core.application.auth.inbound_oauth_policy import (
     OAuthReadiness,
     current_oauth_environment,
 )
+from core.application.auth.permissions import ADMIN_ROLE, highest_system_role
 from core.application.auth.principal import (
     TokenAuthorityError,
     enforce_token_scope_within_caller_authority,
@@ -75,6 +86,9 @@ ISSUE_OPERATION = "auth.agent_access.issue_token"
 #: How long a repeat of the same attempt still answers with the token it created.
 REPLAY_WINDOW = timedelta(days=1)
 TOKEN_LABEL_PREFIX = "AI agent"
+
+#: An operator or a viewer sent a preset, an expiry or projects (ADR 0076 §5).
+ADVANCED_OPTIONS_ADMIN_ONLY = "advanced_options_admin_only"
 
 BLOCKER_PUBLIC_ADDRESS_MISSING = "public_address_missing"
 BLOCKER_INTERNAL_ADDRESS = "internal_address"
@@ -153,6 +167,14 @@ def _token_view(token: Mapping[str, Any]) -> dict[str, Any]:
         "revoked": bool(token.get("revoked", False)),
         "expired": bool(token.get("expired", False)),
     }
+
+
+def may_choose_agent_access(user: Mapping[str, Any] | None) -> bool:
+    """Whether the person chooses a preset, an expiry and projects: the admin only."""
+    roles = (user or {}).get("roles") or []
+    if isinstance(roles, str):
+        roles = [roles]
+    return highest_system_role(roles) == ADMIN_ROLE
 
 
 def _caller_ids(user: Mapping[str, Any] | None) -> tuple[str, str]:
@@ -302,6 +324,13 @@ class AgentConnectionService:
                 for package in PACKAGES
             ],
             "presets": preset_offers(dict(user or {}), list(AGENT_ACCESS_SCOPES)),
+            # ADR 0076 §5: the one access an operator or a viewer is given.
+            "role_access": {
+                "preset": ROLE_PRESET_ID,
+                "scopes": list(role_preset_scopes(self._owner_permissions(user))),
+                "expiry_days": ROLE_PRESET_EXPIRY_DAYS,
+                "advanced_options": may_choose_agent_access(user),
+            },
             "expiry_days_options": list(GRANT_EXPIRY_DAY_CHOICES),
             "default_expiry_days": DEFAULT_GRANT_EXPIRY_DAYS,
             "first_request": self._step(FIRST_REQUEST_STEP, {}),
@@ -311,15 +340,25 @@ class AgentConnectionService:
     # ------------------------------------------------------------------
     # Token issuance (exactly once per attempt)
     # ------------------------------------------------------------------
+    def _owner_permissions(self, user: Mapping[str, Any] | None) -> frozenset[str]:
+        """The person's role permissions: the middleware's, or read from the database."""
+        computed = (user or {}).get("permissions")
+        if isinstance(computed, (list, tuple, set, frozenset)):
+            return frozenset(str(key) for key in computed)
+        return owner_role_permissions(
+            dict(user or {}), role_permissions=load_role_permissions(self.bl.conn)
+        )
+
     def _issue_request(
         self,
+        user: Mapping[str, Any] | None,
         *,
         client_id: str,
         package_id: str,
-        preset_id: str,
+        preset_id: str | None,
         project_ids: list[str] | None,
         expiry_days: int | None,
-    ) -> tuple[AgentClient, list[str], list[str], int]:
+    ) -> tuple[AgentClient, str, list[str], list[str], int]:
         client = agent_client(client_id)
         if client is None:
             raise AgentConnectionError("unknown_client", 400)
@@ -330,13 +369,31 @@ class AgentConnectionService:
             # Cloud clients connect through OAuth consent; the Developer package and any
             # other package without MCP never needs a token.
             raise AgentConnectionError("token_not_used", 400)
-        preset = agent_access_preset(preset_id)
+        projects = sorted({str(item).strip() for item in project_ids or [] if str(item).strip()})
+        requested_preset = str(preset_id or "").strip().lower()
+        if not may_choose_agent_access(user) and (
+            requested_preset not in {"", ROLE_PRESET_ID} or expiry_days is not None or projects
+        ):
+            raise AgentConnectionError(
+                ADVANCED_OPTIONS_ADMIN_ONLY,
+                403,
+                "Your agent gets the access of your role; only an admin chooses the access, "
+                "the expiry and the projects.",
+            )
+        if requested_preset in {"", ROLE_PRESET_ID}:
+            scopes = list(role_preset_scopes(self._owner_permissions(user)))
+            if not scopes:
+                raise AgentConnectionError("exceeds_authority", 403)
+            days = ROLE_PRESET_EXPIRY_DAYS if expiry_days is None else expiry_days
+            if days not in GRANT_EXPIRY_DAY_CHOICES:
+                raise AgentConnectionError("invalid_expiry", 400)
+            return client, ROLE_PRESET_ID, scopes, projects, int(days)
+        preset = agent_access_preset(requested_preset)
         if preset is None:
             raise AgentConnectionError("invalid_preset", 400)
         if expiry_days not in GRANT_EXPIRY_DAY_CHOICES:
             raise AgentConnectionError("invalid_expiry", 400)
-        projects = sorted({str(item).strip() for item in project_ids or [] if str(item).strip()})
-        return client, list(preset.scopes), projects, int(expiry_days)
+        return client, preset.id, list(preset.scopes), projects, int(expiry_days)
 
     def issue_token(
         self,
@@ -345,22 +402,24 @@ class AgentConnectionService:
         attempt_key: str,
         client_id: str,
         package_id: str,
-        preset_id: str,
-        project_ids: list[str] | None,
-        expiry_days: int | None,
+        preset_id: str | None = None,
+        project_ids: list[str] | None = None,
+        expiry_days: int | None = None,
     ) -> dict[str, Any]:
         """Create at most one personal token for this attempt.
 
         Returns ``{"status": "created", "secret": ...}`` the first time and
         ``{"status": "replayed", "secret_already_shown": True}`` for every repeat of
-        the same attempt, both with the token's current metadata.
+        the same attempt, both with the token's current metadata. Without a preset
+        the token gets the person's role ("as my role", ADR 0076 §5).
         """
         user_id, account_id = _caller_ids(user)
         endpoint_blocker = agent_mcp_endpoint(self.environment).blocker
         if endpoint_blocker:
             # A token nobody can use is not issued: the client would have no address.
             raise AgentConnectionError(endpoint_blocker, 409)
-        client, scopes, projects, days = self._issue_request(
+        client, chosen_preset, scopes, projects, days = self._issue_request(
+            user,
             client_id=client_id,
             package_id=package_id,
             preset_id=preset_id,
@@ -372,7 +431,7 @@ class AgentConnectionService:
                 "user_id": user_id,
                 "client_id": client.id,
                 "package_id": package_id,
-                "preset_id": str(preset_id),
+                "preset_id": chosen_preset,
                 "project_ids": projects,
                 "expiry_days": days,
             }

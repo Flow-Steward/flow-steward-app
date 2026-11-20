@@ -50,3 +50,31 @@ def test_admin_all_alone_still_offers_the_narrower_operational_preset() -> None:
         "operational": list(presets.OPERATIONAL_SCOPES),
         "full_authoring": ["admin:all"],
     }
+
+
+# --- ADR 0076 §5: "as my role" ------------------------------------------------------
+
+
+def test_the_role_preset_carries_each_system_role_with_the_fewest_scopes() -> None:
+    from core.application.auth.permissions import (
+        ALL_PERMISSION_KEYS,
+        OPERATOR_PERMISSIONS,
+        VIEWER_PERMISSIONS,
+    )
+
+    assert presets.role_preset_scopes(VIEWER_PERMISSIONS) == ("read:*", "registry.read")
+    assert presets.role_preset_scopes(OPERATOR_PERMISSIONS) == (
+        "read:*",
+        "registry.read",
+        "command:*",
+    )
+    assert presets.role_preset_scopes(ALL_PERMISSION_KEYS) == ("admin:all",)
+    assert presets.role_preset_scopes(()) == ()
+
+
+def test_the_role_preset_never_grants_a_secret_scope() -> None:
+    from core.application.auth.permissions import ALL_PERMISSION_KEYS
+    from core.application.auth.scope_contracts import EXACT_ONLY_SCOPES
+
+    for permissions in (ALL_PERMISSION_KEYS, {"secrets.value.write", "jobs.read"}):
+        assert EXACT_ONLY_SCOPES.isdisjoint(presets.role_preset_scopes(permissions))

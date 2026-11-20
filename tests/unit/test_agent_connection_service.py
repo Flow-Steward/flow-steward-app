@@ -18,19 +18,26 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from core.application.auth import agent_connection_service as service_module
-from core.application.auth.agent_access_presets import OPERATIONAL_SCOPES
+from core.application.auth.agent_access_presets import (
+    OPERATIONAL_SCOPES,
+    ROLE_PRESET_EXPIRY_DAYS,
+    role_preset_scopes,
+)
 from core.application.auth.agent_connection_catalog import CLAUDE_CODE_LABEL, OPENAI_CLI_ID
 from core.application.auth.agent_connection_service import (
     AgentConnectionError,
     AgentConnectionService,
     agent_mcp_endpoint,
 )
+from core.application.auth.effective_permissions import effective_permissions
 from core.application.auth.inbound_oauth_policy import (
+    MAX_GRANT_EXPIRY_DAYS,
     OAuthEnvironment,
     inbound_oauth_readiness,
     is_interactive_only_path,
     oauth_principal_denied_route,
 )
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.entrypoints.api.agent_connection_routes import create_agent_connection_router
 from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES
 
@@ -41,7 +48,7 @@ SECRET_PREFIX = "fs_pat_test_"  # pragma: allowlist secret
 
 
 def _user(role: str = "operator") -> dict[str, Any]:
-    return {
+    user = {
         "id": f"user-{role}",
         "username": f"{role}@example.test",
         "roles": [role],
@@ -49,6 +56,15 @@ def _user(role: str = "operator") -> dict[str, Any]:
         "account_id": ACCOUNT,
         "scopes": [],
     }
+    # The auth middleware puts the person's role permissions on the request.
+    granted = effective_permissions(user, role_permissions=SYSTEM_ROLE_PERMISSIONS)
+    return {**user, "permissions": sorted(granted.permissions)}
+
+
+#: What an operator's "as my role" token holds (ADR 0076 §5).
+OPERATOR_ROLE_SCOPES = ["read:*", "registry.read", "command:*"]
+#: An admin's advanced options: a preset and an expiry.
+ADVANCED = {"preset_id": "operational", "expiry_days": 30}
 
 
 class _Store:
@@ -157,12 +173,10 @@ def _service(
 
 
 def _issue(service: AgentConnectionService, user=None, key: str = "attempt-1", **overrides):
-    request = {
+    request: dict[str, Any] = {
         "client_id": "claude_code",
         "package_id": "flow-steward-operator",
-        "preset_id": "operational",
         "project_ids": [],
-        "expiry_days": 30,
     }
     request.update(overrides)
     return service.issue_token(user or _user(), attempt_key=key, **request)
@@ -362,7 +376,7 @@ def test_one_attempt_creates_one_token_and_a_repeat_never_shows_the_secret(world
     first = _issue(service)
     assert first["status"] == "created"
     assert first["secret"] == f"{SECRET_PREFIX}tok-1"
-    assert first["token"]["scopes"] == list(OPERATIONAL_SCOPES)
+    assert first["token"]["scopes"] == OPERATOR_ROLE_SCOPES
     assert first["token"]["label"] == f"AI agent · {CLAUDE_CODE_LABEL}"
     for _ in range(3):  # double click, retry after a lost response, a third try
         repeat = _issue(service)
@@ -390,9 +404,10 @@ def test_a_replay_shows_the_token_as_it_is_now(world) -> None:
 def test_the_same_attempt_with_other_settings_is_refused(world) -> None:
     store, _table = world
     service = _service(store)
-    _issue(service)
+    admin = _user("admin")
+    _issue(service, user=admin, **ADVANCED)
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(service, expiry_days=90)
+        _issue(service, user=admin, preset_id="operational", expiry_days=90)
     assert (refused.value.code, refused.value.status) == ("attempt_mismatch", 409)
     assert len(store.tokens) == 1
 
@@ -408,17 +423,17 @@ def test_a_new_attempt_is_a_new_token(world) -> None:
 def test_a_refused_attempt_leaves_no_claim_behind(world) -> None:
     store, table = world
     service = _service(store)
-    viewer = _user("viewer")
+    admin = _user("admin")
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(service, user=viewer)
-    assert refused.value.code == "exceeds_authority"
+        _issue(service, user=admin, project_ids=["00000000-0000-4000-8000-0000000000ff"])
+    assert refused.value.code == "project_not_accessible"
     assert store.tokens == []
     assert table.rows == {}
     with pytest.raises(AgentConnectionError) as refused:
         _issue(service, preset_id="full_authoring")
-    assert refused.value.code == "exceeds_authority"
-    admin = _issue(service, user=_user("admin"), key="admin-1", preset_id="full_authoring")
-    assert admin["token"]["scopes"] == ["admin:all"]
+    assert refused.value.code == "advanced_options_admin_only"
+    created = _issue(service, user=admin, key="admin-1", preset_id="full_authoring", expiry_days=30)
+    assert created["token"]["scopes"] == ["admin:all"]
 
 
 @pytest.mark.parametrize(
@@ -438,7 +453,7 @@ def test_unsupported_requests_are_refused_without_a_token(world, overrides, code
     store, table = world
     service = _service(store)
     with pytest.raises(AgentConnectionError) as refused:
-        _issue(service, **overrides)
+        _issue(service, user=_user("admin"), **{**ADVANCED, **overrides})
     assert refused.value.code == code
     assert store.tokens == []
     assert table.rows == {}
@@ -446,7 +461,7 @@ def test_unsupported_requests_are_refused_without_a_token(world, overrides, code
 
 def test_projects_restrict_the_token(world) -> None:
     store, _table = world
-    created = _issue(_service(store), project_ids=[PROJECT, PROJECT])
+    created = _issue(_service(store), user=_user("admin"), project_ids=[PROJECT, PROJECT])
     assert created["token"]["allowed_project_ids"] == [PROJECT]
 
 
@@ -488,13 +503,8 @@ def _http(service: AgentConnectionService, user: dict | None = None) -> TestClie
     return TestClient(app)
 
 
-_BODY = {
-    "client_id": "claude_code",
-    "package_id": "flow-steward-operator",
-    "preset": "operational",
-    "expiry_days": 30,
-    "project_ids": [],
-}
+_BODY = {"client_id": "claude_code", "package_id": "flow-steward-operator"}
+_ADVANCED_BODY = {**_BODY, "preset": "operational", "expiry_days": 30, "project_ids": []}
 
 
 def test_http_creation_then_replay_without_the_secret(world) -> None:
@@ -534,10 +544,10 @@ def test_http_maps_refusals_and_serves_the_setup(world) -> None:
     store, _table = world
     client = _http(_service(store), _user("viewer"))
     refused = client.post(
-        "/api/auth/agent-access/tokens", json=_BODY, headers={"Idempotency-Key": "k-2"}
+        "/api/auth/agent-access/tokens", json=_ADVANCED_BODY, headers={"Idempotency-Key": "k-2"}
     )
     assert refused.status_code == 403
-    assert refused.json()["error"] == "exceeds_authority"
+    assert refused.json()["error"] == "advanced_options_admin_only"
     setup = client.get("/api/auth/agent-access/setup")
     assert setup.status_code == 200
     assert setup.json()["mcp_url"] == "https://fs.example.com/mcp"
@@ -551,3 +561,127 @@ def test_only_a_browser_session_reaches_the_wizard_routes() -> None:
     ):
         assert is_interactive_only_path(path)
         assert oauth_principal_denied_route(path, "POST")
+
+
+# --- ADR 0076 §5: "as my role" ----------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("role", "scopes"),
+    [
+        ("viewer", ["read:*", "registry.read"]),
+        ("operator", OPERATOR_ROLE_SCOPES),
+        ("admin", ["admin:all"]),
+    ],
+)
+def test_one_button_gives_the_token_the_persons_role(world, role, scopes) -> None:
+    store, _table = world
+    created = _issue(_service(store), user=_user(role))
+
+    assert created["token"]["scopes"] == scopes
+    token = {"roles": [role], "auth_source": "pat", "scopes": scopes}
+    held = effective_permissions(token, role_permissions=SYSTEM_ROLE_PERMISSIONS).permissions
+    owner = effective_permissions(_user(role), role_permissions=SYSTEM_ROLE_PERMISSIONS)
+    # Exactly the owner's permissions, except the secret catalog's exact ones (ADR 0057).
+    assert held == owner.permissions - {
+        "secrets.value.write",
+        "secrets.delete",
+        "secrets.bind",
+        "secrets.approve",
+    }
+
+
+def test_the_server_chooses_the_expiry_of_a_role_token(world, monkeypatch) -> None:
+    store, _table = world
+    seen: dict[str, Any] = {}
+    original = store.create_pat
+
+    def _create(**values: Any) -> dict[str, Any]:
+        seen.update(values)
+        return original(**values)
+
+    monkeypatch.setattr(store, "create_pat", _create)
+    _issue(_service(store))
+
+    assert seen["expires_in_days"] == ROLE_PRESET_EXPIRY_DAYS == MAX_GRANT_EXPIRY_DAYS
+
+
+@pytest.mark.parametrize("role", ["operator", "viewer"])
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"preset_id": "operational"},
+        {"preset_id": "full_authoring"},
+        {"expiry_days": 30},
+        {"project_ids": [PROJECT]},
+    ],
+)
+def test_an_operator_or_viewer_chooses_nothing(world, role, overrides) -> None:
+    store, table = world
+    with pytest.raises(AgentConnectionError) as refused:
+        _issue(_service(store), user=_user(role), **overrides)
+
+    assert (refused.value.code, refused.value.status) == ("advanced_options_admin_only", 403)
+    assert store.tokens == []
+    assert table.rows == {}
+
+
+def test_naming_the_role_preset_is_the_same_as_choosing_nothing(world) -> None:
+    store, _table = world
+    created = _issue(_service(store), preset_id="my_role")
+
+    assert created["token"]["scopes"] == OPERATOR_ROLE_SCOPES
+
+
+@pytest.mark.parametrize("role", ["admin", "operator", "viewer"])
+def test_the_setup_describes_the_role_access(world, role) -> None:
+    store, _table = world
+    access = _service(store).setup_view(_user(role))["role_access"]
+
+    assert access["preset"] == "my_role"
+    assert access["expiry_days"] == ROLE_PRESET_EXPIRY_DAYS
+    assert access["advanced_options"] is (role == "admin")
+    expected = {"admin": ["admin:all"], "operator": OPERATOR_ROLE_SCOPES}
+    assert access["scopes"] == expected.get(role, ["read:*", "registry.read"])
+
+
+def test_http_admin_keeps_the_advanced_options(world) -> None:
+    store, _table = world
+    client = _http(_service(store), _user("admin"))
+    created = client.post(
+        "/api/auth/agent-access/tokens", json=_ADVANCED_BODY, headers={"Idempotency-Key": "k-9"}
+    )
+    assert created.status_code == 201
+    assert created.json()["token"]["scopes"] == list(OPERATIONAL_SCOPES)
+
+
+def test_a_role_token_passes_the_scope_check_of_every_route_its_role_may_call() -> None:
+    """The frozen route snapshot lists each route's token scopes: an "as my role"
+    token satisfies them wherever its owner's role is let through, except the secret
+    catalog's exact-scope writes no preset grants."""
+    from core.application.auth.principal import principal_has_required_scopes
+    from core.application.auth.route_permissions import route_permission
+    from tests.unit.test_route_permission_parity import _snapshot
+
+    for role, initial in (("operator", "o"), ("viewer", "v")):
+        token = {"scopes": list(role_preset_scopes(SYSTEM_ROLE_PERMISSIONS[role]))}
+        missing = [
+            route
+            for route, entry in _snapshot().items()
+            if initial in entry["pat"]
+            and entry["pat_scopes"]
+            and not set(entry["pat_scopes"]) <= {"secrets:write", "secrets:bind"}
+            and not principal_has_required_scopes(token, entry["pat_scopes"])
+        ]
+        if role == "operator":
+            # The builder's run route asks a token for admin:all, which no operator
+            # token can hold; an agent starts a run through POST /api/workflow-runs.
+            assert missing == ["POST /api/workflows/{workflow_id}/run"]
+        else:
+            # Own-account writes ask a token for command:*, above a viewer token's
+            # ceiling (ADR 0066): a viewer changes their account in the browser.
+            assert missing, role
+            for route in missing:
+                method, path = route.split(" ", 1)
+                match = route_permission(method, path.replace("{", "").replace("}", ""))
+                assert match is not None and match.permission == "account.self", route

@@ -2,8 +2,9 @@
 
 One attempt creates at most one personal token: a double click, two concurrent
 requests and a retry after a lost response all end with one row in
-``personal_access_tokens`` and the secret shown once. The fresh operational token
-then finds a project and its workflows without any id known in advance.
+``personal_access_tokens`` and the secret shown once. An operator's one-button token
+("as my role", ADR 0076 §5) then finds a project and its workflows without any id
+known in advance.
 """
 
 from __future__ import annotations
@@ -21,13 +22,10 @@ from tests._db_env import resolve_test_db_dsn
 from tests.integration._inbound_oauth_world import CSRF, ORIGIN, build_world, oauth_environment
 
 PATH = "/api/auth/agent-access/tokens"
-BODY = {
-    "client_id": "claude_code",
-    "package_id": "flow-steward-operator",
-    "preset": "operational",
-    "expiry_days": 30,
-    "project_ids": [],
-}
+#: An operator or a viewer chooses nothing: the token gets their role (ADR 0076 §5).
+BODY = {"client_id": "claude_code", "package_id": "flow-steward-operator"}
+#: Only an admin chooses a preset, an expiry and projects.
+ADVANCED_BODY = {**BODY, "preset": "operational", "expiry_days": 30, "project_ids": []}
 
 
 @pytest.fixture(autouse=True)
@@ -148,7 +146,7 @@ def test_two_concurrent_requests_of_one_attempt_create_one_token(world, http) ->
 
 def test_a_lost_response_is_answered_by_the_same_attempt(world) -> None:
     service = AgentConnectionService(world.store, oauth_readiness=world.service().readiness)
-    operator = world.principal("operator")
+    admin = world.principal("admin")
     request = {
         "client_id": "cursor",
         "package_id": "flow-steward-operator",
@@ -157,22 +155,23 @@ def test_a_lost_response_is_answered_by_the_same_attempt(world) -> None:
         "expiry_days": 7,
     }
     key = f"attempt-{uuid.uuid4()}"
-    created = service.issue_token(operator, attempt_key=key, **request)  # response "lost"
-    replay = service.issue_token(operator, attempt_key=key, **request)
+    created = service.issue_token(admin, attempt_key=key, **request)  # response "lost"
+    replay = service.issue_token(admin, attempt_key=key, **request)
     assert replay["status"] == "replayed"
     assert replay["secret"] == ""
     assert replay["token"]["id"] == created["token"]["id"]
     assert replay["token"]["allowed_project_ids"] == [world.projects[0]]
     with pytest.raises(AgentConnectionError) as mismatch:
-        service.issue_token(operator, attempt_key=key, **{**request, "expiry_days": 30})
+        service.issue_token(admin, attempt_key=key, **{**request, "expiry_days": 30})
     assert mismatch.value.code == "attempt_mismatch"
-    assert len(_wizard_tokens(world, "operator")) == 1
+    assert len(_wizard_tokens(world, "admin")) == 1
 
 
 def test_a_refusal_leaves_neither_a_token_nor_a_claim(world, http) -> None:
     key = f"attempt-{uuid.uuid4()}"
-    viewer = _post(http("viewer"), key)
+    viewer = _post(http("viewer"), key, ADVANCED_BODY)
     assert viewer.status_code == 403, viewer.text
+    assert viewer.json()["error"] == "advanced_options_admin_only"
     assert _wizard_tokens(world, "viewer") == []
     operator_full = _post(http("operator"), key, {**BODY, "preset": "full_authoring"})
     assert operator_full.status_code == 403
