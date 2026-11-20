@@ -108,6 +108,11 @@ def still_working_lines(
     return lines
 
 
+def _late_heartbeat(event: OperationProgressEvent, finished: set[str]) -> bool:
+    """A "still running" pulse of a step that has already printed its mark."""
+    return event.heartbeat and event.step_id in finished
+
+
 @contextmanager
 def redirected_steps(
     *, technical_sink: Callable[[str], None] | None, log_line: Callable[[Any], str]
@@ -116,6 +121,7 @@ def redirected_steps(
     clock = _Clock()
     lock = threading.Lock()
     running: dict[str, OperationProgressEvent] = {}
+    finished: set[str] = set()
     stop = threading.Event()
 
     def sink(event: OperationProgressEvent) -> None:
@@ -123,11 +129,15 @@ def redirected_steps(
             elapsed = clock.elapsed(event)
             if event.status in _FINISHED:
                 running.pop(event.step_id, None)
+                finished.add(event.step_id)
                 click.echo(finished_line(event, elapsed))
             elif event.step_id not in running and not event.heartbeat:
+                finished.discard(event.step_id)
                 running[event.step_id] = event
                 click.echo(f"→ {step_text(event)}")
-            else:
+            elif not _late_heartbeat(event, finished):
+                # A step's pulse that arrives after its mark goes to the log only: it
+                # used to bring the step back, and "still working" ran on under it.
                 running[event.step_id] = event
         if technical_sink is not None:
             technical_sink(log_line(event))
@@ -177,6 +187,7 @@ def live_steps(
     clock = _Clock()
     lock = threading.Lock()
     tasks: dict[str, TaskID] = {}
+    finished: set[str] = set()
     progress = Progress(
         MarkColumn(spinner_name="dots", style="cyan"),
         TextColumn("{task.description}"),
@@ -188,6 +199,11 @@ def live_steps(
 
     def sink(event: OperationProgressEvent) -> None:
         with lock:
+            if _late_heartbeat(event, finished):
+                # The finished line keeps its own words, not "... is still running".
+                if technical_sink is not None:
+                    technical_sink(log_line(event))
+                return
             elapsed = clock.elapsed(event)
             task_id = tasks.get(event.step_id)
             if task_id is None:
@@ -210,6 +226,9 @@ def live_steps(
                     final = format_duration(elapsed)
                 progress.update(task_id, mark=mark, mark_style=style, final=final)
                 progress.stop_task(task_id)
+                finished.add(event.step_id)
+            elif not event.heartbeat:
+                finished.discard(event.step_id)
         if technical_sink is not None:
             technical_sink(log_line(event))
 

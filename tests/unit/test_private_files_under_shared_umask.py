@@ -136,3 +136,28 @@ def test_secrets_and_state_stay_private_under_the_shared_umask(
     assert written  # non-vacuity
     for path in written:
         _private(path)
+
+
+def test_installer_operation_narrows_state_an_older_release_left_readable(
+    tmp_path: Path,
+) -> None:
+    # 0.9.15's install.sh left `.flow-steward/.docker-desktop-mount-probe` at 0644; only
+    # `doctor --fix secrets_modes --confirm` repaired it and `release upgrade` did not.
+    root = tmp_path / ".flow-steward"
+    root.mkdir(mode=0o700)
+    probe = root / ".docker-desktop-mount-probe"
+    probe.write_text("nonce\n")
+    probe.chmod(0o644)
+    nested = root / "runtime"
+    nested.mkdir()
+    nested.chmod(0o755)
+    exempt = root / "release"
+    exempt.write_text("public\n")
+    exempt.chmod(0o644)
+
+    with InstallerStateStore(root).operation_lock():
+        pass
+
+    _private(probe)
+    _private(nested)
+    assert stat.S_IMODE(exempt.stat().st_mode) == 0o644

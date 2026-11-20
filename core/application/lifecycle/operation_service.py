@@ -249,11 +249,19 @@ class LifecycleOperationRunner:
                     log.write(str(message))
                     _safe_sink_write(technical_sink, redact_installer_text(str(message)))
 
+                step_open = threading.Event()
+                step_open.set()
+
                 def heartbeat(
                     detail: str = "",
                     *,
                     active_step: LifecycleOperationStep = step,
+                    open_step: threading.Event = step_open,
                 ) -> None:
+                    if not open_step.is_set():
+                        # A gateway thread that outlives its step must not report
+                        # the finished step as still running.
+                        return
                     self._emit(
                         progress_sink,
                         active_step,
@@ -277,6 +285,7 @@ class LifecycleOperationRunner:
                         cancellation=cancellation,
                     )
                 finally:
+                    step_open.clear()
                     pulse.stop()
                 if step.step_id not in completed:
                     completed.append(step.step_id)

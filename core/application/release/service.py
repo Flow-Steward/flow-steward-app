@@ -443,14 +443,42 @@ class ReleaseService:
     def info(self, request: ReleaseInfoRequest) -> ReleaseResult:
         del request
         origin = self._load_origin()
+        installed = origin.release if origin.kind == "official" else None
+        pending = self._info_pending(installed)
+        if pending is not None:
+            # An upgrade that stopped half way is the one thing an operator reading
+            # `release info` must not miss: the installed identity alone looked current.
+            return self._result(
+                status="upgrade_pending",
+                installed=installed,
+                installed_origin=origin.kind,
+                source_commit_sha=origin.commit_sha if origin.kind == "source" else "",
+                target=pending,
+                detail=f"Release {pending.version} is prepared but not fully applied.",
+                remediation=(
+                    f"Keep maintenance enabled and repeat `flow-steward release upgrade "
+                    f"--target-version {pending.version} --confirm`."
+                ),
+            )
         if origin.kind == "official":
-            return self._result(status="installed", installed=origin.release)
+            return self._result(status="installed", installed=installed)
         return self._result(
             status="installed",
             installed=None,
             installed_origin="source",
             source_commit_sha=origin.commit_sha,
         )
+
+    def _info_pending(self, installed: ReleaseIdentity | None) -> ReleaseIdentity | None:
+        """The release an unfinished upgrade or source transition is waiting to apply."""
+        if installed is not None:
+            pending = self._effective_pending(installed)
+            return pending if pending is not None and pending != installed else None
+        binding = self._load_transition_binding()
+        phase = getattr(self._load_transition_handoff(), "phase", "")
+        if isinstance(binding, ReleaseTransitionBinding) and phase != "installer_completed":
+            return binding.target_release
+        return None
 
     def check(self, request: ReleaseCheckRequest) -> ReleaseResult:
         """Compare durable applied state without mutating Git, Docker, or lifecycle state."""

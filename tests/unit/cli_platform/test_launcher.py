@@ -5294,6 +5294,31 @@ def test_compact_database_waiver_still_stops_writers(fake_repo):
     assert "ARG=--skip-db-backup" in log
 
 
+def test_compact_database_upgrade_says_it_stops_the_runtime_and_keeps_its_log_on_the_host(
+    fake_repo,
+):
+    """0.9.15 -> 0.9.20 jump test: compact-runtime was stopped without a word, and the
+    log was reported at /app/logs/cli inside a container removed when it exited."""
+    image = f"sha256:{'c' * 64}"
+    _write_compact_installation(fake_repo, image=image)
+    result = _run_launcher(
+        fake_repo,
+        "database",
+        "upgrade",
+        "--maintenance-confirmed",
+        "--confirm",
+        env={"FAKE_IMAGE_REVISION": "test-revision", "FAKE_IMAGE_ID": image},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "stopping compact-runtime" in result.stderr
+    assert "It stays stopped; the release upgrade starts the new release." in result.stderr
+    host_logs = f"{fake_repo[0].resolve()}/.flow-steward/logs/cli"
+    log = _log(fake_repo)
+    assert _arg_sequence("--volume", f"{host_logs}:/app/logs/cli:rw") in log
+    assert f"ARG=FS_CLI_OPERATION_LOG_HOST_ROOT={host_logs}" in log
+    assert (fake_repo[0] / ".flow-steward/logs/cli").is_dir()
+
+
 def test_compact_database_refuses_without_observed_maintenance(fake_repo):
     image = f"sha256:{'c' * 64}"
     _write_compact_installation(fake_repo, image=image)

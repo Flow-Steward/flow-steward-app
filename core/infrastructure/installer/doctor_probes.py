@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _PROC_LOCKS = Path("/proc/locks")
+# Top-level entries of an installation's state directory that hold nothing secret.
+STATE_NOT_SECRET = frozenset({"release", "installer-runtime.cid"})
 
 
 def flock_held(path: Path, *, proc_locks: Path = _PROC_LOCKS) -> bool | None:
@@ -108,3 +110,22 @@ def narrow(entry: WideEntry) -> None:
         os.fchmod(fd, stat.S_IMODE(os.fstat(fd).st_mode) & 0o700)
     finally:
         os.close(fd)
+
+
+def narrow_owned_entries(root: Path, *, exempt: frozenset[str] = STATE_NOT_SECRET) -> int:
+    """Take group and other access from every entry under `root` this user owns.
+
+    What `doctor --fix secrets_modes --confirm` does for a state directory, for callers
+    that must not fail over it: an entry that vanished or changed since it was looked
+    at is skipped, and one owned by somebody else is left for doctor to report.
+    """
+    narrowed = 0
+    for entry in wide_entries(root, exempt=exempt):
+        if not entry.owned:
+            continue
+        try:
+            narrow(entry)
+        except OSError:
+            continue
+        narrowed += 1
+    return narrowed

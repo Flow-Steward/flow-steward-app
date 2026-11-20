@@ -64,16 +64,15 @@ class DatabaseToolingService:
             dsn=self._dsn(request.dsn),
             allow_unlabeled_sessions=request.allow_unlabeled_sessions,
         )
-        blocked = bool(report["blocking"])
+        if report["blocking"]:
+            # The upgrade's own refusal, without the attempt: the same findings and the
+            # same non-zero exit, so `preflight && upgrade` stops here (it exited 0).
+            raise database_upgrade_blocked(list(report["blocking"]), preflight_only=True)
         return DatabaseOperationResult(
             operation="database.preflight",
-            status="blocked" if blocked else "ok",
+            status="ok",
             changed=False,
-            message=(
-                f"database upgrade is blocked by {len(report['blocking'])} issue(s)"
-                if blocked
-                else "database upgrade can proceed"
-            ),
+            message="database upgrade can proceed",
             details=dict(report),
         )
 
@@ -227,7 +226,13 @@ _BLOCKING_REMEDIATION = {
 }
 
 
-def database_upgrade_blocked(blocking: list[dict[str, Any]]) -> LifecycleError:
+_BLOCKED_UPGRADE = "The database upgrade was refused before any change"
+_BLOCKED_PREFLIGHT = "A database upgrade now would be refused"
+
+
+def database_upgrade_blocked(
+    blocking: list[dict[str, Any]], *, preflight_only: bool = False
+) -> LifecycleError:
     """The public error for an upgrade its read-only preflight refused.
 
     Every blocking issue becomes a finding with its own next step, so the operator
@@ -251,7 +256,7 @@ def database_upgrade_blocked(blocking: list[dict[str, Any]]) -> LifecycleError:
         code="database_upgrade_blocked",
         summary="The database upgrade preflight is blocked.",
         cause=(
-            f"The database upgrade was refused before any change: {len(findings)} "
+            f"{_BLOCKED_PREFLIGHT if preflight_only else _BLOCKED_UPGRADE}: {len(findings)} "
             f"blocking issue(s) ({', '.join(codes)})."
         ),
         remediation=(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -615,6 +616,39 @@ def test_platform_dispatcher_forwards_backup_waiver(operation):
     assert "--skip-db-backup" in _canonical_argv(
         _parser().parse_args([operation, "--skip-db-backup", *flags])
     )
+
+
+def test_compact_status_names_a_stopped_runtime_and_the_pending_upgrade(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """0.9.20 jump test: with the upgrade stuck after `database upgrade`, status said
+    only "Compact runtime health probe failed (gaierror)"."""
+    import socket
+
+    from core.entrypoints.cli import compact_platform_runtime
+    from core.infrastructure.installer.state_store import InstallerStateStore
+    from tests.unit.test_release_service import _identity
+
+    def unresolved() -> dict[str, object]:
+        raise socket.gaierror(-2, "Name or service not known")
+
+    monkeypatch.setattr(compact_platform_runtime, "_compact_health_payload", unresolved)
+    monkeypatch.setattr(compact_platform_runtime, "installer_state_root", lambda _root: tmp_path)
+    store = InstallerStateStore(tmp_path)
+    store.publish_installed_release(_identity("0.9.15", "1", profile="compact"))
+
+    (stopped,) = compact_platform_runtime._readiness_payload()["checks"]
+    assert stopped["detail"] == "compact-runtime is not running."
+    assert stopped["remediation"] == "./flow-steward doctor --fix stack_stopped --confirm"
+    assert "gaierror" not in json.dumps(stopped)
+
+    store.stage_pending_release(_identity("0.9.21", "2", profile="compact"))
+
+    (pending,) = compact_platform_runtime._readiness_payload()["checks"]
+    assert pending["detail"] == (
+        "compact-runtime is stopped: the upgrade to release 0.9.21 has not finished."
+    )
+    assert "release upgrade --target-version 0.9.21 --confirm" in pending["remediation"]
 
 
 def test_compact_status_reports_a_stopped_bundled_ingress(

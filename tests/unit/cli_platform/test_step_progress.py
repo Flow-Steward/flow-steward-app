@@ -78,3 +78,25 @@ def test_still_working_waits_until_the_step_itself_has_been_quiet() -> None:
     assert still_working_lines(running, {"prepare": 100.0}, now=131.0) == [
         "  still working: Prepare core images (31s)"
     ]
+
+
+def test_a_pulse_after_the_step_finished_does_not_start_still_working_lines(
+    capsys, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """0.9.20 jump test: the step's heartbeat arrived after its mark, put the step back
+    among the running ones, and "still working" lines followed the finished steps."""
+    import time
+
+    from core.entrypoints.cli.platform import step_progress
+
+    monkeypatch.setattr(step_progress, "REDIRECTED_HEARTBEAT_SECONDS", 0.02)
+    with step_progress.redirected_steps(technical_sink=None, log_line=str) as sink:
+        sink(_event(OperationStepStatus.RUNNING))
+        sink(_event(OperationStepStatus.SUCCEEDED, elapsed_seconds=3))
+        sink(_event(OperationStepStatus.RUNNING, heartbeat=True, detail="still running"))
+        time.sleep(0.2)
+
+    assert capsys.readouterr().out.splitlines() == [
+        "→ Prepare core images",
+        "✓ Prepare core images  3s",
+    ]

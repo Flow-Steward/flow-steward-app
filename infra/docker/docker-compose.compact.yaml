@@ -330,6 +330,9 @@ services:
       HOME: /tmp
       PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
       FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-/run/flow-steward-host-project}
+      # The host path of the state directory mounted below, so a log written there is
+      # reported where the operator can open it (set by ./flow-steward).
+      FS_CLI_HOST_STATE_DIR: ${FS_CLI_HOST_STATE_DIR:-}
       FS_RELEASE_REGISTRIES: ${FS_RELEASE_REGISTRIES:-}
       FS_RELEASE_REPOSITORY: ${FS_RELEASE_REPOSITORY:-Flow-Steward/flow-steward-app}
     volumes:

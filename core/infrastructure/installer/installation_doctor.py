@@ -19,7 +19,12 @@ from core.application.installer import InstallConfig, profile_switch
 from core.application.installer.redaction import redact_installer_text
 from core.application.lifecycle.contracts import journal_blocks_new_work
 from core.infrastructure.config.runtime_env import runtime_env
-from core.infrastructure.installer.doctor_probes import flock_held, narrow, wide_entries
+from core.infrastructure.installer.doctor_probes import (
+    STATE_NOT_SECRET,
+    flock_held,
+    narrow,
+    wide_entries,
+)
 from core.infrastructure.installer.gateway import DockerInstallerGateway
 from core.infrastructure.installer.gateway_support import _RUNTIME_CERTIFICATE_PATH
 from core.infrastructure.installer.state_store import InstallerStateStore
@@ -27,7 +32,6 @@ from core.infrastructure.lifecycle.state_store import LifecycleStateStore
 
 # Under the state directory everything is the owner's alone, except what holds nothing
 # secret: the release store (published extension archives) and Docker's cid file.
-_STATE_NOT_SECRET = frozenset({"release", "installer-runtime.cid"})
 _PRODUCTION_ENV = ".env.prod"
 _COMPACT_OPERATIONS = "/data/state/.flow-steward/operations"
 _COMPACT_MAINTENANCE = "/data/state/.flow-steward/runtime/maintenance-state.json"
@@ -328,7 +332,7 @@ class InstallationDoctorProbe:
     def _wide(self):
         entries = []
         for root in dict.fromkeys((self.state.root, self.root / ".flow-steward")):
-            entries.extend(wide_entries(Path(root), exempt=_STATE_NOT_SECRET))
+            entries.extend(wide_entries(Path(root), exempt=STATE_NOT_SECRET))
         for name in (_PRODUCTION_ENV, ".env"):
             entries.extend(wide_entries(self.root / name))
         key = _env_value(self.root / _PRODUCTION_ENV, "FS_TLS_PRIVATE_KEY_PATH")

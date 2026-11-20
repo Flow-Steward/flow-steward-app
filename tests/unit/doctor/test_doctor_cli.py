@@ -94,7 +94,7 @@ def test_a_plain_json_report_names_each_finding_and_the_fix_and_exits_4(
     assert code == 4
     assert payload["schema"] == "flow-steward.doctor.v1"
     assert payload["problems"] == ["stack_stopped"]
-    assert payload["fix_command"] == "./flow-steward doctor --fix stack_stopped"
+    assert payload["fix_command"] == "./flow-steward doctor --fix stack_stopped --confirm"
     (failing,) = [row for row in payload["installation"] if row["status"] == "fail"]
     assert failing == {
         "check_id": "stack_stopped",
@@ -104,6 +104,21 @@ def test_a_plain_json_report_names_each_finding_and_the_fix_and_exits_4(
         "repairable": True,
     }
     assert payload["configuration"] is None  # not run: said, not hidden
+
+
+def test_the_summary_footer_offers_a_fix_that_runs_as_printed(
+    capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # 0.9.20 jump test: the per-check hints carried --confirm, the footer did not, and
+    # a pasted `doctor --fix stack_stopped` stopped at "Nothing was changed."
+    monkeypatch.setattr(doctor, "runtime_env", {})
+
+    doctor._diagnose(_service(), _probe(), as_json=False)
+
+    summary = capsys.readouterr().out.strip().splitlines()[-1]
+    assert summary == (
+        "1 problem: stack_stopped. Fix with ./flow-steward doctor --fix stack_stopped --confirm"
+    )
 
 
 def test_no_fix_is_offered_while_an_operation_runs(

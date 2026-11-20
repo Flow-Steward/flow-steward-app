@@ -1711,6 +1711,23 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_CLI_HOST_STATE_DIR",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "api",
+      "notes": "Host path of the installation's state directory; set by the launcher for the Compact CLI container, which mounts that directory at /run/flow-steward-install-state, so the CLI reports log paths the operator can open on the host."
+    },
+    {
       "name": "FS_CLI_INVOCATION",
       "groups": [
         "core_runtime"

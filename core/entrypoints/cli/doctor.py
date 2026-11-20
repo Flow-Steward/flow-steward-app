@@ -144,8 +144,14 @@ def _render_text(
         return
     out.write(f"\n{_count(len(problems), 'problem')}: {', '.join(problems)}.")
     if repairable:
-        out.write(f" Fix with ./flow-steward doctor --fix {' '.join(repairable)}")
+        out.write(f" Fix with {_fix_command(repairable)}")
     out.write("\n")
+
+
+def _fix_command(check_ids: list[str]) -> str:
+    """The repair the summary offers, runnable as printed: without --confirm a
+    non-interactive doctor --fix changes nothing (as each check's own hint says)."""
+    return f"./flow-steward doctor --fix {' '.join(check_ids)} --confirm"
 
 
 def _render_configuration(
@@ -363,11 +369,10 @@ def _diagnose(service: DoctorService, probe: InstallationDoctorProbe, *, as_json
                 "configuration": section,
                 "problems": problems,
                 "fix_command": (
-                    "./flow-steward doctor --fix "
-                    + " ".join(f.check_id for f in report.failing if f.repairable)
-                )
-                if any(f.repairable for f in report.failing) and not running
-                else "",
+                    _fix_command([f.check_id for f in report.failing if f.repairable])
+                    if any(f.repairable for f in report.failing) and not running
+                    else ""
+                ),
                 "exit_code": code,
             },
             sys.stdout,
