@@ -710,7 +710,7 @@ describe("OperatorJobPage finished job", () => {
           approved: false,
           actor: "Marta",
           timestamp: "2026-11-19T10:00:00Z",
-          comment: "QA queue: exact rejection note for audit.",
+          comment: "Wrong supplier: the invoice is from Baltic Paper.",
           fields: [],
           values: {},
           changes: [],
@@ -721,7 +721,7 @@ describe("OperatorJobPage finished job", () => {
 
     const decided = await screen.findByTestId("operator-job-review");
     expect(within(decided).getByText(/Rejected by Marta/)).toBeInTheDocument();
-    expect(within(decided).getByTestId("operator-job-review-comment")).toHaveTextContent("Reason: QA queue: exact rejection note for audit.");
+    expect(within(decided).getByTestId("operator-job-review-comment")).toHaveTextContent("Reason: Wrong supplier: the invoice is from Baltic Paper.");
     expect(within(decided).queryByTestId("operator-job-review-values")).not.toBeInTheDocument();
   });
 

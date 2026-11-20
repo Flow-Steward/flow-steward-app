@@ -99,7 +99,7 @@ def test_a_rejection_shows_who_rejected_it_and_why_but_none_of_its_edits() -> No
         ApprovalDecisionInput(
             approved=False,
             approval_id="approval-1",
-            comment="QA queue: exact rejection note for audit.",
+            comment="Wrong supplier: the invoice is from Baltic Paper.",
             values={"total": 999.0},
         )
     )
@@ -116,7 +116,7 @@ def test_a_rejection_shows_who_rejected_it_and_why_but_none_of_its_edits() -> No
     assert decision["access"] == "read"
     assert decision["approved"] is False
     assert decision["actor"] == "Olga"
-    assert decision["comment"] == "QA queue: exact rejection note for audit."
+    assert decision["comment"] == "Wrong supplier: the invoice is from Baltic Paper."
     assert decision["values"] == {}
     assert decision["changes"] == []
     assert "999" not in json.dumps(decision)
