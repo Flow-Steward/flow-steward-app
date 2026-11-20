@@ -1269,6 +1269,131 @@ def test_installer_missing_bounded_reprobe_refuses_refresh_and_publication(tmp_p
     assert existing_service.state.load_installed_release() is None
 
 
+@pytest.mark.parametrize("scenario", ["starts", "never_starts"])
+def test_compact_update_waits_for_a_starting_runtime_before_failing_readiness(
+    tmp_path: Path, scenario: str
+) -> None:
+    """2026-11-20: a Compact update failed `compact_runtime` two seconds after the public
+    route answered, while a role was still starting; a rerun a minute later passed."""
+    gateway = _installed_gateway(_stale())
+    existing_service = _installed_service(tmp_path, gateway)
+    config = InstallConfig(
+        deployment_profile="compact", environment="production", file_storage="local_fs"
+    )
+    gateway.active_config = config
+    now = [0.0]
+    sleeps: list[float] = []
+    budgets: list[float] = []
+    probes: list[float] = []
+    starting_detail = "At least one Compact role, worker, or dependency is not ready."
+
+    def wait(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    def probe() -> dict[str, object]:
+        probes.append(now[0])
+        ready = scenario == "starts" and len(probes) > 2
+        return {
+            "checks": [
+                {"id": "database", "category": "core", "status": "pass"},
+                {
+                    "id": "compact_runtime",
+                    "category": "core",
+                    "title": "Compact runtime",
+                    "status": "pass" if ready else "fail",
+                    "detail": "All Compact roles are ready." if ready else starting_detail,
+                },
+            ]
+        }
+
+    def bounded_probe(remaining: float):
+        budgets.append(remaining)
+        return CoreReadinessService(probe=probe).check()
+
+    service = InstallerService(
+        gateway=gateway,
+        state=existing_service.state,
+        project_identity="flow-steward-test",
+        readiness_service=CoreReadinessService(probe=probe),
+        readiness_reprobe=bounded_probe,
+        readiness_sleep=wait,
+        readiness_clock=lambda: now[0],
+    )
+    release = _release_identity("0.9.1", "2", "compact")
+
+    if scenario == "starts":
+        result = service.install(config, target_release=release)
+        assert result.status == "installed"
+        assert existing_service.state.load_installed_release() == release
+        assert probes == [0.0, 2.0, 4.0]
+        assert sleeps == [2.0, 2.0]
+        assert budgets == [178.0, 176.0]
+        log_text = Path(str(result.log_path)).read_text(encoding="utf-8")
+        assert "Waiting for shared readiness (1/90): Compact runtime (compact_runtime)" in log_text
+        assert "Waiting for shared readiness (2/90)" in log_text
+        assert "Waiting for shared readiness (3/90)" not in log_text
+        assert "the runtime finished starting after 2 rechecks" in log_text
+        assert "core_failed=0" in log_text
+        return
+
+    with pytest.raises(InstallerFailure) as raised:
+        service.install(config, target_release=release)
+    assert raised.value.code == "core_readiness_blocked"
+    assert raised.value.cause == (
+        f"Core readiness blockers remain: Compact runtime (compact_runtime): {starting_detail}"
+    )
+    assert existing_service.state.load_installed_release() is None
+    assert "publish_release_environment" not in gateway.calls
+    # Bounded like the public route: 90 waits of 2 s, then the last report decides.
+    assert sleeps == [2.0] * 90
+    assert now[0] == 180.0
+    assert len(probes) == 90
+    log_text = Path(str(raised.value.log_path)).read_text(encoding="utf-8")
+    assert "Waiting for shared readiness (90/90)" in log_text
+    assert (
+        "Shared readiness still failing after waiting 180s for the runtime: "
+        f"Compact runtime (compact_runtime): {starting_detail}."
+    ) in log_text
+
+
+def test_readiness_does_not_wait_when_more_than_the_runtime_is_failing(tmp_path: Path) -> None:
+    gateway = _installed_gateway(_stale())
+    existing_service = _installed_service(tmp_path, gateway)
+    sleeps: list[float] = []
+    probes: list[int] = []
+
+    def probe() -> dict[str, object]:
+        probes.append(1)
+        return {
+            "checks": [
+                {"id": "database", "category": "core", "status": "fail", "title": "Database"},
+                {"id": "compact_runtime", "category": "core", "status": "fail"},
+            ]
+        }
+
+    service = InstallerService(
+        gateway=gateway,
+        state=existing_service.state,
+        project_identity="flow-steward-test",
+        readiness_service=CoreReadinessService(probe=probe),
+        readiness_reprobe=lambda remaining: CoreReadinessService(probe=probe).check(),
+        readiness_sleep=sleeps.append,
+        readiness_clock=lambda: 0.0,
+    )
+
+    with pytest.raises(InstallerFailure) as raised:
+        service.install(
+            InstallConfig(
+                deployment_profile="compact", environment="production", file_storage="local_fs"
+            )
+        )
+
+    assert raised.value.code == "core_readiness_blocked"
+    assert probes == [1]
+    assert sleeps == []
+
+
 def _stale(*, resumes: bool = False) -> ImageCurrency:
     return ImageCurrency(
         source_revision=_NEW,
