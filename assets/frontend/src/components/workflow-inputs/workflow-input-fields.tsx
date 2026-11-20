@@ -1,9 +1,10 @@
-import { Plus, Trash2, X } from "lucide-react";
-import { useId, useState, type CSSProperties, type ReactNode } from "react";
+import { Camera, Plus, Trash2, X } from "lucide-react";
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { DsCheckbox, DsRadio, DsSelect, MultiCombobox } from "@/components/shared/design-system";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { useTouchDevice } from "@/lib/react/use-touch-device";
 import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
 import "@/pages/dashboard/dashboard-segmented.css";
 
@@ -18,6 +19,7 @@ import {
   type FormFiles,
   type FormValues,
 } from "./form-field";
+import { prepareCameraPhoto } from "./camera-photo";
 import "./workflow-input-fields.css";
 
 export type InputValues = FormValues;
@@ -412,6 +414,13 @@ function FileControl({
   describedBy?: string;
 }>) {
   const { t } = useI18n();
+  const touch = useTouchDevice();
+  const camera = useRef<HTMLInputElement>(null);
+  const [shooting, setShooting] = useState(false);
+  const add = (picked: File[]) => {
+    // Several files add up across picks (a phone camera takes one at a time).
+    onFiles(multiple ? [...files, ...picked.filter((file) => !files.some((known) => sameFile(known, file)))] : picked.slice(0, 1));
+  };
   return (
     <div className="grid gap-2">
       <input
@@ -421,13 +430,47 @@ function FileControl({
         disabled={disabled}
         multiple={multiple}
         onChange={(event) => {
-          const picked = Array.from(event.target.files ?? []);
-          // Several files add up across picks (a phone camera takes one at a time).
-          onFiles(multiple ? [...files, ...picked.filter((file) => !files.some((known) => sameFile(known, file)))] : picked.slice(0, 1));
+          add(Array.from(event.target.files ?? []));
           event.target.value = "";
         }}
         type="file"
       />
+      {touch ? (
+        // On a phone or tablet the camera opens at once: no gallery, no menu.
+        <>
+          <button
+            className="fs-button secondary fs-workflow-camera-button"
+            data-testid={`take-photo-${field.name}`}
+            disabled={disabled || shooting}
+            onClick={() => camera.current?.click()}
+            type="button"
+          >
+            <Camera aria-hidden="true" />
+            {shooting ? t("react.operator_form.preparing_photo", "Preparing the photo…") : t("react.operator_form.take_photo", "Take a photo")}
+          </button>
+          <input
+            accept="image/*"
+            // The button above is the control; this input only carries the camera.
+            aria-hidden="true"
+            capture="environment"
+            className="sr-only"
+            data-testid={`camera-input-${field.name}`}
+            disabled={disabled || shooting}
+            onChange={(event) => {
+              const shots = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (!shots.length) return;
+              setShooting(true);
+              void Promise.all(shots.map((shot) => prepareCameraPhoto(shot)))
+                .then(add)
+                .finally(() => setShooting(false));
+            }}
+            ref={camera}
+            tabIndex={-1}
+            type="file"
+          />
+        </>
+      ) : null}
       {files.length ? (
         <ul aria-label={t("react.operator_form.chosen_files", "Chosen files for {label}", { label: field.label })} className="fs-workflow-file-list">
           {files.map((file, index) => (

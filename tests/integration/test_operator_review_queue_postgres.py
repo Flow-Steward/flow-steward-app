@@ -15,7 +15,10 @@ from typing import Any
 import pytest
 
 from core.infrastructure.db import job_queries_store
-from core.infrastructure.db.job_review_chain_store import read_awaiting_review_targets
+from core.infrastructure.db.job_review_chain_store import (
+    read_awaiting_review_targets,
+    read_review_roots,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -160,6 +163,24 @@ def test_a_parent_two_invokes_above_the_approval_waits_for_review(conn, project)
     }
     assert targets[chain["a"]]["selected_workflow"] == CHILD_WORKFLOW
     assert targets[chain["a"]]["account_id"]
+
+
+def test_the_root_of_a_pending_approval_is_the_top_of_its_chain(conn, project) -> None:
+    chain = _chain(conn, project)
+    alone = _job(conn, project, status="awaiting_approval", minutes_ago=3)
+
+    roots = read_review_roots(conn, job_ids=[chain["c"], alone], max_depth=5)
+
+    # The bell opens C's section job, A; a job without a parent is its own root.
+    assert roots[chain["c"]]["root_job_id"] == chain["a"]
+    assert roots[chain["c"]]["root_project_id"] == project
+    assert roots[chain["c"]]["root_workflow"] != CHILD_WORKFLOW
+    assert alone not in roots
+    # The depth limit stops the walk upwards as it stops the queue.
+    assert (
+        read_review_roots(conn, job_ids=[chain["c"]], max_depth=1)[chain["c"]]["root_job_id"]
+        == chain["b"]
+    )
 
 
 def test_the_depth_limit_and_a_consumed_link_end_the_chain(conn, project) -> None:

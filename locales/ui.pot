@@ -30734,3 +30734,9 @@ msgstr ""
 
 msgid "react.operator_job.resend_missing_block"
 msgstr ""
+
+msgid "react.operator_form.take_photo"
+msgstr ""
+
+msgid "react.operator_form.preparing_photo"
+msgstr ""

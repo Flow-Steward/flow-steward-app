@@ -437,6 +437,12 @@ class PlatformLoggerAdminQueriesMixin(PlatformLoggerCommandAuditMixin):
 
         return read_awaiting_review_targets(self.conn, job_ids=job_ids, max_depth=max_depth)
 
+    def read_review_roots(self, *, job_ids: list[str], max_depth: int) -> dict[str, dict[str, Any]]:
+        """The top of the Invoke chain of each given job that holds an approval."""
+        from core.infrastructure.db.job_review_chain_store import read_review_roots
+
+        return read_review_roots(self.conn, job_ids=job_ids, max_depth=max_depth)
+
     def read_job_operator_payloads(
         self, *, job_ids: list[str], account_id: str
     ) -> dict[str, dict[str, Any]]:

@@ -336,6 +336,9 @@ def test_without_read_on_the_child_no_fields_values_files_or_job_id_leave_the_se
         "job_values": {
             "status": "awaiting_child",
             "submitted_by": None,
+            "created_at": None,
+            "finished_at": None,
+            "duration_ms": None,
             "inputs": {},
             "outputs": None,
         },

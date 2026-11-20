@@ -1,5 +1,5 @@
 /* eslint-disable testing-library/no-node-access, testing-library/no-container -- fields are addressed by their data-field frame, as the dialog names them. */
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 
 import type { FormFieldView, FormFiles, FormValues } from "./form-field";
@@ -101,6 +101,34 @@ describe("WorkflowInputFields widgets", () => {
       expect.stringContaining("page-3.jpg"),
     ]);
     expect(latest.pages?.map((file) => file.name)).toEqual(["page-1.jpg", "page-2.jpg", "page-3.jpg"]);
+  });
+
+  it("offers the camera on a touch screen and adds each shot, renamed by its time", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({ matches: query === "(pointer: coarse)", addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    try {
+      let latest: FormFiles = {};
+      const { container } = render(<Harness fields={[field("pages", "file_list", "files")]} onState={(_, files) => { latest = files; }} />);
+      expect(within(frame(container, "pages")).getByRole("button", { name: "Take a photo" })).toBeInTheDocument();
+      const camera = within(frame(container, "pages")).getByTestId("camera-input-pages") as HTMLInputElement;
+      expect(camera).toHaveAttribute("capture", "environment");
+      expect(camera).toHaveAttribute("accept", "image/*");
+
+      fireEvent.change(camera, { target: { files: [new File(["first"], "image.jpg", { type: "image/jpeg" })] } });
+      await waitFor(() => expect(latest.pages).toHaveLength(1));
+      fireEvent.change(camera, { target: { files: [new File(["second shot"], "image.jpg", { type: "image/jpeg" })] } });
+      await waitFor(() => expect(latest.pages).toHaveLength(2));
+      expect(latest.pages?.every((file) => /^photo-\d{8}-\d{6}\.jpg$/.test(file.name))).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("shows no camera button where a mouse is the pointer", () => {
+    const { container } = render(<Harness fields={[field("pages", "file_list", "files")]} onState={() => undefined} />);
+    expect(within(frame(container, "pages")).queryByRole("button", { name: "Take a photo" })).not.toBeInTheDocument();
   });
 
   it("does not render hidden, fixed or condition-hidden fields", () => {

@@ -124,3 +124,13 @@
   border: 1px solid var(--fs-border-subtle);
   border-radius: var(--fs-radius-control);
 }
+
+/* "Take a photo" on a phone: the whole width, easy to hit with a thumb. */
+.fs-workflow-camera-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fs-space-050);
+  min-height: 2.75rem;
+  width: 100%;
+}
