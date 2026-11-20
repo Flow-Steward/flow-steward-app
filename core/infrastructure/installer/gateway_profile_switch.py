@@ -31,6 +31,7 @@ from core.infrastructure.installer.gateway_support import (
     _last_error_text,
     _read_env,
 )
+from core.infrastructure.installer.state_store import INSTALLER_LOCK_LEASE_ENV
 
 if TYPE_CHECKING:
     from core.infrastructure.installer.gateway import DockerInstallerGateway
@@ -426,15 +427,30 @@ class ProfileSwitchOperations:
     def write_switch_pending(self: DockerInstallerGateway, patch: Any) -> None:
         self._configuration.store.write_pending(patch)
 
+    def discard_switch_pending(self: DockerInstallerGateway, patch: Any) -> None:
+        """Drop the switch's pending change after a failed switch left nothing to resume.
+
+        Left behind, it is applied by the next `config apply` an operator runs for
+        anything else -- a profile switch nobody asked for then. Only the switch's own
+        patch goes; a pending change written since is the operator's and stays.
+        """
+        store = self._configuration.store
+        if store.read_pending() == patch:
+            store.clear_pending()
+
     def apply_switch_in_cli(
         self: DockerInstallerGateway, scalable: InstallConfig, *, log: InstallerLog
     ) -> None:
         """`config apply` in the Scalable CLI container, with the lifecycle lock lent."""
         context = self._cli_runtime_context(scalable, log=log)
+        # The lease travels by name only (`-e NAME` reads it from this process's
+        # environment), so it never appears in a process list or in the log.
         command = [
             *context.compose_prefix,
             "exec",
             "-T",
+            "-e",
+            INSTALLER_LOCK_LEASE_ENV,
             "fs-cli",
             "python",
             "-m",
@@ -444,11 +460,11 @@ class ProfileSwitchOperations:
             "--confirm",
         ]
         log.write(_MESSAGE_RUNNING + " ".join(command))
-        with self.state_store.lifecycle_lock_lent():
+        with self.state_store.lifecycle_lock_lent() as lease:
             outcome = self.process.run(
                 command,
                 cwd=self.repo_root,
-                environment=context.environment,
+                environment={**context.environment, INSTALLER_LOCK_LEASE_ENV: lease},
                 output_sink=log.write,
                 timeout_seconds=_SWITCH_APPLY_TIMEOUT_SECONDS,
             )
@@ -458,8 +474,9 @@ class ProfileSwitchOperations:
                 cause="The profile switch did not complete: "
                 + (_last_error_text(outcome) or "see the log"),
                 remediation=(
-                    "The switch is journaled and rolled back where it could be. Rerun "
-                    "./install.sh to continue it; ./flow-steward status names the operation."
+                    "What the switch changed was rolled back where it could be. Rerun the "
+                    "same ./install.sh command to try again; if `./flow-steward status` names an unfinished "
+                    "configuration operation, that rerun continues it."
                 ),
                 exit_code=8,
                 retryable=True,

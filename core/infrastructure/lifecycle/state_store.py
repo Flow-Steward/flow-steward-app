@@ -25,10 +25,13 @@ from core.application.lifecycle.contracts import (
     journal_blocks_new_work,
 )
 from core.application.lifecycle.errors import LifecycleError
+from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.installer.state_store import (
     INSTALLER_LOCK_KIND,
+    INSTALLER_LOCK_LEASE_ENV,
     _assert_secret_free,
     _atomic_write_text,
+    installer_lock_lease_matches,
 )
 
 _SAFE_OPERATION_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
@@ -284,6 +287,13 @@ class LifecycleStateStore:
         except BlockingIOError as exc:
             metadata = _read_lock_metadata(installation_fd)
             os.close(installation_fd)
+            # A profile switch: ./install.sh keeps install.lock for its whole run and
+            # leases it to the one `config apply` it starts, which must not refuse
+            # itself. Any other holder, or a lease this process was not given, refuses.
+            if installer_lock_lease_matches(
+                metadata, str(_runtime_env.get(INSTALLER_LOCK_LEASE_ENV) or "")
+            ):
+                return -1
             raise self._conflict(metadata) from exc
         return installation_fd
 
