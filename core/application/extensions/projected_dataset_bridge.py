@@ -18,6 +18,14 @@ def projection_bridge_id(install_id: str, artifact_id: str) -> str:
     return f"extension.{normalized_install}.{normalized_artifact}"
 
 
+def projection_bridge_install_id(artifact_id: str) -> str:
+    """Read the install segment of a canonical projected artifact handle."""
+    parts = artifact_id.split(".", 2)
+    if len(parts) != 3 or parts[0] != "extension" or not parts[2]:
+        return ""
+    return parts[1]
+
+
 def projection_bridge_metadata(
     *, install_id: str, release_id: str, artifact_kind: str, artifact_id: str
 ) -> dict[str, Any]:

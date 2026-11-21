@@ -25,6 +25,7 @@ export type WorkflowListItem = {
   description?: string;
   enabled?: boolean;
   portability?: WorkflowExportPolicy;
+  extensions?: Array<{ extension_id: string; display_name: string }>;
   updated_at?: string;
   [key: string]: unknown;
 };

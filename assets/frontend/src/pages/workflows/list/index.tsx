@@ -77,20 +77,27 @@ const ENABLED_FILTER_VALUE = "enabled";
 /** `projects` is null for a reader who cannot see the registry: no project field then. */
 function localizedWORKFLOW_FILTER_FIELDS(
   projects: ReadonlyArray<{ id: string; name: string }> | null,
+  extensionOptions: DsFilterField["options"],
   t: I18nContextValue["t"] = fallbackContext.t,
 ): DsFilterField[] {
   return [
-  ...(projects ? [{
-    key: "project",
-    label: t("events.columns.project", "Project"),
-    options: projects.map((project) => ({ value: project.id, label: project.name })),
-  }] : []),
-  {
-    key: "status",
-    label: t("extensions.runtime.status", "Status"),
-    options: [{ value: ENABLED_FILTER_VALUE, label: t("react.workflows.enabled_only", "Enabled only") }],
-  },
-];
+    ...(projects ? [{
+      key: "project",
+      label: t("events.columns.project", "Project"),
+      options: projects.map((project) => ({ value: project.id, label: project.name })),
+    }] : []),
+    {
+      key: "status",
+      label: t("extensions.runtime.status", "Status"),
+      options: [{ value: ENABLED_FILTER_VALUE, label: t("react.workflows.enabled_only", "Enabled only") }],
+    },
+    {
+      key: "extension",
+      label: t("extension_page.extension_fallback", "Extension"),
+      options: extensionOptions,
+      multiple: true,
+    },
+  ];
 }
 
 function normalizeWorkflows(payload: unknown): WorkflowListItem[] {
@@ -304,7 +311,7 @@ export function WorkflowsListPage() {
   const location = useLocation();
   const routeParams = new URLSearchParams(location.search);
   const showingCatalog = routeParams.get("tab") === "catalog" || routeParams.get("create") === "template";
-  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id"], !showingCatalog);
+  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id", "extension"], !showingCatalog);
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.
@@ -319,6 +326,11 @@ export function WorkflowsListPage() {
   // old link to the catalog dialog (?create=template) opens the Catalog tab.
   const activeTab = searchParams.get("tab") === "catalog" || createParam === "template" ? "catalog" : "workflows";
   const enabledOnly = searchParams.get("enabled") === "1";
+  const extensionFilter = searchParams.get("extension") || "";
+  const selectedExtensionIds = useMemo(
+    () => new Set(extensionFilter.split(",").map((id) => id.trim()).filter(Boolean)),
+    [extensionFilter],
+  );
   const search = firstStringFromUnknownValue([searchParams.get("search"), ""]);
   const deferredSearch = useDeferredValue(search);
   // Workflow authoring (create / import / builder / clone) is admin-only; the backend
@@ -350,12 +362,24 @@ export function WorkflowsListPage() {
     refetchOnMount: "always",
   });
 
-  const workflows = useMemo(() => {
-    if (!canReadRegistry) return [];
-    const allWorkflows = normalizeWorkflows(workflowsQuery.data);
-    return projectFilter.workflowIds === null ? allWorkflows
-      : allWorkflows.filter((workflow) => projectFilter.workflowIds?.has(workflowIdFromRow(workflow)));
-  }, [canReadRegistry, workflowsQuery.data, projectFilter.workflowIds]);
+  const allWorkflows = useMemo(
+    () => canReadRegistry ? normalizeWorkflows(workflowsQuery.data) : [],
+    [canReadRegistry, workflowsQuery.data],
+  );
+  const extensionOptions = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const workflow of allWorkflows) {
+      for (const { extension_id: id, display_name: name } of workflow.extensions ?? []) {
+        if (!names.has(id) || names.get(id) === id) names.set(id, name || id);
+      }
+    }
+    return Array.from(names, ([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label) || left.value.localeCompare(right.value));
+  }, [allWorkflows]);
+  const workflows = useMemo(() => allWorkflows.filter((workflow) =>
+    (projectFilter.workflowIds === null || projectFilter.workflowIds.has(workflowIdFromRow(workflow))) &&
+    (selectedExtensionIds.size === 0 || workflow.extensions?.some((extension) => selectedExtensionIds.has(extension.extension_id))),
+  ), [allWorkflows, projectFilter.workflowIds, selectedExtensionIds]);
   const workflowRows = useMemo(
     () =>
       workflows.map((workflow, index) => {
@@ -477,7 +501,7 @@ export function WorkflowsListPage() {
   );
 
 
-  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string }) {
+  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string; extensionFilter?: string }) {
     startTransition(() => {
       updateSearchParams((params) => {
         params.delete("page");
@@ -489,6 +513,10 @@ export function WorkflowsListPage() {
         if (next.enabledOnly !== undefined) {
           if (next.enabledOnly) params.set("enabled", "1");
           else params.delete("enabled");
+        }
+        if (next.extensionFilter !== undefined) {
+          if (next.extensionFilter) params.set("extension", next.extensionFilter);
+          else params.delete("extension");
         }
         if (next.projectId !== undefined) {
           if (next.projectId) params.set("project_id", next.projectId);
@@ -637,12 +665,14 @@ export function WorkflowsListPage() {
           <div className="fs-table-toolbar">
             <AdvancedTableFilters
               disabled={workflowsQuery.isLoading}
-              fields={localizedWORKFLOW_FILTER_FIELDS(canReadRegistry ? projectFilter.projects : null, t)}
-              onChange={(key, value) => updateParams(
-                key === "project" ? { projectId: value } : { enabledOnly: value === ENABLED_FILTER_VALUE },
-              )}
-              onClear={() => updateParams({ enabledOnly: false, projectId: "" })}
-              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "" }}
+              fields={localizedWORKFLOW_FILTER_FIELDS(canReadRegistry ? projectFilter.projects : null, extensionOptions, t)}
+              onChange={(key, value) => {
+                if (key === "project") updateParams({ projectId: value });
+                if (key === "status") updateParams({ enabledOnly: value === ENABLED_FILTER_VALUE });
+                if (key === "extension") updateParams({ extensionFilter: value });
+              }}
+              onClear={() => updateParams({ enabledOnly: false, projectId: "", extensionFilter: "" })}
+              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "", extension: extensionFilter }}
             />
             <label className="fs-search">
               <Search aria-hidden="true" />

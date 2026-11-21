@@ -7,11 +7,19 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any
 
+from core.application.extensions.projected_dataset_bridge import projection_bridge_install_id
 from core.application.registry.workflow_secret_defaults import (
     preserve_secret_references,
     strip_workflow_secret_authority,
 )
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
+from core.application.workflows.extension_connection_validation import (
+    named_extension_without_install,
+    step_connector_install_id,
+    step_extension_id,
+)
+from core.application.workflows.workflow_action_contract import action_invoke_dependencies
+from core.application.workflows.workflow_catalog_identity import parse_projected_identity
 from core.application.workflows.workflow_hook_authoring_policy import (
     HOOK_DECLARATION_MODE_CODE,
     HOOK_DECLARATION_MODE_MESSAGE,
@@ -29,8 +37,11 @@ from core.application.workflows.workflow_portability_common import (
     _extension_owned,
     _is_mock,
     _redact_sensitive,
+    _resolve_named_step_extension,
+    _step_child_workflow_ref,
     _text,
     _workflow_settings,
+    _workflow_steps,
 )
 from core.application.workflows.workflow_portability_definitions import (
     _portable_extension_identity,
@@ -109,6 +120,11 @@ class WorkflowPortabilityPolicyMixin:
         """
         install_id = _text(workflow.get("source_install_id"))
         account_id = _text(workflow.get("account_id")) or _text(getattr(self, "account_id", ""))
+        return self._extension_identity_for_install(install_id, account_id)
+
+    def _extension_identity_for_install(
+        self, install_id: str, account_id: str, *, include_global: bool = False
+    ) -> dict[str, Any]:
         store = getattr(self, "extension_install_store", None)
         if not install_id or not account_id or store is None or _is_mock(store):
             return {}
@@ -119,7 +135,92 @@ class WorkflowPortabilityPolicyMixin:
                 store, "get_extension_install_for_operator", install_id, account_id=account_id
             )
             cache[key] = _portable_extension_identity(row, install_id=install_id) if row else {}
-        return cache[key]
+        if cache[key] or not include_global:
+            return cache[key]
+        visible_key = (install_id, account_id, "global")
+        if visible_key not in cache:
+            row = _call_db_get_scoped(
+                store,
+                "get_extension_by_install_id_for_runtime_gate",
+                install_id,
+                account_id=account_id,
+            )
+            cache[visible_key] = (
+                _portable_extension_identity(row, install_id=install_id) if row else {}
+            )
+        return cache[visible_key]
+
+    def list_catalog_extension_associations(
+        self, workflows: list[dict[str, Any]], *, account_id: str
+    ) -> list[list[dict[str, str]]]:
+        """Resolve the list's ambiguous connector IDs in a single registry query."""
+        connector_ids = {
+            _text(step.get("connector_id"))
+            for workflow in workflows
+            for step in _workflow_steps(workflow)
+            if not step_extension_id(step)
+            and (named := named_extension_without_install(step))
+            and not named.connector_form
+        }
+        registry_tool_ids = (
+            set(self.db.find_live_tool_ids(connector_ids)) if connector_ids else set()
+        )
+        return [
+            self.list_extension_associations(
+                workflow, account_id=account_id, registry_tool_ids=registry_tool_ids
+            )
+            for workflow in workflows
+        ]
+
+    def list_extension_associations(
+        self,
+        workflow: dict[str, Any],
+        *,
+        account_id: str,
+        registry_tool_ids: set[str] | None = None,
+    ) -> list[dict[str, str]]:
+        """Package identities from the workflow's source and current saved steps."""
+        owner_account_id = _text(workflow.get("account_id")) or account_id
+        install_ids = {_text(workflow.get("source_install_id"))}
+        labels: dict[str, str] = {}
+        for step in _workflow_steps(workflow):
+            extension_id = step_extension_id(step)
+            if not extension_id:
+                named = _resolve_named_step_extension(
+                    self.db, step, registry_tool_ids=registry_tool_ids
+                )
+                extension_id = named.extension_id if named else ""
+            if extension_id:
+                labels[extension_id] = extension_id
+            install_ids.add(step_connector_install_id(step))
+            block = parse_projected_identity(_text(step.get("block_key")))
+            install_ids.add(block.get("install_id", ""))
+            child = _step_child_workflow_ref(step)
+            install_ids.add(
+                parse_projected_identity(child).get("install_id")
+                or projection_bridge_install_id(child)
+            )
+            invoke = _as_dict(step.get("override")).get("invoke_workflow")
+            install_ids.update(
+                ref
+                for kind, ref, _ in action_invoke_dependencies(invoke)
+                if kind == "extension_install"
+            )
+
+        for install_id in sorted(install_ids - {""}):
+            identity = self._extension_identity_for_install(
+                install_id, owner_account_id, include_global=True
+            )
+            extension_id = _text(identity.get("extension_id"))
+            if extension_id:
+                label = _text(identity.get("display_name")) or extension_id
+                if labels.get(extension_id, extension_id) == extension_id:
+                    labels[extension_id] = label
+
+        return [
+            {"extension_id": extension_id, "display_name": labels[extension_id]}
+            for extension_id in sorted(labels)
+        ]
 
     def _export_policy_from_workflow(self, workflow: dict[str, Any]) -> dict[str, Any]:
         workflow_id = _text(workflow.get("workflow_id"))

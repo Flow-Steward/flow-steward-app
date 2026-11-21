@@ -7,6 +7,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from core.application.workflows.extension_connection_validation import (
+    NamedStepExtension,
+    named_extension_without_install,
+)
 from core.application.workflows.workflow_portability_redaction import (
     _DROPPED_SENSITIVE_KEYS,
     _REDACTED,
@@ -536,6 +540,21 @@ def _tool_refs_from_override(override: Any) -> list[str]:
         if tool_id and tool_id not in refs:
             refs.append(tool_id)
     return refs
+
+
+def _resolve_named_step_extension(
+    db: Any, step: dict[str, Any], *, registry_tool_ids: set[str] | None = None
+) -> NamedStepExtension | None:
+    named = named_extension_without_install(step)
+    if not named or named.connector_form:
+        return named
+    connector_id = _text(step.get("connector_id"))
+    is_tool = (
+        connector_id in registry_tool_ids
+        if registry_tool_ids is not None
+        else _call_db_get(db, "get_tool", connector_id) is not None
+    )
+    return None if is_tool else named
 
 
 def _call_db_get_scoped(

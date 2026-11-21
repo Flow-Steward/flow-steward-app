@@ -5392,6 +5392,57 @@ class TestWorkflowCRUD:
             for item in body
         )
 
+    @pytest.mark.parametrize("search", [None, "Demo invoice"])
+    def test_list_workflows_returns_extension_associations_without_protected_secrets(
+        self, registry_client, search
+    ):
+        from core.entrypoints.admin import workflows as workflow_routes
+
+        extension_step = {
+            "step_id": "render",
+            "step_kind": "connector",
+            "connector_id": "example.gotenberg.render",
+            "override": {"api_key": "private-demo-credential"},
+        }
+        workflow = {
+            "workflow_id": "demo_invoice",
+            "display_name": "Demo invoice",
+            "projection_mode": "derived",
+            "enabled": True,
+            "steps": [
+                extension_step,
+                {**extension_step, "step_id": "render_again"},
+                {"step_id": "tool", "step_kind": "connector", "connector_id": "example.tools.run"},
+            ],
+        }
+        mock_db = MagicMock()
+        mock_db.list_workflows.return_value = [workflow]
+        mock_db.search_entities.return_value = [{"entity_id": "demo_invoice"}]
+        mock_db.find_live_tool_ids.return_value = {"example.tools.run"}
+
+        with (
+            patch.object(workflow_routes, "_get_db", return_value=mock_db),
+            patch(
+                "core.entrypoints.admin.workflows_routes_listing_import.projection_aware_catalog_rows",
+                return_value=[workflow],
+            ),
+        ):
+            response = registry_client.get(
+                "/api/workflows", params={"search": search} if search else {}
+            )
+
+        assert response.status_code == 200
+        (item,) = response.json()
+        assert item["extensions"] == [
+            {"extension_id": "example.gotenberg", "display_name": "example.gotenberg"}
+        ]
+        assert item["protected_workflow"] is True
+        assert "private-demo-credential" not in response.text
+        mock_db.find_live_tool_ids.assert_called_once_with(
+            {"example.gotenberg.render", "example.tools.run"}
+        )
+        mock_db.get_tool.assert_not_called()
+
     def test_list_workflows_uses_request_account_scope_for_extension_rows(self, registry_client):
         try:
             import core.entrypoints.admin.workflows as workflow_routes
@@ -12072,10 +12123,7 @@ class TestWorkflowCRUD:
             resp, "assets/frontend/src/pages/workflows/list/index.tsx"
         )
         assert "Workflow catalog" in contract_text
-        assert (
-            'fetchWorkflows({ enabledOnly, search: deferredSearch })'
-            in contract_text
-        )
+        assert "fetchWorkflows({ enabledOnly, search: deferredSearch })" in contract_text
         assert "handleCloneWorkflow" in contract_text
         assert 'action_id: "clone"' in contract_text
         assert 'action_id: "export"' in contract_text
