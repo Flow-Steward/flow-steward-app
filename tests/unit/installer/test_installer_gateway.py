@@ -6002,6 +6002,75 @@ def test_health_rejects_non_running_or_unhealthy_core_service(tmp_path: Path) ->
     assert "fs-app" in raised.value.cause
 
 
+def _health_rows(**health: str) -> str:
+    services = ("traefik", "rabbitmq-fs", "pg-fs", "fs-mcp", "fs-app", "fs-worker")
+    rows = [
+        {"Service": service, "State": "running", "Health": health.get(service, "healthy")}
+        for service in (*services, "control-plane", "seaweedfs", "fs-extension-installer")
+    ]
+    return json.dumps(rows)
+
+
+def test_health_waits_for_a_healthcheck_that_is_still_starting(tmp_path: Path) -> None:
+    """E2E 2026-11-21 (N2): a completed switch ended with exit 8, "rabbitmq-fs:
+    health=starting", 5 s after the run had started the core services again."""
+    slept: list[float] = []
+    gateway = _gateway(tmp_path, FakeProcessExecutor(), sleep=slept.append)
+    config = InstallConfig()
+    command = (*gateway._compose_prefix(config), "ps", "--format", "json")
+    gateway.process.queued_outcomes[command] = [
+        ProcessOutcome(command=command, returncode=0, stdout=_health_rows(**{"rabbitmq-fs": s}))
+        for s in ("starting", "starting", "healthy")
+    ]
+    log = gateway.state_store.open_log("health-starting")
+    try:
+        gateway.verify_health(config, log=log)
+    finally:
+        log.close()
+    assert len(slept) == 2
+
+
+def test_health_that_never_finishes_starting_is_named(tmp_path: Path) -> None:
+    slept: list[float] = []
+    gateway = _gateway(tmp_path, FakeProcessExecutor(), sleep=slept.append)
+    config = InstallConfig()
+    command = (*gateway._compose_prefix(config), "ps", "--format", "json")
+    gateway.process.outcomes[command] = ProcessOutcome(
+        command=command, returncode=0, stdout=_health_rows(seaweedfs="starting")
+    )
+    log = gateway.state_store.open_log("health-stuck")
+    try:
+        with pytest.raises(InstallerFailure) as raised:
+            gateway.verify_health(config, log=log)
+    finally:
+        log.close()
+    assert raised.value.code == "container_unhealthy"
+    assert "seaweedfs: state=running, health=starting" in raised.value.cause
+    assert slept  # it was waited for, within a bound
+
+
+def test_an_unhealthy_service_is_not_waited_for(tmp_path: Path) -> None:
+    """The green direction: only a starting healthcheck earns a wait."""
+    slept: list[float] = []
+    gateway = _gateway(tmp_path, FakeProcessExecutor(), sleep=slept.append)
+    config = InstallConfig()
+    command = (*gateway._compose_prefix(config), "ps", "--format", "json")
+    gateway.process.outcomes[command] = ProcessOutcome(
+        command=command,
+        returncode=0,
+        stdout=_health_rows(**{"pg-fs": "unhealthy", "rabbitmq-fs": "starting"}),
+    )
+    log = gateway.state_store.open_log("health-unhealthy")
+    try:
+        with pytest.raises(InstallerFailure) as raised:
+            gateway.verify_health(config, log=log)
+    finally:
+        log.close()
+    assert "pg-fs: state=running, health=unhealthy" in raised.value.cause
+    assert "rabbitmq-fs" in raised.value.cause
+    assert slept == []
+
+
 def test_bootstrap_probe_requires_structured_application_state(tmp_path: Path, monkeypatch) -> None:
     gateway = _gateway(tmp_path, FakeProcessExecutor())
     config = InstallConfig()

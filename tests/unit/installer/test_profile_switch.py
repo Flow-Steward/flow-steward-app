@@ -606,17 +606,24 @@ def test_the_target_images_resolve_from_what_the_apply_will_write_for_it(
 ) -> None:
     """E2E 2026-11-20 (S4): Scalable to Compact stopped before any change with "could not
     resolve infrastructure images" -- the images were resolved against the installed
-    Scalable .env.prod, which has no FS_WORKER_PROCESSES."""
+    Scalable .env.prod, which has no FS_WORKER_PROCESSES. The second E2E: an installation
+    that was always Scalable has no FS_COMPACT_IMAGE until the switch builds it."""
     from core.application.lifecycle.contracts import DeploymentConfig
     from core.infrastructure.lifecycle.configuration_store import LifecycleConfigurationStore
 
     root = tmp_path / "repo"
     docker = _Docker(root)
-    docker.render_requires = ("FS_WORKER_PROCESSES", "FS_RUNTIME_HTTP_PORT")
+    docker.render_requires = ("FS_WORKER_PROCESSES", "FS_RUNTIME_HTTP_PORT", "FS_COMPACT_IMAGE")
     gateway, _prepared = _gateway(root, docker, monkeypatch)
     monkeypatch.undo()  # the real prepare_switch_target; only image building is faked
+
+    def build_compact_runtime(*_args, **_kwargs):
+        gateway.state_store.update_env_values(
+            root / ".env.prod", {"FS_COMPACT_IMAGE": _COMPACT_IMAGE}
+        )
+
+    monkeypatch.setattr(gateway, "_build_compact_runtime_image", build_compact_runtime)
     for name in (
-        "_build_compact_runtime_image",
         "_build_compact_management_image",
         "_build_scalable_candidate_images",
         "_refuse_lost_image_ids",
@@ -632,7 +639,6 @@ def test_the_target_images_resolve_from_what_the_apply_will_write_for_it(
                 "# BEGIN FLOW STEWARD INSTALLER MANAGED",
                 *_DURABLE_SECRETS,
                 "# END FLOW STEWARD INSTALLER MANAGED",
-                f"FS_COMPACT_IMAGE={_COMPACT_IMAGE}",
                 "",
             )
         ),
@@ -650,6 +656,7 @@ def test_the_target_images_resolve_from_what_the_apply_will_write_for_it(
     assert render[render.index("--env-file") + 1] == "/dev/null"
     assert environment is not None
     assert environment["FS_WORKER_PROCESSES"] == "2"
+    assert environment["FS_COMPACT_IMAGE"] == _COMPACT_IMAGE
     assert "FS_WORKER_PROCESSES" not in (root / ".env.prod").read_text(encoding="utf-8")
 
 

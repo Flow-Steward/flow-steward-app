@@ -298,10 +298,11 @@ class ProfileSwitchOperations:
 
         Scalable to Compact resolved the infrastructure images against the installed
         Scalable .env.prod, which has no FS_WORKER_PROCESSES, and stopped with
-        "could not resolve infrastructure images" before anything was switched.
+        "could not resolve infrastructure images" before anything was switched. The
+        render is taken after the target's own images are built: an installation that
+        was always Scalable has no FS_COMPACT_IMAGE until then.
         """
-        prefix, environment = self._switch_target_compose(target)
-        self._prepare_core(target, log=log, compose_prefix=prefix, compose_environment=environment)
+        self._prepare_core(target, log=log, compose=lambda: self._switch_target_compose(target))
 
     def _switch_target_compose(
         self: DockerInstallerGateway, target: InstallConfig

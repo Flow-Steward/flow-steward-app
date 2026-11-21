@@ -104,6 +104,30 @@ class HealthOperations:
     def verify_health(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:
+        # E2E 2026-11-21 (N2): a completed Scalable to Compact switch ended with exit 8,
+        # "rabbitmq-fs: health=starting", 5 s after this run had (re)started the core
+        # services. A healthcheck still starting is waited for; anything else is not.
+        for attempt in range(1, _READINESS_ATTEMPTS + 1):
+            failures, starting = self._core_health_failures(config, log=log)
+            if not starting:
+                break
+            if failures or attempt == _READINESS_ATTEMPTS:
+                failures += starting
+                break
+            self._readiness_wait(log, "core service health", attempt)
+        if failures:
+            raise InstallerFailure(
+                code="container_unhealthy",
+                cause="Core services are not ready: " + "; ".join(failures),
+                remediation="Inspect the listed containers in the installer log and rerun ./install.sh.",
+                exit_code=8,
+                step="health",
+            )
+
+    def _core_health_failures(
+        self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
+    ) -> tuple[list[str], list[str]]:
+        """The core services that are not ready, and those whose healthcheck is starting."""
         outcome = self._checked(
             [*self._compose_prefix(config), "ps", "--format", "json"],
             log=log,
@@ -116,6 +140,7 @@ class HealthOperations:
         expected = self._health_expected_services(config)
         observed = {str(row.get("Service") or row.get("service") or ""): row for row in rows}
         failures: list[str] = []
+        starting: list[str] = []
         for service in sorted(expected):
             row = observed.get(service)
             if row is None:
@@ -123,16 +148,12 @@ class HealthOperations:
                 continue
             state = str(row.get("State") or row.get("state") or "").lower()
             health = str(row.get("Health") or row.get("health") or "").lower()
-            if state != "running" or health in {"unhealthy", "starting"}:
-                failures.append(f"{service}: state={state or 'unknown'}, health={health or 'none'}")
-        if failures:
-            raise InstallerFailure(
-                code="container_unhealthy",
-                cause="Core services are not ready: " + "; ".join(failures),
-                remediation="Inspect the listed containers in the installer log and rerun ./install.sh.",
-                exit_code=8,
-                step="health",
-            )
+            description = f"{service}: state={state or 'unknown'}, health={health or 'none'}"
+            if state != "running" or health == "unhealthy":
+                failures.append(description)
+            elif health == "starting":
+                starting.append(description)
+        return failures, starting
 
     def probe_cli_readiness(
         self: DockerInstallerGateway,

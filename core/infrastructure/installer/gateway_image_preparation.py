@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from core.application.installer.contracts import (
@@ -39,21 +39,22 @@ class ImagePreparationOperations:
     def prepare_core(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:
-        self._prepare_core(config, log=log, compose_prefix=self._compose_prefix(config))
+        self._prepare_core(config, log=log, compose=lambda: (self._compose_prefix(config), None))
 
     def _prepare_core(
         self: DockerInstallerGateway,
         config: InstallConfig,
         *,
         log: InstallerLog,
-        compose_prefix: Sequence[str],
-        compose_environment: Mapping[str, str] | None = None,
+        compose: Callable[[], tuple[Sequence[str], Mapping[str, str] | None]],
     ) -> None:
-        """Prepare the images `config` runs, rendering its Compose with `compose_prefix`.
+        """Prepare the images `config` runs, rendering its Compose as `compose` says.
 
         A profile switch renders the target as `config apply` will (AC17-R174), with
-        `compose_environment` and no installed file: the installed one belongs to the
-        other profile and lacks what only the target needs.
+        its environment and no installed file: the installed one belongs to the other
+        profile and lacks what only the target needs. `compose` is asked only once the
+        product images are built or materialized, because their references are among
+        what it renders: Scalable never had FS_COMPACT_IMAGE before the switch built it.
         """
         if self._install_mode(config) == "official":
             self._refuse_lost_image_ids(config, names=("POSTGRES_IMAGE",))
@@ -66,6 +67,7 @@ class ImagePreparationOperations:
             self._prepare_exact_prebuilt_provenance(
                 config, log=log, registry_identity=registry_identity
             )
+            compose_prefix, compose_environment = compose()
             prepare_core_dependency_images(
                 failure=self._core_dependency_failure,
                 config=config,
@@ -98,6 +100,7 @@ class ImagePreparationOperations:
             self._prepare_exact_prebuilt_provenance(
                 config, log=log, registry_identity=registry_identity
             )
+            compose_prefix, compose_environment = compose()
             prepare_core_dependency_images(
                 allow_source_build=True,
                 failure=self._core_dependency_failure,
@@ -117,6 +120,7 @@ class ImagePreparationOperations:
                 ),
             )
             return
+        compose_prefix, compose_environment = compose()
         if config.environment == "development":
             self._checked(
                 [
