@@ -878,6 +878,24 @@
       ]
     },
     {
+      "name": "FS_ALLOWED_PRIVATE_ORIGINS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "extensions",
+      "notes": "Exact private or loopback origins (scheme://host:port, comma-separated, at most 16) an LLM provider extension may reach, for example http://host.docker.internal:11434. Empty allows none. Only these origins are admitted, over http or https as written; link-local and metadata addresses stay refused, and other private addresses still need FS_ALLOW_PRIVATE_REMOTE_URLS.",
+      "operator_settable": true
+    },
+    {
       "name": "FS_ALLOW_UNIT_TEST_SKIPS",
       "groups": [
         "audit_tools"

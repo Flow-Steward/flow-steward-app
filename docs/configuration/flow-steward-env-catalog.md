@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `46` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `177` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `178` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `37` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,16 +51,16 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `832`
-- Cataloged variables from `.env.example*` or manifest: `609`
+- Raw env-like names discovered by audit: `833`
+- Cataloged variables from `.env.example*` or manifest: `610`
 - Raw audit-only names outside examples/manifest: `223`
-- Unique variables in shipped `.env.example*` files: `379`
-- Variables in canonical manifest: `519`
+- Unique variables in shipped `.env.example*` files: `380`
+- Variables in canonical manifest: `520`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
 - Internal Runtime: `141`
-- Public / Operator: `332`
+- Public / Operator: `333`
 - Test Config: `34`
 - Test Only: `16`
 - Tooling Internal: `81`
@@ -270,6 +270,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 #### extensions
 | Variable | Groups | Environments | Required | Secret | Default / Example | Documented In | Usage Areas | Description | First Read Locations |
 |---|---|---|---|---|---|---|---|---|---|
+| `FS_ALLOWED_PRIVATE_ORIGINS` | core_runtime | production, local_development | no | no | - | .env.example.ops | Config (1), Docker Compose (3) | Exact private or loopback origins (scheme://host:port, comma-separated, at most 16) an LLM provider extension may reach, for example http://host.docker.internal:11434. Empty allows none. Only these origins are admitted, over http or https as written; link-local and metadata addresses stay refused, and other private addresses still need FS_ALLOW_PRIVATE_REMOTE_URLS. | `core/infrastructure/config/private_origins.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_ALLOW_PRIVATE_REMOTE_URLS` | core_runtime | production, local_development | no | no | `0` | .env.example.ops | Application (1), Docker Compose (3), Infrastructure (1) | Optional override to permit private remote extension URLs, private MCP connector base URLs and private or loopback LLM provider base URLs (link-local and metadata addresses stay refused for LLM providers). | `core/application/extensions/lifecycle_descriptor_io.py`<br>`core/infrastructure/extension_sdk/public/flowsteward_extension_sdk/http.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_ARTIFACT_GRANT_VERIFY_KEY` | core_runtime | production, local_development | no | no | - | .env.example.ops | Infrastructure (1) | Ed25519 public verification key for platform-issued extension artifact grants. | `core/infrastructure/extension_sdk/public/flowsteward_extension_sdk/http.py` |
 | `FS_EXTENSION_ARTIFACT_MAX_BYTES` | core_attachment_policy | production, local_development | no | no | `209715200` | .env.example, .env.example.prod, .env.example.ops | Application (1), Docker Compose (3) | Operator-owned effective byte limit for extension artifact policies that opt into max_size_env; clamped to 1 MiB through 10 GiB. | `core/application/orchestration/connector_grants.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |

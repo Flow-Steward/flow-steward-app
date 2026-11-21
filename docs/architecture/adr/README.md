@@ -118,6 +118,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0071](0071-wait-for-an-event.md) | Wait for an event | Accepted |
 | [0072](0072-generic-signed-extension-callbacks.md) | Generic signed extension callbacks | Accepted |
 | [0077](0077-local-account-credentials.md) | Local account credentials and multi-factor authentication | Accepted |
+| [0078](0078-exact-private-origins-for-provider-endpoints.md) | Exact private origins for provider endpoints | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

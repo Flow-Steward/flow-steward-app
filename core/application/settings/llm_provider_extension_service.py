@@ -156,7 +156,7 @@ def _invoke_in_process(
         return {"status": "failed", "detail": "model_unavailable", "response": {}}
     # The provider's own account-scoped settings reach its subprocess as
     # host-authorized resource snapshots, never as part of the operation input.
-    from core.application.extensions.url_safety import allow_private_provider_addresses
+    from core.application.extensions.url_safety import provider_network_policy
 
     runtime_context = {
         "account_id": account_id,
@@ -166,8 +166,9 @@ def _invoke_in_process(
             "connection_config": dict(connection_config),
         },
         # The host's network decision, so the extension's own URL guard follows
-        # the administrator's setting without reading host environment.
-        "network_policy": {"allow_private_addresses": allow_private_provider_addresses()},
+        # the administrator's settings without reading host environment: the
+        # private-address switch and the exact private origins (ADR 0078).
+        "network_policy": provider_network_policy(),
     }
     timeout = max(1, math.ceil(timeout_seconds)) if timeout_seconds else None
     context = {"account_id": account_id}

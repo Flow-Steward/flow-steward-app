@@ -53,8 +53,10 @@ def test_private_addresses_are_refused_by_default_and_name_the_setting(
 ) -> None:
     monkeypatch.delenv("FS_ALLOW_PRIVATE_REMOTE_URLS", raising=False)
 
-    with pytest.raises(ValueError, match="FS_ALLOW_PRIVATE_REMOTE_URLS=1"):
+    # The refusal offers the narrow setting for exactly this origin (ADR 0078).
+    with pytest.raises(ValueError, match="FS_ALLOWED_PRIVATE_ORIGINS=") as refused:
         _check(url, allow=False)
+    assert "FS_ALLOW_PRIVATE_REMOTE_URLS" not in str(refused.value)
 
 
 def test_public_https_is_accepted_by_default(dns) -> None:
@@ -147,6 +149,9 @@ def test_the_subprocess_receives_the_hosts_network_decision(monkeypatch, allow) 
         ),
     )
     monkeypatch.setattr(url_safety, "allow_private_provider_addresses", lambda: allow)
+    monkeypatch.setattr(
+        url_safety, "allowed_private_provider_origins", lambda: ("http://ollama.lan:11434",)
+    )
 
     svc.invoke_llm_provider_operation(
         {"install_id": "pi_acme", "runtime_mode": "subprocess"},
@@ -156,7 +161,10 @@ def test_the_subprocess_receives_the_hosts_network_decision(monkeypatch, allow) 
         account_id="acc-1",
     )
 
-    assert captured["runtime_context"]["network_policy"] == {"allow_private_addresses": allow}
+    assert captured["runtime_context"]["network_policy"] == {
+        "allow_private_addresses": allow,
+        "allowed_private_origins": ["http://ollama.lan:11434"],
+    }
 
 
 def test_saving_a_private_base_url_without_the_setting_explains_how_to_allow_it(
@@ -168,6 +176,7 @@ def test_saving_a_private_base_url_without_the_setting_explains_how_to_allow_it(
     )
 
     monkeypatch.setattr(url_safety, "allow_private_provider_addresses", lambda: False)
+    monkeypatch.setattr(url_safety, "allowed_private_provider_origins", lambda: ())
 
     with pytest.raises(LlmProviderExtensionError) as caught:
         LlmProviderExtensionUseCases._safe_upstream_config(
@@ -175,7 +184,7 @@ def test_saving_a_private_base_url_without_the_setting_explains_how_to_allow_it(
         )
 
     assert caught.value.status_code == 422
-    assert "FS_ALLOW_PRIVATE_REMOTE_URLS=1" in caught.value.detail
+    assert "FS_ALLOWED_PRIVATE_ORIGINS=http://192.168.1.20:11434" in caught.value.detail
 
 
 def test_saving_a_private_base_url_with_the_setting_keeps_it(monkeypatch, dns) -> None:

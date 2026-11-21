@@ -427,7 +427,9 @@ def invalidate_extension_models_for_release_change(
     ``extension_releases.release_id`` is global, so descriptor drift must fan out
     to every account that references the release.  The account/install arm also
     covers an individual install moving to another release.  Both discovery CAS
-    inputs are rotated in the same statement that makes published models stale.
+    inputs are rotated in the same statement that makes published models stale,
+    and the last connection check is forgotten: it was made by the previous
+    release, so the panel says "Not checked" instead of an old "Connected".
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -444,7 +446,7 @@ def invalidate_extension_models_for_release_change(
                            '{llm_provider_discovery_generation}',
                            to_jsonb(gen_random_uuid()::text),
                            true
-                       )
+                       ) - 'llm_provider_last_check'
                  WHERE install.release_id = %s
                     OR (
                         install.account_id = %s::uuid
@@ -497,7 +499,7 @@ def deactivate_invalid_extension_routes(conn, *, extension_id: str) -> int:
                            '{llm_provider_discovery_generation}',
                            to_jsonb(gen_random_uuid()::text),
                            true
-                       )
+                       ) - 'llm_provider_last_check'
                  WHERE install.extension_id = %s
              RETURNING install.account_id, install.install_id
             )

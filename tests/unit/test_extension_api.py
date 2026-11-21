@@ -3556,6 +3556,7 @@ class TestExtensionRuntimeFoundation:
         from core.application.extensions.extension_runtime import ExtensionReleaseRecord
         from core.application.extensions.install import ExtensionInstallStore
         from core.application.extensions.runtime_store import ExtensionRuntimeStore
+        from core.application.settings import llm_provider_connection_status
         from core.application.settings import llm_provider_extension_repository as llm_store
 
         events: list[str] = []
@@ -3633,6 +3634,12 @@ class TestExtensionRuntimeFoundation:
             "set_install_provider_state_revision",
             lambda _conn, **_kwargs: True,
         )
+        # The last connection check was made by the previous release (#29).
+        monkeypatch.setattr(
+            llm_provider_connection_status,
+            "clear_last_check",
+            lambda _conn, **_kwargs: events.append("provider:clear_last_check") or True,
+        )
 
         service._install._install_release(
             ExtensionReleaseInstallInput(
@@ -3662,6 +3669,7 @@ class TestExtensionRuntimeFoundation:
             "install:upsert",
             "provider:invalidate",
         ], events
+        assert events.count("provider:clear_last_check") == 1
 
     def test_install_release_rejects_unsafe_remote_base_url_override(self, tmp_path):
         cmd_svc, _, _, _, _ = _make_services()

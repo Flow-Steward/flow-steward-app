@@ -145,6 +145,10 @@ def _stub_in_process(monkeypatch, *, invocation, record=None, allow_private=Fals
         "core.application.extensions.url_safety.allow_private_provider_addresses",
         lambda: allow_private,
     )
+    monkeypatch.setattr(
+        "core.application.extensions.url_safety.allowed_private_provider_origins",
+        lambda: (),
+    )
     monkeypatch.setattr(f"{_ENTRYPOINTS}.run_extension_query", run_query)
     monkeypatch.setattr(f"{_ENTRYPOINTS}.run_extension_action", run_action)
     monkeypatch.setattr(
@@ -185,7 +189,7 @@ class TestInProcessInvocation:
                 "provider_secrets": {"api_key": _PROVIDER_KEY},
                 "connection_config": {"upstream_base_url": "https://llm.example.com"},
             },
-            "network_policy": {"allow_private_addresses": False},
+            "network_policy": {"allow_private_addresses": False, "allowed_private_origins": []},
         }
 
     def test_action_carries_the_operation_input_without_secrets(self, monkeypatch):

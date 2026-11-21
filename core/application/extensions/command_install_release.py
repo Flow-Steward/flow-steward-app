@@ -338,6 +338,9 @@ class ExtensionReleaseInstallWorkflow:
             prepared.oauth_transition.apply()
         logger_connection = getattr(self._context.logger(), "conn", None)
         if runtime_identity_changed and logger_connection is not None:
+            from core.application.settings import (
+                llm_provider_connection_status as connection_status,
+            )
             from core.application.settings import llm_provider_extension_repository as llm_store
 
             llm_store.mark_install_models_stale(
@@ -350,6 +353,12 @@ class ExtensionReleaseInstallWorkflow:
                 account_id=prepared.account_id,
                 extension_install_id=install_record.install_id,
                 revision=uuid.uuid4().hex,
+            )
+            # The last connection check was made by the previous release.
+            connection_status.clear_last_check(
+                logger_connection,
+                account_id=prepared.account_id,
+                extension_install_id=install_record.install_id,
             )
         self._upsert_entitlement(prepared, install_record=install_record)
         return install_record

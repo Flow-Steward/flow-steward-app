@@ -2865,9 +2865,32 @@ outbound connection in the deployment, not only the one being tested.
 **LLM provider extensions on a private network.** An LLM provider extension
 such as the Ollama provider may point at a model server on the same machine or
 local network (`localhost`, `127.0.0.1`, `10.x`, `172.16–31.x`, `192.168.x`,
-`fc00::/7`) only when `FS_ALLOW_PRIVATE_REMOTE_URLS=1`. It is off by default,
-and saving such a base URL is then rejected with a message naming this
-setting. When it is on:
+`fc00::/7`) in one of two ways. Both are off by default, and saving such a base
+URL is then rejected with a message that gives the command for this
+installation.
+
+- **One server only (recommended):** list its exact origin, `scheme://host:port`,
+  in `FS_ALLOWED_PRIVATE_ORIGINS`. Every other private address stays refused.
+
+  ```bash
+  ./flow-steward config set FS_ALLOWED_PRIVATE_ORIGINS=http://host.docker.internal:11434
+  ./flow-steward config apply
+  ```
+
+  Separate several origins with commas (at most 16). The port is required, and
+  an entry admits only that scheme, host and port: `http://host.docker.internal:11434`
+  does not admit port 11435, `https://` on the same port, or the same address
+  under another name. An entry without a port, with a path, a user name, a
+  wildcard, or a public, link-local or metadata IP address is refused by
+  `config set`. The extension receives the list as
+  `runtime_context.network_policy.allowed_private_origins` and needs to support
+  it (the Ollama provider does from 1.2.5).
+- **Every private address:** `FS_ALLOW_PRIVATE_REMOTE_URLS=1`, which also
+  relaxes extension, MCP connector and other outbound checks for the whole
+  installation.
+
+For an allowed origin, and for every private address when
+`FS_ALLOW_PRIVATE_REMOTE_URLS=1` is on:
 
 - private and loopback addresses may use `http://` or `https://`, while public
   addresses still need `https://`;
