@@ -233,6 +233,57 @@ class TestGetChatModelProviders:
         assert "reasoning_effort" not in kwargs
         assert "temperature" not in kwargs
 
+    @pytest.mark.parametrize(
+        ("registry_agent", "expected"), (({}, "medium"), ({"reasoning_effort": "low"}, "low"))
+    )
+    def test_an_agent_chooses_the_gpt_5_6_reasoning_depth(self, registry_agent, expected):
+        from core.application.orchestration import model_provider as mp
+
+        with (
+            patch.object(mp, "_get_registry_agent_config", return_value=registry_agent),
+            patch.object(mp, "ChatOpenAI") as mock_cls,
+        ):
+            mock_cls.return_value = MagicMock()
+            mp.get_chat_model(openai_config("gpt-5.6-luna"), agent_name="reader")
+
+        assert mock_cls.call_args.kwargs["reasoning"] == {"effort": expected}
+
+    def test_the_projects_override_for_the_agent_wins_over_its_own_depth(self):
+        from core.application.orchestration.model_provider import gpt_5_6_reasoning_effort
+
+        assert (
+            gpt_5_6_reasoning_effort({"reasoning_effort": " HIGH "}, {"reasoning_effort": "low"})
+            == "high"
+        )
+        assert gpt_5_6_reasoning_effort({}, {"reasoning_effort": "low"}) == "low"
+        assert gpt_5_6_reasoning_effort({}, None) == "medium"
+
+    def test_an_unknown_reasoning_depth_is_refused(self):
+        from core.application.orchestration import model_provider as mp
+
+        with (
+            patch.object(
+                mp, "_get_registry_agent_config", return_value={"reasoning_effort": "max"}
+            ),
+            patch.object(mp, "ChatOpenAI"),
+            pytest.raises(mp.ModelProviderResolutionError, match="reasoning_effort must be one of"),
+        ):
+            mp.get_chat_model(openai_config("gpt-5.6-luna"), agent_name="reader")
+
+    def test_a_model_without_reasoning_ignores_the_agents_depth(self):
+        from core.application.orchestration import model_provider as mp
+
+        with (
+            patch.object(
+                mp, "_get_registry_agent_config", return_value={"reasoning_effort": "low"}
+            ),
+            patch.object(mp, "ChatOpenAI") as mock_cls,
+        ):
+            mock_cls.return_value = MagicMock()
+            mp.get_chat_model(openai_config(), agent_name="reader")
+
+        assert "reasoning" not in mock_cls.call_args.kwargs
+
     def test_google_provider_returns_chat_google(self):
         """google provider → ChatGoogleGenerativeAI instance."""
         try:

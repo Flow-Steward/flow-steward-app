@@ -31,7 +31,9 @@ from .common_runtime_helpers import (
     _provider_policy_from_model,
     _prune_message_history,
     _resolve_provider,
+    _respond_structured_without_tools,
     _scan_outbound_response,
+    _should_use_native_structured_output,
     build_context_block,
     build_project_rules_block,
     build_prompt_safe_state,
@@ -489,6 +491,21 @@ def invoke_agent(
         messages = _apply_prompt_cache(messages)
         logger.debug(
             "invoke_agent[%s]: Anthropic prompt caching applied to system + task prefix", agent_name
+        )
+
+    # An agent without tools answers in its response schema with one call: a
+    # free-form draft would only be rewritten by a second call.
+    if not all_tools and _should_use_native_structured_output(
+        state, agent_name, final_response_schema, provider_policy=provider_key
+    ):
+        return _respond_structured_without_tools(
+            state=state,
+            agent_name=agent_name,
+            request_timeout_seconds=request_timeout_seconds,
+            messages=messages,
+            schema=final_response_schema,
+            provider_policy=provider_key,
+            resolved_model=resolved_llm,
         )
 
     # Research-only rounds (all tools in _RESEARCH_TOOLS) don't count toward

@@ -80,6 +80,7 @@ __all__ = [
     "_max_tool_result_chars",
     "_prepare_openai_json_schema",
     "_required_artifact_fields",
+    "_respond_structured_without_tools",
     "_schema_allows_null",
     "_serialize_structured_payload",
     "_structured_output_kwargs",
@@ -488,21 +489,8 @@ def _final_structured_output_timeout_seconds(timeout_seconds: int) -> int:
     return max(1, min(requested, cap))
 
 
-def _invoke_final_structured_output(
-    *,
-    state: OrchestratorState | dict[str, Any],
-    agent_name: str,
-    timeout_seconds: int,
-    messages: list,
-    draft_response,
-    schema,
-    resolved_model,
-    expected_provider_policy: str | None = None,
-):
-    """Run final structured output on the exact model route used by the tool loop."""
-    from langchain_core.messages import AIMessage, HumanMessage
-
-    final_timeout_seconds = _final_structured_output_timeout_seconds(timeout_seconds)
+def _structured_model(resolved_model, schema, expected_provider_policy: str | None):
+    """The exact routed model bound to the response schema, its provider and that schema."""
     bare_llm = resolved_model
     if bare_llm is None:
         raise RuntimeError("model_unavailable: resolved model snapshot is required")
@@ -516,7 +504,6 @@ def _invoke_final_structured_output(
         raise RuntimeError(
             f"Configured model for provider '{provider or 'unknown'}' does not support structured output"
         )
-
     schema_for_provider = (
         _prepare_openai_json_schema(schema)
         if str(provider or "").strip().lower() == "openai"
@@ -527,22 +514,14 @@ def _invoke_final_structured_output(
         include_raw=False,
         **_structured_output_kwargs(provider),
     )
-    finalize_msg = HumanMessage(
-        content=(
-            "Produce the final response using the required structured output schema only. "
-            "Use the full conversation, tool results, and your draft response above. "
-            "Do not call tools. Do not add markdown fences or free-form text outside the schema."
-        )
-    )
-    safe_draft_response = _strip_tool_call_metadata_from_draft(draft_response)
-    structured_result = _llm_invoke_with_retry(
-        structured_llm,
-        [*messages, safe_draft_response, finalize_msg],
-        agent_name=agent_name,
-        max_retries=0,
-        timeout_seconds=final_timeout_seconds,
-    )
-    payload = _serialize_structured_payload(structured_result)
+    return structured_llm, provider, schema_for_provider
+
+
+def _structured_message(state, agent_name: str, provider: str, schema_for_provider, result):
+    """Wrap a structured result as the AIMessage the step reads, and record it."""
+    from langchain_core.messages import AIMessage
+
+    payload = _serialize_structured_payload(result)
     payload_json = json.dumps(payload, ensure_ascii=False)
 
     with contextlib.suppress(Exception):
@@ -565,6 +544,105 @@ def _invoke_final_structured_output(
         content=payload_json,
         additional_kwargs={"structured_output": payload},
     )
+
+
+def _invoke_final_structured_output(
+    *,
+    state: OrchestratorState | dict[str, Any],
+    agent_name: str,
+    timeout_seconds: int,
+    messages: list,
+    draft_response,
+    schema,
+    resolved_model,
+    expected_provider_policy: str | None = None,
+):
+    """Run final structured output on the exact model route used by the tool loop."""
+    from langchain_core.messages import HumanMessage
+
+    final_timeout_seconds = _final_structured_output_timeout_seconds(timeout_seconds)
+    structured_llm, provider, schema_for_provider = _structured_model(
+        resolved_model, schema, expected_provider_policy
+    )
+    finalize_msg = HumanMessage(
+        content=(
+            "Produce the final response using the required structured output schema only. "
+            "Use the full conversation, tool results, and your draft response above. "
+            "Do not call tools. Do not add markdown fences or free-form text outside the schema."
+        )
+    )
+    safe_draft_response = _strip_tool_call_metadata_from_draft(draft_response)
+    structured_result = _llm_invoke_with_retry(
+        structured_llm,
+        [*messages, safe_draft_response, finalize_msg],
+        agent_name=agent_name,
+        max_retries=0,
+        timeout_seconds=final_timeout_seconds,
+    )
+    return _structured_message(state, agent_name, provider, schema_for_provider, structured_result)
+
+
+def _respond_structured_without_tools(
+    *,
+    state: OrchestratorState | dict[str, Any],
+    agent_name: str,
+    request_timeout_seconds: float | None,
+    messages: list,
+    schema,
+    provider_policy: str | None = None,
+    resolved_model=None,
+):
+    """Answer in the response schema with one model call when the agent has no tools.
+
+    Without tools there is nothing for a draft to gather: the tool loop would
+    make a free-form draft and then a second call to rewrite it in the schema.
+    Asking for the schema at once returns the same structured message in one
+    call. It fails closed like the rewrite does.
+    """
+    from langchain_core.exceptions import OutputParserException
+    from pydantic import ValidationError
+
+    provider = str(provider_policy or "selected route")
+
+    def _failed_closed(exc: Exception) -> RuntimeError:
+        logger.exception(
+            "invoke_agent[%s]: native structured output failed for provider '%s': %s",
+            agent_name,
+            provider,
+            exc,
+        )
+        with contextlib.suppress(Exception):
+            from core.application.orchestration.agents.common import emit_event as _emit_event
+
+            _emit_event(
+                state,
+                agent_name,
+                "llm_response_meta",
+                "Structured output failed closed",
+                {"structured_output": True, "provider": provider, "failure_reason": str(exc)},
+            )
+        return RuntimeError(f"structured_output_unavailable: {exc}")
+
+    try:
+        structured_llm, route_provider, schema_for_provider = _structured_model(
+            resolved_model, schema, provider_policy
+        )
+    except Exception as exc:
+        raise _failed_closed(exc) from exc
+    # Provider errors (rate limit, authentication, timeout) propagate as they do
+    # from the tool loop's first call; only an answer outside the schema fails
+    # closed as unavailable structured output.
+    try:
+        result = _llm_invoke_with_retry(
+            structured_llm,
+            messages,
+            agent_name=agent_name,
+            timeout_seconds=request_timeout_seconds,
+        )
+    except (OutputParserException, ValidationError) as exc:
+        raise _failed_closed(exc) from exc
+    response = _structured_message(state, agent_name, route_provider, schema_for_provider, result)
+    return _scan_outbound_response(state, response)
 
 
 def _strip_tool_call_metadata_from_draft(draft_response):
