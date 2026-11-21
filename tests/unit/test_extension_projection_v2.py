@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+from types import SimpleNamespace
+
 from core.application.extensions.extension_projection_v2 import (
     build_builder_catalog,
     build_extension_grounding_tool,
@@ -11,6 +15,9 @@ from core.application.extensions.extension_projection_v2 import (
     render_step_form,
     validate_canonical_event_bindings,
 )
+from core.application.extensions.install import ExtensionInstallStore
+from core.application.extensions.runtime_store import ExtensionRuntimeStore
+from core.application.workflows.discovery.scoped_capability_catalog import ScopedCapabilityCatalog
 from core.application.workflows.workflow_catalog_identity import projected_block_key
 
 
@@ -210,6 +217,54 @@ def test_extension_grounding_tool_preserves_declared_contract_metadata() -> None
     assert tool["external_effects"] == contract["external_effects"]
     assert tool["artifact_policies"] == contract["artifact_policies"]
     assert tool["operation_recipes"] == contract["operation_recipes"]
+
+
+def test_workflow_tool_catalog_resolves_inherited_bundle_contract(tmp_path: Path) -> None:
+    contract = _contract()
+    contract["operation_manifest"].append(
+        {"operation_id": "inspect_config", "operation_kind": "action", "connection_type_ids": None}
+    )
+    (tmp_path / "operations.yaml").write_text(
+        json.dumps({"operations": contract["operation_manifest"]}), encoding="utf-8"
+    )
+    extension_id = "acme.issues"
+    descriptor = {
+        "extension_id": extension_id,
+        "bundle_root": str(tmp_path),
+        "runtime": {
+            "extension_contract_v2": {
+                "connection_types": contract["connection_types"],
+                "operation_manifest": "operations.yaml",
+            },
+        },
+        "action_definitions": [
+            {"action_id": "create_issue", "workflow_visible": True},
+            {"action_id": "inspect_config", "workflow_visible": True},
+        ],
+    }
+    runtime_store = ExtensionRuntimeStore()
+    release = runtime_store.create_release({"extension_id": extension_id, "descriptor": descriptor})
+    install_store = ExtensionInstallStore()
+    install = install_store.install(
+        extension_id=extension_id,
+        version="1.0.0",
+        account_id="acc-1",
+        release_id=release.release_id,
+    )
+    catalog = ScopedCapabilityCatalog(
+        SimpleNamespace(
+            extension_install_store=install_store, extension_runtime_store=runtime_store
+        )
+    )
+
+    tools = catalog.tool_summaries(scope={"account_id": "acc-1"}, project_id=None)
+
+    assert [tool["tool_id"] for tool in tools] == ["extension.acme.issues"]
+    assert tools[0]["source_install_id"] == install.install_id
+    operations = {row["operation_id"]: row for row in tools[0]["interface"]["operations"]}
+    assert set(operations) == {"create_issue", "inspect_config"}
+    assert operations["inspect_config"]["connection_type_ids"] == []
+    assert catalog.tool_summaries(scope={"account_id": "acc-2"}, project_id=None) == []
 
 
 def test_plural_connection_roles_survive_projection() -> None:

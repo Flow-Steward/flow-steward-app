@@ -211,6 +211,34 @@ def _normalized_release_contract(
     return contract
 
 
+def resolve_release_extension_contract(
+    *, release_id: str, descriptor_sha256: str, descriptor: dict[str, Any]
+) -> dict[str, Any]:
+    """Read the saved contract or resolve the owning bundle's contract references."""
+    runtime_payload = descriptor.get("runtime")
+    runtime = runtime_payload if isinstance(runtime_payload, dict) else {}
+    contract = descriptor.get("extension_contract_v2_normalized")
+    if not isinstance(contract, dict):
+        contract = runtime.get("extension_contract_v2_normalized")
+    if not isinstance(contract, dict):
+        contract = descriptor.get("extension_contract_v2")
+    if not isinstance(contract, dict):
+        contract = runtime.get("extension_contract_v2")
+    if not isinstance(contract, dict):
+        return {}
+    if any(
+        isinstance(section, str) or (isinstance(section, dict) and "ref" in section)
+        for section in contract.values()
+    ):
+        return (
+            _normalized_release_contract(
+                release_id=release_id, descriptor_sha256=descriptor_sha256, descriptor=descriptor
+            )
+            or {}
+        )
+    return contract
+
+
 def clear_normalized_contract_cache() -> None:
     """Forget every cached release contract (tests and release maintenance)."""
     with _normalized_contract_lock:
@@ -300,21 +328,10 @@ def _resolve_install_contract(
     ):
         return None
     descriptor = dict(getattr(release, "descriptor", {}) or {})
-    runtime_payload = descriptor.get("runtime")
-    runtime = dict(runtime_payload) if isinstance(runtime_payload, dict) else {}
-    contract = descriptor.get("extension_contract_v2_normalized")
-    if not isinstance(contract, dict):
-        contract = runtime.get("extension_contract_v2_normalized")
-    if not isinstance(contract, dict):
-        contract = runtime.get("extension_contract_v2")
-    if isinstance(contract, dict) and any(isinstance(value, str) for value in contract.values()):
-        contract = _normalized_release_contract(
-            release_id=release_id,
-            descriptor_sha256=str(getattr(release, "descriptor_sha256", "") or "").strip().lower(),
-            descriptor=descriptor,
-        )
-    if not isinstance(contract, dict):
-        contract = {}
+    descriptor_sha256 = str(getattr(release, "descriptor_sha256", "") or "").strip().lower()
+    contract = resolve_release_extension_contract(
+        release_id=release_id, descriptor_sha256=descriptor_sha256, descriptor=descriptor
+    )
     visibility = getattr(install, "visibility", "account")
     visibility = getattr(visibility, "value", visibility)
     requested_account_id = str(account_id or default_account_id).strip() or default_account_id
@@ -328,7 +345,7 @@ def _resolve_install_contract(
         "install_id": install_id,
         "extension_id": install_extension_id,
         "release_id": release_id,
-        "descriptor_sha256": str(getattr(release, "descriptor_sha256", "") or "").strip().lower(),
+        "descriptor_sha256": descriptor_sha256,
         "install_state": str(getattr(install, "state", "active") or "active").strip().lower(),
         "action_definitions": descriptor.get("action_definitions", []),
         # This release's own dictionaries: a translation never comes from another version.
