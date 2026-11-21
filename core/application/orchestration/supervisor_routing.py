@@ -160,7 +160,7 @@ class OrchestratorSupervisorRoutingMixin:
 
         classification = self._classification_from_state(envelope, state_dict)
         if classification is None:
-            # ADR 0078: only an inferred selection asks the model; a named
+            # ADR 0079: only an inferred selection asks the model; a named
             # workflow is classified without a model call.
             if selection_source in EXPLICIT_WORKFLOW_SELECTION_SOURCES:
                 classification = explicit_selection_classification()

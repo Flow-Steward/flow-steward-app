@@ -293,7 +293,7 @@ class TestClassifyTaskPassThrough:
 
 
 class TestClassifierReasoningDepth:
-    """ADR 0078: five labels need no deliberation, so the call runs at low depth."""
+    """ADR 0079: five labels need no deliberation, so the call runs at low depth."""
 
     @staticmethod
     def _captured_config(project_config):

@@ -127,7 +127,7 @@ class TestClassifyWithBlockListResponses:
                 project_config=project_config,
             )
 
-        # The project's route reaches the resolver unchanged; ADR 0078 adds only the
+        # The project's route reaches the resolver unchanged; ADR 0079 adds only the
         # classifier's low reasoning depth.
         get_chat_model.assert_called_once()
         (config,), kwargs = get_chat_model.call_args

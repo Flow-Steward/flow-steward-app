@@ -217,7 +217,7 @@ class TestWorkflowRoutingWithoutFamily:
         ("explicit_request", "entry_binding", "provider_trigger", "rerun", "parent_call", ""),
     )
     def test_a_named_workflow_asks_no_model(self, source):
-        """ADR 0078: the caller named the workflow, so nothing is classified by a model."""
+        """ADR 0079: the caller named the workflow, so nothing is classified by a model."""
         registry = make_mock_registry()
         supervisor = OrchestratorSupervisor(registry)
         state = make_state(workflow_id="weekly_report", workflow_selection_source=source)

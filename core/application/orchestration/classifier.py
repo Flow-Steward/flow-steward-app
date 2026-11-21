@@ -161,7 +161,7 @@ EXPLICIT_SELECTION_REASONING = "explicit_workflow_selection"
 
 
 def explicit_selection_classification() -> TaskClassification:
-    """The classification of a run whose caller named the workflow (ADR 0078).
+    """The classification of a run whose caller named the workflow (ADR 0079).
 
     Nothing was inferred, so no model is asked: a person who needs to decide
     adds an Approval step, and the project's autonomy policy still applies.
