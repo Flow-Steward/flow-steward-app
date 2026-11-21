@@ -818,6 +818,13 @@ class InstallerService:
         running = currency.running_revision
         if not running or running == currency.source_revision:
             return ""
+        if currency.official_release:
+            return (
+                f"This checkout is at {currency.source_revision}, and the official release "
+                f"running here was built from {running}. Official images are never rebuilt "
+                "from a checkout: run `flow-steward release upgrade --confirm` to move to a "
+                "newer release, or check out the installed release tag again."
+            )
         if currency.shell_pins:
             names = ", ".join(currency.shell_pins)
             return (

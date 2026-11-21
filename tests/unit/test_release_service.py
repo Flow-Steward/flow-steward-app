@@ -1249,3 +1249,24 @@ def test_dry_run_resolves_exact_target_but_never_activates() -> None:
     assert result.status == "planned"
     assert result.target_release == harness.target
     assert harness.activator.calls == []
+
+
+@pytest.mark.parametrize("environment", ("development", "production"))
+def test_release_results_and_review_name_the_unchanged_active_environment(
+    environment: str,
+) -> None:
+    """Owner 2026-11-21: development upgrades like production; output says which one.
+
+    The result field existed and was never set; the review states the environment the
+    upgrade acts on, which a release upgrade never changes.
+    """
+    harness = Harness()
+    harness.service.environment = environment
+
+    checked = harness.service.check(ReleaseCheckRequest())
+    review = harness.service.review_upgrade(
+        harness.service.prepare_upgrade(ReleaseUpgradeRequest(dry_run=True))
+    )
+
+    assert checked.active_environment == environment
+    assert review["active_environment"] == f"{environment} (unchanged)"

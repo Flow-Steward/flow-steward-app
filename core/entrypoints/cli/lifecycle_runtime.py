@@ -474,6 +474,22 @@ def _installed_runtime_environment() -> dict[str, str]:
     return store.read_durable_environment(active)
 
 
+def _official_release_recorded() -> bool:
+    """Whether an installed, pending or in-flight official release is recorded (D6)."""
+    state = InstallerStateStore(
+        installer_state_root(_REPO_ROOT),
+        lifecycle_state_root=_REPO_ROOT / _FLOW_STEWARD_STATE_NAME,
+    )
+    return any(
+        load() is not None
+        for load in (
+            state.load_installed_release,
+            state.load_pending_release,
+            state.load_release_handoff,
+        )
+    )
+
+
 def _runtime_dsn() -> str:
     environment = _installed_runtime_environment()
     dsn = str(environment.get("FS_OBSERVABILITY_DSN") or "").strip()
@@ -794,6 +810,7 @@ class LifecycleCLIRuntime:
             profile=profile,
             platform=_release_platform(),
             origin=origin_reader,
+            environment=active.environment if active is not None else None,
             workflow=ReleaseUpgradeWorkflow(
                 state=state,
                 maintenance=self.maintenance_service,
@@ -901,6 +918,7 @@ class LifecycleCLIRuntime:
             runtime=cast(Any, gateway),
             lifecycle_state=self._lifecycle_state(),
             release_provider=get_app_version,
+            official_release_recorded=_official_release_recorded,
         )
 
     @cached_property

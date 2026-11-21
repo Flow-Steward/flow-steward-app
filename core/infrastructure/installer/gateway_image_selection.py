@@ -576,6 +576,7 @@ class ImageSelectionOperations:
             source_revision=source,
             running_revision=running,
             shell_pins=self._shell_image_pins(config),
+            official_release=self._install_mode(config) == "official",
         )
 
     def _shell_image_pins(self: DockerInstallerGateway, config: InstallConfig) -> tuple[str, ...]:

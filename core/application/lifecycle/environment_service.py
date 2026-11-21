@@ -316,6 +316,7 @@ class EnvironmentService:
         runtime: EnvironmentRuntime,
         lifecycle_state: LifecycleState,
         release_provider: Callable[[], str],
+        official_release_recorded: Callable[[], bool] = lambda: False,
     ) -> None:
         self.configuration = configuration
         self.jobs = jobs
@@ -324,6 +325,7 @@ class EnvironmentService:
         self.runtime = runtime
         self.lifecycle_state = lifecycle_state
         self.release_provider = release_provider
+        self.official_release_recorded = official_release_recorded
 
     def show(self, request: EnvironmentShowRequest) -> EnvironmentResult:
         del request
@@ -341,6 +343,7 @@ class EnvironmentService:
 
     def plan_switch(self, request: EnvironmentSwitchRequest) -> dict[str, object]:
         active = self.configuration.read_active()
+        self._refuse_official_switch(active, request)
         candidate = _candidate(active, request)
         target = self.configuration.derive_target(candidate)
         release = self._release()
@@ -395,6 +398,7 @@ class EnvironmentService:
                 )
             finally:
                 self.jobs.resume_accepting(existing.operation_id)
+        self._refuse_official_switch(active, request)
         try:
             source_release = self.runtime.runtime_release(active, active_target)
         except (OSError, RuntimeError, ValueError) as exc:
@@ -663,6 +667,33 @@ class EnvironmentService:
                 "retryable": False,
                 "updated_at": datetime.now(UTC),
             }
+        )
+
+    def _refuse_official_switch(
+        self, active: DeploymentConfig, request: EnvironmentSwitchRequest
+    ) -> None:
+        """D6 (owner 2026-11-21): official installations do not change environment.
+
+        Development now upgrades like production, but an official release identity is
+        bound to the environment it was installed as -- development builds its own
+        frontend and audit images next to the published Core images, production does
+        not -- and this transition knows nothing of either. It is refused by name
+        rather than half-done.
+        """
+        if request.target == active.environment or not self.official_release_recorded():
+            return
+        raise LifecycleError.stable_failure(
+            code="environment_switch_official_unsupported",
+            cause=(
+                f"This {active.environment} installation runs an official release; "
+                "switching it to another environment is not supported."
+            ),
+            remediation=(
+                "Keep this environment, or install the other environment separately with "
+                "./install.sh --environment "
+                f"{request.target} from a published release tag."
+            ),
+            step="validation",
         )
 
     def _release(self) -> str:

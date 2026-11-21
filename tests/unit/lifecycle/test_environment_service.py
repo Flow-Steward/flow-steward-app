@@ -1325,3 +1325,37 @@ def test_failed_target_restores_exact_normalized_source_configuration(tmp_path: 
     assert "restore" in calls
     assert runtime.restored_targets == [_target(source)]
     assert service.configuration.read_active() == source
+
+
+@pytest.mark.parametrize(
+    ("source", "target"),
+    [("development", "production"), ("production", "development")],
+)
+def test_official_installation_refuses_environment_switch_by_name(
+    tmp_path: Path, source: str, target: str
+) -> None:
+    """D6 (owner 2026-11-21): an official installation keeps its environment.
+
+    Development now upgrades like production, but an official release identity is
+    bound to the environment it was installed as; the switch is refused by name before
+    any job is paused, any backup taken or any configuration rendered.
+    """
+    service, calls, _runtime = _service(tmp_path, active=DeploymentConfig(environment=source))
+    service.official_release_recorded = lambda: True
+
+    for attempt in (service.plan_switch, service.switch):
+        with pytest.raises(LifecycleError) as raised:
+            attempt(EnvironmentSwitchRequest(target=target))
+        assert raised.value.code == "environment_switch_official_unsupported"
+        assert f"--environment {target}" in raised.value.remediation
+    assert not {"stop_accepting", "backup", "render", "activate"} & set(calls)
+
+
+def test_official_installation_still_answers_a_same_environment_switch(tmp_path: Path) -> None:
+    """The green direction: asking for the active environment stays a no-op."""
+    service, _calls, _runtime = _service(tmp_path)
+    service.official_release_recorded = lambda: True
+
+    result = service.switch(EnvironmentSwitchRequest(target="development"))
+
+    assert result.status == "already_active"

@@ -2191,3 +2191,33 @@ def test_release_publication_requires_cli_identity_for_final_environment(
         assert result.status == "installed"
         assert service.state.load_installed_release() == target
         assert cli_digest[0] == hashlib.sha256(env_file.read_bytes()).hexdigest()
+
+
+def test_behind_sources_notice_on_an_official_installation_points_at_release_upgrade() -> None:
+    """Owner 2026-11-21: official images are never rebuilt from a checkout.
+
+    The notice for operator pins told an official installation to "supply images
+    built from these sources", which it can never do; development installations run
+    official releases now too, and move with `release upgrade`.
+    """
+    from core.application.installer.contracts import ImageCurrency
+    from core.application.installer.service import InstallerService
+
+    notice = InstallerService._behind_sources_notice(
+        ImageCurrency(source_revision="b" * 40, running_revision="a" * 40, official_release=True)
+    )
+
+    assert "flow-steward release upgrade --confirm" in notice
+    assert "supply images" not in notice
+
+
+def test_behind_sources_notice_for_operator_pins_is_unchanged() -> None:
+    """The green direction: a source installation on operator pins keeps its advice."""
+    from core.application.installer.contracts import ImageCurrency
+    from core.application.installer.service import InstallerService
+
+    notice = InstallerService._behind_sources_notice(
+        ImageCurrency(source_revision="b" * 40, running_revision="a" * 40)
+    )
+
+    assert "supply images built from these sources" in notice

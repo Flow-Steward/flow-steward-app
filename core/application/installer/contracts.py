@@ -162,6 +162,9 @@ class ImageCurrency(_ClosedModel):
     # operator's, which are never rebuilt -- and the runbook's own `export
     # FS_COMPACT_IMAGE=...` made a rollback a silent "already installed" (AC17-R162).
     shell_pins: tuple[str, ...] = ()
+    # The installation runs an official release, whose images are never rebuilt from
+    # a checkout (owner 2026-11-21: development included).
+    official_release: bool = False
 
 
 class BootstrapVerification(_ClosedModel):

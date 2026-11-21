@@ -219,6 +219,7 @@ class ReleaseService:
         platform: ReleasePlatform,
         origin: InstalledReleaseOriginPort,
         workflow: ReleaseUpgradeWorkflow | None = None,
+        environment: Literal["development", "production"] | None = None,
     ) -> None:
         if profile not in {"compact", "scalable"}:
             raise ValueError("unsupported deployment profile")
@@ -233,6 +234,9 @@ class ReleaseService:
         self.platform = platform
         self.origin = origin
         self.workflow = workflow
+        # Owner 2026-11-21: development upgrades like production; results say which
+        # environment they act on, and an upgrade never changes it.
+        self.environment = environment
         self.selector = OfficialReleaseSelector(
             discovery=discovery,
             state=state,
@@ -428,6 +432,8 @@ class ReleaseService:
         review = upgrade_review(prepared)
         if self.workflow is not None:
             review.update(self.workflow.review(prepared))
+        if self.environment is not None:
+            review["active_environment"] = f"{self.environment} (unchanged)"
         return review
 
     def plan_upgrade(self, request: ReleaseUpgradeRequest) -> dict[str, object]:
@@ -784,6 +790,7 @@ class ReleaseService:
     ) -> ReleaseResult:
         return ReleaseResult(
             status=status,
+            active_environment=self.environment,
             installed_origin=installed_origin or ("official" if installed else None),
             source_commit_sha=source_commit_sha,
             deployment_profile=self.profile,

@@ -239,6 +239,7 @@ class ReleaseUpgradeWorkflow:
             raise
         return ReleaseResult(
             status="upgraded",
+            active_environment=release.environment,
             current_release=prepared.target_release,
             current_version=prepared.target_release.version,
             target_release=prepared.target_release,
