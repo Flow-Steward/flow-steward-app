@@ -1314,9 +1314,16 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
             "runtime_services": (*_target().runtime_services, "rabbitmq-fs", "fs-cli"),
         }
     )
+    rendered = {
+        "services": {
+            "fs-app": {"depends_on": {"pg-fs": {"condition": "service_healthy"}}},
+            "fs-worker": {},
+        }
+    }
     process = _Process(
         [
             (0, "fs-app\nfs-worker\npg-fs\nrabbitmq-fs\nfs-cli\n"),
+            (0, json.dumps(rendered)),
             (0, ""),
             (0, ""),
         ]
@@ -1332,9 +1339,10 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
         timeout_seconds=41,
     )
 
-    inventory, reconcile, names = process.commands
+    inventory, prerequisites, reconcile, names = process.commands
     assert names[-2:] == _NAMES_LISTING
     assert inventory[-2:] == ("config", "--services")
+    assert prerequisites[-3:] == ("config", "--format", "json")  # nothing to complete first
     assert reconcile[-8:] == (
         "up",
         "--detach",
@@ -1351,6 +1359,71 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
     assert "fs-cli" not in reconcile[reconcile.index("up") + 1 :]
 
 
+def test_a_transition_runs_what_the_services_wait_on_to_complete_first(
+    tmp_path: Path,
+) -> None:
+    """E2E 2026-11-21: `up --no-deps` never ran traefik-files; after Scalable to Compact
+    Compact's Traefik restart-looped on an empty volume, and the public route was down."""
+    target = _target().model_copy(
+        update={
+            "required_services": ("traefik-files", "traefik", "compact-runtime", "pg-fs"),
+            "runtime_services": ("traefik", "compact-runtime", "pg-fs"),
+            "stack_environment": "production",
+        }
+    )
+    completed = {"condition": "service_completed_successfully", "required": True}
+    rendered = {
+        "services": {
+            "traefik": {"depends_on": {"traefik-files": completed}},
+            "compact-runtime": {"depends_on": {"pg-fs": {"condition": "service_healthy"}}},
+        }
+    }
+    process = _Process(
+        [
+            (0, "traefik\ncompact-runtime\npg-fs\n"),
+            (0, json.dumps(rendered)),
+            (0, ""),
+            (0, ""),
+            (0, ""),
+        ]
+    )
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.apply_configuration(
+        target,
+        reconcile_services=("traefik", "compact-runtime"),
+        no_dependencies=True,
+        remove_orphans=False,
+        timeout_seconds=41,
+    )
+
+    _inventory, _rendered, prepared, reconcile, _names = process.commands
+    # production: the copy never pulls or builds, like the reconcile itself
+    assert prepared[-7:] == ("run", "--rm", "--no-deps", "--pull", "never", "-T", "traefik-files")
+    assert reconcile[-3:] == ("--no-deps", "traefik", "compact-runtime")
+    # pg-fs is waited on to be healthy, not to complete: --no-deps still leaves it be
+    assert sum("run" in command for command in process.commands) == 1
+
+
+def test_a_failed_prerequisite_stops_the_transition_before_its_services_start(
+    tmp_path: Path,
+) -> None:
+    target = _target().model_copy(
+        update={"required_services": ("traefik",), "runtime_services": ("traefik",)}
+    )
+    completed = {"condition": "service_completed_successfully"}
+    rendered = {"services": {"traefik": {"depends_on": {"traefik-files": completed}}}}
+    process = _Process([(0, "traefik\n"), (0, json.dumps(rendered)), (1, "copy failed")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    with pytest.raises(StackGatewayError):
+        gateway.apply_configuration(
+            target, no_dependencies=True, remove_orphans=False, timeout_seconds=41
+        )
+
+    assert not any("up" in command for command in process.commands)
+
+
 def test_docker_configuration_failure_retains_redacted_terminal_output(
     tmp_path: Path,
 ) -> None:
@@ -1361,6 +1434,7 @@ def test_docker_configuration_failure_retains_redacted_terminal_output(
     process = _Process(
         [
             (0, "fs-app\nfs-worker\npg-fs\nseaweedfs\n"),
+            (0, '{"services": {}}'),
             (
                 1,
                 "orphan warning\n" + ("Container candidate Creating\n" * 30) + terminal_error,

@@ -33,6 +33,7 @@ from core.infrastructure.lifecycle.docker_runtime_support import (
     _TOKEN_INSTALLER_COMPOSE_OVERRIDE_YAML,
 )
 
+from .docker_completion_prerequisites import run_completion_prerequisites
 from .docker_gateway_contracts import (
     _CONTAINER_ID,
     _DOCKER_TIMEOUT_SECONDS,
@@ -282,6 +283,10 @@ class DockerLifecycleGateway:
             arguments.append("--remove-orphans")
         if no_dependencies:
             arguments.append("--no-deps")
+            # What the services wait on to complete still runs (traefik-files).
+            run_completion_prerequisites(
+                target, runtime, run_compose=self._run_compose, timeout_seconds=timeout_seconds
+            )
         arguments.extend(runtime)
         self._run_compose(
             target,
