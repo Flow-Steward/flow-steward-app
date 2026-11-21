@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { vi } from "vitest";
@@ -44,6 +44,21 @@ function renderContext(overrides: Partial<ManifestRenderContext> = {}): Manifest
 }
 
 describe("renderManifestComponent", () => {
+  it.each([
+    { status: "success", message: "Connection saved.", role: "status" },
+    { status: "error", message: "Service unavailable", role: "alert" },
+    { status: "saving", message: "Saving…", role: "status" },
+  ] as const)("places $status feedback with the bottom Save control", ({ status, message, role }) => {
+    render(<>{renderManifestComponent({
+      component_id: "profile", type: "connection_form", title: "Profiles",
+      data: { connection_type: "scraper" }, fields: [{ path: "host", label: "Host" }],
+    }, renderContext({ connectionSaveFeedback: { profile: { status, message } } }))}</>);
+    const save = screen.getByRole("button", { name: "Create connection" });
+    const form = screen.getByRole("form", { name: "Profiles" });
+    expect(within(form).getByRole(role)).toHaveTextContent(message);
+    if (status === "saving") expect(save).toHaveAttribute("aria-disabled", "true");
+  });
+
   it("reads authoritative inputs from a production-shaped browser operation manifest", () => {
     expect(contractActionInputNames({
       operation_manifest: [{

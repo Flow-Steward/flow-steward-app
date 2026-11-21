@@ -41,7 +41,13 @@ export type PendingConnectionDisconnect = {
   error: string;
 };
 
+export type ConnectionSaveFeedback = {
+  status: "saving" | "success" | "error";
+  message: string;
+};
+
 export type ManifestRenderContext = {
+  connectionSaveFeedback?: Record<string, ConnectionSaveFeedback>;
   /** An action of this extension is running: every manifest control ignores presses. */
   busy: boolean;
   /** While `busy`, the key (`manifestActionKey`) of the pressed control: only it shows busy. */

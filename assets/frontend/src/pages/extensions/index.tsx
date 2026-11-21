@@ -678,6 +678,7 @@ export function ExtensionsHubPage() {
             callbackSetupCredentials={manifestActions.callbackSetupCredentials}
             callbackSetupErrors={manifestActions.callbackSetupErrors}
             callbacksQuery={callbacksQuery}
+            connectionSaveFeedback={connectionActions.connectionSaveFeedback}
             componentErrors={componentErrors}
             componentQueryData={componentQueryData}
             componentQueryParams={componentQueryParams}

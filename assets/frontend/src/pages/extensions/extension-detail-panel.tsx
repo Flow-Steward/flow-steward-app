@@ -26,7 +26,7 @@ import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { Button } from "@/components/ui/button";
 import { renderManifestComponent } from "@/pages/extensions/extension-manifest-renderer";
-import { type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
+import { type ConnectionSaveFeedback, type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
 import {
   extensionState,
   focusManifestAnchor,
@@ -84,6 +84,7 @@ import type { CallbackSetupCredentials } from "./callback-setup-scope";
 type RecordMap = Record<string, Record<string, unknown>>;
 
 type ExtensionDetailPanelProps = {
+  connectionSaveFeedback?: Record<string, ConnectionSaveFeedback>;
   activationBlockedReason: string;
   connectionCreationBlockedReason: string;
   activeManifestPage: Record<string, unknown> | undefined;
@@ -665,6 +666,7 @@ function ManifestComponentSections({
           callbackSetupErrors: panel.callbackSetupErrors,
           callbackDeclarations: listFromUnknown(objectOrEmpty(panel.manifestQuery.data).callbacks),
           selectedConnectionId: panel.pageConnection.selectedId,
+          connectionSaveFeedback: panel.connectionSaveFeedback,
           componentErrors: panel.componentErrors,
           componentQueryParams: panel.componentQueryParams,
           componentQueryData: panel.componentQueryData,
