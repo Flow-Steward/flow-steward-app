@@ -81,14 +81,21 @@ class InstalledReleaseOriginReader:
         active = self._configuration.read_active()
         if active is None:
             raise self._invalid("The completed source installation has no active configuration.")
-        if journal.config.environment != "production" or active.environment != "production":
+        # Owner 2026-11-21: a development source installation moves to the official
+        # release through the same reviewed transition as production; it must still
+        # be the environment it was installed as.
+        if journal.config.environment != active.environment:
             raise self._invalid(
-                "The completed source installation is not a production installation."
+                "The completed source installation runs another environment than it recorded."
             )
         config = InstallConfig.model_validate(active.model_dump(mode="json"))
         environment = self._configuration.read_durable_environment(active)
+        stack_environment = str(environment.get("FS_STACK_ENVIRONMENT") or "").strip()
+        if stack_environment == "local_development":
+            # The development stack's historical runtime name for the same environment.
+            stack_environment = "development"
         if (
-            str(environment.get("FS_STACK_ENVIRONMENT") or "").strip() != active.environment
+            stack_environment != active.environment
             or str(environment.get("FS_DEPLOYMENT_PROFILE") or "").strip()
             != active.deployment_profile
         ):

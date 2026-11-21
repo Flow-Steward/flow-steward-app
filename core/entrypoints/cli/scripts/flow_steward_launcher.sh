@@ -771,7 +771,13 @@ ensure_cli_image() {
     return 0
   fi
   case "${FS_STACK_ENVIRONMENT:-}" in
-    development|local_development) ;;
+    development|local_development)
+      # Owner 2026-11-21: development upgrades like production, and an official
+      # development installation never builds its images from the checkout either.
+      if [ "$configured_install_mode" = "official" ]; then
+        fail "The official development CLI image set is incomplete or invalid. Rerun ./install.sh; local image builds are disabled for official installations." 4
+      fi
+      ;;
     *)
       fail "The official production CLI image set is incomplete or invalid. Rerun ./install.sh; local image builds are disabled for production." 4
       ;;
