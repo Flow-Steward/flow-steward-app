@@ -1767,10 +1767,19 @@ def test_compact_exact_prebuilt_persists_distinct_oci_digests(
     assert process.commands[2][:4] == ("docker", "image", "save", "--output")
 
 
-@pytest.mark.parametrize("profile", ("compact", "scalable"))
+@pytest.mark.parametrize(
+    ("environment", "profile"),
+    (("production", "compact"), ("production", "scalable"), ("development", "scalable")),
+)
 def test_official_transition_materializes_registry_refs_despite_local_source_ids(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, profile: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, environment: str, profile: str
 ) -> None:
+    """The source-to-official transition replaces locally built IDs by release digests.
+
+    Owner 2026-11-21: a development source installation moves to official images the
+    same way as production, through its .env instead of .env.prod.
+    """
+    env_path = tmp_path / (".env" if environment == "development" else ".env.prod")
     source_ids = {
         "FS_COMPACT_IMAGE": _APP_IMAGE_ID,
         "FS_APP_IMAGE": _APP_IMAGE_ID,
@@ -1781,7 +1790,7 @@ def test_official_transition_materializes_registry_refs_despite_local_source_ids
     }
     gateway = _gateway(tmp_path, FakeProcessExecutor(), environment=source_ids)
     release = _stage_official_release(gateway, profile)
-    _write_env_values(tmp_path / ".env.prod", source_ids)
+    _write_env_values(env_path, source_ids)
 
     def resolve(**values):
         selected = next(image for image in release.images if image.role == values["expected_role"])
@@ -1805,12 +1814,12 @@ def test_official_transition_materializes_registry_refs_despite_local_source_ids
     log = gateway.state_store.open_log("source-to-official-images")
     try:
         gateway._materialize_official_release(
-            InstallConfig(environment="production", deployment_profile=profile), log=log
+            InstallConfig(environment=environment, deployment_profile=profile), log=log
         )
     finally:
         log.close()
 
-    persisted = gateway.state_store.read_env_values(tmp_path / ".env.prod")
+    persisted = gateway.state_store.read_env_values(env_path)
     image_keys = {
         "compact-runtime": "FS_COMPACT_IMAGE",
         "fs-app": "FS_APP_IMAGE",
@@ -1842,6 +1851,199 @@ def _official_identity_resolver(release: ReleaseIdentity):
         )
 
     return resolve
+
+
+_FRONTEND_LOCAL_TAG = "flow-steward-frontend:0.1.0-local"
+
+
+def _revision_label_command(image: str) -> tuple[str, ...]:
+    return (
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        '{{index .Config.Labels "org.opencontainers.image.revision"}}',
+        image,
+    )
+
+
+def _official_development_gateway(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    head: str = _FULL_REVISION,
+    frontend_revision: str = _FULL_REVISION,
+    audit_revision: str = _FULL_REVISION,
+) -> tuple[DockerInstallerGateway, FakeProcessExecutor, InstallConfig, list[dict[str, str]]]:
+    """An official development install at the release checkout, with stubbed Docker."""
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process)
+    release = _stage_official_release(gateway, "scalable")
+    monkeypatch.setattr(
+        registry_image_resolver, "resolve_digest_pinned_image", _official_identity_resolver(release)
+    )
+    provenance_inputs: list[dict[str, str]] = []
+    monkeypatch.setattr(
+        gateway,
+        "_prepare_exact_prebuilt_provenance",
+        lambda *_a, **_kw: provenance_inputs.append(
+            gateway.state_store.read_env_values(tmp_path / ".env")
+        ),
+    )
+    git_command = ("git", "-C", str(tmp_path.resolve()), "rev-parse", "HEAD^{commit}")
+    frontend_id = ("docker", "image", "inspect", "--format", "{{.Id}}", _FRONTEND_LOCAL_TAG)
+    frontend_inspect = ("docker", "image", "inspect", _FRONTEND_IMAGE_ID)
+    process.outcomes.update(
+        {
+            git_command: ProcessOutcome(command=git_command, returncode=0, stdout=head + "\n"),
+            frontend_id: ProcessOutcome(
+                command=frontend_id, returncode=0, stdout=_FRONTEND_IMAGE_ID + "\n"
+            ),
+            frontend_inspect: ProcessOutcome(
+                command=frontend_inspect,
+                returncode=0,
+                stdout=_image_inspection(
+                    _FRONTEND_IMAGE_ID,
+                    frontend_revision,
+                    service="fs-frontend",
+                    command=("/usr/local/bin/start_frontend_dev.sh",),
+                ),
+            ),
+        }
+    )
+    for service, revision in (
+        ("fs-test-runner", _FULL_REVISION),
+        ("fs-audit", audit_revision),
+    ):
+        command = _revision_label_command(f"flow-steward-{service}")
+        process.outcomes[command] = ProcessOutcome(
+            command=command, returncode=0, stdout=revision + "\n"
+        )
+    return gateway, process, InstallConfig(environment="development"), provenance_inputs
+
+
+def test_official_development_prepare_builds_only_the_unpublished_extras(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Owner 2026-11-21: development installs like production.
+
+    Core images come from the official release by digest; only the development
+    frontend, test runner and audit images -- which no release publishes -- are built,
+    from the checkout at the release commit. The frontend is pinned by its local image
+    ID before provenance runs, so the exact image selection is complete (D1).
+    """
+    gateway, process, config, provenance_inputs = _official_development_gateway(
+        tmp_path, monkeypatch
+    )
+    log = gateway.state_store.open_log("official-development-extras")
+    try:
+        gateway.prepare_core(config, log=log)
+    finally:
+        log.close()
+
+    prefix = tuple(gateway._compose_prefix(config))
+    builds = [
+        (command, kwargs)
+        for command, kwargs in process.invocations
+        if "build" in command or command[:3] == ("docker", "buildx", "build")
+    ]
+    assert [command for command, _kwargs in builds] == [
+        (*prefix, "build", "fs-frontend", "fs-test-runner", "fs-audit")
+    ]
+    build_environment = builds[0][1]["environment"]
+    assert build_environment["FS_FRONTEND_IMAGE"] == _FRONTEND_LOCAL_TAG
+    assert (*prefix, "pull", "--ignore-buildable", "--policy", "missing", "sonar-scanner") in (
+        process.commands
+    )
+    persisted = gateway.state_store.read_env_values(tmp_path / ".env")
+    assert persisted["FS_FRONTEND_IMAGE"] == _FRONTEND_IMAGE_ID
+    assert persisted["FS_FRONTEND_IMAGE_REVISION"] == _FULL_REVISION
+    assert persisted["FS_APP_IMAGE"].startswith("registry.example/official/")
+    assert provenance_inputs and provenance_inputs[0]["FS_FRONTEND_IMAGE"] == _FRONTEND_IMAGE_ID
+
+
+def test_official_development_prepare_refuses_a_checkout_away_from_the_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The Core services bind-mount the checkout, so it must sit at the release commit.
+
+    D7: the refusal names --from-source for a checkout that is meant to be built.
+    """
+    gateway, process, config, provenance_inputs = _official_development_gateway(
+        tmp_path, monkeypatch, head="f" * 40
+    )
+    log = gateway.state_store.open_log("official-development-moved-checkout")
+    try:
+        with pytest.raises(InstallerFailure) as refused:
+            gateway.prepare_core(config, log=log)
+    finally:
+        log.close()
+
+    assert refused.value.code == "core_image_preparation_failed"
+    assert _FULL_REVISION in refused.value.remediation
+    assert "--from-source" in refused.value.remediation
+    assert not any("build" in command or "pull" in command for command in process.commands)
+    assert provenance_inputs == []
+
+
+@pytest.mark.parametrize(
+    ("stale", "named"),
+    (("frontend_revision", "frontend"), ("audit_revision", "fs-audit")),
+)
+def test_official_development_prepare_refuses_extras_built_at_another_revision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stale: str, named: str
+) -> None:
+    """An extra image that does not carry the release commit is not this release's."""
+    gateway, _process, config, provenance_inputs = _official_development_gateway(
+        tmp_path, monkeypatch, **{stale: "e" * 40}
+    )
+    log = gateway.state_store.open_log("official-development-stale-extra")
+    try:
+        with pytest.raises(InstallerFailure) as refused:
+            gateway.prepare_core(config, log=log)
+    finally:
+        log.close()
+
+    assert refused.value.code == "core_image_preparation_failed"
+    assert named in refused.value.cause
+    assert provenance_inputs == []
+
+
+@pytest.mark.parametrize(("audit_revision", "holds"), ((_FULL_REVISION, True), ("e" * 40, False)))
+def test_official_development_prepare_postcondition_requires_current_extras(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, audit_revision: str, holds: bool
+) -> None:
+    """A resumed install re-prepares when the audit/test images are not this release's."""
+    gateway, _process, config, _inputs = _official_development_gateway(
+        tmp_path, monkeypatch, audit_revision=audit_revision
+    )
+    _write_env_values(
+        tmp_path / ".env",
+        {
+            **_exact_prebuilt_values(include_frontend=True),
+            "FS_INSTALL_MODE": "official",
+            "FS_BUILD_SHA": _FULL_REVISION,
+        },
+    )
+    monkeypatch.setattr(gateway, "_production_provenance_postcondition_holds", lambda _c: True)
+
+    assert gateway.postcondition_holds("prepare", config) is holds
+
+
+def test_source_development_prepare_postcondition_does_not_ask_for_official_extras(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The green direction: a source development install is judged as before."""
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process)
+    _write_env_values(tmp_path / ".env", _exact_prebuilt_values(include_frontend=True))
+    monkeypatch.setattr(gateway, "_production_provenance_postcondition_holds", lambda _c: True)
+
+    assert gateway.postcondition_holds("prepare", InstallConfig(environment="development"))
+    assert not any(
+        command[-1] in {"flow-steward-fs-test-runner", "flow-steward-fs-audit"}
+        for command in process.commands
+    )
 
 
 class _ComposeReadsPostgresImage(FakeProcessExecutor):

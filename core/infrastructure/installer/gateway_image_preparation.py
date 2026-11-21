@@ -25,6 +25,7 @@ from core.infrastructure.installer.gateway_support import (
     _SOURCE_REVISION_REMEDIATION,
     _TOKEN_HEAD_COMMIT,
     _read_env,
+    _repository_release_version,
 )
 from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import (
@@ -33,6 +34,12 @@ from core.infrastructure.installer.registry_image_resolver import (
 
 if TYPE_CHECKING:
     from core.infrastructure.installer.gateway import DockerInstallerGateway
+
+#: Development-only images no release publishes; an official development installation
+#: builds them from the checkout at the release commit (owner 2026-11-21).
+_DEVELOPMENT_EXTRA_SERVICES = ("fs-frontend", "fs-test-runner", "fs-audit")
+#: The ones left on their Compose tags (lint.sh rebuilds fs-audit itself).
+_DEVELOPMENT_UNPINNED_EXTRAS = ("fs-test-runner", "fs-audit")
 
 
 class ImagePreparationOperations:
@@ -59,6 +66,8 @@ class ImagePreparationOperations:
         if self._install_mode(config) == "official":
             self._refuse_lost_image_ids(config, names=("POSTGRES_IMAGE",))
             registry_identity = self._materialize_official_release(config, log=log)
+            if config.environment == "development":
+                self._prepare_development_extras(config, log=log)
             environment = _read_env(self._env_path(config))
             if self._exact_prebuilt_image_refs(config, environment) is None:
                 raise self._production_provenance_failure(
@@ -245,6 +254,111 @@ class ImagePreparationOperations:
                 "stops preparation without building from source."
             )
         return compact_identity
+
+    def _prepare_development_extras(
+        self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
+    ) -> None:
+        """Build the development-only images from the checkout at the official release.
+
+        Owner 2026-11-21: a development installation installs and upgrades like
+        production. Core images (app, worker, control, CLI, MCP, PostgreSQL) come from
+        the official release by digest; only what is never published -- the frontend
+        dev server and the audit/test images -- is built here, from the checkout, which
+        must sit at the release commit because the Core services bind-mount it.
+
+        The frontend is pinned by its local image ID so the exact-prebuilt selection
+        stays complete (D1); fs-test-runner and fs-audit keep their Compose tags and
+        are only verified by revision, because lint.sh rebuilds fs-audit itself.
+        """
+        env_path = self._env_path(config)
+        release_commit = str(_read_env(env_path).get("FS_BUILD_SHA") or "").strip()
+        head = self._source_revision(log, step="prepare")
+        if _FULL_GIT_REVISION.fullmatch(release_commit) is None or head != release_commit:
+            raise InstallerFailure(
+                code="core_image_preparation_failed",
+                cause=(
+                    "A development installation runs the official release from a checkout "
+                    f"at that release, but the checkout is at {head or 'an unknown commit'} "
+                    f"and the release commit is {release_commit or 'unknown'}."
+                ),
+                remediation=(
+                    "Check out the release commit with a clean tree "
+                    f"(git checkout --detach {release_commit or '<release tag>'}) and resume "
+                    "./install.sh, or install with --from-source to build this checkout."
+                ),
+                exit_code=7,
+                retryable=True,
+                step="prepare",
+            )
+        compose_prefix = self._compose_prefix(config)
+        remediation = "Resolve the reported Docker build/pull failure and resume ./install.sh."
+        self._checked(
+            [*compose_prefix, "pull", "--ignore-buildable", "--policy", "missing", "sonar-scanner"],
+            log=log,
+            code="core_image_preparation_failed",
+            remediation=remediation,
+            exit_code=7,
+            step="prepare",
+        )
+        frontend_tag = f"flow-steward-frontend:{_repository_release_version(self.repo_root)}-local"
+        self._checked(
+            [*compose_prefix, "build", *_DEVELOPMENT_EXTRA_SERVICES],
+            log=log,
+            code="core_image_preparation_failed",
+            remediation=remediation,
+            exit_code=7,
+            step="prepare",
+            # The process environment wins over the env file in Compose: name the local
+            # tag here so the build never writes over a pinned image reference.
+            environment={**self._environment, "FS_FRONTEND_IMAGE": frontend_tag},
+        )
+
+        def checked(command: Sequence[str]) -> ProcessOutcome:
+            return self._checked(
+                command,
+                log=log,
+                code="core_image_preparation_failed",
+                remediation=remediation,
+                exit_code=7,
+                step="prepare",
+            )
+
+        frontend_id = checked(
+            ["docker", "image", "inspect", "--format", "{{.Id}}", frontend_tag]
+        ).stdout.strip()
+        if _IMAGE_ID.fullmatch(frontend_id) is None:
+            raise self._production_provenance_failure(
+                "The development frontend image did not produce an immutable image ID."
+            )
+        identity = self._inspect_exact_prebuilt_image("frontend", frontend_id, checked)
+        if identity.revision != release_commit:
+            raise self._production_provenance_failure(
+                "The development frontend image was not built at the release commit."
+            )
+        updates = {"FS_FRONTEND_IMAGE": frontend_id, "FS_FRONTEND_IMAGE_REVISION": release_commit}
+        self.state_store.update_env_values(env_path, updates)
+        self._environment = {**self._environment, **updates}
+        for service in _DEVELOPMENT_UNPINNED_EXTRAS:
+            image = f"{self._project_identity()}-{service}"
+            if self._image_revision_label(image) != release_commit:
+                raise self._production_provenance_failure(
+                    f"The development {service} image was not built at the release commit."
+                )
+        log.write(
+            f"Built the development frontend, test runner and audit images at {release_commit}."
+        )
+
+    def _development_extras_present(
+        self: DockerInstallerGateway, config: InstallConfig, environment: Mapping[str, str]
+    ) -> bool:
+        """Whether the unpinned development images exist at the recorded release commit."""
+        if config.environment != "development" or self._install_mode(config) != "official":
+            return True
+        release_commit = str(environment.get("FS_BUILD_SHA") or "").strip()
+        return bool(release_commit) and all(
+            self._image_revision_label(f"{self._project_identity()}-{service}") == release_commit
+            for service in _DEVELOPMENT_UNPINNED_EXTRAS
+        )
 
     def _require_resolvable_source_revision(
         self: DockerInstallerGateway, *, log: InstallerLog

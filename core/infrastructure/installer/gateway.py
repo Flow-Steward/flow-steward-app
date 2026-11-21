@@ -403,14 +403,16 @@ class DockerInstallerGateway(
             ):
                 return False
             if self._complete_exact_prebuilt_image_refs(config, environment) is not None:
-                return self._production_provenance_postcondition_holds(
-                    config
-                ) and core_dependency_images_present(
-                    failure=self._core_dependency_failure,
-                    config=config,
-                    compose_prefix=self._compose_prefix(config),
-                    repo_root=self.repo_root,
-                    run=self.process.run,
+                return (
+                    self._production_provenance_postcondition_holds(config)
+                    and self._development_extras_present(config, environment)
+                    and core_dependency_images_present(
+                        failure=self._core_dependency_failure,
+                        config=config,
+                        compose_prefix=self._compose_prefix(config),
+                        repo_root=self.repo_root,
+                        run=self.process.run,
+                    )
                 )
             outcome = self.process.run(
                 [*self._compose_prefix(config), "config", "--format", "json"],
