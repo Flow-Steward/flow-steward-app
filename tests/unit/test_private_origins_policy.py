@@ -71,6 +71,7 @@ def test_valid_values_are_canonical_origins(raw, expected) -> None:
         ("http://host.docker.internal:11434/v1", "without a path"),
         ("http://host.docker.internal:11434?x=1", "without a path"),
         ("http://host.docker.internal:11434#x", "without a path"),
+        # pragma: allowlist nextline secret
         ("http://user:pw@host.docker.internal:11434", "user name or password"),
         ("ftp://host.docker.internal:21", "http:// or https://"),
         ("host.docker.internal:11434", "http:// or https://"),

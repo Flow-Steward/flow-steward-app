@@ -5402,6 +5402,7 @@ class TestWorkflowCRUD:
             "step_id": "render",
             "step_kind": "connector",
             "connector_id": "example.gotenberg.render",
+            # pragma: allowlist nextline secret
             "override": {"api_key": "private-demo-credential"},
         }
         workflow = {
