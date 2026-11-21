@@ -27,6 +27,9 @@ const storedRow = {
   connection_config: { allowed_hosts: ["saved.example.test", "backup.example.test"] },
 };
 
+// The hub passes a stable state setter; a new function per render would rerun its effects.
+const stableSetStatusById = () => undefined;
+
 function NativeForm({ row = storedRow, onSave, onAction }: {
   row?: Record<string, unknown>;
   onSave: ManifestRenderContext["onConnectionSave"];
@@ -38,6 +41,7 @@ function NativeForm({ row = storedRow, onSave, onAction }: {
     activePageProjectId: "project-1", projectConnectionsQuery: { data: [row] },
     archiveLifecycleQuery: { isPending: false }, archiveLifecycleVerificationFailed: false, archiveLifecycleUnavailable: false,
     setFormValuesByComponent, setComponentErrors: () => undefined, setComponentError: () => undefined,
+    setStatusById: stableSetStatusById,
   } as unknown as ReturnType<typeof useExtensionsHubState>;
   const actions = useExtensionConnectionActions(state, {} as ReturnType<typeof useExtensionLifecycleActions>);
   const context: ManifestRenderContext = {

@@ -59,12 +59,19 @@ class ImageProvenanceOperations:
         self: DockerInstallerGateway,
         config: InstallConfig,
     ) -> str:
-        """Return source revision only for a complete locally built image set."""
+        """Return source revision only for a complete locally built image set.
+
+        Owner 2026-11-21 (D2): a development source installation may take the reviewed
+        transition to the official release as well. Its CLI image is built and checked
+        by the launcher rather than recorded here, and its Core services run code
+        bind-mounted from the checkout, so the CLI role is optional and the running
+        containers are not compared with the recorded images.
+        """
         environment = _read_env(self._env_path(config))
         revision = str(environment.get("FS_BUILD_SHA") or "").strip()
+        development = config.environment == "development"
         if (
-            config.environment != "production"
-            or str(environment.get("FS_INSTALL_MODE") or "").strip() != "source"
+            str(environment.get("FS_INSTALL_MODE") or "").strip() != "source"
             or _FULL_GIT_REVISION.fullmatch(revision) is None
         ):
             raise self._source_provenance_failure(
@@ -79,7 +86,7 @@ class ImageProvenanceOperations:
                 config.deployment_profile == "compact"
                 and role.role != "compact-runtime"
                 and not image
-            ):
+            ) or (development and role.role == "fs-cli"):
                 continue
             revision_key = self._SOURCE_REVISION_KEY_BY_ROLE[role.role]
             if (
@@ -90,6 +97,8 @@ class ImageProvenanceOperations:
                 raise self._source_provenance_failure(
                     f"The source image provenance is incomplete or inconsistent for {role.role}."
                 )
+        if development:
+            return revision
         for service, image_key in _RUNTIME_IMAGES[config.deployment_profile]:
             recorded_image = str(environment.get(image_key) or "").strip()
             running_image = self._running_image_id(config, service)

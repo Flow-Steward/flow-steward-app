@@ -7,6 +7,7 @@ from __future__ import annotations
 import core.infrastructure.observability.otel_bootstrap
 
 # isort: split
+import core.entrypoints.mcp.server_catalog_tools
 import core.entrypoints.mcp.server_job_tools
 import core.entrypoints.mcp.server_project_workflow_tools
 import core.entrypoints.mcp.server_registry_authoring_tools

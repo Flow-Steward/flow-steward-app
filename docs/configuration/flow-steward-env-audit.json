@@ -295,7 +295,7 @@
     "conditional_groups": [],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:127"
+      ".env.example.ops:128"
     ],
     "environments": [
       "production",
@@ -344,7 +344,7 @@
     ],
     "default_example_value": "/data/artifacts",
     "documented_sources": [
-      ".env.example.ops:283"
+      ".env.example.ops:287"
     ],
     "environments": [
       "production",
@@ -392,7 +392,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:277"
+      ".env.example.ops:281"
     ],
     "environments": [
       "production",
@@ -421,7 +421,7 @@
     ],
     "default_example_value": "platform-artifacts",
     "documented_sources": [
-      ".env.example.ops:276"
+      ".env.example.ops:280"
     ],
     "environments": [
       "production",
@@ -450,7 +450,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:272"
+      ".env.example.ops:276"
     ],
     "environments": [
       "production",
@@ -477,7 +477,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:280"
+      ".env.example.ops:284"
     ],
     "environments": [
       "production",
@@ -504,7 +504,7 @@
     ],
     "default_example_value": "600",
     "documented_sources": [
-      ".env.example.ops:282"
+      ".env.example.ops:286"
     ],
     "environments": [
       "production",
@@ -531,7 +531,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:275"
+      ".env.example.ops:279"
     ],
     "environments": [
       "production",
@@ -560,7 +560,7 @@
     ],
     "default_example_value": "us-east-1",
     "documented_sources": [
-      ".env.example.ops:279"
+      ".env.example.ops:283"
     ],
     "environments": [
       "production",
@@ -587,7 +587,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:278"
+      ".env.example.ops:282"
     ],
     "environments": [
       "production",
@@ -616,7 +616,7 @@
     ],
     "default_example_value": "true",
     "documented_sources": [
-      ".env.example.ops:281"
+      ".env.example.ops:285"
     ],
     "environments": [
       "production",
@@ -648,7 +648,7 @@
     ],
     "default_example_value": "s3",
     "documented_sources": [
-      ".env.example.ops:271"
+      ".env.example.ops:275"
     ],
     "environments": [
       "production",
@@ -1100,7 +1100,7 @@
     "conditional_groups": [],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:197"
+      ".env.example.ops:201"
     ],
     "environments": [
       "production",
@@ -2563,7 +2563,7 @@
     ],
     "default_example_value": "10",
     "documented_sources": [
-      ".env.example.ops:130"
+      ".env.example.ops:131"
     ],
     "environments": [
       "production",
@@ -2586,7 +2586,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example.ops:132"
+      ".env.example.ops:133"
     ],
     "environments": [
       "production",
@@ -2717,6 +2717,32 @@
     "variable_name": "FS_ALLOWED_ATTACHMENT_MIMES"
   },
   {
+    "canonical_name": "FS_ALLOWED_PRIVATE_ORIGINS",
+    "code_read_locations": [
+      "core/infrastructure/config/private_origins.py",
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [
+      ".env.example.ops:166"
+    ],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Exact private or loopback origins (scheme://host:port, comma-separated, at most 16) an LLM provider extension may reach, for example http://host.docker.internal:11434. Empty allows none. Only these origins are admitted, over http or https as written; link-local and metadata addresses stay refused, and other private addresses still need FS_ALLOW_PRIVATE_REMOTE_URLS.",
+    "owning_subsystem": "extensions",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_ALLOWED_PRIVATE_ORIGINS"
+  },
+  {
     "canonical_name": "FS_ALLOW_PRIVATE_REMOTE_URLS",
     "code_read_locations": [
       "core/application/extensions/lifecycle_descriptor_io.py",
@@ -2730,7 +2756,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:162"
+      ".env.example.ops:163"
     ],
     "environments": [
       "production",
@@ -2775,7 +2801,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:26",
-      ".env.example.ops:107"
+      ".env.example.ops:108"
     ],
     "environments": [
       "production"
@@ -2799,7 +2825,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:29",
-      ".env.example.ops:110"
+      ".env.example.ops:111"
     ],
     "environments": [
       "production",
@@ -2845,7 +2871,7 @@
     ],
     "default_example_value": "16",
     "documented_sources": [
-      ".env.example.ops:198"
+      ".env.example.ops:202"
     ],
     "environments": [
       "production",
@@ -2868,7 +2894,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:148"
+      ".env.example.ops:149"
     ],
     "environments": [
       "production",
@@ -2894,7 +2920,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:149"
+      ".env.example.ops:150"
     ],
     "environments": [
       "production",
@@ -3178,7 +3204,7 @@
     ],
     "default_example_value": "fs_session",
     "documented_sources": [
-      ".env.example.ops:88"
+      ".env.example.ops:89"
     ],
     "environments": [
       "production",
@@ -3229,7 +3255,7 @@
     ],
     "default_example_value": "fs_csrf",
     "documented_sources": [
-      ".env.example.ops:89"
+      ".env.example.ops:90"
     ],
     "environments": [
       "production",
@@ -3252,7 +3278,7 @@
     ],
     "default_example_value": "x-csrf-token",
     "documented_sources": [
-      ".env.example.ops:90"
+      ".env.example.ops:91"
     ],
     "environments": [
       "production",
@@ -3275,7 +3301,7 @@
     ],
     "default_example_value": "900",
     "documented_sources": [
-      ".env.example.ops:95"
+      ".env.example.ops:96"
     ],
     "environments": [
       "production",
@@ -3298,7 +3324,7 @@
     ],
     "default_example_value": "5",
     "documented_sources": [
-      ".env.example.ops:94"
+      ".env.example.ops:95"
     ],
     "environments": [
       "production",
@@ -3321,7 +3347,7 @@
     ],
     "default_example_value": "300",
     "documented_sources": [
-      ".env.example.ops:93"
+      ".env.example.ops:94"
     ],
     "environments": [
       "production",
@@ -3333,6 +3359,31 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_AUTH_LOGIN_RATE_WINDOW_SECONDS"
+  },
+  {
+    "canonical_name": "FS_AUTH_MFA_REQUIRED",
+    "code_read_locations": [
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
+    "default_example_value": "0",
+    "documented_sources": [
+      ".env.example.ops:88"
+    ],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Require an enrolled authenticator or recovery code for all local user sign-ins. Complete enrollment before enabling this setting.",
+    "owning_subsystem": "security",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_AUTH_MFA_REQUIRED"
   },
   {
     "canonical_name": "FS_AUTH_PASSWORD_ITERATIONS",
@@ -3361,12 +3412,15 @@
   {
     "canonical_name": "FS_AUTH_PASSWORD_MIN_LENGTH",
     "code_read_locations": [
-      "core/application/auth/config.py"
+      "core/application/auth/config.py",
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "core_security_auth"
     ],
-    "default_example_value": "10",
+    "default_example_value": "12",
     "documented_sources": [
       ".env.example.ops:87"
     ],
@@ -3391,7 +3445,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:101"
+      ".env.example.ops:102"
     ],
     "environments": [
       "local_development"
@@ -3413,7 +3467,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:96"
+      ".env.example.ops:97"
     ],
     "environments": [
       "production",
@@ -3436,7 +3490,7 @@
     ],
     "default_example_value": "900",
     "documented_sources": [
-      ".env.example.ops:100"
+      ".env.example.ops:101"
     ],
     "environments": [
       "production",
@@ -3459,7 +3513,7 @@
     ],
     "default_example_value": "5",
     "documented_sources": [
-      ".env.example.ops:99"
+      ".env.example.ops:100"
     ],
     "environments": [
       "production",
@@ -3482,7 +3536,7 @@
     ],
     "default_example_value": "300",
     "documented_sources": [
-      ".env.example.ops:98"
+      ".env.example.ops:99"
     ],
     "environments": [
       "production",
@@ -3505,7 +3559,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:97"
+      ".env.example.ops:98"
     ],
     "environments": [
       "production",
@@ -3528,7 +3582,7 @@
     ],
     "default_example_value": "720",
     "documented_sources": [
-      ".env.example.ops:92"
+      ".env.example.ops:93"
     ],
     "environments": [
       "production",
@@ -3551,7 +3605,7 @@
     ],
     "default_example_value": "24",
     "documented_sources": [
-      ".env.example.ops:91"
+      ".env.example.ops:92"
     ],
     "environments": [
       "production",
@@ -3603,7 +3657,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:187"
+      ".env.example.ops:191"
     ],
     "environments": [
       "production",
@@ -3814,7 +3868,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:24",
-      ".env.example.ops:105"
+      ".env.example.ops:106"
     ],
     "environments": [
       "production",
@@ -3837,7 +3891,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:131"
+      ".env.example.ops:132"
     ],
     "environments": [
       "production",
@@ -4672,7 +4726,7 @@
     ],
     "default_example_value": "flow-steward",
     "documented_sources": [
-      ".env.example.ops:186"
+      ".env.example.ops:190"
     ],
     "environments": [
       "production",
@@ -4747,7 +4801,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:28",
-      ".env.example.ops:109"
+      ".env.example.ops:110"
     ],
     "environments": [
       "production"
@@ -4770,7 +4824,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:31",
-      ".env.example.ops:112"
+      ".env.example.ops:113"
     ],
     "environments": [
       "production",
@@ -4886,7 +4940,7 @@
     ],
     "default_example_value": "180",
     "documented_sources": [
-      ".env.example.ops:213"
+      ".env.example.ops:217"
     ],
     "environments": [
       "production",
@@ -4910,7 +4964,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:211"
+      ".env.example.ops:215"
     ],
     "environments": [
       "production",
@@ -4936,7 +4990,7 @@
     ],
     "default_example_value": "300",
     "documented_sources": [
-      ".env.example.ops:212"
+      ".env.example.ops:216"
     ],
     "environments": [
       "production",
@@ -4962,7 +5016,7 @@
     ],
     "default_example_value": "3",
     "documented_sources": [
-      ".env.example.ops:214"
+      ".env.example.ops:218"
     ],
     "environments": [
       "production",
@@ -4985,7 +5039,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:215"
+      ".env.example.ops:219"
     ],
     "environments": [
       "production",
@@ -5029,7 +5083,7 @@
     ],
     "default_example_value": "1000",
     "documented_sources": [
-      ".env.example.ops:178"
+      ".env.example.ops:182"
     ],
     "environments": [
       "production",
@@ -5124,7 +5178,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:229"
+      ".env.example.ops:233"
     ],
     "environments": [
       "production",
@@ -5147,7 +5201,7 @@
     ],
     "default_example_value": "8",
     "documented_sources": [
-      ".env.example.ops:231"
+      ".env.example.ops:235"
     ],
     "environments": [
       "production",
@@ -5170,7 +5224,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:230"
+      ".env.example.ops:234"
     ],
     "environments": [
       "production",
@@ -5193,7 +5247,7 @@
     ],
     "default_example_value": "1.0",
     "documented_sources": [
-      ".env.example.ops:232"
+      ".env.example.ops:236"
     ],
     "environments": [
       "production",
@@ -5242,7 +5296,7 @@
     ],
     "default_example_value": "00000000-0000-0000-0000-000000000002",
     "documented_sources": [
-      ".env.example.ops:102"
+      ".env.example.ops:103"
     ],
     "environments": [
       "production",
@@ -5536,7 +5590,7 @@
     "documented_sources": [
       ".env.example:79",
       ".env.example.prod:97",
-      ".env.example.ops:119"
+      ".env.example.ops:120"
     ],
     "environments": [
       "production",
@@ -5563,7 +5617,7 @@
     "documented_sources": [
       ".env.example:77",
       ".env.example.prod:95",
-      ".env.example.ops:117"
+      ".env.example.ops:118"
     ],
     "environments": [
       "production",
@@ -5780,7 +5834,7 @@
     ],
     "default_example_value": "/app/extensions",
     "documented_sources": [
-      ".env.example.ops:137"
+      ".env.example.ops:138"
     ],
     "environments": [
       "production",
@@ -5808,7 +5862,7 @@
     "documented_sources": [
       ".env.example:90",
       ".env.example.prod:117",
-      ".env.example.ops:140"
+      ".env.example.ops:141"
     ],
     "environments": [
       "production",
@@ -5907,7 +5961,7 @@
     "documented_sources": [
       ".env.example:102",
       ".env.example.prod:115",
-      ".env.example.ops:138"
+      ".env.example.ops:139"
     ],
     "environments": [
       "production",
@@ -5935,7 +5989,7 @@
     "documented_sources": [
       ".env.example:105",
       ".env.example.prod:116",
-      ".env.example.ops:139"
+      ".env.example.ops:140"
     ],
     "environments": [
       "production",
@@ -5981,7 +6035,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:161"
+      ".env.example.ops:162"
     ],
     "environments": [
       "production",
@@ -6052,7 +6106,7 @@
     "documented_sources": [
       ".env.example:92",
       ".env.example.prod:118",
-      ".env.example.ops:141"
+      ".env.example.ops:142"
     ],
     "environments": [
       "production",
@@ -6339,7 +6393,7 @@
     "documented_sources": [
       ".env.example:108",
       ".env.example.prod:124",
-      ".env.example.ops:147"
+      ".env.example.ops:148"
     ],
     "environments": [
       "production",
@@ -6365,7 +6419,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:206"
+      ".env.example.ops:210"
     ],
     "environments": [
       "production",
@@ -6391,7 +6445,7 @@
     ],
     "default_example_value": "300",
     "documented_sources": [
-      ".env.example.ops:207"
+      ".env.example.ops:211"
     ],
     "environments": [
       "production",
@@ -6438,7 +6492,7 @@
     "documented_sources": [
       ".env.example:96",
       ".env.example.prod:120",
-      ".env.example.ops:143"
+      ".env.example.ops:144"
     ],
     "environments": [
       "production",
@@ -6465,7 +6519,7 @@
     "documented_sources": [
       ".env.example:95",
       ".env.example.prod:119",
-      ".env.example.ops:142"
+      ".env.example.ops:143"
     ],
     "environments": [
       "production",
@@ -6873,7 +6927,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:136"
+      ".env.example.ops:137"
     ],
     "environments": [
       "production",
@@ -6896,7 +6950,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:179"
+      ".env.example.ops:183"
     ],
     "environments": [
       "production",
@@ -6917,7 +6971,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example.ops:168"
+      ".env.example.ops:172"
     ],
     "environments": [
       "production",
@@ -6938,7 +6992,7 @@
     ],
     "default_example_value": "7200",
     "documented_sources": [
-      ".env.example.ops:167"
+      ".env.example.ops:171"
     ],
     "environments": [
       "production",
@@ -6959,7 +7013,7 @@
     ],
     "default_example_value": "5400",
     "documented_sources": [
-      ".env.example.ops:166"
+      ".env.example.ops:170"
     ],
     "environments": [
       "production",
@@ -6982,7 +7036,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:180"
+      ".env.example.ops:184"
     ],
     "environments": [
       "production",
@@ -7003,7 +7057,7 @@
     ],
     "default_example_value": "5",
     "documented_sources": [
-      ".env.example.ops:170"
+      ".env.example.ops:174"
     ],
     "environments": [
       "production",
@@ -7071,7 +7125,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:150"
+      ".env.example.ops:151"
     ],
     "environments": [
       "production",
@@ -7487,7 +7541,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:188"
+      ".env.example.ops:192"
     ],
     "environments": [
       "production",
@@ -7865,7 +7919,7 @@
     "default_example_value": "CHANGE_ME_METRICS_TOKEN",
     "documented_sources": [
       ".env.example.prod:22",
-      ".env.example.ops:103"
+      ".env.example.ops:104"
     ],
     "environments": [
       "production",
@@ -8456,7 +8510,7 @@
     "documented_sources": [
       ".env.example:78",
       ".env.example.prod:96",
-      ".env.example.ops:118"
+      ".env.example.ops:119"
     ],
     "environments": [
       "production",
@@ -8481,7 +8535,7 @@
     "documented_sources": [
       ".env.example:81",
       ".env.example.prod:99",
-      ".env.example.ops:121"
+      ".env.example.ops:122"
     ],
     "environments": [
       "production",
@@ -8508,7 +8562,7 @@
     "documented_sources": [
       ".env.example:76",
       ".env.example.prod:94",
-      ".env.example.ops:116"
+      ".env.example.ops:117"
     ],
     "environments": [
       "production",
@@ -8533,7 +8587,7 @@
     "documented_sources": [
       ".env.example:80",
       ".env.example.prod:98",
-      ".env.example.ops:120"
+      ".env.example.ops:121"
     ],
     "environments": [
       "production",
@@ -8748,7 +8802,7 @@
     ],
     "default_example_value": "15",
     "documented_sources": [
-      ".env.example.ops:129"
+      ".env.example.ops:130"
     ],
     "environments": [
       "production",
@@ -8771,7 +8825,7 @@
     ],
     "default_example_value": "45",
     "documented_sources": [
-      ".env.example.ops:128"
+      ".env.example.ops:129"
     ],
     "environments": [
       "production",
@@ -8794,7 +8848,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:124"
+      ".env.example.ops:125"
     ],
     "environments": [
       "production",
@@ -8840,7 +8894,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:165"
+      ".env.example.ops:169"
     ],
     "environments": [
       "production",
@@ -9018,7 +9072,7 @@
     "default_example_value": "100",
     "documented_sources": [
       ".env.example:137",
-      ".env.example.ops:226"
+      ".env.example.ops:230"
     ],
     "environments": [
       "production",
@@ -9042,7 +9096,7 @@
     "default_example_value": "10",
     "documented_sources": [
       ".env.example:134",
-      ".env.example.ops:225"
+      ".env.example.ops:229"
     ],
     "environments": [
       "production",
@@ -9336,7 +9390,7 @@
     ],
     "default_example_value": "120",
     "documented_sources": [
-      ".env.example.ops:154"
+      ".env.example.ops:155"
     ],
     "environments": [
       "production",
@@ -9359,7 +9413,7 @@
     ],
     "default_example_value": "1000",
     "documented_sources": [
-      ".env.example.ops:152"
+      ".env.example.ops:153"
     ],
     "environments": [
       "production",
@@ -9382,7 +9436,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:153"
+      ".env.example.ops:154"
     ],
     "environments": [
       "production",
@@ -9405,7 +9459,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:155"
+      ".env.example.ops:156"
     ],
     "environments": [
       "production",
@@ -9445,7 +9499,7 @@
     "conditional_groups": [],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:151"
+      ".env.example.ops:152"
     ],
     "environments": [
       "production",
@@ -9633,7 +9687,8 @@
       "core/entrypoints/cli/lifecycle_runtime.py",
       "core/infrastructure/installer/registry_image_resolver.py",
       "infra/docker/docker-compose.compact.yaml",
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "release_discovery"
@@ -9658,7 +9713,8 @@
       "core/entrypoints/cli/installer.py",
       "core/entrypoints/cli/lifecycle_runtime.py",
       "infra/docker/docker-compose.compact.yaml",
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "release_discovery"
@@ -9729,7 +9785,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:181"
+      ".env.example.ops:185"
     ],
     "environments": [
       "production",
@@ -9799,7 +9855,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:220"
+      ".env.example.ops:224"
     ],
     "environments": [
       "production",
@@ -9849,7 +9905,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:219"
+      ".env.example.ops:223"
     ],
     "environments": [
       "production",
@@ -9874,7 +9930,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:216"
+      ".env.example.ops:220"
     ],
     "environments": [
       "production",
@@ -9899,7 +9955,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:217"
+      ".env.example.ops:221"
     ],
     "environments": [
       "production",
@@ -9924,7 +9980,7 @@
     ],
     "default_example_value": "14",
     "documented_sources": [
-      ".env.example.ops:221"
+      ".env.example.ops:225"
     ],
     "environments": [
       "production",
@@ -9949,7 +10005,7 @@
     ],
     "default_example_value": "5",
     "documented_sources": [
-      ".env.example.ops:222"
+      ".env.example.ops:226"
     ],
     "environments": [
       "production",
@@ -9997,7 +10053,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:218"
+      ".env.example.ops:222"
     ],
     "environments": [
       "production",
@@ -10232,7 +10288,7 @@
     ],
     "default_example_value": "20",
     "documented_sources": [
-      ".env.example.ops:210"
+      ".env.example.ops:214"
     ],
     "environments": [
       "production",
@@ -10256,7 +10312,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:208"
+      ".env.example.ops:212"
     ],
     "environments": [
       "production",
@@ -10282,7 +10338,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:209"
+      ".env.example.ops:213"
     ],
     "environments": [
       "production",
@@ -10305,7 +10361,7 @@
     ],
     "default_example_value": "12",
     "documented_sources": [
-      ".env.example.ops:133"
+      ".env.example.ops:134"
     ],
     "environments": [
       "production",
@@ -10328,7 +10384,7 @@
     ],
     "default_example_value": "2.0",
     "documented_sources": [
-      ".env.example.ops:134"
+      ".env.example.ops:135"
     ],
     "environments": [
       "production",
@@ -10586,7 +10642,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:135"
+      ".env.example.ops:136"
     ],
     "environments": [
       "production",
@@ -10866,7 +10922,7 @@
     ],
     "default_example_value": "180",
     "documented_sources": [
-      ".env.example.ops:160"
+      ".env.example.ops:161"
     ],
     "environments": [
       "production",
@@ -10893,7 +10949,7 @@
     "documented_sources": [
       ".env.example:97",
       ".env.example.prod:121",
-      ".env.example.ops:144"
+      ".env.example.ops:145"
     ],
     "environments": [
       "production",
@@ -10920,7 +10976,7 @@
     "documented_sources": [
       ".env.example:99",
       ".env.example.prod:123",
-      ".env.example.ops:146"
+      ".env.example.ops:147"
     ],
     "environments": [
       "production",
@@ -10947,7 +11003,7 @@
     "documented_sources": [
       ".env.example:98",
       ".env.example.prod:122",
-      ".env.example.ops:145"
+      ".env.example.ops:146"
     ],
     "environments": [
       "production",
@@ -11562,7 +11618,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:201"
+      ".env.example.ops:205"
     ],
     "environments": [
       "production",
@@ -11586,7 +11642,7 @@
     ],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:199"
+      ".env.example.ops:203"
     ],
     "environments": [
       "production",
@@ -11612,7 +11668,7 @@
     ],
     "default_example_value": "30",
     "documented_sources": [
-      ".env.example.ops:200"
+      ".env.example.ops:204"
     ],
     "environments": [
       "production",
@@ -11638,7 +11694,7 @@
     ],
     "default_example_value": "200",
     "documented_sources": [
-      ".env.example.ops:205"
+      ".env.example.ops:209"
     ],
     "environments": [
       "production",
@@ -11665,7 +11721,7 @@
     ],
     "default_example_value": "120",
     "documented_sources": [
-      ".env.example.ops:203"
+      ".env.example.ops:207"
     ],
     "environments": [
       "production",
@@ -11691,7 +11747,7 @@
     ],
     "default_example_value": "45",
     "documented_sources": [
-      ".env.example.ops:204"
+      ".env.example.ops:208"
     ],
     "environments": [
       "production",
@@ -11718,7 +11774,7 @@
     ],
     "default_example_value": "120",
     "documented_sources": [
-      ".env.example.ops:202"
+      ".env.example.ops:206"
     ],
     "environments": [
       "production",
@@ -11763,7 +11819,7 @@
     ],
     "default_example_value": "10",
     "documented_sources": [
-      ".env.example.ops:157"
+      ".env.example.ops:158"
     ],
     "environments": [
       "production",
@@ -11809,7 +11865,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:27",
-      ".env.example.ops:108"
+      ".env.example.ops:109"
     ],
     "environments": [
       "production"
@@ -11832,7 +11888,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:30",
-      ".env.example.ops:111"
+      ".env.example.ops:112"
     ],
     "environments": [
       "production",
@@ -11928,7 +11984,7 @@
     ],
     "default_example_value": "",
     "documented_sources": [
-      ".env.example.ops:156"
+      ".env.example.ops:157"
     ],
     "environments": [
       "production",
@@ -11972,7 +12028,7 @@
     ],
     "default_example_value": "2",
     "documented_sources": [
-      ".env.example.ops:158"
+      ".env.example.ops:159"
     ],
     "environments": [
       "production",
@@ -11995,7 +12051,7 @@
     ],
     "default_example_value": "20",
     "documented_sources": [
-      ".env.example.ops:159"
+      ".env.example.ops:160"
     ],
     "environments": [
       "production",
@@ -13338,7 +13394,8 @@
   {
     "canonical_name": "MCP_IMAGE",
     "code_read_locations": [
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "production_images"
@@ -14679,7 +14736,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:256"
+      ".env.example.ops:260"
     ],
     "environments": [
       "production",
@@ -14702,7 +14759,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:257"
+      ".env.example.ops:261"
     ],
     "environments": [
       "production",
@@ -14725,7 +14782,7 @@
     "conditional_groups": [],
     "default_example_value": "500ms",
     "documented_sources": [
-      ".env.example.ops:255"
+      ".env.example.ops:259"
     ],
     "environments": [
       "production",
@@ -14748,7 +14805,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:259"
+      ".env.example.ops:263"
     ],
     "environments": [
       "production",
@@ -14771,7 +14828,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:258"
+      ".env.example.ops:262"
     ],
     "environments": [
       "production",
@@ -14794,7 +14851,7 @@
     "conditional_groups": [],
     "default_example_value": "1.0",
     "documented_sources": [
-      ".env.example.ops:260"
+      ".env.example.ops:264"
     ],
     "environments": [
       "production",
@@ -14817,7 +14874,7 @@
     "conditional_groups": [],
     "default_example_value": "0.9",
     "documented_sources": [
-      ".env.example.ops:247"
+      ".env.example.ops:251"
     ],
     "environments": [
       "production",
@@ -14838,7 +14895,7 @@
     "conditional_groups": [],
     "default_example_value": "auto",
     "documented_sources": [
-      ".env.example.ops:233"
+      ".env.example.ops:237"
     ],
     "environments": [
       "production",
@@ -14891,7 +14948,7 @@
     "conditional_groups": [],
     "default_example_value": "200ms",
     "documented_sources": [
-      ".env.example.ops:239"
+      ".env.example.ops:243"
     ],
     "environments": [
       "production",
@@ -14914,7 +14971,7 @@
     "conditional_groups": [],
     "default_example_value": "200",
     "documented_sources": [
-      ".env.example.ops:251"
+      ".env.example.ops:255"
     ],
     "environments": [
       "production",
@@ -14962,7 +15019,7 @@
     "conditional_groups": [],
     "default_example_value": "3GB",
     "documented_sources": [
-      ".env.example.ops:242"
+      ".env.example.ops:246"
     ],
     "environments": [
       "production",
@@ -14985,7 +15042,7 @@
     "conditional_groups": [],
     "default_example_value": "200",
     "documented_sources": [
-      ".env.example.ops:246"
+      ".env.example.ops:250"
     ],
     "environments": [
       "production",
@@ -15091,7 +15148,7 @@
     "conditional_groups": [],
     "default_example_value": "off",
     "documented_sources": [
-      ".env.example.ops:252"
+      ".env.example.ops:256"
     ],
     "environments": [
       "production",
@@ -15114,7 +15171,7 @@
     "conditional_groups": [],
     "default_example_value": "%m [%p] db=%d,user=%u,app=%a,client=%h",
     "documented_sources": [
-      ".env.example.ops:237"
+      ".env.example.ops:241"
     ],
     "environments": [
       "production",
@@ -15137,7 +15194,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:238"
+      ".env.example.ops:242"
     ],
     "environments": [
       "production",
@@ -15160,7 +15217,7 @@
     "conditional_groups": [],
     "default_example_value": "500ms",
     "documented_sources": [
-      ".env.example.ops:236"
+      ".env.example.ops:240"
     ],
     "environments": [
       "production",
@@ -15183,7 +15240,7 @@
     "conditional_groups": [],
     "default_example_value": "512MB",
     "documented_sources": [
-      ".env.example.ops:244"
+      ".env.example.ops:248"
     ],
     "environments": [
       "production",
@@ -15206,7 +15263,7 @@
     "conditional_groups": [],
     "default_example_value": "4GB",
     "documented_sources": [
-      ".env.example.ops:249"
+      ".env.example.ops:253"
     ],
     "environments": [
       "production",
@@ -15229,7 +15286,7 @@
     "conditional_groups": [],
     "default_example_value": "1GB",
     "documented_sources": [
-      ".env.example.ops:250"
+      ".env.example.ops:254"
     ],
     "environments": [
       "production",
@@ -15278,7 +15335,7 @@
     "conditional_groups": [],
     "default_example_value": "10000",
     "documented_sources": [
-      ".env.example.ops:254"
+      ".env.example.ops:258"
     ],
     "environments": [
       "production",
@@ -15301,7 +15358,7 @@
     "conditional_groups": [],
     "default_example_value": "all",
     "documented_sources": [
-      ".env.example.ops:253"
+      ".env.example.ops:257"
     ],
     "environments": [
       "production",
@@ -15344,7 +15401,7 @@
     "conditional_groups": [],
     "default_example_value": "1.1",
     "documented_sources": [
-      ".env.example.ops:245"
+      ".env.example.ops:249"
     ],
     "environments": [
       "production",
@@ -15367,7 +15424,7 @@
     "conditional_groups": [],
     "default_example_value": "auto_explain",
     "documented_sources": [
-      ".env.example.ops:235"
+      ".env.example.ops:239"
     ],
     "environments": [
       "production",
@@ -15390,7 +15447,7 @@
     "conditional_groups": [],
     "default_example_value": "1GB",
     "documented_sources": [
-      ".env.example.ops:241"
+      ".env.example.ops:245"
     ],
     "environments": [
       "production",
@@ -15413,7 +15470,7 @@
     "conditional_groups": [],
     "default_example_value": "pg_stat_statements",
     "documented_sources": [
-      ".env.example.ops:234"
+      ".env.example.ops:238"
     ],
     "environments": [
       "production",
@@ -15476,7 +15533,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:240"
+      ".env.example.ops:244"
     ],
     "environments": [
       "production",
@@ -15547,7 +15604,7 @@
     "conditional_groups": [],
     "default_example_value": "on",
     "documented_sources": [
-      ".env.example.ops:248"
+      ".env.example.ops:252"
     ],
     "environments": [
       "production",
@@ -15570,7 +15627,7 @@
     "conditional_groups": [],
     "default_example_value": "16MB",
     "documented_sources": [
-      ".env.example.ops:243"
+      ".env.example.ops:247"
     ],
     "environments": [
       "production",
@@ -16480,7 +16537,7 @@
     ],
     "default_example_value": "0",
     "documented_sources": [
-      ".env.example.ops:264"
+      ".env.example.ops:268"
     ],
     "environments": [
       "local_development"
@@ -16506,7 +16563,7 @@
     "default_example_value": "",
     "documented_sources": [
       ".env.example.prod:83",
-      ".env.example.ops:265"
+      ".env.example.ops:269"
     ],
     "environments": [
       "production",
@@ -16529,7 +16586,7 @@
     ],
     "default_example_value": "monitor",
     "documented_sources": [
-      ".env.example.ops:263"
+      ".env.example.ops:267"
     ],
     "environments": [
       "local_development"
@@ -18227,7 +18284,7 @@
     "conditional_groups": [],
     "default_example_value": "150",
     "documented_sources": [
-      ".env.example.ops:191"
+      ".env.example.ops:195"
     ],
     "environments": [
       "production",
@@ -18248,7 +18305,7 @@
     "conditional_groups": [],
     "default_example_value": "5173",
     "documented_sources": [
-      ".env.example.ops:189"
+      ".env.example.ops:193"
     ],
     "environments": [
       "production",
@@ -18267,7 +18324,7 @@
     "conditional_groups": [],
     "default_example_value": "1",
     "documented_sources": [
-      ".env.example.ops:190"
+      ".env.example.ops:194"
     ],
     "environments": [
       "production",

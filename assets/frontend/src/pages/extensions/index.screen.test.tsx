@@ -5591,8 +5591,9 @@ describe("ExtensionsHubPage", () => {
         expect.any(String),
       );
     });
+    // The save area keeps its own live region, so the page has more than one status.
     await waitFor(() => {
-      expect(screen.getByRole("status")).toHaveTextContent("Connection test successful.");
+      expect(screen.getAllByRole("status").some((status) => status.textContent?.includes("Connection test successful."))).toBe(true);
     });
   });
 

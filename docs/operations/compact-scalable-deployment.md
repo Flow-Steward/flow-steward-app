@@ -292,9 +292,12 @@ The reverse procedure is identical. A schema-incompatible rollback requires rest
 ## Update an installation to new sources
 
 Official installs update through `./flow-steward release upgrade` (see the
-[user guide](../GUIDE.md#maintenance-and-release-upgrade)). The source workflow
-below applies only to an explicitly created source installation. Both profiles
-update it through the installer, from the updated checkout:
+[user guide](../GUIDE.md#maintenance-and-release-upgrade)); since 0.9.23 that
+includes a Development installation created from a release tag, whose upgrade
+needs a clean checkout and leaves it at the new tag. The source workflow below
+applies only to an explicitly created source installation (`--from-source`, in
+either environment). Both profiles update it through the installer, from the
+updated checkout:
 
 ```bash
 git fetch && git checkout <release tag>

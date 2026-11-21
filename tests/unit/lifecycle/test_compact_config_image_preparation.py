@@ -198,6 +198,7 @@ def test_configuration_activation_missing_image_never_builds_or_implicitly_pulls
     process = _Process(
         [
             (0, "\n".join(target.runtime_services)),
+            (0, '{"services": {}}'),  # nothing the services wait on to complete
             (1, "Exact installed image is missing"),
         ]
     )

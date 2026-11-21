@@ -2679,7 +2679,9 @@ class TestLocalAuthEndpoints:
         assert resp.status_code == 403
         assert resp.json()["password_change_required"] is True
         assert "fs_session=" not in resp.headers.get("set-cookie", "")
-        clear_failures_mock.assert_called_once()
+        # 5687946e: failed attempts are cleared only by a complete sign-in, after the
+        # second factor, not by a correct password that still has to be changed.
+        clear_failures_mock.assert_not_called()
 
     def test_api_auth_change_password_updates_hash_and_revokes_other_sessions(self, client):
         try:
@@ -2717,13 +2719,15 @@ class TestLocalAuthEndpoints:
             patch.object(api_routes, "_auth_tables_available", return_value=True),
             patch.object(api_routes, "_get_user_by_session_token", return_value=session_user),
             patch.object(api_routes, "_get_user_by_username", return_value=user_row),
-            patch.object(api_routes, "_verify_password", return_value=True),
+            patch.object(
+                api_routes, "_verify_password", side_effect=lambda value, _hash: value == "old-pass"
+            ),
             patch.object(api_routes, "_password_hash", return_value="new-hash"),
         ):
             resp = client.post(
                 "/api/auth/change-password",
                 headers={"Authorization": "Bearer current-session-token"},
-                json={"current_password": "old-pass", "new_password": "new-password-123"},
+                json={"current_password": "old-pass", "new_password": "New-password-123!"},
             )
 
         assert resp.status_code == 200
@@ -2777,7 +2781,9 @@ class TestLocalAuthEndpoints:
             "INSERT INTO auth_password_resets" in str(call.args[0])
             for call in mock_cur.execute.call_args_list
         )
-        clear_failures_mock.assert_called_once_with("ops@example.com")
+        # c773ba9c: a reset request no longer clears the sign-in throttle -- anyone may
+        # request one for any address; the confirmed reset clears it.
+        clear_failures_mock.assert_not_called()
 
     def test_api_auth_password_reset_request_dispatches_email_for_email_username(
         self, client, monkeypatch

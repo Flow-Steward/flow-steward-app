@@ -237,12 +237,15 @@ def test_needs_attention_configuration_blocks_refresh_until_credentials_are_repa
     assert repository.refresh_updates == []
 
 
-def test_post_connect_recovery_is_explicit_and_refreshes_the_exact_failed_grant() -> None:
+@pytest.mark.parametrize("previous_error", ["provider_unavailable", "access_denied"])
+def test_post_connect_recovery_is_explicit_and_refreshes_the_exact_failed_grant(
+    previous_error: str,
+) -> None:
     repository = _RefreshRepository()
     repository.configuration["status"] = "ready_for_authorization"
     repository.connection["connection_config"]["oauth"].update(
         lifecycle_status="needs_attention",
-        last_error_code="provider_unavailable",
+        last_error_code=previous_error,
     )
     token_store = _RefreshTokenStore()
     events: list[str] = []
@@ -268,8 +271,8 @@ def test_post_connect_recovery_is_explicit_and_refreshes_the_exact_failed_grant(
     }
     assert repository.connection["credential_revision"] == 8
     assert repository.connection["connection_config"]["oauth"] == {
-        "lifecycle_status": "connected",
-        "last_error_code": None,
+        "lifecycle_status": "needs_attention",
+        "last_error_code": previous_error,
     }
 
 

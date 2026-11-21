@@ -347,15 +347,18 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
     try {
       const listing = await queryClient.fetchQuery({
         queryKey: EXTENSION_CATALOG_QUERY_KEY,
-        queryFn: fetchExtensionCatalog,
+        queryFn: () => fetchExtensionCatalog(),
         staleTime: 0,
       });
       current = listing.items.find((item) => item.extension_id === entry.extension_id);
     } catch {
       return undefined;
     }
-    // Reading the listing asked the catalog again, so the update notices now
-    // name the new release too.
+    // Refresh searched Marketplace views as well as the update notices.
+    ignoreAsyncResult(queryClient.invalidateQueries({
+      queryKey: EXTENSION_CATALOG_QUERY_KEY,
+      predicate: ({ queryKey }) => queryKey.length > EXTENSION_CATALOG_QUERY_KEY.length,
+    }));
     ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: EXTENSION_UPDATES_QUERY_KEY }));
     if (!current) return undefined;
     if (current.version !== entry.version) {

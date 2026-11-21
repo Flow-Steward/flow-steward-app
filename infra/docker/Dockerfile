@@ -130,7 +130,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/config.py core/appl
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/bootstrap_tokens.py core/application/auth/bootstrap_recovery.py core/application/auth/bootstrap_recovery_gateway.py core/application/auth/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/user_admin/contracts.py core/application/auth/user_admin/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/security/__init__.py core/infrastructure/security/secret_codec.py core/infrastructure/security/owner_only_secret.py core/infrastructure/security/secret_detection.py core/infrastructure/security/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/extensions/identity.py core/application/extensions/scaffold_contracts.py core/application/extensions/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/extensions/identity.py core/application/extensions/scaffold_contracts.py core/application/extensions/extension_catalog_contracts.py core/application/extensions/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/extensions/artifact_dataset_plane_v2.py \
     core/application/extensions/artifact_dataset_operations.py \
@@ -195,7 +195,9 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/auth/account_memberships.py \
     core/application/auth/audit.py \
+    core/application/auth/local_credentials.py \
     core/application/auth/password.py \
+    core/application/auth/password_policy.py \
     core/application/auth/principal.py \
     core/application/auth/resolve.py \
     core/application/auth/scope_contracts.py \

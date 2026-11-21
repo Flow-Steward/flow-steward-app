@@ -7,6 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.scaffold_contracts import (
     ExtensionScaffoldCreateInput,
@@ -46,6 +47,7 @@ _TOKEN_EXTENSIONS_LIST = "extensions.list"
 _TOKEN_EXTENSIONS_SHOW = "extensions.show"
 _TOKEN_EXTENSIONS_HEALTH = "extensions.health"
 _TOKEN_EXTENSIONS_INSTALL = "extensions.install"
+_TOKEN_EXTENSIONS_INSTALL_CATALOG = "extensions.install-catalog"
 _TOKEN_EXTENSIONS_UNINSTALL = "extensions.uninstall"
 _TOKEN_EXTENSIONS_ENABLE = "extensions.enable"
 _TOKEN_EXTENSIONS_DISABLE = "extensions.disable"
@@ -248,6 +250,57 @@ EXTENSIONS_INSTALL_SPEC = CommandSpec(
     confirmation_policy_ref=None,
     service_ref=_TOKEN_EXTENSIONS_INSTALL,
     result_renderer_ref=_TOKEN_EXTENSIONS_INSTALL,
+)
+
+
+EXTENSIONS_INSTALL_CATALOG_SPEC = CommandSpec(
+    command_id=_TOKEN_EXTENSIONS_INSTALL_CATALOG,
+    compact_support=CompactSupport.DELEGATED_SERVICE,
+    path=("extensions", "install-catalog"),
+    summary="Install or update a pinned catalog extension.",
+    description="Apply the exact version and SHA-256 offered by the extension catalog.",
+    examples=(
+        "flow-steward extensions install-catalog acme.crm-sync --version 1.2.3 "
+        "--release-sha256 " + "a" * 64,
+    ),
+    operation_type=OperationType.CHANGE,
+    interactive_policy=InteractivePolicy.ALWAYS_REVIEW,
+    fields=(
+        _extension_id_field(),
+        FieldSpec(
+            key="version",
+            label="Catalog version",
+            type=FieldType.TEXT,
+            required=True,
+            description="Version offered for the extension in the catalog.",
+            examples=("1.2.3",),
+            option_name="--version",
+        ),
+        FieldSpec(
+            key="release_sha256",
+            label="Catalog release SHA-256",
+            type=FieldType.TEXT,
+            required=True,
+            description="SHA-256 offered for the extension release in the catalog.",
+            examples=("a" * 64,),
+            option_name="--release-sha256",
+        ),
+        FieldSpec(
+            key="approved_browser_authority_impact_hash",
+            label="Approved browser authority impact hash",
+            type=FieldType.TEXT,
+            advanced=True,
+            description="Exact impact hash after reviewing a browser authority change.",
+            examples=("b" * 64,),
+            option_name="--approve-browser-authority",
+        ),
+    ),
+    input_model=ExtensionCatalogInstallRequest,
+    result_model=ExtensionArchiveInstallResultView,
+    plan_builder_ref=None,
+    confirmation_policy_ref=None,
+    service_ref=_TOKEN_EXTENSIONS_INSTALL_CATALOG,
+    result_renderer_ref=_TOKEN_EXTENSIONS_INSTALL_CATALOG,
 )
 
 
@@ -660,6 +713,7 @@ EXTENSION_COMMAND_SPECS = (
     EXTENSIONS_SHOW_SPEC,
     EXTENSIONS_HEALTH_SPEC,
     EXTENSIONS_INSTALL_SPEC,
+    EXTENSIONS_INSTALL_CATALOG_SPEC,
     EXTENSIONS_UNINSTALL_SPEC,
     EXTENSIONS_ENABLE_SPEC,
     EXTENSIONS_DISABLE_SPEC,

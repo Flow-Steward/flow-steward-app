@@ -27,6 +27,10 @@ from core.application.workflows import (
 )
 from core.application.workflows.domain_event_runtime import project_account_id
 from core.application.workflows.workflow_start_runtime import enqueue_workflow_start
+from core.entrypoints.api.provider_webhook_callbacks import (
+    _MESSAGE_TASK_PROVIDER_EXTENSION_REQUIRED,
+    TaskProviderExtensionRequired,
+)
 from core.entrypoints.api.provider_webhooks_router import (
     create_provider_webhooks_router as _create_provider_webhooks_router_impl,
 )
@@ -625,7 +629,9 @@ def _normalize_task_provider_payload(
         return normalized
 
     if implementation_kind in {"builtin", "extension"}:
-        raise ValueError(f"Provider '{provider_key}' requires an enabled task provider extension")
+        raise TaskProviderExtensionRequired(
+            _MESSAGE_TASK_PROVIDER_EXTENSION_REQUIRED.format(provider_key=provider_key)
+        )
     raise ValueError(f"Unsupported provider implementation_kind '{implementation_kind}'")
 
 

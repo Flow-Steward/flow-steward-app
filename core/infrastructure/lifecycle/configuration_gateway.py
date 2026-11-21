@@ -53,6 +53,10 @@ from core.infrastructure.lifecycle.configuration_files import (
     _secure_unlink,
     _target_override_content,
 )
+from core.infrastructure.lifecycle.development_extras import (
+    build_development_extras,
+    release_checkout_state,
+)
 
 _CANDIDATE_LOG_TAIL = 40
 
@@ -196,6 +200,34 @@ class ConfigurationLifecycleGateway:
             environment=environment,
             override_content=override_content,
             timeout_seconds=_IMAGE_PREPARATION_TIMEOUT_SECONDS,
+        )
+
+    def release_checkout_state(self, release_commit: str) -> tuple[str, str]:
+        """Whether the checkout sits cleanly at a release (owner 2026-11-21)."""
+        return release_checkout_state(self._project_root, release_commit, run=self._docker._run)
+
+    def prepare_development_extras(
+        self,
+        config: DeploymentConfig,
+        target: ComposeTarget,
+        environment: Mapping[str, str],
+        *,
+        release_commit: str,
+        version: str,
+    ) -> dict[str, str]:
+        """Build the development extras of an official release; return the frontend pin."""
+        override_content = _target_override_content(config, target)
+        return build_development_extras(
+            target,
+            project_root=self._project_root,
+            environment=environment,
+            release_commit=release_commit,
+            version=version,
+            run=self._docker._run,
+            compose_command=lambda arguments: self._docker._candidate_compose_command(
+                target, arguments, override_content=override_content
+            ),
+            input_text=override_content,
         )
 
     def validate_target(

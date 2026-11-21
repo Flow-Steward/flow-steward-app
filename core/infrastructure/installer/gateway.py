@@ -403,14 +403,16 @@ class DockerInstallerGateway(
             ):
                 return False
             if self._complete_exact_prebuilt_image_refs(config, environment) is not None:
-                return self._production_provenance_postcondition_holds(
-                    config
-                ) and core_dependency_images_present(
-                    failure=self._core_dependency_failure,
-                    config=config,
-                    compose_prefix=self._compose_prefix(config),
-                    repo_root=self.repo_root,
-                    run=self.process.run,
+                return (
+                    self._production_provenance_postcondition_holds(config)
+                    and self._development_extras_present(config, environment)
+                    and core_dependency_images_present(
+                        failure=self._core_dependency_failure,
+                        config=config,
+                        compose_prefix=self._compose_prefix(config),
+                        repo_root=self.repo_root,
+                        run=self.process.run,
+                    )
                 )
             outcome = self.process.run(
                 [*self._compose_prefix(config), "config", "--format", "json"],
@@ -532,7 +534,9 @@ class DockerInstallerGateway(
             and values.get("FS_PUBLIC_BASE_URL") == expected_url
             and values.get("FS_AUTH_TRUSTED_ORIGINS") == expected_url
         )
-        if config.environment == "development":
+        # Only a source build records the checkout's HEAD here; an official development
+        # installation records the release commit when its images are prepared.
+        if config.environment == "development" and self._install_mode(config) == "source":
             revision_outcome = self.process.run(
                 ["git", "-C", str(self.repo_root), "rev-parse", _TOKEN_HEAD_COMMIT],
                 cwd=self.repo_root,
@@ -606,6 +610,7 @@ class DockerInstallerGateway(
         step: str = "preflight",
         timeout_seconds: float | None = None,
         separate_stderr: bool = False,
+        environment: Mapping[str, str] | None = None,
     ) -> ProcessOutcome:
         """Run a command, failing the step with a named code when it does not succeed.
 
@@ -633,6 +638,7 @@ class DockerInstallerGateway(
                 output_sink=capture,
                 heartbeat_sink=heartbeat,
                 separate_stderr=separate_stderr,
+                **({} if environment is None else {"environment": environment}),
             )
         except (FileNotFoundError, PermissionError, TimeoutError) as exc:
             raise InstallerFailure(

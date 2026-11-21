@@ -10,9 +10,11 @@ import { ExtensionDetailPanel } from "@/pages/extensions/extension-detail-panel"
 import { oauthProvidersFromManifest } from "@/pages/extensions/extension-oauth-types";
 import pinnedManifests from "@/pages/extensions/oauth-import-manifest.fixture.json";
 import {
+  disconnectExtensionOAuthConnection,
   ensureExtensionOAuthRedirectUri,
   fetchExtensionOAuthConfigurations,
   importExtensionOAuthRefreshToken,
+  retryExtensionOAuthPostConnect,
   startExtensionOAuthAuthorization,
 } from "@/pages/extensions/extension-oauth-api";
 import { ExtensionOAuthSetup } from "@/pages/extensions/extension-oauth-setup";
@@ -33,6 +35,7 @@ vi.mock("@/pages/extensions/extension-oauth-api", () => ({
 
 const mockedConfigurations = vi.mocked(fetchExtensionOAuthConfigurations);
 const mockedImport = vi.mocked(importExtensionOAuthRefreshToken);
+const mockedRetry = vi.mocked(retryExtensionOAuthPostConnect);
 const mockedRedirect = vi.mocked(ensureExtensionOAuthRedirectUri);
 const mockedStart = vi.mocked(startExtensionOAuthAuthorization);
 
@@ -71,6 +74,7 @@ const connectionTypes = [
       properties: {
         account_ref: { type: "string", title: "Account reference", minLength: 1 },
         region_hint: { type: "string", title: "Region hint" },
+        api_environment: { type: "string", title: "API environment", enum: ["production", "sandbox"] },
       },
     },
   },
@@ -129,6 +133,95 @@ describe("refresh-token import connections", () => {
     });
   });
 
+  it.each([
+    { lifecycle_status: "needs_attention", last_error_code: "internal_failure" },
+    { lifecycle_status: "post_connect_pending" },
+    { lifecycle_status: "connected" },
+  ])("edits settings without disconnecting a $lifecycle_status connection", async (oauth) => {
+    const user = userEvent.setup();
+    mockedImport.mockResolvedValueOnce({
+      outcome: "post_connect_pending",
+      connection_id: "connection-existing",
+      connection_type: "console_account",
+    });
+    mockedRetry.mockResolvedValueOnce({ outcome: "connected" });
+    renderImport({
+      connections: [{
+        connection_id: "connection-existing",
+        display_name: "Existing account",
+        extension_install_id: "install-a",
+        oauth_provider_id: "console",
+        oauth_configuration_id: configuration.configuration_id,
+        connection_type: "console_account",
+        credential_revision: 6,
+        secret_refs: { refs: { _oauth_refresh_token: "project_connection:connection-existing:_oauth_refresh_token" } },
+        connection_config: { account_ref: "acct-old", api_environment: "production", oauth },
+      }],
+    });
+
+    const edit = await screen.findByRole("button", { name: "Edit Existing account" });
+    expect(screen.getByRole("button", { name: "Disconnect" })).toBeInTheDocument();
+    await user.click(edit);
+
+    const form = screen.getByRole("form", { name: "Edit Existing account" });
+    expect(screen.queryByRole("form", { name: "Connect an account" })).not.toBeInTheDocument();
+    expect(within(form).getByLabelText(/Account reference/u)).toHaveValue("acct-old");
+    const environment = within(form).getByRole("combobox", { name: "API environment" });
+    expect(environment).toHaveTextContent("production");
+    expect(within(form).getByText("Refresh token is saved.")).toBeInTheDocument();
+    expect(within(form).getByPlaceholderText("••••••••")).toHaveValue("");
+    await user.click(environment);
+    await user.click(screen.getByRole("option", { name: "sandbox" }));
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mockedImport).toHaveBeenCalledTimes(1));
+    expect(mockedImport.mock.calls[0][1]).toEqual({
+      configuration_id: configuration.configuration_id,
+      connection_type: "console_account",
+      display_name: "Existing account",
+      connection_config: { account_ref: "acct-old", api_environment: "sandbox" },
+      existing_connection_id: "connection-existing",
+      connection_credential_revision: 6,
+    });
+    expect(disconnectExtensionOAuthConnection).not.toHaveBeenCalled();
+    await waitFor(() => expect(form).not.toBeInTheDocument());
+    expect(screen.getByRole("form", { name: "Connect an account" })).toBeInTheDocument();
+    expect(mockedRetry).toHaveBeenCalledWith(expect.anything(), "connection-existing", {
+      configuration_id: configuration.configuration_id,
+      connection_type: "console_account",
+    });
+  });
+
+  it("only submits a replacement token after the operator chooses to replace it", async () => {
+    const user = userEvent.setup();
+    renderImport({
+      connections: [{
+        connection_id: "connection-existing",
+        display_name: "Existing account",
+        extension_install_id: "install-a",
+        oauth_provider_id: "console",
+        oauth_configuration_id: configuration.configuration_id,
+        connection_type: "console_account",
+        credential_revision: 6,
+        secret_refs: { refs: { _oauth_refresh_token: "project_connection:connection-existing:_oauth_refresh_token" } },
+        connection_config: { account_ref: "acct-old", oauth: { lifecycle_status: "connected" } },
+      }],
+    });
+    await user.click(await screen.findByRole("button", { name: "Edit Existing account" }));
+    const form = screen.getByRole("form", { name: "Edit Existing account" });
+    await user.click(within(form).getByRole("button", { name: "Replace refresh token" }));
+    expect(refreshTokenInput(form)).toHaveValue("");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    expect(within(form).getByRole("alert")).toHaveTextContent("Refresh token is required.");
+    expect(mockedImport).not.toHaveBeenCalled();
+    await user.type(refreshTokenInput(form), PASTED);
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(mockedImport).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      existing_connection_id: "connection-existing",
+      refresh_token: PASTED,
+    })));
+  });
+
   it("connects from a pasted token with the connection type's settings and no redirect", async () => {
     const user = userEvent.setup();
     const { onConnectionsChanged } = renderImport();
@@ -157,6 +250,26 @@ describe("refresh-token import connections", () => {
     expect(onConnectionsChanged).toHaveBeenCalled();
     expect(mockedRedirect).not.toHaveBeenCalled();
     expect(mockedStart).not.toHaveBeenCalled();
+  });
+
+  it("explains access denial after saving a new connection", async () => {
+    const user = userEvent.setup();
+    mockedImport.mockResolvedValue({
+      outcome: "needs_attention",
+      error_code: "access_denied",
+      connection_id: "connection-new",
+      connection_type: "console_account",
+    });
+    renderImport();
+
+    await screen.findByRole("heading", { name: "Connect an account" });
+    await user.type(screen.getByLabelText(/Connection name/u), "Primary account");
+    await user.type(refreshTokenInput(), PASTED);
+    await user.type(screen.getByLabelText(/Account reference/u), "acct-1");
+    await user.click(screen.getByRole("button", { name: "Connect" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("The provider denied access."));
+    expect(refreshTokenInput().value).toBe("");
   });
 
   it("requires the token and the declared settings before sending anything", async () => {
@@ -264,6 +377,32 @@ describe("refresh-token import connections", () => {
     );
   });
 
+  it("offers to edit the existing connection when the provider denies access", async () => {
+    const user = userEvent.setup();
+    const accountName = "Existing account";
+    renderImport({
+      connections: [{
+        connection_id: "connection-existing",
+        display_name: accountName,
+        extension_install_id: "install-a",
+        oauth_provider_id: "console",
+        oauth_configuration_id: configuration.configuration_id,
+        connection_type: "console_account",
+        credential_revision: 3,
+        connection_config: {
+          account_ref: "acct-old",
+          oauth: { lifecycle_status: "needs_attention", last_error_code: "access_denied" },
+        },
+      }],
+    });
+
+    await waitFor(() => expect(screen.getByText(/provider denied access/i)).toBeInTheDocument());
+    expect(screen.queryByText(/retry when the provider is available/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: `Edit ${accountName}` }));
+    expect(screen.getByRole("form", { name: `Edit ${accountName}` })).toBeInTheDocument();
+  });
+
   it("refuses to replace a token when the row carries no valid credential revision", async () => {
     const user = userEvent.setup();
     renderImport({
@@ -313,11 +452,11 @@ describe("refresh-token import connections", () => {
     });
 
     await user.click(
-      await screen.findByRole("button", { name: "Replace refresh token for Existing account" }),
+      await screen.findByRole("button", { name: "Edit Existing account" }),
     );
-    const form = screen.getByRole("form", { name: "Replace refresh token for Existing account" });
+    const form = screen.getByRole("form", { name: "Edit Existing account" });
     await user.type(refreshTokenInput(form), PASTED);
-    await user.click(within(form).getByRole("button", { name: "Replace refresh token" }));
+    await user.click(within(form).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(mockedImport).toHaveBeenCalledTimes(1));
     expect(mockedImport.mock.calls[0][1].connection_config).toEqual({ account_ref: "acct-old" });

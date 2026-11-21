@@ -219,10 +219,12 @@ def test_typed_run_builds_testing_group_commands_for_fuzz_and_cutover(monkeypatc
     monkeypatch.setattr(
         nightfire_regression,
         "resolve_base_url",
-        lambda env, include_dotenv=False: "http://fs-app:8099",
+        lambda env, include_dotenv=False: "http://fs-app:8099/example-app?option=preview",
     )
     monkeypatch.setattr(
-        nightfire_regression, "_resolve_mcp_base_url", lambda env: "http://fs-mcp:8100"
+        nightfire_regression,
+        "_resolve_mcp_base_url",
+        lambda env: "http://fs-mcp:8100/example-mcp",
     )
     monkeypatch.setattr(
         nightfire_regression,
@@ -263,6 +265,12 @@ def test_typed_run_builds_testing_group_commands_for_fuzz_and_cutover(monkeypatc
     )
 
     assert exit_code == 0
+
+    report = (tmp_path / "nightfire.md").read_text(encoding="utf-8")
+    assert "`http://fs-app:8099`" in report
+    assert "`http://fs-mcp:8100`" in report
+    assert "/example-app" not in report
+    assert "/example-mcp" not in report
 
     stage_commands = {label: cmd for label, cmd, _input_text in captured_stages}
     stage_inputs = {label: input_text for label, _cmd, input_text in captured_stages}
@@ -397,3 +405,24 @@ def test_backend_lane_does_not_resolve_or_run_playwright(monkeypatch, tmp_path: 
     assert exit_code == 0
     assert "Fuzz API contracts" in stage_labels
     assert all(not label.startswith("Playwright UI") for label in stage_labels)
+
+
+def test_stage_omits_command_arguments_from_console(monkeypatch, capsys):
+    monkeypatch.setattr(
+        nightfire_regression.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(
+            stdout="Diagnostic output", stderr="", returncode=0
+        ),
+    )
+
+    code, output = nightfire_regression._stage(
+        "Example stage",
+        ["example-command", "example-stage-option"],
+        {},
+    )
+
+    assert (code, output) == (0, "Diagnostic output")
+    console = capsys.readouterr().out
+    assert "Example stage" in console
+    assert "example-stage-option" not in console

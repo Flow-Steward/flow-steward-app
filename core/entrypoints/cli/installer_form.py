@@ -10,7 +10,6 @@ from core.application.installer.spec import INSTALLER_SPEC
 from core.application.installer.wizard import (
     InstallerWizardPolicy,
     ordered_fields,
-    require_source_opt_in,
 )
 from core.application.management.command_specs.contracts import FieldType
 from core.entrypoints.cli.platform.input_resolution import field_is_visible
@@ -18,12 +17,11 @@ from core.entrypoints.cli.platform.prompts import arrow_keys_available, ask_choi
 
 
 def collect_plain(
-    supplied: dict[str, Any], *, renderer: Any, advanced: bool = False, from_source: bool = False
+    supplied: dict[str, Any], *, renderer: Any, advanced: bool = False
 ) -> dict[str, Any]:
     policy = InstallerWizardPolicy(locked_keys=frozenset(supplied), advanced=advanced)
     explicit = set(supplied)
     values = policy.normalize(supplied, frozenset(explicit))
-    require_source_opt_in(values, from_source=from_source)
     for original in ordered_fields():
         field = policy.resolve_field(original, values)
         if field.key in supplied or field.deferred_until_plan:
@@ -64,7 +62,6 @@ def collect_plain(
             answer = renderer.collect_missing((prompt_field,), {}, include_optional=True)
             values.update(answer)
         explicit.add(field.key)
-        require_source_opt_in(values, from_source=from_source)
         values = policy.normalize(values, frozenset(explicit))
     return values
 
@@ -74,12 +71,9 @@ def collect_interactive(
     *,
     renderer: Any,
     advanced: bool = False,
-    from_source: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Ask the installation questions one at a time; the review comes afterwards."""
-    return collect_plain(
-        supplied, renderer=renderer, advanced=advanced, from_source=from_source
-    ), False
+    return collect_plain(supplied, renderer=renderer, advanced=advanced), False
 
 
 def confirm_installation(renderer: Any, values: dict[str, Any], *, advanced: bool) -> bool:

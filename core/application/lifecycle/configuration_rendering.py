@@ -370,6 +370,15 @@ class ConfigurationRenderingMixin:
             )
         # AC17-R167: never the source profile's, which `existing` holds on a switch.
         managed.update(profile_owned_environment(config.deployment_profile))
+        if (
+            config.environment == "production"
+            and existing.get("FS_INSTALL_MODE") == "official"
+            and str(existing.get("FS_FRONTEND_IMAGE") or "").strip()
+        ):
+            # Owner 2026-11-21: production is the same release without the development
+            # extras. Blank, not absent: a key left outside the managed block of the
+            # source file would otherwise survive into the production file.
+            managed.update({"FS_FRONTEND_IMAGE": "", "FS_FRONTEND_IMAGE_REVISION": ""})
         managed["FS_MONITORING_EXPECTATIONS"] = deployment_monitoring_expectations(config)
         managed["FS_MONITORING_DEPENDENCIES"] = deployment_monitoring_dependencies(config)
         if config.deployment_profile == "compact" and config.data_placement == "host_directories":

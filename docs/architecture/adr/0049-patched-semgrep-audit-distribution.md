@@ -6,7 +6,9 @@ Status: Accepted
 
 The audit-only Semgrep 1.183.0 distribution pins MCP 1.29.0 and OpenTelemetry
 1.37.x. Published fixes require MCP 1.30.0 and OpenTelemetry 1.45.2
-(1.45.1 is affected by GHSA-mf5v-w3w3-f6cg, published 2026-11-13). The normal
+(1.45.1 is affected by GHSA-mf5v-w3w3-f6cg, published 2026-11-13), and its
+`wcmatch~=8.3` requirement excludes the wcmatch 11.2 fix for GHSA-53pm-wgxf-c6qf
+(published 2026-11-20; Semgrep 1.186.0 still requires `wcmatch~=8.3`). The normal
 resolver cannot satisfy those fixes together with the upstream metadata. Risk
 acceptance is not an acceptable substitute for this task's dependency remediation.
 Product runtime dependencies and the scanner's analysis rules are separate concerns.
@@ -16,7 +18,9 @@ Product runtime dependencies and the scanner's analysis rules are separate conce
 Build `semgrep==1.183.0+fs.1` in the existing isolated audit environment from the
 SHA256-pinned official Linux wheel. Change only distribution metadata and RECORD:
 replace the MCP requirement with 1.30.0, the OpenTelemetry API/SDK/HTTP exporter
-requirements with 1.45.2, and instrumentation requirements with 0.66b2. Preserve
+requirements with 1.45.2, instrumentation requirements with 0.66b2, and the
+wcmatch requirement with 11.2 (Semgrep calls only `glob.globmatch` with
+`GLOBSTAR | DOTGLOB`, which the wcmatch 9-11 breaking changes do not touch). Preserve
 all executable and data bytes, wheel tags, and executable permissions. Give the
 result an explicit local identity; do not install an incompatible graph over an
 upstream pin or suppress `pip check`.

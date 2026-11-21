@@ -9,6 +9,10 @@ import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, env_flag
+from core.application.auth.local_credentials import (
+    local_session_credential_filter,
+    password_age_available,
+)
 from core.application.auth.password import session_token_hash
 from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.infrastructure.db.psycopg_runtime import sql as psycopg_sql
@@ -272,6 +276,7 @@ def get_user_by_username(bl, username: str) -> dict | None:
             , {tz_select}
             , {locale_select}
             , {acct_select}
+            , {password_age_select} AS password_changed_at
             FROM users u
             WHERE lower(u.username) = lower(%s)
               {active_clause}
@@ -282,6 +287,9 @@ def get_user_by_username(bl, username: str) -> dict | None:
                 tz_select=tz_select,
                 locale_select=locale_select,
                 acct_select=acct_select,
+                password_age_select=psycopg_sql.SQL(
+                    "u.password_changed_at" if password_age_available(bl) else "NULL"
+                ),
                 active_clause=active_clause,
             ),
             (str(username or "").strip(),),
@@ -370,6 +378,7 @@ def get_user_by_session_token(bl, token: str) -> dict | None:
             WHERE s.session_token_hash = %s
               AND s.revoked = false
               AND s.expires_at > now()
+              {credential_filter}
               {active_clause}
             LIMIT 1
             """
@@ -379,6 +388,7 @@ def get_user_by_session_token(bl, token: str) -> dict | None:
                 locale_select=locale_select,
                 acct_select=acct_select,
                 active_clause=active_clause,
+                credential_filter=psycopg_sql.SQL(local_session_credential_filter(bl)),
             ),
             (token_hash,),
         )

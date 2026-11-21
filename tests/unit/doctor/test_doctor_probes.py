@@ -467,3 +467,60 @@ def test_expired_or_unreadable_installed_mirror_is_not_hidden_by_healthy_input(
     assert ("missing or cannot be read" if unreadable else "expired") in finding.cause
     assert f"Replace {operator_input}" in finding.next_step
     assert gateway.process.commands == [list(mirror_command)]
+
+
+# -- stack_unhealthy: the repair restarts only what fails its healthcheck (#26) -------------
+
+
+def _health_gateway(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, answers
+) -> DockerInstallerGateway:
+    gateway = _revision_gateway(tmp_path, answers)
+    monkeypatch.setattr(
+        gateway, "_health_expected_services", lambda _config: {"compact-runtime", "seaweedfs"}
+    )
+    monkeypatch.setattr(gateway, "_compose_prefix", lambda _config: ["docker", "compose"])
+    return gateway
+
+
+def test_the_unhealthy_service_alone_is_restarted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gateway = _health_gateway(tmp_path, monkeypatch, {("docker", "compose", "restart"): (0, "")})
+
+    restarted = gateway.restart_services(
+        _config(deployment_profile="compact"), ["seaweedfs", "fs-other"], log=_Log()
+    )
+
+    assert restarted == ["seaweedfs"]  # a name the installation does not run is ignored
+    assert gateway.process.commands == [["docker", "compose", "restart", "seaweedfs"]]
+
+
+def test_nothing_unhealthy_restarts_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gateway = _health_gateway(tmp_path, monkeypatch, {})
+
+    assert gateway.restart_services(_config(), [], log=_Log()) == []
+    assert gateway.process.commands == []
+
+
+def test_a_failed_restart_is_a_named_installer_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.application.installer.errors import InstallerFailure
+
+    gateway = _health_gateway(tmp_path, monkeypatch, {("docker", "compose", "restart"): (1, "")})
+
+    with pytest.raises(InstallerFailure) as raised:
+        gateway.restart_services(_config(), ["seaweedfs"], log=_Log())
+
+    assert raised.value.code == "container_unhealthy"
+
+
+class _Log:
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def write(self, message: str) -> None:
+        self.lines.append(message)

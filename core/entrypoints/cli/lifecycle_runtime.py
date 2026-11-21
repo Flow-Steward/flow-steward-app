@@ -38,6 +38,7 @@ from core.application.readiness import CoreReadinessService
 from core.application.readiness.contracts import ReadinessPrerequisiteMissing
 from core.application.release.activation import ReleaseActivator
 from core.application.release.catalog import GitHubReleaseDiscovery
+from core.application.release.contracts import ReleaseIdentity
 from core.application.release.service import (
     ReleasePlatform,
     ReleaseService,
@@ -474,6 +475,31 @@ def _installed_runtime_environment() -> dict[str, str]:
     return store.read_durable_environment(active)
 
 
+def _installed_official_release(state: Any = None) -> ReleaseIdentity | None:
+    """The installed official release an environment switch keeps (owner 2026-11-21).
+
+    None for a source installation. A switch while a release upgrade is still in flight
+    is refused: the checkout and images are between two releases.
+    """
+    state = state or InstallerStateStore(
+        installer_state_root(_REPO_ROOT),
+        lifecycle_state_root=_REPO_ROOT / _FLOW_STEWARD_STATE_NAME,
+    )
+    installed = state.load_installed_release()
+    pending = state.load_pending_release()
+    handoff = state.load_release_handoff()
+    if (pending is not None and pending != installed) or (
+        handoff is not None and handoff.target != installed
+    ):
+        raise LifecycleError.stable_failure(
+            code="environment_switch_release_in_flight",
+            cause="A release upgrade of this installation has not finished.",
+            remediation="Finish it with `flow-steward release upgrade --confirm`, then switch.",
+            step="preflight",
+        )
+    return installed
+
+
 def _runtime_dsn() -> str:
     environment = _installed_runtime_environment()
     dsn = str(environment.get("FS_OBSERVABILITY_DSN") or "").strip()
@@ -772,7 +798,10 @@ class LifecycleCLIRuntime:
                 )
 
         from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
-        from core.infrastructure.release.upgrade_gateway import TargetReleaseMigration
+        from core.infrastructure.release.upgrade_gateway import (
+            CheckoutWriterQuiesce,
+            TargetReleaseMigration,
+        )
 
         return ReleaseService(
             discovery=discovery,
@@ -791,6 +820,7 @@ class LifecycleCLIRuntime:
             profile=profile,
             platform=_release_platform(),
             origin=origin_reader,
+            environment=active.environment if active is not None else None,
             workflow=ReleaseUpgradeWorkflow(
                 state=state,
                 maintenance=self.maintenance_service,
@@ -799,6 +829,16 @@ class LifecycleCLIRuntime:
                     target_provider=self._installed_compose_target,
                     upgrade=self.docker_lifecycle_gateway.upgrade_release_database,
                     environment_provider=_installed_runtime_environment,
+                ),
+                # D3: only a development checkout is bind-mounted into the runtime.
+                checkout_quiesce=(
+                    CheckoutWriterQuiesce(
+                        target_provider=self._installed_compose_target,
+                        stop=self.docker_lifecycle_gateway.stop_checkout_writers,
+                        environment_provider=_installed_runtime_environment,
+                    )
+                    if active is not None and active.environment == "development"
+                    else None
                 ),
             ),
         )
@@ -888,6 +928,7 @@ class LifecycleCLIRuntime:
             runtime=cast(Any, gateway),
             lifecycle_state=self._lifecycle_state(),
             release_provider=get_app_version,
+            official_release=_installed_official_release,
         )
 
     @cached_property

@@ -235,9 +235,9 @@ def _rendered_for_workflow(
             inputs if isinstance(inputs, Mapping) else {},
             secret_inputs=_secret_input_names(interface),
         )
-    except Exception:
+    except Exception as exc:
         # A title never decides whether a run starts.
-        logger.debug("Run title not rendered for workflow_id=%s", workflow_id, exc_info=True)
+        logger.debug("Run title not rendered (error_type=%s)", type(exc).__name__)
         return ""
 
 

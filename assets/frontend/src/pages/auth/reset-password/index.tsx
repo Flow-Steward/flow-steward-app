@@ -17,6 +17,7 @@ import { NavLink, useSearchParams } from "react-router";
 
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -46,8 +47,8 @@ function getPasswordresetschema(t: I18nContextValue["t"] = fallbackContext.t) {
 function getPasswordresetconfirmschema(t: I18nContextValue["t"] = fallbackContext.t) {
   return z
   .object({
-    password: z.string().min(10, t("react.auth.use_at_least_10_characters", "Use at least 10 characters.")),
-    confirmPassword: z.string().min(10, t("react.auth.use_at_least_10_characters", "Use at least 10 characters.")),
+    password: z.string().min(PASSWORD_MIN_LENGTH, passwordRequirements(t)),
+    confirmPassword: z.string().min(PASSWORD_MIN_LENGTH, t("react.auth.use_at_least_count_characters", "Use at least {count} characters.", { count: PASSWORD_MIN_LENGTH })),
     revokeOtherSessions: z.boolean(),
   })
   .refine((values) => values.password === values.confirmPassword, {
@@ -189,7 +190,7 @@ export function NewPasswordField<T extends FieldValues>({
         <input {...form.register(name)} aria-describedby={error ? "new-password-error" : "new-password-helper"} aria-invalid={Boolean(error)} autoComplete="new-password" className="fs-public-auth__input" id="new-password" placeholder={t("react.auth.create_a_password", "Create a password")} type={passwordVisible ? "text" : "password"} />
         <PasswordVisibilityToggle hideLabel={t("react.auth.hide_new_password", "Hide new password")} onToggle={() => setPasswordVisible((visible) => !visible)} showLabel={t("react.auth.show_new_password", "Show new password")} visible={passwordVisible} />
       </span>
-      <motion.span {...AUTH_FEEDBACK_MOTION} className={`fs-public-auth__field-helper${error ? " fs-public-auth__field-helper--error" : ""}`} id={error ? "new-password-error" : "new-password-helper"}>{error?.message || helper || t("react.auth.use_at_least_10_characters", "Use at least 10 characters.")}</motion.span>
+      <motion.span {...AUTH_FEEDBACK_MOTION} className={`fs-public-auth__field-helper${error ? " fs-public-auth__field-helper--error" : ""}`} id={error ? "new-password-error" : "new-password-helper"}>{error?.message || helper || passwordRequirements(t)}</motion.span>
     </motion.div>
   );
 }

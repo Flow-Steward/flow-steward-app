@@ -82,6 +82,8 @@ x-role-common-environment: &role-common-environment
 
 x-app-worker-environment: &app-worker-environment
   <<: *role-common-environment
+  FS_AUTH_MFA_REQUIRED: ${FS_AUTH_MFA_REQUIRED:-0}
+  FS_AUTH_PASSWORD_MIN_LENGTH: ${FS_AUTH_PASSWORD_MIN_LENGTH:-12}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
   FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED: ${FS_WORKFLOW_DISCOVERY_LEXICAL_FALLBACK_ENABLED:-1}
   FS_CONTEXT_GRAPH_BACKEND: ${FS_CONTEXT_GRAPH_BACKEND:-postgres_age}
@@ -89,6 +91,7 @@ x-app-worker-environment: &app-worker-environment
   FS_DEFAULT_PROVIDER: ${FS_DEFAULT_PROVIDER:-}
   FS_DEFAULT_TEMPERATURE: ${FS_DEFAULT_TEMPERATURE:-0.1}
   FS_ALLOW_PRIVATE_REMOTE_URLS: ${FS_ALLOW_PRIVATE_REMOTE_URLS:-0}
+  FS_ALLOWED_PRIVATE_ORIGINS: ${FS_ALLOWED_PRIVATE_ORIGINS:-}
   FS_EXTENSION_DEPS_FETCH: ${FS_EXTENSION_DEPS_FETCH:-0}
   FS_EXTENSION_DEPS_SITE_MAX_BYTES: ${FS_EXTENSION_DEPS_SITE_MAX_BYTES:-536870912}
   FS_EXTENSION_ARTIFACT_MAX_BYTES: ${FS_EXTENSION_ARTIFACT_MAX_BYTES:-209715200}
@@ -698,7 +701,7 @@ services:
   # required -- `:?` fails the whole file even when this profile is not selected. A
   # missing config file, by contrast, stops the server.
   seaweedfs-config:
-    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    image: chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     profiles: ["storage-seaweedfs"]
     user: "0:0"
     restart: "no"
@@ -711,15 +714,21 @@ services:
       - seaweedfs-config:/config
       - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime/seaweedfs-s3.json:/run/flow-steward-runtime/seaweedfs-s3.json:ro
 
+  # #26: SeaweedFS 4.54. 4.19 resumed its raft state on every start and sent itself a
+  # join command; once the log held join entries past the persisted commit index, that
+  # command was never applied, the master blocked before its gRPC server, and the
+  # container stayed unhealthy on every later start (reproduced; upstream #8998, fixed
+  # in 4.20). 4.54 also stops a resumed master from polling quorum every millisecond.
+  # Newer releases report telemetry by default; off keeps 4.19's behaviour of none.
   seaweedfs:
-    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    image: chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     profiles: ["storage-seaweedfs"]
     depends_on:
       seaweedfs-config:
         condition: service_completed_successfully
     restart: always
     stop_grace_period: 30s
-    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100}"
+    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100} -master.telemetry=false"
     expose:
       - "8333"
       - "9333"

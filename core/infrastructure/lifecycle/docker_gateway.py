@@ -33,6 +33,7 @@ from core.infrastructure.lifecycle.docker_runtime_support import (
     _TOKEN_INSTALLER_COMPOSE_OVERRIDE_YAML,
 )
 
+from .docker_completion_prerequisites import run_completion_prerequisites
 from .docker_gateway_contracts import (
     _CONTAINER_ID,
     _DOCKER_TIMEOUT_SECONDS,
@@ -202,24 +203,19 @@ class DockerLifecycleGateway:
                         _IMAGE_ID.fullmatch(image_id) for image_id in image_ids
                     ):
                         return
-            for action, arguments in (
-                (
-                    "target_image_pull",
-                    ("pull", "--ignore-buildable", "--policy", "missing", *services),
+            from .docker_rebuild import build_development_target
+
+            build_development_target(
+                target,
+                services,
+                run=self._run,
+                compose_command=lambda arguments: self._candidate_compose_command(
+                    target, arguments, override_content=override_content
                 ),
-                ("target_image_build", ("build", *services)),
-            ):
-                self._run(
-                    self._candidate_compose_command(
-                        target,
-                        arguments,
-                        override_content=override_content,
-                    ),
-                    action=action,
-                    timeout_seconds=timeout_seconds,
-                    environment=environment,
-                    input_text=override_content,
-                )
+                environment=environment,
+                input_text=override_content,
+                timeout_seconds=timeout_seconds,
+            )
 
     def apply_configuration(
         self,
@@ -282,6 +278,10 @@ class DockerLifecycleGateway:
             arguments.append("--remove-orphans")
         if no_dependencies:
             arguments.append("--no-deps")
+            # What the services wait on to complete still runs (traefik-files).
+            run_completion_prerequisites(
+                target, runtime, run_compose=self._run_compose, timeout_seconds=timeout_seconds
+            )
         arguments.extend(runtime)
         self._run_compose(
             target,
@@ -492,26 +492,12 @@ class DockerLifecycleGateway:
         output_sink: Callable[[str], None],
         heartbeat: Callable[[str], None],
     ) -> None:
-        self._run_compose(
+        from .docker_rebuild import rebuild
+
+        rebuild(
             target,
-            ("build", *services),
-            action="rebuild_build",
-            timeout_seconds=timeout_seconds,
-            output_sink=output_sink,
-            heartbeat=heartbeat,
-        )
-        self._run_compose(
-            target,
-            (
-                "up",
-                "--wait",
-                "--wait-timeout",
-                str(timeout_seconds),
-                "--force-recreate",
-                "--no-deps",
-                *services,
-            ),
-            action="rebuild_recreate",
+            services,
+            run_compose=self._run_compose,
             timeout_seconds=timeout_seconds,
             output_sink=output_sink,
             heartbeat=heartbeat,
@@ -741,6 +727,13 @@ class DockerLifecycleGateway:
             run_compose=self._run_compose,
             environment=environment,
         )
+
+    def stop_checkout_writers(
+        self, target: ComposeTarget, *, environment: Mapping[str, str]
+    ) -> None:
+        from core.infrastructure.release.upgrade_gateway import stop_checkout_writers
+
+        stop_checkout_writers(target, run_compose=self._run_compose, environment=environment)
 
     def management_storage_connectivity(self, target: ComposeTarget) -> bool:
         """Probe storage from the retained CLI while release services are changing."""

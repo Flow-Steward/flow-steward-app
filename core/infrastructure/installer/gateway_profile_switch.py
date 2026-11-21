@@ -31,6 +31,7 @@ from core.infrastructure.installer.gateway_support import (
     _last_error_text,
     _read_env,
 )
+from core.infrastructure.installer.state_store import INSTALLER_LOCK_LEASE_ENV
 
 if TYPE_CHECKING:
     from core.infrastructure.installer.gateway import DockerInstallerGateway
@@ -269,13 +270,10 @@ class ProfileSwitchOperations:
         refused on FS_WORKER_PROCESSES, which a Scalable .env.prod has no use for and
         the apply writes for Compact itself.
         """
-        environment = self._switch_target_environment(target)
-        command = [*self._compose_prefix(target), "config", "--quiet"]
-        if environment is not None:
-            # AC17-R174: exactly as the apply renders -- from its values alone, never
-            # the installed file, which held what the apply then did not have.
-            command[command.index("--env-file") + 1] = "/dev/null"
-        outcome = self.process.run(command, separate_stderr=True, environment=environment)
+        prefix, environment = self._switch_target_compose(target)
+        outcome = self.process.run(
+            [*prefix, "config", "--quiet"], separate_stderr=True, environment=environment
+        )
         if outcome.returncode == 0:
             log.write(f"The {target.deployment_profile} configuration renders completely.")
             return
@@ -292,6 +290,31 @@ class ProfileSwitchOperations:
             retryable=False,
             step="preflight",
         )
+
+    def prepare_switch_target(
+        self: DockerInstallerGateway, target: InstallConfig, *, log: InstallerLog
+    ) -> None:
+        """The target profile's images, resolved from the Compose the apply will render.
+
+        Scalable to Compact resolved the infrastructure images against the installed
+        Scalable .env.prod, which has no FS_WORKER_PROCESSES, and stopped with
+        "could not resolve infrastructure images" before anything was switched. The
+        render is taken after the target's own images are built: an installation that
+        was always Scalable has no FS_COMPACT_IMAGE until then.
+        """
+        self._prepare_core(target, log=log, compose=lambda: self._switch_target_compose(target))
+
+    def _switch_target_compose(
+        self: DockerInstallerGateway, target: InstallConfig
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """The Compose prefix and environment that render the target as the apply will."""
+        environment = self._switch_target_environment(target)
+        prefix = self._compose_prefix(target)
+        if environment is not None:
+            # AC17-R174: exactly as the apply renders -- from its values alone, never
+            # the installed file, which held what the apply then did not have.
+            prefix[prefix.index("--env-file") + 1] = "/dev/null"
+        return prefix, environment
 
     def _switch_target_environment(
         self: DockerInstallerGateway, target: InstallConfig
@@ -426,15 +449,30 @@ class ProfileSwitchOperations:
     def write_switch_pending(self: DockerInstallerGateway, patch: Any) -> None:
         self._configuration.store.write_pending(patch)
 
+    def discard_switch_pending(self: DockerInstallerGateway, patch: Any) -> None:
+        """Drop the switch's pending change after a failed switch left nothing to resume.
+
+        Left behind, it is applied by the next `config apply` an operator runs for
+        anything else -- a profile switch nobody asked for then. Only the switch's own
+        patch goes; a pending change written since is the operator's and stays.
+        """
+        store = self._configuration.store
+        if store.read_pending() == patch:
+            store.clear_pending()
+
     def apply_switch_in_cli(
         self: DockerInstallerGateway, scalable: InstallConfig, *, log: InstallerLog
     ) -> None:
         """`config apply` in the Scalable CLI container, with the lifecycle lock lent."""
         context = self._cli_runtime_context(scalable, log=log)
+        # The lease travels by name only (`-e NAME` reads it from this process's
+        # environment), so it never appears in a process list or in the log.
         command = [
             *context.compose_prefix,
             "exec",
             "-T",
+            "-e",
+            INSTALLER_LOCK_LEASE_ENV,
             "fs-cli",
             "python",
             "-m",
@@ -444,11 +482,11 @@ class ProfileSwitchOperations:
             "--confirm",
         ]
         log.write(_MESSAGE_RUNNING + " ".join(command))
-        with self.state_store.lifecycle_lock_lent():
+        with self.state_store.lifecycle_lock_lent() as lease:
             outcome = self.process.run(
                 command,
                 cwd=self.repo_root,
-                environment=context.environment,
+                environment={**context.environment, INSTALLER_LOCK_LEASE_ENV: lease},
                 output_sink=log.write,
                 timeout_seconds=_SWITCH_APPLY_TIMEOUT_SECONDS,
             )
@@ -458,8 +496,9 @@ class ProfileSwitchOperations:
                 cause="The profile switch did not complete: "
                 + (_last_error_text(outcome) or "see the log"),
                 remediation=(
-                    "The switch is journaled and rolled back where it could be. Rerun "
-                    "./install.sh to continue it; ./flow-steward status names the operation."
+                    "What the switch changed was rolled back where it could be. Rerun the "
+                    "same ./install.sh command to try again; if `./flow-steward status` names an unfinished "
+                    "configuration operation, that rerun continues it."
                 ),
                 exit_code=8,
                 retryable=True,

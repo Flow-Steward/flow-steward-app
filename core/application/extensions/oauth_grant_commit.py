@@ -396,6 +396,7 @@ class OAuthGrantCommitter:
         return OAuthCallbackResult(
             outcome=_post_connect_outcome(recorded),
             connection_id=connection_id,
+            error_code="access_denied" if recorded.error_code == "access_denied" else None,
             return_page_id=return_page_id,
         )
 

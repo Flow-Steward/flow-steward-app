@@ -219,6 +219,7 @@ class ReleaseService:
         platform: ReleasePlatform,
         origin: InstalledReleaseOriginPort,
         workflow: ReleaseUpgradeWorkflow | None = None,
+        environment: Literal["development", "production"] | None = None,
     ) -> None:
         if profile not in {"compact", "scalable"}:
             raise ValueError("unsupported deployment profile")
@@ -233,6 +234,9 @@ class ReleaseService:
         self.platform = platform
         self.origin = origin
         self.workflow = workflow
+        # Owner 2026-11-21: development upgrades like production; results say which
+        # environment they act on, and an upgrade never changes it.
+        self.environment = environment
         self.selector = OfficialReleaseSelector(
             discovery=discovery,
             state=state,
@@ -291,6 +295,8 @@ class ReleaseService:
     def _info_pending(self, installed: ReleaseIdentity | None) -> ReleaseIdentity | None:
         """The release an unfinished upgrade or source transition is waiting to apply."""
         if installed is not None:
+            if self.selector.profile_switch_leftover(installed) is not None:
+                return None
             pending = self._effective_pending(installed)
             return pending if pending is not None and pending != installed else None
         binding = self._load_transition_binding()
@@ -306,6 +312,8 @@ class ReleaseService:
         installed = origin.release if origin.kind == "official" else None
         if origin.kind == "source":
             self._require_source_repository(origin)
+        if installed is not None:
+            self._refuse_profile_switch_leftover(installed)
         pending = self._effective_pending(installed) if installed is not None else None
         if installed is not None and pending is not None and pending != installed:
             self._require_target_context(pending)
@@ -424,6 +432,8 @@ class ReleaseService:
         review = upgrade_review(prepared)
         if self.workflow is not None:
             review.update(self.workflow.review(prepared))
+        if self.environment is not None:
+            review["active_environment"] = f"{self.environment} (unchanged)"
         return review
 
     def plan_upgrade(self, request: ReleaseUpgradeRequest) -> dict[str, object]:
@@ -496,6 +506,8 @@ class ReleaseService:
         ):
             raise self._downgrade_refused(installed.version, target.version)
         source = prepared.release_source
+        if installed is not None:
+            self._refuse_profile_switch_leftover(installed)
         pending = self._effective_pending(installed) if installed is not None else None
         if pending is not None and pending != target:
             raise LifecycleError.stable_failure(
@@ -652,6 +664,7 @@ class ReleaseService:
         self, request: ReleaseUpgradeRequest
     ) -> tuple[ReleaseIdentity, ReleaseIdentity, str]:
         installed = self._require_installed()
+        self._refuse_profile_switch_leftover(installed)
         pending = self._effective_pending(installed)
         requested = request.target_version
         if pending is not None and (not requested or requested == pending.version):
@@ -777,6 +790,7 @@ class ReleaseService:
     ) -> ReleaseResult:
         return ReleaseResult(
             status=status,
+            active_environment=self.environment,
             installed_origin=installed_origin or ("official" if installed else None),
             source_commit_sha=source_commit_sha,
             deployment_profile=self.profile,
@@ -810,6 +824,29 @@ class ReleaseService:
                 f"Public release upgrade cannot move from {installed} to older release {target}."
             ),
             remediation="Use clone restore for a validated destructive older-version restore.",
+            step="release_policy",
+        )
+
+    def _refuse_profile_switch_leftover(self, installed: ReleaseIdentity) -> None:
+        """Name an interrupted profile switch instead of calling it a pending upgrade.
+
+        Its staged release is the installed one on the other profile, so "resume it
+        with --target-version" only failed on the context mismatch, in a circle.
+        """
+        leftover = self.selector.profile_switch_leftover(installed)
+        if leftover is None:
+            return
+        raise LifecycleError.stable_failure(
+            code="profile_switch_unfinished",
+            cause=(
+                f"A switch to the {leftover.profile} profile did not finish: release "
+                f"{leftover.version} is staged for {leftover.profile} while "
+                f"{installed.profile} is installed."
+            ),
+            remediation=(
+                f"Run `./install.sh --deployment-profile {leftover.profile}` to finish the "
+                "switch, then repeat this command."
+            ),
             step="release_policy",
         )
 

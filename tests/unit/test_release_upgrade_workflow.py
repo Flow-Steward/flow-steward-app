@@ -306,3 +306,113 @@ def test_interrupt_after_terminal_write_restores_resumable_state(workflow):
     harness.service.upgrade(ReleaseUpgradeRequest())
     assert maintenance.phase == "disabled"
     assert events.count("activate") == 1
+
+
+def test_development_upgrade_stops_checkout_writers_right_before_activation(workflow):
+    """Owner 2026-11-21 (D3): the handoff checks the release out under running services.
+
+    A development installation's Core services run code bind-mounted from that
+    checkout, so they are stopped after the verified backup and immediately before
+    activation; the installer starts them again on the new images.
+    """
+    harness, events, *_ = workflow
+    harness.service.workflow.checkout_quiesce = lambda: events.append("quiesce")
+
+    result = harness.service.upgrade(ReleaseUpgradeRequest())
+
+    assert result.status == "upgraded"
+    assert events == ["maintenance_on", "backup", "quiesce", "activate", "maintenance_off"]
+
+
+@pytest.mark.parametrize("request_kind", ("dry_run", "already_current"))
+def test_development_upgrade_that_changes_nothing_stops_nothing(workflow, request_kind):
+    """A plan or an already-current target never touches the running services."""
+    harness, events, *_ = workflow
+    harness.service.workflow.checkout_quiesce = lambda: events.append("quiesce")
+    request = (
+        ReleaseUpgradeRequest(dry_run=True)
+        if request_kind == "dry_run"
+        else ReleaseUpgradeRequest(target_version=harness.installed.version)
+    )
+
+    harness.service.upgrade(request)
+
+    assert "quiesce" not in events
+
+
+def test_checkout_writer_quiesce_stops_bind_mounted_services_and_frontend():
+    """The quiesce stops the Core writers and the frontend dev server, nothing else."""
+    from core.application.lifecycle.contracts import ComposeTarget
+    from core.infrastructure.release.upgrade_gateway import (
+        CheckoutWriterQuiesce,
+        stop_checkout_writers,
+    )
+
+    calls = []
+
+    def run_compose(target, arguments, **kwargs):
+        calls.append(tuple(arguments))
+        stdout = "fs-app\nfs-frontend\npg-fs\nfs-cli\ncontrol-plane\n"
+        return type("Outcome", (), {"stdout": stdout if arguments[0] == "ps" else ""})()
+
+    target = ComposeTarget(
+        stack_environment="development",
+        file_storage="bundled",
+        env_file=".env",
+        compose_files=("infra/docker/docker-compose.yaml",),
+        compose_profiles=(),
+        required_services=("fs-app",),
+        runtime_services=("fs-app",),
+        rebuild_services=("fs-app",),
+        project_name="development-project",
+    )
+    CheckoutWriterQuiesce(
+        target_provider=lambda: target,
+        stop=lambda selected, *, environment: stop_checkout_writers(
+            selected, run_compose=run_compose, environment=environment
+        ),
+        environment_provider=dict,
+    )()
+
+    assert calls == [
+        ("ps", "--status", "running", "--services"),
+        ("stop", "fs-app", "control-plane", "fs-frontend"),
+    ]
+
+
+def test_checkout_writer_quiesce_failure_keeps_a_typed_resumable_error():
+    """A Docker failure surfaces as a stable lifecycle error naming the resume path."""
+    from core.application.lifecycle.stack_service import StackGatewayError
+    from core.infrastructure.release.upgrade_gateway import CheckoutWriterQuiesce
+
+    def fail(_target, *, environment):
+        raise StackGatewayError(action="release_quiesce", detail="docker unavailable")
+
+    quiesce = CheckoutWriterQuiesce(
+        target_provider=lambda: object(), stop=fail, environment_provider=dict
+    )
+
+    with pytest.raises(LifecycleError) as raised:
+        quiesce()
+
+    assert raised.value.code == "release_checkout_quiesce_failed"
+    assert "release upgrade" in raised.value.remediation
+
+
+def test_official_install_switched_to_development_upgrades_and_says_so(workflow):
+    """Owner 2026-11-21: after `environment switch development` an official installation
+    upgrades in development: the review says `development (unchanged)`, the checkout's
+    writers are quiesced before activation, and the result names the environment."""
+    harness, events, *_ = workflow
+    harness.service.environment = "development"
+    harness.service.workflow.checkout_quiesce = lambda: events.append("quiesce")
+
+    review = harness.service.review_upgrade(
+        harness.service.prepare_upgrade(ReleaseUpgradeRequest(dry_run=True))
+    )
+    result = harness.service.upgrade(ReleaseUpgradeRequest())
+
+    assert review["active_environment"] == "development (unchanged)"
+    assert result.status == "upgraded"
+    assert result.active_environment == "development"
+    assert events.index("quiesce") < events.index("activate")

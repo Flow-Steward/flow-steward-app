@@ -34,8 +34,9 @@ INSTALLER_SPEC = CommandSpec(
             default="production",
             option_name="--environment",
             description=(
-                "Production runs the application. Development is for contributors "
-                "and requires restarting with --from-source."
+                "Production runs the application. Development is for contributors: it "
+                "runs the same official release and adds the development tools; "
+                "--from-source builds Core from this checkout instead."
             ),
         ),
         FieldSpec(

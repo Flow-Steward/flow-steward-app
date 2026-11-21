@@ -5,7 +5,9 @@
 Accepted — 2026-09-27. Amended 2026-10-27 (release 0.9.1): a fresh install of a
 published release tag installs its official images. Amended 2026-10-27 (release
 0.9.2): the PostgreSQL image is an official release image. Amended 2026-11-06
-(release 0.9.12): prebuilt production installer and explicit source mode.
+(release 0.9.12): prebuilt production installer and explicit source mode. Amended
+2026-11-21 (release 0.9.23): Development installs and upgrades from the official
+release like production.
 
 ## Context
 
@@ -39,10 +41,51 @@ It never changes the checkout or selects a floating/latest target implicitly.
 Existing official state and handoff bindings keep their identities on resume.
 
 Only `./install.sh --from-source` authorizes management and product source builds,
-including Development and subsequent source resume/update runs. This mode records
-source provenance and needs no release lookup; it cannot replace installed or
-pending official state. Source-to-official changes retain the reviewed transition.
+including subsequent source resume/update runs, in either environment. This mode
+records source provenance and needs no release lookup; it cannot replace installed
+or pending official state. Source-to-official changes retain the reviewed transition.
 This supersedes the earlier automatic source selection for untagged/dirty checkouts.
+
+Amendment (2026-11-21, release 0.9.23): Development no longer requires
+`--from-source`. A Development install from a clean published tag is an official
+installation like Production: the product roles (app, worker, control, CLI, MCP) and
+PostgreSQL are the release's digest-pinned images, and only the images no release
+publishes are built locally from the checkout at the release commit -- the
+`frontend-development` image of `fs-frontend` (pinned in `.env` by its local image
+ID so the exact image set stays complete) and the `audit` images of
+`fs-test-runner` and `fs-audit` (left on their Compose tags and verified by revision
+label, because `lint.sh` rebuilds `fs-audit` itself). Development Core services
+bind-mount the checkout, so preparation refuses a checkout whose HEAD is not the
+release commit. `release upgrade` therefore works on Development: the existing
+handoff preflights a clean tree and checks the release out detached; before it does,
+the services that run checkout code (`fs-app`, `fs-worker`, `control-plane`,
+`fs-mcp`, `fs-extension-installer`, `fs-frontend`) are stopped, and the installer
+starts them on the new images. `stack rebuild` builds only services whose rendered
+image is not a registry digest. Official state still never falls back to a build in
+either environment: the installer mode, the immutable-CLI rule and the launcher
+refuse it alike. A Development installation recorded before this amendment has
+`FS_INSTALL_MODE=source` (or none) and stays a source installation until its
+operator takes the reviewed source-to-official transition, which now accepts a
+Development source origin; for it, the source provenance check does not require a
+separately recorded CLI image and does not compare running containers, which run
+bind-mounted code. `--from-source` on an official installation stays refused
+(`source_install_official_conflict`), an untagged Development checkout without
+`--from-source` is refused with `production_release_checkout_required` naming
+`--from-source`. `ReleaseIdentity` carries no environment, so recorded identities stay
+valid; the release handoff installs the environment its journal (or else the active
+configuration) records. For the same reason `environment switch` moves an official
+installation between the environments without touching its identity: development is
+the release's Core images plus the locally built extras plus checkout code
+bind-mounted, production is the same images without the extras. Images, database and
+data stay. Switching to development first requires a clean tracked tree at the
+installed release commit (`environment_switch_checkout_dirty`,
+`environment_switch_checkout_not_release`, both before any pause or backup), then
+builds the extras for that commit and pins the frontend in the target environment;
+the development target never builds a digest-pinned service. Switching to production
+keeps the digest pins, blanks the development-only frontend pin and reuses the
+present images. Both directions keep `FS_INSTALL_MODE=official` and the release
+markers. A switch during an unfinished release upgrade is refused
+(`environment_switch_release_in_flight`); source installations switch as before.
 
 The release pipeline publishes `flow-steward-installer:X.Y.Z` on both Linux
 architectures, with revision and installer-role labels, alongside PostgreSQL and

@@ -1,4 +1,4 @@
-"""Read exact production release coordinates from an existing tagged checkout."""
+"""Read exact release coordinates from an existing tagged checkout."""
 
 from __future__ import annotations
 
@@ -59,14 +59,14 @@ class LocalCheckoutReleaseSource:
         if tagged.returncode != 0:
             raise self._failure(
                 "production_checkout_tag_missing",
-                f"Exact local production tag {tag} is unavailable.",
+                f"Exact local release tag {tag} is unavailable.",
                 f"Fetch tags and check out {tag}, then rerun ./install.sh.",
             )
         tagged_commit = tagged.stdout.strip().lower()
         if _FULL_GIT_SHA_RE.fullmatch(tagged_commit) is None or tagged_commit != head:
             raise self._failure(
                 "production_checkout_tag_mismatch",
-                f"Exact local production tag {tag} does not point to checkout HEAD.",
+                f"Exact local release tag {tag} does not point to checkout HEAD.",
                 f"Check out {tag} exactly, then rerun ./install.sh.",
             )
         for args in (("diff", "--quiet"), ("diff", "--cached", "--quiet")):
@@ -75,12 +75,13 @@ class LocalCheckoutReleaseSource:
                 raise self._failure(
                     "production_checkout_dirty",
                     "Tracked release files contain local modifications.",
-                    "Commit, stash, or revert tracked changes before production installation.",
+                    "Commit, stash, or revert tracked changes before installing a release, "
+                    "or build this checkout with --from-source.",
                 )
             if outcome.returncode != 0:
                 raise self._failure(
                     "production_checkout_dirty",
-                    "Git could not verify the production checkout state.",
+                    "Git could not verify the release checkout state.",
                     "Repair the checkout and rerun ./install.sh.",
                 )
         return ReleaseCoordinates(
@@ -98,8 +99,8 @@ class LocalCheckoutReleaseSource:
         except (OSError, UnicodeError, ReleaseError) as exc:
             raise self._failure(
                 "production_checkout_version_invalid",
-                "The production checkout VERSION is absent or not canonical X.Y.Z.",
-                "Check out an exact production release tag and rerun ./install.sh.",
+                "The checkout VERSION is absent or not canonical X.Y.Z.",
+                "Check out an exact release tag and rerun ./install.sh.",
             ) from exc
 
     def _head(self) -> str:
@@ -108,7 +109,7 @@ class LocalCheckoutReleaseSource:
         if outcome.returncode != 0 or _FULL_GIT_SHA_RE.fullmatch(head) is None:
             raise self._failure(
                 "production_checkout_tag_mismatch",
-                "The production checkout HEAD is not a full Git commit.",
+                "The checkout HEAD is not a full Git commit.",
                 "Repair the Git checkout and rerun ./install.sh.",
             )
         return head

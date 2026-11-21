@@ -68,7 +68,7 @@ remains a separate operator step.
 Use a full (not shallow) Git clone, then run:
 
 ```bash
-git clone --branch v0.9.22 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ./flow-steward status
@@ -84,9 +84,12 @@ fallback, and no image is built locally, including the installer and PostgreSQL.
 A host Python installation is not required. Docker owns autostart; the installer
 does not create a systemd service or request sudo.
 
-Only `./install.sh --from-source` builds the current checkout; for development use
-`./install.sh --from-source --environment development --deployment-profile scalable`. Repeat the flag to resume
-or update a source installation. Switching it to official uses the reviewed
+For development, run `./install.sh --environment development --deployment-profile scalable`
+from the same clean release tag. It installs the official Core images and builds only the
+frontend dev server and the test/audit images locally, and `./flow-steward release upgrade
+--confirm` updates it like production. Only `./install.sh --from-source` builds Core from the
+current checkout, on any branch; repeat the flag to resume or update a source installation.
+Switching it to official uses the reviewed
 [release transition](docs/GUIDE.md#maintenance-and-release-upgrade).
 
 The canonical database baseline lives in `db/schema/`, with canonical seed data in

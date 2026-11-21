@@ -23,6 +23,7 @@ from typing import Any
 from urllib.parse import quote, urlparse
 
 from core.application.extensions.default_icon import is_default_extension_icon
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogError
 from core.application.extensions.semver import normalize_semver
 from core.application.extensions.url_safety import (
     assert_safe_remote_https_url,
@@ -91,20 +92,6 @@ _FETCH_PURPOSE = "extension catalog index"
 _ICON_PURPOSE = "extension catalog icon"
 _SHA256_HEX_LENGTH = 64
 _HEX_DIGITS = frozenset("0123456789abcdef")
-
-
-class ExtensionCatalogError(RuntimeError):
-    """The configured extension catalog cannot be served."""
-
-    def __init__(self, message: str, *, code: str, status_code: int = 503) -> None:
-        super().__init__(message)
-        self.code = code
-        self.status_code = status_code
-
-    def detail(self) -> dict[str, Any]:
-        # `message` is where the frontend HTTP client reads a reason, as it does for
-        # the workflow import errors; without it the operator saw only the status.
-        return {"error": str(self), "code": self.code, "message": str(self)}
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,6 +278,21 @@ def load_extension_catalog(*, max_age_seconds: float = 0.0) -> ExtensionCatalogI
             "Extension catalog is unavailable.",
             code="extension_catalog_unavailable",
         ) from exc
+
+
+def search_extension_catalog(
+    index: ExtensionCatalogIndex, query: str
+) -> list[ExtensionCatalogItem]:
+    """Match the published extension fields used by Marketplace and MCP."""
+    terms = query.casefold().split()
+    matches = []
+    for item in index.items:
+        text = " ".join(
+            (item.extension_id, item.name, item.summary, item.description, *item.tags)
+        ).casefold()
+        if all(term in text for term in terms):
+            matches.append(item)
+    return matches
 
 
 def cached_extension_catalog_names() -> dict[str, str]:

@@ -297,17 +297,21 @@ class ImageSelectionOperations:
         return roles
 
     def _install_mode(self: DockerInstallerGateway, config: DeploymentConfig) -> str:
-        if config.environment != "production":
-            return "source"
-        # An official activation journal/identity must never fall back to a build.
+        # An official activation journal/identity must never fall back to a build, in
+        # either environment.
         if (
             self.state_store.load_installed_release() is not None
             or self.state_store.load_pending_release() is not None
             or self.state_store.load_release_handoff() is not None
         ):
             return "official"
-        environment = {**_read_env(self._env_path(config)), **self._environment}
-        return "source" if environment.get("FS_INSTALL_MODE") == "source" else "official"
+        mode = {**_read_env(self._env_path(config)), **self._environment}.get("FS_INSTALL_MODE")
+        if config.environment == "development":
+            # Owner 2026-11-21: development installs and upgrades like production, but
+            # only when the installer chose that explicitly. A development installation
+            # recorded before has no mode or "source" and stays a source build.
+            return "official" if mode == "official" else "source"
+        return "source" if mode == "source" else "official"
 
     def _official_pending_release(
         self: DockerInstallerGateway, config: DeploymentConfig
@@ -525,8 +529,13 @@ class ImageSelectionOperations:
         Images an operator chose are not this installer's to replace, so neither
         question can ask for their update; the running revision still reaches the
         screen so a stale pin is named rather than reported as current.
+
+        A source development stack builds through Compose and is asked nothing here; an
+        official development installation runs published images like production.
         """
-        if config.environment != "production" or config.deployment_profile not in _RUNTIME_IMAGES:
+        if config.deployment_profile not in _RUNTIME_IMAGES or (
+            config.environment != "production" and self._install_mode(config) != "official"
+        ):
             return ImageCurrency(source_revision="")
         source = self._source_revision(log, step="verification")
         running = self._running_runtime_revision(config)
@@ -567,6 +576,7 @@ class ImageSelectionOperations:
             source_revision=source,
             running_revision=running,
             shell_pins=self._shell_image_pins(config),
+            official_release=self._install_mode(config) == "official",
         )
 
     def _shell_image_pins(self: DockerInstallerGateway, config: InstallConfig) -> tuple[str, ...]:

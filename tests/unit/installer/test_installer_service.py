@@ -45,6 +45,9 @@ class FakeGateway:
         self.started = ""
         self.unfinished_switch: dict | None = None
         self.pending_switch = None
+        # None: the apply succeeds; {}: it fails with nothing to resume; a candidate: it
+        # fails and leaves that switch unfinished.
+        self.switch_apply_failure: dict | None = None
         self.converge_changed: bool | None = None
         self.pruned_with: tuple[str, str] | None = None
 
@@ -138,9 +141,24 @@ class FakeGateway:
         self.calls.append("write_switch_pending")
         self.pending_switch = patch
 
+    def discard_switch_pending(self, patch):
+        self.calls.append("discard_switch_pending")
+        if self.pending_switch == patch:
+            self.pending_switch = None
+
     def apply_switch_in_cli(self, scalable, *, log):
         del log
         self.calls.append(f"apply_switch_in_cli:{scalable.deployment_profile}")
+        if self.switch_apply_failure is not None:
+            self.unfinished_switch = self.switch_apply_failure or None
+            raise InstallerFailure(
+                code="profile_switch_apply_failed",
+                cause="The profile switch did not complete: apply broke",
+                remediation="Rerun the same ./install.sh command.",
+                exit_code=8,
+                retryable=True,
+                step="switch",
+            )
         profile = self.pending_switch.deployment_profile if self.pending_switch else "compact"
         self.active_config = InstallConfig.model_validate(
             {
@@ -2090,6 +2108,35 @@ def test_an_unfinished_switch_is_continued_whatever_the_run_was_asked(tmp_path: 
     assert result.changes[0].startswith("Completed the switch to compact")
 
 
+@pytest.mark.parametrize("left_unfinished", [False, True])
+def test_a_failed_switch_takes_back_the_release_it_staged_unless_it_can_resume(
+    tmp_path: Path, left_unfinished: bool
+) -> None:
+    """Customer 2026-11-20: the failed switch left the installed release staged for the
+    other profile, and every later ./install.sh and `release upgrade` refused it as a
+    pending upgrade. Only a switch left to resume still needs it."""
+    gateway = _installed_gateway(ImageCurrency(source_revision=_NEW, running_revision=_NEW))
+    gateway.active_config = InstallConfig(environment="production", file_storage="local_fs")
+    gateway.switch_apply_failure = {"deployment_profile": "compact"} if left_unfinished else {}
+    service = _installed_service(tmp_path, gateway)
+    staged = _release_identity("1.3.0", "2", profile="compact")
+
+    with pytest.raises(InstallerFailure) as failed:
+        service.install(
+            _compact(file_storage="local_fs"),
+            explicit_fields=frozenset({"deployment_profile"}),
+            target_release=staged,
+        )
+
+    assert failed.value.code == "profile_switch_apply_failed"
+    if left_unfinished:
+        assert service.state.load_pending_release() == staged
+        assert gateway.pending_switch is not None
+    else:
+        assert service.state.load_pending_release() is None
+        assert gateway.pending_switch is None
+
+
 def test_no_switch_is_asked_of_an_installation_that_stays(tmp_path: Path) -> None:
     """The green direction: the same profile, given or not, is no switch."""
     gateway = _installed_gateway(ImageCurrency(source_revision=_NEW, running_revision=_NEW))
@@ -2144,3 +2191,33 @@ def test_release_publication_requires_cli_identity_for_final_environment(
         assert result.status == "installed"
         assert service.state.load_installed_release() == target
         assert cli_digest[0] == hashlib.sha256(env_file.read_bytes()).hexdigest()
+
+
+def test_behind_sources_notice_on_an_official_installation_points_at_release_upgrade() -> None:
+    """Owner 2026-11-21: official images are never rebuilt from a checkout.
+
+    The notice for operator pins told an official installation to "supply images
+    built from these sources", which it can never do; development installations run
+    official releases now too, and move with `release upgrade`.
+    """
+    from core.application.installer.contracts import ImageCurrency
+    from core.application.installer.service import InstallerService
+
+    notice = InstallerService._behind_sources_notice(
+        ImageCurrency(source_revision="b" * 40, running_revision="a" * 40, official_release=True)
+    )
+
+    assert "flow-steward release upgrade --confirm" in notice
+    assert "supply images" not in notice
+
+
+def test_behind_sources_notice_for_operator_pins_is_unchanged() -> None:
+    """The green direction: a source installation on operator pins keeps its advice."""
+    from core.application.installer.contracts import ImageCurrency
+    from core.application.installer.service import InstallerService
+
+    notice = InstallerService._behind_sources_notice(
+        ImageCurrency(source_revision="b" * 40, running_revision="a" * 40)
+    )
+
+    assert "supply images built from these sources" in notice

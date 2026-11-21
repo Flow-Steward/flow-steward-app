@@ -132,7 +132,13 @@ _PROJECT_EFFECT_RESOLUTION_WRITE_RE = re.compile(
 # Reads any authenticated principal may make about itself, whatever its scopes: who it
 # is, what it may do, which tokens are its own, and the product shell's bootstrap.
 _SELF_SERVICE_READ_PATHS = frozenset(
-    {"/api/auth/me", "/api/auth/introspect", "/api/auth/tokens", "/api/app/bootstrap"}
+    {
+        "/api/auth/me",
+        "/api/auth/introspect",
+        "/api/auth/tokens",
+        "/api/auth/multi-factor/status",
+        "/api/app/bootstrap",
+    }
 )
 _SELF_SERVICE_READ_PREFIXES = ("/api/users/me/",)
 _JOB_READ_PREFIXES = (

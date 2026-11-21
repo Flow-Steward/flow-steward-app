@@ -27,6 +27,7 @@ import {
   connectionDomId,
   isConfigurationReady,
   oauthStatusLabel,
+  postConnectAccessDeniedGuidance,
   postConnectRetryGuidance,
   record,
   text,
@@ -38,6 +39,7 @@ type ConnectionListProps = {
   /** The provider's connection types, for a refresh-token replacement form. */
   connectionTypes?: readonly OAuthConnectionTypeDeclaration[];
   connections: readonly Record<string, unknown>[];
+  createConnectionForm?: React.ReactNode;
   ownedConnectionTypeId: string;
   ownedIntentId: string;
   legacyOwnershipIsExact: boolean;
@@ -56,11 +58,17 @@ type OAuthConnectionRowView = {
   connectionId: string;
   disconnectRecoveryAvailable: boolean;
   displayName: string;
+  editable: boolean;
+  errorCode: string;
   helpAnchor: string | undefined;
   lifecycle: string;
   reconnectable: boolean;
   retryablePostConnect: boolean;
 };
+
+function isImportEditLifecycle(lifecycle: string): boolean {
+  return ["connected", "needs_attention", "post_connect_pending"].includes(lifecycle);
+}
 
 function oauthConnectionRowView(
   row: Record<string, unknown>,
@@ -79,6 +87,7 @@ function oauthConnectionRowView(
     (!Number.isFinite(disconnectLeaseExpiresAt) ||
       disconnectLeaseExpiresAt <= currentTime);
   const errorCode = text(oauth.last_error_code);
+  const accessDenied = lifecycle === "needs_attention" && errorCode === "access_denied";
   const configuration = configurations.find(
     (candidate) =>
       candidate.configuration_id === text(row.oauth_configuration_id),
@@ -86,7 +95,7 @@ function oauthConnectionRowView(
   const retryableLifecycle =
     lifecycle === "post_connect_pending" ||
     (lifecycle === "needs_attention" &&
-      ["internal_failure", "malformed_response", "provider_unavailable"].includes(
+      ["access_denied", "internal_failure", "malformed_response", "provider_unavailable"].includes(
         errorCode,
       ));
   return {
@@ -94,6 +103,8 @@ function oauthConnectionRowView(
     connectionId,
     disconnectRecoveryAvailable,
     displayName: text(row.display_name) || connectionId,
+    editable: isRefreshTokenImportProvider(provider) && isImportEditLifecycle(lifecycle),
+    errorCode,
     helpAnchor: errorCode
       ? provider.error_help_anchors?.[errorCode]
       : undefined,
@@ -102,9 +113,7 @@ function oauthConnectionRowView(
       "authorization_required",
       "disconnected",
       "reconnect_required",
-    ].includes(lifecycle)
-      // A rejected or mismatched imported token is repaired by pasting another.
-      || (isRefreshTokenImportProvider(provider) && lifecycle === "needs_attention" && !retryableLifecycle),
+    ].includes(lifecycle) || accessDenied,
     retryablePostConnect:
       retryableLifecycle && isConfigurationReady(configuration),
   };
@@ -124,14 +133,20 @@ function connectionNotices(
 }
 
 function connectionVerificationNotice(view: OAuthConnectionRowView, canManage: boolean, t: I18nContextValue["t"] = fallbackContext.t) {
+  if (view.lifecycle === "needs_attention" && view.errorCode === "access_denied") {
+    return postConnectAccessDeniedGuidance(t);
+  }
   if (!view.retryablePostConnect) return "";
-  return canManage
+  if (!canManage) {
+    return t("react.extensions.verification_needs_attention_a_project_manager_must_retry_verification", "Verification needs attention. A project manager must retry verification.");
+  }
+  return view.errorCode === "provider_unavailable"
     ? t("react.extensions.verification_needs_attention_retry_when_the_provider_is_available", "Verification needs attention. Retry when the provider is available.")
-    : t("react.extensions.verification_needs_attention_a_project_manager_must_retry_verification", "Verification needs attention. A project manager must retry verification.");
+    : t("react.extensions.post_connect_retry_verification", "Verification needs attention. Retry verification.");
 }
 
 function connectionAttentionNotice(view: OAuthConnectionRowView, canManage: boolean, t: I18nContextValue["t"] = fallbackContext.t) {
-  if (view.lifecycle !== "needs_attention" || view.retryablePostConnect) return "";
+  if (view.lifecycle !== "needs_attention" || view.retryablePostConnect || view.errorCode === "access_denied") return "";
   return canManage
     ? t("react.extensions.repair_and_save_this_connection_s_configuration_in_setup_before_trying_again", "Repair and save this connection's configuration in Setup before trying again.")
     : t("react.extensions.this_connection_needs_attention_a_project_manager_must_repair_and_save_its_configuration_in_setup", "This connection needs attention. A project manager must repair and save its configuration in Setup.");
@@ -203,6 +218,16 @@ function OAuthConnectionActions({
     );
   }
   if (view.lifecycle === "disconnecting") return null;
+  let repairLabel = t("react.extensions.reconnect", "Reconnect");
+  let repairAriaLabel = t("react.extensions.reconnect_value0", "Reconnect {value0}", { value0: view.displayName });
+  if (view.editable) {
+    repairLabel = t("extensions.repeater.edit", "Edit");
+    repairAriaLabel = t("react.extensions.edit_value0", "Edit {value0}", { value0: view.displayName });
+  } else if (imported) {
+    repairLabel = t("react.extensions.oauth_import_replace", "Replace refresh token");
+    repairAriaLabel = t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: view.displayName });
+  }
+  const canRepair = view.editable || view.reconnectable;
   return (
     <div className="fs-manifest-actions">
       {onTest && view.lifecycle === "connected" ? (
@@ -224,16 +249,14 @@ function OAuthConnectionActions({
           onClick={() => { if (!pending) onRetry(row); }}
           size="sm"
           type="button"
-          variant="primary"
+          variant={canRepair ? "secondary" : "primary"}
         >
           {t("settings.watchdog.retry", "Retry")}
         </Button>
       ) : null}
-      {view.reconnectable ? (
+      {canRepair ? (
         <Button
-          aria-label={imported
-            ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: view.displayName })
-            : t("react.extensions.reconnect_value0", "Reconnect {value0}", { value0: view.displayName })}
+          aria-label={repairAriaLabel}
           busy={pending === "reconnect"}
           busyLabel={t("react.extensions.oauth_import_connecting", "Connecting…")}
           onClick={() => { if (!pending) onReconnect(row); }}
@@ -241,9 +264,8 @@ function OAuthConnectionActions({
           type="button"
           variant="primary"
         >
-          {imported
-            ? t("react.extensions.oauth_import_replace", "Replace refresh token")
-            : t("react.extensions.reconnect", "Reconnect")}</Button>
+          {repairLabel}
+        </Button>
       ) : null}
       {view.lifecycle !== "disconnected" ? (
         <Button
@@ -276,15 +298,12 @@ function OAuthConnectionRow({
   onRetry,
   onTest,
   provider,
-  replacement,
   row,
 }: Readonly<{
   busyAction: OAuthConnectionAction;
   busyId: string;
   canManage: boolean;
   configurations: readonly OAuthConfigurationView[];
-  /** The refresh-token replacement form, shown in place of the row while open. */
-  replacement?: React.ReactNode;
   currentTime: number;
   disconnectConfirm: { connectionId: string; error: string } | null;
   focusConnectionId?: string;
@@ -304,18 +323,6 @@ function OAuthConnectionRow({
   const rowClass = focusConnectionId === view.connectionId
     ? "fs-manifest-row is-focused"
     : "fs-manifest-row";
-  if (replacement) {
-    return (
-      <div
-        aria-label={t("react.extensions.connection_value0", "Connection {value0}", { value0: view.displayName })}
-        className={rowClass}
-        id={connectionDomId(view.connectionId)}
-        tabIndex={-1}
-      >
-        {replacement}
-      </div>
-    );
-  }
   if (disconnectConfirm?.connectionId === view.connectionId) {
     // Reversible, but reconnecting means authorizing again: the row is
     // replaced in place by its confirmation, and comes back on No.
@@ -396,6 +403,7 @@ export function ConnectionList({
   configurations,
   connectionTypes = [],
   connections,
+  createConnectionForm,
   ownedConnectionTypeId,
   ownedIntentId,
   legacyOwnershipIsExact,
@@ -497,7 +505,7 @@ export function ConnectionList({
       });
       await onConnectionsChanged?.();
       if (result.outcome !== "connected") {
-        setError(postConnectRetryGuidance(result.outcome, t));
+        setError(postConnectRetryGuidance(result, t));
         const helpTarget = record(result.help_target);
         const pageId = text(helpTarget.page_id);
         if (pageId) {
@@ -660,63 +668,70 @@ export function ConnectionList({
     }
   }
 
-  if (!owned.length) {
-    return null;
-  }
+  const replacing = canManage && imported
+    ? owned.find((row) => text(row.connection_id) === replacingId)
+    : undefined;
+  const connectionForm = replacing ? (
+    <ConnectionComposer
+      configuration={configurations.find((candidate) => candidate.configuration_id === text(replacing.oauth_configuration_id))}
+      connectionTypes={connectionTypes.filter((type) => type.connection_type_id === text(replacing.connection_type))}
+      editConnection={isImportEditLifecycle(text(record(record(replacing.connection_config).oauth).lifecycle_status))}
+      key={text(replacing.connection_id)}
+      onCancel={() => setReplacingId("")}
+      onConnectionsChanged={onConnectionsChanged}
+      provider={provider}
+      replaceConnection={replacing}
+      returnPageId={returnPageId}
+      scope={scope}
+    />
+  ) : createConnectionForm;
 
   return (
-    <section className="fs-manifest-list" aria-label={t("react.extensions.oauth_connections", "OAuth connections")}>
-      <h3 className="fs-manifest-section-title">{t("project_detail.connections.title", "Connections")}</h3>
-      {owned.map((row) => (
-        <OAuthConnectionRow
-          busyAction={busyAction}
-          busyId={busyId}
-          canManage={canManage}
-          configurations={configurations}
-          currentTime={currentTime}
-          disconnectConfirm={disconnectConfirm}
-          focusConnectionId={focusConnectionId}
-          key={text(row.connection_id)}
-          onCancelDisconnect={() => setDisconnectConfirm(null)}
-          onConfirmDisconnect={(target) => void performDisconnect(target)}
-          onDisconnect={(target, recovery) => void disconnect(target, recovery)}
-          onNavigatePage={onNavigatePage}
-          onReconnect={(target) => void reconnect(target)}
-          onRetry={(target) => void retry(target)}
-          onTest={
-            onTestConnection
-              ? (target) => void testConnection(target)
-              : undefined
-          }
-          provider={provider}
-          replacement={imported && replacingId === text(row.connection_id) ? (
-            <ConnectionComposer
-              configuration={configurations.find((candidate) => candidate.configuration_id === text(row.oauth_configuration_id))}
-              connectionTypes={connectionTypes.filter((type) => type.connection_type_id === text(row.connection_type))}
-              onCancel={() => setReplacingId("")}
-              onConnectionsChanged={onConnectionsChanged}
+    <>
+      {connectionForm}
+      {owned.length ? (
+        <section className="fs-manifest-list" aria-label={t("react.extensions.oauth_connections", "OAuth connections")}>
+          <h3 className="fs-manifest-section-title">{t("project_detail.connections.title", "Connections")}</h3>
+          {owned.map((row) => (
+            <OAuthConnectionRow
+              busyAction={busyAction}
+              busyId={busyId}
+              canManage={canManage}
+              configurations={configurations}
+              currentTime={currentTime}
+              disconnectConfirm={disconnectConfirm}
+              focusConnectionId={focusConnectionId}
+              key={text(row.connection_id)}
+              onCancelDisconnect={() => setDisconnectConfirm(null)}
+              onConfirmDisconnect={(target) => void performDisconnect(target)}
+              onDisconnect={(target, recovery) => void disconnect(target, recovery)}
+              onNavigatePage={onNavigatePage}
+              onReconnect={(target) => void reconnect(target)}
+              onRetry={(target) => void retry(target)}
+              onTest={
+                onTestConnection
+                  ? (target) => void testConnection(target)
+                  : undefined
+              }
               provider={provider}
-              replaceConnection={row}
-              returnPageId={returnPageId}
-              scope={scope}
+              row={row}
             />
-          ) : undefined}
-          row={row}
-        />
-      ))}
-      {error ? (
-        <div className="fs-manifest-list">
-          <p className="fs-field-helper error" role="alert">{error}</p>
-          {retryHelpTarget ? (
-            <button
-              className="fs-manifest-link"
-              onClick={() => onNavigatePage(retryHelpTarget.pageId, retryHelpTarget.anchor)}
-              type="button"
-            >
-              {t("react.extensions.open_retry_help", "Open retry help")}</button>
+          ))}
+          {error ? (
+            <div className="fs-manifest-list">
+              <p className="fs-field-helper error" role="alert">{error}</p>
+              {retryHelpTarget ? (
+                <button
+                  className="fs-manifest-link"
+                  onClick={() => onNavigatePage(retryHelpTarget.pageId, retryHelpTarget.anchor)}
+                  type="button"
+                >
+                  {t("react.extensions.open_retry_help", "Open retry help")}</button>
+              ) : null}
+            </div>
           ) : null}
-        </div>
+        </section>
       ) : null}
-    </section>
+    </>
   );
 }

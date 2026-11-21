@@ -28,6 +28,7 @@ import ipaddress
 import socket
 import ssl
 import urllib.request
+from collections.abc import Iterable
 from typing import Any
 from urllib.parse import urlparse
 from urllib.request import (
@@ -198,6 +199,24 @@ def private_addresses_hint() -> str:
     )
 
 
+def private_origin_hint(origin: str) -> str:
+    """How an administrator allows exactly one private origin, as one sentence (ADR 0078)."""
+    from core.application.lifecycle.operator_settings import (
+        HOST_SETTINGS_DOCS_URL,
+        operator_setting_command,
+    )
+    from core.infrastructure.config.private_origins import SETTING
+    from core.infrastructure.config.runtime_env import runtime_env
+
+    profile = str(runtime_env.get("FS_DEPLOYMENT_PROFILE") or "").strip().lower()
+    return (
+        f"An administrator can allow just this server by adding {origin} to {SETTING} "
+        "(comma-separated): "
+        f"{operator_setting_command(SETTING, origin, deployment_profile=profile)}. "
+        f"Settings: {HOST_SETTINGS_DOCS_URL}"
+    )
+
+
 def _as_mapping(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
@@ -227,6 +246,26 @@ def allow_private_provider_addresses() -> bool:
     return _allow_private_remote_urls()
 
 
+def allowed_private_provider_origins() -> tuple[str, ...]:
+    """The exact private origins the administrator allows (``FS_ALLOWED_PRIVATE_ORIGINS``)."""
+    from core.infrastructure.config.private_origins import allowed_private_origins
+
+    return allowed_private_origins()
+
+
+def provider_network_policy() -> dict[str, Any]:
+    """The host's network decision for a provider extension's own URL guard.
+
+    ``allow_private_addresses`` is the installation-wide switch; with it off, a
+    provider may still reach a private endpoint whose origin is exactly one of
+    ``allowed_private_origins`` (ADR 0078).
+    """
+    return {
+        "allow_private_addresses": allow_private_provider_addresses(),
+        "allowed_private_origins": list(allowed_private_provider_origins()),
+    }
+
+
 def _url_host_ips(host: str, *, port: int) -> list[str]:
     bare = host.split("%", 1)[0]
     try:
@@ -236,24 +275,39 @@ def _url_host_ips(host: str, *, port: int) -> list[str]:
         return sorted(_resolve_hostname_ips(host, port=port))
 
 
-def _private_addresses_refused(purpose: str) -> ValueError:
-    return ValueError(f"{purpose} points to a private network address. {private_addresses_hint()}")
+def _private_addresses_refused(purpose: str, origin: str | None) -> ValueError:
+    hint = private_origin_hint(origin) if origin else private_addresses_hint()
+    return ValueError(f"{purpose} points to a private network address. {hint}")
 
 
-def assert_safe_provider_url(url: str, *, purpose: str, allow_private_addresses: bool) -> str:
+def assert_safe_provider_url(
+    url: str,
+    *,
+    purpose: str,
+    allow_private_addresses: bool,
+    allowed_origins: Iterable[str] = (),
+) -> str:
     """Validate a provider endpoint such as a self-hosted LLM server's base URL.
 
     ``purpose`` is the field label the user sees ("Base URL"); every refusal is
     a plain sentence about that field.
 
     - By default only public HTTPS is accepted; a private address is refused
-      with a message naming the setting that allows it.
+      with a message naming the setting that allows exactly this origin.
     - With private addresses allowed, loopback and RFC1918/ULA addresses may
       use ``http`` or ``https``; public addresses still need ``https``.
+    - A URL whose exact origin (scheme, host, port) is in ``allowed_origins``
+      is treated as if private addresses were allowed, for that origin only.
     - Link-local / metadata (169.254.0.0/16, fe80::/10), CGNAT, multicast,
       reserved and unspecified addresses are refused either way.
     """
+    from core.infrastructure.config.private_origins import url_origin
+
     normalized = str(url or "").strip()
+    origin = url_origin(normalized)
+    allow_private_addresses = allow_private_addresses or (
+        origin is not None and origin in set(allowed_origins)
+    )
     parsed = urlparse(normalized)
     scheme = str(parsed.scheme or "").lower()
     if scheme not in {"http", "https"}:
@@ -267,7 +321,7 @@ def assert_safe_provider_url(url: str, *, purpose: str, allow_private_addresses:
         (".localhost", ".local")
     )
     if locally_named and not allow_private_addresses:
-        raise _private_addresses_refused(purpose)
+        raise _private_addresses_refused(purpose, origin)
     try:
         ips = _url_host_ips(host, port=int(parsed.port or (443 if scheme == "https" else 80)))
     except Exception as exc:
@@ -282,7 +336,7 @@ def assert_safe_provider_url(url: str, *, purpose: str, allow_private_addresses:
                 "address, which is never allowed"
             )
     if any(private) and not allow_private_addresses:
-        raise _private_addresses_refused(purpose)
+        raise _private_addresses_refused(purpose, origin)
     if scheme == "http" and not all(private):
         raise ValueError(f"{purpose} must use https:// for a public address")
     return normalized

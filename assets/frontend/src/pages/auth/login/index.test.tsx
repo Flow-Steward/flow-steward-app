@@ -9,6 +9,7 @@ import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
 import { normalizeFlashMessage } from "@/pages/auth/login/flash";
 import { LoginPage } from "@/pages/auth/login/index";
+import { PasswordLengthNotice } from "@/pages/auth/login/password-length-notice";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -87,6 +88,7 @@ function renderLogin({
   render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[route]}>
+        <PasswordLengthNotice />
         <Routes>
           <Route element={<LoginPage />} path="/login" />
           <Route element={<div>Dashboard destination</div>} path="/dashboard" />
@@ -344,6 +346,98 @@ describe("LoginPage", () => {
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    { characterCount: 11, warns: true },
+    { characterCount: 12, warns: false },
+    { characterCount: 13, warns: false },
+  ])("keeps the destination and warns as needed after sign-in with a $characterCount-character password", async ({ characterCount, warns }) => {
+    mockedFetchJson.mockResolvedValueOnce({ user: { username: "person@example.com" } });
+    renderLogin({ route: "/login?next=/settings/security" });
+    fillCredentials("person@example.com", "a".repeat(characterCount));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
+    const changePassword = screen.queryByRole("link", { name: "Change password" });
+    if (warns) {
+      expect(screen.getByText("Your password is shorter than 12 characters. Choose a longer password.")).toBeInTheDocument();
+      expect(changePassword).toHaveAttribute("href", "/settings/account?tab=signin");
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("link", { name: "Change password" })).not.toBeInTheDocument();
+      expect(screen.getByText("Security destination")).toBeInTheDocument();
+    } else {
+      expect(changePassword).not.toBeInTheDocument();
+    }
+  });
+
+  it("shows the expiry warning at the requested destination", async () => {
+    mockedFetchJson.mockResolvedValueOnce({ user: { username: "person@example.com" }, password_expires_in_days: 14 });
+    renderLogin({ route: "/login?next=/settings/security" });
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
+    expect(screen.getByText("Your password expires in 14 days. Change it before it expires.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Change password" })).toHaveAttribute("href", "/settings/account?tab=signin");
+  });
+
+  it("keeps the replacement password while prompting for a second factor", async () => {
+    mockedFetchJson
+      .mockRejectedValueOnce(loginError(403, {
+        error: "Password change required",
+        password_change_required: true,
+        password_expired: true,
+        password_min_length: 12,
+      }))
+      .mockRejectedValueOnce(loginError(403, { error: "Multi-factor authentication is required", mfa_required: true }))
+      .mockResolvedValueOnce({ user: { username: "person@example.com" } });
+    const { refresh } = renderLogin();
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Your password has expired. Choose a new password to sign in.")).toBeInTheDocument());
+    const replacement = "test-Replacement1!";
+    fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: replacement } });
+    fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: replacement } });
+    fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+    const factor = await screen.findByLabelText("Authenticator or recovery code");
+    expect(screen.getByLabelText(/^New password$/i)).toHaveValue(replacement);
+    expect(refresh).not.toHaveBeenCalled();
+    fireEvent.change(factor, { target: { value: "abcd-efgh-jkmn" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "person@example.com",
+        password: TEST_PASSWORD,
+        remember_me: true,
+        new_password: replacement,
+        mfa_code: "abcd-efgh-jkmn",
+      }),
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains how to recover access if Authenticator enrollment is required", async () => {
+    mockedFetchJson.mockRejectedValueOnce(loginError(403, {
+      error: "Authenticator enrollment is required",
+      mfa_enrollment_required: true,
+    }));
+    const { refresh } = renderLogin();
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Contact your workspace administrator to set up multi-factor authentication.")).toBeInTheDocument());
+    expect(screen.queryByLabelText("Authenticator or recovery code")).not.toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
   it("uses the canonical in-button loader while sign-in is pending", async () => {
     mockedFetchJson.mockReturnValueOnce(new Promise(() => undefined));
     renderLogin();
@@ -497,13 +591,14 @@ describe("LoginPage", () => {
   it("renders invalid credentials without exposing backend details", async () => {
     mockedFetchJson.mockRejectedValueOnce(loginError(401, { error: "Invalid credentials" }));
     renderLogin();
-    fillCredentials();
+    fillCredentials("person@example.com", "a".repeat(11));
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(screen.getByText("We couldn’t sign you in.")).toBeInTheDocument());
     expect(screen.getByText("Check your email and password, then try again.")).toBeInTheDocument();
     expect(screen.getByLabelText(/^Email address$/i)).toHaveValue("person@example.com");
+    expect(screen.queryByRole("link", { name: "Change password" })).not.toBeInTheDocument();
   });
 
   it("renders throttling with the backend retry interval", async () => {
@@ -573,7 +668,7 @@ describe("LoginPage", () => {
     expect(screen.queryByText("Reset destination")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Forgot password?" })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^Temporary password$/i)).toHaveValue(temporary);
-    expect(screen.getByText("Use at least 12 characters.")).toBeInTheDocument();
+    expect(screen.getByText("Use at least 12 characters, including uppercase and lowercase letters, a number and a special character.")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/^New password$/i), { target: { value: "short-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));

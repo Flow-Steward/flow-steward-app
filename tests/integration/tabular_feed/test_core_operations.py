@@ -922,6 +922,9 @@ def test_feed_size_and_xlsx_row_limits_are_enforced(monkeypatch) -> None:
     class TooLargeFrame:
         height = 1_048_577
 
+        def collect_schema(self):
+            return {}
+
     monkeypatch.setattr(
         engine, "_dataset_dataframe", lambda _action, _handle: (TooLargeFrame(), {})
     )
@@ -961,6 +964,9 @@ def test_artifact_lazy_readers_apply_row_limit_before_collect(
 
     class FakeLazyFrame:
         limited_to: int | None = None
+
+        def collect_schema(self) -> dict[str, object]:
+            return {}
 
         def limit(self, value: int):
             self.limited_to = value

@@ -63,14 +63,21 @@ mismatch or download failure stops installation, without source fallback. Only
 explicit `./install.sh --from-source` builds the current checkout:
 
 ```bash
-git clone --branch v0.9.22 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```
 
 Use a full clone for exact release verification. Keep tracked files clean.
-For source resume/update repeat `--from-source`; for development use
-`./install.sh --from-source --environment development --deployment-profile scalable`.
+For development use `./install.sh --environment development --deployment-profile scalable`
+from the same clean tag: Core comes from the official release, and only the frontend dev
+server and the test/audit images are built locally at that tag. Update it with
+`./flow-steward release upgrade --confirm`, which needs a clean tree (commit or stash your
+changes first) and leaves the checkout on a detached HEAD at the new tag. Use
+`--from-source` when you change Core code: it builds every image from the checkout, on
+any branch; repeat it for source resume/update. An existing source development
+installation moves to official images with the
+[migration steps in the 0.9.23 release notes](../releases/0.9.23.md#move-an-existing-development-installation-to-official-images).
 Official release upgrade and Clone activation retain their exact image identity checks.
 
 ```bash
@@ -1120,9 +1127,11 @@ Generated env catalog: [docs/configuration/flow-steward-env-catalog.md](../../do
 | `.env.example.ops` | Optional advanced runtime overlay: email, webhooks, external auth adapters, control loops, DB tuning, artifact storage |
 | `infra/docker/docker-compose.dev.yaml` | Legacy optional local Docker override; normal local selection is the guided `./install.sh` flow |
 
-For local development, use the installer:
+For local development, use the installer. From a clean release tag it runs the
+official Core images; add `--from-source` to build Core from your checkout:
 
 ```bash
+./install.sh --environment development --deployment-profile scalable
 ./install.sh --from-source --environment development --deployment-profile scalable
 ```
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -302,14 +303,39 @@ class _Runtime:
     activated_targets: list[ComposeTarget] = field(default_factory=list)
     restored_targets: list[ComposeTarget] = field(default_factory=list)
 
+    checkout: tuple[str, str] = ("ready", "1" * 40)
+    extras_environment: dict[str, str] = field(default_factory=dict)
+
+    def release_checkout_state(self, release_commit: str) -> tuple[str, str]:
+        self.calls.append(f"checkout:{release_commit[:4]}")
+        return self.checkout
+
+    def prepare_development_extras(
+        self,
+        config: DeploymentConfig,
+        target: ComposeTarget,
+        environment: dict[str, str],
+        *,
+        release_commit: str,
+        version: str,
+    ) -> dict[str, str]:
+        del config, target, version
+        self.calls.append("extras")
+        self.extras_environment = dict(environment)
+        return {
+            "FS_FRONTEND_IMAGE": "sha256:" + "f" * 64,
+            "FS_FRONTEND_IMAGE_REVISION": release_commit,
+        }
+
     def prepare_target_images(
         self,
         config: DeploymentConfig,
         target: ComposeTarget,
         environment: dict[str, str],
     ) -> None:
-        del config, target, environment
+        del config, target
         self.calls.append("prepare_images")
+        self.prepared_environment = dict(environment)
         if self.base_failure_step == "prepare_images":
             raise RuntimeError("target image preparation failed")
 
@@ -1325,3 +1351,85 @@ def test_failed_target_restores_exact_normalized_source_configuration(tmp_path: 
     assert "restore" in calls
     assert runtime.restored_targets == [_target(source)]
     assert service.configuration.read_active() == source
+
+
+_RELEASE = SimpleNamespace(version="0.9.23", commit_sha="1" * 40)
+
+
+def test_official_production_switches_to_development_with_locally_built_extras(
+    tmp_path: Path,
+) -> None:
+    """Owner 2026-11-21: an official installation switches environment.
+
+    Development is the same official Core images plus the development extras built at
+    the release tag. The checkout is checked and the extras built before any job is
+    paused or any backup taken, and the frontend pin reaches the target environment.
+    """
+    service, calls, runtime = _service(tmp_path, active=DeploymentConfig(environment="production"))
+    service.official_release = lambda: _RELEASE
+
+    result = service.switch(EnvironmentSwitchRequest(target="development"))
+
+    assert result.status == "active"
+    assert result.active_environment == "development"
+    assert calls.index("checkout:1111") < calls.index("extras") < calls.index("stop_accepting")
+    assert calls.index("extras") < calls.index("backup")
+    assert runtime.prepared_environment["FS_FRONTEND_IMAGE"] == "sha256:" + "f" * 64
+
+
+@pytest.mark.parametrize(
+    ("checkout", "code", "advice"),
+    (
+        (("dirty", "1" * 40), "environment_switch_checkout_dirty", "stash"),
+        (("moved", "2" * 40), "environment_switch_checkout_not_release", "git checkout v0.9.23"),
+    ),
+)
+def test_official_switch_to_development_refuses_an_unready_checkout_before_mutation(
+    tmp_path: Path, checkout: tuple[str, str], code: str, advice: str
+) -> None:
+    """The bind mounts run checkout code, so it must be clean and at the release."""
+    service, calls, runtime = _service(tmp_path, active=DeploymentConfig(environment="production"))
+    service.official_release = lambda: _RELEASE
+    runtime.checkout = checkout
+
+    with pytest.raises(LifecycleError) as raised:
+        service.switch(EnvironmentSwitchRequest(target="development"))
+
+    assert raised.value.code == code
+    assert advice in raised.value.remediation
+    assert not {"extras", "stop_accepting", "backup", "render", "activate"} & set(calls)
+
+
+def test_official_development_switches_to_production_without_checkout_or_build(
+    tmp_path: Path,
+) -> None:
+    """Production is the same images without the extras; the checkout does not matter."""
+    service, calls, runtime = _service(tmp_path)
+    service.official_release = lambda: _RELEASE
+    runtime.checkout = ("dirty", "2" * 40)
+
+    result = service.switch(EnvironmentSwitchRequest(target="production"))
+
+    assert result.status == "active"
+    assert not any(call.startswith("checkout") or call == "extras" for call in calls)
+
+
+def test_source_switch_to_development_asks_nothing_of_the_checkout(tmp_path: Path) -> None:
+    """The green direction: a source installation switches exactly as before."""
+    service, calls, _runtime = _service(tmp_path, active=DeploymentConfig(environment="production"))
+
+    service.switch(EnvironmentSwitchRequest(target="development"))
+
+    assert not any(call.startswith("checkout") or call == "extras" for call in calls)
+
+
+def test_official_switch_plan_names_the_release_and_its_checkout(tmp_path: Path) -> None:
+    service, _calls, _runtime = _service(
+        tmp_path, active=DeploymentConfig(environment="production")
+    )
+    service.official_release = lambda: _RELEASE
+
+    plan = service.plan_switch(EnvironmentSwitchRequest(target="development"))
+
+    assert "0.9.23 (unchanged)" in str(plan["official_release"])
+    assert "v0.9.23" in str(plan["official_release"])

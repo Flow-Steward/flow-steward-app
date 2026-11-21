@@ -213,9 +213,21 @@ class InstallerService:
                     "deployment_profile" in explicit_fields
                     and requested_config.deployment_profile != config.deployment_profile
                 ):
-                    switch_changes = profile_switch.switch_profile(
-                        self.gateway, config, requested_config.deployment_profile, log=log
-                    )
+                    try:
+                        switch_changes = profile_switch.switch_profile(
+                            self.gateway, config, requested_config.deployment_profile, log=log
+                        )
+                    except InstallerFailure:
+                        # The release staged above names the target profile's images.
+                        # With no switch left to resume it is no release upgrade either,
+                        # and left behind it refused every later ./install.sh and
+                        # `release upgrade` as "release X is pending".
+                        if (
+                            target_release is not None
+                            and self.gateway.unfinished_profile_switch() is None
+                        ):
+                            self.state.clear_pending_release(target_release)
+                        raise
                 if switch_changes:
                     config = self.gateway.installed_config(config)
                     self.last_config = config
@@ -806,6 +818,13 @@ class InstallerService:
         running = currency.running_revision
         if not running or running == currency.source_revision:
             return ""
+        if currency.official_release:
+            return (
+                f"This checkout is at {currency.source_revision}, and the official release "
+                f"running here was built from {running}. Official images are never rebuilt "
+                "from a checkout: run `flow-steward release upgrade --confirm` to move to a "
+                "newer release, or check out the installed release tag again."
+            )
         if currency.shell_pins:
             names = ", ".join(currency.shell_pins)
             return (

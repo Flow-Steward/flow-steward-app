@@ -380,6 +380,59 @@ def test_existing_install_reuses_and_verifies_durable_release_without_discovery(
     assert harness.resolver.probe_calls == []
 
 
+def _interrupted_switch(profile: str) -> Harness:
+    """Customer 2026-11-20: a Compact to Scalable switch failed and left the installed
+    release staged for Scalable; every ./install.sh and `release upgrade` then refused
+    it as "release X is pending", and the printed fix failed on the context mismatch."""
+    installed = _identity("1.0.10", "2", profile="compact")
+    harness = Harness(profile=profile, installed=installed, target=installed)
+    harness.state.pending = installed.model_copy(update={"profile": "scalable"})
+    return harness
+
+
+def test_install_on_the_switch_target_finishes_an_interrupted_switch() -> None:
+    harness = _interrupted_switch("scalable")
+
+    selected = harness.service.prepare_install(ReleaseInstallRequest(discover_latest=False))
+
+    assert selected == harness.state.pending
+    assert harness.resolver.verify_calls == [harness.state.pending]
+
+
+def test_install_on_the_installed_profile_supersedes_an_interrupted_switch() -> None:
+    harness = _interrupted_switch("compact")
+
+    selected = harness.service.prepare_install(ReleaseInstallRequest(discover_latest=False))
+
+    assert selected == harness.installed
+
+
+def test_release_commands_name_an_interrupted_switch_instead_of_a_pending_upgrade() -> None:
+    harness = _interrupted_switch("compact")
+
+    for command in (
+        lambda: harness.service.check(ReleaseCheckRequest()),
+        lambda: harness.service.upgrade(ReleaseUpgradeRequest(target_version="1.0.10")),
+        lambda: harness.service.upgrade(ReleaseUpgradeRequest()),
+    ):
+        with pytest.raises(LifecycleError) as raised:
+            command()
+        assert raised.value.code == "profile_switch_unfinished"
+        assert "./install.sh --deployment-profile scalable" in raised.value.remediation
+    assert harness.service.info(ReleaseInfoRequest()).status == "installed"
+
+
+def test_a_pending_upgrade_on_another_profile_is_still_no_switch() -> None:
+    # Another version is a real (if misplaced) pending upgrade, refused as before.
+    harness = Harness()
+    harness.state.pending = _identity("1.0.10", "2", profile="compact")
+
+    with pytest.raises(LifecycleError) as raised:
+        harness.service.upgrade(ReleaseUpgradeRequest())
+
+    assert raised.value.code == "release_target_context_mismatch"
+
+
 def test_existing_profile_switch_resolves_same_version_through_shared_selector() -> None:
     installed = _identity("1.0.10", "2", profile="compact")
     target = _identity("1.0.10", "2", profile="scalable")
@@ -1196,3 +1249,24 @@ def test_dry_run_resolves_exact_target_but_never_activates() -> None:
     assert result.status == "planned"
     assert result.target_release == harness.target
     assert harness.activator.calls == []
+
+
+@pytest.mark.parametrize("environment", ("development", "production"))
+def test_release_results_and_review_name_the_unchanged_active_environment(
+    environment: str,
+) -> None:
+    """Owner 2026-11-21: development upgrades like production; output says which one.
+
+    The result field existed and was never set; the review states the environment the
+    upgrade acts on, which a release upgrade never changes.
+    """
+    harness = Harness()
+    harness.service.environment = environment
+
+    checked = harness.service.check(ReleaseCheckRequest())
+    review = harness.service.review_upgrade(
+        harness.service.prepare_upgrade(ReleaseUpgradeRequest(dry_run=True))
+    )
+
+    assert checked.active_environment == environment
+    assert review["active_environment"] == f"{environment} (unchanged)"

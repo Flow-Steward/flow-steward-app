@@ -159,7 +159,7 @@ def test_user_lifecycle_lock_is_held_for_entire_conditional_mutation(
                         existing_user={"username": "target@example.com"},
                         display_name=None,
                         is_active=False,
-                        password_hash_value=None,
+                        password=None,
                         must_change_password=None,
                         roles=None,
                         requested_account_ids=None,

@@ -16,17 +16,22 @@
     "core/application/auth/enforce.py",
     "core/application/auth/first_admin.py",
     "core/application/auth/first_admin_repository.py",
+    "core/application/auth/local_credentials.py",
     "core/application/auth/mcp_connector_oauth.py",
     "core/application/auth/mcp_connector_oauth_policy.py",
     "core/application/auth/mcp_connector_oauth_provider.py",
     "core/application/auth/mcp_connector_oauth_repository.py",
     "core/application/auth/mcp_connector_oauth_rpc.py",
     "core/application/auth/mcp_connector_oauth_tokens.py",
+    "core/application/auth/mfa_codes.py",
+    "core/application/auth/mfa_repository.py",
+    "core/application/auth/mfa_service.py",
     "core/application/auth/oauth_client.py",
     "core/application/auth/oauth_client_provider.py",
     "core/application/auth/oauth_client_tokens.py",
     "core/application/auth/oauth_client_values.py",
     "core/application/auth/password.py",
+    "core/application/auth/password_policy.py",
     "core/application/auth/principal.py",
     "core/application/auth/rate_limit.py",
     "core/application/auth/resolve.py",
@@ -60,6 +65,7 @@
     "core/application/extensions/display_labels.py",
     "core/application/extensions/event_email.py",
     "core/application/extensions/extension_catalog.py",
+    "core/application/extensions/extension_catalog_contracts.py",
     "core/application/extensions/extension_contract_loading.py",
     "core/application/extensions/extension_contract_policies.py",
     "core/application/extensions/extension_contract_references.py",
@@ -434,6 +440,7 @@
     "core/infrastructure/config/mcp_connector_limits.py",
     "core/infrastructure/config/monitoring_runtime.py",
     "core/infrastructure/config/platform_identity.py",
+    "core/infrastructure/config/private_origins.py",
     "core/infrastructure/config/public_workflow.py",
     "core/infrastructure/config/rabbitmq_transport.py",
     "core/infrastructure/config/runtime_config.py",
@@ -539,6 +546,7 @@
     "core/infrastructure/extension_runtime/atomic_publish.py",
     "core/infrastructure/extension_runtime/boundary.py",
     "core/infrastructure/extension_runtime/browser_permissions.py",
+    "core/infrastructure/extension_runtime/dataset_empty_objects.py",
     "core/infrastructure/extension_runtime/dataset_representations.py",
     "core/infrastructure/extension_runtime/extension_action_manifest.py",
     "core/infrastructure/extension_runtime/extension_browser_picker_contract.py",
@@ -713,6 +721,14 @@
     },
     {
       "path": "db/migrations/20261114190000_raw_body_callback_auth.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120160000_local_auth_credentials.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261120160100_local_password_history.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

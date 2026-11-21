@@ -97,7 +97,7 @@ AUTH_REMEMBER_SESSION_TTL_HOURS = max(
 AUTH_PASSWORD_ITERATIONS = max(
     100_000, int(_runtime_env.get("FS_AUTH_PASSWORD_ITERATIONS", "260000"))
 )
-AUTH_PASSWORD_MIN_LENGTH = max(8, int(_runtime_env.get("FS_AUTH_PASSWORD_MIN_LENGTH", "10")))
+AUTH_PASSWORD_MIN_LENGTH = max(12, int(_runtime_env.get("FS_AUTH_PASSWORD_MIN_LENGTH", "12")))
 
 # ---------------------------------------------------------------------------
 # Login rate limiting
@@ -162,6 +162,7 @@ AUTH_ADMIN_ONLY_PATTERNS = (
     re.compile(r"^/api/system/core-updates$"),
     re.compile(r"^/admin(?:/|$)"),
     re.compile(r"^/api/agents(?:/|$)"),
+    re.compile(r"^/api/catalog/search$"),
     re.compile(r"^/api/catalog-categories(?:/|$)"),
     re.compile(r"^/api/tools(?:/|$)"),
     re.compile(r"^/api/skills(?:/|$)"),
@@ -210,5 +211,6 @@ AUTH_ADMIN_ONLY_PATTERNS = (
     # local extension paths, persist descriptor releases, or mint extension-runtime
     # tokens and must be restricted to lifecycle/runtime admins, not operators.
     re.compile(r"^/api/extensions/descriptors/import/(?:file|url)$"),
+    re.compile(r"^/api/extensions/catalog/install$"),
     re.compile(r"^/api/extensions/runtime/token$"),
 )

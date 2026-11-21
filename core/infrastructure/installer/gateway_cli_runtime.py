@@ -209,14 +209,12 @@ class CliRuntimeOperations:
         if not image:
             image = f"flow-steward-cli:{version}"
         exact_image = _immutable_image_ref(image)
-        if (
-            config.environment == "production"
-            and not exact_image
-            and (
-                self.state_store.load_installed_release() is not None
-                or self.state_store.load_pending_release() is not None
-                or self.state_store.load_release_handoff() is not None
-            )
+        # Official state requires an immutable CLI in both environments: a development
+        # installation upgraded like production never builds its CLI from the checkout.
+        if not exact_image and (
+            self.state_store.load_installed_release() is not None
+            or self.state_store.load_pending_release() is not None
+            or self.state_store.load_release_handoff() is not None
         ):
             cause = (
                 "The official release requires an immutable CLI image reference; "

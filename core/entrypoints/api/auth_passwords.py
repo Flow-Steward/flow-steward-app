@@ -12,12 +12,18 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from core.application.auth.email import normalize_email_address
+from core.application.auth.local_credentials import lock_local_user, password_age_available
+from core.application.auth.password_history import PasswordReuseError, require_unused_password
+from core.application.auth.password_policy import password_policy_error
 from core.application.auth.rate_limit import ClearUserLoginFailures
 from core.application.management.requests import (
     AuthChangePasswordRequest,
     AuthPasswordResetConfirmRequest,
     AuthPasswordResetRequest,
     AuthPasswordResetVerifyRequest,
+)
+from core.infrastructure.runtime.entrypoint_db_adapters import (
+    database_transaction as transaction_connection,
 )
 
 
@@ -107,7 +113,7 @@ def create_auth_passwords_router(
     ERR_TOO_MANY_PASSWORD_RESET_REQUESTS = err_too_many_password_reset_requests
 
     @router.post("/api/auth/change-password")
-    async def api_auth_change_password(request: Request, body: AuthChangePasswordRequest):
+    def api_auth_change_password(request: Request, body: AuthChangePasswordRequest):
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
 
@@ -124,18 +130,17 @@ def create_auth_passwords_router(
         username = str(auth_user.get("username") or "").strip()
         if not username:
             return JSONResponse({"error": ERR_AUTHENTICATION_REQUIRED}, status_code=401)
-        if len(str(body.new_password or "")) < _AUTH_PASSWORD_MIN_LENGTH:
-            return JSONResponse(
-                {"error": f"new_password must be at least {_AUTH_PASSWORD_MIN_LENGTH} characters"},
-                status_code=400,
-            )
+        issue = password_policy_error(
+            body.new_password, _AUTH_PASSWORD_MIN_LENGTH, field="new_password"
+        )
+        if issue:
+            return JSONResponse({"error": issue}, status_code=400)
 
         user = _get_user_by_username(bl, username)
         if not user or not bool(user.get("is_active", True)):
             return JSONResponse({"error": ERR_ACCOUNT_DISABLED}, status_code=403)
-        if not _verify_password(
-            str(body.current_password or ""), str(user.get("password_hash") or "")
-        ):
+        current_hash = str(user.get("password_hash") or "")
+        if not _verify_password(body.current_password, current_hash):
             _log_auth_audit_event(
                 bl,
                 action="password_change",
@@ -148,7 +153,21 @@ def create_auth_passwords_router(
 
         revoked_sessions = 0
         try:
-            with bl.conn.cursor() as cur:
+            with transaction_connection(bl) as conn, conn.cursor() as cur:
+                if password_age_available(bl) and not lock_local_user(
+                    cur, user_id=str(user["id"]), password_hash=current_hash
+                ):
+                    return JSONResponse(
+                        {"error": "Your credentials changed. Sign in again and retry."},
+                        status_code=409,
+                    )
+                require_unused_password(
+                    cur,
+                    user_id=str(user["id"]),
+                    password=body.new_password,
+                    current_hash=current_hash,
+                    verify=_verify_password,
+                )
                 if _auth_user_column_exists(bl, "must_change_password"):
                     cur.execute(
                         "UPDATE users SET password_hash = %s, must_change_password = false WHERE id = %s",
@@ -183,6 +202,8 @@ def create_auth_passwords_router(
                             (str(user["id"]),),
                         )
                     revoked_sessions = int(getattr(cur, "rowcount", 0) or 0)
+        except PasswordReuseError as exc:
+            return JSONResponse({"error": str(exc), "field": "new_password"}, status_code=400)
         except Exception as e:
             return _api_error_response(e)
 
@@ -284,7 +305,6 @@ def create_auth_passwords_router(
                         json.dumps({"flow": "password_reset_request"}),
                     ),
                 )
-            _auth_login_clear_user_failures(email)
         except Exception as e:
             return _api_error_response(e)
 
@@ -397,9 +417,7 @@ def create_auth_passwords_router(
         return {"valid": bool(is_valid)}
 
     @router.post("/api/auth/password-reset/confirm")
-    async def api_auth_password_reset_confirm(
-        body: AuthPasswordResetConfirmRequest, request: Request
-    ):
+    def api_auth_password_reset_confirm(body: AuthPasswordResetConfirmRequest, request: Request):
         if not _local_auth_enabled():
             return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
         if not _password_reset_enabled():
@@ -426,11 +444,11 @@ def create_auth_passwords_router(
         token = str(body.token or "").strip()
         if not token:
             return JSONResponse({"error": "token is required"}, status_code=400)
-        if len(str(body.new_password or "")) < _AUTH_PASSWORD_MIN_LENGTH:
-            return JSONResponse(
-                {"error": f"new_password must be at least {_AUTH_PASSWORD_MIN_LENGTH} characters"},
-                status_code=400,
-            )
+        issue = password_policy_error(
+            body.new_password, _AUTH_PASSWORD_MIN_LENGTH, field="new_password"
+        )
+        if issue:
+            return JSONResponse({"error": issue}, status_code=400)
 
         reset_row = None
         revoked_sessions = 0
@@ -438,14 +456,18 @@ def create_auth_passwords_router(
         token_hash = _password_reset_token_hash(token)
         deleted_condition = _auth_user_deleted_condition(bl, alias="u")
         try:
-            with bl.conn.cursor(**_real_dict_cursor_kwargs()) as cur:
+            with (
+                transaction_connection(bl) as conn,
+                conn.cursor(**_real_dict_cursor_kwargs()) as cur,
+            ):
                 query = "\n".join(
                     [
                         "SELECT",
                         "    pr.id,",
                         "    pr.user_id,",
                         SQL_USER_USERNAME_COLUMN,
-                        "    u.is_active",
+                        "    u.is_active,",
+                        "    u.password_hash",
                         "FROM auth_password_resets pr",
                         "JOIN users u ON u.id = pr.user_id",
                         "WHERE pr.token_hash = %s",
@@ -476,6 +498,13 @@ def create_auth_passwords_router(
 
                 user_id = str(reset_row.get("user_id") or "").strip()
                 username = str(reset_row.get("username") or "").strip()
+                require_unused_password(
+                    cur,
+                    user_id=user_id,
+                    password=body.new_password,
+                    current_hash=str(reset_row.get("password_hash") or ""),
+                    verify=_verify_password,
+                )
                 if _auth_user_column_exists(bl, "must_change_password"):
                     cur.execute(
                         "UPDATE users SET password_hash = %s, must_change_password = false WHERE id = %s",
@@ -523,6 +552,8 @@ def create_auth_passwords_router(
                     (actor, user_id, str(reset_row.get("id") or "")),
                 )
                 _auth_login_clear_user_failures(username)
+        except PasswordReuseError as exc:
+            return JSONResponse({"error": str(exc), "field": "new_password"}, status_code=400)
         except Exception as e:
             return _api_error_response(e)
 

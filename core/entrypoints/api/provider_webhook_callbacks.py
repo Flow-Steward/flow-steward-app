@@ -10,7 +10,15 @@ _MESSAGE_INVALID_WEBHOOK_SIGNATURE = "Invalid webhook signature"
 _MESSAGE_INVALID_WEBHOOK_SIGNATURE_FOR_ROUTING_PROJECT = (
     "Invalid webhook signature for routing project"
 )
+_MESSAGE_PROVIDER_PAYLOAD_INVALID = "Invalid provider webhook payload"
 _MESSAGE_PROVIDER_PROJECT_STATE_UPDATE_FAILED = "Provider project-state update failed"
+_MESSAGE_TASK_PROVIDER_EXTENSION_REQUIRED = (
+    "Provider '{provider_key}' requires an enabled task provider extension"
+)
+
+
+class TaskProviderExtensionRequired(ValueError):
+    """The task provider requires an enabled extension."""
 
 
 @dataclass(frozen=True, slots=True)

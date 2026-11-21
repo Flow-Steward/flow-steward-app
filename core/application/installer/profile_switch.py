@@ -8,7 +8,8 @@ and rolls back on failure. It runs where it always runs, in the Scalable CLI con
 the installer's own image has no database client. What the installer adds is what
 `config apply` does not do:
 
-- it prepares the target profile's images, with the installer's own build;
+- it prepares the target profile's images, with the installer's own build, from
+  the Compose the apply will render;
 - Scalable to Compact: it brings the host trees into the shared groups and modes
   (step 3) and records where they are for the Compact overlay;
 - Compact to Scalable: it starts a Scalable CLI container;
@@ -55,7 +56,7 @@ def switch_profile(
     if not to_compact:
         # AC17-R165: before the first Scalable Compose call, which requires it.
         gateway.restore_switch_worker_token(installed, log=log)
-    gateway.prepare_core(target, log=log)
+    gateway.prepare_switch_target(target, log=log)
     # AC17-R168: the host trees are touched only where they are the data. Back from a
     # switch that left them in the Compact volume, they are no part of it: a directory
     # of that name is some other installation's, or nobody's.
@@ -70,24 +71,27 @@ def switch_profile(
         cli_config = installed
     else:
         cli_config = target
+    patch = ConfigurationPatch(
+        deployment_profile=target.deployment_profile,
+        data_placement=target.data_placement,
+        worker_replicas=1 if target.deployment_profile == "compact" else None,
+    )
     try:
         if not to_compact:
             gateway.ensure_cli_runtime(target, log=log)
-        gateway.write_switch_pending(
-            ConfigurationPatch(
-                deployment_profile=target.deployment_profile,
-                data_placement=target.data_placement,
-                worker_replicas=1 if target.deployment_profile == "compact" else None,
-            )
-        )
+        gateway.write_switch_pending(patch)
         log.write(f"Recorded the switch to {target.deployment_profile}; applying it.")
         gateway.apply_switch_in_cli(cli_config, log=log)
     except InstallerFailure:
-        if not to_compact and gateway.unfinished_profile_switch() is None:
-            # AC17-R166 acceptance: a Scalable CLI container was left running on the
-            # Compact installation. Nothing is left to continue, so it goes; a switch
-            # left unfinished keeps it, and a resume would start it again anyway.
-            gateway.remove_switch_cli_runtime(target, log=log)
+        if gateway.unfinished_profile_switch() is None:
+            # Nothing is left to continue: the switch's pending change goes too, or the
+            # next unrelated `config apply` would carry out the switch.
+            gateway.discard_switch_pending(patch)
+            if not to_compact:
+                # AC17-R166 acceptance: a Scalable CLI container was left running on the
+                # Compact installation. A switch left unfinished keeps it, and a resume
+                # would start it again anyway.
+                gateway.remove_switch_cli_runtime(target, log=log)
         raise
     if to_compact:
         # AC17-R142: on Compact the runtime owns the worker identity; the apply has

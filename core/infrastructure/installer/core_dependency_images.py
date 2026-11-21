@@ -35,6 +35,7 @@ def _resolved_images(
     repo_root: Path,
     run: Callable[..., ProcessOutcome],
     failure: Callable[[str], Exception],
+    compose_environment: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
     # Compose JSON includes interpolated secrets. Read it privately, never through
     # the installer's command transcript or an output sink.
@@ -43,6 +44,7 @@ def _resolved_images(
             [*compose_prefix, "config", "--format", "json"],
             cwd=repo_root,
             separate_stderr=True,
+            **({} if compose_environment is None else {"environment": compose_environment}),
         )
         if outcome.returncode:
             raise failure("Docker Compose could not resolve infrastructure images.")
@@ -94,9 +96,15 @@ def prepare_core_dependency_images(
     checked: Callable[[Sequence[str]], ProcessOutcome],
     failure: Callable[[str], Exception],
     allow_source_build: bool = False,
+    compose_environment: Mapping[str, str] | None = None,
 ) -> None:
     images = _resolved_images(
-        config=config, compose_prefix=compose_prefix, repo_root=repo_root, run=run, failure=failure
+        config=config,
+        compose_prefix=compose_prefix,
+        repo_root=repo_root,
+        run=run,
+        failure=failure,
+        compose_environment=compose_environment,
     )
     prepared: set[str] = set()
     for name, image in images.items():

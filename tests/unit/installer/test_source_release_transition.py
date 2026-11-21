@@ -84,7 +84,6 @@ class _Provenance:
     calls: int = 0
 
     def validated_source_revision(self, config: InstallConfig) -> str:
-        assert config.environment == "production"
         self.calls += 1
         return self.revision
 
@@ -97,8 +96,9 @@ def _source_reader(
     provenance: _Provenance | None = None,
     active: InstallConfig | None | object = ...,
     platform: str = "linux/amd64",
+    installed_environment: str = "production",
 ) -> tuple[InstalledReleaseOriginReader, _Provenance]:
-    config = InstallConfig(environment="production", deployment_profile=profile)
+    config = InstallConfig(environment=installed_environment, deployment_profile=profile)
     selected_state = state or _State(
         journal=InstallJournal(
             operation_id="source-install",
@@ -113,7 +113,7 @@ def _source_reader(
         "FS_INSTALL_MODE": "source",
         "FS_BUILD_SHA": "c" * 40,
         "FS_COMPOSE_PROJECT_NAME": f"flow-steward-{profile}",
-        "FS_STACK_ENVIRONMENT": "production",
+        "FS_STACK_ENVIRONMENT": installed_environment,
         "FS_DEPLOYMENT_PROFILE": profile,
         "FS_RELEASE_REPOSITORY": "Flow-Steward/flow-steward-app",
         **(environment or {}),
@@ -163,6 +163,72 @@ def test_completed_source_installation_returns_stable_installed_origin(profile: 
     assert first.release_repository == "Flow-Steward/flow-steward-app"
     assert len(first.configuration_sha256) == 64
     assert provenance.calls == 2
+
+
+@pytest.mark.parametrize("stack_environment", ("development", "local_development"))
+def test_completed_development_source_installation_returns_installed_origin(
+    stack_environment: str,
+) -> None:
+    """Owner 2026-11-21: a development source installation can move to official images.
+
+    It takes the same reviewed transition as production, so its origin must be
+    readable; the development stack's historical `local_development` runtime name
+    is the same environment.
+    """
+    reader, provenance = _source_reader(
+        profile="scalable",
+        installed_environment="development",
+        environment={"FS_STACK_ENVIRONMENT": stack_environment},
+    )
+
+    origin = reader.load()
+
+    assert origin.kind == "source"
+    assert origin.commit_sha == "c" * 40
+    assert origin.deployment_profile == "scalable"
+    assert provenance.calls == 1
+
+
+def test_source_installation_that_changed_environment_is_not_a_source_origin() -> None:
+    """A production journal under a development configuration is contradictory state."""
+    reader, provenance = _source_reader(
+        profile="scalable",
+        active=InstallConfig(environment="development", deployment_profile="scalable"),
+        environment={"FS_STACK_ENVIRONMENT": "development"},
+    )
+
+    with pytest.raises(LifecycleError) as raised:
+        reader.load()
+
+    assert raised.value.code == "release_installed_origin_invalid"
+    assert provenance.calls == 0
+
+
+def test_development_source_origin_offers_the_official_transition() -> None:
+    """`release check` on a development source installation reports transition_available."""
+    from core.application.release.service import ReleaseCheckRequest, ReleaseService
+    from tests.unit.test_release_service import Harness
+
+    harness = Harness()
+    harness.state.installed = None
+    reader, _provenance = _source_reader(profile="scalable", installed_environment="development")
+    service = ReleaseService(
+        discovery=harness.discovery,
+        state=harness.state,
+        resolver=harness.resolver,
+        maintenance=harness.maintenance,
+        activator=harness.activator,
+        profile="scalable",
+        platform="linux/amd64",
+        origin=reader,
+    )
+    harness.discovery.repository = "Flow-Steward/flow-steward-app"
+
+    result = service.check(ReleaseCheckRequest())
+
+    assert result.status == "transition_available"
+    assert result.installed_origin == "source"
+    assert result.target_release == harness.target
 
 
 @pytest.mark.parametrize("profile", ("compact", "scalable"))
@@ -353,6 +419,7 @@ def _gateway_with_source_images(
     missing_role: str = "",
     changed_role: str = "",
     running_state: str = "current",
+    environment: str = "production",
 ) -> tuple[DockerInstallerGateway, InstallConfig]:
     revision = "c" * 40
     tmp_path.mkdir(parents=True, exist_ok=True)
@@ -389,7 +456,7 @@ def _gateway_with_source_images(
             if running_state == "stale"
             else (running_images[service][0], stale_image)
         )
-    env_path = tmp_path / ".env.prod"
+    env_path = tmp_path / (".env" if environment == "development" else ".env.prod")
     env_path.write_text(
         "\n".join(f"{name}={value}" for name, value in values.items()) + "\n",
         encoding="utf-8",
@@ -408,7 +475,7 @@ def _gateway_with_source_images(
         ),
         environment={"FS_COMPOSE_PROJECT_NAME": f"flow-steward-{profile}"},
     )
-    return gateway, InstallConfig(environment="production", deployment_profile=profile)
+    return gateway, InstallConfig(environment=environment, deployment_profile=profile)
 
 
 @pytest.mark.parametrize("profile", ("compact", "scalable"))
@@ -507,3 +574,36 @@ def test_gateway_refuses_incomplete_or_mixed_source_image_provenance(
         incomplete.validated_source_revision(config)
     with pytest.raises(InstallerFailure, match="source image provenance"):
         mixed.validated_source_revision(mixed_config)
+
+
+@pytest.mark.parametrize("running_state", ("current", "stale"))
+def test_gateway_validates_development_source_without_cli_or_running_comparison(
+    tmp_path: Path, running_state: str
+) -> None:
+    """D2 (owner 2026-11-21): development source provenance for the transition.
+
+    The development CLI image is the launcher's to build and is not recorded, and the
+    Core services run bind-mounted code, so neither the CLI role nor the running
+    containers decide; the recorded app, worker, control and MCP images still must.
+    """
+    gateway, config = _gateway_with_source_images(
+        tmp_path,
+        profile="scalable",
+        environment="development",
+        missing_role="fs-cli",
+        running_state=running_state,
+    )
+
+    assert gateway.validated_source_revision(config) == "c" * 40
+
+
+def test_gateway_refuses_development_source_images_from_another_revision(
+    tmp_path: Path,
+) -> None:
+    """The green direction of D2: the recorded Core images must still be this revision."""
+    gateway, config = _gateway_with_source_images(
+        tmp_path, profile="scalable", environment="development", changed_role="fs-app"
+    )
+
+    with pytest.raises(InstallerFailure, match="source image provenance"):
+        gateway.validated_source_revision(config)

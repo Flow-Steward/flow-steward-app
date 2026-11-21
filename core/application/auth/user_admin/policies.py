@@ -7,6 +7,7 @@ from typing import Any
 
 from core.application.auth.config import AUTH_PASSWORD_MIN_LENGTH
 from core.application.auth.enforce import normalize_requested_roles
+from core.application.auth.password_policy import password_policy_error
 from core.application.auth.resolve import get_user_by_id, get_user_by_username
 from core.application.auth.user_admin.contracts import UserAuditContext
 from core.application.management.errors import (
@@ -43,10 +44,9 @@ def require_password(password: str) -> str:
     normalized = str(password or "")
     if not normalized:
         raise ServiceValidationError("Password is required")
-    if len(normalized) < AUTH_PASSWORD_MIN_LENGTH:
-        raise ServiceValidationError(
-            f"password must be at least {AUTH_PASSWORD_MIN_LENGTH} characters"
-        )
+    issue = password_policy_error(normalized, AUTH_PASSWORD_MIN_LENGTH)
+    if issue:
+        raise ServiceValidationError(issue)
     return normalized
 
 

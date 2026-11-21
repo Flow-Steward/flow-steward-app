@@ -3477,6 +3477,9 @@ msgstr "Choose a new password"
 msgid "react.auth.choose_a_password_different_from_the_temporary_one"
 msgstr "Choose a password different from the temporary one."
 
+msgid "react.auth.choose_a_different_password"
+msgstr "Choose a password different from your current one."
+
 msgid "react.auth.choose_an_account"
 msgstr "Choose an account"
 
@@ -3580,6 +3583,24 @@ msgstr ""
 "Local auth bootstrap is active because no users exist yet. Create the first "
 "admin account, then return to login."
 
+msgid "react.auth.mfa_code"
+msgstr "Authenticator or recovery code"
+
+msgid "react.auth.mfa_code_invalid"
+msgstr "The code could not be verified. Enter a new code and try again."
+
+msgid "react.auth.mfa_code_required"
+msgstr "Enter a code from your authenticator app or a recovery code."
+
+msgid "react.auth.mfa_contact_admin"
+msgstr "Contact your workspace administrator to set up multi-factor authentication."
+
+msgid "react.auth.mfa_enrollment_required"
+msgstr "Multi-factor authentication is required"
+
+msgid "react.auth.mfa_required"
+msgstr "Verify your sign-in"
+
 msgid "react.auth.new_password"
 msgstr "New password"
 
@@ -3592,6 +3613,21 @@ msgstr ""
 
 msgid "react.auth.or_use_your_password"
 msgstr "or use your password"
+
+msgid "react.auth.password_composition"
+msgstr "Use at least {count} characters, including uppercase and lowercase letters, a number and a special character."
+
+msgid "react.auth.password_expired"
+msgstr "Your password has expired. Choose a new password to sign in."
+
+msgid "react.auth.password_expiry_warning"
+msgstr "Your password expires in {count} days. Change it before it expires."
+
+msgid "react.auth.password_expiry_warning_one"
+msgstr "Your password expires in 1 day. Change it before it expires."
+
+msgid "react.auth.password_length_recommendation"
+msgstr "Your password is shorter than {count} characters. Choose a longer password."
 
 msgid "react.auth.password_recovery_is_temporarily_unavailable"
 msgstr "Password recovery is temporarily unavailable."
@@ -5077,6 +5113,9 @@ msgstr "The account could not be connected. Check the values and try again."
 msgid "react.extensions.oauth_import_invalid_client"
 msgstr "The provider did not accept this configuration's client credentials. Repair the configuration in Setup, then try again."
 
+msgid "react.extensions.oauth_import_keep_refresh_token"
+msgstr "Keep saved refresh token"
+
 msgid "react.extensions.oauth_import_provider_unavailable"
 msgstr "The provider could not be reached. Try again later."
 
@@ -5094,6 +5133,9 @@ msgstr "The provider did not accept this refresh token. Check it and try again."
 
 msgid "react.extensions.oauth_import_refresh_token_required"
 msgstr "Refresh token is required."
+
+msgid "react.extensions.oauth_import_refresh_token_saved"
+msgstr "Refresh token is saved."
 
 msgid "react.extensions.oauth_import_replace"
 msgstr "Replace refresh token"
@@ -5133,6 +5175,12 @@ msgstr "Page"
 
 msgid "react.extensions.permissions_it_asks_for"
 msgstr "Permissions it asks for"
+
+msgid "react.extensions.post_connect_access_denied"
+msgstr "The provider denied access. Check the application's permissions and reauthorize the account if needed."
+
+msgid "react.extensions.post_connect_retry_verification"
+msgstr "Verification needs attention. Retry verification."
 
 msgid "react.extensions.pre_save_result_mapping_target_value0_must_be_a_declared_non_secret_config_field"
 msgstr ""
@@ -11536,6 +11584,57 @@ msgstr "API version"
 msgid "react.settings.applies_after_the_profile_refresh_completes"
 msgstr "Applies after the profile refresh completes."
 
+msgid "react.settings.authenticator_continue_setup"
+msgstr "Continue"
+
+msgid "react.settings.authenticator_description"
+msgstr "Add a second sign-in step using an authenticator app."
+
+msgid "react.settings.authenticator_disable"
+msgstr "Disable authenticator"
+
+msgid "react.settings.authenticator_error"
+msgstr "Authenticator update failed"
+
+msgid "react.settings.authenticator_loading"
+msgstr "Loading authenticator settings…"
+
+msgid "react.settings.authenticator_open"
+msgstr "Open in an authenticator app"
+
+msgid "react.settings.authenticator_policy_required"
+msgstr "Multi-factor authentication is required for this installation."
+
+msgid "react.settings.authenticator_recovery_codes"
+msgstr "Save your recovery codes"
+
+msgid "react.settings.authenticator_recovery_instructions"
+msgstr "Keep these codes somewhere safe. Each code works once, and you can only see them now."
+
+msgid "react.settings.authenticator_replace"
+msgstr "Replace authenticator"
+
+msgid "react.settings.authenticator_request_failed"
+msgstr "The authenticator could not be updated."
+
+msgid "react.settings.authenticator_setup"
+msgstr "Set up authenticator"
+
+msgid "react.settings.authenticator_setup_instructions"
+msgstr "Add a time-based account in your authenticator app using this setup key, then enter the six-digit code."
+
+msgid "react.settings.authenticator_status_error"
+msgstr "Authenticator settings could not be loaded"
+
+msgid "react.settings.authenticator_title"
+msgstr "Authenticator app"
+
+msgid "react.settings.authenticator_verification_code"
+msgstr "Authenticator code"
+
+msgid "react.settings.authenticator_verify"
+msgstr "Verify and enable"
+
 msgid "react.settings.backend_policy_may_require_more"
 msgstr "Backend policy may require more"
 
@@ -11923,6 +12022,9 @@ msgstr ""
 
 msgid "react.settings.enter_a_valid_new_email_address"
 msgstr "Enter a valid new email address."
+
+msgid "react.settings.enter_current_and_matching_new_passwords"
+msgstr "Enter your current password and matching new passwords."
 
 msgid "react.settings.enter_the_current_password_and_matching_new_passwords_of_at_least_10_characters"
 msgstr ""

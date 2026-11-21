@@ -20,6 +20,10 @@ from core.application.monitoring.queries import (
     ComponentsProjection,
     RuntimeStatusQueryService,
 )
+from core.application.monitoring.readiness_projection import (
+    operations_readiness_checks,
+    workflow_knowledge_storage_status,
+)
 from core.application.monitoring.repository import RuntimeStatusRepository
 from core.infrastructure.config.connection_strings import resolve_postgres_dsn
 from core.infrastructure.config.monitoring_runtime import load_monitoring_runtime_config
@@ -106,10 +110,8 @@ def build_monitoring_summary_payload(
     meta: dict[str, Any],
     components: ComponentsProjection | None = None,
 ) -> dict[str, Any]:
-    checks = readiness.get("checks") or {}
-    failed_checks = [
-        name for name, payload in checks.items() if not bool((payload or {}).get("ok"))
-    ]
+    checks = operations_readiness_checks(readiness.get("checks"))
+    failed_checks = [name for name, payload in checks.items() if not payload["ok"]]
     ready = bool(readiness.get("ready"))
     payload: dict[str, Any] = {
         "status": "ready" if ready else "not_ready",
@@ -257,21 +259,10 @@ def build_storage_monitoring_payload(bl) -> dict[str, Any]:
         workflow_knowledge_status = PostgresAgeWorkflowKnowledgeStore().runtime_status(
             ensure_indexes=False
         )
-        workflow_knowledge_payload = {
-            "available": bool(workflow_knowledge_status.get("ok")),
-            "graph_name": workflow_knowledge_status.get("graph_name") or "",
-            "graph": workflow_knowledge_status.get("graph") or {},
-            "vector": workflow_knowledge_status.get("vector") or {},
-        }
+        workflow_knowledge_payload = workflow_knowledge_storage_status(workflow_knowledge_status)
     except Exception:
         logger.exception("Workflow knowledge storage status failed")
-        unavailable = "Workflow knowledge storage status is unavailable"
-        workflow_knowledge_payload = {
-            "available": False,
-            "graph_name": "",
-            "graph": {"available": False, "error": unavailable},
-            "vector": {"available": False, "error": unavailable},
-        }
+        workflow_knowledge_payload = workflow_knowledge_storage_status({})
 
     return {
         "generated_at": datetime.now(UTC).isoformat(),

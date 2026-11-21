@@ -10,6 +10,7 @@ The lifecycle lock is lent to the apply for its duration and taken back.
 from __future__ import annotations
 
 import json
+from itertools import pairwise
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -20,7 +21,10 @@ from core.application.installer import InstallConfig, profile_switch
 from core.application.installer.errors import InstallerFailure
 from core.infrastructure.installer.gateway import DockerInstallerGateway
 from core.infrastructure.installer.process import ProcessOutcome
-from core.infrastructure.installer.state_store import InstallerStateStore
+from core.infrastructure.installer.state_store import (
+    INSTALLER_LOCK_LEASE_ENV,
+    InstallerStateStore,
+)
 from core.infrastructure.lifecycle.state_store import LifecycleStateStore
 
 _COMPACT_IMAGE = "sha256:" + "c" * 64
@@ -31,6 +35,8 @@ class _Docker:
         self.root = root
         self.commands: list[tuple[str, ...]] = []
         self.lock_free_during_apply: bool | None = None
+        self.apply_environment: dict[str, str] = {}
+        self.apply_refusal = ""
         self.apply_exit = 0
         self.rendered: list[tuple[str, ...]] = []
         self.render_exit = 0
@@ -40,6 +46,7 @@ class _Docker:
         self.left: dict[str, int] = {}  # containers of each source service after the apply
         self.stopped_before: dict[str, int] = {}  # stopped leftovers of an earlier switch
         self.render_environments: list[dict[str, str] | None] = []
+        self.image_renders: list[tuple[tuple[str, ...], dict[str, str] | None]] = []
         # (compose project, container name, bind sources) of every container on the host
         self.containers: list[tuple[str, str, tuple[str, ...]]] = []
 
@@ -77,6 +84,16 @@ class _Docker:
             return ProcessOutcome(command=key, returncode=0, stdout="\n".join(lines) + "\n")
         if key[-1] == "/data/state/worker-mcp-token":
             return ProcessOutcome(command=key, returncode=0, stdout="runtime-token\n")
+        if key[-3:] == ("config", "--format", "json"):
+            environment = kwargs.get("environment")
+            self.image_renders.append((key, environment))
+            if any(name not in (environment or {}) for name in self.render_requires):
+                return ProcessOutcome(command=key, returncode=15, stderr="required variable")
+            names = ("traefik", "pg-fs", "rabbitmq-fs", "seaweedfs", "seaweedfs-config")
+            services = {name: {"image": f"{name}:test"} for name in names}
+            return ProcessOutcome(
+                command=key, returncode=0, stdout=json.dumps({"services": services})
+            )
         if key[-2:] == ("config", "--quiet"):
             self.rendered.append(key)
             environment = kwargs.get("environment")
@@ -91,11 +108,27 @@ class _Docker:
                 command=key, returncode=self.render_exit, stderr=self.render_stderr
             )
         if key[-3:] == ("config", "apply", "--confirm"):
-            try:
-                with LifecycleStateStore(self.root).operation_lock("apply-1", mutating=True):
-                    self.lock_free_during_apply = True
-            except Exception:
-                self.lock_free_during_apply = False
+            # As fs-cli takes it: the lifecycle lock and the installer's install.lock
+            # (lifecycle_runtime.py), with only the environment `exec -e` forwards.
+            forwarded = {
+                name: (kwargs.get("environment") or {}).get(name, "")
+                for flag, name in pairwise(key)
+                if flag == "-e"
+            }
+            self.apply_environment = forwarded
+            store = LifecycleStateStore(
+                self.root, installation_lock_path=self.root / ".flow-steward/install.lock"
+            )
+            with pytest.MonkeyPatch.context() as patch:
+                patch.delenv(INSTALLER_LOCK_LEASE_ENV, raising=False)
+                for name, value in forwarded.items():
+                    patch.setenv(name, value)
+                try:
+                    with store.operation_lock("apply-1", mutating=True):
+                        self.lock_free_during_apply = True
+                except Exception as exc:
+                    self.lock_free_during_apply = False
+                    self.apply_refusal = str(exc)
             return ProcessOutcome(command=key, returncode=self.apply_exit, stderr="apply broke")
         return ProcessOutcome(command=key, returncode=0)
 
@@ -120,7 +153,9 @@ def _gateway(root: Path, docker: _Docker, monkeypatch: pytest.MonkeyPatch):
     )
     prepared: list[str] = []
     monkeypatch.setattr(
-        gateway, "prepare_core", lambda config, *, log: prepared.append(config.deployment_profile)
+        gateway,
+        "prepare_switch_target",
+        lambda config, *, log: prepared.append(config.deployment_profile),
     )
     monkeypatch.setattr(
         gateway,
@@ -238,7 +273,7 @@ def test_a_failed_apply_is_named_and_the_lock_is_taken_back(
 
     assert failed.value.code == "profile_switch_apply_failed"
     assert "apply broke" in failed.value.cause
-    assert "Rerun ./install.sh to continue it" in failed.value.remediation
+    assert "Rerun the same ./install.sh command" in failed.value.remediation
 
 
 def test_compact_to_scalable_restores_the_worker_credential_first(
@@ -251,7 +286,9 @@ def test_compact_to_scalable_restores_the_worker_credential_first(
     docker = _Docker(root)
     gateway, _prepared = _gateway(root, docker, monkeypatch)
     order: list[str] = []
-    monkeypatch.setattr(gateway, "prepare_core", lambda config, *, log: order.append("prepare"))
+    monkeypatch.setattr(
+        gateway, "prepare_switch_target", lambda config, *, log: order.append("prepare")
+    )
     real_update = gateway.state_store.update_env_values
 
     def recording_update(path, values):
@@ -564,6 +601,92 @@ def test_the_target_renders_with_what_the_apply_will_write_for_it(
     assert "FS_WORKER_PROCESSES" not in (root / ".env.prod").read_text(encoding="utf-8")
 
 
+def test_the_target_images_resolve_from_what_the_apply_will_write_for_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """E2E 2026-11-20 (S4): Scalable to Compact stopped before any change with "could not
+    resolve infrastructure images" -- the images were resolved against the installed
+    Scalable .env.prod, which has no FS_WORKER_PROCESSES. The second E2E: an installation
+    that was always Scalable has no FS_COMPACT_IMAGE until the switch builds it."""
+    from core.application.lifecycle.contracts import DeploymentConfig
+    from core.infrastructure.lifecycle.configuration_store import LifecycleConfigurationStore
+
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    docker.render_requires = ("FS_WORKER_PROCESSES", "FS_RUNTIME_HTTP_PORT", "FS_COMPACT_IMAGE")
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    monkeypatch.undo()  # the real prepare_switch_target; only image building is faked
+
+    def build_compact_runtime(*_args, **_kwargs):
+        gateway.state_store.update_env_values(
+            root / ".env.prod", {"FS_COMPACT_IMAGE": _COMPACT_IMAGE}
+        )
+
+    monkeypatch.setattr(gateway, "_build_compact_runtime_image", build_compact_runtime)
+    for name in (
+        "_build_compact_management_image",
+        "_build_scalable_candidate_images",
+        "_refuse_lost_image_ids",
+        "_resolve_compact_registry_image",
+        "_prepare_exact_prebuilt_provenance",
+    ):
+        monkeypatch.setattr(gateway, name, lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(gateway, "_install_mode", lambda _config: "source")
+    monkeypatch.setattr(gateway, "_exact_prebuilt_image_refs", lambda *_args: {"compact": "x"})
+    (root / ".env.prod").write_text(
+        "\n".join(
+            (
+                "# BEGIN FLOW STEWARD INSTALLER MANAGED",
+                *_DURABLE_SECRETS,
+                "# END FLOW STEWARD INSTALLER MANAGED",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    store = LifecycleConfigurationStore(root, state_root=root / ".flow-steward")
+    store.compose_env_path.parent.mkdir(parents=True, exist_ok=True)
+    store.compose_env_path.write_text("FS_COMPOSE_PROJECT_NAME=flow-steward\n", encoding="utf-8")
+    store.write_active(DeploymentConfig.model_validate(_SCALABLE.model_dump(mode="json")))
+    compact = profile_switch.switch_target(_SCALABLE, "compact")
+
+    gateway.prepare_switch_target(compact, log=_log(gateway))
+
+    ((render, environment),) = docker.image_renders
+    assert render[render.index("--env-file") + 1] == "/dev/null"
+    assert environment is not None
+    assert environment["FS_WORKER_PROCESSES"] == "2"
+    assert environment["FS_COMPACT_IMAGE"] == _COMPACT_IMAGE
+    assert "FS_WORKER_PROCESSES" not in (root / ".env.prod").read_text(encoding="utf-8")
+
+
+def test_an_ordinary_install_resolves_images_from_the_installed_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The green direction: outside a switch nothing renders without .env.prod."""
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    monkeypatch.undo()
+    for name in (
+        "_build_compact_runtime_image",
+        "_build_compact_management_image",
+        "_build_scalable_candidate_images",
+        "_refuse_lost_image_ids",
+        "_resolve_compact_registry_image",
+        "_prepare_exact_prebuilt_provenance",
+    ):
+        monkeypatch.setattr(gateway, name, lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(gateway, "_install_mode", lambda _config: "source")
+    monkeypatch.setattr(gateway, "_exact_prebuilt_image_refs", lambda *_args: {"compact": "x"})
+
+    gateway.prepare_core(_SCALABLE, log=_log(gateway))
+
+    ((render, environment),) = docker.image_renders
+    assert render[render.index("--env-file") + 1] == str(root / ".env.prod")
+    assert environment is None
+
+
 def _removed(docker: _Docker) -> list[str]:
     return sorted(
         part for key in docker.commands if key[:3] == ("docker", "rm", "-f") for part in key[3:]
@@ -671,3 +794,124 @@ def test_a_stopped_leftover_of_an_earlier_switch_goes_before_the_apply_records_i
     ] == [
         "label=com.docker.compose.service=compact-runtime"
     ]  # only the target's own services; never the shared ones
+
+
+_COMPACT = InstallConfig(
+    environment="production", deployment_profile="compact", file_storage="local_fs"
+)
+
+
+def _installation_store(root: Path) -> LifecycleStateStore:
+    return LifecycleStateStore(root, installation_lock_path=root / ".flow-steward/install.lock")
+
+
+def test_the_apply_takes_install_lock_on_the_lease_the_installer_lent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Customer 2026-11-20: every Compact to Scalable switch failed with
+    lifecycle_operation_active -- fs-cli's `config apply` also takes install.lock, which
+    ./install.sh keeps for its whole run, so the switch refused itself."""
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+
+    with gateway.state_store.operation_lock():
+        profile_switch.switch_profile(gateway, _COMPACT, "scalable", log=_log(gateway))
+
+    assert docker.apply_refusal == ""
+    assert docker.lock_free_during_apply is True
+    lease = docker.apply_environment[INSTALLER_LOCK_LEASE_ENV]
+    assert len(lease) >= 32
+    assert not any(lease in " ".join(command) for command in docker.commands)
+    recorded = json.loads((root / ".flow-steward/install.lock").read_text(encoding="utf-8"))
+    assert recorded["kind"] == "install"
+    assert "lease_sha256" not in recorded  # withdrawn once the apply returned
+
+
+def test_install_lock_is_leased_only_to_the_holder_of_the_lease(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    state = InstallerStateStore(root / ".flow-steward", lifecycle_state_root=root / ".flow-steward")
+
+    with state.operation_lock():
+        # held, not lent: nothing gets in, and the refusal names ./install.sh
+        monkeypatch.setenv(INSTALLER_LOCK_LEASE_ENV, "guessed")
+        with (
+            pytest.raises(Exception, match=r"install\.sh is running"),
+            _installation_store(root).operation_lock("early", mutating=True),
+        ):
+            pass
+        with state.lifecycle_lock_lent() as lease:
+            monkeypatch.setenv(INSTALLER_LOCK_LEASE_ENV, lease + "x")
+            with (
+                pytest.raises(Exception, match=r"install\.sh is running"),
+                _installation_store(root).operation_lock("wrong", mutating=True),
+            ):
+                pass
+            monkeypatch.delenv(INSTALLER_LOCK_LEASE_ENV)
+            with (
+                pytest.raises(Exception, match=r"install\.sh is running"),
+                _installation_store(root).operation_lock("none", mutating=True),
+            ):
+                pass
+            monkeypatch.setenv(INSTALLER_LOCK_LEASE_ENV, lease)
+            with _installation_store(root).operation_lock("leased", mutating=True):
+                pass
+        # the lease ends with the loan
+        with (
+            pytest.raises(Exception, match=r"install\.sh is running"),
+            _installation_store(root).operation_lock("late", mutating=True),
+        ):
+            pass
+
+
+def test_a_failed_switch_with_nothing_to_resume_drops_its_pending_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Left behind, the next unrelated `config apply` would have carried out the switch."""
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    docker.apply_exit = 8
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+
+    with gateway.state_store.operation_lock(), pytest.raises(InstallerFailure):
+        profile_switch.switch_profile(gateway, _COMPACT, "scalable", log=_log(gateway))
+
+    assert not (root / ".flow-steward/pending-config.json").exists()
+
+
+def test_a_failed_switch_left_unfinished_keeps_its_pending_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    docker.apply_exit = 8
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    monkeypatch.setattr(
+        gateway, "unfinished_profile_switch", lambda: {"deployment_profile": "scalable"}
+    )
+
+    with gateway.state_store.operation_lock(), pytest.raises(InstallerFailure):
+        profile_switch.switch_profile(gateway, _COMPACT, "scalable", log=_log(gateway))
+
+    pending = json.loads((root / ".flow-steward/pending-config.json").read_text(encoding="utf-8"))
+    assert pending["deployment_profile"] == "scalable"
+
+
+def test_a_pending_change_written_since_the_switch_is_the_operators_and_stays(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    from core.application.lifecycle.contracts import ConfigurationPatch
+
+    gateway.write_switch_pending(ConfigurationPatch(deployment_profile="scalable"))
+    operator = ConfigurationPatch(deployment_profile="scalable", worker_replicas=3)
+    gateway.write_switch_pending(operator)
+
+    gateway.discard_switch_pending(ConfigurationPatch(deployment_profile="scalable"))
+
+    pending = json.loads((root / ".flow-steward/pending-config.json").read_text(encoding="utf-8"))
+    assert pending["worker_replicas"] == 3

@@ -49,7 +49,7 @@ _flow_steward_complete() {
         config) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "apply set show validate" -- "$cur")); return; fi ;;
         database) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "bootstrap-seed generate-migration preflight query-diagnostics restore-parity-capture restore-parity-verify status tune-env upgrade" -- "$cur")); return; fi ;;
         environment) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "show switch" -- "$cur")); return; fi ;;
-        extensions) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "bundle create disable enable health install list lock-deps show test uninstall validate" -- "$cur")); return; fi ;;
+        extensions) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "bundle create disable enable health install install-catalog list lock-deps show test uninstall validate" -- "$cur")); return; fi ;;
         jobs) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "ack approve cancel errors health-snapshot list logs messages reject restart show status unack" -- "$cur")); return; fi ;;
         localization) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "bootstrap-catalog compile init-locale rebuild-pot update validate-keys" -- "$cur")); return; fi ;;
         maintenance) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "disable enable status" -- "$cur")); return; fi ;;
@@ -90,6 +90,7 @@ _flow_steward_complete() {
         "extensions enable") words="--json --plain --no-color --verbose --non-interactive --confirm --extension-version --approve-browser-authority --help" ;;
         "extensions health") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "extensions install") words="--json --plain --no-color --verbose --non-interactive --confirm --archive --approve-browser-authority --help" ;;
+        "extensions install-catalog") words="--json --plain --no-color --verbose --non-interactive --confirm --version --release-sha256 --approve-browser-authority --help" ;;
         "extensions list") words="--json --plain --no-color --verbose --non-interactive --state --help" ;;
         "extensions lock-deps") words="--json --plain --no-color --verbose --non-interactive --confirm --root --input --platforms --help" ;;
         "extensions show") words="--json --plain --no-color --verbose --non-interactive --help" ;;

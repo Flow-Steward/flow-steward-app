@@ -150,6 +150,7 @@ _PHASE2_EXTENSION_IDS = [
     "extensions.show",
     "extensions.health",
     "extensions.install",
+    "extensions.install-catalog",
     "extensions.uninstall",
     "extensions.enable",
     "extensions.disable",
@@ -288,8 +289,9 @@ def test_public_command_specifications_have_unique_ids_and_paths() -> None:
     # retiring generic task submission removes one public command;
     # `reports diagnostics` adds the installation report for bug reports;
     # the nine workflow authoring adapters (authoring-schema .. stats) make 118;
-    # the read-only `database preflight` of ADR 0056 makes 119.
-    assert len(command_ids) == 119
+    # the read-only `database preflight` of ADR 0056 makes 119;
+    # `extensions install-catalog` makes 120.
+    assert len(command_ids) == 120
     assert len(command_ids) == len(set(command_ids))
     assert len(paths) == len(set(paths))
 

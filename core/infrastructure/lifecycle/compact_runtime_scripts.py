@@ -22,7 +22,8 @@ from pathlib import Path
 from core.infrastructure.runtime.compact.volume import CompactVolumeLayout, prepare_compact_volume
 
 root = Path("/data")
-prepare_compact_volume(root, layout=CompactVolumeLayout())
+layout = CompactVolumeLayout()
+prepare_compact_volume(root, layout=layout)
 envelope = json.load(sys.stdin)
 maintenance_state = envelope.get("maintenance_state")
 worker_token = str(envelope.get("worker_token") or "").strip()
@@ -47,7 +48,10 @@ else:
             stream.write(payload)
             stream.flush()
             os.fsync(stream.fileno())
-        os.chown(temporary, 0, 10102)
+        # Owned as Compact writes it itself: by the maintenance operator, which runs
+        # `maintenance status|disable` (exec --user 10007:10007) and is no member of
+        # fs-runtime; the runtime reads it through the group.
+        os.chown(temporary, layout.operator_uid, layout.runtime_gid)
         os.chmod(temporary, 0o640)
         os.replace(temporary, marker)
     finally:

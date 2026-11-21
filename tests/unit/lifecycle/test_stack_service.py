@@ -1161,6 +1161,65 @@ def test_docker_target_image_preparation_uses_candidate_environment_without_muta
     assert not {"up", "stop", "down", "rm"}.intersection((*inventory, *inspection, *pull, *build))
 
 
+def test_official_development_target_preparation_never_builds_release_images(
+    tmp_path: Path,
+) -> None:
+    """Owner 2026-11-21: an official installation switched to development (D4).
+
+    Its Core services run release digests; an incomplete target pulls what is missing
+    and builds only the services it builds itself.
+    """
+    rendered = json.dumps(
+        {
+            "services": {
+                "fs-app": {"image": "ghcr.io/flow-steward/app@sha256:" + "a" * 64},
+                "fs-worker": {"image": "ghcr.io/flow-steward/worker@sha256:" + "b" * 64},
+                "pg-fs": {"image": "ghcr.io/flow-steward/postgres@sha256:" + "c" * 64},
+                "seaweedfs": {"image": "chrislusf/seaweedfs@sha256:" + "d" * 64},
+            }
+        }
+    )
+    process = _Process([(0, "missing:dev\n"), (1, ""), (0, ""), (0, rendered)])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.prepare_target_images(
+        _target(), environment={"FS_INSTALL_MODE": "official"}, timeout_seconds=1234
+    )
+
+    _inventory, _inspection, pull, config = process.commands
+    assert pull[pull.index("pull") :][:4] == ("pull", "--ignore-buildable", "--policy", "missing")
+    assert config[-3:] == ("config", "--format", "json")
+    assert not any("build" in command for command in process.commands)
+
+
+def test_production_target_preparation_accepts_present_official_images(tmp_path: Path) -> None:
+    """Owner 2026-11-21: development -> production keeps the same digest pins.
+
+    The images are already present from the development installation, so nothing is
+    pulled or built.
+    """
+    pins = {
+        "FS_APP_IMAGE": "ghcr.io/flow-steward/app@sha256:" + "a" * 64,
+        "FS_WORKER_IMAGE": "ghcr.io/flow-steward/worker@sha256:" + "b" * 64,
+        "POSTGRES_IMAGE": "ghcr.io/flow-steward/postgres@sha256:" + "e" * 64,
+    }
+    process = _Process(
+        [
+            (0, "\n".join(pins.values()) + "\n"),
+            (0, "".join(f"sha256:{c * 64}\n" for c in "cd9")),
+        ]
+    )
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+    target = _target().model_copy(
+        update={"stack_environment": "production", "env_file": ".env.prod"}
+    )
+
+    gateway.prepare_target_images(target, environment=pins, timeout_seconds=1234)
+
+    assert len(process.commands) == 2
+    assert not {"pull", "build"}.intersection(process.commands[-1])
+
+
 def test_docker_target_image_preparation_supplies_missing_target_env_temporarily(
     tmp_path: Path,
 ) -> None:
@@ -1314,9 +1373,16 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
             "runtime_services": (*_target().runtime_services, "rabbitmq-fs", "fs-cli"),
         }
     )
+    rendered = {
+        "services": {
+            "fs-app": {"depends_on": {"pg-fs": {"condition": "service_healthy"}}},
+            "fs-worker": {},
+        }
+    }
     process = _Process(
         [
             (0, "fs-app\nfs-worker\npg-fs\nrabbitmq-fs\nfs-cli\n"),
+            (0, json.dumps(rendered)),
             (0, ""),
             (0, ""),
         ]
@@ -1332,9 +1398,10 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
         timeout_seconds=41,
     )
 
-    inventory, reconcile, names = process.commands
+    inventory, prerequisites, reconcile, names = process.commands
     assert names[-2:] == _NAMES_LISTING
     assert inventory[-2:] == ("config", "--services")
+    assert prerequisites[-3:] == ("config", "--format", "json")  # nothing to complete first
     assert reconcile[-8:] == (
         "up",
         "--detach",
@@ -1351,6 +1418,71 @@ def test_docker_configuration_apply_can_reconcile_transition_services_without_de
     assert "fs-cli" not in reconcile[reconcile.index("up") + 1 :]
 
 
+def test_a_transition_runs_what_the_services_wait_on_to_complete_first(
+    tmp_path: Path,
+) -> None:
+    """E2E 2026-11-21: `up --no-deps` never ran traefik-files; after Scalable to Compact
+    Compact's Traefik restart-looped on an empty volume, and the public route was down."""
+    target = _target().model_copy(
+        update={
+            "required_services": ("traefik-files", "traefik", "compact-runtime", "pg-fs"),
+            "runtime_services": ("traefik", "compact-runtime", "pg-fs"),
+            "stack_environment": "production",
+        }
+    )
+    completed = {"condition": "service_completed_successfully", "required": True}
+    rendered = {
+        "services": {
+            "traefik": {"depends_on": {"traefik-files": completed}},
+            "compact-runtime": {"depends_on": {"pg-fs": {"condition": "service_healthy"}}},
+        }
+    }
+    process = _Process(
+        [
+            (0, "traefik\ncompact-runtime\npg-fs\n"),
+            (0, json.dumps(rendered)),
+            (0, ""),
+            (0, ""),
+            (0, ""),
+        ]
+    )
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.apply_configuration(
+        target,
+        reconcile_services=("traefik", "compact-runtime"),
+        no_dependencies=True,
+        remove_orphans=False,
+        timeout_seconds=41,
+    )
+
+    _inventory, _rendered, prepared, reconcile, _names = process.commands
+    # production: the copy never pulls or builds, like the reconcile itself
+    assert prepared[-7:] == ("run", "--rm", "--no-deps", "--pull", "never", "-T", "traefik-files")
+    assert reconcile[-3:] == ("--no-deps", "traefik", "compact-runtime")
+    # pg-fs is waited on to be healthy, not to complete: --no-deps still leaves it be
+    assert sum("run" in command for command in process.commands) == 1
+
+
+def test_a_failed_prerequisite_stops_the_transition_before_its_services_start(
+    tmp_path: Path,
+) -> None:
+    target = _target().model_copy(
+        update={"required_services": ("traefik",), "runtime_services": ("traefik",)}
+    )
+    completed = {"condition": "service_completed_successfully"}
+    rendered = {"services": {"traefik": {"depends_on": {"traefik-files": completed}}}}
+    process = _Process([(0, "traefik\n"), (0, json.dumps(rendered)), (1, "copy failed")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    with pytest.raises(StackGatewayError):
+        gateway.apply_configuration(
+            target, no_dependencies=True, remove_orphans=False, timeout_seconds=41
+        )
+
+    assert not any("up" in command for command in process.commands)
+
+
 def test_docker_configuration_failure_retains_redacted_terminal_output(
     tmp_path: Path,
 ) -> None:
@@ -1361,6 +1493,7 @@ def test_docker_configuration_failure_retains_redacted_terminal_output(
     process = _Process(
         [
             (0, "fs-app\nfs-worker\npg-fs\nseaweedfs\n"),
+            (0, '{"services": {}}'),
             (
                 1,
                 "orphan warning\n" + ("Container candidate Creating\n" * 30) + terminal_error,
@@ -1765,10 +1898,18 @@ def test_docker_gateway_uses_canonical_compose_target_and_parses_json_lines(
     assert compose_command[-4:] == ("ps", "--all", "--format", "json")
 
 
+def _rendered_images(images: dict[str, str]) -> str:
+    return json.dumps({"services": {name: {"image": image} for name, image in images.items()}})
+
+
 def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
     tmp_path: Path,
 ) -> None:
-    process = _Process([(0, ""), (0, "")])
+    """A source development stack builds every selected service, as before."""
+    rendered = _rendered_images(
+        {"fs-app": "flow-steward-app:0.9.23", "fs-worker": f"sha256:{'a' * 64}"}
+    )
+    process = _Process([(0, rendered), (0, ""), (0, "")])
     gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
 
     gateway.rebuild(
@@ -1779,7 +1920,9 @@ def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
         heartbeat=lambda _detail: None,
     )
 
-    build, recreate = process.commands
+    config, build, recreate = process.commands
+    assert config[-3:] == ("config", "--format", "json")
+    assert process.invocations[0].get("output_sink") is None
     assert build[-3:] == ("build", "fs-app", "fs-worker")
     assert recreate[-8:] == (
         "up",
@@ -1794,6 +1937,75 @@ def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
     forbidden = {"-v", "--volumes", "--renew-anon-volumes"}
     assert forbidden.isdisjoint(build)
     assert forbidden.isdisjoint(recreate)
+
+
+def test_docker_rebuild_never_builds_over_official_release_images(tmp_path: Path) -> None:
+    """Owner 2026-11-21 (D4): an official development stack rebuilds like production.
+
+    Its Core services run the published images by registry digest, so they are only
+    recreated; the development extras it builds itself are still built.
+    """
+    rendered = _rendered_images(
+        {
+            "fs-app": f"ghcr.io/flow-steward/flow-steward-app@sha256:{'b' * 64}",
+            "pg-fs": f"ghcr.io/flow-steward/flow-steward-postgres@sha256:{'c' * 64}",
+            "fs-audit": "flow-steward-fs-audit",
+        }
+    )
+    process = _Process([(0, rendered), (0, ""), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.rebuild(
+        _target(),
+        ("pg-fs", "fs-app", "fs-audit"),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    _config, build, recreate = process.commands
+    assert build[-2:] == ("build", "fs-audit")
+    assert recreate[-3:] == ("pg-fs", "fs-app", "fs-audit")
+
+
+def test_docker_rebuild_with_only_pinned_services_runs_no_build(tmp_path: Path) -> None:
+    """`compose build` without a service builds them all, so it must not run at all."""
+    rendered = _rendered_images({"fs-app": f"ghcr.io/flow-steward/app@sha256:{'b' * 64}"})
+    process = _Process([(0, rendered), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.rebuild(
+        _target(),
+        ("fs-app",),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    assert [command[-7:-1] for command in process.commands[1:]] == [
+        ("up", "--wait", "--wait-timeout", "37", "--force-recreate", "--no-deps")
+    ]
+    assert not any("build" in command for command in process.commands)
+
+
+def test_docker_rebuild_of_production_keeps_its_exact_commands(tmp_path: Path) -> None:
+    """The green direction: production renders nothing extra and builds as before."""
+    process = _Process([(0, ""), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+    target = _target().model_copy(
+        update={"stack_environment": "production", "env_file": ".env.prod"}
+    )
+
+    gateway.rebuild(
+        target,
+        ("fs-app",),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    build, _recreate = process.commands
+    assert build[-2:] == ("build", "fs-app")
 
 
 def test_docker_gateway_captures_exact_image_ids_and_running_stopped_topology(

@@ -6,6 +6,8 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.account_memberships import sync_user_account_memberships
+from core.application.auth.password import password_hash
+from core.application.auth.password_history import require_unused_password
 from core.application.management.errors import ServiceConflictError, ServiceNotFoundError
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -237,17 +239,18 @@ def update_auth_user(
     existing_user: dict[str, Any],
     display_name: str | None,
     is_active: bool | None,
-    password_hash_value: str | None,
+    password: str | None,
     must_change_password: bool | None,
     roles: list[str] | None,
     requested_account_ids: list[str] | None,
     primary_account_id: str | None,
     revoke_sessions: bool,
+    password_hasher: Callable[[str], str] = password_hash,
 ) -> int:
     normalized_user_id = str(user_id or "").strip()
     revoke_auth_material = (
         is_active is not None
-        or password_hash_value is not None
+        or password is not None
         or must_change_password is not None
         or roles is not None
         or requested_account_ids is not None
@@ -255,6 +258,25 @@ def update_auth_user(
     with transaction_connection(bl.conn) as conn, conn.cursor() as cur:
         if is_active is not None or roles is not None:
             _lock_user_lifecycle(cur)
+        if password is not None:
+            cur.execute(
+                "SELECT password_hash FROM users WHERE id = %s AND deleted_at IS NULL FOR UPDATE",
+                (normalized_user_id,),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise ServiceNotFoundError(f"User id={normalized_user_id} not found")
+            current_hash = row["password_hash"] if isinstance(row, dict) else row[0]
+            require_unused_password(
+                cur,
+                user_id=normalized_user_id,
+                password=password,
+                current_hash=str(current_hash or ""),
+            )
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (password_hasher(password), normalized_user_id),
+            )
         if display_name is not None:
             cur.execute(
                 "UPDATE users SET display_name = %s WHERE id = %s",
@@ -267,11 +289,6 @@ def update_auth_user(
             cur.execute(
                 "UPDATE users SET is_active = %s WHERE id = %s",
                 (bool(is_active), normalized_user_id),
-            )
-        if password_hash_value is not None:
-            cur.execute(
-                "UPDATE users SET password_hash = %s WHERE id = %s",
-                (str(password_hash_value or ""), normalized_user_id),
             )
         if must_change_password is not None:
             cur.execute(

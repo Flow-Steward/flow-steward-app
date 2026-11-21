@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.22 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -265,7 +265,11 @@ existing host proxy, skips bundled Traefik, and binds `fs-app` only to
 backend; change it with `--reverse-proxy-backend-port` when needed. The
 installer rejects non-loopback backend hosts.
 
-For local development, run `./install.sh --from-source --environment development --deployment-profile scalable`.
+For local development, run `./install.sh --environment development --deployment-profile scalable`
+from a clean published release tag. Core images come from the official release;
+only the frontend dev server and the test/audit images are built locally at that
+tag, and `./flow-steward release upgrade --confirm` updates it like production. Add
+`--from-source` to build Core from the checkout when you change Core code.
 Development is a complete preset: core plus frontend and continuously ready
 test/audit runtimes; Mailpit and SonarQube/scanner are available on demand.
 Choose bundled or external S3 storage independently of the environment.
@@ -1377,8 +1381,23 @@ and other availability restrictions still apply; these reads never enable a work
 Connect the client to the existing authenticated MCP endpoint above. Consult
 `tools/list` for its current arguments and token-filtered availability.
 
+For a question such as "Is there an integration for this?" or "How do I set it
+up?", call `catalog_search` first. It searches the published Extension
+Marketplace, MCP server and workflow template catalogs without a project. Use
+the selected entry's setup requirements and its link into the Flow Steward
+interface. Check each catalog's availability before drawing conclusions from an
+empty result. For an existing project, confirm actual operations and connection
+readiness with `capability_search` and `capability_describe`.
+
+An administrator can call `extension_catalog_install` with the selected ID,
+version and SHA-256 after asking to apply that release. It uses the same
+installer as Marketplace. Complete credential setup, OAuth and any required
+browser-authority review in the Flow Steward interface.
+
 | Tool | Purpose |
 |---|---|
+| `catalog_search` | Find published integrations and workflow templates, with setup guidance and links. |
+| `extension_catalog_install` | Install or update a selected extension release by ID, version and SHA-256. |
 | `workflow_examples_search` | Find permitted local workflows to reuse before creating one. |
 | `capability_search` | Search permitted components and report knowledge freshness. |
 | `capability_describe` | Inspect live operation contracts, permitted connections and exportable definitions; select `operation_id` when applicable. |
@@ -1895,6 +1914,20 @@ to a project-local file. The launcher routes archive-backed install and
 uninstall through an isolated one-shot manager whose checkout mount is read-only
 and whose only writable bundle mount is the managed extensions directory.
 
+On Scalable, the same CLI can apply the exact release offered by Marketplace.
+Use the extension ID, version and SHA-256 from catalog search or the catalog API.
+
+```bash
+./flow-steward extensions install-catalog <extension-id> \
+  --version <version> --release-sha256 <sha256> --confirm --non-interactive --json
+```
+
+The command installs a new extension or updates an older installed version.
+If the selected release has changed in the catalog, the command returns
+`extension_catalog_release_changed`. If that version is already installed,
+the response is `extension_catalog_already_installed`. On Compact, use the
+admin UI or the authenticated catalog installation API.
+
 ---
 
 ## Step 11 — Extension Notifications
@@ -2008,8 +2041,8 @@ the raw scanner artifact is
 Recommended setup flows:
 
 ```bash
-# Local development
-./install.sh --from-source --environment development --deployment-profile scalable
+# Local development (official Core images; add --from-source to build Core)
+./install.sh --environment development --deployment-profile scalable
 
 # Production
 ./install.sh --environment production
@@ -2315,8 +2348,9 @@ availability, maintenance and the reviewed upgrade.
 
 #### Official production upgrade
 
-Default production installation creates an official installation and upgrades as
-one. An explicit `--from-source` install creates a verified source installation.
+Default installation creates an official installation and upgrades as one, in
+Production and Development alike. An explicit `--from-source` install creates a
+verified source installation.
 Its semantic ordering is unknown relative to every official version; neither `VERSION` nor Git ancestry
 makes it older, newer, or already current. `release check` reads published
 stable GitHub Releases tagged exactly `vX.Y.Z` and reports an explicit
@@ -2388,6 +2422,43 @@ PostgreSQL images locally, and never fall back to a floating tag. A legacy ident
 without a PostgreSQL role may keep an existing selected image; if it is missing,
 restore it or choose a complete newer release. Development source builds require
 explicit `--from-source`.
+
+#### Development upgrade
+
+A Development installation from a release tag upgrades with the same command:
+
+```bash
+./flow-steward release upgrade --confirm
+```
+
+Development Core services run code from the checkout, so the upgrade needs the
+checkout clean: commit, stash or revert tracked changes first, or it stops with
+`release_checkout_dirty`. After the backup it stops `fs-app`, `fs-worker`,
+`control-plane`, `fs-mcp`, `fs-extension-installer` and `fs-frontend`, checks the
+new tag out (the checkout is left on a detached HEAD there), pulls the release
+images, builds the frontend dev server and the test/audit images at that tag and
+starts everything again. PostgreSQL, RabbitMQ and storage keep running.
+`stack rebuild` on such an installation rebuilds only those locally built images.
+To work on a branch, switch back to it; the installation keeps running the release
+until the next upgrade. To run your own Core changes, install with `--from-source`
+instead; an installation that already runs an official release refuses
+`--from-source`. `./flow-steward environment switch development` (or `production`)
+moves an official installation between the two environments on the same release,
+images and data. Switching to Development needs a clean checkout at the installed
+release (`git checkout v<installed version>`) and builds the extras there; switching
+to Production drops them and does not depend on the checkout.
+
+A Development installation created before 0.9.23 is a source installation. Move it
+to official images with the reviewed transition:
+
+```bash
+git checkout v0.9.23          # clean tree
+./install.sh --from-source    # refreshes the CLI image for this release
+./flow-steward release check  # reports transition_available
+./flow-steward maintenance enable --confirm
+./flow-steward release upgrade --confirm
+./flow-steward maintenance disable --confirm
+```
 `FS_RELEASE_REGISTRIES` supports an ordered comma-separated namespace override
 without changing the no-mixing rule; `FS_RELEASE_REPOSITORY` selects the GitHub
 source repository. Release operators should follow
@@ -2794,9 +2865,32 @@ outbound connection in the deployment, not only the one being tested.
 **LLM provider extensions on a private network.** An LLM provider extension
 such as the Ollama provider may point at a model server on the same machine or
 local network (`localhost`, `127.0.0.1`, `10.x`, `172.16–31.x`, `192.168.x`,
-`fc00::/7`) only when `FS_ALLOW_PRIVATE_REMOTE_URLS=1`. It is off by default,
-and saving such a base URL is then rejected with a message naming this
-setting. When it is on:
+`fc00::/7`) in one of two ways. Both are off by default, and saving such a base
+URL is then rejected with a message that gives the command for this
+installation.
+
+- **One server only (recommended):** list its exact origin, `scheme://host:port`,
+  in `FS_ALLOWED_PRIVATE_ORIGINS`. Every other private address stays refused.
+
+  ```bash
+  ./flow-steward config set FS_ALLOWED_PRIVATE_ORIGINS=http://host.docker.internal:11434
+  ./flow-steward config apply
+  ```
+
+  Separate several origins with commas (at most 16). The port is required, and
+  an entry admits only that scheme, host and port: `http://host.docker.internal:11434`
+  does not admit port 11435, `https://` on the same port, or the same address
+  under another name. An entry without a port, with a path, a user name, a
+  wildcard, or a public, link-local or metadata IP address is refused by
+  `config set`. The extension receives the list as
+  `runtime_context.network_policy.allowed_private_origins` and needs to support
+  it (the Ollama provider does from 1.2.5).
+- **Every private address:** `FS_ALLOW_PRIVATE_REMOTE_URLS=1`, which also
+  relaxes extension, MCP connector and other outbound checks for the whole
+  installation.
+
+For an allowed origin, and for every private address when
+`FS_ALLOW_PRIVATE_REMOTE_URLS=1` is on:
 
 - private and loopback addresses may use `http://` or `https://`, while public
   addresses still need `https://`;

@@ -22,6 +22,10 @@ CLI_BASE_ENVIRONMENT = {
     "FS_INSTALLER_STATE_DIR",
     "FS_INSTALLER_USE_HOST_PYTHON",
     "FS_LOAD_REPO_DOTENV",
+    # Owner 2026-11-21: a development installation upgrades like production, and
+    # `release upgrade` resolves the release inside this container.
+    "FS_RELEASE_REGISTRIES",
+    "FS_RELEASE_REPOSITORY",
     "FS_STACK_ENVIRONMENT",
     "HOME",
     "PYTHONPYCACHEPREFIX",
@@ -29,14 +33,16 @@ CLI_BASE_ENVIRONMENT = {
 }
 CLI_PRODUCTION_ENVIRONMENT = CLI_BASE_ENVIRONMENT | {
     "FS_BUILD_SHA",
-    "FS_RELEASE_REGISTRIES",
-    "FS_RELEASE_REPOSITORY",
     "FS_RUNTIME_ENVIRONMENT",
 }
 
 
 def test_production_cli_receives_release_source_overrides() -> None:
-    for compose_file in ("docker-compose.prod.yaml", "docker-compose.compact.yaml"):
+    for compose_file in (
+        "docker-compose.yaml",
+        "docker-compose.prod.yaml",
+        "docker-compose.compact.yaml",
+    ):
         service = _service_config("fs-cli", compose_file=compose_file)
         environment = service["environment"]
 
@@ -741,7 +747,7 @@ def test_local_optional_images_use_pinned_non_latest_refs() -> None:
         "${SONAR_SCANNER_IMAGE:-sonarsource/sonar-scanner-cli@sha256:23ca0f137965d9dff2198074043fd48d386280bc5d0ccac8c8349cea4cf096a9}"
     )
     assert services["seaweedfs"].get("image") == (
-        "chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77"
+        "chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15"
     )
 
 

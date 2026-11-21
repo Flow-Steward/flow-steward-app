@@ -113,6 +113,7 @@ _MESSAGES = {
     "users.unlock": "User unlocked",
     "users.force-reset": "Password reset required at next sign-in",
     "extensions.install": "Extension installed",
+    "extensions.install-catalog": "Catalog release applied",
     "extensions.uninstall": "Extension uninstalled",
     "extensions.enable": "Extension enabled",
     "extensions.disable": "Extension disabled",

@@ -344,22 +344,37 @@ def test_source_resume_without_flag_does_not_build(monkeypatch, tmp_path):
     assert raised.value.code == "source_install_requires_flag"
 
 
-def test_development_install_requires_explicit_source_mode(monkeypatch):
+@pytest.mark.parametrize("from_source", (False, True))
+def test_development_install_resolves_the_release_like_production(monkeypatch, from_source):
+    """Owner 2026-11-21: development installs like production; --from-source still builds.
+
+    Development used to be refused without --from-source. It now asks the same release
+    policy as production, and the explicit flag keeps selecting a checkout build.
+    """
     service = FakeService()
+    observed: list[tuple[str, bool]] = []
     monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
+    monkeypatch.setattr(
+        installer,
+        "_prepare_official_release",
+        lambda config, **kwargs: observed.append((config.environment, kwargs["from_source"])),
+    )
     result = CliRunner().invoke(
         installer.installer_command,
         [
             "--environment",
             "development",
+            "--deployment-profile",
+            "scalable",
+            *(("--from-source",) if from_source else ()),
             "--non-interactive",
             "--confirm",
             "--plain",
         ],
     )
-    assert result.exit_code != 0
-    assert "--from-source" in result.output
-    assert service.configs == []
+    assert result.exit_code == 0, result.output
+    assert observed == [("development", from_source)]
+    assert service.configs[0].environment == "development"
 
 
 def test_private_installer_has_no_management_subcommands() -> None:
@@ -614,6 +629,84 @@ def test_private_release_bootstrap_reuses_recorded_scalable_configuration(
     assert service.configs[0].deployment_profile == "scalable"
     assert service.configs[0].public_port == 9443
     assert service.target_release == release
+
+
+def _development_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    *,
+    install_config: InstallConfig | None,
+    active_environment: str,
+    recorded_environment: str,
+) -> FakeService:
+    release = _release_identity("1.0.10", "c", profile="scalable")
+    state_root = tmp_path / "state"
+    state = InstallerStateStore(state_root)
+    state.stage_pending_release(release)
+    state.save_release_handoff(
+        ReleaseHandoffJournal(
+            target=release, phase="checkout_applied", install_config=install_config
+        )
+    )
+    LifecycleConfigurationStore(tmp_path, state_root=state_root).write_active(
+        DeploymentConfig(environment=active_environment, deployment_profile="scalable")
+    )
+    service = FakeService()
+    monkeypatch.setattr(installer, "_ROOT", tmp_path)
+    monkeypatch.setattr(installer, "installer_state_root", lambda _root: state_root)
+    monkeypatch.setattr(
+        installer,
+        "_recorded_installation_values",
+        lambda _root: {"environment": recorded_environment, "deployment_profile": "scalable"},
+    )
+    monkeypatch.setattr(installer, "_create_service", lambda **_kwargs: service)
+    return service
+
+
+@pytest.mark.parametrize("journal_config", (True, False))
+def test_private_release_bootstrap_finishes_a_development_installation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, journal_config: bool
+) -> None:
+    """Owner 2026-11-21: `release upgrade` on development hands off like production.
+
+    The handoff installs the environment the journal (or else the active
+    configuration) records; it no longer insists on production.
+    """
+    service = _development_handoff(
+        monkeypatch,
+        tmp_path,
+        install_config=(
+            InstallConfig(environment="development", deployment_profile="scalable")
+            if journal_config
+            else None
+        ),
+        active_environment="development",
+        recorded_environment="development",
+    )
+
+    exit_code = installer.run_pending_release_handoff()
+
+    assert exit_code == 0
+    assert service.configs[0].environment == "development"
+
+
+def test_private_release_bootstrap_never_switches_the_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A recorded production configuration on a development installation is refused."""
+    service = _development_handoff(
+        monkeypatch,
+        tmp_path,
+        install_config=None,
+        active_environment="development",
+        recorded_environment="production",
+    )
+
+    exit_code = installer.run_pending_release_handoff()
+
+    assert exit_code != 0
+    assert "release_install_config_mismatch" in capsys.readouterr().out
+    assert service.configs == []
 
 
 @pytest.mark.parametrize("origin_kind", ("official", "source"))

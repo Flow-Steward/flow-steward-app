@@ -46,6 +46,19 @@ def _oauth_connection(logger: Any) -> Any:
     return connection
 
 
+@contextmanager
+def _refresh_claim_connection(logger: Any):
+    dsn = str(getattr(logger, "dsn", "") or "").strip()
+    if not dsn:
+        raise RuntimeError("extension OAuth refresh claim database unavailable")
+    claim_connection = psycopg_runtime.connect(dsn)
+    try:
+        claim_connection.autocommit = True
+        yield claim_connection
+    finally:
+        claim_connection.close()
+
+
 def create_extension_oauth_configuration_service(logger: Any) -> OAuthConfigurationService:
     connection = _oauth_connection(logger)
     confirmation_secret = str(runtime_env.get("FS_SECRET_KEY") or "").strip()
@@ -117,21 +130,9 @@ def create_extension_oauth_callback_service(logger: Any) -> OAuthCallbackService
         )
         return decrypt_secret(ciphertext) if ciphertext else ""
 
-    @contextmanager
-    def refresh_claim_connection():
-        dsn = str(getattr(logger, "dsn", "") or "").strip()
-        if not dsn:
-            raise RuntimeError("extension OAuth refresh claim database unavailable")
-        claim_connection = psycopg_runtime.connect(dsn)
-        try:
-            claim_connection.autocommit = True
-            yield claim_connection
-        finally:
-            claim_connection.close()
-
     repository = ExtensionOAuthRepository(
         connection,
-        refresh_claim_connection_factory=refresh_claim_connection,
+        refresh_claim_connection_factory=lambda: _refresh_claim_connection(logger),
     )
     token_store = DatabaseOAuthCallbackTokenStore(connection)
     runtime_service = OAuthRuntimeTokenService(
@@ -184,7 +185,9 @@ def create_extension_oauth_refresh_token_import_service(
         return decrypt_secret(ciphertext) if ciphertext else ""
 
     return OAuthRefreshTokenImportService(
-        repository=ExtensionOAuthRepository(connection),
+        repository=ExtensionOAuthRepository(
+            connection, refresh_claim_connection_factory=lambda: _refresh_claim_connection(logger)
+        ),
         token_store=DatabaseOAuthCallbackTokenStore(connection),
         install_loader=lambda install_id, account_id: logger.get_extension_install_for_operator(
             install_id, account_id=account_id

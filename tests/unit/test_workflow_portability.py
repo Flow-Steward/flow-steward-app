@@ -2503,6 +2503,16 @@ class _OperatorInstallStore:
         self.calls.append((install_id, account_id))
         return self.rows.get((install_id, account_id))
 
+    def get_extension_by_install_id_for_runtime_gate(self, install_id, *, account_id):
+        return self.rows.get((install_id, account_id)) or next(
+            (
+                row
+                for (candidate_id, _), row in self.rows.items()
+                if candidate_id == install_id and row.get("visibility") == "global"
+            ),
+            None,
+        )
+
 
 class TestPortableExtensionIdentity:
     """AC17-R60: an export named a dependency by an identifier only one machine can read.
@@ -2524,6 +2534,99 @@ class TestPortableExtensionIdentity:
             extension_install_store=store,
             account_id=self.ACCOUNT,
         ), store
+
+    def test_list_associations_follow_current_steps_and_share_the_source_lookup(self):
+        service, store = self._service(
+            {
+                (self.INSTALL, self.ACCOUNT): {
+                    "extension_id": "example.gotenberg",
+                    "manifest": {"display_name": "Gotenberg"},
+                }
+            }
+        )
+        supplied = {
+            "source_install_id": self.INSTALL,
+            "projection_mode": "derived",
+        }
+        copied = {
+            "steps": [
+                {"connector_install_id": self.INSTALL},
+                {
+                    "step_kind": "invoke_workflow",
+                    "override": {
+                        "invoke_workflow": {"action": {"extension_id": "example.gotenberg"}}
+                    },
+                },
+            ],
+        }
+        expected = [{"extension_id": "example.gotenberg", "display_name": "Gotenberg"}]
+
+        assert service.list_extension_associations(supplied, account_id=self.ACCOUNT) == expected
+        assert service.redact_protected_workflow(supplied)["portability"][
+            "source_extension_id"
+        ] == ("example.gotenberg")
+        assert service.list_extension_associations(copied, account_id=self.ACCOUNT) == expected
+        assert service.list_extension_associations(
+            {"steps": copied["steps"][1:]}, account_id=self.ACCOUNT
+        ) == [{"extension_id": "example.gotenberg", "display_name": "example.gotenberg"}]
+        assert service.list_extension_associations({"steps": []}, account_id=self.ACCOUNT) == []
+        assert (
+            service.list_extension_associations(
+                {"steps": copied["steps"][:1]}, account_id="another-account"
+            )
+            == []
+        )
+        assert store.calls == [(self.INSTALL, self.ACCOUNT), (self.INSTALL, "another-account")]
+
+    def test_only_dependency_is_a_dotted_projected_child(self):
+        expected = {"extension_id": "example.gotenberg", "display_name": "Gotenberg"}
+        service, _ = self._service(
+            {
+                ("install-1", self.ACCOUNT): {
+                    "extension_id": expected["extension_id"],
+                    "manifest": {"display_name": expected["display_name"]},
+                }
+            }
+        )
+        workflow = {
+            "steps": [
+                {
+                    "step_kind": "invoke_workflow",
+                    "override": {
+                        "invoke_workflow": {"workflow_id": "extension.install-1.demo_child"},
+                    },
+                }
+            ],
+        }
+
+        assert service.list_extension_associations(workflow, account_id=self.ACCOUNT) == [expected]
+
+    def test_dotted_connector_reference_is_an_extension_unless_it_names_a_registry_tool(self):
+        connector_id = "example.gotenberg.render"
+        workflow = {"steps": [{"step_kind": "connector", "connector_id": connector_id}]}
+        service = WorkflowPortabilityService(_PortabilityDB())
+        with_tool = WorkflowPortabilityService(
+            _PortabilityDB(tools={connector_id: {"id": connector_id}})
+        )
+
+        assert service.list_extension_associations(workflow, account_id=self.ACCOUNT) == [
+            {"extension_id": "example.gotenberg", "display_name": "example.gotenberg"}
+        ]
+        assert with_tool.list_extension_associations(workflow, account_id=self.ACCOUNT) == []
+
+    def test_install_reference_includes_global_metadata_and_excludes_private_metadata(self):
+        workflow = {"steps": [{"connector_install_id": self.INSTALL}]}
+        row = {"extension_id": "example.gotenberg", "manifest": {"display_name": "Gotenberg"}}
+        private, _ = self._service({(self.INSTALL, "other-account"): row})
+        visible, _ = self._service(
+            {
+                (self.INSTALL, "other-account"): {**row, "visibility": "global"},
+            }
+        )
+        assert private.list_extension_associations(workflow, account_id=self.ACCOUNT) == []
+        assert visible.list_extension_associations(workflow, account_id=self.ACCOUNT) == [
+            {"extension_id": "example.gotenberg", "display_name": "Gotenberg"}
+        ]
 
     def _item(self):
         return {

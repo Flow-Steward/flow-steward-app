@@ -112,7 +112,16 @@ class OfficialReleaseSelector:
 
     def prepare_install(self, request: ReleaseInstallRequest) -> ReleaseIdentity:
         installed = self.state.load_installed_release()
-        pending = self.effective_pending(installed)
+        leftover = self.profile_switch_leftover(installed)
+        if leftover is not None and not request.discover_latest:
+            # An interrupted profile switch, not a release upgrade: ./install.sh on the
+            # profile it was switching to finishes it; on the installed profile the
+            # leftover is superseded by the installed release staged for this run.
+            if leftover.profile == self.profile:
+                return self.verify(leftover)
+            pending = None
+        else:
+            pending = self.effective_pending(installed)
         if pending is not None and not request.discover_latest and installed is not None:
             raise LifecycleError.stable_failure(
                 code="release_upgrade_pending",
@@ -157,6 +166,22 @@ class OfficialReleaseSelector:
     def effective_pending(self, installed: ReleaseIdentity | None) -> ReleaseIdentity | None:
         pending = self.state.load_pending_release()
         return None if pending == installed else pending
+
+    def profile_switch_leftover(self, installed: ReleaseIdentity | None) -> ReleaseIdentity | None:
+        """The pending release an interrupted profile switch left, if that is what it is.
+
+        A switch stages the installed release on the other profile: same version,
+        commit and platform, other profile. It is no upgrade to resume.
+        """
+        pending = self.state.load_pending_release()
+        if pending is None or installed is None:
+            return None
+        same_release = (pending.version, pending.commit_sha, pending.platform) == (
+            installed.version,
+            installed.commit_sha,
+            installed.platform,
+        )
+        return pending if same_release and pending.profile != installed.profile else None
 
     def require_context(self, target: ReleaseIdentity) -> None:
         if target.profile != self.profile or target.platform != self.platform:

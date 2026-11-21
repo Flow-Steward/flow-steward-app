@@ -882,30 +882,40 @@ class TestProviderWebhookIntake:
         request_payload = mock_service.ingest_provider_webhook.call_args.args[0]
         assert request_payload.files[0].filename == "spec.png"
 
-    def test_normalize_failure_returns_400(self, client, mock_bl):
-        mock_bl.get_provider.return_value = _provider_row("sample_tasks")
-        run_cfg = {
-            "project_name": "P",
-            "project_root": "/p",
-            "project_workflows": [{"workflow_id": "wf.sample_tasks.sync", "enabled": True}],
-        }
+    @pytest.mark.parametrize(
+        ("provider_type", "callback"),
+        [
+            ("task_provider", "_normalize_task_provider_payload"),
+            ("notification_provider", "_ingress_notification_provider_payload"),
+        ],
+        ids=["task", "notification"],
+    )
+    def test_invalid_payload_hides_internal_diagnostic(
+        self, client, mock_bl, provider_type, callback
+    ):
+        mock_bl.get_provider.return_value = _provider_row(
+            "fixture_provider", provider_type_key=provider_type
+        )
         with (
             _patch_app_db(client, mock_bl),
             patch(
-                "core.entrypoints.api.route_registration._resolve_task_provider_project_run_config",
-                return_value=(1, run_cfg),
-            ),
-            patch(
-                "core.entrypoints.api.route_registration._normalize_task_provider_payload",
-                side_effect=ValueError("bad payload"),
+                f"core.entrypoints.api.route_registration.{callback}",
+                side_effect=ValueError("fixture parser diagnostic"),
             ),
         ):
             resp = client.post(
-                "/webhook/providers/sample_tasks",
-                json=_sample_tasks_task_payload(),
+                "/webhook/providers/fixture_provider",
+                json={"event": "fixture"},
             )
+
         assert resp.status_code == 400
-        assert "bad payload" in resp.json()["error"]
+        event = mock_bl.record_domain_event.call_args.kwargs
+        assert event["payload"]["reason"] == "provider_payload_invalid"
+        assert event["payload"]["http_status"] == 400
+        assert (resp.json(), event["summary"]) == (
+            {"error": "Invalid provider webhook payload"},
+            "Invalid provider webhook payload",
+        )
 
     def test_enqueue_failure_returns_500(self, client, mock_bl):
         mock_bl.get_provider.return_value = _provider_row("sample_tasks")

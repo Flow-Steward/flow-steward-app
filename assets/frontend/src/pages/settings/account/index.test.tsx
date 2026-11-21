@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 
 import { AuthContext } from "@/lib/auth/context";
 import { useAuth } from "@/lib/auth/useAuth";
+import type * as HttpClient from "@/lib/http/client";
 import { interpolate } from "@/lib/i18n/interpolate";
 import type { TranslateParams } from "@/lib/i18n/context";
 import { addDays, todayIn } from "@/lib/time/calendar-days";
@@ -22,6 +23,18 @@ import {
 
 vi.mock("@/app/extensions", () => ({ registeredAccountProfileTabs: [], resolveRegisteredPageComponent: vi.fn() }));
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
+vi.mock("@/lib/http/client", async (importOriginal) => {
+  const original = await importOriginal<typeof HttpClient>();
+  return {
+    ...original,
+    fetchJson: async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (input === "/api/auth/multi-factor/status" && (init?.method ?? "GET") === "GET") {
+        return { enabled: false, required: false };
+      }
+      return original.fetchJson(input, init);
+    },
+  };
+});
 const i18nState = vi.hoisted(() => ({ locale: "en", messages: {} as Record<string, string> }));
 
 vi.mock("@/lib/i18n/useI18n", () => {
@@ -341,6 +354,7 @@ describe("SettingsAccountPage", () => {
     i18nState.locale = "lt";
     i18nState.messages = { "react.settings.verification_email_sent_confirm_the_link_before_it_expires": "Patvirtinimo laiškas išsiųstas. Patvirtinkite nuorodą, kol ji galioja." };
     renderPage("/settings/account?tab=signin");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Set up authenticator" })).toBeInTheDocument());
     fireEvent.change(await screen.findByPlaceholderText("name@company.com"), { target: { value: "new@example.com" } });
     fireEvent.click(screen.getByRole("button", { name: "Send verification" }));
     await waitFor(() => expect(screen.getByText("Patvirtinimo laiškas išsiųstas. Patvirtinkite nuorodą, kol ji galioja.")).toBeInTheDocument());

@@ -11,6 +11,60 @@ from core.application.lifecycle.errors import LifecycleError
 from core.application.lifecycle.stack_service import StackGatewayError
 from core.infrastructure.lifecycle.docker_gateway_contracts import ComposeCommandRunner
 
+_SCALABLE_WRITERS = ("fs-app", "fs-worker", "control-plane", "fs-mcp", "fs-extension-installer")
+#: Owner 2026-11-21 (D3): what runs code from a development checkout -- the Core
+#: services bind-mount it and the frontend dev server serves it.
+_CHECKOUT_WRITERS = (*_SCALABLE_WRITERS, "fs-frontend")
+
+
+def _stop_running(
+    target: ComposeTarget,
+    services: tuple[str, ...],
+    *,
+    run_compose: ComposeCommandRunner,
+    environment: Mapping[str, str],
+    action: str,
+) -> None:
+    running = run_compose(
+        target,
+        ("ps", "--status", "running", "--services"),
+        action=action,
+        environment=environment,
+        timeout_seconds=30,
+    )
+    present = set(str(running.stdout or "").splitlines())
+    stopping = tuple(service for service in services if service in present)
+    if stopping:
+        run_compose(
+            target,
+            ("stop", *stopping),
+            action=action,
+            environment=environment,
+            timeout_seconds=120,
+        )
+
+
+def stop_checkout_writers(
+    target: ComposeTarget,
+    *,
+    run_compose: ComposeCommandRunner,
+    environment: Mapping[str, str],
+) -> None:
+    """Stop what runs code from a development checkout before the handoff replaces it.
+
+    Owner 2026-11-21 (D3): a development installation upgrades like production, and
+    the official handoff checks the release out in place. Services that reload code
+    from that checkout would otherwise run the next release's code against a database
+    that is not migrated yet. The installer starts them again with the new images.
+    """
+    _stop_running(
+        target,
+        _CHECKOUT_WRITERS,
+        run_compose=run_compose,
+        environment=environment,
+        action="release_quiesce",
+    )
+
 
 def upgrade_target_database(
     target: ComposeTarget,
@@ -22,28 +76,13 @@ def upgrade_target_database(
 ) -> None:
     """Stop only runtime writers; data services and the retained CLI keep running."""
     compact = target.deployment_profile == "compact"
-    writers = (
-        ("compact-runtime",)
-        if compact
-        else ("fs-app", "fs-worker", "control-plane", "fs-mcp", "fs-extension-installer")
-    )
-    running = run_compose(
+    _stop_running(
         target,
-        ("ps", "--status", "running", "--services"),
-        action="database_upgrade",
+        ("compact-runtime",) if compact else _SCALABLE_WRITERS,
+        run_compose=run_compose,
         environment=environment,
-        timeout_seconds=30,
+        action="database_upgrade",
     )
-    services = set(str(running.stdout or "").splitlines())
-    stopping = tuple(service for service in writers if service in services)
-    if stopping:
-        run_compose(
-            target,
-            ("stop", *stopping),
-            action="database_upgrade",
-            environment=environment,
-            timeout_seconds=120,
-        )
     module = (
         "core.entrypoints.cli.compact_container_cli"
         if compact
@@ -111,4 +150,33 @@ class TargetReleaseMigration:
                 cause=str(exc),
                 remediation="Keep maintenance enabled, correct the reported migration problem, then repeat release upgrade.",
                 step="database_upgrade",
+            ) from exc
+
+
+class CheckoutWriterQuiesce:
+    """Stop the checkout's writers of the installed development target (D3)."""
+
+    def __init__(
+        self,
+        *,
+        target_provider: Callable[[], ComposeTarget],
+        stop: Callable[..., Any],
+        environment_provider: Callable[[], Mapping[str, str]],
+    ) -> None:
+        self.target_provider = target_provider
+        self._stop = stop
+        self.environment_provider = environment_provider
+
+    def __call__(self) -> None:
+        try:
+            self._stop(self.target_provider(), environment=self.environment_provider())
+        except StackGatewayError as exc:
+            raise LifecycleError.stable_failure(
+                code="release_checkout_quiesce_failed",
+                cause=str(exc),
+                remediation=(
+                    "Keep maintenance enabled, correct the reported Docker problem, then "
+                    "repeat release upgrade."
+                ),
+                step="release_activate",
             ) from exc

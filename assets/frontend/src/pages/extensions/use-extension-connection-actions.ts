@@ -1,8 +1,8 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
-import { type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
+import { type ConnectionSaveFeedback, type PendingConnectionDisconnect } from "@/pages/extensions/extension-manifest-render-model";
 import {
   stringFrom,
   objectOrEmpty,
@@ -71,6 +71,7 @@ export function useExtensionConnectionActions(
 ) {
   const { t } = useI18n();
   const {
+    queryClient,
     setComponentError,
     setComponentErrors,
     detailExtension,
@@ -94,6 +95,47 @@ export function useExtensionConnectionActions(
   const [confirmationPending, setConfirmationPending] = useState(false);
   const [confirmationError, setConfirmationError] = useState("");
   const [pendingDisconnect, setPendingDisconnect] = useState<PendingConnectionDisconnect | null>(null);
+
+  const saveScope = JSON.stringify([detailExtension?.extension_id, extensionInstallId, activePageProjectId, activeManifestPage?.page_id || activeManifestPage?.id || activeManifestPage?.key]);
+  const currentSaveScope = useRef(saveScope);
+  const saveScopeGeneration = useRef(0);
+  const saveRevisions = useRef<Record<string, number>>({});
+  const pendingSaves = useRef(new Set<string>());
+  const [saveFeedback, setSaveFeedback] = useState<Record<string, { scope: string; componentId: string; feedback: ConnectionSaveFeedback }>>({});
+  // Scope IDs can recur after navigation; each committed visit owns a fresh draft.
+  useLayoutEffect(() => {
+    currentSaveScope.current = saveScope;
+    saveScopeGeneration.current += 1;
+    setSaveFeedback({});
+    const extensionKey = detailExtension?.extension_id || "";
+    setStatusById((current) => ["Connection saved.", "Connection created."].includes(current[extensionKey])
+      ? { ...current, [extensionKey]: "" } : current);
+  }, [saveScope, detailExtension?.extension_id, setStatusById]);
+
+  const connectionSaveFeedback = Object.fromEntries(Object.values(saveFeedback)
+    .filter((entry) => entry.scope === saveScope)
+    .map((entry) => [entry.componentId, entry.feedback]));
+
+  function saveKey(componentId: string) { return JSON.stringify([saveScope, componentId]); }
+
+  function reportSaveFeedback(componentId: string, feedback?: ConnectionSaveFeedback) {
+    const key = saveKey(componentId);
+    setSaveFeedback((current) => {
+      const next = { ...current };
+      if (feedback) next[key] = { scope: saveScope, componentId, feedback };
+      else delete next[key];
+      return next;
+    });
+  }
+
+  function clearSaveFeedback(componentId: string) {
+    const key = saveKey(componentId);
+    saveRevisions.current[key] = (saveRevisions.current[key] || 0) + 1;
+    reportSaveFeedback(componentId);
+    const extensionKey = detailExtension?.extension_id || "";
+    setStatusById((current) => ["Connection saved.", "Connection created."].includes(current[extensionKey])
+      ? { ...current, [extensionKey]: "" } : current);
+  }
 
   /**
    * The one blocking confirmation the page can show. With `run`, the dialog
@@ -138,6 +180,7 @@ export function useExtensionConnectionActions(
   // them about a problem they have just dealt with, so editing the named field
   // takes the message down. The value is checked again on the next save.
   function clearFieldError(componentId: string, fieldName: string) {
+    clearSaveFeedback(componentId);
     setComponentErrors((current) => {
       const entry = current[componentId];
       if (!entry?.fieldPath || entry.fieldPath !== fieldName) {
@@ -190,7 +233,9 @@ export function useExtensionConnectionActions(
   function handleConnectionSelect(
     component: Record<string, unknown>,
     row: Record<string, unknown> | null,
+    preserveSaveFeedback = false,
   ) {
+    if (!preserveSaveFeedback) clearSaveFeedback(stringFrom(component.component_id || component.id || component.key));
     const data = objectOrEmpty(component.data);
     const typeField = connectionTypeField(data);
     if (!row) {
@@ -326,12 +371,24 @@ export function useExtensionConnectionActions(
     component: Record<string, unknown>,
     values: Record<string, unknown>,
   ) {
+    const componentId = stringFrom(component.component_id || component.id || component.key);
     if (!detailExtension?.extension_id || !activePageProjectId) {
-      setComponentError(component, t("react.extensions.select_a_project_before_configuring_this_extension", "Select a project before configuring this extension."));
+      const message = t("react.extensions.select_a_project_before_configuring_this_extension", "Select a project before configuring this extension.");
+      reportSaveFeedback(componentId, { status: "error", message });
+      setComponentError(component, message);
       return;
     }
     const extensionKey = detailExtension.extension_id;
-    const componentId = stringFrom(component.component_id || component.id || component.key);
+    const key = saveKey(componentId);
+    if (pendingSaves.current.has(key)) return;
+    pendingSaves.current.add(key);
+    const revision = saveRevisions.current[key] || 0;
+    const generation = saveScopeGeneration.current;
+    const isCurrentDraft = () => currentSaveScope.current === saveScope
+      && saveScopeGeneration.current === generation
+      && (saveRevisions.current[key] || 0) === revision;
+    clearComponentError(component);
+    reportSaveFeedback(componentId, { status: "saving", message: t("react.extensions.saving", "Saving…") });
     await withBusy(extensionKey, async () => {
       let createdConnectionId = "";
       let oauthStartAttempted = false;
@@ -387,17 +444,22 @@ export function useExtensionConnectionActions(
           projectId: activePageProjectId,
           returnPath: oauthReturnPath(),
         }, t);
-        await projectConnectionsQuery.refetch();
+        await Promise.all([
+          projectConnectionsQuery.refetch(),
+          queryClient.invalidateQueries({ queryKey: ["projects", activePageProjectId, "secret-approvals"] }),
+        ]);
+        if (!isCurrentDraft()) return;
         clearComponentError(component);
-        setStatusById((current) => ({
-          ...current,
-          [extensionKey]: choose(Boolean(preparation.existing), "Connection saved.", "Connection created."),
-        }));
+        const status = choose(Boolean(preparation.existing), "Connection saved.", "Connection created.");
+        setStatusById((current) => ({ ...current, [extensionKey]: status }));
+        reportSaveFeedback(componentId, { status: "success", message: preparation.existing
+          ? t("react.extensions.display_connection_saved", "Connection saved.")
+          : t("react.extensions.display_connection_created", "Connection created.") });
         if (anyTrue([Boolean(preparation.existing), !preparation.oauthConnection])) {
           handleConnectionSelect(component, {
             ...payload,
             connection_id: connectionId,
-          });
+          }, true);
         }
       } catch (error) {
         await recoverFailedConnectionSave({
@@ -406,13 +468,15 @@ export function useExtensionConnectionActions(
           projectId: activePageProjectId,
           refetch: projectConnectionsQuery.refetch,
         });
-        setComponentError(
-          component,
-          connectionSaveErrorMessage(error, {
-            oauthStartAttempted,
-          }, t),
-          errorFieldPath(error),
-        );
+        if (!isCurrentDraft()) return;
+        const message = connectionSaveErrorMessage(error, { oauthStartAttempted }, t);
+        const fieldPath = errorFieldPath(error);
+        setComponentError(component, message, fieldPath);
+        // A field error is shown beside its field; repeating it beside Save says it twice.
+        reportSaveFeedback(componentId, fieldPath ? undefined : { status: "error", message });
+      } finally {
+        pendingSaves.current.delete(key);
+        if (!isCurrentDraft()) reportSaveFeedback(componentId);
       }
     });
   }
@@ -593,6 +657,7 @@ export function useExtensionConnectionActions(
     && !archiveLifecycleVerificationFailed
     && archiveLifecycleUnavailable;
   return {
+    connectionSaveFeedback,
     oauthCallbackMessage,
     showArchiveLifecycleLoading,
     showArchiveLifecycleVerificationFailure,

@@ -77,17 +77,18 @@ export type OAuthRefreshTokenImportCommand = {
   configuration_id: string;
   connection_type: string;
   display_name: string;
-  /** Write-only: sent once, never returned. */
-  refresh_token: string;
+  /** Write-only. Omit when saving the settings of an existing connection. */
+  refresh_token?: string;
   connection_config: Record<string, unknown>;
   existing_connection_id?: string;
   connection_credential_revision?: number;
 };
 
 export type OAuthRefreshTokenImportResult = {
-  outcome: "connected" | "needs_attention" | "authorization_required" | "restart_required";
+  outcome: "connected" | "needs_attention" | "authorization_required" | "restart_required" | "settings_saved" | "post_connect_pending";
   connection_id: string;
   connection_type: string;
+  error_code?: "access_denied";
   help_target?: {
     page_id: string;
     anchor?: string;
@@ -103,6 +104,7 @@ export type OAuthPostConnectRetryResult = {
     | "restart_required"
     | "provider_unavailable";
   connection_id?: string;
+  error_code?: "access_denied";
   help_target?: {
     page_id: string;
     anchor?: string;

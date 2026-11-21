@@ -106,15 +106,21 @@ def test_upgrade_handoff_passes_every_official_image_without_shell_bootstrap(
         assert observed["environment"][role_variables[image.role]] == image.registry_ref
 
 
+@pytest.mark.parametrize("environment", ("production", "development"))
 @pytest.mark.parametrize("durable_state", ("pending", "installed", "handoff"))
 def test_official_upgrade_refuses_mutable_management_image_before_build(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, durable_state: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, durable_state: str, environment: str
 ) -> None:
+    """Official state never builds the CLI from the checkout, in either environment.
+
+    Owner 2026-11-21: development upgrades like production, so a development
+    installation with an official identity refuses a mutable CLI tag the same way.
+    """
     from core.application.release.activation import ReleaseHandoffJournal
     from tests.unit.installer.test_release_handoff import _release
 
     gateway, process, config, *_ = _configure_runtime_contract(
-        tmp_path, monkeypatch, environment="production", cli_image="flow-steward-cli:mutable"
+        tmp_path, monkeypatch, environment=environment, cli_image="flow-steward-cli:mutable"
     )
     target = _release()
     if durable_state == "pending":

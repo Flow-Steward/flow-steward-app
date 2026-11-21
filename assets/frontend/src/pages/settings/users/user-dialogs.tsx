@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { DsAlert, DsCheckbox, DsDialog, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { Button } from "@/components/ui/button";
 import type { UserRecord } from "@/pages/settings/shared/types";
 import { ROLE_OPTIONS, userLabel, type EditorState, type EditorMode, type ConfirmActionKind } from "./user-form-model";
@@ -74,7 +75,7 @@ function UserIdentityFields({
             <SensitiveInput
               ariaLabel={t("react.settings.temporary_password", "Temporary password")}
               autoComplete="off"
-              minLength={10}
+              minLength={PASSWORD_MIN_LENGTH}
               name="temporary-password"
               onChange={(event) =>
                 setEditor((value) => ({
@@ -85,7 +86,7 @@ function UserIdentityFields({
               required
               value={editor.password}
             />
-            <span className="fs-field-helper">{t("react.settings.use_10_or_more_characters", "Use 10 or more characters.")}</span>
+            <span className="fs-field-helper">{passwordRequirements(t)}</span>
           </div>
         </div>
       ) : null}
@@ -293,13 +294,13 @@ export function TemporaryPasswordDialog({
           <SensitiveInput
             ariaLabel={t("react.settings.temporary_password", "Temporary password")}
             autoComplete="off"
-            minLength={10}
+            minLength={PASSWORD_MIN_LENGTH}
             name="temporary-password"
             onChange={(event) => setTemporaryPassword(event.target.value)}
             required
             value={temporaryPassword}
           />
-          <span className="fs-field-helper">{t("react.settings.use_10_or_more_characters", "Use 10 or more characters.")}</span>
+          <span className="fs-field-helper">{passwordRequirements(t)}</span>
         </div>
         <DsCheckbox
           checked={temporaryRequireChange}

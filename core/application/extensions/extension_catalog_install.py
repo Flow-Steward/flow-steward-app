@@ -31,7 +31,9 @@ from core.application.extensions.extension_catalog import (
     extension_catalog_availability,
     fetch_extension_release_artifact,
     load_extension_catalog,
+    search_extension_catalog,
 )
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
 from core.application.extensions.install import InstallState
 from core.application.extensions.semver import compare_semver
 from core.application.management.scope import ScopeContext, normalize_scope
@@ -310,7 +312,7 @@ class ExtensionCatalogInstallService:
         self._platform_version = platform_version
         self._get_runtime_store = get_runtime_store
 
-    def list_catalog(self, *, scope: ScopeContext | None = None) -> dict[str, Any]:
+    def list_catalog(self, *, scope: ScopeContext | None = None, query: str = "") -> dict[str, Any]:
         """Return every catalog entry joined with this account's install state."""
         # One read of the index serves both the listing and its availability,
         # so the two cannot describe different revisions.
@@ -325,7 +327,7 @@ class ExtensionCatalogInstallService:
         availability = self._availability(index)
         installs = self._installs_by_extension_id(scope=scope)
         platform_version = self._platform_version()
-        return {
+        listing = {
             "kind": "extension_catalog_listing",
             "availability": availability,
             "catalog_revision": index.catalog_revision,
@@ -339,6 +341,11 @@ class ExtensionCatalogInstallService:
                 for item in index.items
             ],
         }
+        if query.strip():
+            listing["matching_ids"] = [
+                item.extension_id for item in search_extension_catalog(index, query)
+            ]
+        return listing
 
     def list_updates(
         self,
@@ -598,6 +605,7 @@ __all__ = [
     "STATE_INSTALLED_DISABLED",
     "STATE_INSTALLED_NEWER",
     "STATE_UPDATE_AVAILABLE",
+    "ExtensionCatalogInstallRequest",
     "ExtensionCatalogInstallService",
     "active_install_by_install_id",
     "active_installs_for_extension",

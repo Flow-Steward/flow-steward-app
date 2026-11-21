@@ -43,6 +43,8 @@ _DATABASE_ENV = frozenset(
         "LANGGRAPH_POSTGRES_URI",
     }
 )
+_LOCAL_CREDENTIAL_POLICY_ENV = frozenset({"FS_AUTH_MFA_REQUIRED", "FS_AUTH_PASSWORD_MIN_LENGTH"})
+
 _AUTH_BOOTSTRAP_ENV = frozenset(
     {
         "FS_AUTH_BOOTSTRAP_ALLOW_TRUSTED_PROXY",
@@ -188,6 +190,7 @@ _RUNTIME_ENV = frozenset(
         "SENTRY_DSN",
         "SENTRY_ENVIRONMENT",
         "FS_ALLOW_PRIVATE_REMOTE_URLS",
+        "FS_ALLOWED_PRIVATE_ORIGINS",
         "FS_EXTENSION_DEPS_FETCH",
         "FS_EXTENSION_DEPS_SITE_MAX_BYTES",
         "FS_EXTENSION_ARTIFACT_MAX_BYTES",
@@ -363,6 +366,7 @@ def delivered_environment_names() -> frozenset[str]:
         | _SECURITY_ENV
         | _RUNTIME_ENV
         | _AUTH_BOOTSTRAP_ENV
+        | _LOCAL_CREDENTIAL_POLICY_ENV
         | _CONTROL_LOOP_ENV
         | _MONITORING_ENV
         | _RETENTION_ENV
@@ -395,6 +399,7 @@ def build_process_specs(
         | _SECURITY_ENV
         | _RUNTIME_ENV
         | _AUTH_BOOTSTRAP_ENV
+        | _LOCAL_CREDENTIAL_POLICY_ENV
         | _MONITORING_ENV
         | _RETENTION_POLICY_ENV
         | _TELEMETRY_ENV
@@ -404,6 +409,7 @@ def build_process_specs(
         | _DATABASE_ENV
         | _BROKER_ENV
         | _SECURITY_ENV
+        | _LOCAL_CREDENTIAL_POLICY_ENV
         | _RUNTIME_ENV
         | _MONITORING_ENV
         | _TELEMETRY_ENV

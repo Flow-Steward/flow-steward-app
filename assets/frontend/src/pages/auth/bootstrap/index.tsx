@@ -9,6 +9,7 @@ import { Link, Navigate, useNavigate } from "react-router";
 import { OptionalLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -20,8 +21,8 @@ function getBootstrapschema(t: I18nContextValue["t"] = fallbackContext.t) {
   .object({
     email: z.email(t("react.auth.enter_a_valid_email", "Enter a valid email.")),
     displayName: z.string().trim().optional(),
-    password: z.string().min(10, t("auth.common.password_too_short", "Password must be at least 10 characters.")),
-    confirmPassword: z.string().min(10, t("react.auth.confirm_password_must_be_at_least_10_characters", "Confirm password must be at least 10 characters.")),
+    password: z.string().min(PASSWORD_MIN_LENGTH, passwordRequirements(t)),
+    confirmPassword: z.string().min(PASSWORD_MIN_LENGTH, t("react.auth.use_at_least_count_characters", "Use at least {count} characters.", { count: PASSWORD_MIN_LENGTH })),
   })
   .refine((values) => values.password === values.confirmPassword, {
     message: t("auth.common.passwords_do_not_match", "Passwords do not match."),
@@ -206,16 +207,19 @@ export function BootstrapPage() {
             />
           </label>
 
-          <label className="block">
-            <span className="mb-2 block text-sm text-slate-300">{t("auth.common.password", "Password")}</span>
-            <input
-              {...form.register("password")}
-              className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-emerald-300"
-              placeholder={t("react.auth.at_least_10_characters", "At least 10 characters")}
-              type="password"
-            />
-            <span className="mt-2 block text-sm text-rose-300">{form.formState.errors.password?.message}</span>
-          </label>
+          <div>
+            <label className="block">
+              <span className="mb-2 block text-sm text-slate-300">{t("auth.common.password", "Password")}</span>
+              <input
+                {...form.register("password")}
+                className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-emerald-300"
+                autoComplete="new-password"
+                aria-describedby="bootstrap-password-hint"
+                type="password"
+              />
+            </label>
+            <span id="bootstrap-password-hint" className={form.formState.errors.password ? "mt-2 block text-sm text-rose-300" : "mt-2 block text-sm text-slate-300"}>{form.formState.errors.password?.message || passwordRequirements(t)}</span>
+          </div>
 
           <label className="block">
             <span className="mb-2 block text-sm text-slate-300">{t("react.auth.confirm_password", "Confirm password")}</span>

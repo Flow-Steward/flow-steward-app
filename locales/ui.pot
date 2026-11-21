@@ -3372,6 +3372,9 @@ msgstr ""
 msgid "react.auth.choose_a_password_different_from_the_temporary_one"
 msgstr ""
 
+msgid "react.auth.choose_a_different_password"
+msgstr ""
+
 msgid "react.auth.choose_an_account"
 msgstr ""
 
@@ -3468,6 +3471,24 @@ msgstr ""
 msgid "react.auth.local_auth_bootstrap_is_active_because_no_users_exist_yet_create_the_first_admin_account_then_return_to_login"
 msgstr ""
 
+msgid "react.auth.mfa_code"
+msgstr ""
+
+msgid "react.auth.mfa_code_invalid"
+msgstr ""
+
+msgid "react.auth.mfa_code_required"
+msgstr ""
+
+msgid "react.auth.mfa_contact_admin"
+msgstr ""
+
+msgid "react.auth.mfa_enrollment_required"
+msgstr ""
+
+msgid "react.auth.mfa_required"
+msgstr ""
+
 msgid "react.auth.new_password"
 msgstr ""
 
@@ -3478,6 +3499,21 @@ msgid "react.auth.no_external_sign_in_flow_is_configured_contact_your_workspace_
 msgstr ""
 
 msgid "react.auth.or_use_your_password"
+msgstr ""
+
+msgid "react.auth.password_composition"
+msgstr ""
+
+msgid "react.auth.password_expired"
+msgstr ""
+
+msgid "react.auth.password_expiry_warning"
+msgstr ""
+
+msgid "react.auth.password_expiry_warning_one"
+msgstr ""
+
+msgid "react.auth.password_length_recommendation"
 msgstr ""
 
 msgid "react.auth.password_recovery_is_temporarily_unavailable"
@@ -4935,6 +4971,9 @@ msgstr ""
 msgid "react.extensions.oauth_import_invalid_client"
 msgstr ""
 
+msgid "react.extensions.oauth_import_keep_refresh_token"
+msgstr ""
+
 msgid "react.extensions.oauth_import_provider_unavailable"
 msgstr ""
 
@@ -4951,6 +4990,9 @@ msgid "react.extensions.oauth_import_refresh_token_rejected"
 msgstr ""
 
 msgid "react.extensions.oauth_import_refresh_token_required"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_saved"
 msgstr ""
 
 msgid "react.extensions.oauth_import_replace"
@@ -5020,6 +5062,12 @@ msgid "react.extensions.page_refresh.stopped"
 msgstr ""
 
 msgid "react.extensions.permissions_it_asks_for"
+msgstr ""
+
+msgid "react.extensions.post_connect_access_denied"
+msgstr ""
+
+msgid "react.extensions.post_connect_retry_verification"
 msgstr ""
 
 msgid "react.extensions.pre_save_result_mapping_target_value0_must_be_a_declared_non_secret_config_field"
@@ -11454,6 +11502,57 @@ msgstr ""
 msgid "react.settings.applies_after_the_profile_refresh_completes"
 msgstr ""
 
+msgid "react.settings.authenticator_continue_setup"
+msgstr ""
+
+msgid "react.settings.authenticator_description"
+msgstr ""
+
+msgid "react.settings.authenticator_disable"
+msgstr ""
+
+msgid "react.settings.authenticator_error"
+msgstr ""
+
+msgid "react.settings.authenticator_loading"
+msgstr ""
+
+msgid "react.settings.authenticator_open"
+msgstr ""
+
+msgid "react.settings.authenticator_policy_required"
+msgstr ""
+
+msgid "react.settings.authenticator_recovery_codes"
+msgstr ""
+
+msgid "react.settings.authenticator_recovery_instructions"
+msgstr ""
+
+msgid "react.settings.authenticator_replace"
+msgstr ""
+
+msgid "react.settings.authenticator_request_failed"
+msgstr ""
+
+msgid "react.settings.authenticator_setup"
+msgstr ""
+
+msgid "react.settings.authenticator_setup_instructions"
+msgstr ""
+
+msgid "react.settings.authenticator_status_error"
+msgstr ""
+
+msgid "react.settings.authenticator_title"
+msgstr ""
+
+msgid "react.settings.authenticator_verification_code"
+msgstr ""
+
+msgid "react.settings.authenticator_verify"
+msgstr ""
+
 msgid "react.settings.backend_policy_may_require_more"
 msgstr ""
 
@@ -11827,6 +11926,9 @@ msgid "react.settings.enter_a_valid_email_and_a_temporary_password_of_at_least_1
 msgstr ""
 
 msgid "react.settings.enter_a_valid_new_email_address"
+msgstr ""
+
+msgid "react.settings.enter_current_and_matching_new_passwords"
 msgstr ""
 
 msgid "react.settings.enter_the_current_password_and_matching_new_passwords_of_at_least_10_characters"

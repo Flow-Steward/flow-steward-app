@@ -10,10 +10,7 @@ from typing import Any
 
 import yaml
 
-from core.application.workflows.extension_connection_validation import (
-    named_extension_without_install,
-    step_extension_id,
-)
+from core.application.workflows.extension_connection_validation import step_extension_id
 from core.application.workflows.workflow_action_contract import action_invoke_dependencies
 from core.application.workflows.workflow_catalog_identity import parse_projected_identity
 from core.application.workflows.workflow_portability_artifacts import (
@@ -41,6 +38,7 @@ from core.application.workflows.workflow_portability_common import (
     _normalize_participants,
     _redact_definitions,
     _redact_sensitive,
+    _resolve_named_step_extension,
     _sorted_options,
     _step_child_workflow_ref,
     _text,
@@ -329,11 +327,8 @@ class WorkflowPortabilityExportMixin:
                     source=f"{source}.connector_install_id",
                     metadata={"dependency_kind": "extension_install"},
                 )
-            named_extension = named_extension_without_install(step)
-            if named_extension is not None and (
-                named_extension.connector_form
-                or _call_db_get(self.db, "get_tool", _text(step.get("connector_id"))) is None
-            ):
+            named_extension = _resolve_named_step_extension(self.db, step)
+            if named_extension is not None:
                 # The step names its extension by package id and no install. Report it
                 # like any extension, so import maps it to this account's install and
                 # the rewrite fills connector_install_id, instead of a draft that

@@ -2427,6 +2427,31 @@ def test_production_refuses_incomplete_official_image_set_without_local_build(
     assert "CMD=build " not in _log(fake_repo)
 
 
+def test_official_development_refuses_incomplete_image_set_without_local_build(
+    fake_repo: tuple[Path, Path],
+) -> None:
+    """Owner 2026-11-21: an official development installation never builds its CLI.
+
+    Development upgrades like production; with FS_INSTALL_MODE=official the launcher
+    refuses an incomplete image set exactly as production does, instead of building
+    the CLI from the checkout the way a source development installation may.
+    """
+    selected = f"registry.example/flow-steward-cli@sha256:{'d' * 64}"
+    _write_selected_cli_image(fake_repo, environment="development", value=selected)
+    with (fake_repo[0] / ".env").open("a", encoding="utf-8") as environment_file:
+        environment_file.write("FS_INSTALL_MODE=official\n")
+
+    result = _run_launcher(
+        fake_repo,
+        "--help",
+        env={"FAKE_IMAGE_REVISION": "old-revision", "FAKE_CONTAINER_PRESENT": "0"},
+    )
+
+    assert result.returncode == 4
+    assert "local image builds are disabled for official installations" in result.stderr
+    assert "CMD=build " not in _log(fake_repo)
+
+
 @pytest.mark.parametrize("environment", ["development", "production"])
 @pytest.mark.parametrize(
     ("container_running", "expected_start"),

@@ -37,6 +37,18 @@ _SENSITIVE_KEY_PARTS = ("password", "secret", "token")
 # The `kind` the installer writes into the lifecycle lock it holds; the lifecycle side
 # reads it to say that ./install.sh, not an operation, is what holds the lock.
 INSTALLER_LOCK_KIND = "install"
+# The environment variable that carries a lease of install.lock to the one lifecycle
+# operation this installer run starts (a profile switch's `config apply` in fs-cli).
+# install.lock records only its SHA-256, so reading the lock file grants nothing.
+INSTALLER_LOCK_LEASE_ENV = "FS_INSTALLER_LOCK_LEASE"
+
+
+def installer_lock_lease_matches(metadata: Mapping[str, object], lease: str) -> bool:
+    """Whether install.lock is leased to the holder of `lease` by a running installer."""
+    recorded = metadata.get("lease_sha256")
+    if metadata.get("kind") != INSTALLER_LOCK_KIND or not isinstance(recorded, str) or not lease:
+        return False
+    return hmac.compare_digest(recorded, hashlib.sha256(lease.encode("utf-8")).hexdigest())
 
 
 class SecureInstallerLog:
@@ -270,6 +282,7 @@ class InstallerStateStore:
                     retryable=True,
                     step="lock",
                 ) from exc
+            self._write_install_lock_metadata()
             with self._lifecycle_lock():
                 held = {os.path.realpath(self.lock_path): fd}
                 held.update(
@@ -425,12 +438,41 @@ class InstallerStateStore:
         stay held meanwhile, so ./flow-steward refuses everything else; and if this run
         dies, the operation keeps its lock until it finishes. Taken back afterwards, and
         refused by name if something else holds it by then.
+
+        The lifecycle store also takes install.lock, which this run keeps holding, so
+        the operation would refuse itself ("another lifecycle operation owns the
+        mutation lock"). Yields a one-time lease: the caller passes it in
+        INSTALLER_LOCK_LEASE_ENV to that one operation, and install.lock records its
+        hash until the operation returns.
         """
+        lease = uuid4().hex + uuid4().hex
+        self._write_install_lock_metadata(
+            lease_sha256=hashlib.sha256(lease.encode("utf-8")).hexdigest()
+        )
         self._release_lifecycle_locks()
         try:
-            yield
+            yield lease
         finally:
+            self._write_install_lock_metadata()
             self._acquire_lifecycle_locks()
+
+    def _write_install_lock_metadata(self, *, lease_sha256: str = "") -> None:
+        """Say in install.lock that ./install.sh holds it, and whether it is leased."""
+        payload: dict[str, object] = {
+            "kind": INSTALLER_LOCK_KIND,
+            "pid": os.getpid(),
+            "written_at": datetime.now(UTC).isoformat(),
+        }
+        if lease_sha256:
+            payload["lease_sha256"] = lease_sha256
+        flags = os.O_WRONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(self.lock_path, flags)
+        try:
+            os.ftruncate(fd, 0)
+            os.write(fd, (json.dumps(payload, sort_keys=True) + "\n").encode())
+            os.fsync(fd)
+        finally:
+            os.close(fd)
 
     def _acquire_lifecycle_locks(self) -> None:
         held: list[int] = []

@@ -163,3 +163,49 @@ def test_public_readiness_preserves_maintenance_stuck_job_safety(monkeypatch):
         is False
     )
     assert "private backend failure" not in response.text
+
+
+def test_deep_readiness_preserves_typed_checks_without_internal_details(monkeypatch):
+    health, client = _import_health_module()
+    diagnostic = "sample backend diagnostic marker"
+    checks = {
+        "postgres": {"ok": False, "error": diagnostic, "unexpected": diagnostic},
+        "rabbitmq": {
+            "ok": False,
+            "state": "broker_unavailable",
+            "status_label": "Broker unavailable",
+        },
+        "memory_backends": {
+            "ok": False,
+            "error": diagnostic,
+            "workflow_knowledge": {
+                "graph": {"available": False, "error": diagnostic},
+                "vector": {"available": True},
+                "scope": {"freshness": "stale", "catalog_digest": "a" * 64},
+            },
+        },
+    }
+    monkeypatch.setattr(health, "_operations_request_authorized", lambda _request: True)
+    monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
+    monkeypatch.setattr(health.deps, "env_flag", lambda _name, default: default)
+    monkeypatch.setattr(health.deps, "local_auth_enabled", lambda: False)
+    monkeypatch.setattr(health.deps, "external_auth_enabled", lambda: False)
+    monkeypatch.setattr(health.HealthCountsQueryService, "get_counts", lambda _self, _bl: {})
+    monkeypatch.setattr(
+        health.deps, "compute_readiness", lambda _bl: {"ready": False, "checks": checks}
+    )
+
+    response = client.get("/health/deep")
+
+    assert response.status_code == 503
+    assert diagnostic not in response.text
+    projected = response.json()["checks"]
+    assert projected["postgres"]["ok"] is False
+    assert projected["postgres"]["error"]
+    assert "unexpected" not in projected["postgres"]
+    assert projected["rabbitmq"]["state"] == "broker_unavailable"
+    assert projected["rabbitmq"]["status_label"] == "Broker unavailable"
+    knowledge = projected["memory_backends"]["workflow_knowledge"]
+    assert knowledge["graph"]["available"] is False
+    assert knowledge["vector"]["available"] is True
+    assert knowledge["scope"] == {"freshness": "stale", "catalog_digest": "a" * 64}

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -219,6 +219,24 @@ class ArtifactPresentationResolver:
 
     def read_presentation(self, authorized_metadata: Mapping[str, Any]) -> dict[str, Any] | None:
         return self._plane.read_artifact_presentation(dict(authorized_metadata))
+
+
+class DeferredArtifactPresentationResolver:
+    """ArtifactPresentationResolver's lookups over a plane built on the first lookup.
+
+    A CLI process answers one command. Building artifact storage up front would make
+    `jobs list` depend on storage it never reads; a plane that cannot be built fails
+    the lookup instead, which the result projection reports as unavailable.
+    """
+
+    def __init__(self, plane_factory: Callable[[], Any]):
+        self._plane_factory = plane_factory
+
+    def __call__(self, artifact_id: str) -> dict[str, Any] | None:
+        return self._plane_factory().get_artifact(artifact_id)
+
+    def read_presentation(self, authorized_metadata: Mapping[str, Any]) -> dict[str, Any] | None:
+        return self._plane_factory().read_artifact_presentation(dict(authorized_metadata))
 
 
 def artifact_presentation_view(
