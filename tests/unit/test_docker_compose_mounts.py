@@ -747,7 +747,7 @@ def test_local_optional_images_use_pinned_non_latest_refs() -> None:
         "${SONAR_SCANNER_IMAGE:-sonarsource/sonar-scanner-cli@sha256:23ca0f137965d9dff2198074043fd48d386280bc5d0ccac8c8349cea4cf096a9}"
     )
     assert services["seaweedfs"].get("image") == (
-        "chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77"
+        "chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15"
     )
 
 

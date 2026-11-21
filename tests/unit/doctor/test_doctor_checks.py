@@ -333,9 +333,42 @@ def test_a_running_but_unhealthy_service_fails_the_doctor() -> None:
     finding = _diagnose("stack_unhealthy", _Probe(unhealthy=["seaweedfs"]))
 
     assert finding.status == "fail"
-    assert not finding.repairable
+    assert finding.repairable
     assert "seaweedfs" in finding.cause
+    assert finding.next_step.startswith("./flow-steward doctor --fix stack_unhealthy --confirm")
     assert "stack logs --service seaweedfs" in finding.next_step
+
+
+@pytest.mark.parametrize(
+    ("comes_back_healthy", "outcome"), [(True, "repaired"), (False, "still_failing")]
+)
+def test_fix_restarts_only_the_unhealthy_service_and_checks_it_again(
+    comes_back_healthy: bool, outcome: str
+) -> None:
+    """#26: `doctor --fix` restarts what fails its healthcheck, as stack_stopped starts
+    what is stopped; a service still unhealthy afterwards is not reported as fixed."""
+
+    restarted: list[str] = []
+
+    class Probe(_Probe):
+        def restart_unhealthy_services(self) -> str:
+            restarted.extend(self.unhealthy)
+            if comes_back_healthy:
+                self.unhealthy = []
+            return "Restarted: " + ", ".join(restarted) + "."
+
+    probe = Probe(unhealthy=["seaweedfs"])
+    service = DoctorService(checks.p1_checks(), profile="compact")
+
+    result = service.fix(probe, only=["stack_unhealthy"], confirm=lambda _plan: True)
+
+    assert [finding.check_id for finding in result.plan] == ["stack_unhealthy"]
+    assert restarted == ["seaweedfs"]
+    assert [(item.check_id, item.kind) for item in result.outcomes] == [
+        ("stack_unhealthy", outcome)
+    ]
+    assert result.final is not None
+    assert result.final.clean is comes_back_healthy
 
 
 def test_healthy_services_pass_the_health_check() -> None:

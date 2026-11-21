@@ -1017,7 +1017,7 @@ services:
   # required -- `:?` fails the whole file even when this profile is not selected. A
   # missing config file, by contrast, stops the server.
   seaweedfs-config:
-    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    image: chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     profiles: ["storage-seaweedfs"]
     user: "0:0"
     restart: "no"
@@ -1031,14 +1031,14 @@ services:
       - ${FS_INSTALLER_STATE_DIR:-../../.flow-steward}/runtime/seaweedfs-s3.json:/run/flow-steward-runtime/seaweedfs-s3.json:ro
 
   seaweedfs:
-    image: chrislusf/seaweedfs@sha256:854479eebcbc0060d803edb27b3bd88a0552e23fde08a26a6482e59aff887a77
+    image: chrislusf/seaweedfs@sha256:4b42c212543a0acd4c0e675215ecdcaf62a186ef98def76c7e12701871222d15
     profiles: ["storage-seaweedfs"]
     depends_on:
       seaweedfs-config:
         condition: service_completed_successfully
     restart: always
     stop_grace_period: 30s
-    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100}"
+    command: "server -s3 -ip=seaweedfs -ip.bind=0.0.0.0 -master.peers=none -s3.ip.bind=0.0.0.0 -s3.port=8333 -s3.config=/config/seaweedfs-s3.json -dir=/data -volume.max=${SEAWEEDFS_VOLUME_MAX:-100} -master.telemetry=false"
     ports:
       - "127.0.0.1:${SEAWEEDFS_S3_HOST_PORT:-18333}:8333"     # S3 API
       - "127.0.0.1:${SEAWEEDFS_MASTER_HOST_PORT:-19333}:9333" # Master UI
