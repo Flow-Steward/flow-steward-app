@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from core.infrastructure.extension_runtime import dataset_empty_objects as empty_objects
 from core.infrastructure.tabular_feed.common import _clamped_limit, _pl, _text
 from core.infrastructure.tabular_feed.conditions import _empty
 from core.infrastructure.tabular_feed.constants import (
@@ -205,14 +206,13 @@ def _dataframe_from_artifact_path(
         lazy_result = lazy
         info = {"format": "parquet", "encoding": "", "delimiter": "", "warnings": []}
     elif fmt == "ndjson":
-        # Types come from the whole file: a column null in the first rows (Polars samples
-        # 100) and filled later, such as Shopify's template_suffix, is not typed Null.
-        lazy_frame = pl.scan_ndjson(path, infer_schema_length=None)
+        # Whole-file types; empty objects stay apart from null (dataset_empty_objects).
+        lazy_frame = empty_objects.scan_ndjson(path, pl)
         df = lazy_frame if lazy else _collect_bounded(lazy_frame)
         lazy_result = lazy
         info = {"format": "ndjson", "encoding": "utf-8", "delimiter": "", "warnings": []}
     elif fmt == "json":
-        df = pl.read_json(path, infer_schema_length=None)
+        df = empty_objects.read_json(path, pl)
         info = {"format": "json", "encoding": "utf-8", "delimiter": "", "warnings": []}
     elif fmt == "xlsx":
         import openpyxl

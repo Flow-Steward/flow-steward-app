@@ -962,6 +962,9 @@ def test_artifact_lazy_readers_apply_row_limit_before_collect(
     class FakeLazyFrame:
         limited_to: int | None = None
 
+        def collect_schema(self) -> dict[str, object]:
+            return {}
+
         def limit(self, value: int):
             self.limited_to = value
             return self

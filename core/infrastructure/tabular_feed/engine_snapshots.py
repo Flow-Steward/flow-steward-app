@@ -14,6 +14,7 @@ from typing import Any
 from core.application.extensions.artifact_plane_values import artifact_metadata_key
 from core.application.tabular_feed.snapshot_models import SnapshotHead, SnapshotRef, SnapshotScope
 from core.application.tabular_feed.snapshot_repository import SnapshotRepository
+from core.infrastructure.extension_runtime import dataset_empty_objects as empty_objects
 from core.infrastructure.tabular_feed.common import (
     _limit_env,
     _pl,
@@ -323,7 +324,9 @@ def _create_snapshot_parquet_artifact(
     fd, path = tempfile.mkstemp(suffix=_PATH_PARQUET)
     os.close(fd)
     try:
-        frame.sink_parquet(path, compression="zstd", row_group_size=1_000)
+        empty_objects.storable_frame(frame).sink_parquet(
+            path, compression="zstd", row_group_size=1_000
+        )
         artifact_id, metadata = _create_artifact_from_file(
             action,
             filename=f"{_profile_slug(profile_key)}-candidate.parquet",

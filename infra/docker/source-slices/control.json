@@ -545,6 +545,7 @@
     "core/infrastructure/extension_runtime/atomic_publish.py",
     "core/infrastructure/extension_runtime/boundary.py",
     "core/infrastructure/extension_runtime/browser_permissions.py",
+    "core/infrastructure/extension_runtime/dataset_empty_objects.py",
     "core/infrastructure/extension_runtime/dataset_representations.py",
     "core/infrastructure/extension_runtime/extension_action_manifest.py",
     "core/infrastructure/extension_runtime/extension_browser_picker_contract.py",

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from core.application.extensions.artifact_dataset_plane_v2 import ArtifactDatasetPlane
+from core.infrastructure.extension_runtime import dataset_empty_objects as empty_objects
 from core.infrastructure.extension_runtime.object_storage import APPLICATION_JSON_VALUE
 from core.infrastructure.tabular_feed.common import (
     _as_dict,
@@ -51,6 +52,10 @@ _CURRENT_PLANE: ContextVar[ArtifactDatasetPlane | None] = ContextVar(
     default=None,
 )
 _CURRENT_STORAGE: ContextVar[Any | None] = ContextVar("tabular_feed_storage", default=None)
+
+
+class DatasetMaterializationError(Exception):
+    """The table was read but cannot be stored as a Parquet dataset."""
 
 
 def _plane() -> tuple[ArtifactDatasetPlane, Any]:
@@ -360,7 +365,7 @@ def _dataset_dataframe(
     with _storage_key_path(storage, object_key, suffix=suffix, max_bytes=max_bytes) as path:
         if suffix == _PATH_PARQUET:
             return pl.scan_parquet(path).collect(engine="streaming"), meta
-        return pl.read_json(path, infer_schema_length=None), meta
+        return empty_objects.read_json(path, pl), meta
 
 
 @contextlib.contextmanager
@@ -383,7 +388,7 @@ def _dataset_lazyframe(
         if suffix == _PATH_PARQUET:
             yield pl.scan_parquet(path), meta
         else:
-            yield pl.read_json(path, infer_schema_length=None).lazy(), meta
+            yield empty_objects.read_json(path, pl).lazy(), meta
 
 
 def _df_rows(df: Any, limit: int | None = None) -> list[dict[str, Any]]:
@@ -393,7 +398,11 @@ def _df_rows(df: Any, limit: int | None = None) -> list[dict[str, Any]]:
         if isinstance(value, Decimal):
             return format(value, "f")
         if isinstance(value, dict):
-            return {key: jsonable(item) for key, item in value.items()}
+            return {
+                key: jsonable(item)
+                for key, item in value.items()
+                if not (key == empty_objects.EMPTY_OBJECT_FIELD and item is None)
+            }
         if isinstance(value, list):
             return [jsonable(item) for item in value]
         return value
@@ -412,7 +421,8 @@ def _df_schema(df: Any) -> dict[str, Any]:
         dtypes = list(df.dtypes)
     return {
         "columns": [
-            {"name": name, "type": str(dtype)} for name, dtype in zip(columns, dtypes, strict=True)
+            {"name": name, "type": empty_objects.display_dtype(dtype)}
+            for name, dtype in zip(columns, dtypes, strict=True)
         ],
         "format": "parquet",
     }
@@ -420,6 +430,27 @@ def _df_schema(df: Any) -> dict[str, Any]:
 
 def _new_dataset_id() -> str:
     return f"dst_{uuid.uuid4().hex[:24]}"
+
+
+def _sink_dataset_parquet(df: Any, path: str) -> None:
+    """Write *df* as dataset Parquet; a type Parquet cannot hold is not a read error."""
+    eager = isinstance(df, _pl().DataFrame)  # a LazyFrame also has .lazy()
+    lazy_frame = empty_objects.storable_frame(df.lazy() if eager else df)
+    unstorable = empty_objects.unstorable_columns(lazy_frame.collect_schema())
+    if unstorable:
+        raise DatasetMaterializationError(
+            "Could not store the table as a dataset: unsupported column type in "
+            + ", ".join(repr(name) for name in unstorable)
+        )
+    try:
+        lazy_frame.sink_parquet(path, compression="zstd", row_group_size=1_000)
+    except _pl().exceptions.PolarsError as exc:
+        if not eager:
+            raise  # a lazy scan reads its input here, so this may be a parse error
+        detail = next((line.strip() for line in str(exc).splitlines() if line.strip()), "")
+        raise DatasetMaterializationError(
+            f"Could not store the table as a dataset: {detail}"[:300]
+        ) from exc
 
 
 def _create_dataset_from_df(
@@ -437,8 +468,7 @@ def _create_dataset_from_df(
     fd, path = tempfile.mkstemp(suffix=_PATH_PARQUET)
     os.close(fd)
     try:
-        lazy_frame = df.lazy() if callable(getattr(df, "lazy", None)) else df
-        lazy_frame.sink_parquet(path, compression="zstd", row_group_size=1_000)
+        _sink_dataset_parquet(df, path)
         persisted = pl.scan_parquet(path)
         row_count = int(persisted.select(pl.len()).collect(engine="streaming").item())
         row_limit = max_rows or _limit_env("FS_FEED_MAX_ROWS", DEFAULT_MAX_ROWS)
@@ -503,8 +533,7 @@ def _create_dataset(
     schema: dict[str, Any] | None = None,
     retention_class: str = "run_window",
 ) -> tuple[str, dict[str, Any]]:
-    pl = _pl()
-    df = pl.DataFrame(rows, infer_schema_length=None)
+    df = empty_objects.frame_from_rows(rows)
     return _create_dataset_from_df(
         action,
         df=df,

@@ -11,6 +11,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from core.infrastructure.extension_runtime import dataset_empty_objects as empty_objects
+
 _MESSAGE_DATASET_REPRESENTATION_SOURCE_EXCEEDS_MAX_SIZE_BYTES = (
     "dataset representation source exceeds max_size_bytes"
 )
@@ -238,7 +240,17 @@ def materialize_dataset_representation(
             try:
                 import polars as pl
 
-                pl.scan_parquet(source_path).sink_ndjson(bounded_output, engine="streaming")
+                source = pl.scan_parquet(source_path)
+                # A stored empty object leaves as {}, not as its reserved Parquet field.
+                if any(
+                    empty_objects.contains_empty_object_field(dtype)
+                    for dtype in source.collect_schema().values()
+                ):
+                    rendering = empty_objects.EmptyObjectJsonWriter(bounded_output)
+                    source.sink_ndjson(rendering, engine="streaming")
+                    rendering.finish()
+                else:
+                    source.sink_ndjson(bounded_output, engine="streaming")
             except OSError as exc:
                 if _REPRESENTATION_LIMIT_MARKER not in str(exc):
                     raise
