@@ -36,6 +36,8 @@ def _route(method: str, path: str) -> AppApiRoute:
 
 
 MCP_TOOL_ROUTES: dict[str, AppApiRoute] = {
+    "catalog_search": _route("GET", "/api/catalog/search"),
+    "extension_catalog_install": _route("POST", "/api/extensions/catalog/install"),
     "capability_search": _route(
         "GET", "/api/projects/{project_id}/workflow-authoring/capabilities"
     ),

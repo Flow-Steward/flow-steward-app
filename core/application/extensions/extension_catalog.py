@@ -293,6 +293,21 @@ def load_extension_catalog(*, max_age_seconds: float = 0.0) -> ExtensionCatalogI
         ) from exc
 
 
+def search_extension_catalog(
+    index: ExtensionCatalogIndex, query: str
+) -> list[ExtensionCatalogItem]:
+    """Match the published extension fields used by Marketplace and MCP."""
+    terms = query.casefold().split()
+    matches = []
+    for item in index.items:
+        text = " ".join(
+            (item.extension_id, item.name, item.summary, item.description, *item.tags)
+        ).casefold()
+        if all(term in text for term in terms):
+            matches.append(item)
+    return matches
+
+
 def cached_extension_catalog_names() -> dict[str, str]:
     """Each listed extension's name from the index this process holds, never fetched.
 

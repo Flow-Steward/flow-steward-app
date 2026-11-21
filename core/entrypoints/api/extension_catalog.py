@@ -16,10 +16,9 @@ process; declared sync, Starlette runs it in a worker thread.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Query, Request
 from starlette.responses import JSONResponse, Response
 
 from core.application.extensions.extension_catalog import (
@@ -28,24 +27,10 @@ from core.application.extensions.extension_catalog import (
     extension_catalog_icon,
 )
 from core.application.extensions.extension_catalog_install import (
+    ExtensionCatalogInstallRequest,
     ExtensionCatalogInstallService,
 )
 from core.application.management.errors import ServiceError
-
-
-class ExtensionCatalogInstallRequest(BaseModel):
-    """One catalog entry to install, by logical id and the version offered."""
-
-    extension_id: str = Field(min_length=1, max_length=200)
-    #: The version and digest the card showed. Listing and install can be
-    #: served by two processes with independent caches, and a republished
-    #: version keeps its number while changing its bytes, so the client pins
-    #: both and the backend refuses when either has moved.
-    version: str = Field(min_length=1, max_length=64)
-    release_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[a-f0-9]{64}$")
-    approved_browser_authority_impact_hash: str = Field(
-        default="", max_length=64, pattern=r"^(?:|[a-f0-9]{64})$"
-    )
 
 
 def create_extension_catalog_router(
@@ -71,10 +56,10 @@ def create_extension_catalog_router(
         return JSONResponse(exc.detail(), status_code=exc.status_code)
 
     @router.get("/api/extensions/catalog")
-    def api_extension_catalog(request: Request):
+    def api_extension_catalog(request: Request, query: Annotated[str, Query(max_length=200)] = ""):
         """List the cached catalog joined with this account's install state."""
         try:
-            return _service().list_catalog(scope=request_scope(request))
+            return _service().list_catalog(scope=request_scope(request), query=query)
         except ExtensionCatalogError as e:
             return _catalog_error_response(e)
         except ServiceError as e:

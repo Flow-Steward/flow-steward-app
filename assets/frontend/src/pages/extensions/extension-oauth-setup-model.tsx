@@ -234,7 +234,15 @@ export function redirectRegistrationGuidance(error: unknown, t: I18nContextValue
   );
 }
 
-export function postConnectRetryGuidance(outcome: OAuthPostConnectRetryResult["outcome"], t: I18nContextValue["t"] = fallbackContext.t): string {
+export function postConnectAccessDeniedGuidance(t: I18nContextValue["t"]): string {
+  return t("react.extensions.post_connect_access_denied", "The provider denied access. Check the application's permissions and reauthorize the account if needed.");
+}
+
+export function postConnectRetryGuidance(
+  { outcome, error_code }: OAuthPostConnectRetryResult,
+  t: I18nContextValue["t"] = fallbackContext.t,
+): string {
+  if (error_code === "access_denied") return postConnectAccessDeniedGuidance(t);
   if (outcome === "needs_attention" || outcome === "provider_unavailable") {
     return t("react.extensions.connection_verification_still_needs_attention_review_the_provider_troubleshooting_guidance_and_try_again", "Connection verification still needs attention. Review the provider troubleshooting guidance and try again.");
   }

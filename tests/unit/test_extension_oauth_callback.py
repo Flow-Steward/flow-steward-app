@@ -1165,7 +1165,10 @@ def test_reconnect_failure_keeps_bound_subject_and_new_grant() -> None:
     assert repository.updated[0]["secret_refs"]["refs"]["_oauth_access_token"] == "access-ref"
 
 
-def test_post_connect_retry_uses_committed_access_without_new_consent_and_exact_scope() -> None:
+@pytest.mark.parametrize("previous_error", ["provider_unavailable", "access_denied"])
+def test_post_connect_retry_uses_committed_access_without_new_consent_and_exact_scope(
+    previous_error: str,
+) -> None:
     repository = _Repository()
     repository.configuration["status"] = "verified"
     repository.connection.update(
@@ -1178,7 +1181,7 @@ def test_post_connect_retry_uses_committed_access_without_new_consent_and_exact_
             "connection_config": {
                 "oauth": {
                     "lifecycle_status": "needs_attention",
-                    "last_error_code": "provider_unavailable",
+                    "last_error_code": previous_error,
                 }
             },
             "secret_refs": {

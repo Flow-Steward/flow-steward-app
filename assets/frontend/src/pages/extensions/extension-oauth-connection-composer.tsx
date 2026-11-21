@@ -10,6 +10,7 @@ import { isBasicEmailAddress } from "@/lib/utils/string-normalization";
 import "@/pages/extensions/extension-manifest.css";
 import {
   importExtensionOAuthRefreshToken,
+  retryExtensionOAuthPostConnect,
   startExtensionOAuthAuthorization,
   type ExtensionOAuthScope,
   type OAuthConfigurationView,
@@ -47,6 +48,7 @@ type ConnectionComposerProps = {
   allowedIntentIds?: readonly string[];
   configuration?: OAuthConfigurationView;
   connectionTypes: readonly OAuthConnectionTypeDeclaration[];
+  editConnection?: boolean;
   onAuthorization?: (authorizationUrl: string) => void;
   /** Leaves the replacement form (refresh-token import only). */
   onCancel?: () => void;
@@ -73,12 +75,23 @@ function importSettingsFields(
 }
 
 /** A replaced connection's current settings; the Core-owned `oauth` part is not a setting. */
-function storedImportSettings(row: Record<string, unknown> | undefined): Record<string, string> {
-  return Object.fromEntries(
+function storedImportSettings(
+  row: Record<string, unknown> | undefined,
+  connectionType: OAuthConnectionTypeDeclaration | undefined,
+): Record<string, string> {
+  const saved = Object.fromEntries(
     Object.entries(record(row?.connection_config))
       .filter(([key]) => key !== "oauth")
       .map(([key, value]) => [key, draftValue(value)]),
   );
+  if (row) {
+    for (const field of importSettingsFields(connectionType, saved)) {
+      if (field.default_value !== undefined && !Object.hasOwn(saved, field.key)) {
+        saved[field.key] = draftValue(field.default_value);
+      }
+    }
+  }
+  return saved;
 }
 
 function refreshTokenImportGuidance(error: unknown, t: I18nContextValue["t"] = fallbackContext.t): string {
@@ -113,6 +126,7 @@ export function ConnectionComposer({
   allowedIntentIds,
   configuration,
   connectionTypes,
+  editConnection,
   onAuthorization,
   onCancel,
   onConnectionsChanged,
@@ -136,7 +150,11 @@ export function ConnectionComposer({
   const [displayName, setDisplayName] = useState(text(replaceConnection?.display_name));
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [refreshToken, setRefreshToken] = useState("");
-  const [settings, setSettings] = useState<Record<string, string>>(() => storedImportSettings(replaceConnection));
+  const [replaceSavedToken, setReplaceSavedToken] = useState(false);
+  const [settings, setSettings] = useState<Record<string, string>>(() => storedImportSettings(
+    replaceConnection,
+    connectionTypes.find((row) => row.connection_type_id === firstType),
+  ));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -145,9 +163,14 @@ export function ConnectionComposer({
   const ready = isConfigurationReady(configuration);
   // A replacement must name the revision it was opened at; without a valid one
   // the server could not tell a stale form from a current one, so none is sent.
-  const replacementRevision = Number(replaceConnection?.credential_revision);
+  const [editRevision] = useState(Number(replaceConnection?.credential_revision));
+  const replacementRevision = editConnection ? editRevision : Number(replaceConnection?.credential_revision);
   const replacementRevisionValid = !replaceConnection
     || (Number.isInteger(replacementRevision) && replacementRevision >= 1);
+  const hasSavedRefreshToken = Boolean(
+    editConnection && text(record(record(replaceConnection?.secret_refs).refs)._oauth_refresh_token),
+  );
+  const keepSavedToken = hasSavedRefreshToken && !replaceSavedToken;
   const settingsFields = imported
     ? importSettingsFields(connectionTypes.find((row) => row.connection_type_id === connectionType), settings)
     : [];
@@ -159,7 +182,7 @@ export function ConnectionComposer({
     if (!displayName.trim()) {
       next.display_name = t("react.extensions.oauth_final_connection_required", "Connection name is required.");
     }
-    if (imported && !refreshToken.trim()) {
+    if (imported && !keepSavedToken && !refreshToken.trim()) {
       next.refresh_token = t("react.extensions.oauth_import_refresh_token_required", "Refresh token is required.");
     }
     for (const input of intent?.user_inputs || []) {
@@ -218,7 +241,7 @@ export function ConnectionComposer({
         configuration_id: configuration.configuration_id,
         connection_type: connectionType,
         display_name: displayName.trim(),
-        refresh_token: refreshToken.trim(),
+        ...(!keepSavedToken ? { refresh_token: refreshToken.trim() } : {}),
         connection_config: connectionConfig,
         ...(replaceConnection
           ? {
@@ -229,7 +252,19 @@ export function ConnectionComposer({
       }));
       // The token is write-only: once it is stored it is never kept in the page.
       setRefreshToken("");
+      if (result.outcome === "post_connect_pending") {
+        // The settings have already been saved. A failed request leaves the
+        // connection pending, where the existing Retry action can verify it.
+        await retryExtensionOAuthPostConnect(scope, result.connection_id, {
+          configuration_id: configuration.configuration_id,
+          connection_type: connectionType,
+        }).catch(() => undefined);
+      }
       await onConnectionsChanged?.();
+      if (editConnection || result.outcome === "settings_saved" || result.outcome === "post_connect_pending") {
+        onCancel?.();
+        return;
+      }
       if (result.outcome === "connected") {
         if (replaceConnection) {
           onCancel?.();
@@ -239,7 +274,7 @@ export function ConnectionComposer({
         setSettings({});
         setNotice(t("react.extensions.oauth_import_connected", "Account connected."));
       } else {
-        setError(postConnectRetryGuidance(result.outcome, t));
+        setError(postConnectRetryGuidance({ outcome: result.outcome, error_code: result.error_code }, t));
       }
     } catch (error_) {
       const payload = isHttpError(error_) ? record(error_.payload) : {};
@@ -252,7 +287,10 @@ export function ConnectionComposer({
       if (code === "oauth_refresh_token_rejected" || code === "oauth_import_conflict_token_rotated") {
         setRefreshToken("");
       }
-      if (code === "invalid_oauth_refresh_token" || code === "oauth_refresh_token_rejected") {
+      if (code === "oauth_saved_refresh_token_unavailable") {
+        setReplaceSavedToken(true);
+        setErrors({ refresh_token: t("react.extensions.oauth_import_refresh_token_required", "Refresh token is required.") });
+      } else if (code === "invalid_oauth_refresh_token" || code === "oauth_refresh_token_rejected") {
         setError("");
         applyErrors({
           refresh_token: code === "invalid_oauth_refresh_token"
@@ -327,15 +365,20 @@ export function ConnectionComposer({
     return null;
   }
 
-  const formTitle = replaceConnection
-    ? t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: displayName || text(replaceConnection.connection_id) })
-    : t("react.extensions.connect_an_account", "Connect an account");
+  let formTitle = t("react.extensions.connect_an_account", "Connect an account");
   let submitLabel = t("react.extensions.connect", "Connect");
   const busyLabel = imported
     ? t("react.extensions.oauth_import_connecting", "Connecting…")
     : t("react.extensions.starting", "Starting…");
   if (replaceConnection) {
-    submitLabel = t("react.extensions.oauth_import_replace", "Replace refresh token");
+    const name = text(replaceConnection.display_name) || text(replaceConnection.connection_id);
+    if (editConnection) {
+      formTitle = t("react.extensions.edit_value0", "Edit {value0}", { value0: name });
+      submitLabel = t("common.save", "Save");
+    } else {
+      formTitle = t("react.extensions.oauth_import_replace_value0", "Replace refresh token for {value0}", { value0: name });
+      submitLabel = t("react.extensions.oauth_import_replace", "Replace refresh token");
+    }
   }
 
   return (
@@ -415,28 +458,57 @@ export function ConnectionComposer({
         <div className="fs-field">
           <span className="fs-required-label">
             <label className="fs-field-label" htmlFor={controlId("refresh_token")}>{t("react.extensions.oauth_import_refresh_token", "Refresh token")}</label>
-            <span aria-hidden="true" className="fs-required">*</span>
+            {!keepSavedToken ? <span aria-hidden="true" className="fs-required">*</span> : null}
           </span>
-          <SensitiveInput
-            aria-describedby={errors.refresh_token ? errorId("refresh_token") : `${controlId("refresh_token")}-help`}
-            aria-invalid={errors.refresh_token ? "true" : undefined}
-            aria-required="true"
-            ariaLabel={t("react.extensions.oauth_import_refresh_token", "Refresh token")}
-            autoComplete="off"
-            className="fs-input"
-            id={controlId("refresh_token")}
-            maxLength={REFRESH_TOKEN_MAX_LENGTH}
-            onChange={(event) => {
-              setRefreshToken(event.target.value);
-              setErrors((current) => ({ ...current, refresh_token: "" }));
-              setError("");
-            }}
-            spellCheck={false}
-            value={refreshToken}
-          />
-          <p className="fs-field-helper" id={`${controlId("refresh_token")}-help`}>
-            {t("react.extensions.oauth_import_refresh_token_help", "Paste the refresh token issued in the provider's console. It is stored encrypted and never shown again.")}
-          </p>
+          {keepSavedToken ? (
+            <>
+              <input
+                aria-describedby={`${controlId("refresh_token")}-help`}
+                className="fs-input"
+                id={controlId("refresh_token")}
+                placeholder="••••••••"
+                readOnly
+              />
+              <p className="fs-field-helper" id={`${controlId("refresh_token")}-help`}>
+                {t("react.extensions.oauth_import_refresh_token_saved", "Refresh token is saved.")}
+              </p>
+              <Button size="sm" type="button" variant="secondary" disabled={busy} onClick={() => setReplaceSavedToken(true)}>
+                {t("react.extensions.oauth_import_replace", "Replace refresh token")}
+              </Button>
+            </>
+          ) : (
+            <>
+              <SensitiveInput
+                aria-describedby={errors.refresh_token ? errorId("refresh_token") : `${controlId("refresh_token")}-help`}
+                aria-invalid={errors.refresh_token ? "true" : undefined}
+                aria-required="true"
+                ariaLabel={t("react.extensions.oauth_import_refresh_token", "Refresh token")}
+                autoComplete="off"
+                className="fs-input"
+                id={controlId("refresh_token")}
+                maxLength={REFRESH_TOKEN_MAX_LENGTH}
+                onChange={(event) => {
+                  setRefreshToken(event.target.value);
+                  setErrors((current) => ({ ...current, refresh_token: "" }));
+                  setError("");
+                }}
+                spellCheck={false}
+                value={refreshToken}
+              />
+              <p className="fs-field-helper" id={`${controlId("refresh_token")}-help`}>
+                {t("react.extensions.oauth_import_refresh_token_help", "Paste the refresh token issued in the provider's console. It is stored encrypted and never shown again.")}
+              </p>
+              {hasSavedRefreshToken ? (
+                <Button size="sm" type="button" variant="secondary" disabled={busy} onClick={() => {
+                  setRefreshToken("");
+                  setReplaceSavedToken(false);
+                  setErrors((current) => ({ ...current, refresh_token: "" }));
+                }}>
+                  {t("react.extensions.oauth_import_keep_refresh_token", "Keep saved refresh token")}
+                </Button>
+              ) : null}
+            </>
+          )}
           {errors.refresh_token ? <p className="fs-field-helper error" id={errorId("refresh_token")} role="alert">{errors.refresh_token}</p> : null}
         </div>
       ) : null}

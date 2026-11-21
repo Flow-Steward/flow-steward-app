@@ -296,6 +296,7 @@ def test_callback_returns_the_central_mapped_exit_code() -> None:
     [
         "users issue-bootstrap-token",
         "extensions install",
+        "extensions install-catalog",
         "extensions uninstall",
         "extensions test",
         "testing smoke-test",

@@ -67,6 +67,8 @@ _REGISTRY_READ = (_TOKEN_REGISTRY_READ, _TOKEN_REGISTRY_ALL, _TOKEN_ADMIN_ALL)
 #: guardrail test in tests/unit/test_mcp_tool_scopes.py fails on any omission,
 #: so a new tool cannot ship without an explicit decision about its scope.
 MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
+    "catalog_search": ADMIN,
+    "extension_catalog_install": ADMIN,
     # --- jobs (read) -------------------------------------------------------
     "job_approval": _JOBS_READ,
     "job_approvals": _JOBS_READ,

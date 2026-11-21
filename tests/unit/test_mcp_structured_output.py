@@ -31,6 +31,8 @@ class _App:
         self.requests.append({"method": method, "path": path})
         if path == "/api/jobs/job-1/status":
             return {"job_id": "job-1", "status": "running"}
+        if path == "/api/catalog/search":
+            return {"items": [{"detail_url": "/extensions?find=acme.shop#marketplace"}]}
         return {"projects": [{"id": "p-1", "name": "Sales"}]}
 
 
@@ -56,7 +58,7 @@ def _run(coro_factory: Any) -> Any:
 def test_tools_list_publishes_the_envelope_object_for_every_tool() -> None:
     tools = _run(lambda client: client.list_tools()).tools
 
-    assert len(tools) == 74
+    assert len(tools) == 76
     for tool in tools:
         schema = tool.output_schema
         assert schema is not None, tool.name
@@ -86,6 +88,18 @@ def test_tools_call_returns_the_envelope_as_structured_content(
     assert structured["tool"] == tool
     assert isinstance(structured["data"], dict)
     assert json.loads(result.content[0].text) == structured
+
+
+def test_catalog_search_uses_the_api_without_resolving_a_project(monkeypatch) -> None:
+    monkeypatch.setattr(server_api_tool, "_public_origin", lambda: "https://flow.example.test")
+
+    result = _run(lambda client: client.call_tool("catalog_search", {"query": "shop"}))
+
+    assert not result.is_error
+    assert _App.requests == [{"method": "GET", "path": "/api/catalog/search"}]
+    assert result.structured_content["data"]["items"] == [
+        {"detail_url": "https://flow.example.test/extensions?find=acme.shop#marketplace"}
+    ]
 
 
 def test_a_refusal_stays_a_tool_error_with_the_error_envelope_text(

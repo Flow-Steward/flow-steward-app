@@ -19,6 +19,7 @@ from core.application.management.command_specs.contracts import (
 if TYPE_CHECKING:
     from core.application.auth.bootstrap_tokens import BootstrapTokenService
     from core.application.clone.service import CloneService
+    from core.application.extensions.extension_catalog_install import ExtensionCatalogInstallService
     from core.application.extensions.scaffold import ExtensionScaffoldService
     from core.application.lifecycle.backup_command_service import BackupCommandService
     from core.application.lifecycle.configuration_service import ConfigurationService
@@ -111,6 +112,9 @@ class RuntimeServices(Protocol):
 
     @property
     def extension_binding_service(self) -> ExtensionBindingServiceProtocol: ...
+
+    @property
+    def extension_catalog_service(self) -> ExtensionCatalogInstallService: ...
 
     @property
     def extension_scaffold_service(self) -> ExtensionScaffoldService: ...

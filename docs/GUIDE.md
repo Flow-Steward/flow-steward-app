@@ -1381,8 +1381,23 @@ and other availability restrictions still apply; these reads never enable a work
 Connect the client to the existing authenticated MCP endpoint above. Consult
 `tools/list` for its current arguments and token-filtered availability.
 
+For a question such as "Is there an integration for this?" or "How do I set it
+up?", call `catalog_search` first. It searches the published Extension
+Marketplace, MCP server and workflow template catalogs without a project. Use
+the selected entry's setup requirements and its link into the Flow Steward
+interface. Check each catalog's availability before drawing conclusions from an
+empty result. For an existing project, confirm actual operations and connection
+readiness with `capability_search` and `capability_describe`.
+
+An administrator can call `extension_catalog_install` with the selected ID,
+version and SHA-256 after asking to apply that release. It uses the same
+installer as Marketplace. Complete credential setup, OAuth and any required
+browser-authority review in the Flow Steward interface.
+
 | Tool | Purpose |
 |---|---|
+| `catalog_search` | Find published integrations and workflow templates, with setup guidance and links. |
+| `extension_catalog_install` | Install or update a selected extension release by ID, version and SHA-256. |
 | `workflow_examples_search` | Find permitted local workflows to reuse before creating one. |
 | `capability_search` | Search permitted components and report knowledge freshness. |
 | `capability_describe` | Inspect live operation contracts, permitted connections and exportable definitions; select `operation_id` when applicable. |
@@ -1898,6 +1913,20 @@ Archive paths are resolved from the Flow Steward project checkout and must point
 to a project-local file. The launcher routes archive-backed install and
 uninstall through an isolated one-shot manager whose checkout mount is read-only
 and whose only writable bundle mount is the managed extensions directory.
+
+On Scalable, the same CLI can apply the exact release offered by Marketplace.
+Use the extension ID, version and SHA-256 from catalog search or the catalog API.
+
+```bash
+./flow-steward extensions install-catalog <extension-id> \
+  --version <version> --release-sha256 <sha256> --confirm --non-interactive --json
+```
+
+The command installs a new extension or updates an older installed version.
+If the selected release has changed in the catalog, the command returns
+`extension_catalog_release_changed`. If that version is already installed,
+the response is `extension_catalog_already_installed`. On Compact, use the
+admin UI or the authenticated catalog installation API.
 
 ---
 

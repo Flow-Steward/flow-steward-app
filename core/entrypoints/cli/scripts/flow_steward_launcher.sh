@@ -2360,7 +2360,7 @@ for arg in "$@"; do
   case "$previous_arg:$arg" in
     quality:lint|quality:release-gate) delegated_target_service="fs-audit" ;;
     extensions:test) delegated_target_service="fs-test-runner" ;;
-    extensions:install|extensions:uninstall) extension_mutation_command=1 ;;
+    extensions:install|extensions:install-catalog|extensions:uninstall) extension_mutation_command=1 ;;
     # AC17-R88: this one is a host-side installer operation wearing a product command's
     # clothes. Issuing a token writes the installer state file and .env.prod, then runs
     # `docker compose up -d --force-recreate` against the application service -- none of

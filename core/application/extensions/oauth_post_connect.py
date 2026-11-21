@@ -17,11 +17,14 @@ _RESULT_KEYS = {
     "error_code",
 }
 _HEALTH_VALUES = {"ok", "needs_attention", "authorization_required"}
-_NEEDS_ATTENTION_ERRORS = {
-    "internal_failure",
-    "malformed_response",
-    "provider_unavailable",
-}
+OAUTH_POST_CONNECT_RETRYABLE_ERRORS = frozenset(
+    {
+        "access_denied",
+        "internal_failure",
+        "malformed_response",
+        "provider_unavailable",
+    }
+)
 _SAFE_KEY_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 _SUBJECT_MAX_BYTES = 512
 _DISPLAY_MAX_BYTES = 512
@@ -114,7 +117,7 @@ def parse_oauth_post_connect_result(value: Any) -> OAuthPostConnectResult:
         if not subject or error_code is not None:
             raise _invalid()
     elif normalized_health == "needs_attention":
-        if error_code not in _NEEDS_ATTENTION_ERRORS:
+        if error_code not in OAUTH_POST_CONNECT_RETRYABLE_ERRORS:
             raise _invalid()
     elif error_code != "authorization_required":
         raise _invalid()
@@ -151,14 +154,14 @@ def oauth_post_connect_result_from_invocation(value: Any) -> OAuthPostConnectRes
                 health="authorization_required",
                 error_code="authorization_required",
             )
-        if error_code in {"provider_unavailable", "malformed_response"}:
+        if isinstance(error_code, str) and error_code in OAUTH_POST_CONNECT_RETRYABLE_ERRORS:
             return OAuthPostConnectResult(
                 subject="",
                 verified_display_name=None,
                 verified_email=None,
                 safe_metadata=MappingProxyType({}),
                 health="needs_attention",
-                error_code=cast(Literal["provider_unavailable", "malformed_response"], error_code),
+                error_code=error_code,
             )
         return OAuthPostConnectResult(
             subject="",
@@ -187,6 +190,7 @@ def oauth_post_connect_result_from_invocation(value: Any) -> OAuthPostConnectRes
 
 
 __all__ = [
+    "OAUTH_POST_CONNECT_RETRYABLE_ERRORS",
     "OAuthPostConnectResult",
     "oauth_post_connect_result_from_invocation",
     "parse_oauth_post_connect_result",

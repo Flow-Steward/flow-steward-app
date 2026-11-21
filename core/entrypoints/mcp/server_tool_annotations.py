@@ -23,6 +23,7 @@ READ_ONLY_TOOLS: frozenset[str] = frozenset(
         "agent_validate",
         "capability_describe",
         "capability_search",
+        "catalog_search",
         "job_approval",
         "job_approvals",
         "job_approvals_pending",
@@ -75,6 +76,7 @@ DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
         "agent_skill_set_instructions",
         "agent_skill_unassign",
         "agent_update",
+        "extension_catalog_install",
         "job_approval_decide",
         "job_cancel",
         "job_restart",
@@ -126,6 +128,7 @@ IDEMPOTENT_TOOLS: frozenset[str] = frozenset(
 OPEN_WORLD_TOOLS: frozenset[str] = frozenset(
     {
         "dispatch_project_notification",
+        "extension_catalog_install",
         "job_approval_decide",
         "job_restart",
         "workflow_trigger",

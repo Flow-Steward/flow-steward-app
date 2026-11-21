@@ -83,6 +83,11 @@ def test_post_connect_parser_rejects_open_malformed_or_oversized_results(payload
             "provider_unavailable",
         ),
         (
+            {"subject": "", "health": "needs_attention", "error_code": "access_denied"},
+            "needs_attention",
+            "access_denied",
+        ),
+        (
             {
                 "subject": "",
                 "health": "authorization_required",

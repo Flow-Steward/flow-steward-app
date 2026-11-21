@@ -22,7 +22,7 @@ class _RecordingClient:
     responses: ClassVar[list[object]] = []
     requests: ClassVar[list[dict[str, object]]] = []
 
-    def __init__(self) -> None:
+    def __init__(self, **_kwargs: object) -> None:
         pass
 
     def request(self, method: str, path: str, **kwargs: object) -> object:
@@ -80,6 +80,22 @@ def test_mutation_forwards_caller_correlation_and_idempotency() -> None:
             "idempotency_key": "idem-1",
         }
     ]
+
+
+def test_catalog_extension_install_uses_the_reviewed_release_and_caller() -> None:
+    from core.entrypoints.mcp.server_catalog_tools import extension_catalog_install
+
+    _queue_responses({"extension": {"extension_id": "acme.shop"}})
+    result = _envelope(extension_catalog_install("acme.shop", "1.0.0", "a" * 64))
+
+    assert result["data"]["extension"] == {"extension_id": "acme.shop"}
+    assert _RecordingClient.requests[0]["path"] == "/api/extensions/catalog/install"
+    assert _RecordingClient.requests[0]["bearer"] == "caller-token"
+    assert _RecordingClient.requests[0]["json_body"] == {
+        "extension_id": "acme.shop",
+        "version": "1.0.0",
+        "release_sha256": "a" * 64,
+    }
 
 
 @pytest.mark.parametrize(

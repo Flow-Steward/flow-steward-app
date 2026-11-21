@@ -4971,6 +4971,9 @@ msgstr ""
 msgid "react.extensions.oauth_import_invalid_client"
 msgstr ""
 
+msgid "react.extensions.oauth_import_keep_refresh_token"
+msgstr ""
+
 msgid "react.extensions.oauth_import_provider_unavailable"
 msgstr ""
 
@@ -4987,6 +4990,9 @@ msgid "react.extensions.oauth_import_refresh_token_rejected"
 msgstr ""
 
 msgid "react.extensions.oauth_import_refresh_token_required"
+msgstr ""
+
+msgid "react.extensions.oauth_import_refresh_token_saved"
 msgstr ""
 
 msgid "react.extensions.oauth_import_replace"
@@ -5056,6 +5062,12 @@ msgid "react.extensions.page_refresh.stopped"
 msgstr ""
 
 msgid "react.extensions.permissions_it_asks_for"
+msgstr ""
+
+msgid "react.extensions.post_connect_access_denied"
+msgstr ""
+
+msgid "react.extensions.post_connect_retry_verification"
 msgstr ""
 
 msgid "react.extensions.pre_save_result_mapping_target_value0_must_be_a_declared_non_secret_config_field"

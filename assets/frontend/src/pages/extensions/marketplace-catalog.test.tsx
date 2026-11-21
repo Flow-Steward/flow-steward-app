@@ -231,12 +231,13 @@ test("two quick ticks in one turn keep both values", async () => {
   await waitFor(() => expect(screen.getByRole("heading", { name: "2 extensions" })).toBeInTheDocument());
 });
 
-test("the URL restores search, filters, sort, view and page, and search matches tags", async () => {
-  mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
+test("the URL restores search, filters, sort, view and page using the API's matches", async () => {
+  mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE], { matching_ids: [CRM.extension_id] }));
   renderMarketplace({ url: "/extensions?mk_q=CONTACTS&mk_view=list&mk_sort=added#marketplace" });
 
   await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
   expect(screen.getByRole("searchbox", { name: "Search extension catalog" })).toHaveValue("CONTACTS");
+  expect(mockedFetchCatalog).toHaveBeenCalledWith("CONTACTS");
   expect(screen.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
   expect(screen.getByRole("combobox", { name: "Sort" })).toHaveTextContent("Recently added");
   const table = screen.getByRole("table", { name: "Extensions" });
@@ -266,7 +267,9 @@ test("the list view is one link per row and a click anywhere on the row opens it
 });
 
 test("the count is announced after typing settles", async () => {
-  mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
+  mockedFetchCatalog.mockImplementation(async (query) =>
+    listing([CRM, MAIL, NATIVE], query ? { matching_ids: [MAIL.extension_id] } : {}),
+  );
   renderMarketplace();
   await screen.findByRole("heading", { name: "3 extensions" });
 
@@ -322,7 +325,7 @@ test("the table pages by its own Rows per page, 25 or 50", async () => {
 });
 
 test("no results offers to clear filters and to suggest an extension", async () => {
-  mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE]));
+  mockedFetchCatalog.mockResolvedValue(listing([CRM, MAIL, NATIVE], { matching_ids: [] }));
   renderMarketplace({ url: "/extensions?mk_q=nothing&mk_category=crm#marketplace" });
 
   await waitFor(() => expect(screen.getByText("No extensions match.")).toBeInTheDocument());

@@ -107,11 +107,12 @@ test("OR inside a facet, AND between facets, then search", () => {
   expect(ids(filterMarketplace(ITEMS, filters({ status: ["installed"] }), LABELS, "name"))).toEqual(["acme.db", "acme.mail"]);
 });
 
-test("search covers name, summary, description, id and tags, case-insensitively", () => {
-  const ids = (q: string) => filterMarketplace(ITEMS, filters({ q }), LABELS, "name").map((item) => item.extension_id);
-  expect(ids("CONTACTS")).toEqual(["acme.crm"]);
-  expect(ids("acme.db")).toEqual(["acme.db"]);
-  expect(ids("mail")).toEqual(["acme.mail"]);
+test("marketplace combines catalog search results with the selected facets", () => {
+  const selected = filters({ q: "contacts", status: ["installed"] });
+  const matches = new Set(["acme.crm", "acme.mail"]);
+  expect(
+    filterMarketplace(ITEMS, selected, LABELS, "name", undefined, matches).map((item) => item.extension_id),
+  ).toEqual(["acme.mail"]);
 });
 
 test("facet counts apply the other facets but not their own; zero stays in place", () => {

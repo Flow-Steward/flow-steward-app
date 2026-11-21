@@ -581,6 +581,7 @@ RENDERERS: dict[str, Renderer] = {
     "extensions.show": RichRenderer(),
     "extensions.health": RichRenderer(),
     "extensions.install": RichRenderer(),
+    "extensions.install-catalog": RichRenderer(),
     "extensions.uninstall": RichRenderer(),
     "extensions.enable": RichRenderer(),
     "extensions.disable": RichRenderer(),

@@ -27,6 +27,7 @@ from core.application.extensions.oauth_contract import (
     provider_revocation_fingerprint,
     provider_security_fingerprint,
 )
+from core.application.extensions.oauth_post_connect import OAUTH_POST_CONNECT_RETRYABLE_ERRORS
 from core.infrastructure.extension_runtime.oauth_transport import OAuthProviderError
 
 
@@ -218,8 +219,7 @@ class OAuthRuntimeTokenService:
                 lifecycle == "post_connect_pending"
                 or (
                     lifecycle == "needs_attention"
-                    and _text(oauth.get("last_error_code"))
-                    in {"internal_failure", "malformed_response", "provider_unavailable"}
+                    and _text(oauth.get("last_error_code")) in OAUTH_POST_CONNECT_RETRYABLE_ERRORS
                 )
             )
         )
@@ -591,7 +591,10 @@ class OAuthRuntimeTokenService:
                 secret_refs = {"refs": {**merged_refs, **written_refs}}
                 config = _mapping(current_connection.get("connection_config"))
                 oauth = _mapping(config.get("oauth"))
-                oauth.update(lifecycle_status="connected", last_error_code=None)
+                # Refreshing an access token for verification does not verify
+                # the connection's settings or make it runnable.
+                if recovery_purpose != "post_connect_retry":
+                    oauth.update(lifecycle_status="connected", last_error_code=None)
                 saved = self._repository.update_oauth_refresh(
                     **scope,
                     connection_id=connection_id,

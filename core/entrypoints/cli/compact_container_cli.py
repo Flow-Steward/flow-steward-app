@@ -19,7 +19,7 @@ _COMPACT_HOST_SETTINGS_PATH = (
     "Settings: https://docs.flowsteward.org/docs/reference/host-settings"
 )
 _UNAVAILABLE_COMMANDS = {
-    "extensions": frozenset({"install", "uninstall"}),
+    "extensions": frozenset({"install", "install-catalog", "uninstall"}),
     "users": frozenset({"issue-bootstrap-token"}),
 }
 _GLOBAL_FLAGS = frozenset({"--json", "--plain", "--no-color", "--verbose", "--non-interactive"})
