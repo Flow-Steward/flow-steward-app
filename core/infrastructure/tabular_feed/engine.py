@@ -18,6 +18,7 @@ from core.application.tabular_feed.snapshot_repository import (
     SnapshotRepository,
 )
 from core.infrastructure.date_types import DateLexicon, DateValueError
+from core.infrastructure.extension_runtime import dataset_empty_objects as empty_objects
 from core.infrastructure.extension_runtime.object_storage import APPLICATION_JSON_VALUE
 from core.infrastructure.tabular_feed.actions import (
     _apply_rule as _actions_apply_rule,
@@ -54,6 +55,7 @@ from core.infrastructure.tabular_feed.constants import (
 )
 from core.infrastructure.tabular_feed.dataframe_ops import _apply_column_map_df
 from core.infrastructure.tabular_feed.engine_plane import (
+    DatasetMaterializationError,
     _artifact_meta_for_read,
     _candidate_meta_key,
     _create_artifact_from_file,
@@ -104,6 +106,7 @@ from core.infrastructure.tabular_feed.storage_io import (
 )
 
 READ_FAILED = "tabular_feed.read_failed"
+MATERIALIZATION_FAILED = "tabular_feed.materialization_failed"
 _FORMAT_LABELS = {
     "csv": "CSV",
     "json": "JSON",
@@ -123,10 +126,8 @@ class FeedReadError(Exception):
 def _reading_feed(fmt: str):
     """Report a parse failure of the input file as that, not as a raw Polars error.
 
-    Polars raises ``ComputeError`` and its siblings for a malformed line or a value
-    that does not fit the column type, sometimes only when a lazy scan is
-    collected. Uncaught, it ended the run with the library's multi-line text and
-    no step error, so the job page blamed the workflow's guardrails.
+    Polars raises ``ComputeError`` and its siblings for a malformed line or a value that
+    does not fit the column type, sometimes only when a lazy scan is collected.
     """
     try:
         yield
@@ -185,7 +186,7 @@ def inspect(action: dict[str, Any]) -> dict[str, Any]:
         columns = [
             {
                 "name": column,
-                "inferred_type": str(dtype),
+                "inferred_type": empty_objects.display_dtype(dtype),
                 "sample_values": [
                     _text(row.get(column)) for row in preview_rows if not _empty(row.get(column))
                 ][:3],
@@ -859,6 +860,7 @@ def write(action: dict[str, Any]) -> dict[str, Any]:
                     content_type = "text/tab-separated-values" if fmt == "tsv" else TEXT_CSV_VALUE
                 elif fmt == "ndjson":
                     frame.sink_ndjson(output_path)
+                    empty_objects.render_json_file(output_path, frame.collect_schema())
                     content_type = "application/x-ndjson"
                 else:
                     frame.sink_parquet(output_path, compression="zstd")
@@ -884,6 +886,7 @@ def write(action: dict[str, Any]) -> dict[str, Any]:
             row_count = df.height
         if fmt == "json":
             df.write_json(output_path)
+            empty_objects.render_json_file(output_path, df.schema)
             content_type = APPLICATION_JSON_VALUE
         elif fmt == "xlsx":
             import openpyxl
@@ -945,6 +948,8 @@ def execute_operation(
             return handler(payload)
         except FeedReadError as exc:
             return _fail(READ_FAILED, str(exc))
+        except DatasetMaterializationError as exc:
+            return _fail(MATERIALIZATION_FAILED, str(exc))
         except SnapshotConflictError as exc:
             return _fail(exc.code, str(exc))
         except psycopg.Error:

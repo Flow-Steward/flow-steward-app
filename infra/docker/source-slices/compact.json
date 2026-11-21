@@ -1529,6 +1529,7 @@
     "core/infrastructure/extension_runtime/bundle_cleanup.py",
     "core/infrastructure/extension_runtime/bundle_icon.py",
     "core/infrastructure/extension_runtime/bundled_dependencies.py",
+    "core/infrastructure/extension_runtime/dataset_empty_objects.py",
     "core/infrastructure/extension_runtime/dataset_representations.py",
     "core/infrastructure/extension_runtime/extension_action_manifest.py",
     "core/infrastructure/extension_runtime/extension_browser_picker_contract.py",
