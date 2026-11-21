@@ -144,6 +144,14 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
                 "core.application.lifecycle.stack_service.StackRuntimeState",
             }
         ),
+        # E2E 2026-11-21: the one-shot prerequisites docker_gateway runs before
+        # `up --no-deps`; it reads the rendered Compose model and nothing else.
+        "core/infrastructure/lifecycle/docker_completion_prerequisites.py": frozenset(
+            {
+                "core.application.lifecycle.contracts.ComposeTarget",
+                "core.application.lifecycle.stack_service.StackGatewayError",
+            }
+        ),
         "core/infrastructure/lifecycle/docker_image_preparation.py": frozenset(
             {
                 "core.application.lifecycle.stack_service.StackGatewayError",
