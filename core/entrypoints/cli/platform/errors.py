@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import click
 from pydantic import ValidationError
 
+from core.application.extensions.extension_catalog import ExtensionCatalogError
 from core.application.extensions.scaffold_contracts import ExtensionScaffoldConflictError
 from core.application.lifecycle.errors import DatabaseSchemaRecoveryRequiredError, LifecycleError
 from core.application.lifecycle.stack_models import StackGatewayError
@@ -195,6 +196,21 @@ def map_exception(
             "Check ./flow-steward stack status and the named service, then rerun this "
             "command; an unfinished upgrade resumes with the same release upgrade.",
             True,
+            technical_detail,
+            context=context,
+        )
+    if isinstance(exc, ExtensionCatalogError):
+        return _mapped(
+            {
+                404: ExitCode.PRECONDITION,
+                409: ExitCode.CONFLICT,
+                422: ExitCode.VALIDATION,
+                503: ExitCode.DEPENDENCY,
+            }.get(exc.status_code, ExitCode.STABLE_FAILURE),
+            exc.code,
+            exc,
+            "Review the selected release in the extension catalog.",
+            exc.status_code == 503,
             technical_detail,
             context=context,
         )

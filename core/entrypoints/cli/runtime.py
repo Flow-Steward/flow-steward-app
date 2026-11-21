@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from core.application.auth.bootstrap_tokens import BootstrapTokenService
     from core.application.auth.user_admin import UserAdminCommandService, UserAdminQueryService
     from core.application.extensions.binding_service import ExtensionBindingService
+    from core.application.extensions.extension_catalog_install import ExtensionCatalogInstallService
     from core.application.extensions.query_service import ExtensionQueryService
     from core.application.extensions.scaffold import ExtensionScaffoldService
     from core.application.management.command_services import (
@@ -291,6 +292,17 @@ class CLIRuntime(LifecycleCLIRuntime):
             environ=dict(_runtime_env),
             create_storage_adapter=create_storage_adapter,
             artifact_plane_factory=ArtifactDatasetPlane,
+        )
+
+    @cached_property
+    def extension_catalog_service(self) -> ExtensionCatalogInstallService:
+        from core.application.extensions.extension_catalog_install import (
+            ExtensionCatalogInstallService,
+        )
+
+        return ExtensionCatalogInstallService(
+            get_install_store=self._get_extension_install_store,
+            get_binding_service=lambda: self.extension_binding_service,
         )
 
     @cached_property

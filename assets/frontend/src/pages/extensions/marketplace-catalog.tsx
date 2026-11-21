@@ -1,7 +1,7 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Package, RefreshCw, Search, SearchX, TriangleAlert } from "lucide-react";
 import { useNavigate } from "react-router";
 
@@ -121,6 +121,12 @@ export function ExtensionMarketplaceCatalog({
   const navigate = useNavigate();
   const urlState = useMemo(() => readMarketplaceUrl(params), [params]);
   const { filters } = urlState;
+  const desiredQuery = filters.q.trim().slice(0, 200);
+  const [query, setQuery] = useState(desiredQuery);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQuery(desiredQuery), 200);
+    return () => window.clearTimeout(timer);
+  }, [desiredQuery]);
   const [now] = useState(currentTime);
   // The table pages by its own Rows per page; the cards by MARKETPLACE_PAGE_SIZE.
   const [tablePerPage, setTablePerPage] = useState<number>(CATALOG_TABLE_PAGE_SIZES[0]);
@@ -132,11 +138,12 @@ export function ExtensionMarketplaceCatalog({
   // Whether the open page was pushed from these results, so "← Marketplace" is Back.
   const openedHereRef = useRef(false);
 
-  // One request for the whole index; search, facets, sorting and paging all
-  // happen in the browser.
+  // The API matches text using the same catalog search as MCP. The full index
+  // supports navigation, facet totals and paging while each search is loading.
   const catalogQuery = useQuery({
-    queryKey: EXTENSION_CATALOG_QUERY_KEY,
-    queryFn: fetchExtensionCatalog,
+    queryKey: query ? [...EXTENSION_CATALOG_QUERY_KEY, query] : EXTENSION_CATALOG_QUERY_KEY,
+    queryFn: () => fetchExtensionCatalog(query),
+    placeholderData: keepPreviousData,
     retry: false,
   });
   const versionQuery = useQuery({
@@ -148,12 +155,19 @@ export function ExtensionMarketplaceCatalog({
 
   const listing = catalogQuery.data;
   const items = useMemo(() => listing?.items ?? [], [listing]);
+  const matchingIds = useMemo(
+    () => listing?.matching_ids ? new Set(listing.matching_ids) : undefined,
+    [listing],
+  );
   const labels = useMemo(() => marketplaceLabels(listing), [listing]);
   const earliest = useMemo(() => earliestAddedAt(items), [items]);
-  const facets = useMemo(() => computeMarketplaceFacets(items, filters, labels, t), [items, filters, labels, t]);
+  const facets = useMemo(
+    () => computeMarketplaceFacets(items, filters, labels, t, matchingIds),
+    [items, filters, labels, t, matchingIds],
+  );
   const visible = useMemo(
-    () => filterMarketplace(items, filters, labels, urlState.sort, t),
-    [items, filters, labels, urlState.sort, t],
+    () => filterMarketplace(items, filters, labels, urlState.sort, t, matchingIds),
+    [items, filters, labels, urlState.sort, t, matchingIds],
   );
   const sortChoices = useMemo(() => marketplaceSortOptions(items, t), [items, t]);
   const availability = listing?.availability;
@@ -407,7 +421,7 @@ export function ExtensionMarketplaceCatalog({
           onToggle={toggle}
         />
       ) : null}
-      <div aria-busy={catalogQuery.isFetching && !loading} className="fs-catalog-results" id="fs-marketplace-results">
+      <div aria-busy={desiredQuery !== query || (catalogQuery.isFetching && !loading)} className="fs-catalog-results" id="fs-marketplace-results">
         {missing ? (
           <DsAlert title={t("react.extensions.value0_isn_t_in_the_catalog", "{value0} isn't in the catalog.", { value0: missing })}>
             <button className="fs-button sm" onClick={showAll} type="button">
@@ -419,6 +433,7 @@ export function ExtensionMarketplaceCatalog({
           <input
             aria-label={t("react.extensions.search_extension_catalog", "Search extension catalog")}
             disabled={loading}
+            maxLength={200}
             onChange={(event) => {
               const q = event.target.value;
               writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));

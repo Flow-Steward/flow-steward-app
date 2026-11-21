@@ -37,6 +37,7 @@ class _Runtime:
     user_command_service: object = object()
     project_query_service: object = object()
     project_command_service: object = object()
+    extension_catalog_service: object = object()
 
 
 class _ExtensionQuery:
@@ -201,6 +202,7 @@ def test_extensions_group_help_exposes_exact_phase2_leaves() -> None:
         "show",
         "health",
         "install",
+        "install-catalog",
         "uninstall",
         "enable",
         "disable",
@@ -233,6 +235,46 @@ def test_extensions_create_help_marks_required_format_examples_and_no_force() ->
         "  flow-steward extensions create com.example.notifications\n"
     ) in plain_help
     assert "--force" not in plain_help
+
+
+def test_install_catalog_delegates_a_pinned_release(monkeypatch: pytest.MonkeyPatch) -> None:
+    app, runtime = _app_and_runtime()
+    calls = []
+
+    def install(**kwargs):
+        calls.append(kwargs)
+        return {"extension": {"extension_id": "acme.crm-sync"}, "installed_path": "/ext/acme"}
+
+    monkeypatch.setattr(
+        runtime, "extension_catalog_service", SimpleNamespace(install_from_catalog=install)
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "extensions",
+            "install-catalog",
+            "acme.crm-sync",
+            "--version",
+            "1.2.3",
+            "--release-sha256",
+            "a" * 64,
+            "--confirm",
+            "--non-interactive",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["ok"] is True
+    assert len(calls) == 1
+    _assert_cli_admin_scope(calls[0].pop("scope"))
+    assert calls[0] == {
+        "extension_id": "acme.crm-sync",
+        "version": "1.2.3",
+        "release_sha256": "a" * 64,
+        "approved_browser_authority_impact_hash": "",
+    }
 
 
 def test_extension_lifecycle_leaves_delegate_to_shared_services(tmp_path: Path) -> None:

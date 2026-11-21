@@ -14,7 +14,6 @@ import {
   type CatalogFilterState,
   type CatalogUrlSpec,
   type CatalogUrlState,
-  catalogTextMatches,
   compareAddedNewestFirst,
   compareVersions,
   computeCatalogFacets,
@@ -145,20 +144,15 @@ function facetDefs(labels: MarketplaceLabels, t: I18nContextValue["t"] = fallbac
   ];
 }
 
-/** Name, summary, description, id and tags, case-insensitive. */
-function matchesSearch(entry: ExtensionCatalogEntry, needle: string): boolean {
-  return catalogTextMatches(
-    [entry.name, entry.summary, entry.description ?? "", entry.extension_id, ...(entry.tags ?? [])],
-    needle,
-  );
-}
-
 export function computeMarketplaceFacets(
   items: readonly ExtensionCatalogEntry[],
   filters: MarketplaceFilters,
-  labels: MarketplaceLabels, t: I18nContextValue["t"] = fallbackContext.t
+  labels: MarketplaceLabels, t: I18nContextValue["t"] = fallbackContext.t,
+  matchingIds?: ReadonlySet<string>,
 ): MarketplaceFacet[] {
-  return computeCatalogFacets(items, filters, facetDefs(labels, t), matchesSearch);
+  return computeCatalogFacets(items, filters, facetDefs(labels, t), (entry) =>
+    matchingIds?.has(entry.extension_id) ?? true,
+  );
 }
 
 const COMPARE: Record<MarketplaceSort, (a: ExtensionCatalogEntry, b: ExtensionCatalogEntry) => number> = {
@@ -171,9 +165,12 @@ export function filterMarketplace(
   items: readonly ExtensionCatalogEntry[],
   filters: MarketplaceFilters,
   labels: MarketplaceLabels,
-  sort: MarketplaceSort, t: I18nContextValue["t"] = fallbackContext.t
+  sort: MarketplaceSort, t: I18nContextValue["t"] = fallbackContext.t,
+  matchingIds?: ReadonlySet<string>,
 ): ExtensionCatalogEntry[] {
-  const matched = filterCatalogItems(items, filters, facetDefs(labels, t), matchesSearch);
+  const matched = filterCatalogItems(items, filters, facetDefs(labels, t), (entry) =>
+    matchingIds?.has(entry.extension_id) ?? true,
+  );
   return sortCatalogItems(matched, COMPARE[sort] ?? COMPARE.name);
 }
 

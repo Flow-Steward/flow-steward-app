@@ -322,7 +322,7 @@ def load_mcp_server_catalog() -> McpCatalogIndex:
         ) from exc
 
 
-def mcp_server_catalog_availability() -> dict[str, Any]:
+def mcp_server_catalog_availability(index: McpCatalogIndex | None = None) -> dict[str, Any]:
     """Describe the catalog for the UI without raising when it is unusable."""
     base = {"kind": "mcp_server_catalog_availability", "item_count": 0, "stale": False}
     if not mcp_server_catalog_url():
@@ -332,16 +332,17 @@ def mcp_server_catalog_availability() -> dict[str, Any]:
             "available": False,
             "reason": "mcp_catalog_not_configured",
         }
-    try:
-        index = load_mcp_server_catalog()
-    except McpServerCatalogError as exc:
-        return {
-            **base,
-            "configured": True,
-            "available": False,
-            "reason": exc.code,
-            "message": str(exc),
-        }
+    if index is None:
+        try:
+            index = load_mcp_server_catalog()
+        except McpServerCatalogError as exc:
+            return {
+                **base,
+                "configured": True,
+                "available": False,
+                "reason": exc.code,
+                "message": str(exc),
+            }
     return {
         **base,
         "configured": True,

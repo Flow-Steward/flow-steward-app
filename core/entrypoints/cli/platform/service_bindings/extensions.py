@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from core.application.extensions.extension_catalog_install import ExtensionCatalogInstallRequest
 from core.application.extensions.scaffold import ExtensionScaffoldCreateInput
 from core.application.management.command_specs.extensions import (
     ExtensionInstallCommandInput,
@@ -132,6 +133,17 @@ async def extensions_install(runtime: RuntimeServices, value: object, **_kwargs:
     )
 
 
+async def extensions_install_catalog(
+    runtime: RuntimeServices, value: object, **_kwargs: object
+) -> object:
+    command = ExtensionCatalogInstallRequest.model_validate(value)
+    return await await_maybe(
+        runtime.extension_catalog_service.install_from_catalog(
+            **command.model_dump(), scope=cli_admin_scope()
+        )
+    )
+
+
 async def extensions_uninstall(
     runtime: RuntimeServices, value: object, **_kwargs: object
 ) -> object:
@@ -246,6 +258,7 @@ EXTENSION_SERVICE_FACTORIES: dict[str, ServiceFactory] = {
     "extensions.show": extensions_show,
     "extensions.health": extensions_health,
     "extensions.install": extensions_install,
+    "extensions.install-catalog": extensions_install_catalog,
     "extensions.uninstall": extensions_uninstall,
     "extensions.enable": extensions_enable,
     "extensions.disable": extensions_disable,

@@ -360,13 +360,15 @@ def _blocking_dependencies(payload: object) -> list[dict[str, Any]]:
     return rows
 
 
-def api_tool_response(tool: str, raw_arguments: dict[str, Any]) -> CallToolResult:
+def api_tool_response(
+    tool: str, raw_arguments: dict[str, Any], *, timeout_seconds: float | None = None
+) -> CallToolResult:
     """Map one registered MCP call to one authenticated application API call."""
     route = MCP_TOOL_ROUTES[tool]
     arguments = dict(raw_arguments)
     ctx = arguments.pop("ctx", None)
     bearer = _caller_bearer()
-    client = AppApiClient()
+    client = AppApiClient(timeout_seconds=timeout_seconds) if timeout_seconds else AppApiClient()
     try:
         project_name = str(arguments.pop("project_name", "") or "").strip()
         if tool in {"workflow_trigger", "workflow_contract"}:

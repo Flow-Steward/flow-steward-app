@@ -77,6 +77,10 @@ mcp = MCPServer(
     instructions=(
         "Flow Steward project, workflow, job, report and notification "
         "tools. Every tool delegates the caller's bearer to the canonical application API. "
+        "Use catalog_search for published integrations or templates, even before a project exists. "
+        "Use the returned setup requirements and UI links when explaining how to configure them. "
+        "Treat published information as catalog evidence and verify project operation contracts "
+        "and connection readiness with capability_search or capability_describe. "
         "For workflow authoring, search local examples and reuse a suitable workflow first. "
         "Obtain live bundle/step schemas and operation contracts, validate and repair, "
         "then save a disabled draft. Project-name resolution additionally requires projects.read "

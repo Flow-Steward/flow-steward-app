@@ -21,7 +21,7 @@ def _envelope(result: Any) -> Any:
 
 def test_all_registered_tools_have_descriptions_and_api_routes() -> None:
     tools = mcp._tool_manager._tools
-    assert len(tools) == 74
+    assert len(tools) == 76
     assert set(tools) == set(MCP_TOOL_ROUTES)
     for name, tool in tools.items():
         assert str(tool.description or "").strip(), name
@@ -31,6 +31,8 @@ def test_all_registered_tools_have_descriptions_and_api_routes() -> None:
 def test_public_input_contracts_keep_required_identity_fields() -> None:
     tools = mcp._tool_manager._tools
     required = {
+        "catalog_search": {"query"},
+        "extension_catalog_install": {"extension_id", "version", "release_sha256"},
         "capability_search": {"project_name", "query"},
         "capability_describe": {"project_name", "ref"},
         "workflow_examples_search": {"project_name", "query"},

@@ -590,16 +590,16 @@ function releaseChanged(payload: Record<string, unknown> = { code: "extension_ca
 
 /** The install refuses the listed release; the catalog meanwhile lists 1.11.0. */
 function publishNewerDuringTheClick(error: HttpError = releaseChanged()) {
-  mockedFetchCatalog.mockResolvedValue(UPDATE_LISTING);
+  mockedFetchCatalog.mockResolvedValue({ ...UPDATE_LISTING, matching_ids: ["acme_crm"] });
   mockedInstall.mockImplementationOnce(async () => {
-    mockedFetchCatalog.mockResolvedValue(NEWER_LISTING);
+    mockedFetchCatalog.mockResolvedValue({ ...NEWER_LISTING, matching_ids: ["acme_crm"] });
     throw error;
   });
 }
 
-test("a card whose release was superseded shows the new version and installs nothing until pressed again", async () => {
+test.each([GRID_URL, "/extensions?mk_q=crm#marketplace"])("a superseded card refreshes the pinned release at %s", async (url) => {
   publishNewerDuringTheClick();
-  renderHub(GRID_URL);
+  renderHub(url);
 
   fireEvent.click(await quickUpdate("1.10.0"));
 

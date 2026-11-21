@@ -81,14 +81,16 @@ export type ExtensionCatalogListing = {
   /** Permission scope -> its name, from Core. */
   permission_labels?: Record<string, string>;
   items: ExtensionCatalogEntry[];
+  matching_ids?: string[];
 };
 
 /** Shared so the page can refresh the catalog after an install it drove itself. */
 export const EXTENSION_CATALOG_QUERY_KEY = ["extensions", "catalog"] as const;
 
 /** Load the current catalog joined with this account's installs. No ZIP is fetched. */
-export async function fetchExtensionCatalog() {
-  return fetchJson<ExtensionCatalogListing>("/api/extensions/catalog");
+export async function fetchExtensionCatalog(query = "") {
+  const search = query ? `?${new URLSearchParams({ query })}` : "";
+  return fetchJson<ExtensionCatalogListing>(`/api/extensions/catalog${search}`);
 }
 
 /**
