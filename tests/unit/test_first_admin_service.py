@@ -25,7 +25,10 @@ def test_first_admin_service_uses_single_atomic_repository_operation() -> None:
     service = FirstAdminService(repository=repository, password_hash=lambda value: f"hash:{value}")
 
     result = service.create(
-        email="admin@example.com", password="Strong-password-1!", display_name="Admin"
+        email="admin@example.com",
+        # pragma: allowlist nextline secret
+        password="Strong-password-1!",
+        display_name="Admin",
     )
 
     assert result["id"] == "1"
@@ -36,6 +39,7 @@ def test_first_admin_service_reports_atomic_conflict() -> None:
     service = FirstAdminService(repository=_Repository(None), password_hash=lambda value: value)
 
     try:
+        # pragma: allowlist nextline secret
         service.create(email="second@example.com", password="Strong-password-1!", display_name="")
     except FirstAdminAlreadyExists:
         pass
@@ -50,7 +54,10 @@ def test_first_admin_rejects_invalid_password_before_hashing_or_writing() -> Non
 
     with pytest.raises(ServiceValidationError, match="uppercase and lowercase"):
         service.create(
-            email="admin@example.com", password="incomplete-password-1", display_name="Admin"
+            email="admin@example.com",
+            # pragma: allowlist nextline secret
+            password="incomplete-password-1",
+            display_name="Admin",
         )
 
     hash_password.assert_not_called()

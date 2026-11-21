@@ -80,6 +80,7 @@ def harness(monkeypatch):
             get_user_by_id=lambda _logger, _id: {
                 "id": _USER_ID,
                 "username": "owner@example.test",
+                # pragma: allowlist nextline secret
                 "password_hash": "hash",
                 "is_active": True,
             },
@@ -172,6 +173,7 @@ def test_enrolled_user_must_prove_factor_to_replace_it(harness):
     harness.state.enabled = True
     response = harness.client.post(
         f"{_BASE}/enroll",
+        # pragma: allowlist nextline secret
         json={"current_password": "correct-password", "current_code": "123456"},
     )
 
@@ -198,6 +200,7 @@ def test_disable_enforces_installation_policy(harness):
     harness.state.enabled = True
     response = harness.client.post(
         f"{_BASE}/disable",
+        # pragma: allowlist nextline secret
         json={"current_password": "correct-password", "current_code": "123456"},
     )
 
@@ -211,6 +214,7 @@ def test_optional_disable_consumes_proof_and_revokes_other_sessions(harness):
     harness.check_factor.return_value = True
     response = harness.client.post(
         f"{_BASE}/disable",
+        # pragma: allowlist nextline secret
         json={"current_password": "correct-password", "current_code": "123456"},
     )
 

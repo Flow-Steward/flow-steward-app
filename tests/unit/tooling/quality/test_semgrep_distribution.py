@@ -19,6 +19,7 @@ def _source(tmp_path: Path) -> Path:
         "opentelemetry-exporter-otlp-proto-http~=1.37.0",
         "opentelemetry-instrumentation-requests~=0.58b0",
         "opentelemetry-instrumentation-threading~=0.58b0",
+        "wcmatch~=8.3",
     ):
         metadata += "Requires-Dist: " + requirement + "\n"
     path = tmp_path / "semgrep-1.183.0-py3-none-any.whl"
@@ -47,6 +48,7 @@ def test_rebuild_preserves_engine_permissions_and_explicit_local_identity(tmp_pa
         assert "Version: 1.183.0+fs.1\n" in metadata
         assert "Requires-Dist: mcp==1.30.0\n" in metadata
         assert "Requires-Dist: opentelemetry-api==1.45.2\n" in metadata
+        assert "Requires-Dist: wcmatch==11.2\n" in metadata
         assert b"semgrep-core,sha256=" in archive.read("semgrep-1.183.0+fs.1.dist-info/RECORD")
     assert (
         receipt["files"]["semgrep/bin/semgrep-core"]
@@ -142,6 +144,7 @@ def test_installed_scanner_and_fixed_dependencies_are_qualified(tmp_path: Path) 
     assert "semgrep==1.183.0\n" in inventory.read_text()
     assert "mcp==1.30.0\n" in inventory.read_text()
     assert "opentelemetry-api==1.45.2\n" in inventory.read_text()
+    assert "wcmatch==11.2\n" in inventory.read_text()
     result = subprocess.run(
         [
             "/opt/semgrep/bin/python",

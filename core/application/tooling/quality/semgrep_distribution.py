@@ -29,6 +29,9 @@ DEPENDENCY_PATCH = {
     "opentelemetry-exporter-otlp-proto-http~=1.37.0": "opentelemetry-exporter-otlp-proto-http==1.45.2",
     "opentelemetry-instrumentation-requests~=0.58b0": "opentelemetry-instrumentation-requests==0.66b2",
     "opentelemetry-instrumentation-threading~=0.58b0": "opentelemetry-instrumentation-threading==0.66b2",
+    # GHSA-53pm-wgxf-c6qf (2026-11-20): wcmatch <= 11.1 ReDoS. Semgrep calls only
+    # glob.globmatch(GLOBSTAR | DOTGLOB), untouched by the 9-11 breaking changes.
+    "wcmatch~=8.3": "wcmatch==11.2",
 }
 
 

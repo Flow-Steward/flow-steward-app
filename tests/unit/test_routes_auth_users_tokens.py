@@ -71,6 +71,7 @@ class _Cursor:
             return
         if "SELECT password_hash FROM users WHERE id =" in normalized:
             # c773ba9c: a password change locks the user's current credential first.
+            # pragma: allowlist nextline secret
             self._next_fetchone = {"password_hash": "hash:Password123!"}
             return
         if "INSERT INTO users" in normalized and "RETURNING id" in normalized:

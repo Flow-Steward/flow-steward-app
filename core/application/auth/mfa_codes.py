@@ -23,6 +23,7 @@ _RECOVERY_CODE_PATTERN = re.compile(r"(?:[a-fA-F0-9]{32}|(?:[a-fA-F0-9]{8}-){3}[
 
 def _authenticator(secret: str) -> _Totp:
     # HMAC-SHA-1 is the interoperable authenticator default specified by RFC 6238.
+    # nosemgrep: python.cryptography.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1 -- one-time-code HMAC key, not a signature or digest; authenticator apps require SHA-1 (RFC 6238).
     return _Totp(base64.b32decode(secret), _DIGITS, SHA1(), _PERIOD_SECONDS)  # nosec B303
 
 

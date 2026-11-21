@@ -513,6 +513,7 @@ def test_admin_repository_rejects_reused_password_before_any_user_mutation(
 ) -> None:
     from core.application.auth.user_admin.repository import update_auth_user
 
+    # pragma: allowlist nextline secret
     new_password = "ReusedPwd-123!"
     current_hash = password_hash(new_password if reuse_current else "CurrentPwd-345!")
     older_hash = password_hash("OlderPwd-345!" if reuse_current else new_password)

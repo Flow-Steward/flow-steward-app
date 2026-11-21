@@ -24,6 +24,7 @@ describe("AuthenticatorSettings", () => {
   it("confirms setup before displaying one-use recovery codes", async () => {
     mockedFetchJson
       .mockResolvedValueOnce({ enabled: false, required: false })
+      // pragma: allowlist nextline secret
       .mockResolvedValueOnce({ secret: "EXAMPLESETUPKEY", uri: "" })
       .mockResolvedValueOnce({ recovery_codes: ["abcd-efgh-jkmn"] });
     renderAuthenticatorSettings();
