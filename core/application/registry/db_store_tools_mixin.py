@@ -125,6 +125,25 @@ class RegistryDBStoreToolsMixin:
             tool["agents"] = using_agents
             return tool
 
+    def find_live_tool_ids(self, tool_ids: set[str]) -> set[str]:
+        """Return the requested registry IDs that resolve through get_tool."""
+        if not tool_ids:
+            return set()
+        with self._cursor() as cur:
+            conditions = ["tool_id = ANY(%s)"]
+            if self._column_exists("registry_tools", "deleted_at"):
+                conditions.append(SQL_DELETED_AT_IS_NULL)
+            where_sql = psycopg_runtime.sql.SQL(SQL_AND).join(
+                psycopg_runtime.sql.SQL(condition) for condition in conditions
+            )
+            cur.execute(
+                psycopg_runtime.sql.SQL("SELECT tool_id FROM registry_tools WHERE {}").format(
+                    where_sql
+                ),
+                (sorted(tool_ids),),
+            )
+            return {row["tool_id"] for row in cur.fetchall()}
+
     def get_tool_including_trashed(self, tool_id: str) -> dict | None:
         """Return an exact registry tool tombstone without making it live."""
         with self._cursor() as cur:

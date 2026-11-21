@@ -542,14 +542,19 @@ def _tool_refs_from_override(override: Any) -> list[str]:
     return refs
 
 
-def _resolve_named_step_extension(db: Any, step: dict[str, Any]) -> NamedStepExtension | None:
+def _resolve_named_step_extension(
+    db: Any, step: dict[str, Any], *, registry_tool_ids: set[str] | None = None
+) -> NamedStepExtension | None:
     named = named_extension_without_install(step)
-    if named and (
-        named.connector_form
-        or _call_db_get(db, "get_tool", _text(step.get("connector_id"))) is None
-    ):
+    if not named or named.connector_form:
         return named
-    return None
+    connector_id = _text(step.get("connector_id"))
+    is_tool = (
+        connector_id in registry_tool_ids
+        if registry_tool_ids is not None
+        else _call_db_get(db, "get_tool", connector_id) is not None
+    )
+    return None if is_tool else named
 
 
 def _call_db_get_scoped(

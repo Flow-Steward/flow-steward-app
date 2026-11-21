@@ -77,7 +77,7 @@ def list_workflows(
                 row, search, fields=("workflow_id", "display_name", "description")
             )
         ]
-    normalized_rows: list[dict[str, Any]] = []
+    visible_rows: list[dict[str, Any]] = []
     for row in catalog_rows:
         item = dict(row)
         if item.get("source_install_id"):
@@ -86,10 +86,14 @@ def list_workflows(
                 item,
                 account_id=scope.account_id,
             )
-        if not _workflow_visible_to_scope(scope, item):
-            continue
-        extensions = portability.list_extension_associations(item, account_id=scope.account_id)
-        item = portability.redact_protected_workflow(item)
+        if _workflow_visible_to_scope(scope, item):
+            visible_rows.append(item)
+    associations = portability.list_catalog_extension_associations(
+        visible_rows, account_id=scope.account_id
+    )
+    normalized_rows = []
+    for row, extensions in zip(visible_rows, associations, strict=True):
+        item = portability.redact_protected_workflow(row)
         item["extensions"] = extensions
         normalized_rows.append(_with_viewer_extension_permission(item, request))
     return normalized_rows

@@ -14,6 +14,7 @@ from core.application.registry.workflow_secret_defaults import (
 )
 from core.application.workflows.execution_graph import EXECUTION_GRAPH_SETTING
 from core.application.workflows.extension_connection_validation import (
+    named_extension_without_install,
     step_connector_install_id,
     step_extension_id,
 )
@@ -149,8 +150,34 @@ class WorkflowPortabilityPolicyMixin:
             )
         return cache[visible_key]
 
+    def list_catalog_extension_associations(
+        self, workflows: list[dict[str, Any]], *, account_id: str
+    ) -> list[list[dict[str, str]]]:
+        """Resolve the list's ambiguous connector IDs in a single registry query."""
+        connector_ids = {
+            _text(step.get("connector_id"))
+            for workflow in workflows
+            for step in _workflow_steps(workflow)
+            if not step_extension_id(step)
+            and (named := named_extension_without_install(step))
+            and not named.connector_form
+        }
+        registry_tool_ids = (
+            set(self.db.find_live_tool_ids(connector_ids)) if connector_ids else set()
+        )
+        return [
+            self.list_extension_associations(
+                workflow, account_id=account_id, registry_tool_ids=registry_tool_ids
+            )
+            for workflow in workflows
+        ]
+
     def list_extension_associations(
-        self, workflow: dict[str, Any], *, account_id: str
+        self,
+        workflow: dict[str, Any],
+        *,
+        account_id: str,
+        registry_tool_ids: set[str] | None = None,
     ) -> list[dict[str, str]]:
         """Package identities from the workflow's source and current saved steps."""
         owner_account_id = _text(workflow.get("account_id")) or account_id
@@ -159,7 +186,9 @@ class WorkflowPortabilityPolicyMixin:
         for step in _workflow_steps(workflow):
             extension_id = step_extension_id(step)
             if not extension_id:
-                named = _resolve_named_step_extension(self.db, step)
+                named = _resolve_named_step_extension(
+                    self.db, step, registry_tool_ids=registry_tool_ids
+                )
                 extension_id = named.extension_id if named else ""
             if extension_id:
                 labels[extension_id] = extension_id
