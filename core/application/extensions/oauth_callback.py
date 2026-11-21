@@ -16,6 +16,7 @@ from core.application.extensions.oauth_contract import (
     provider_security_fingerprint,
 )
 from core.application.extensions.oauth_post_connect import (
+    OAUTH_POST_CONNECT_RETRYABLE_ERRORS,
     oauth_post_connect_result_from_invocation,
 )
 from core.infrastructure.extension_runtime.oauth_transport import (
@@ -280,9 +281,10 @@ class OAuthCallbackService:
                     raise ValueError(_MESSAGE_STALE_CONNECTION)
                 oauth = _mapping(_mapping(connection.get("connection_config")).get("oauth"))
                 lifecycle = _text(oauth.get("lifecycle_status"))
-                post_connect_failure = lifecycle == "needs_attention" and _text(
-                    oauth.get("last_error_code")
-                ) in {"internal_failure", "malformed_response", "provider_unavailable"}
+                post_connect_failure = (
+                    lifecycle == "needs_attention"
+                    and _text(oauth.get("last_error_code")) in OAUTH_POST_CONNECT_RETRYABLE_ERRORS
+                )
                 if lifecycle != "post_connect_pending" and not post_connect_failure:
                     raise ValueError("retry not available")
                 if int(connection.get("oauth_authorization_revision") or 0) != int(
@@ -373,8 +375,14 @@ class OAuthCallbackService:
         )
         if recorded is None:
             return OAuthCallbackResult(outcome="restart_required")
+        access_denied = recorded.error_code == "access_denied"
         return OAuthCallbackResult(
-            outcome=_post_connect_outcome(recorded), connection_id=connection_id
+            outcome=_post_connect_outcome(recorded),
+            connection_id=connection_id,
+            error_code="access_denied" if access_denied else None,
+            help_target=oauth_error_help_target(provider, "access_denied")
+            if access_denied
+            else None,
         )
 
     def _pre_exchange(

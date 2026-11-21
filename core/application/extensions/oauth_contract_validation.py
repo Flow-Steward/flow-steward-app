@@ -84,6 +84,7 @@ OAUTH_HELP_ANCHOR_MAX_LENGTH = 64
 
 
 OAUTH_ERROR_CODES = {
+    "access_denied",
     "authorization_denied",
     "invalid_client",
     "invalid_grant",

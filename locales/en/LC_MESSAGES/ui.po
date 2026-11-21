@@ -5113,6 +5113,9 @@ msgstr "The account could not be connected. Check the values and try again."
 msgid "react.extensions.oauth_import_invalid_client"
 msgstr "The provider did not accept this configuration's client credentials. Repair the configuration in Setup, then try again."
 
+msgid "react.extensions.oauth_import_keep_refresh_token"
+msgstr "Keep saved refresh token"
+
 msgid "react.extensions.oauth_import_provider_unavailable"
 msgstr "The provider could not be reached. Try again later."
 
@@ -5130,6 +5133,9 @@ msgstr "The provider did not accept this refresh token. Check it and try again."
 
 msgid "react.extensions.oauth_import_refresh_token_required"
 msgstr "Refresh token is required."
+
+msgid "react.extensions.oauth_import_refresh_token_saved"
+msgstr "Refresh token is saved."
 
 msgid "react.extensions.oauth_import_replace"
 msgstr "Replace refresh token"
@@ -5169,6 +5175,12 @@ msgstr "Page"
 
 msgid "react.extensions.permissions_it_asks_for"
 msgstr "Permissions it asks for"
+
+msgid "react.extensions.post_connect_access_denied"
+msgstr "The provider denied access. Check the application's permissions and reauthorize the account if needed."
+
+msgid "react.extensions.post_connect_retry_verification"
+msgstr "Verification needs attention. Retry verification."
 
 msgid "react.extensions.pre_save_result_mapping_target_value0_must_be_a_declared_non_secret_config_field"
 msgstr ""

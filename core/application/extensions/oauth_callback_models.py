@@ -26,6 +26,7 @@ class OAuthCallbackResult(BaseModel):
     outcome: OAuthCallbackOutcome
     connection_id: str | None = None
     connection_preserved: Literal[True] | None = None
+    error_code: Literal["access_denied"] | None = None
     help_target: dict[str, str] | None = None
     return_page_id: str | None = None
 
@@ -116,6 +117,8 @@ class OAuthCallbackRepository(Protocol):
     def mark_configuration_invalid_client(self, **scope: Any) -> dict[str, Any] | None: ...
 
     def update_oauth_post_connect(self, **values: Any) -> dict[str, Any] | None: ...
+
+    def oauth_refresh_claim(self, **scope: Any) -> AbstractContextManager[Any]: ...
 
 
 class OAuthCallbackTokenStore(Protocol):

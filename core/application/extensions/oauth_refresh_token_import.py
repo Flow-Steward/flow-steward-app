@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import secrets
 from collections.abc import Callable, Mapping
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, nullcontext
 from typing import Any, Literal, cast
 from uuid import UUID
 
@@ -51,8 +51,17 @@ from core.infrastructure.extension_runtime.oauth_transport import (
     OAuthProviderError,
 )
 
+from .oauth_callback_connection_checks import _locked_install_provider
 from .oauth_callback_models import OAuthCallbackRepository, OAuthCallbackTokenStore
-from .oauth_callback_policy import _required_connection_scopes, _scopes
+from .oauth_callback_policy import (
+    _REPLACED_SUBJECT,
+    _connection_owned_refs,
+    _mapping,
+    _operational_state,
+    _required_connection_scopes,
+    _scopes,
+    _text,
+)
 from .oauth_grant_commit import OAuthGrant, OAuthGrantCommitter, oauth_client_credentials
 
 _logger = logging.getLogger(__name__)
@@ -85,7 +94,7 @@ class OAuthRefreshTokenImport(BaseModel):
     display_name: str = Field(min_length=1, max_length=200)
     #: Write-only. A SecretStr so that no repr, log line or validation error
     #: built from this model can carry the value.
-    refresh_token: SecretStr
+    refresh_token: SecretStr | None = None
     connection_config: dict[str, Any] = Field(default_factory=dict)
     existing_connection_id: str | None = Field(default=None, max_length=200)
     connection_credential_revision: int | None = Field(default=None, ge=1)
@@ -103,6 +112,8 @@ class OAuthRefreshTokenImport(BaseModel):
             raise ValueError(
                 "existing_connection_id and connection_credential_revision go together"
             )
+        if self.refresh_token is None and not self.existing_connection_id:
+            raise ValueError("A refresh token is required for a new connection")
         return self
 
 
@@ -111,6 +122,8 @@ OAuthRefreshTokenImportOutcome = Literal[
     "needs_attention",
     "authorization_required",
     "restart_required",
+    "settings_saved",
+    "post_connect_pending",
 ]
 _IMPORT_OUTCOMES = frozenset(
     {"connected", "needs_attention", "authorization_required", "restart_required"}
@@ -125,6 +138,7 @@ class OAuthRefreshTokenImportResult(BaseModel):
     outcome: OAuthRefreshTokenImportOutcome
     connection_id: str
     connection_type: str
+    error_code: Literal["access_denied"] | None = None
     help_target: dict[str, str] | None = None
 
 
@@ -290,11 +304,15 @@ class OAuthRefreshTokenImportService:
         }
         if not all(scope_values.values()):
             raise ServiceNotFoundError(_MESSAGE_PROVIDER_NOT_FOUND)
-        refresh_token = _normalized_refresh_token(command.refresh_token)
+        refresh_token = (
+            _normalized_refresh_token(command.refresh_token)
+            if command.refresh_token is not None
+            else None
+        )
         normalized_install_id = str(install_id or "").strip()
         normalized_provider_id = str(provider_id or "").strip()
         configuration_id = str(command.configuration_id)
-        install, _, _ = self._install_provider(
+        install, _, initial_provider = self._install_provider(
             install_id=normalized_install_id,
             account_id=scope_values["account_id"],
             provider_id=normalized_provider_id,
@@ -309,11 +327,42 @@ class OAuthRefreshTokenImportService:
             "provider_id": normalized_provider_id,
             "configuration_id": configuration_id,
         }
+        existing_connection_id = str(command.existing_connection_id or "").strip()
+        claim = (
+            self._repository.oauth_refresh_claim(
+                **repository_scope,
+                connection_id=existing_connection_id,
+                connection_type=command.connection_type,
+            )
+            if refresh_token is None
+            else nullcontext()
+        )
 
         # Every check runs under the configuration lock, and the lock is let go
         # before the provider is called: nothing is written until the provider
         # has answered, and the commit repeats every lineage check under lock.
-        with self._transaction_factory():
+        with claim, self._transaction_factory():
+            if (
+                refresh_token is None
+                and _locked_install_provider(
+                    {
+                        **repository_scope,
+                        "extension_release_id": _text(install.get("release_id")),
+                        "provider_security_fingerprint": provider_security_fingerprint(
+                            initial_provider
+                        ),
+                        "callback_id": initial_provider.callback_id,
+                        "flow_type": FLOW_REFRESH_TOKEN_IMPORT,
+                    },
+                    repository=self._repository,
+                    install_loader=self._install_loader,
+                )
+                is None
+            ):
+                raise ServiceConflictError(
+                    "The installed OAuth provider changed while saving; try again",
+                    payload={"error": "oauth_import_conflict"},
+                )
             configuration = self._repository.get_configuration_for_scope_for_update(
                 **repository_scope
             )
@@ -345,8 +394,8 @@ class OAuthRefreshTokenImportService:
                 connection_type=command.connection_type,
                 settings=command.connection_config,
             )
-            existing_connection_id = str(command.existing_connection_id or "").strip()
             expected_fingerprint = provider_security_fingerprint(provider)
+            connection: Mapping[str, Any] = {}
             if existing_connection_id:
                 connection = lock_replaceable_connection(
                     self._repository,
@@ -363,6 +412,14 @@ class OAuthRefreshTokenImportService:
                         "The connection changed since this form was opened",
                         payload={"error": "oauth_connection_revision_conflict"},
                     )
+            if refresh_token is None:
+                return self._save_settings(
+                    connection=connection,
+                    command=command,
+                    settings=settings,
+                    declared_settings=declared_settings,
+                    has_post_connect=bool(provider.post_connect_action_id),
+                )
             credentials = oauth_client_credentials(
                 configuration,
                 provider=provider,
@@ -489,11 +546,90 @@ class OAuthRefreshTokenImportService:
             outcome=cast(OAuthRefreshTokenImportOutcome, result.outcome),
             connection_id=result.connection_id,
             connection_type=command.connection_type,
+            error_code=result.error_code,
             help_target=(
-                oauth_error_help_target(provider, result.outcome)
+                oauth_error_help_target(provider, result.error_code or result.outcome)
                 if result.outcome in {"needs_attention", "authorization_required"}
                 else None
             ),
+        )
+
+    def _save_settings(
+        self,
+        *,
+        connection: Mapping[str, Any],
+        command: OAuthRefreshTokenImport,
+        settings: dict[str, Any],
+        declared_settings: frozenset[str],
+        has_post_connect: bool,
+    ) -> OAuthRefreshTokenImportResult:
+        """Save settings under the existing grant without exchanging or writing tokens."""
+        connection_id = _text(connection.get("connection_id"))
+        config = _mapping(connection.get("connection_config"))
+        oauth = _mapping(config.get("oauth"))
+        lifecycle = _text(oauth.get("lifecycle_status"))
+        refs = _connection_owned_refs(connection_id, connection.get("secret_refs"))
+        if lifecycle not in {"connected", "needs_attention", "post_connect_pending"} or not (
+            refs and refs.get("_oauth_refresh_token")
+        ):
+            raise ServiceValidationError(
+                "A new refresh token is required to save this connection",
+                payload={
+                    "error": "oauth_saved_refresh_token_unavailable",
+                    "field": "refresh_token",
+                },
+            )
+        stored_settings = {key: value for key, value in config.items() if key != "oauth"}
+        next_settings = {
+            **{
+                key: value for key, value in stored_settings.items() if key not in declared_settings
+            },
+            **settings,
+        }
+        needs_verification = has_post_connect and (
+            next_settings != stored_settings or lifecycle == "post_connect_pending"
+        )
+        if needs_verification:
+            bound_subject = _text(oauth.get(_REPLACED_SUBJECT)) or _text(oauth.get("subject"))
+            if bound_subject:
+                oauth[_REPLACED_SUBJECT] = bound_subject
+            oauth.update(lifecycle_status="post_connect_pending", last_error_code=None)
+        if next_settings != stored_settings or command.display_name != _text(
+            connection.get("display_name")
+        ):
+            operational = (
+                _operational_state(ready=False)
+                if needs_verification
+                else {
+                    "runtime_status": _text(connection.get("runtime_status")),
+                    "health_status": _text(connection.get("health_status")),
+                    "last_error": _text(connection.get("last_error")),
+                    "mark_last_seen_ok": False,
+                }
+            )
+            updated = self._repository.update_oauth_post_connect(
+                connection_id=connection_id,
+                account_id=_text(connection.get("account_id")),
+                project_id=_text(connection.get("project_id")),
+                extension_install_id=_text(connection.get("extension_install_id")),
+                extension_id=_text(connection.get("extension_id")),
+                oauth_configuration_id=str(command.configuration_id),
+                oauth_provider_id=_text(connection.get("oauth_provider_id")),
+                connection_type=command.connection_type,
+                expected_credential_revision=command.connection_credential_revision,
+                display_name=command.display_name,
+                connection_config={**next_settings, "oauth": oauth},
+                **operational,
+            )
+            if not updated:
+                raise ServiceConflictError(
+                    "The connection changed since this form was opened",
+                    payload={"error": "oauth_connection_revision_conflict"},
+                )
+        return OAuthRefreshTokenImportResult(
+            outcome="post_connect_pending" if needs_verification else "settings_saved",
+            connection_id=connection_id,
+            connection_type=command.connection_type,
         )
 
 

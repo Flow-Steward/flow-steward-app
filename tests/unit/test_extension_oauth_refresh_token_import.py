@@ -556,6 +556,11 @@ class _Repository:
         self.events.append("lock_connection")
         return copy.deepcopy(self.connections.get(str(scope.get("connection_id")), {}))
 
+    @contextmanager
+    def oauth_refresh_claim(self, **_scope: Any):
+        self.events.append("claim_refresh")
+        yield
+
     def create_oauth_connection(self, **values: Any) -> dict[str, Any]:
         self.events.append("create_connection")
         self.created.append(copy.deepcopy(values))
@@ -587,6 +592,7 @@ class _Repository:
         if values["expected_credential_revision"] != current["credential_revision"]:
             return {}
         current["connection_config"] = copy.deepcopy(values["connection_config"])
+        current["runtime_status"] = values["runtime_status"]
         current["credential_revision"] += 1
         return copy.deepcopy(current)
 
@@ -1116,6 +1122,58 @@ def _post_connect_returning(subject: str, *, health: str = "ok", error_code: str
     return post_connect
 
 
+def test_save_imported_settings_keeps_saved_token_and_rechecks_bound_subject() -> None:
+    descriptor = _descriptor()
+    repository = _bound_repository(descriptor)
+    service, store, provider_calls = _service(repository, descriptor)
+    before = copy.deepcopy(repository.connections["connection-existing"])
+
+    result = service.import_refresh_token(
+        _scope(),
+        "install-a",
+        "console",
+        _replace_command(
+            refresh_token=None,
+            connection_config={"account_ref": "old-account", "region": "south"},
+        ),
+    )
+
+    assert result.outcome == "post_connect_pending"
+    assert result.connection_id == before["connection_id"]
+    assert not provider_calls
+    assert not store.writes
+    saved = repository.connections[result.connection_id]
+    assert saved["secret_refs"] == before["secret_refs"]
+    assert saved["credential_revision"] == before["credential_revision"] + 1
+    assert saved["connection_config"]["region"] == "south"
+    assert saved["connection_config"]["oauth"]["replaced_subject"] == "account-old"
+    assert saved["connection_config"]["oauth"]["lifecycle_status"] == "post_connect_pending"
+    assert saved["runtime_status"] == "unavailable"
+
+
+def test_saved_settings_require_the_current_revision_and_an_existing_token() -> None:
+    descriptor = _descriptor()
+    repository = _bound_repository(descriptor)
+    service, store, provider_calls = _service(repository, descriptor)
+    connection = repository.connections["connection-existing"]
+    connection["credential_revision"] = 6
+    with pytest.raises(ServiceConflictError):
+        service.import_refresh_token(
+            _scope(), "install-a", "console", _replace_command(refresh_token=None)
+        )
+
+    connection["credential_revision"] = 5
+    connection["secret_refs"] = {}
+    with pytest.raises(ServiceValidationError) as error:
+        service.import_refresh_token(
+            _scope(), "install-a", "console", _replace_command(refresh_token=None)
+        )
+    assert error.value.payload["error"] == "oauth_saved_refresh_token_unavailable"
+    assert not repository.post_connect_updates
+    assert not store.writes
+    assert not provider_calls
+
+
 def test_replacement_verified_as_another_account_keeps_the_old_subject() -> None:
     descriptor = _descriptor()
     repository = _bound_repository(descriptor)
@@ -1175,6 +1233,27 @@ def test_failed_verification_of_an_imported_replacement_keeps_the_old_subject() 
     oauth = repository.post_connect_updates[0]["connection_config"]["oauth"]
     assert oauth["subject"] == "account-old"
     assert oauth["last_error_code"] == "provider_unavailable"
+
+
+def test_import_preserves_a_post_connect_access_denial_and_its_help_target() -> None:
+    provider = _import_provider()
+    provider["error_help_anchors"]["access_denied"] = "replace-token"
+    descriptor = _descriptor(provider)
+    repository = _Repository(descriptor)
+    service, _store, _calls = _service(
+        repository,
+        descriptor,
+        post_connect=_post_connect_returning(
+            "", health="needs_attention", error_code="access_denied"
+        ),
+    )
+
+    result = service.import_refresh_token(_scope(), "install-a", "console", _command())
+
+    assert result.outcome == "needs_attention"
+    assert result.error_code == "access_denied"
+    assert result.help_target == {"page_id": "oauth_help", "anchor": "replace-token"}
+    assert repository.post_connect_updates[0]["last_error"] == "access_denied"
 
 
 def test_unknown_settings_keys_are_refused_even_when_the_schema_allows_extras() -> None:

@@ -358,7 +358,7 @@ function OAuthConnectionsPanel({
       </div>
     );
   }
-  return (
+  const createConnectionForm = (
     <>
       {canManage && selectableConfigurations.length > 1 ? (
         <div className="fs-field fs-manifest-measure">
@@ -389,24 +389,27 @@ function OAuthConnectionsPanel({
           scope={scope}
         />
       ) : null}
-      <ConnectionList
-        canManage={canManage}
-        configurations={configurations}
-        connectionTypes={connectionDeclaration.providerConnectionTypes}
-        connections={connections}
-        focusConnectionId={focusConnectionId}
-        legacyOwnershipIsExact={connectionDeclaration.legacyOwnershipIsExact}
-        onAuthorization={onAuthorization}
-        onConnectionsChanged={onConnectionsChanged}
-        onNavigatePage={onNavigatePage}
-        onTestConnection={onTestConnection}
-        ownedConnectionTypeId={connectionDeclaration.ownedConnectionTypeId}
-        ownedIntentId={connectionDeclaration.connectionDeclarationIsExact ? connectionDeclaration.exactAllowedIntentIds[0] || "" : ""}
-        provider={provider}
-        returnPageId={returnPageId}
-        scope={scope}
-      />
     </>
+  );
+  return (
+    <ConnectionList
+      canManage={canManage}
+      configurations={configurations}
+      connectionTypes={connectionDeclaration.providerConnectionTypes}
+      connections={connections}
+      createConnectionForm={createConnectionForm}
+      focusConnectionId={focusConnectionId}
+      legacyOwnershipIsExact={connectionDeclaration.legacyOwnershipIsExact}
+      onAuthorization={onAuthorization}
+      onConnectionsChanged={onConnectionsChanged}
+      onNavigatePage={onNavigatePage}
+      onTestConnection={onTestConnection}
+      ownedConnectionTypeId={connectionDeclaration.ownedConnectionTypeId}
+      ownedIntentId={connectionDeclaration.connectionDeclarationIsExact ? connectionDeclaration.exactAllowedIntentIds[0] || "" : ""}
+      provider={provider}
+      returnPageId={returnPageId}
+      scope={scope}
+    />
   );
 }
 

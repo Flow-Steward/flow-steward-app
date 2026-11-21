@@ -5211,6 +5211,9 @@ msgstr "Paskyros prijungti nepavyko. Patikrinkite reikšmes ir bandykite dar kar
 msgid "react.extensions.oauth_import_invalid_client"
 msgstr "Teikėjas nepriėmė šios konfigūracijos kliento prisijungimo duomenų. Pataisykite konfigūraciją sąrankoje ir bandykite dar kartą."
 
+msgid "react.extensions.oauth_import_keep_refresh_token"
+msgstr "Palikti išsaugotą atnaujinimo žetoną"
+
 msgid "react.extensions.oauth_import_provider_unavailable"
 msgstr "Nepavyko pasiekti teikėjo. Bandykite vėliau."
 
@@ -5228,6 +5231,9 @@ msgstr "Teikėjas nepriėmė šio atnaujinimo rakto. Patikrinkite jį ir bandyki
 
 msgid "react.extensions.oauth_import_refresh_token_required"
 msgstr "Atnaujinimo raktas yra privalomas."
+
+msgid "react.extensions.oauth_import_refresh_token_saved"
+msgstr "Atnaujinimo žetonas išsaugotas."
 
 msgid "react.extensions.oauth_import_replace"
 msgstr "Pakeisti atnaujinimo raktą"
@@ -5267,6 +5273,12 @@ msgstr "Puslapis"
 
 msgid "react.extensions.permissions_it_asks_for"
 msgstr "Prašomi leidimai"
+
+msgid "react.extensions.post_connect_access_denied"
+msgstr "Teikėjas nesuteikė prieigos. Patikrinkite programos leidimus ir, jei reikia, iš naujo autorizuokite paskyrą."
+
+msgid "react.extensions.post_connect_retry_verification"
+msgstr "Patikrai reikia dėmesio. Pakartokite patikrą."
 
 msgid "react.extensions.pre_save_result_mapping_target_value0_must_be_a_declared_non_secret_config_field"
 msgstr ""
