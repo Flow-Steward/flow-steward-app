@@ -1048,6 +1048,83 @@ def test_development_transition_preparation_retains_installed_image_pins(
     assert {name: environment.get(name) for name in image_pins} == image_pins
 
 
+_OFFICIAL_PINS = {
+    "FS_INSTALL_MODE": "official",
+    "FS_RELEASE_VERSION": "0.9.23",
+    "FS_BUILD_SHA": "1" * 40,
+    "FS_APP_IMAGE": "registry.example/fs@sha256:" + ("a" * 64),
+    "MCP_IMAGE": "registry.example/mcp@sha256:" + ("b" * 64),
+    "FS_CLI_IMAGE": "registry.example/cli@sha256:" + ("c" * 64),
+}
+
+
+def _append_env(path: Path, values: dict[str, str]) -> None:
+    path.write_text(
+        path.read_text(encoding="utf-8") + "".join(f"{k}={v}\n" for k, v in values.items()),
+        encoding="utf-8",
+    )
+
+
+def test_official_switch_to_development_keeps_the_mode_and_release_pins(tmp_path: Path) -> None:
+    """Owner 2026-11-21: development is the same official Core images.
+
+    Development's managed set has no production_images or release_discovery group, so
+    FS_INSTALL_MODE and the release markers must be carried explicitly -- without them
+    the launcher and the installer would treat the switched installation as a build.
+    """
+    service = _service(tmp_path, installed_identity="customer_project")
+    active = DeploymentConfig(environment="production", file_storage="external_s3")
+    active_path = tmp_path / ".env.prod"
+    _write_lifecycle_secret_environment(active_path, project_identity="customer_project")
+    _append_env(active_path, _OFFICIAL_PINS)
+    candidate = active.model_copy(update={"environment": "development"})
+
+    _target, _path, environment = service.prepare_transition_environment(
+        active,
+        candidate,
+        {"FS_FRONTEND_IMAGE": "sha256:" + ("f" * 64), "FS_FRONTEND_IMAGE_REVISION": "1" * 40},
+    )
+
+    assert {name: environment.get(name) for name in _OFFICIAL_PINS} == _OFFICIAL_PINS
+    assert environment["FS_FRONTEND_IMAGE"] == "sha256:" + ("f" * 64)
+
+
+def test_official_switch_to_production_drops_the_development_frontend_pin(
+    tmp_path: Path,
+) -> None:
+    """Production is the same release without the development extras."""
+    service = _service(tmp_path, installed_identity="customer_project")
+    active = DeploymentConfig(environment="development", file_storage="external_s3")
+    active_path = tmp_path / ".env"
+    _write_lifecycle_secret_environment(active_path, project_identity="customer_project")
+    _append_env(
+        active_path,
+        {**_OFFICIAL_PINS, "FS_FRONTEND_IMAGE": "sha256:" + ("f" * 64)},
+    )
+    candidate = active.model_copy(update={"environment": "production"})
+
+    _target, _path, environment = service.prepare_transition_environment(active, candidate)
+
+    assert environment["FS_FRONTEND_IMAGE"] == ""
+    assert environment["FS_FRONTEND_IMAGE_REVISION"] == ""
+    assert environment["FS_APP_IMAGE"] == _OFFICIAL_PINS["FS_APP_IMAGE"]
+    assert environment["FS_INSTALL_MODE"] == "official"
+
+
+def test_source_switch_to_production_keeps_its_environment_as_before(tmp_path: Path) -> None:
+    """The green direction: a source installation's switch renders what it did."""
+    service = _service(tmp_path, installed_identity="customer_project")
+    active = DeploymentConfig(environment="development", file_storage="external_s3")
+    active_path = tmp_path / ".env"
+    _write_lifecycle_secret_environment(active_path, project_identity="customer_project")
+    _append_env(active_path, {"FS_INSTALL_MODE": "source", "FS_FRONTEND_IMAGE": "front:dev"})
+    candidate = active.model_copy(update={"environment": "production"})
+
+    _target, _path, environment = service.prepare_transition_environment(active, candidate)
+
+    assert environment["FS_FRONTEND_IMAGE"] == "front:dev"
+
+
 def test_monitoring_expectations_follow_deployment_owner(tmp_path: Path) -> None:
     service = _service(tmp_path, installed_identity="customer_project")
     active = DeploymentConfig(

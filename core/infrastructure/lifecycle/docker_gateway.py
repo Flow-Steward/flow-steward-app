@@ -203,24 +203,19 @@ class DockerLifecycleGateway:
                         _IMAGE_ID.fullmatch(image_id) for image_id in image_ids
                     ):
                         return
-            for action, arguments in (
-                (
-                    "target_image_pull",
-                    ("pull", "--ignore-buildable", "--policy", "missing", *services),
+            from .docker_rebuild import build_development_target
+
+            build_development_target(
+                target,
+                services,
+                run=self._run,
+                compose_command=lambda arguments: self._candidate_compose_command(
+                    target, arguments, override_content=override_content
                 ),
-                ("target_image_build", ("build", *services)),
-            ):
-                self._run(
-                    self._candidate_compose_command(
-                        target,
-                        arguments,
-                        override_content=override_content,
-                    ),
-                    action=action,
-                    timeout_seconds=timeout_seconds,
-                    environment=environment,
-                    input_text=override_content,
-                )
+                environment=environment,
+                input_text=override_content,
+                timeout_seconds=timeout_seconds,
+            )
 
     def apply_configuration(
         self,

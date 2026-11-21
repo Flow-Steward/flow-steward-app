@@ -10,7 +10,7 @@ a digest reference at all. They are recreated, never built; the development extr
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from core.application.lifecycle.contracts import ComposeTarget
@@ -92,3 +92,58 @@ def rebuild(
         output_sink=output_sink,
         heartbeat=heartbeat,
     )
+
+
+def build_development_target(
+    target: ComposeTarget,
+    services: tuple[str, ...],
+    *,
+    run: Callable[..., Any],
+    compose_command: Callable[[tuple[str, ...]], tuple[str, ...]],
+    environment: Mapping[str, str],
+    input_text: str | None,
+    timeout_seconds: int,
+) -> None:
+    """Pull what is missing and build a development target that is not complete yet.
+
+    An official development target -- an official installation switched to
+    development, owner 2026-11-21 -- runs its Core services on release digests, so
+    only the services it builds itself are built (D4). A source target builds every
+    selected service, exactly as before.
+    """
+
+    def run_compose(
+        _target: ComposeTarget,
+        arguments: Sequence[str],
+        *,
+        action: str,
+        timeout_seconds: float,
+        separate_stderr: bool = False,
+    ) -> Any:
+        return run(
+            compose_command(tuple(arguments)),
+            action=action,
+            timeout_seconds=timeout_seconds,
+            environment=environment,
+            input_text=input_text,
+            separate_stderr=separate_stderr,
+        )
+
+    run_compose(
+        target,
+        ("pull", "--ignore-buildable", "--policy", "missing", *services),
+        action="target_image_pull",
+        timeout_seconds=timeout_seconds,
+    )
+    buildable = (
+        locally_built_services(target, services, run_compose=run_compose)
+        if environment.get("FS_INSTALL_MODE") == "official"
+        else services
+    )
+    if buildable:
+        run_compose(
+            target,
+            ("build", *buildable),
+            action="target_image_build",
+            timeout_seconds=timeout_seconds,
+        )

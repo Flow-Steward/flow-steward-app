@@ -31,15 +31,19 @@ from core.infrastructure.installer.process import ProcessOutcome
 from core.infrastructure.installer.registry_image_resolver import (
     RegistryImageIdentity,
 )
+from core.infrastructure.lifecycle.development_extras import (
+    DEVELOPMENT_EXTRA_SERVICES,
+    DEVELOPMENT_UNPINNED_EXTRAS,
+    frontend_local_tag,
+)
 
 if TYPE_CHECKING:
     from core.infrastructure.installer.gateway import DockerInstallerGateway
 
-#: Development-only images no release publishes; an official development installation
-#: builds them from the checkout at the release commit (owner 2026-11-21).
-_DEVELOPMENT_EXTRA_SERVICES = ("fs-frontend", "fs-test-runner", "fs-audit")
-#: The ones left on their Compose tags (lint.sh rebuilds fs-audit itself).
-_DEVELOPMENT_UNPINNED_EXTRAS = ("fs-test-runner", "fs-audit")
+#: Development-only images no release publishes, shared with `environment switch`
+#: (owner 2026-11-21); the unpinned ones keep their Compose tags.
+_DEVELOPMENT_EXTRA_SERVICES = DEVELOPMENT_EXTRA_SERVICES
+_DEVELOPMENT_UNPINNED_EXTRAS = DEVELOPMENT_UNPINNED_EXTRAS
 
 
 class ImagePreparationOperations:
@@ -300,7 +304,7 @@ class ImagePreparationOperations:
             exit_code=7,
             step="prepare",
         )
-        frontend_tag = f"flow-steward-frontend:{_repository_release_version(self.repo_root)}-local"
+        frontend_tag = frontend_local_tag(_repository_release_version(self.repo_root))
         self._checked(
             [*compose_prefix, "build", *_DEVELOPMENT_EXTRA_SERVICES],
             log=log,

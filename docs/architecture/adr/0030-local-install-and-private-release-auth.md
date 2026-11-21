@@ -71,10 +71,21 @@ separately recorded CLI image and does not compare running containers, which run
 bind-mounted code. `--from-source` on an official installation stays refused
 (`source_install_official_conflict`), an untagged Development checkout without
 `--from-source` is refused with `production_release_checkout_required` naming
-`--from-source`, and `environment switch` refuses an installation with official
-state (`environment_switch_official_unsupported`). `ReleaseIdentity` carries no
-environment, so recorded identities stay valid; the release handoff installs the
-environment its journal (or else the active configuration) records.
+`--from-source`. `ReleaseIdentity` carries no environment, so recorded identities stay
+valid; the release handoff installs the environment its journal (or else the active
+configuration) records. For the same reason `environment switch` moves an official
+installation between the environments without touching its identity: development is
+the release's Core images plus the locally built extras plus checkout code
+bind-mounted, production is the same images without the extras. Images, database and
+data stay. Switching to development first requires a clean tracked tree at the
+installed release commit (`environment_switch_checkout_dirty`,
+`environment_switch_checkout_not_release`, both before any pause or backup), then
+builds the extras for that commit and pins the frontend in the target environment;
+the development target never builds a digest-pinned service. Switching to production
+keeps the digest pins, blanks the development-only frontend pin and reuses the
+present images. Both directions keep `FS_INSTALL_MODE=official` and the release
+markers. A switch during an unfinished release upgrade is refused
+(`environment_switch_release_in_flight`); source installations switch as before.
 
 The release pipeline publishes `flow-steward-installer:X.Y.Z` on both Linux
 architectures, with revision and installer-role labels, alongside PostgreSQL and

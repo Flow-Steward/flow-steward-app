@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, Protocol, cast
+from typing import TYPE_CHECKING, Literal, Protocol, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -41,6 +41,9 @@ from core.application.lifecycle.ports import (
     TechnicalSink,
 )
 from core.application.management.command_specs.contracts import OperationStepStatus
+
+if TYPE_CHECKING:
+    from core.application.release.contracts import ReleaseIdentity
 
 DevelopmentTool = Literal["test_runner", "audit_tools", "sonarqube"]
 ArtifactDecision = Literal["already_copied", "accept_unavailable"]
@@ -228,6 +231,18 @@ class EnvironmentStorage(Protocol):
 
 
 class EnvironmentRuntime(Protocol):
+    def release_checkout_state(self, release_commit: str) -> tuple[str, str]: ...
+
+    def prepare_development_extras(
+        self,
+        config: DeploymentConfig,
+        target: ComposeTarget,
+        environment: Mapping[str, str],
+        *,
+        release_commit: str,
+        version: str,
+    ) -> Mapping[str, str]: ...
+
     def prepare_target_images(
         self,
         config: DeploymentConfig,
@@ -316,7 +331,7 @@ class EnvironmentService:
         runtime: EnvironmentRuntime,
         lifecycle_state: LifecycleState,
         release_provider: Callable[[], str],
-        official_release_recorded: Callable[[], bool] = lambda: False,
+        official_release: Callable[[], ReleaseIdentity | None] = lambda: None,
     ) -> None:
         self.configuration = configuration
         self.jobs = jobs
@@ -325,7 +340,8 @@ class EnvironmentService:
         self.runtime = runtime
         self.lifecycle_state = lifecycle_state
         self.release_provider = release_provider
-        self.official_release_recorded = official_release_recorded
+        # The installed official release, or None for a source installation.
+        self.official_release = official_release
 
     def show(self, request: EnvironmentShowRequest) -> EnvironmentResult:
         del request
@@ -343,14 +359,30 @@ class EnvironmentService:
 
     def plan_switch(self, request: EnvironmentSwitchRequest) -> dict[str, object]:
         active = self.configuration.read_active()
-        self._refuse_official_switch(active, request)
         candidate = _candidate(active, request)
         target = self.configuration.derive_target(candidate)
         release = self._release()
         source_identity = self.storage.target_identity(active)
         target_identity = self.storage.target_identity(candidate)
         inventory = self.storage.inventory(active) if target_identity != source_identity else None
+        release_identity = (
+            self.official_release()
+            if candidate.environment == "development" and active.environment != "development"
+            else None
+        )
+        official = (
+            {
+                "official_release": (
+                    f"{release_identity.version} (unchanged); needs a clean checkout at "
+                    f"v{release_identity.version}; builds fs-frontend, fs-test-runner and "
+                    "fs-audit locally at that commit"
+                )
+            }
+            if release_identity is not None
+            else {}
+        )
         return {
+            **official,
             "transition": f"{active.environment} -> {candidate.environment}",
             "release": f"{release} (unchanged)",
             "development_tools": list(candidate.development_tools),
@@ -398,7 +430,6 @@ class EnvironmentService:
                 )
             finally:
                 self.jobs.resume_accepting(existing.operation_id)
-        self._refuse_official_switch(active, request)
         try:
             source_release = self.runtime.runtime_release(active, active_target)
         except (OSError, RuntimeError, ValueError) as exc:
@@ -430,6 +461,10 @@ class EnvironmentService:
         target_identity = self.storage.target_identity(candidate)
         storage_changed = target_identity != source_storage_identity
         environment = self.storage.candidate_environment(candidate, {}) if storage_changed else {}
+        environment = {
+            **environment,
+            **self._official_development_overlay(active, candidate, environment),
+        }
         prepared = self.configuration.prepare_transition_environment(
             active,
             candidate,
@@ -669,32 +704,79 @@ class EnvironmentService:
             }
         )
 
-    def _refuse_official_switch(
-        self, active: DeploymentConfig, request: EnvironmentSwitchRequest
-    ) -> None:
-        """D6 (owner 2026-11-21): official installations do not change environment.
+    def _official_development_overlay(
+        self,
+        active: DeploymentConfig,
+        candidate: DeploymentConfig,
+        environment: Mapping[str, str],
+    ) -> dict[str, str]:
+        """What an official installation adds when it switches to development.
 
-        Development now upgrades like production, but an official release identity is
-        bound to the environment it was installed as -- development builds its own
-        frontend and audit images next to the published Core images, production does
-        not -- and this transition knows nothing of either. It is refused by name
-        rather than half-done.
+        Owner 2026-11-21: development is the same official Core images (pinned by
+        digest), the development extras built locally at the release tag and Core code
+        bind-mounted from the checkout; production is the same images without the
+        extras. Only that changes -- images, database, data and the release identity
+        stay. The checkout must therefore be clean and at the installed release commit,
+        which is checked here, before any job is paused or any backup taken; then the
+        extras are built for that release and the frontend pin joins the target
+        environment. A source installation, or a switch to production, adds nothing.
         """
-        if request.target == active.environment or not self.official_release_recorded():
-            return
-        raise LifecycleError.stable_failure(
-            code="environment_switch_official_unsupported",
-            cause=(
-                f"This {active.environment} installation runs an official release; "
-                "switching it to another environment is not supported."
-            ),
-            remediation=(
-                "Keep this environment, or install the other environment separately with "
-                "./install.sh --environment "
-                f"{request.target} from a published release tag."
-            ),
-            step="validation",
-        )
+        if candidate.environment != "development":
+            return {}
+        release = self.official_release()
+        if release is None:
+            return {}
+        try:
+            state, head = self.runtime.release_checkout_state(release.commit_sha)
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise LifecycleError.dependency(
+                code="environment_switch_checkout_unavailable",
+                cause="The checkout state could not be read before switching to development.",
+                remediation="Make the Git checkout readable, then repeat the switch.",
+                step="preflight",
+            ) from exc
+        if state == "dirty":
+            raise LifecycleError.stable_failure(
+                code="environment_switch_checkout_dirty",
+                cause=(
+                    "Development runs Core code from this checkout, and tracked files in it "
+                    "are modified."
+                ),
+                remediation="Commit, stash or revert the tracked changes, then repeat the switch.",
+                step="preflight",
+            )
+        if state != "ready":
+            raise LifecycleError.stable_failure(
+                code="environment_switch_checkout_not_release",
+                cause=(
+                    f"Development runs Core code from this checkout, which is at "
+                    f"{head or 'an unknown commit'}; the installed release {release.version} "
+                    f"is commit {release.commit_sha}."
+                ),
+                remediation=(
+                    f"Run `git checkout v{release.version}` with a clean tree, then repeat "
+                    "the switch."
+                ),
+                step="preflight",
+            )
+        draft = self.configuration.prepare_transition_environment(active, candidate, environment)
+        try:
+            return dict(
+                self.runtime.prepare_development_extras(
+                    candidate,
+                    draft[0],
+                    draft[2],
+                    release_commit=release.commit_sha,
+                    version=release.version,
+                )
+            )
+        except (OSError, RuntimeError, ValueError) as exc:
+            raise LifecycleError.dependency(
+                code="environment_development_extras_failed",
+                cause=f"The development images could not be built: {exc}",
+                remediation="Correct the reported Docker problem, then repeat the switch.",
+                step="preflight",
+            ) from exc
 
     def _release(self) -> str:
         release = str(self.release_provider() or "").strip()

@@ -38,6 +38,13 @@ _LIFECYCLE_COMPOSE_RUNTIME_KEYS = frozenset(
     {
         "AWS_CA_BUNDLE",
         "FS_BUILD_SHA",
+        # Owner 2026-11-21: an official installation keeps its mode and release
+        # markers when it switches environment; development's managed set has no
+        # production_images or release_discovery group to carry them otherwise.
+        "FS_INSTALL_MODE",
+        "FS_RELEASE_REGISTRIES",
+        "FS_RELEASE_REPOSITORY",
+        "FS_RELEASE_VERSION",
         "FS_CANDIDATE_PROD_ENV",
         "FS_CANDIDATE_STATE_DIR",
         "FS_CLI_IMAGE",

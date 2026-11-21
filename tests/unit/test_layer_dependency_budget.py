@@ -205,6 +205,14 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
         ),
     },
     "core/infrastructure/lifecycle/configuration_store.py": {
+        # Owner 2026-11-21: the development extras an official release builds for
+        # `environment switch`; it reads Docker and Git state and nothing else.
+        "core/infrastructure/lifecycle/development_extras.py": frozenset(
+            {
+                "core.application.lifecycle.contracts.ComposeTarget",
+                "core.application.lifecycle.stack_service.StackGatewayError",
+            }
+        ),
         "core/infrastructure/lifecycle/configuration_files.py": frozenset(
             {
                 "core.application.lifecycle.contracts.ComposeTarget",

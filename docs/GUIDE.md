@@ -2413,8 +2413,11 @@ starts everything again. PostgreSQL, RabbitMQ and storage keep running.
 To work on a branch, switch back to it; the installation keeps running the release
 until the next upgrade. To run your own Core changes, install with `--from-source`
 instead; an installation that already runs an official release refuses
-`--from-source`. `environment switch` refuses to move an official installation
-between Development and Production.
+`--from-source`. `./flow-steward environment switch development` (or `production`)
+moves an official installation between the two environments on the same release,
+images and data. Switching to Development needs a clean checkout at the installed
+release (`git checkout v<installed version>`) and builds the extras there; switching
+to Production drops them and does not depend on the checkout.
 
 A Development installation created before 0.9.23 is a source installation. Move it
 to official images with the reviewed transition:

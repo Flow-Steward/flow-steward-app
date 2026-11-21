@@ -1161,6 +1161,65 @@ def test_docker_target_image_preparation_uses_candidate_environment_without_muta
     assert not {"up", "stop", "down", "rm"}.intersection((*inventory, *inspection, *pull, *build))
 
 
+def test_official_development_target_preparation_never_builds_release_images(
+    tmp_path: Path,
+) -> None:
+    """Owner 2026-11-21: an official installation switched to development (D4).
+
+    Its Core services run release digests; an incomplete target pulls what is missing
+    and builds only the services it builds itself.
+    """
+    rendered = json.dumps(
+        {
+            "services": {
+                "fs-app": {"image": "ghcr.io/flow-steward/app@sha256:" + "a" * 64},
+                "fs-worker": {"image": "ghcr.io/flow-steward/worker@sha256:" + "b" * 64},
+                "pg-fs": {"image": "ghcr.io/flow-steward/postgres@sha256:" + "c" * 64},
+                "seaweedfs": {"image": "chrislusf/seaweedfs@sha256:" + "d" * 64},
+            }
+        }
+    )
+    process = _Process([(0, "missing:dev\n"), (1, ""), (0, ""), (0, rendered)])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.prepare_target_images(
+        _target(), environment={"FS_INSTALL_MODE": "official"}, timeout_seconds=1234
+    )
+
+    _inventory, _inspection, pull, config = process.commands
+    assert pull[pull.index("pull") :][:4] == ("pull", "--ignore-buildable", "--policy", "missing")
+    assert config[-3:] == ("config", "--format", "json")
+    assert not any("build" in command for command in process.commands)
+
+
+def test_production_target_preparation_accepts_present_official_images(tmp_path: Path) -> None:
+    """Owner 2026-11-21: development -> production keeps the same digest pins.
+
+    The images are already present from the development installation, so nothing is
+    pulled or built.
+    """
+    pins = {
+        "FS_APP_IMAGE": "ghcr.io/flow-steward/app@sha256:" + "a" * 64,
+        "FS_WORKER_IMAGE": "ghcr.io/flow-steward/worker@sha256:" + "b" * 64,
+        "POSTGRES_IMAGE": "ghcr.io/flow-steward/postgres@sha256:" + "e" * 64,
+    }
+    process = _Process(
+        [
+            (0, "\n".join(pins.values()) + "\n"),
+            (0, "".join(f"sha256:{c * 64}\n" for c in "cd9")),
+        ]
+    )
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+    target = _target().model_copy(
+        update={"stack_environment": "production", "env_file": ".env.prod"}
+    )
+
+    gateway.prepare_target_images(target, environment=pins, timeout_seconds=1234)
+
+    assert len(process.commands) == 2
+    assert not {"pull", "build"}.intersection(process.commands[-1])
+
+
 def test_docker_target_image_preparation_supplies_missing_target_env_temporarily(
     tmp_path: Path,
 ) -> None:

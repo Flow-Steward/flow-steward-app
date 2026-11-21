@@ -397,3 +397,22 @@ def test_checkout_writer_quiesce_failure_keeps_a_typed_resumable_error():
 
     assert raised.value.code == "release_checkout_quiesce_failed"
     assert "release upgrade" in raised.value.remediation
+
+
+def test_official_install_switched_to_development_upgrades_and_says_so(workflow):
+    """Owner 2026-11-21: after `environment switch development` an official installation
+    upgrades in development: the review says `development (unchanged)`, the checkout's
+    writers are quiesced before activation, and the result names the environment."""
+    harness, events, *_ = workflow
+    harness.service.environment = "development"
+    harness.service.workflow.checkout_quiesce = lambda: events.append("quiesce")
+
+    review = harness.service.review_upgrade(
+        harness.service.prepare_upgrade(ReleaseUpgradeRequest(dry_run=True))
+    )
+    result = harness.service.upgrade(ReleaseUpgradeRequest())
+
+    assert review["active_environment"] == "development (unchanged)"
+    assert result.status == "upgraded"
+    assert result.active_environment == "development"
+    assert events.index("quiesce") < events.index("activate")
