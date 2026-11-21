@@ -532,7 +532,9 @@ class DockerInstallerGateway(
             and values.get("FS_PUBLIC_BASE_URL") == expected_url
             and values.get("FS_AUTH_TRUSTED_ORIGINS") == expected_url
         )
-        if config.environment == "development":
+        # Only a source build records the checkout's HEAD here; an official development
+        # installation records the release commit when its images are prepared.
+        if config.environment == "development" and self._install_mode(config) == "source":
             revision_outcome = self.process.run(
                 ["git", "-C", str(self.repo_root), "rev-parse", _TOKEN_HEAD_COMMIT],
                 cwd=self.repo_root,

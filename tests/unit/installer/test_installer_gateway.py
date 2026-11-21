@@ -3029,11 +3029,66 @@ def test_local_production_prepare_builds_compact_from_checkout(
     assert not any("imagetools" in command for command in process.commands)
 
 
-def test_official_pending_identity_cannot_be_overridden_by_source_mode(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("environment", "profile"),
+    (("production", "compact"), ("development", "scalable")),
+)
+def test_official_pending_identity_cannot_be_overridden_by_source_mode(
+    tmp_path: Path, environment: str, profile: str
+) -> None:
+    """A staged official release wins over FS_INSTALL_MODE=source in both environments.
+
+    Owner 2026-11-21: development upgrades like production, so a development
+    installation with official state must never fall back to a checkout build either.
+    """
     gateway = _gateway(tmp_path, FakeProcessExecutor(), environment={"FS_INSTALL_MODE": "source"})
-    release = _stage_official_release(gateway, "compact")
-    config = InstallConfig(environment="production", deployment_profile="compact")
+    release = _stage_official_release(gateway, profile)
+    config = InstallConfig(environment=environment, deployment_profile=profile)
+    assert gateway._install_mode(config) == "official"
     assert gateway._official_pending_release(config) == release
+
+
+@pytest.mark.parametrize(
+    ("recorded", "process_mode", "expected"),
+    (
+        # A development installation recorded before 0.9.23 has no mode or "source".
+        (None, None, "source"),
+        ("source", None, "source"),
+        # The installer chose the official release explicitly.
+        (None, "official", "official"),
+        ("official", None, "official"),
+        # An explicit --from-source run of a fresh install stays a source build.
+        ("official", "source", "source"),
+    ),
+)
+def test_development_install_mode_is_official_only_when_chosen(
+    tmp_path: Path, recorded: str | None, process_mode: str | None, expected: str
+) -> None:
+    """Owner 2026-11-21: development installs like production, by explicit choice.
+
+    Production defaults to official; development keeps defaulting to source so that
+    every existing development installation goes on building from its checkout until
+    its operator moves it with the reviewed source-to-official transition.
+    """
+    gateway = _gateway(
+        tmp_path,
+        FakeProcessExecutor(),
+        environment={} if process_mode is None else {"FS_INSTALL_MODE": process_mode},
+    )
+    if recorded is not None:
+        _write_env_values(tmp_path / ".env", {"FS_INSTALL_MODE": recorded})
+
+    assert gateway._install_mode(InstallConfig(environment="development")) == expected
+
+
+def test_production_install_mode_still_defaults_to_official(tmp_path: Path) -> None:
+    """The green direction of the development rule: production is unchanged."""
+    default = _gateway(tmp_path / "default", FakeProcessExecutor())
+    assert default._install_mode(InstallConfig(environment="production")) == "official"
+    source = _gateway(
+        tmp_path / "source", FakeProcessExecutor(), environment={"FS_INSTALL_MODE": "source"}
+    )
+    assert source._install_mode(InstallConfig(environment="production")) == "source"
 
 
 def test_development_installer_persists_source_mode_and_exact_git_revision(
@@ -6667,6 +6722,37 @@ def test_development_secret_step_does_not_resume_across_source_revision_change(
     assert gateway.postcondition_holds("secrets", config) is False
 
 
+def test_official_development_secret_step_does_not_track_the_checkout_head(
+    tmp_path: Path,
+) -> None:
+    """Owner 2026-11-21: official development records the release commit, not HEAD.
+
+    Its FS_BUILD_SHA is written when the release images are prepared, so binding the
+    secrets step to HEAD (the source rule above) would redo it on every upgrade.
+    """
+    process = FakeProcessExecutor()
+    gateway = _gateway(
+        tmp_path,
+        process,
+        secret_factory=lambda: "generated-secret",
+        environment={"FS_INSTALL_MODE": "official"},
+    )
+    config = InstallConfig(environment="development")
+    log = gateway.state_store.open_log("development-official-secrets")
+    gateway.ensure_secrets(config, log=log)
+    log.close()
+    git_revision = ("git", "-C", str(tmp_path.resolve()), "rev-parse", "HEAD^{commit}")
+    process.outcomes[git_revision] = ProcessOutcome(
+        command=git_revision, returncode=0, stdout="f" * 40 + "\n"
+    )
+
+    values = gateway_module._read_env(tmp_path / ".env")
+    assert values["FS_INSTALL_MODE"] == "official"
+    assert "FS_BUILD_SHA" not in values
+    assert gateway.postcondition_holds("secrets", config) is True
+    assert git_revision not in process.commands
+
+
 @pytest.mark.parametrize(
     ("name", "placeholder"),
     (
@@ -9380,6 +9466,33 @@ def test_image_currency_makes_no_claim_about_a_development_stack(tmp_path: Path)
 
     assert currency.update_required is False
     assert process.commands == []
+
+
+def test_image_currency_finishes_an_interrupted_official_development_update(
+    tmp_path: Path,
+) -> None:
+    """Owner 2026-11-21: an official development installation runs published images.
+
+    So the production question applies to it: an earlier run recorded new images and
+    stopped before starting them, and recreating the runtime around that would put new
+    code on an unmigrated database. The source development stack above stays unasked.
+    """
+    _write_env_values(
+        tmp_path / ".env", {"FS_INSTALL_MODE": "official", "FS_APP_IMAGE": _R141_OTHER}
+    )
+    process = _RuntimeExecutor(running={"fs-app": _R141_RUNNING}, labels={_R141_RUNNING: _R141_OLD})
+
+    currency = _currency(
+        tmp_path,
+        process,
+        InstallConfig(deployment_profile="scalable", environment="development"),
+        environment={},
+    )
+
+    assert currency.update_required is True
+    assert currency.resumes_prepared_update is True
+    assert currency.running_revision == _R141_OLD
+    assert "fs-app" in currency.reason
 
 
 _R141_SCALABLE = {
