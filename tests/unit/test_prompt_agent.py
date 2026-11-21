@@ -1107,8 +1107,14 @@ class TestInvokeAgentStructuredOutput:
         assert fake_llm.structured_calls[0]["kwargs"] == expected_kwargs
 
     def test_invoke_agent_strips_raw_tool_calls_from_structured_draft(self):
+        from langchain_core.tools import StructuredTool
+
         from core.application.orchestration.agents.common import invoke_agent
         from core.application.orchestration.models import build_phase_result_json_schema
+
+        def _read_file(path: str) -> str:
+            """Read a file."""
+            return path
 
         class _CapturingStructuredRunnable:
             def __init__(self, payload):
@@ -1191,7 +1197,9 @@ class TestInvokeAgentStructuredOutput:
                 platform_config={},
                 task_input="Ship it",
                 agent_name="composer",
-                tools=[],
+                # A draft exists only when the agent has tools; without them it
+                # answers in the schema at once and there is nothing to strip.
+                tools=[StructuredTool.from_function(_read_file)],
                 context_sections=[],
                 final_response_schema=schema,
             )
