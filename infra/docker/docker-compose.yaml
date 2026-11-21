@@ -629,6 +629,10 @@ services:
       FS_DOCKER_HOST_PROJECT_ROOT: ${FS_DOCKER_HOST_PROJECT_ROOT:-}
       FS_INSTALLER_USE_HOST_PYTHON: "0"
       FS_LOAD_REPO_DOTENV: "0"
+      # `release upgrade` runs in this container on a development installation too;
+      # it resolves the release from the same repository and registries as production.
+      FS_RELEASE_REGISTRIES: ${FS_RELEASE_REGISTRIES:-}
+      FS_RELEASE_REPOSITORY: ${FS_RELEASE_REPOSITORY:-Flow-Steward/flow-steward-app}
       TERM: ${TERM:-}
       PYTHONPYCACHEPREFIX: /tmp/flow-steward/pycache
     volumes:
@@ -977,6 +981,10 @@ services:
         - type=local,dest=${FS_INSTALLER_STATE_DIR:-.flow-steward}/build-cache/mcp,mode=min
       args:
         FS_BUILD_REVISION: ${FS_BUILD_SHA:-unknown}
+    # Owner 2026-11-21: a development installation upgrades like production, so its
+    # MCP server must be able to run the published image by digest. Without an image
+    # key Compose could only run the project-named local build.
+    image: ${MCP_IMAGE:-flow-steward-mcp:0.9.22}
     restart: always
     ports:
       - "127.0.0.1:${MCP_HOST_PORT:-8100}:8100"

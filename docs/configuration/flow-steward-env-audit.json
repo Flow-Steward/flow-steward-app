@@ -9661,7 +9661,8 @@
       "core/entrypoints/cli/lifecycle_runtime.py",
       "core/infrastructure/installer/registry_image_resolver.py",
       "infra/docker/docker-compose.compact.yaml",
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "release_discovery"
@@ -9686,7 +9687,8 @@
       "core/entrypoints/cli/installer.py",
       "core/entrypoints/cli/lifecycle_runtime.py",
       "infra/docker/docker-compose.compact.yaml",
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "release_discovery"
@@ -13366,7 +13368,8 @@
   {
     "canonical_name": "MCP_IMAGE",
     "code_read_locations": [
-      "infra/docker/docker-compose.prod.yaml"
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
     ],
     "conditional_groups": [
       "production_images"

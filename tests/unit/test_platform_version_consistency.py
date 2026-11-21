@@ -73,6 +73,9 @@ def _assert_platform_release_surfaces(repo_root: Path, version: str) -> None:
     assert package_lock["version"] == version
     assert package_lock["packages"][""]["version"] == version
     assert _compose_default(repo_root, "FS_CLI_IMAGE") == f"flow-steward-cli:{version}"
+    # Owner 2026-11-21: development upgrades like production, so the development
+    # MCP service names an image too; its local default follows the platform version.
+    assert _compose_default(repo_root, "MCP_IMAGE") == f"flow-steward-mcp:{version}"
     assert _manifest_default(repo_root, "FS_APP_IMAGE") == f"flow-steward-app:{version}"
     assert _manifest_default(repo_root, "FS_WORKER_IMAGE") == f"flow-steward-worker:{version}"
     assert _manifest_default(repo_root, "FS_CONTROL_IMAGE") == f"flow-steward-control:{version}"
@@ -103,6 +106,8 @@ def test_release_repository_default_matches_all_production_surfaces() -> None:
     assert _manifest_default(ROOT, "FS_RELEASE_REPOSITORY") == RELEASE_REPOSITORY
     assert _env_default(ROOT, "FS_RELEASE_REPOSITORY") == RELEASE_REPOSITORY
     for compose_file in (
+        # The development CLI runs `release upgrade` as well (owner 2026-11-21).
+        "infra/docker/docker-compose.yaml",
         "infra/docker/docker-compose.compact.yaml",
         "infra/docker/docker-compose.prod.yaml",
     ):
@@ -157,6 +162,11 @@ def _prepare_fixture_version(repo_root: Path, version: str) -> None:
     compose = re.sub(
         r"\$\{FS_CLI_IMAGE:-flow-steward-cli:[^}]+}",
         f"${{FS_CLI_IMAGE:-flow-steward-cli:{version}}}",
+        compose,
+    )
+    compose = re.sub(
+        r"\$\{MCP_IMAGE:-flow-steward-mcp:[^}]+}",
+        f"${{MCP_IMAGE:-flow-steward-mcp:{version}}}",
         compose,
     )
     compose_path.write_text(compose, encoding="utf-8")

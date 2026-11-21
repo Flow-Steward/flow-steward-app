@@ -22,6 +22,10 @@ CLI_BASE_ENVIRONMENT = {
     "FS_INSTALLER_STATE_DIR",
     "FS_INSTALLER_USE_HOST_PYTHON",
     "FS_LOAD_REPO_DOTENV",
+    # Owner 2026-11-21: a development installation upgrades like production, and
+    # `release upgrade` resolves the release inside this container.
+    "FS_RELEASE_REGISTRIES",
+    "FS_RELEASE_REPOSITORY",
     "FS_STACK_ENVIRONMENT",
     "HOME",
     "PYTHONPYCACHEPREFIX",
@@ -29,14 +33,16 @@ CLI_BASE_ENVIRONMENT = {
 }
 CLI_PRODUCTION_ENVIRONMENT = CLI_BASE_ENVIRONMENT | {
     "FS_BUILD_SHA",
-    "FS_RELEASE_REGISTRIES",
-    "FS_RELEASE_REPOSITORY",
     "FS_RUNTIME_ENVIRONMENT",
 }
 
 
 def test_production_cli_receives_release_source_overrides() -> None:
-    for compose_file in ("docker-compose.prod.yaml", "docker-compose.compact.yaml"):
+    for compose_file in (
+        "docker-compose.yaml",
+        "docker-compose.prod.yaml",
+        "docker-compose.compact.yaml",
+    ):
         service = _service_config("fs-cli", compose_file=compose_file)
         environment = service["environment"]
 
