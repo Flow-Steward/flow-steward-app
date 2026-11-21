@@ -772,7 +772,10 @@ class LifecycleCLIRuntime:
                 )
 
         from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
-        from core.infrastructure.release.upgrade_gateway import TargetReleaseMigration
+        from core.infrastructure.release.upgrade_gateway import (
+            CheckoutWriterQuiesce,
+            TargetReleaseMigration,
+        )
 
         return ReleaseService(
             discovery=discovery,
@@ -799,6 +802,16 @@ class LifecycleCLIRuntime:
                     target_provider=self._installed_compose_target,
                     upgrade=self.docker_lifecycle_gateway.upgrade_release_database,
                     environment_provider=_installed_runtime_environment,
+                ),
+                # D3: only a development checkout is bind-mounted into the runtime.
+                checkout_quiesce=(
+                    CheckoutWriterQuiesce(
+                        target_provider=self._installed_compose_target,
+                        stop=self.docker_lifecycle_gateway.stop_checkout_writers,
+                        environment_provider=_installed_runtime_environment,
+                    )
+                    if active is not None and active.environment == "development"
+                    else None
                 ),
             ),
         )

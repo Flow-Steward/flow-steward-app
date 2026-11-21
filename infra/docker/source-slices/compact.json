@@ -1610,6 +1610,7 @@
     "core/infrastructure/lifecycle/docker_image_preparation.py",
     "core/infrastructure/lifecycle/docker_preservation_gateway.py",
     "core/infrastructure/lifecycle/docker_profile_runtime_state.py",
+    "core/infrastructure/lifecycle/docker_rebuild.py",
     "core/infrastructure/lifecycle/docker_rollback_operations.py",
     "core/infrastructure/lifecycle/docker_runtime_probes.py",
     "core/infrastructure/lifecycle/docker_runtime_support.py",

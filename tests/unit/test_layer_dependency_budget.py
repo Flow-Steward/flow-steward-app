@@ -152,6 +152,14 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
                 "core.application.lifecycle.stack_service.StackGatewayError",
             }
         ),
+        # Owner 2026-11-21 (D4): `stack rebuild`, which never builds over published
+        # release images; it reads the rendered Compose model and nothing else.
+        "core/infrastructure/lifecycle/docker_rebuild.py": frozenset(
+            {
+                "core.application.lifecycle.contracts.ComposeTarget",
+                "core.application.lifecycle.stack_service.StackGatewayError",
+            }
+        ),
         "core/infrastructure/lifecycle/docker_image_preparation.py": frozenset(
             {
                 "core.application.lifecycle.stack_service.StackGatewayError",

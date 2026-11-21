@@ -497,26 +497,12 @@ class DockerLifecycleGateway:
         output_sink: Callable[[str], None],
         heartbeat: Callable[[str], None],
     ) -> None:
-        self._run_compose(
+        from .docker_rebuild import rebuild
+
+        rebuild(
             target,
-            ("build", *services),
-            action="rebuild_build",
-            timeout_seconds=timeout_seconds,
-            output_sink=output_sink,
-            heartbeat=heartbeat,
-        )
-        self._run_compose(
-            target,
-            (
-                "up",
-                "--wait",
-                "--wait-timeout",
-                str(timeout_seconds),
-                "--force-recreate",
-                "--no-deps",
-                *services,
-            ),
-            action="rebuild_recreate",
+            services,
+            run_compose=self._run_compose,
             timeout_seconds=timeout_seconds,
             output_sink=output_sink,
             heartbeat=heartbeat,
@@ -746,6 +732,13 @@ class DockerLifecycleGateway:
             run_compose=self._run_compose,
             environment=environment,
         )
+
+    def stop_checkout_writers(
+        self, target: ComposeTarget, *, environment: Mapping[str, str]
+    ) -> None:
+        from core.infrastructure.release.upgrade_gateway import stop_checkout_writers
+
+        stop_checkout_writers(target, run_compose=self._run_compose, environment=environment)
 
     def management_storage_connectivity(self, target: ComposeTarget) -> bool:
         """Probe storage from the retained CLI while release services are changing."""

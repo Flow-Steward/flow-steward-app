@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from typing import Literal, Protocol, cast
 from uuid import uuid4
@@ -72,11 +72,15 @@ class ReleaseUpgradeWorkflow:
         maintenance: MaintenanceServicePort,
         backup: BackupService,
         migration: ReleaseMigration,
+        checkout_quiesce: Callable[[], None] | None = None,
     ) -> None:
         self.state = state
         self.maintenance = maintenance
         self.backup = backup
         self.migration = migration
+        # Owner 2026-11-21 (D3): a development installation stops what runs code from
+        # its checkout before the handoff checks the target release out in place.
+        self.checkout_quiesce = checkout_quiesce
 
     def prepare_resume(
         self, release: ReleaseService, request: ReleaseUpgradeRequest
@@ -179,6 +183,15 @@ class ReleaseUpgradeWorkflow:
                     activation_sinks["transition_binding"] = prepared.transition_binding
                 if journal.migration_required:
                     self._migrate(journal, sinks)
+                if (
+                    self.checkout_quiesce is not None
+                    and prepared.target_release != prepared.installed_release
+                ):
+                    self._progress(
+                        sinks, "checkout_quiesce", "Stop the services that run checkout code"
+                    )
+                    self._cancelled(sinks, journal)
+                    self.checkout_quiesce()
                 self._progress(sinks, "release_activate", "Activate the pinned release")
                 self._cancelled(sinks, journal)
                 result = release.activator.activate(

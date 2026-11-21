@@ -1839,10 +1839,18 @@ def test_docker_gateway_uses_canonical_compose_target_and_parses_json_lines(
     assert compose_command[-4:] == ("ps", "--all", "--format", "json")
 
 
+def _rendered_images(images: dict[str, str]) -> str:
+    return json.dumps({"services": {name: {"image": image} for name, image in images.items()}})
+
+
 def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
     tmp_path: Path,
 ) -> None:
-    process = _Process([(0, ""), (0, "")])
+    """A source development stack builds every selected service, as before."""
+    rendered = _rendered_images(
+        {"fs-app": "flow-steward-app:0.9.23", "fs-worker": f"sha256:{'a' * 64}"}
+    )
+    process = _Process([(0, rendered), (0, ""), (0, "")])
     gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
 
     gateway.rebuild(
@@ -1853,7 +1861,9 @@ def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
         heartbeat=lambda _detail: None,
     )
 
-    build, recreate = process.commands
+    config, build, recreate = process.commands
+    assert config[-3:] == ("config", "--format", "json")
+    assert process.invocations[0].get("output_sink") is None
     assert build[-3:] == ("build", "fs-app", "fs-worker")
     assert recreate[-8:] == (
         "up",
@@ -1868,6 +1878,75 @@ def test_docker_rebuild_builds_then_force_recreates_without_any_volume_flag(
     forbidden = {"-v", "--volumes", "--renew-anon-volumes"}
     assert forbidden.isdisjoint(build)
     assert forbidden.isdisjoint(recreate)
+
+
+def test_docker_rebuild_never_builds_over_official_release_images(tmp_path: Path) -> None:
+    """Owner 2026-11-21 (D4): an official development stack rebuilds like production.
+
+    Its Core services run the published images by registry digest, so they are only
+    recreated; the development extras it builds itself are still built.
+    """
+    rendered = _rendered_images(
+        {
+            "fs-app": f"ghcr.io/flow-steward/flow-steward-app@sha256:{'b' * 64}",
+            "pg-fs": f"ghcr.io/flow-steward/flow-steward-postgres@sha256:{'c' * 64}",
+            "fs-audit": "flow-steward-fs-audit",
+        }
+    )
+    process = _Process([(0, rendered), (0, ""), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.rebuild(
+        _target(),
+        ("pg-fs", "fs-app", "fs-audit"),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    _config, build, recreate = process.commands
+    assert build[-2:] == ("build", "fs-audit")
+    assert recreate[-3:] == ("pg-fs", "fs-app", "fs-audit")
+
+
+def test_docker_rebuild_with_only_pinned_services_runs_no_build(tmp_path: Path) -> None:
+    """`compose build` without a service builds them all, so it must not run at all."""
+    rendered = _rendered_images({"fs-app": f"ghcr.io/flow-steward/app@sha256:{'b' * 64}"})
+    process = _Process([(0, rendered), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+
+    gateway.rebuild(
+        _target(),
+        ("fs-app",),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    assert [command[-7:-1] for command in process.commands[1:]] == [
+        ("up", "--wait", "--wait-timeout", "37", "--force-recreate", "--no-deps")
+    ]
+    assert not any("build" in command for command in process.commands)
+
+
+def test_docker_rebuild_of_production_keeps_its_exact_commands(tmp_path: Path) -> None:
+    """The green direction: production renders nothing extra and builds as before."""
+    process = _Process([(0, ""), (0, "")])
+    gateway = DockerLifecycleGateway(project_root=tmp_path, process=process)
+    target = _target().model_copy(
+        update={"stack_environment": "production", "env_file": ".env.prod"}
+    )
+
+    gateway.rebuild(
+        target,
+        ("fs-app",),
+        timeout_seconds=37,
+        output_sink=lambda _line: None,
+        heartbeat=lambda _detail: None,
+    )
+
+    build, _recreate = process.commands
+    assert build[-2:] == ("build", "fs-app")
 
 
 def test_docker_gateway_captures_exact_image_ids_and_running_stopped_topology(
