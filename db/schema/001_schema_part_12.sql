@@ -367,7 +367,7 @@ $$;
 CREATE TRIGGER trg_users_password_changed
     BEFORE UPDATE OF password_hash ON public.users
     FOR EACH ROW
-    WHEN (OLD.password_hash IS DISTINCT FROM NEW.password_hash)
+    WHEN (old.password_hash IS DISTINCT FROM new.password_hash)
     EXECUTE FUNCTION public.update_password_changed_at();
 
 -- Retain only the ten most recent prior password hashes per user.
@@ -402,5 +402,5 @@ $$;
 CREATE TRIGGER trg_users_archive_previous_password
     AFTER UPDATE OF password_hash ON public.users
     FOR EACH ROW
-    WHEN (OLD.password_hash IS DISTINCT FROM NEW.password_hash)
+    WHEN (old.password_hash IS DISTINCT FROM new.password_hash)
     EXECUTE FUNCTION public.archive_previous_password_hash();
