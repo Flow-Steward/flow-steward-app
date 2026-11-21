@@ -2148,6 +2148,121 @@ stop_database_writers() {
     fail "Could not stop$writers_stopping before the database upgrade; nothing was migrated. Check ./flow-steward stack status, then rerun." 7
 }
 
+# Issue #32: `--password-file .flow-steward/secret-input/<name>` is the documented form,
+# and the help names that directory, but the command never runs where the operator typed
+# it. A product command runs in the application container (fs-app, compact-runtime) and a
+# lifecycle command in fs-cli, with their own working directory; neither sees the host's
+# secret-input directory at that path, so the CLI refused the file as unsafe. The launcher
+# runs on the host that owns the file: it applies the CLI's own rules there -- under
+# secret-input, not a symlink, a regular file owned by this user with no group or other
+# permissions -- and hands the content to the command on stdin, as --<field>-stdin. A
+# path that fails any rule is passed on unchanged, and the CLI refuses it as before.
+secret_input_file_accepted() {
+  case "$1" in
+    /*) secret_candidate=$1 ;;
+    *) secret_candidate="$(pwd -P)/$1" ;;
+  esac
+  secret_root=$(CDPATH= cd -- "$secret_input_dir" 2>/dev/null && pwd -P) || return 1
+  secret_candidate_dir=$(CDPATH= cd -- "$(dirname -- "$secret_candidate")" 2>/dev/null && pwd -P) ||
+    return 1
+  case "$secret_candidate_dir/" in
+    "$secret_root"/*) ;;
+    *) return 1 ;;
+  esac
+  secret_candidate="$secret_candidate_dir/$(basename -- "$secret_candidate")"
+  [ ! -L "$secret_candidate" ] && [ -f "$secret_candidate" ] && [ -r "$secret_candidate" ] ||
+    return 1
+  secret_listing=$(LC_ALL=C ls -ln -- "$secret_candidate" 2>/dev/null) || return 1
+  case "$secret_listing" in
+    -???------*) ;;
+    *) return 1 ;;
+  esac
+  secret_owner=$(printf '%s\n' "$secret_listing" | awk 'NR == 1 { print $3 }')
+  [ "$secret_owner" = "$(id -u)" ] || return 1
+  secret_file_path=$secret_candidate
+}
+
+# Finds the one secret file option whose file the launcher can hand over. Sets
+# secret_stdin_index (the option's position), secret_stdin_joined (--x-file=VALUE) and
+# secret_stdin_path. Nothing is handed over when stdin is already taken by the command
+# (--input-json -, another --*-stdin) or more than one file qualifies.
+find_secret_file_argument() {
+  secret_stdin_index=0
+  secret_stdin_joined=0
+  secret_stdin_path=""
+  secret_scan_index=0
+  secret_scan_pending=0
+  secret_scan_previous=""
+  secret_scan_matches=0
+  secret_scan_stdin_taken=0
+  for secret_scan_arg in "$@"; do
+    secret_scan_index=$((secret_scan_index + 1))
+    if [ "$secret_scan_pending" -ne 0 ]; then
+      if secret_input_file_accepted "$secret_scan_arg"; then
+        secret_scan_matches=$((secret_scan_matches + 1))
+        secret_stdin_index=$secret_scan_pending
+        secret_stdin_joined=0
+        secret_stdin_path=$secret_file_path
+      fi
+      secret_scan_pending=0
+      secret_scan_previous=$secret_scan_arg
+      continue
+    fi
+    case "$secret_scan_previous:$secret_scan_arg" in
+      --input-json:-) secret_scan_stdin_taken=1 ;;
+    esac
+    case "$secret_scan_arg" in
+      --input-json=-|--*-stdin) secret_scan_stdin_taken=1 ;;
+      --*-file=*)
+        if secret_input_file_accepted "${secret_scan_arg#*=}"; then
+          secret_scan_matches=$((secret_scan_matches + 1))
+          secret_stdin_index=$secret_scan_index
+          secret_stdin_joined=1
+          secret_stdin_path=$secret_file_path
+        fi
+        ;;
+      --*-file) secret_scan_pending=$secret_scan_index ;;
+    esac
+    secret_scan_previous=$secret_scan_arg
+  done
+  [ "$secret_scan_matches" -eq 1 ] && [ "$secret_scan_stdin_taken" -eq 0 ]
+}
+
+# Runs a dispatcher (run_product_command, run_cli_command) with the qualifying secret
+# file option rewritten to --<field>-stdin and its file on stdin. Every dispatcher ends
+# in exec, so the redirection reaches the container command; a non-terminal stdin also
+# makes the dispatcher use `exec -T`.
+dispatch_with_secret_file_stdin() {
+  secret_dispatcher=$1
+  shift
+  if ! find_secret_file_argument "$@"; then
+    "$secret_dispatcher" "$@"
+    return
+  fi
+  secret_rewrite_first=1
+  secret_rewrite_index=0
+  secret_rewrite_skip=0
+  for secret_rewrite_arg in "$@"; do
+    if [ "$secret_rewrite_first" -eq 1 ]; then
+      set --
+      secret_rewrite_first=0
+    fi
+    secret_rewrite_index=$((secret_rewrite_index + 1))
+    if [ "$secret_rewrite_skip" -eq 1 ]; then
+      secret_rewrite_skip=0
+      continue
+    fi
+    if [ "$secret_rewrite_index" -eq "$secret_stdin_index" ]; then
+      secret_rewrite_option=${secret_rewrite_arg%%=*}
+      set -- "$@" "${secret_rewrite_option%-file}-stdin"
+      [ "$secret_stdin_joined" -eq 1 ] || secret_rewrite_skip=1
+      continue
+    fi
+    set -- "$@" "$secret_rewrite_arg"
+  done
+  "$secret_dispatcher" "$@" < "$secret_stdin_path"
+}
+
 run_product_command() {
   if [ -t 0 ] && [ -t 1 ]; then
     product_no_tty_flag=""
@@ -2786,7 +2901,7 @@ if [ "$product_command" -eq 1 ]; then
     [ "$compact_help_requested" -ne 1 ] && [ "$diagnostics_passthrough" -eq 0 ]; then
     run_diagnostics_report
   fi
-  run_product_command "$@"
+  dispatch_with_secret_file_stdin run_product_command "$@"
 fi
 # The installer replaces retained fs-cli during an upgrade. Its caller must
 # survive that replacement to commit the handoff and report the real result.
@@ -2795,4 +2910,4 @@ if [ "$top_level_command" = "release" ] && [ "$launcher_subcommand" = "upgrade" 
 fi
 calculate_runtime_identity
 ensure_cli_runtime
-run_cli_command "$@"
+dispatch_with_secret_file_stdin run_cli_command "$@"
