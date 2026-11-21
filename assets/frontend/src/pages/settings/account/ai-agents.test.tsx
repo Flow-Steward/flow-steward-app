@@ -239,7 +239,7 @@ describe("AiAgentsSection", () => {
     expect(screen.getByText("Your token is already in this setup")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("No request yet")).toBeInTheDocument());
     // The access summary arrives with the refreshed token list, after the request status.
-    expect(await screen.findByText("Active")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Active")).toBeInTheDocument());
     expect(screen.getByText(/^Monitor and run workflows · All projects · Expires /)).toBeInTheDocument();
     expect(screen.getByText("The plugin includes this installation's MCP address. Enter the token in Claude when prompted.")).toBeInTheDocument();
   });
