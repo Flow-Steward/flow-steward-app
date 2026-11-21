@@ -127,7 +127,18 @@ class TestClassifyWithBlockListResponses:
                 project_config=project_config,
             )
 
-        get_chat_model.assert_called_once_with(project_config, agent_name="classifier")
+        # The project's route reaches the resolver unchanged; ADR 0078 adds only the
+        # classifier's low reasoning depth.
+        get_chat_model.assert_called_once()
+        (config,), kwargs = get_chat_model.call_args
+        assert kwargs == {"agent_name": "classifier"}
+        assert config["account_id"] == project_config["account_id"]
+        assert {k: v for k, v in config["agents_config"].items() if k != "agents"} == (
+            project_config["agents_config"]
+        )
+        assert config["agents_config"]["agents"] == {
+            "config": {"classifier": {"reasoning_effort": "low"}}
+        }
         assert result.reasoning == "touches authentication"
         assert result.reasoning != "default_classification"
 

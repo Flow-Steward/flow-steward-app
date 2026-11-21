@@ -194,11 +194,11 @@ class TestExplicitBindingSelection:
 
 
 class TestWorkflowRoutingWithoutFamily:
-    def test_classifier_fallback_keeps_explicit_workflow_routing_executable(self):
+    def test_classifier_fallback_keeps_inferred_workflow_routing_executable(self):
         """AUDIT-020: an unavailable classifier must not prevent task execution."""
         registry = make_mock_registry()
         supervisor = OrchestratorSupervisor(registry)
-        state = make_state()
+        state = make_state(workflow_selection_source="inferred")
         state["workflow_id"] = "weekly_report"
 
         with patch(
@@ -211,6 +211,39 @@ class TestWorkflowRoutingWithoutFamily:
 
         assert routing.workflow_id == "weekly_report"
         assert routing.classification.reasoning == "default_classification"
+
+    @pytest.mark.parametrize(
+        "source",
+        ("explicit_request", "entry_binding", "provider_trigger", "rerun", "parent_call", ""),
+    )
+    def test_a_named_workflow_asks_no_model(self, source):
+        """ADR 0078: the caller named the workflow, so nothing is classified by a model."""
+        registry = make_mock_registry()
+        supervisor = OrchestratorSupervisor(registry)
+        state = make_state(workflow_id="weekly_report", workflow_selection_source=source)
+
+        with patch(
+            "core.application.orchestration.classifier._classify_with_llm",
+            side_effect=AssertionError("the model must not be asked"),
+        ):
+            routing = supervisor.resolve_workflow_routing(
+                {"title": "Read a receipt", "project_id": "proj"}, state
+            )
+
+        assert routing.classification.reasoning == "explicit_workflow_selection"
+        assert routing.classification.automation_recommendation == "supervised"
+        assert routing.classification.confidence == 1.0
+
+    def test_an_inferred_selection_still_asks_the_model(self):
+        registry = make_mock_registry()
+        routing = route(
+            registry,
+            make_envelope(title="Something"),
+            make_state(workflow_id="weekly_report", workflow_selection_source="inferred"),
+            classified(effort_hint="small", reasoning="from the model"),
+        )
+
+        assert routing.classification.reasoning == "from the model"
 
     def test_bug_with_parent_linkage_does_not_change_selection_without_task_class_mapping(self):
         registry = make_mock_registry()
@@ -449,7 +482,7 @@ class TestExplicitBindingValidation:
         routing = route(
             registry,
             make_envelope(title="Autonomy metadata"),
-            make_state(),
+            make_state(workflow_selection_source="inferred"),
             classified(confidence=0.91, risk_level="high", automation_recommendation="human_only"),
         )
 

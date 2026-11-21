@@ -72,6 +72,12 @@ Return ONLY a JSON object with these fields:
 """
 
 
+#: The model route name of the task classifier.
+CLASSIFIER_AGENT = "classifier"
+#: Reasoning depth of the classification call on models that reason.
+CLASSIFIER_REASONING_EFFORT = "low"
+
+
 def classify_task(
     task_envelope: dict,
     kb_context: str = "",
@@ -96,13 +102,19 @@ def _classify_with_llm(
 
     from core.application.orchestration.model_provider import get_chat_model
 
+    agents_config = dict((project_config or {}).get("agents_config") or {})
+    agents = dict(agents_config.get("agents") or {})
+    config_by_agent = dict(agents.get("config") or {})
+    classifier_config = dict(config_by_agent.get(CLASSIFIER_AGENT) or {})
+    # Five labels need no deliberation: a reasoning model answers them at low
+    # depth unless the project set the classifier's own.
+    classifier_config.setdefault("reasoning_effort", CLASSIFIER_REASONING_EFFORT)
+    config_by_agent[CLASSIFIER_AGENT] = classifier_config
     cfg = {
         **(project_config or {}),
-        "agents_config": {
-            **((project_config or {}).get("agents_config") or {}),
-        },
+        "agents_config": {**agents_config, "agents": {**agents, "config": config_by_agent}},
     }
-    llm = get_chat_model(cfg, agent_name="classifier")
+    llm = get_chat_model(cfg, agent_name=CLASSIFIER_AGENT)
 
     title = _envelope_title(task_envelope)
     description = _envelope_description(task_envelope)
@@ -143,6 +155,26 @@ def _classify_with_llm(
 
 
 DEFAULT_CLASSIFICATION_REASONING = "default_classification"
+
+
+EXPLICIT_SELECTION_REASONING = "explicit_workflow_selection"
+
+
+def explicit_selection_classification() -> TaskClassification:
+    """The classification of a run whose caller named the workflow (ADR 0078).
+
+    Nothing was inferred, so no model is asked: a person who needs to decide
+    adds an Approval step, and the project's autonomy policy still applies.
+    ``supervised`` never pauses a named workflow on its own; the confidence
+    describes a choice nobody made, so it is full.
+    """
+    return TaskClassification(
+        effort_hint="standard",
+        confidence=1.0,
+        risk_level="medium",
+        automation_recommendation="supervised",
+        reasoning=EXPLICIT_SELECTION_REASONING,
+    )
 
 
 def _default_classification() -> TaskClassification:

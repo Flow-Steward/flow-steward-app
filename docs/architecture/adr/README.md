@@ -120,6 +120,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0075](0075-project-user-sections.md) | UI разделы проекта поверх запуска и истории workflow | Proposed |
 | [0076](0076-permission-catalogue-and-role-permissions.md) | Каталог прав и права ролей в базе данных | Proposed |
 | [0077](0077-in-browser-document-preview.md) | Превью документов в браузере | Proposed |
+| [0078](0078-classify-only-inferred-workflow-selection.md) | Классификатор задачи только для выбора, которого никто не сделал | Accepted |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;
