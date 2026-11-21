@@ -95,6 +95,7 @@ function localizedWORKFLOW_FILTER_FIELDS(
       key: "extension",
       label: t("extension_page.extension_fallback", "Extension"),
       options: extensionOptions,
+      multiple: true,
     },
   ];
 }
@@ -325,7 +326,11 @@ export function WorkflowsListPage() {
   // old link to the catalog dialog (?create=template) opens the Catalog tab.
   const activeTab = searchParams.get("tab") === "catalog" || createParam === "template" ? "catalog" : "workflows";
   const enabledOnly = searchParams.get("enabled") === "1";
-  const extensionId = searchParams.get("extension")?.trim() || "";
+  const extensionFilter = searchParams.get("extension") || "";
+  const selectedExtensionIds = useMemo(
+    () => new Set(extensionFilter.split(",").map((id) => id.trim()).filter(Boolean)),
+    [extensionFilter],
+  );
   const search = firstStringFromUnknownValue([searchParams.get("search"), ""]);
   const deferredSearch = useDeferredValue(search);
   // Workflow authoring (create / import / builder / clone) is admin-only; the backend
@@ -373,8 +378,8 @@ export function WorkflowsListPage() {
   }, [allWorkflows]);
   const workflows = useMemo(() => allWorkflows.filter((workflow) =>
     (projectFilter.workflowIds === null || projectFilter.workflowIds.has(workflowIdFromRow(workflow))) &&
-    (!extensionId || workflow.extensions?.some((extension) => extension.extension_id === extensionId)),
-  ), [allWorkflows, projectFilter.workflowIds, extensionId]);
+    (selectedExtensionIds.size === 0 || workflow.extensions?.some((extension) => selectedExtensionIds.has(extension.extension_id))),
+  ), [allWorkflows, projectFilter.workflowIds, selectedExtensionIds]);
   const workflowRows = useMemo(
     () =>
       workflows.map((workflow, index) => {
@@ -496,7 +501,7 @@ export function WorkflowsListPage() {
   );
 
 
-  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string; extensionId?: string }) {
+  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string; extensionFilter?: string }) {
     startTransition(() => {
       updateSearchParams((params) => {
         params.delete("page");
@@ -509,8 +514,8 @@ export function WorkflowsListPage() {
           if (next.enabledOnly) params.set("enabled", "1");
           else params.delete("enabled");
         }
-        if (next.extensionId !== undefined) {
-          if (next.extensionId) params.set("extension", next.extensionId);
+        if (next.extensionFilter !== undefined) {
+          if (next.extensionFilter) params.set("extension", next.extensionFilter);
           else params.delete("extension");
         }
         if (next.projectId !== undefined) {
@@ -664,10 +669,10 @@ export function WorkflowsListPage() {
               onChange={(key, value) => {
                 if (key === "project") updateParams({ projectId: value });
                 if (key === "status") updateParams({ enabledOnly: value === ENABLED_FILTER_VALUE });
-                if (key === "extension") updateParams({ extensionId: value });
+                if (key === "extension") updateParams({ extensionFilter: value });
               }}
-              onClear={() => updateParams({ enabledOnly: false, projectId: "", extensionId: "" })}
-              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "", extension: extensionId }}
+              onClear={() => updateParams({ enabledOnly: false, projectId: "", extensionFilter: "" })}
+              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "", extension: extensionFilter }}
             />
             <label className="fs-search">
               <Search aria-hidden="true" />

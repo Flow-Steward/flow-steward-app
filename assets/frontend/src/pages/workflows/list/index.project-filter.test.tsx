@@ -23,7 +23,7 @@ const rows = [
   { workflow_id: "alpha-only", display_name: "Alpha workflow", enabled: true, project_id: alpha.id, extensions: gotenberg },
   { workflow_id: "beta-only", display_name: "Beta workflow", enabled: true, project_id: beta.id, extensions: gotenberg },
   // Ownership differs from membership: Shared must appear in both projects.
-  { workflow_id: "shared", display_name: "Shared workflow", enabled: true, project_id: alpha.id },
+  { workflow_id: "shared", display_name: "Shared workflow", enabled: true, project_id: alpha.id, extensions: [{ extension_id: "example.discogs", display_name: "Discogs" }] },
   { workflow_id: "extension.install-7.example", display_name: "Installed workflow", enabled: true, extensions: gotenberg },
   { workflow_id: "unassigned", display_name: "Unassigned workflow", enabled: true },
   // Owned by Alpha but not bound to it: ownership alone does not list a workflow.
@@ -110,7 +110,7 @@ it("finds both an installed workflow and a copy by extension alongside project a
 
   fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Extension" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "Gotenberg" }));
+  fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Gotenberg" }));
 
   await waitFor(() => expect(screen.getByText("Extension · Gotenberg")).toBeInTheDocument());
   expect(table().getByRole("link", { name: "Installed workflow" })).toBeInTheDocument();
@@ -119,6 +119,16 @@ it("finds both an installed workflow and a copy by extension alongside project a
   expect(table().queryByRole("link", { name: "Beta workflow" })).not.toBeInTheDocument();
   expect(table().queryByRole("link", { name: "Disabled Alpha workflow" })).not.toBeInTheDocument();
   expect(new URLSearchParams(router.state.location.search).get("extension")).toBe("example.gotenberg");
+
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Discogs" }));
+  await waitFor(() => expect(screen.getByRole("menuitemcheckbox", { name: "Discogs" })).toBeChecked());
+  expect(table().getByRole("link", { name: "Shared workflow" })).toBeInTheDocument();
+  expect(table().getByRole("link", { name: "Installed workflow" })).toBeInTheDocument();
+  expect(new URLSearchParams(router.state.location.search).get("extension")).toBe("example.gotenberg,example.discogs");
+
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Discogs" }));
+  await waitFor(() => expect(table().queryByRole("link", { name: "Shared workflow" })).not.toBeInTheDocument());
+  fireEvent.mouseDown(screen.getByRole("searchbox", { name: "Search workflows" }));
 
   const search = screen.getByRole("searchbox", { name: "Search workflows" });
   fireEvent.change(search, { target: { value: "Installed" } });
