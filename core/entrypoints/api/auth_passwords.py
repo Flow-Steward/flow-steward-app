@@ -22,7 +22,9 @@ from core.application.management.requests import (
     AuthPasswordResetRequest,
     AuthPasswordResetVerifyRequest,
 )
-from core.infrastructure.db.db_pool import transaction_connection
+from core.infrastructure.runtime.entrypoint_db_adapters import (
+    database_transaction as transaction_connection,
+)
 
 
 def create_auth_passwords_router(

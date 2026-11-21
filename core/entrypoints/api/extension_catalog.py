@@ -26,10 +26,8 @@ from core.application.extensions.extension_catalog import (
     extension_catalog_availability,
     extension_catalog_icon,
 )
-from core.application.extensions.extension_catalog_install import (
-    ExtensionCatalogInstallRequest,
-    ExtensionCatalogInstallService,
-)
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
+from core.application.extensions.extension_catalog_install import ExtensionCatalogInstallService
 from core.application.management.errors import ServiceError
 
 

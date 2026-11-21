@@ -22,7 +22,6 @@ from collections.abc import Callable
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
 
 from core.application.extensions.extension_catalog import (
     CAPABILITY_LABELS,
@@ -34,6 +33,7 @@ from core.application.extensions.extension_catalog import (
     load_extension_catalog,
     search_extension_catalog,
 )
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
 from core.application.extensions.install import InstallState
 from core.application.extensions.semver import compare_semver
 from core.application.management.scope import ScopeContext, normalize_scope
@@ -61,19 +61,6 @@ _INSTALLABLE_STATES = frozenset({STATE_INSTALL, STATE_UPDATE_AVAILABLE})
 #: re-checks plugin updates at most hourly on its Plugins screen; the Installed
 #: page and the navigation count share that window, and "Check again" skips it.
 EXTENSION_UPDATE_CHECK_MAX_AGE_SECONDS = 3600
-
-
-class ExtensionCatalogInstallRequest(BaseModel):
-    """The exact release selected from the published catalog."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    extension_id: str = Field(min_length=1, max_length=200)
-    version: str = Field(min_length=1, max_length=64)
-    release_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    approved_browser_authority_impact_hash: str = Field(
-        default="", max_length=64, pattern=r"^(?:|[a-f0-9]{64})$"
-    )
 
 
 def catalog_release_compatible(item: ExtensionCatalogItem, *, platform_version: str) -> bool:

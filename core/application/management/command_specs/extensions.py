@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from core.application.extensions.extension_catalog_install import ExtensionCatalogInstallRequest
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.scaffold_contracts import (
     ExtensionScaffoldCreateInput,

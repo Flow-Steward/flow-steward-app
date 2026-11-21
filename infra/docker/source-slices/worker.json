@@ -111,6 +111,7 @@
     "core/application/extensions/event_email.py",
     "core/application/extensions/extension_activation_validation.py",
     "core/application/extensions/extension_catalog.py",
+    "core/application/extensions/extension_catalog_contracts.py",
     "core/application/extensions/extension_contract_loading.py",
     "core/application/extensions/extension_contract_policies.py",
     "core/application/extensions/extension_contract_references.py",

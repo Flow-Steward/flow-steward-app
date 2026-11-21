@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import click
 from pydantic import ValidationError
 
-from core.application.extensions.extension_catalog import ExtensionCatalogError
+from core.application.extensions.extension_catalog_contracts import ExtensionCatalogError
 from core.application.extensions.scaffold_contracts import ExtensionScaffoldConflictError
 from core.application.lifecycle.errors import DatabaseSchemaRecoveryRequiredError, LifecycleError
 from core.application.lifecycle.stack_models import StackGatewayError

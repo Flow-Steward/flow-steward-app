@@ -27,7 +27,9 @@ from core.application.auth.password_policy import (
     password_policy_error,
 )
 from core.application.management.requests import AuthBootstrapRequest, AuthLoginRequest
-from core.infrastructure.db.db_pool import transaction_connection
+from core.infrastructure.runtime.entrypoint_db_adapters import (
+    database_transaction as transaction_connection,
+)
 
 _DUMMY_LOGIN_PASSWORD_HASH = (
     "pbkdf2_sha256$100000$00000000000000000000000000000000$"
