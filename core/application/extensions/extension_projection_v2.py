@@ -17,6 +17,7 @@ from .oauth_contract import (
     OAUTH_HELP_MAX_LENGTH,
     OAUTH_PLACEHOLDER_MAX_LENGTH,
 )
+from .workflow_install_contract import resolve_release_extension_contract
 
 
 def _as_bool(value: Any) -> bool:
@@ -259,7 +260,7 @@ def build_extension_grounding_tool(
     }
     connection_roles: list[str] = []
     for row in operations:
-        for value in row.get("connection_type_ids", []):
+        for value in row.get("connection_type_ids") or []:
             role = str(value).strip()
             if role and role not in connection_roles:
                 connection_roles.append(role)
@@ -305,7 +306,7 @@ def build_extension_grounding_tool(
                     "operation_kind": str(operation.get("operation_kind") or "").strip(),
                     "connection_type_ids": [
                         str(value).strip()
-                        for value in operation.get("connection_type_ids", [])
+                        for value in (operation.get("connection_type_ids") or [])
                         if str(value).strip()
                     ],
                     **(
@@ -373,6 +374,11 @@ def installed_extension_grounding_tools(db: Any, *, account_id: str) -> list[dic
             != str(getattr(install, "extension_id", "") or "").strip()
         ):
             continue
+        descriptor["extension_contract_v2_normalized"] = resolve_release_extension_contract(
+            release_id=release_id,
+            descriptor_sha256=str(getattr(release, "descriptor_sha256", "") or "").strip().lower(),
+            descriptor=descriptor,
+        )
         tool = build_extension_grounding_tool(
             descriptor,
             account_id=str(account_id or "").strip(),
