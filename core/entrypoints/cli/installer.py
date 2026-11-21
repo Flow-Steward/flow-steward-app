@@ -215,7 +215,6 @@ def _callback(**values: Any) -> None:
 
     target_release: ReleaseIdentity | None = None
     handoff_result: InstallRunResult | None = None
-    # Owner 2026-11-21: both environments install the official release unless --from-source.
     try:
         target_release = _prepare_official_release(
             config, discover=needs_review, from_source=from_source
