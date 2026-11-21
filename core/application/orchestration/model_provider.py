@@ -426,6 +426,32 @@ def _normalize_timeout_seconds(timeout_seconds) -> float | None:
     return min(timeout, timeout_cap)
 
 
+#: Reasoning depths an agent may choose for GPT-5.6 with ``config.reasoning_effort``.
+GPT_5_6_REASONING_EFFORTS: tuple[str, ...] = ("low", "medium", "high")
+GPT_5_6_DEFAULT_REASONING_EFFORT = "medium"
+
+
+def gpt_5_6_reasoning_effort(*configs: Any) -> str:
+    """The reasoning depth of a GPT-5.6 call: the first config that sets one, else medium.
+
+    ``configs`` go in precedence order (the project's override for the agent,
+    then the agent's own config). A simple extraction runs faster at ``low``;
+    an unknown value is a configuration error, not a silent default.
+    """
+    for config in configs:
+        raw = config.get("reasoning_effort") if isinstance(config, dict) else None
+        value = str(raw or "").strip().lower()
+        if not value:
+            continue
+        if value not in GPT_5_6_REASONING_EFFORTS:
+            raise ModelProviderResolutionError(
+                f"reasoning_effort must be one of {', '.join(GPT_5_6_REASONING_EFFORTS)}, "
+                f"not '{raw}'"
+            )
+        return value
+    return GPT_5_6_DEFAULT_REASONING_EFFORT
+
+
 def _get_registry_agent_config(agent_name: str) -> dict:
     """Load an agent's config from the registry (set via admin UI)."""
     candidate = str(agent_name or "").strip()
@@ -864,10 +890,11 @@ def get_chat_model(
     }
     if direct_gpt_5_6:
         # GPT-5.6 reasoning plus function tools is a Responses API contract.
-        # Keep the model's documented medium baseline explicit; Chat Completions
-        # only supports function tools at effective reasoning ``none``.
+        # The documented medium baseline stays explicit unless the agent picks
+        # its own depth; Chat Completions only supports function tools at
+        # effective reasoning ``none``.
         kwargs["use_responses_api"] = True
-        kwargs["reasoning"] = {"effort": "medium"}
+        kwargs["reasoning"] = {"effort": gpt_5_6_reasoning_effort(agent_cfg, registry_cfg)}
     else:
         kwargs["temperature"] = temperature
     if provider == "openai":
