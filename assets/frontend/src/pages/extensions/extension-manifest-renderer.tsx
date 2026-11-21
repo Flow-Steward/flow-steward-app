@@ -226,6 +226,7 @@ export function renderManifestComponent(
   }
 
   function renderConnectionForm( ) {
+    const feedback = context.connectionSaveFeedback?.[componentId];
     const data = objectOrEmpty(component.data);
     if ((context.oauthConnectionProviderIds || []).includes(stringFrom(data.oauth_provider_id))) {
       return null;
@@ -290,7 +291,7 @@ export function renderManifestComponent(
           </div>
           <span className="fs-manifest-meta">{rows.length}{" "}{t("react.workflows.configured", "configured")}</span>
         </div>
-        {componentAlert(activeFields) ? <DsAlert title={componentAlert(activeFields)} tone="danger" /> : null}
+        {!feedback && componentAlert(activeFields) ? <DsAlert title={componentAlert(activeFields)} tone="danger" /> : null}
         {rows.length ? (
           <div className="fs-manifest-list">
             {rows.map((row) =>
@@ -306,7 +307,7 @@ export function renderManifestComponent(
             )}
           </div>
         ) : null}
-        <form className="fs-manifest-inset" onSubmit={(event) => event.preventDefault()}>
+        <form aria-label={title} className="fs-manifest-inset" onSubmit={(event) => event.preventDefault()}>
           <div className="fs-manifest-fields">
             {activeFields.map((field) => {
               const rendered = renderManifestField({
@@ -337,8 +338,11 @@ export function renderManifestComponent(
               );
             })}
           </div>
+          <div className="min-h-8" role={feedback?.status === "error" ? "alert" : "status"}>
+            {feedback ? <p className={feedback.status === "error" ? "m-0 text-xs text-[var(--fs-status-danger)]" : feedback.status === "success" ? "fs-manifest-success" : "fs-manifest-description"}>{feedback.message}</p> : null}
+          </div>
           <div className="fs-manifest-actions">
-            <Button busy={manifestActionBusy(context, manifestActionKey("connection-save", componentId))} busyLabel={t("react.extensions.saving", "Saving…")} disabled={oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason)} onClick={() => pressManifestAction(context, manifestActionKey("connection-save", componentId), () => context.onConnectionSave(component, effectiveValues))} size="sm" title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button" variant="primary">
+            <Button busy={feedback?.status === "saving" || manifestActionBusy(context, manifestActionKey("connection-save", componentId))} busyLabel={t("react.extensions.saving", "Saving…")} disabled={oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason)} onClick={() => pressManifestAction(context, manifestActionKey("connection-save", componentId), () => context.onConnectionSave(component, effectiveValues))} size="sm" title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button" variant="primary">
               {connectionSaveLabel(selectedRow, oauthConnection, accountLabelText, t)}
             </Button>
             {manifestFormActions(component, t).map((action) => {

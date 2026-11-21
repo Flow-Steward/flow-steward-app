@@ -1,6 +1,8 @@
 import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ConnectionSecretApprovalStatus } from "./extension-connection-secret-catalog";
 
 import { renderManifestField } from "./extension-manifest-fields";
 import { useExtensionConnectionActions } from "./use-extension-connection-actions";
@@ -8,6 +10,7 @@ import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
 import type { ComponentError } from "./extension-manifest-utils";
 import {
+  fetchConnectionSecretApproval,
   createProjectConnection,
   deleteExtensionProjectState,
   deleteProjectConnection,
@@ -20,6 +23,7 @@ import {
 
 vi.mock("@/pages/projects/connections/api", async (importOriginal) => ({
   ...await importOriginal<Record<string, unknown>>(),
+  fetchConnectionSecretApproval: vi.fn(),
   createProjectConnection: vi.fn(),
   deleteExtensionProjectState: vi.fn(),
   deleteProjectConnection: vi.fn(),
@@ -91,6 +95,7 @@ function renderActions(options: {
   oauthTypes?: string[];
   errors?: Record<string, ComponentError>;
 } = {}) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   const refetchConnections = vi.fn().mockResolvedValue({});
   const refetchState = vi.fn().mockResolvedValue({});
   const withBusy = vi.fn(async (_extensionId: string, run: () => Promise<void>) => run());
@@ -99,6 +104,7 @@ function renderActions(options: {
     const [errors, setComponentErrors] = useState<Record<string, ComponentError>>(options.errors ?? {});
     const [statuses, setStatusById] = useState<Record<string, string>>({});
     const state = {
+      queryClient,
       detailExtension: { extension_id: options.extensionId ?? "mail-extension" },
       extensionInstallId: options.installId ?? "install-1",
       activePageProjectId: options.projectId ?? "project-1",
@@ -118,9 +124,9 @@ function renderActions(options: {
       },
     } as unknown as ReturnType<typeof useExtensionsHubState>;
     const actions = useExtensionConnectionActions(state, { withBusy } as unknown as ReturnType<typeof useExtensionLifecycleActions>);
-    return { actions, formValues, errors, statuses };
+    return { actions, formValues, errors, statuses, setFormValuesByComponent };
   });
-  return { ...view, refetchConnections, refetchState, withBusy };
+  return { ...view, queryClient, refetchConnections, refetchState, withBusy };
 }
 
 describe("extension connection actions", () => {
@@ -169,7 +175,9 @@ describe("extension connection actions", () => {
     async (action) => {
       const { result, withBusy } = renderActions();
       await act(async () => {
-        await result.current.actions[action](component, { ...connection, extension_install_id: "foreign" }, "connect");
+        const row = { ...connection, extension_install_id: "foreign" };
+        if (action === "handleConnectionOAuth") await result.current.actions[action](component, row, "connect");
+        else await result.current.actions[action](component, row);
       });
       expect(result.current.errors.account.message).toBe("This connection belongs to another installed release. Refresh the page and choose an account from this installation.");
       expect(result.current.formValues).toEqual({});
@@ -266,6 +274,100 @@ describe("extension connection actions", () => {
     } else {
       expect(updateProjectConnection).toHaveBeenCalledWith("project-1", "created-1", { enabled: true });
     }
+  });
+
+  it("shows scoped save progress, prevents duplicate requests, and clears success after editing", async () => {
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(updateProjectConnection).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const { result } = renderActions();
+    let saving!: Promise<void>;
+    act(() => { saving = result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "new.example" }); });
+    expect(result.current.actions.connectionSaveFeedback.account.status).toBe("saving");
+    await act(async () => result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "new.example" }));
+    expect(updateProjectConnection).toHaveBeenCalledTimes(1);
+    await act(async () => { finish({}); await saving; });
+    expect(result.current.actions.connectionSaveFeedback.account.status).toBe("success");
+    act(() => result.current.actions.clearFieldError("account", "host"));
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+    expect(result.current.statuses["mail-extension"]).toBe("");
+  });
+
+  it("does not claim a draft edited during save is saved or replace it with submitted values", async () => {
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(updateProjectConnection).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const { result } = renderActions();
+    act(() => result.current.actions.handleConnectionSelect(component, connection));
+    let saving!: Promise<void>;
+    act(() => { saving = result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "submitted.example" }); });
+    await waitFor(() => expect(updateProjectConnection).toHaveBeenCalledTimes(1));
+    act(() => result.current.actions.clearFieldError("account", "host"));
+    await act(async () => { finish({}); await saving; });
+    expect(result.current.formValues.account.host).toBe("saved.example");
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+    expect(result.current.statuses["mail-extension"]).not.toBe("Connection saved.");
+  });
+
+  it("keeps a failed save beside its form and allows retry, then clears feedback on profile selection", async () => {
+    vi.mocked(updateProjectConnection).mockRejectedValueOnce(new Error("Service unavailable"));
+    const { result } = renderActions();
+    const values = { connection_id: "connection-1", host: "new.example" };
+    await act(async () => result.current.actions.handleConnectionSave(component, values));
+    expect(result.current.actions.connectionSaveFeedback.account).toEqual({ status: "error", message: "Service unavailable" });
+    await act(async () => result.current.actions.handleConnectionSave(component, values));
+    expect(result.current.actions.connectionSaveFeedback.account.status).toBe("success");
+    act(() => result.current.actions.handleConnectionSelect(component, null));
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+  });
+
+  it("does not carry a completed save into a different project scope", async () => {
+    const options = { projectId: "project-1" };
+    const { result, rerender } = renderActions(options);
+    await act(async () => result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "new.example" }));
+    expect(result.current.actions.connectionSaveFeedback.account.status).toBe("success");
+    options.projectId = "project-2";
+    rerender();
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+    options.projectId = "project-1";
+    rerender();
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+    expect(result.current.statuses["mail-extension"]).not.toBe("Connection saved.");
+  });
+
+  it("does not hydrate or report an earlier pending save after leaving and returning to its scope", async () => {
+    let finish!: (value: Record<string, unknown>) => void;
+    vi.mocked(updateProjectConnection).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const options = { projectId: "project-1" };
+    const { result, rerender } = renderActions(options);
+    act(() => result.current.actions.handleConnectionSelect(component, connection));
+    let saving!: Promise<void>;
+    act(() => { saving = result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "submitted.example" }); });
+    await waitFor(() => expect(updateProjectConnection).toHaveBeenCalledTimes(1));
+    options.projectId = "project-2";
+    rerender();
+    options.projectId = "project-1";
+    rerender();
+    // The owning hub resets and hydrates the newly visited form without a field edit.
+    act(() => result.current.setFormValuesByComponent({ account: { connection_id: "connection-1", host: "freshly-hydrated.example" } }));
+    await act(async () => { finish({}); await saving; });
+    expect(result.current.formValues.account.host).toBe("freshly-hydrated.example");
+    expect(result.current.actions.connectionSaveFeedback.account).toBeUndefined();
+    expect(result.current.statuses["mail-extension"]).not.toBe("Connection saved.");
+  });
+
+  it("refreshes stored-secret approval after saving config even when secret bindings stay the same", async () => {
+    const status = {
+      connection_id: "connection-1", status: "approved", fingerprint: "sha256:old",
+      secrets: [{ field: "api_token", secret_id: "s1", name: "Test token" }],
+      destinations: [], release: { release_id: "r1", descriptor_sha256: "abc" }, changes: [],
+    } as const;
+    vi.mocked(fetchConnectionSecretApproval).mockResolvedValueOnce({ ...status, secrets: [...status.secrets], changes: [], destinations: [] })
+      .mockResolvedValue({ ...status, status: "approval_required", fingerprint: "sha256:new", secrets: [...status.secrets], changes: [], destinations: [] });
+    const { result, queryClient } = renderActions();
+    render(<QueryClientProvider client={queryClient}><ConnectionSecretApprovalStatus projectId="project-1" row={{ ...connection, secret_refs: { refs: { api_token: "catalog/ref" }, catalog: { api_token: "s1" } } }} /></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByText("stored secrets approved")).toBeVisible());
+    await act(async () => result.current.actions.handleConnectionSave(component, { connection_id: "connection-1", host: "new.example" }));
+    await waitFor(() => expect(screen.getByText("stored secrets need approval")).toBeVisible());
+    expect(screen.getByRole("button", { name: "Approve use of secrets for Mailbox" })).toBeEnabled();
   });
 
   it("omits an untouched optional asset string array from a new connection save", async () => {
