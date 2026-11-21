@@ -210,6 +210,7 @@ class LlmProviderExtensionUseCases:
             return value
         from core.application.extensions.url_safety import (
             allow_private_provider_addresses,
+            allowed_private_provider_origins,
             assert_safe_provider_url,
         )
 
@@ -218,11 +219,12 @@ class LlmProviderExtensionUseCases:
                 upstream_url,
                 purpose="Base URL",
                 allow_private_addresses=allow_private_provider_addresses(),
+                allowed_origins=allowed_private_provider_origins(),
             )
         except ValueError as exc:
             # The guard's own reasons are written for the user ("must use https
-            # for a public address", "... allow private addresses with
-            # FS_ALLOW_PRIVATE_REMOTE_URLS=1") and carry no secrets.
+            # for a public address", "... add http://10.0.0.5:11434 to
+            # FS_ALLOWED_PRIVATE_ORIGINS") and carry no secrets.
             raise LlmProviderExtensionError(422, str(exc)) from exc
         except Exception as exc:
             raise LlmProviderExtensionError(422, "Base URL can't be checked right now") from exc

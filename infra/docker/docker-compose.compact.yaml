@@ -76,6 +76,7 @@ x-compact-runtime-environment: &compact-runtime-environment
   ENVIRONMENT: ${ENVIRONMENT:-production}
   FS_STACK_ENVIRONMENT: ${FS_STACK_ENVIRONMENT:-production}
   FS_ALLOW_PRIVATE_REMOTE_URLS: ${FS_ALLOW_PRIVATE_REMOTE_URLS:-0}
+  FS_ALLOWED_PRIVATE_ORIGINS: ${FS_ALLOWED_PRIVATE_ORIGINS:-}
   FS_EXTENSION_CATALOG_URL: ${FS_EXTENSION_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/extensions/main/index.json}
   FS_MCP_CATALOG_URL: ${FS_MCP_CATALOG_URL-https://raw.githubusercontent.com/Flow-Steward/mcps/main/index.json}
   FS_EXTENSION_DEPS_FETCH: ${FS_EXTENSION_DEPS_FETCH:-0}

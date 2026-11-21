@@ -79,6 +79,16 @@ Characters of one agent tool result the model receives; longer results are cut. 
 - Compact (Docker host): `./flow-steward config set FS_AGENT_TOOL_RESULT_MAX_CHARS=VALUE`, then `./flow-steward config apply`
 - Reset to the default: `FS_AGENT_TOOL_RESULT_MAX_CHARS=` (an empty value)
 
+### `FS_ALLOWED_PRIVATE_ORIGINS`
+
+Exact private or loopback origins (scheme://host:port, comma-separated, at most 16) an LLM provider extension may reach, for example http://host.docker.internal:11434. Empty allows none. Only these origins are admitted, over http or https as written; link-local and metadata addresses stay refused, and other private addresses still need FS_ALLOW_PRIVATE_REMOTE_URLS.
+
+- Default: `(empty)`
+- Accepts: text
+- Scalable: `flow-steward config set FS_ALLOWED_PRIVATE_ORIGINS=VALUE`, then `flow-steward config apply`
+- Compact (Docker host): `./flow-steward config set FS_ALLOWED_PRIVATE_ORIGINS=VALUE`, then `./flow-steward config apply`
+- Reset to the default: `FS_ALLOWED_PRIVATE_ORIGINS=` (an empty value)
+
 ### `FS_ALLOW_PRIVATE_REMOTE_URLS`
 
 Optional override to permit private remote extension URLs, private MCP connector base URLs and private or loopback LLM provider base URLs (link-local and metadata addresses stay refused for LLM providers).

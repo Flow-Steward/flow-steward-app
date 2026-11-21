@@ -596,6 +596,8 @@ class TestLlmProviderDescriptor:
         assert "verification_status = 'stale'" in query
         assert "verification_generation = NULL" in query
         assert "enabled = false" in query
+        # A check made by the previous release no longer says "Connected" (#29).
+        assert "- 'llm_provider_last_check'" in query
         assert params == (
             "release-global",
             "acc-1",
@@ -626,6 +628,7 @@ class TestLlmProviderDescriptor:
         assert "llm_provider_discovery_generation" in query
         assert "verification_status = 'stale'" in query
         assert "enabled = false" in query
+        assert "- 'llm_provider_last_check'" in query
         assert params == (
             "fixture.remote",
             "extension_invalid_or_missing",

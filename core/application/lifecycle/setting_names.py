@@ -62,7 +62,30 @@ def check_operator_settings(settings: Mapping[str, str]) -> dict[str, str]:
                 f"{name} accepts {', '.join(spec.allowed_values)}, not {value!r}. "
                 f"Settings: {HOST_SETTINGS_DOCS_URL}"
             )
+        if value:
+            _check_value(name, value)
     return dict(settings)
+
+
+def _check_value(name: str, value: str) -> None:
+    """Refuse a value a structured host setting cannot use, before it is stored."""
+    from core.infrastructure.config.private_origins import (
+        SETTING as PRIVATE_ORIGINS,
+    )
+    from core.infrastructure.config.private_origins import (
+        PrivateOriginError,
+        parse_allowed_private_origins,
+    )
+
+    if name != PRIVATE_ORIGINS:
+        return
+    try:
+        parse_allowed_private_origins(value)
+    except PrivateOriginError as exc:
+        raise OperatorSettingError(
+            f"{name}: {exc}. List exact origins separated by commas, for example "
+            f"http://host.docker.internal:11434. Settings: {HOST_SETTINGS_DOCS_URL}"
+        ) from exc
 
 
 __all__ = [

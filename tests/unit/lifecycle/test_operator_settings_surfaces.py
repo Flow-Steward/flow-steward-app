@@ -53,8 +53,10 @@ def test_a_refused_private_address_gives_the_command_for_this_installation(
     with pytest.raises(ValueError) as remote:
         url_safety.assert_safe_remote_http_url("http://localhost:5001", purpose="Docling base_url")
 
-    for refusal in (provider.value, remote.value):
-        assert command in str(refusal)
+    assert command in str(remote.value)
+    # A provider endpoint is offered the narrow setting for exactly its origin (ADR 0078).
+    narrow = command.replace(f"{PRIVATE}=1", "FS_ALLOWED_PRIVATE_ORIGINS=http://10.0.0.5:11434")
+    assert narrow in str(provider.value)
 
 
 def test_an_extension_that_blocks_a_private_address_gets_the_same_hint(
@@ -139,8 +141,14 @@ def _valid_value(name: str) -> str:
     field = typed_setting_fields().get(name)
     if field is not None:
         return str(field.choices[0].value if field.choices else (field.examples or ("1",))[0])
+    if name in _STRUCTURED_EXAMPLES:
+        return _STRUCTURED_EXAMPLES[name]
     spec = operator_setting_specs()[name]
     return spec.allowed_values[-1] if spec.allowed_values else "1"
+
+
+#: Host settings whose value `config set` parses: a value of their own shape (ADR 0078).
+_STRUCTURED_EXAMPLES = {"FS_ALLOWED_PRIVATE_ORIGINS": "http://host.docker.internal:11434"}
 
 
 def test_one_name_everywhere(monkeypatch: pytest.MonkeyPatch) -> None:
