@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.application.extensions.artifact_presentation import DeferredArtifactPresentationResolver
 from core.application.jobs.enqueue_task_handler import (
     create_enqueue_task_handler,
     job_invocation_artifact_plane,
@@ -195,6 +196,11 @@ def create_job_query_service(*, get_logger) -> JobQueryService:
         ),
         serialize_job_error_row=lambda row: serialize_job_error_row(row, to_json_obj=to_json_obj),
         resolve_job_project_name=build_resolve_job_project_name(to_json_obj=to_json_obj),
+        # The API hands this service an ArtifactPresentationResolver; without one a
+        # completed run whose result carries files answered "Public workflow result
+        # is unavailable" here (#34). Deferred, so commands that never read a result
+        # file do not build artifact storage.
+        resolve_artifact=DeferredArtifactPresentationResolver(job_invocation_artifact_plane),
         approval_query_service=_query_service_runtime.create_approval_query_service(
             get_logger=get_logger,
             get_thread_state_snapshot=lambda _thread_id: None,
