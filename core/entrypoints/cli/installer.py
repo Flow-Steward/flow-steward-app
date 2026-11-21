@@ -183,22 +183,12 @@ def _callback(**values: Any) -> None:
                 supplied,
                 renderer=renderer,
                 advanced=advanced,
-                from_source=from_source,
             )
         except InstallerFailure as exc:
             _render_failure(
                 renderer, exc.code, exc.cause, ExitCode(exc.exit_code), hint=exc.remediation
             )
         confirmed = confirmed or form_confirmed
-    if normalized.get("environment") == "development" and not from_source:
-        _render_failure(
-            renderer,
-            "source_install_requires_flag",
-            "Development installation requires explicit --from-source.",
-            ExitCode.VALIDATION,
-            hint="Rerun ./install.sh --from-source --environment development "
-            "--deployment-profile scalable.",
-        )
     try:
         _validate_container_paths(normalized, supplied_keys=path_supplied_keys)
         config = InstallConfig.model_validate(normalized)
@@ -225,61 +215,61 @@ def _callback(**values: Any) -> None:
 
     target_release: ReleaseIdentity | None = None
     handoff_result: InstallRunResult | None = None
-    if config.environment == "production" or from_source:
-        try:
-            target_release = _prepare_official_release(
-                config, discover=needs_review, from_source=from_source
+    # Owner 2026-11-21: both environments install the official release unless --from-source.
+    try:
+        target_release = _prepare_official_release(
+            config, discover=needs_review, from_source=from_source
+        )
+        if target_release is not None and not needs_review:
+            release_state = InstallerStateStore(
+                installer_state_root(_ROOT),
+                lifecycle_state_root=_ROOT / _STATE_DIRECTORY_NAME,
             )
-            if target_release is not None and not needs_review:
-                release_state = InstallerStateStore(
-                    installer_state_root(_ROOT),
-                    lifecycle_state_root=_ROOT / _STATE_DIRECTORY_NAME,
+            if (
+                release_state.load_installed_release() is None
+                and release_state.load_release_handoff() is not None
+            ):
+                handoff_result = InstallerReleaseHandoff(
+                    repo_root=_ROOT,
+                    state=release_state,
+                    source_repository=str(
+                        _runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY)
+                    ),
+                    source_registries=str(_runtime_env.get("FS_RELEASE_REGISTRIES") or ""),
+                ).install_exact(
+                    target_release,
+                    config=config,
+                    explicit_fields=explicit_fields,
+                    timeout_seconds=3600,
                 )
-                if (
-                    release_state.load_installed_release() is None
-                    and release_state.load_release_handoff() is not None
-                ):
-                    handoff_result = InstallerReleaseHandoff(
-                        repo_root=_ROOT,
-                        state=release_state,
-                        source_repository=str(
-                            _runtime_env.get("FS_RELEASE_REPOSITORY", DEFAULT_RELEASE_REPOSITORY)
-                        ),
-                        source_registries=str(_runtime_env.get("FS_RELEASE_REGISTRIES") or ""),
-                    ).install_exact(
-                        target_release,
-                        config=config,
-                        explicit_fields=explicit_fields,
-                        timeout_seconds=3600,
-                    )
-            if handoff_result is None:
-                # The first service was read-only classification. Recreate it after exact
-                # image resolution so its gateway sees only the verified release inputs.
-                service = _create_service(stream_output=verbose)
-        except LifecycleError as exc:
-            _render_failure(
-                renderer,
-                exc.code,
-                exc.cause,
-                exc.exit_code,
-                hint=exc.remediation,
-                retryable=exc.retryable,
-                log_path=exc.log_path,
-            )
-        except Exception as exc:
-            _render_failure(
-                renderer,
-                "official_release_unavailable",
-                str(exc),
-                ExitCode.DEPENDENCY,
-                hint="Restore GitHub/registry access and rerun the same installation.",
-                retryable=True,
-            )
+        if handoff_result is None:
+            # The first service was read-only classification. Recreate it after exact
+            # image resolution so its gateway sees only the verified release inputs.
+            service = _create_service(stream_output=verbose)
+    except LifecycleError as exc:
+        _render_failure(
+            renderer,
+            exc.code,
+            exc.cause,
+            exc.exit_code,
+            hint=exc.remediation,
+            retryable=exc.retryable,
+            log_path=exc.log_path,
+        )
+    except Exception as exc:
+        _render_failure(
+            renderer,
+            "official_release_unavailable",
+            str(exc),
+            ExitCode.DEPENDENCY,
+            hint="Restore GitHub/registry access and rerun the same installation.",
+            retryable=True,
+        )
 
     if handoff_result is not None:
         result = handoff_result
     else:
-        if config.environment == "production" and not json_requested:
+        if not json_requested:
             _announce_install_mode(target_release)
         with renderer.operation_progress() as progress:
             try:
@@ -703,7 +693,7 @@ def _prepare_fresh_install(
             cause="The checkout does not identify a clean exact published release tag.",
             remediation=(
                 "Check out a published v<VERSION> release tag with no tracked changes and "
-                "rerun ./install.sh; use --from-source only to explicitly build a source checkout."
+                "rerun ./install.sh; build a development branch with --from-source instead."
             ),
             step="production_checkout",
         )
@@ -757,6 +747,17 @@ def _compact_maintenance_client(
             project_root, installation_lock_path=state_root / "install.lock"
         ),
     )
+
+
+def _handoff_environment(journal: Any, state: InstallerStateStore) -> str:
+    # Owner 2026-11-21: finish the recorded environment, development included; never switch.
+    if journal.install_config is not None:
+        return str(journal.install_config.environment)
+    try:
+        active = LifecycleConfigurationStore(_ROOT, state_root=state.root).read_active()
+    except (OSError, ValueError):
+        active = None
+    return active.environment if active is not None else "production"
 
 
 def run_pending_release_handoff() -> int:
@@ -852,7 +853,8 @@ def run_pending_release_handoff() -> int:
         if journal.install_config is not None
         else _recorded_installation_values(_ROOT)
     )
-    recorded.setdefault("environment", "production")
+    expected_env = _handoff_environment(journal, state)
+    recorded.setdefault("environment", expected_env)
     recorded.setdefault("deployment_profile", pending.profile)
     try:
         config = InstallConfig.model_validate(_with_defaults(recorded, supplied_keys=set(recorded)))
@@ -869,7 +871,7 @@ def run_pending_release_handoff() -> int:
             )
         )
         return int(ExitCode.STABLE_FAILURE)
-    if config.deployment_profile != pending.profile or config.environment != "production":
+    if config.deployment_profile != pending.profile or config.environment != expected_env:
         click.echo(
             json.dumps(
                 {

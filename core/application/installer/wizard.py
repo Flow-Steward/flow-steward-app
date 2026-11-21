@@ -132,17 +132,3 @@ def installation_error_message(exc: Exception) -> str:
             for error in exc.errors(include_input=False, include_url=False)
         )
     return str(exc)
-
-
-def require_source_opt_in(values: dict[str, Any], *, from_source: bool) -> None:
-    from core.application.installer.errors import InstallerFailure
-
-    if values.get("environment") == "development" and not from_source:
-        raise InstallerFailure(
-            code="source_install_requires_flag",
-            cause="Development requires an explicit source installation.",
-            remediation="Rerun ./install.sh --from-source --environment development.",
-            exit_code=3,
-            retryable=False,
-            step="configuration",
-        )

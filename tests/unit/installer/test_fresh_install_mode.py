@@ -170,15 +170,20 @@ def test_explicit_source_mode_skips_published_release_selection(
     assert _Checkout.probes == []
 
 
-@pytest.mark.parametrize("profile", ["compact", "scalable"])
+@pytest.mark.parametrize(
+    ("environment", "profile"),
+    [("production", "compact"), ("production", "scalable"), ("development", "scalable")],
+)
 def test_ambiguous_checkout_requires_explicit_source_mode_without_release_queries(
-    monkeypatch, fresh_tree, profile
+    monkeypatch, fresh_tree, environment, profile
 ):
+    """D7 (owner 2026-11-21): development on an untagged checkout is refused like
+    production, and the refusal offers --from-source for a checkout meant to be built."""
     monkeypatch.setattr(installer, "GitHubReleaseDiscovery", _forbidden)
     monkeypatch.setattr(installer, "OfficialReleaseResolver", _forbidden)
     with pytest.raises(LifecycleError) as raised:
         installer._prepare_official_release(
-            InstallConfig(environment="production", deployment_profile=profile)
+            InstallConfig(environment=environment, deployment_profile=profile)
         )
     assert raised.value.code == "production_release_checkout_required"
     assert "--from-source" in raised.value.remediation
@@ -186,17 +191,21 @@ def test_ambiguous_checkout_requires_explicit_source_mode_without_release_querie
     assert fresh_tree.get("FS_INSTALL_MODE") != "source"
 
 
-@pytest.mark.parametrize("profile", ["compact", "scalable"])
+@pytest.mark.parametrize(
+    ("environment", "profile"),
+    [("production", "compact"), ("production", "scalable"), ("development", "scalable")],
+)
 def test_fresh_checkout_at_published_release_tag_installs_official_images(
-    monkeypatch: pytest.MonkeyPatch, fresh_tree: dict[str, str], profile: str
+    monkeypatch: pytest.MonkeyPatch, fresh_tree: dict[str, str], environment: str, profile: str
 ) -> None:
+    """Owner 2026-11-21: a development checkout at a release tag installs that release."""
     fresh_tree["FS_RELEASE_REPOSITORY"] = _REPOSITORY
     monkeypatch.setattr(_Checkout, "answer", _coordinates())
     target = _identity(profile)
     observed = _official_sources(monkeypatch, published=_published(), resolved=target)
 
     release = installer._prepare_official_release(
-        InstallConfig(environment="production", deployment_profile=profile), discover=True
+        InstallConfig(environment=environment, deployment_profile=profile), discover=True
     )
 
     assert release == target
@@ -330,6 +339,32 @@ def test_installer_says_it_installs_the_official_release(
         "installing official release v0.9.1 from ghcr.io/flow-steward "
         "(no local product image build)"
     ) in result.output
+
+
+def test_development_installer_says_it_installs_the_official_release(
+    monkeypatch: pytest.MonkeyPatch, cli_service: _RecordingService
+) -> None:
+    """Owner 2026-11-21: the announcement is made for development installs too."""
+    monkeypatch.setattr(_Checkout, "answer", _coordinates())
+    target = _identity("scalable")
+    _official_sources(monkeypatch, published=_published(), resolved=target)
+
+    result = CliRunner().invoke(
+        installer.installer_command,
+        [
+            "--non-interactive",
+            "--confirm",
+            "--plain",
+            "--environment",
+            "development",
+            "--deployment-profile",
+            "scalable",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert cli_service.target_release == target
+    assert "installing official release v0.9.1 from ghcr.io/flow-steward" in result.output
 
 
 def test_installer_says_it_builds_from_source(
