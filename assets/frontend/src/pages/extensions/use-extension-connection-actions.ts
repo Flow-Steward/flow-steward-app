@@ -470,8 +470,10 @@ export function useExtensionConnectionActions(
         });
         if (!isCurrentDraft()) return;
         const message = connectionSaveErrorMessage(error, { oauthStartAttempted }, t);
-        setComponentError(component, message, errorFieldPath(error));
-        reportSaveFeedback(componentId, { status: "error", message });
+        const fieldPath = errorFieldPath(error);
+        setComponentError(component, message, fieldPath);
+        // A field error is shown beside its field; repeating it beside Save says it twice.
+        reportSaveFeedback(componentId, fieldPath ? undefined : { status: "error", message });
       } finally {
         pendingSaves.current.delete(key);
         if (!isCurrentDraft()) reportSaveFeedback(componentId);
