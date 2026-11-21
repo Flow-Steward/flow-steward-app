@@ -175,6 +175,17 @@ class InstallationDoctorProbe:
     def unhealthy_services(self) -> list[str]:
         return self.gateway.unhealthy_services(self.config, log=self.log)
 
+    def restart_unhealthy_services(self) -> str:
+        """#26: restart what fails its healthcheck, then wait for health the way a start
+        does; a service that comes back unhealthy fails the repair with its name."""
+        restarted = self.gateway.restart_services(
+            self.config, self.unhealthy_services(), log=self.log
+        )
+        if not restarted:
+            return "Nothing was unhealthy."
+        self.gateway.verify_health(self.config, log=self.log)
+        return "Restarted: " + ", ".join(restarted) + "."
+
     def sources_differ_from_installation(self) -> str:
         installed = self.gateway.installed_runtime_revision(self.config)
         source = self.gateway.source_revision()

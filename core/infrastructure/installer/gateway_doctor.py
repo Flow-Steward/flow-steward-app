@@ -504,6 +504,33 @@ class DoctorOperations:
             & expected
         )
 
+    def restart_services(
+        self: DockerInstallerGateway,
+        config: InstallConfig,
+        services: Sequence[str],
+        *,
+        log: InstallerLog,
+    ) -> list[str]:
+        """Restart the named services of this installation, and nothing else (#26).
+
+        Only services the installation runs are restarted, through the same Compose
+        project as `stack restart`; the rest of the stack keeps running.
+        """
+        chosen = sorted(set(services) & set(self._health_expected_services(config)))
+        if not chosen:
+            return []
+        self._checked(
+            [*self._compose_prefix(config), "restart", *chosen],
+            log=log,
+            code="container_unhealthy",
+            remediation="Read ./flow-steward stack logs for the named services, then rerun "
+            "./flow-steward doctor.",
+            exit_code=8,
+            step="health",
+            separate_stderr=True,
+        )
+        return chosen
+
     def stopped_services(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> list[str]:

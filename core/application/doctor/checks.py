@@ -48,6 +48,8 @@ class DoctorProbe(Protocol):
 
     def unhealthy_services(self) -> list[str]: ...  # running, failing their healthcheck
 
+    def restart_unhealthy_services(self) -> str: ...
+
     # "" when these sources built the installation, else the two revisions in words
     def sources_differ_from_installation(self) -> str: ...
 
@@ -104,7 +106,9 @@ def _stack_stopped(probe: DoctorProbe) -> DoctorFinding:
 
 def _stack_unhealthy(probe: DoctorProbe) -> DoctorFinding:
     """#26: SeaweedFS ran `unhealthy` for hours while doctor said every check was fine;
-    stack_stopped looks only at whether a container runs."""
+    stack_stopped looks only at whether a container runs. The repair restarts only the
+    failing services -- what `stack restart` did to the whole stack -- and waits for
+    their health; one that comes back unhealthy stays failed, named, with its logs."""
     unhealthy = probe.unhealthy_services()
     if not unhealthy:
         return DoctorFinding(
@@ -114,9 +118,9 @@ def _stack_unhealthy(probe: DoctorProbe) -> DoctorFinding:
     return _fail(
         "stack_unhealthy",
         f"Running but failing their healthcheck: {names}.",
-        f"./flow-steward stack logs --service {unhealthy[0]} shows why; then "
-        "./flow-steward stack restart --confirm",
-        repairable=False,
+        _RERUN.format(check_id="stack_unhealthy")
+        + f" restarts {'it' if len(unhealthy) == 1 else 'them'}; if it stays unhealthy, "
+        f"./flow-steward stack logs --service {unhealthy[0]} shows why",
     )
 
 
@@ -290,7 +294,12 @@ def p1_checks() -> tuple[DoctorCheck, ...]:
             _stack_stopped,
             lambda probe, _finding: probe.start_stopped_services(),
         ),
-        DoctorCheck("stack_unhealthy", "Service health", _stack_unhealthy),
+        DoctorCheck(
+            "stack_unhealthy",
+            "Service health",
+            _stack_unhealthy,
+            lambda probe, _finding: probe.restart_unhealthy_services(),
+        ),
         DoctorCheck(
             "maintenance_left_enabled",
             "Maintenance mode",
