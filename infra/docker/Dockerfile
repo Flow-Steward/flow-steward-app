@@ -126,7 +126,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/platform/service_bindings/stack.py \
     core/entrypoints/cli/platform/service_bindings/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/__init__.py core/application/
-COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/config.py core/application/auth/email.py core/application/auth/secrets.py core/application/auth/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/config.py core/application/auth/email.py core/application/auth/permissions.py core/application/auth/secrets.py core/application/auth/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/bootstrap_tokens.py core/application/auth/bootstrap_recovery.py core/application/auth/bootstrap_recovery_gateway.py core/application/auth/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/auth/user_admin/contracts.py core/application/auth/user_admin/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/security/__init__.py core/infrastructure/security/secret_codec.py core/infrastructure/security/owner_only_secret.py core/infrastructure/security/secret_detection.py core/infrastructure/security/
