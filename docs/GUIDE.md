@@ -265,7 +265,11 @@ existing host proxy, skips bundled Traefik, and binds `fs-app` only to
 backend; change it with `--reverse-proxy-backend-port` when needed. The
 installer rejects non-loopback backend hosts.
 
-For local development, run `./install.sh --from-source --environment development --deployment-profile scalable`.
+For local development, run `./install.sh --environment development --deployment-profile scalable`
+from a clean published release tag. Core images come from the official release;
+only the frontend dev server and the test/audit images are built locally at that
+tag, and `./flow-steward release upgrade --confirm` updates it like production. Add
+`--from-source` to build Core from the checkout when you change Core code.
 Development is a complete preset: core plus frontend and continuously ready
 test/audit runtimes; Mailpit and SonarQube/scanner are available on demand.
 Choose bundled or external S3 storage independently of the environment.
@@ -2008,8 +2012,8 @@ the raw scanner artifact is
 Recommended setup flows:
 
 ```bash
-# Local development
-./install.sh --from-source --environment development --deployment-profile scalable
+# Local development (official Core images; add --from-source to build Core)
+./install.sh --environment development --deployment-profile scalable
 
 # Production
 ./install.sh --environment production
@@ -2315,8 +2319,9 @@ availability, maintenance and the reviewed upgrade.
 
 #### Official production upgrade
 
-Default production installation creates an official installation and upgrades as
-one. An explicit `--from-source` install creates a verified source installation.
+Default installation creates an official installation and upgrades as one, in
+Production and Development alike. An explicit `--from-source` install creates a
+verified source installation.
 Its semantic ordering is unknown relative to every official version; neither `VERSION` nor Git ancestry
 makes it older, newer, or already current. `release check` reads published
 stable GitHub Releases tagged exactly `vX.Y.Z` and reports an explicit
@@ -2388,6 +2393,40 @@ PostgreSQL images locally, and never fall back to a floating tag. A legacy ident
 without a PostgreSQL role may keep an existing selected image; if it is missing,
 restore it or choose a complete newer release. Development source builds require
 explicit `--from-source`.
+
+#### Development upgrade
+
+A Development installation from a release tag upgrades with the same command:
+
+```bash
+./flow-steward release upgrade --confirm
+```
+
+Development Core services run code from the checkout, so the upgrade needs the
+checkout clean: commit, stash or revert tracked changes first, or it stops with
+`release_checkout_dirty`. After the backup it stops `fs-app`, `fs-worker`,
+`control-plane`, `fs-mcp`, `fs-extension-installer` and `fs-frontend`, checks the
+new tag out (the checkout is left on a detached HEAD there), pulls the release
+images, builds the frontend dev server and the test/audit images at that tag and
+starts everything again. PostgreSQL, RabbitMQ and storage keep running.
+`stack rebuild` on such an installation rebuilds only those locally built images.
+To work on a branch, switch back to it; the installation keeps running the release
+until the next upgrade. To run your own Core changes, install with `--from-source`
+instead; an installation that already runs an official release refuses
+`--from-source`. `environment switch` refuses to move an official installation
+between Development and Production.
+
+A Development installation created before 0.9.23 is a source installation. Move it
+to official images with the reviewed transition:
+
+```bash
+git checkout v0.9.23          # clean tree
+./install.sh --from-source    # refreshes the CLI image for this release
+./flow-steward release check  # reports transition_available
+./flow-steward maintenance enable --confirm
+./flow-steward release upgrade --confirm
+./flow-steward maintenance disable --confirm
+```
 `FS_RELEASE_REGISTRIES` supports an ordered comma-separated namespace override
 without changing the no-mixing rule; `FS_RELEASE_REPOSITORY` selects the GitHub
 source repository. Release operators should follow

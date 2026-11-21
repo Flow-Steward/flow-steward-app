@@ -58,6 +58,10 @@ One release has two production deployment profiles:
 
 The development preset and audit/test images stay separate. Reject
 `environment=development, deployment_profile=compact` before modifying anything.
+Note (2026-11-21, release 0.9.23): the development preset takes its Core images from
+the official release like production and builds only the frontend dev server and the
+audit/test images locally at the release tag ([ADR 0030](0030-local-install-and-private-release-auth.md),
+2026-11-21 amendment); `--from-source` still builds the whole preset from the checkout.
 Compact does not support multiple runtime replicas, overlapping replacement
 replicas, mixed-profile consumers or simultaneous core versions. A local volume
 lock prevents two Compact processes sharing that volume; provider replica and
