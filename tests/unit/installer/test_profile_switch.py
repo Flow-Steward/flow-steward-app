@@ -46,6 +46,7 @@ class _Docker:
         self.left: dict[str, int] = {}  # containers of each source service after the apply
         self.stopped_before: dict[str, int] = {}  # stopped leftovers of an earlier switch
         self.render_environments: list[dict[str, str] | None] = []
+        self.image_renders: list[tuple[tuple[str, ...], dict[str, str] | None]] = []
         # (compose project, container name, bind sources) of every container on the host
         self.containers: list[tuple[str, str, tuple[str, ...]]] = []
 
@@ -83,6 +84,16 @@ class _Docker:
             return ProcessOutcome(command=key, returncode=0, stdout="\n".join(lines) + "\n")
         if key[-1] == "/data/state/worker-mcp-token":
             return ProcessOutcome(command=key, returncode=0, stdout="runtime-token\n")
+        if key[-3:] == ("config", "--format", "json"):
+            environment = kwargs.get("environment")
+            self.image_renders.append((key, environment))
+            if any(name not in (environment or {}) for name in self.render_requires):
+                return ProcessOutcome(command=key, returncode=15, stderr="required variable")
+            names = ("traefik", "pg-fs", "rabbitmq-fs", "seaweedfs", "seaweedfs-config")
+            services = {name: {"image": f"{name}:test"} for name in names}
+            return ProcessOutcome(
+                command=key, returncode=0, stdout=json.dumps({"services": services})
+            )
         if key[-2:] == ("config", "--quiet"):
             self.rendered.append(key)
             environment = kwargs.get("environment")
@@ -142,7 +153,9 @@ def _gateway(root: Path, docker: _Docker, monkeypatch: pytest.MonkeyPatch):
     )
     prepared: list[str] = []
     monkeypatch.setattr(
-        gateway, "prepare_core", lambda config, *, log: prepared.append(config.deployment_profile)
+        gateway,
+        "prepare_switch_target",
+        lambda config, *, log: prepared.append(config.deployment_profile),
     )
     monkeypatch.setattr(
         gateway,
@@ -273,7 +286,9 @@ def test_compact_to_scalable_restores_the_worker_credential_first(
     docker = _Docker(root)
     gateway, _prepared = _gateway(root, docker, monkeypatch)
     order: list[str] = []
-    monkeypatch.setattr(gateway, "prepare_core", lambda config, *, log: order.append("prepare"))
+    monkeypatch.setattr(
+        gateway, "prepare_switch_target", lambda config, *, log: order.append("prepare")
+    )
     real_update = gateway.state_store.update_env_values
 
     def recording_update(path, values):
@@ -584,6 +599,85 @@ def test_the_target_renders_with_what_the_apply_will_write_for_it(
     assert render[render.index("--env-file") + 1] == "/dev/null"
     assert environment["FS_DEPLOYMENT_PROFILE"] == "compact"
     assert "FS_WORKER_PROCESSES" not in (root / ".env.prod").read_text(encoding="utf-8")
+
+
+def test_the_target_images_resolve_from_what_the_apply_will_write_for_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """E2E 2026-11-20 (S4): Scalable to Compact stopped before any change with "could not
+    resolve infrastructure images" -- the images were resolved against the installed
+    Scalable .env.prod, which has no FS_WORKER_PROCESSES."""
+    from core.application.lifecycle.contracts import DeploymentConfig
+    from core.infrastructure.lifecycle.configuration_store import LifecycleConfigurationStore
+
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    docker.render_requires = ("FS_WORKER_PROCESSES", "FS_RUNTIME_HTTP_PORT")
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    monkeypatch.undo()  # the real prepare_switch_target; only image building is faked
+    for name in (
+        "_build_compact_runtime_image",
+        "_build_compact_management_image",
+        "_build_scalable_candidate_images",
+        "_refuse_lost_image_ids",
+        "_resolve_compact_registry_image",
+        "_prepare_exact_prebuilt_provenance",
+    ):
+        monkeypatch.setattr(gateway, name, lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(gateway, "_install_mode", lambda _config: "source")
+    monkeypatch.setattr(gateway, "_exact_prebuilt_image_refs", lambda *_args: {"compact": "x"})
+    (root / ".env.prod").write_text(
+        "\n".join(
+            (
+                "# BEGIN FLOW STEWARD INSTALLER MANAGED",
+                *_DURABLE_SECRETS,
+                "# END FLOW STEWARD INSTALLER MANAGED",
+                f"FS_COMPACT_IMAGE={_COMPACT_IMAGE}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    store = LifecycleConfigurationStore(root, state_root=root / ".flow-steward")
+    store.compose_env_path.parent.mkdir(parents=True, exist_ok=True)
+    store.compose_env_path.write_text("FS_COMPOSE_PROJECT_NAME=flow-steward\n", encoding="utf-8")
+    store.write_active(DeploymentConfig.model_validate(_SCALABLE.model_dump(mode="json")))
+    compact = profile_switch.switch_target(_SCALABLE, "compact")
+
+    gateway.prepare_switch_target(compact, log=_log(gateway))
+
+    ((render, environment),) = docker.image_renders
+    assert render[render.index("--env-file") + 1] == "/dev/null"
+    assert environment is not None
+    assert environment["FS_WORKER_PROCESSES"] == "2"
+    assert "FS_WORKER_PROCESSES" not in (root / ".env.prod").read_text(encoding="utf-8")
+
+
+def test_an_ordinary_install_resolves_images_from_the_installed_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The green direction: outside a switch nothing renders without .env.prod."""
+    root = tmp_path / "repo"
+    docker = _Docker(root)
+    gateway, _prepared = _gateway(root, docker, monkeypatch)
+    monkeypatch.undo()
+    for name in (
+        "_build_compact_runtime_image",
+        "_build_compact_management_image",
+        "_build_scalable_candidate_images",
+        "_refuse_lost_image_ids",
+        "_resolve_compact_registry_image",
+        "_prepare_exact_prebuilt_provenance",
+    ):
+        monkeypatch.setattr(gateway, name, lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(gateway, "_install_mode", lambda _config: "source")
+    monkeypatch.setattr(gateway, "_exact_prebuilt_image_refs", lambda *_args: {"compact": "x"})
+
+    gateway.prepare_core(_SCALABLE, log=_log(gateway))
+
+    ((render, environment),) = docker.image_renders
+    assert render[render.index("--env-file") + 1] == str(root / ".env.prod")
+    assert environment is None
 
 
 def _removed(docker: _Docker) -> list[str]:

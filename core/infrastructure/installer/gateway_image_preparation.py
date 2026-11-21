@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from core.application.installer.contracts import (
@@ -39,6 +39,22 @@ class ImagePreparationOperations:
     def prepare_core(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:
+        self._prepare_core(config, log=log, compose_prefix=self._compose_prefix(config))
+
+    def _prepare_core(
+        self: DockerInstallerGateway,
+        config: InstallConfig,
+        *,
+        log: InstallerLog,
+        compose_prefix: Sequence[str],
+        compose_environment: Mapping[str, str] | None = None,
+    ) -> None:
+        """Prepare the images `config` runs, rendering its Compose with `compose_prefix`.
+
+        A profile switch renders the target as `config apply` will (AC17-R174), with
+        `compose_environment` and no installed file: the installed one belongs to the
+        other profile and lacks what only the target needs.
+        """
         if self._install_mode(config) == "official":
             self._refuse_lost_image_ids(config, names=("POSTGRES_IMAGE",))
             registry_identity = self._materialize_official_release(config, log=log)
@@ -53,7 +69,8 @@ class ImagePreparationOperations:
             prepare_core_dependency_images(
                 failure=self._core_dependency_failure,
                 config=config,
-                compose_prefix=self._compose_prefix(config),
+                compose_prefix=compose_prefix,
+                compose_environment=compose_environment,
                 repo_root=self.repo_root,
                 environment={**environment, **self._environment},
                 run=self.process.run,
@@ -85,7 +102,8 @@ class ImagePreparationOperations:
                 allow_source_build=True,
                 failure=self._core_dependency_failure,
                 config=config,
-                compose_prefix=self._compose_prefix(config),
+                compose_prefix=compose_prefix,
+                compose_environment=compose_environment,
                 repo_root=self.repo_root,
                 environment={**environment, **self._environment},
                 run=self.process.run,
@@ -99,7 +117,6 @@ class ImagePreparationOperations:
                 ),
             )
             return
-        compose_prefix = self._compose_prefix(config)
         if config.environment == "development":
             self._checked(
                 [
@@ -117,6 +134,7 @@ class ImagePreparationOperations:
                 ),
                 exit_code=7,
                 step="prepare",
+                environment=compose_environment,
             )
         args = [*compose_prefix, "build"]
         self._checked(
@@ -126,6 +144,7 @@ class ImagePreparationOperations:
             remediation="Resolve the reported Docker build/pull failure and resume ./install.sh.",
             exit_code=7,
             step="prepare",
+            environment=compose_environment,
         )
         self._prepare_production_image_provenance(config, log=log)
 

@@ -4010,6 +4010,39 @@ def test_compact_runtime_state_stage_script_is_valid_python() -> None:
     compile(_COMPACT_RUNTIME_STATE_EXPORT_SCRIPT, "<compact-runtime-state-export>", "exec")
 
 
+def test_a_staged_maintenance_marker_is_owned_by_the_compact_maintenance_operator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """E2E 2026-11-20 (S5): after Scalable to Compact with maintenance enabled the marker
+    was root:fs-runtime 0640, and `maintenance status|disable`, which run as the Compact
+    operator (exec --user 10007:10007), refused with maintenance_state_invalid."""
+    import io
+
+    from core.infrastructure.runtime.compact import volume
+
+    (tmp_path / "state/.flow-steward/runtime").mkdir(parents=True)
+    monkeypatch.setattr(volume, "prepare_compact_volume", lambda _root, *, layout: None)
+    owners: dict[str, tuple[int, int]] = {}
+    monkeypatch.setattr(
+        os, "chown", lambda path, uid, gid: owners.__setitem__(Path(path).name, (uid, gid))
+    )
+    envelope = {"maintenance_state": {"phase": "enabled"}, "worker_token": "worker-token"}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(envelope)))
+    script = _COMPACT_RUNTIME_STATE_STAGE_SCRIPT.replace(
+        'Path("/data")', f"Path({str(tmp_path)!r})"
+    )
+    assert script != _COMPACT_RUNTIME_STATE_STAGE_SCRIPT
+
+    exec(compile(script, "<compact-runtime-state-stage>", "exec"), {"__name__": "__main__"})
+
+    operator = (volume.CompactVolumeLayout().operator_uid, volume.CompactVolumeLayout().runtime_gid)
+    assert operator == (10007, 10102)  # the identity `maintenance` runs as, and fs-runtime
+    assert owners == {".maintenance-state.json.profile-switch": operator}
+    marker = tmp_path / "state/.flow-steward/runtime/maintenance-state.json"
+    assert json.loads(marker.read_text(encoding="utf-8")) == {"phase": "enabled"}
+    assert marker.stat().st_mode & 0o777 == 0o640
+
+
 def test_compact_app_readiness_runs_inside_candidate_runtime(tmp_path: Path) -> None:
     commands: list[tuple[str, ...]] = []
 

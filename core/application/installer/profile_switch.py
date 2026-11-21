@@ -8,7 +8,8 @@ and rolls back on failure. It runs where it always runs, in the Scalable CLI con
 the installer's own image has no database client. What the installer adds is what
 `config apply` does not do:
 
-- it prepares the target profile's images, with the installer's own build;
+- it prepares the target profile's images, with the installer's own build, from
+  the Compose the apply will render;
 - Scalable to Compact: it brings the host trees into the shared groups and modes
   (step 3) and records where they are for the Compact overlay;
 - Compact to Scalable: it starts a Scalable CLI container;
@@ -55,7 +56,7 @@ def switch_profile(
     if not to_compact:
         # AC17-R165: before the first Scalable Compose call, which requires it.
         gateway.restore_switch_worker_token(installed, log=log)
-    gateway.prepare_core(target, log=log)
+    gateway.prepare_switch_target(target, log=log)
     # AC17-R168: the host trees are touched only where they are the data. Back from a
     # switch that left them in the Compact volume, they are no part of it: a directory
     # of that name is some other installation's, or nobody's.

@@ -270,13 +270,10 @@ class ProfileSwitchOperations:
         refused on FS_WORKER_PROCESSES, which a Scalable .env.prod has no use for and
         the apply writes for Compact itself.
         """
-        environment = self._switch_target_environment(target)
-        command = [*self._compose_prefix(target), "config", "--quiet"]
-        if environment is not None:
-            # AC17-R174: exactly as the apply renders -- from its values alone, never
-            # the installed file, which held what the apply then did not have.
-            command[command.index("--env-file") + 1] = "/dev/null"
-        outcome = self.process.run(command, separate_stderr=True, environment=environment)
+        prefix, environment = self._switch_target_compose(target)
+        outcome = self.process.run(
+            [*prefix, "config", "--quiet"], separate_stderr=True, environment=environment
+        )
         if outcome.returncode == 0:
             log.write(f"The {target.deployment_profile} configuration renders completely.")
             return
@@ -293,6 +290,30 @@ class ProfileSwitchOperations:
             retryable=False,
             step="preflight",
         )
+
+    def prepare_switch_target(
+        self: DockerInstallerGateway, target: InstallConfig, *, log: InstallerLog
+    ) -> None:
+        """The target profile's images, resolved from the Compose the apply will render.
+
+        Scalable to Compact resolved the infrastructure images against the installed
+        Scalable .env.prod, which has no FS_WORKER_PROCESSES, and stopped with
+        "could not resolve infrastructure images" before anything was switched.
+        """
+        prefix, environment = self._switch_target_compose(target)
+        self._prepare_core(target, log=log, compose_prefix=prefix, compose_environment=environment)
+
+    def _switch_target_compose(
+        self: DockerInstallerGateway, target: InstallConfig
+    ) -> tuple[list[str], dict[str, str] | None]:
+        """The Compose prefix and environment that render the target as the apply will."""
+        environment = self._switch_target_environment(target)
+        prefix = self._compose_prefix(target)
+        if environment is not None:
+            # AC17-R174: exactly as the apply renders -- from its values alone, never
+            # the installed file, which held what the apply then did not have.
+            prefix[prefix.index("--env-file") + 1] = "/dev/null"
+        return prefix, environment
 
     def _switch_target_environment(
         self: DockerInstallerGateway, target: InstallConfig

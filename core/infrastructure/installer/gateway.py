@@ -606,6 +606,7 @@ class DockerInstallerGateway(
         step: str = "preflight",
         timeout_seconds: float | None = None,
         separate_stderr: bool = False,
+        environment: Mapping[str, str] | None = None,
     ) -> ProcessOutcome:
         """Run a command, failing the step with a named code when it does not succeed.
 
@@ -633,6 +634,7 @@ class DockerInstallerGateway(
                 output_sink=capture,
                 heartbeat_sink=heartbeat,
                 separate_stderr=separate_stderr,
+                **({} if environment is None else {"environment": environment}),
             )
         except (FileNotFoundError, PermissionError, TimeoutError) as exc:
             raise InstallerFailure(
