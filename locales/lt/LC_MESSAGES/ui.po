@@ -31911,7 +31911,7 @@ msgid "react.workflows.operator.filters"
 msgstr "Filtrai"
 
 msgid "react.workflows.operator.filters_help"
-msgstr "Filtrai lygina visas pateiktas reikšmes. Failų filtruoti negalima. Kiekviename sąraše yra paleidimo būsenos filtras su įtaisyta būsena „Laukia peržiūros“."
+msgstr "Filtrai lygina visas pateiktas reikšmes. Failų filtruoti negalima. Tekstinę reikšmę galima filtruoti pagal datas, kai jos formatas workflow kontrakte yra „Data“ arba „Data ir laikas“. Kiekviename sąraše yra paleidimo būsenos filtras su įtaisyta būsena „Laukia peržiūros“."
 
 msgid "react.workflows.operator.filter_value"
 msgstr "Filtro {number} reikšmė"
@@ -31963,6 +31963,9 @@ msgstr "Atidaryti Smart setup"
 
 msgid "react.workflows.operator.menu_title"
 msgstr "Meniu pavadinimas"
+
+msgid "react.workflows.operator.menu_section"
+msgstr "Meniu"
 
 msgid "react.workflows.operator.appears_in"
 msgstr "Kur rodomas"

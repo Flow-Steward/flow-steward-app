@@ -218,6 +218,9 @@ it("publishes, names the projects it appears in and acknowledges the real effect
   await user.click(publish);
   await waitFor(() => expect(screen.getByText("Accounting, Legal")).toBeInTheDocument());
   expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Not confirmed");
+  // Every block of the tab opens with a heading, the menu block included.
+  const blocks = [...screen.getByTestId("operator-publication").querySelectorAll(":scope > section")];
+  expect(blocks.map((block) => block.querySelector("p")?.textContent)).toEqual(["Menu", "Submission", "Real effects", "Issues"]);
   // The submission modes are one group, one option per line.
   expect(within(screen.getByRole("radiogroup", { name: "Submission" })).getAllByRole("radio")).toHaveLength(2);
   // A checkbox, so the confirmation can be taken back before the save.
@@ -258,12 +261,15 @@ it("edits the list's columns and filters, offering only filter types that fit", 
   const columnTable = screen.getByRole("table", { name: "Columns" });
   expect(within(columnTable).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Source", "Value", "Heading", "Format", ""]);
   expect(within(columnTable).getAllByRole("row")).toHaveLength(2);
+  // Fixed widths except the heading, which takes the rest; the actions column hugs its buttons.
+  expect(within(columnTable).getAllByRole("columnheader").map((cell) => cell.style.width)).toEqual(["140px", "260px", "", "170px", "1px"]);
 
   await user.click(screen.getByRole("button", { name: "Add filter" }));
   // Source first, then a value of that source, as for columns.
   await choose(user, "Filter 1 source", "Input");
   await choose(user, "Filter 1 value", "amount");
   expect(within(screen.getByRole("table", { name: "Filters" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Source", "Value", "Filter type", "Label", ""]);
+  expect(within(screen.getByRole("table", { name: "Filters" })).getAllByRole("columnheader").map((cell) => cell.style.width)).toEqual(["140px", "260px", "180px", "", "1px"]);
   await user.click(screen.getByRole("combobox", { name: "Filter 1 type" }));
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Number range"]);
   await user.click(screen.getByRole("option", { name: "Number range" }));

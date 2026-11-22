@@ -220,6 +220,7 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
               {
                 key: "value",
                 header: t("react.workflows.operator.value", "Value"),
+                width: 260,
                 cell: ({ column, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.column_value", "Column {number} value", { number })} onChange={(path) => updateColumn(index, { path, id: "" })} options={pathOptions(column.source)} searchable value={column.path} />,
               },
               {
@@ -237,6 +238,8 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
                 key: "actions",
                 ariaLabel: "Actions",
                 header: null,
+                // As narrow as its buttons: the heading / label column takes the rest.
+                width: 1,
                 cell: ({ column, number, index }) => (
                   <span className="inline-flex items-center gap-1">
                     <MoveButtons count={columns.length} index={index} name={column.label || column.path || String(number)} onMove={(delta) => setColumns(moveAt(columns, index, delta))} />
@@ -257,7 +260,7 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
       </section>
       <section className="space-y-2" data-testid="operator-list-filters">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.filters", "Filters")}</p>
-        <p className="fs-field-helper">{t("react.workflows.operator.filters_help", "Filters compare the full submitted values. Files cannot be filtered. Every list has the run status filter with the built-in Awaiting review status.")}</p>
+        <p className="fs-field-helper">{t("react.workflows.operator.filters_help", "Filters compare the full submitted values. Files cannot be filtered. A text value filters by dates when its format in the workflow contract is Date or Date and time. Every list has the run status filter with the built-in Awaiting review status.")}</p>
         {filters.length ? (
           <DsTable
             ariaLabel={t("react.workflows.operator.filters", "Filters")}
@@ -274,6 +277,7 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
               {
                 key: "value",
                 header: t("react.workflows.operator.value", "Value"),
+                width: 260,
                 cell: ({ filter, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.filter_value", "Filter {number} value", { number })} onChange={(path) => setFilterValue(index, filter.source, path)} options={filterValues.filter(({ source }) => source === filter.source).map(({ source, path }) => ({ value: path, label: source === "job" ? jobColumnLabel(path, t) : path }))} searchable value={filter.path} />,
               },
               {
@@ -291,6 +295,8 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
                 key: "actions",
                 ariaLabel: "Actions",
                 header: null,
+                // As narrow as its buttons: the heading / label column takes the rest.
+                width: 1,
                 cell: ({ number, index }) => <Button aria-label={t("react.workflows.operator.remove_filter", "Remove filter {number}", { number })} onClick={() => setFilters(filters.filter((_, at) => at !== index))} size="sm" type="button" variant="ghost-danger"><Trash2 aria-hidden="true" /></Button>,
               },
             ]}
@@ -340,6 +346,7 @@ function PublicationEditor({ ctx, view, draft, setDraft, issues, onJump }: Reado
   return (
     <div className="flex flex-col gap-8" data-testid="operator-publication">
       <section className="space-y-2">
+        <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.menu_section", "Menu")}</p>
         <div className="flex items-center gap-2 text-sm">
           <DsSwitch checked={draft.published} disabled={!uiOn && !draft.published} label={t("react.workflows.operator.publish", "Show to operators")} onCheckedChange={(published) => setDraft({ ...draft, published })} />
           <span>{t("react.workflows.operator.publish", "Show to operators")}</span>

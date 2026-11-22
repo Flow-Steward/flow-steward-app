@@ -31483,7 +31483,7 @@ msgid "react.workflows.operator.filters"
 msgstr "Filters"
 
 msgid "react.workflows.operator.filters_help"
-msgstr "Filters compare the full submitted values. Files cannot be filtered. Every list has the run status filter with the built-in Awaiting review status."
+msgstr "Filters compare the full submitted values. Files cannot be filtered. A text value filters by dates when its format in the workflow contract is Date or Date and time. Every list has the run status filter with the built-in Awaiting review status."
 
 msgid "react.workflows.operator.filter_value"
 msgstr "Filter {number} value"
@@ -31535,6 +31535,9 @@ msgstr "Open Smart setup"
 
 msgid "react.workflows.operator.menu_title"
 msgstr "Menu title"
+
+msgid "react.workflows.operator.menu_section"
+msgstr "Menu"
 
 msgid "react.workflows.operator.appears_in"
 msgstr "Where it appears"

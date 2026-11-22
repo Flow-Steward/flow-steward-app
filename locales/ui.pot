@@ -30480,6 +30480,9 @@ msgstr ""
 msgid "react.workflows.operator.menu_title"
 msgstr ""
 
+msgid "react.workflows.operator.menu_section"
+msgstr ""
+
 msgid "react.workflows.operator.appears_in"
 msgstr ""
 
