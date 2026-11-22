@@ -920,3 +920,82 @@ def test_scoped_summary_uses_real_descriptor_install_projection(
                 (case.install,),
             )
             cur.execute("DELETE FROM extension_releases WHERE release_id = %s", (release,))
+
+
+def _start(case, ctx):
+    """Claim the effect and start the call: what reaches the extension's runtime context."""
+    from core.application.extensions.operation_effects import _mark_action_external_effect_running
+
+    case.seed_binding(ctx)
+    replay = _claim_action_external_effect(ctx)
+    if replay is not None:
+        return replay
+    _mark_action_external_effect_running(ctx)
+    return None
+
+
+def _finish(case, ctx, status):
+    external_effect_store.update_external_effect_status(
+        case.conn,
+        effect_id=ctx.external_effect_id,
+        claim_token=ctx.external_effect_claim_token,
+        status=status,
+        status_reason="fixture",
+        error_code=None if status == "succeeded" else "rate_limited",
+    )
+
+
+def test_an_effectful_direct_action_hands_its_extension_a_stable_key(direct_case):
+    header = f"browser-{uuid4()}"
+    first = direct_case.context(key=header)
+
+    assert _start(direct_case, first) is None
+    runtime_key = first.runtime_ctx["idempotency_key"]
+    assert runtime_key.startswith("hmac-sha256:")
+    assert header not in runtime_key
+    assert first.runtime_ctx["external_effect_id"] == first.external_effect_id
+
+    # A confirmed failure before any effect: the retry writes under the same key.
+    _finish(direct_case, first, "failed")
+    retry = direct_case.context(key=header)
+    assert _start(direct_case, retry) is None
+    assert retry.runtime_ctx["idempotency_key"] == runtime_key
+    assert retry.external_effect_id == first.external_effect_id
+
+    # After a success the same header is answered from the ledger: no second call.
+    confirmed = external_effects.confirm_external_effect_from_invocation(
+        direct_case.store,
+        effect_id=retry.external_effect_id,
+        invocation={
+            "status": "succeeded",
+            "response": {"ok": True, "result": {"record_id": "record-1"}},
+        },
+        claim_token=retry.external_effect_claim_token,
+        account_id=retry.audit["account_id"],
+        extension=retry.extension,
+        operation_id="create",
+        expected_project_id=retry.audit["project_id"],
+        expected_connection_id=retry.target["connection_id"],
+    )
+    assert confirmed and confirmed["status"] == "succeeded"
+    repeat = direct_case.context(key=header)
+    stored = _start(direct_case, repeat)
+    assert stored is not None
+    assert stored.action["status"] == "succeeded"
+    assert "record-1" in json.dumps(stored.action)
+    assert "idempotency_key" not in repeat.runtime_ctx
+
+    # Another header is another request, with another key.
+    other = direct_case.context(key=f"browser-{uuid4()}")
+    assert _start(direct_case, other) is None
+    assert other.runtime_ctx["idempotency_key"] != runtime_key
+
+
+def test_a_read_only_direct_action_gets_no_key(direct_case):
+    from core.application.extensions.operation_effects import _mark_action_external_effect_running
+
+    ctx = direct_case.context()
+    ctx.extension = {**ctx.extension, "external_effects": []}
+    assert _claim_action_external_effect(ctx) is None
+    _mark_action_external_effect_running(ctx)
+    assert "idempotency_key" not in ctx.runtime_ctx

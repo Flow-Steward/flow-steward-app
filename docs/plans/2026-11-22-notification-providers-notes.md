@@ -80,6 +80,21 @@ record is `docs/architecture/adr/draft-notification-connection-capabilities-and-
   URL and the event has a job. It is left out of the effect fingerprint, so a
   changed base URL never conflicts with an earlier claim.
 
+### Direct actions get a key (C3.5)
+
+- An effectful direct action (page action or
+  `POST /api/extensions/{id}/action/{action_id}` with `Idempotency-Key`) now
+  receives `runtime_context.idempotency_key`
+  (`operation_effects.direct_action_runtime_idempotency_key`): an HMAC of the
+  claimed effect's key with account, actor, project, extension, action and
+  connection. A retry after a confirmed pre-effect failure carries the same key;
+  a success is answered from the ledger without a second call; another header
+  gives another key. The raw header is neither passed nor logged. Read-only
+  actions are unchanged.
+- Tests: `tests/integration/test_direct_effect_recovery_postgres.py`
+  (the claim, start, failure, retry, success and replay through the real
+  external-effect ledger; the extension call itself is not run there).
+
 ### Credentials from an OAuth configuration (C5)
 
 - Manifest: a non-OAuth connection type may declare

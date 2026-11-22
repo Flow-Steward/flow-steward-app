@@ -107,6 +107,7 @@ def external_effect_identity_hmac(*, purpose: str, value: Any) -> str:
         "notification-intent",
         "command-intent",
         "rate-limit-bucket",
+        "direct-action-runtime-key",
     }:
         raise ValueError("unsupported external-effect identity purpose")
     encoded = json.dumps(

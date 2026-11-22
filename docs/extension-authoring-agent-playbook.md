@@ -694,6 +694,12 @@ Live provider calls must be explicit and safe:
 - Keep credentials in headers, not URLs.
 - Redact tokens from responses, exceptions, logs, and assertions.
 - Prefer deterministic tests with mocked openers.
+- Key every write of an action that declares an external effect by
+  `runtime_context.idempotency_key`. The host sets it for a workflow step and for
+  a direct call (a page action or `POST /api/extensions/{id}/action/{action_id}`
+  with an `Idempotency-Key` header): a retry of the same request carries the same
+  key, another request another one. The caller's raw header never reaches you.
+  Refuse the write when the key is missing.
 
 In the reference extension, study the action handler that performs its
 outbound request (typically in `handlers/actions.py`).
