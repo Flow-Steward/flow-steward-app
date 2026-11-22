@@ -24,7 +24,11 @@ REVIEW = {
         {"name": "api_key", "type": "string", "editable": True},
     ],
     "editable": ["supplier", "total", "api_key"],
-    "values": {"supplier": "ACME", "total": 31.85, "api_key": "key-123"},
+    "values": {
+        "supplier": "ACME",
+        "total": 31.85,
+        "api_key": "key-123",  # pragma: allowlist secret
+    },
     "invalid": {},
 }
 

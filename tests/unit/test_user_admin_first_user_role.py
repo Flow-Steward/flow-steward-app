@@ -13,6 +13,8 @@ from core.application.auth.user_admin.repository import (
 )
 from core.application.management.errors import ServiceValidationError
 
+_PASSWORD = "Password123!"  # pragma: allowlist secret - a test fixture
+
 
 class _Cursor:
     def __init__(self, users_exist: bool) -> None:
@@ -53,7 +55,7 @@ def test_a_later_user_keeps_explicit_roles() -> None:
 
 def test_create_input_has_no_role_default() -> None:
     """The CLI and API pass no role unless asked; the repository decides."""
-    assert UserCreateInput(email="first@example.com", password="Password123!").role == ""
+    assert UserCreateInput(email="first@example.com", password=_PASSWORD).role == ""
 
 
 def _service(repository: Any):
@@ -92,7 +94,7 @@ def test_the_service_leaves_the_default_to_the_repository() -> None:
     repository = _Repository()
 
     result = _service(repository).create_user(
-        UserCreateInput(email="first@example.com", password="Password123!")
+        UserCreateInput(email="first@example.com", password=_PASSWORD)
     )
 
     assert repository.roles == []
@@ -104,7 +106,7 @@ def test_the_service_reports_a_first_user_without_admin_as_a_validation_error() 
 
     with pytest.raises(ServiceValidationError, match="first user must be an administrator"):
         _service(repository).create_user(
-            UserCreateInput(email="first@example.com", password="Password123!", role="viewer")
+            UserCreateInput(email="first@example.com", password=_PASSWORD, role="viewer")
         )
 
 
@@ -112,7 +114,7 @@ def test_the_service_passes_the_one_requested_role_to_the_repository() -> None:
     repository = _Repository()
 
     _service(repository).create_user(
-        UserCreateInput(email="first@example.com", password="Password123!", role="Admin")
+        UserCreateInput(email="first@example.com", password=_PASSWORD, role="Admin")
     )
 
     assert repository.roles == ["admin"]

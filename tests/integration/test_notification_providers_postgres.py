@@ -830,12 +830,12 @@ def test_a_connection_with_its_own_secrets_still_delivers(world: World, monkeypa
     mail = _connection(world, "mail", connection_type="example_mail")
     world.sql(
         "UPDATE project_connections SET secret_refs = %s::jsonb WHERE connection_id = %s",
-        (json.dumps({"refs": {"api_key": "ref-api-key"}}), mail),
+        (json.dumps({"refs": {"api_key": "ref-api-key"}}), mail),  # pragma: allowlist secret
     )
     monkeypatch.setattr(
         project_connection_secrets,
         "resolve_connection_secrets",
-        lambda _bl, **_k: {"api_key": "own-secret"},
+        lambda _bl, **_k: {"api_key": "own-secret"},  # pragma: allowlist secret
     )
 
     [row] = world.dispatch(
@@ -844,7 +844,9 @@ def test_a_connection_with_its_own_secrets_still_delivers(world: World, monkeypa
 
     assert row["status"] == "delivered"
     [request] = world.mixed.requests()
-    assert request["action_payload"]["target"]["connection"]["secrets"] == {"api_key": "own-secret"}
+    assert request["action_payload"]["target"]["connection"]["secrets"] == {
+        "api_key": "own-secret",  # pragma: allowlist secret
+    }
 
 
 # --------------------------------------------------------------------------- C2
@@ -940,7 +942,7 @@ def test_every_change_to_the_sender_makes_system_email_unavailable_without_fallb
             (chosen,),
         ),
         "secret": (
-            'UPDATE project_connections SET secret_refs = \'{"refs": {"client_secret": "ref-2"}}\'::jsonb, '
+            'UPDATE project_connections SET secret_refs = \'{"refs": {"client_secret": "ref-2"}}\'::jsonb, '  # pragma: allowlist secret
             "credential_revision = credential_revision + 1 WHERE connection_id = %s",
             (chosen,),
         ),
@@ -1196,7 +1198,7 @@ def test_the_extension_receives_exactly_the_checked_snapshot(world: World, monke
     )
     world.sql(
         "UPDATE project_connections SET secret_refs = %s::jsonb WHERE connection_id = %s",
-        (json.dumps({"refs": {"client_secret": "ref-1"}}), chosen),
+        (json.dumps({"refs": {"client_secret": "ref-1"}}), chosen),  # pragma: allowlist secret
     )
     _choose(world, chosen)
     secrets = iter([{"client_secret": "checked-secret"}, {"client_secret": "later-secret"}])
@@ -1216,7 +1218,7 @@ def test_the_extension_receives_exactly_the_checked_snapshot(world: World, monke
     assert _reset(world)["ok"] is True
     [request] = world.mixed.requests()
     connection = request["action_payload"]["target"]["connection"]
-    assert connection["secrets"] == {"client_secret": "checked-secret"}
+    assert connection["secrets"] == {"client_secret": "checked-secret"}  # pragma: allowlist secret
     assert connection["config"] == {"address": "noreply@example.com"}
     assert connection["display_name"] == "noreply connection"
 
@@ -1423,11 +1425,13 @@ def test_two_connections_borrow_one_configuration_and_follow_a_rotation(world: W
         assert connection["config"]["client_id"] == "app-client"
         assert connection["config"]["tenant_id"] == "directory-1"
         assert connection["config"]["sender"].endswith("@example.com")
-        assert connection["secrets"] == {"client_secret": "app-secret-1"}
+        assert connection["secrets"] == {
+            "client_secret": "app-secret-1",  # pragma: allowlist secret
+        }
     # No connection was edited: the rotated secret reaches both on the next call.
     assert [_sent_connection(request)["secrets"] for request in after] == [
-        {"client_secret": "app-secret-2"},
-        {"client_secret": "app-secret-2"},
+        {"client_secret": "app-secret-2"},  # pragma: allowlist secret
+        {"client_secret": "app-secret-2"},  # pragma: allowlist secret
     ]
     kept = json.dumps(
         {"invocations": world.store.invocation_logs, "deliveries": world.store.delivery_logs},
@@ -1483,7 +1487,7 @@ def test_every_call_path_receives_the_borrowed_values(world: World) -> None:
     for target in (operation, poll.connection, connector, _sent_connection(delivery)):
         assert target["config"]["client_id"] == "app-client"
         assert target["config"]["tenant_id"] == "directory-1"
-        assert target["secrets"]["client_secret"] == "app-secret-1"
+        assert target["secrets"]["client_secret"] == "app-secret-1"  # pragma: allowlist secret
     assert logged["secrets"] == {"client_secret": "<redacted>"}
 
 

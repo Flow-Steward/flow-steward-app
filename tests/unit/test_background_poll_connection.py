@@ -46,7 +46,7 @@ def _row(connection_type: str, **overrides: Any) -> dict[str, Any]:
         "extension_install_id": "install-1",
         "enabled": True,
         "connection_config": {"scope": "a"},
-        "secret_refs": {"refs": {"client_secret": "ref-1"}},
+        "secret_refs": {"refs": {"client_secret": "ref-1"}},  # pragma: allowlist secret
         "ingress_config": {"sync_mode": "polling"},
         "state_version": 4,
         "config_generation": 7,
@@ -116,7 +116,9 @@ def test_ingress_defaults_come_from_the_connection_type_schema() -> None:
 def test_app_connection_gets_its_own_connection_secrets(connection_secrets) -> None:
     resolution = _resolve(_row("items_app"))
     assert resolution.ok
-    assert resolution.connection["secrets"] == {"client_secret": "app-secret"}
+    assert resolution.connection["secrets"] == {
+        "client_secret": "app-secret",  # pragma: allowlist secret
+    }
     assert resolution.connection["config"] == {"scope": "a"}
     assert resolution.connection["state_version"] == 4
     assert resolution.connection["config_generation"] == 7

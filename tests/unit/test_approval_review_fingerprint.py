@@ -22,7 +22,7 @@ from core.application.management.scope import ScopeContext
 #: Computed from the fingerprint code as released before ``values`` existed:
 #: sha256 of the canonical JSON of approval_id, approved, action, comment,
 #: override_content and external_actor. It must never change.
-LEGACY_FINGERPRINT = "7ffdcd845fdcf21329abdc72802c90fb80d377049dfe0febf8bc4b08e6b0bf87"
+LEGACY_FINGERPRINT = "7ffdcd845fdcf21329abdc72802c90fb80d377049dfe0febf8bc4b08e6b0bf87"  # pragma: allowlist secret - a fingerprint, not a key
 
 
 def _captured_fingerprint(monkeypatch: pytest.MonkeyPatch, decision: ApprovalDecisionInput) -> str:

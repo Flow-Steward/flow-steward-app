@@ -44,7 +44,7 @@ describe("frontend capabilities from permissions", () => {
       mutate_projects: "projects.write",
       read_registry: "registry.manage",
       run_workflows: "workflows.run",
-      manage_secret_values: "secrets.value.write",
+      manage_secret_values: "secrets.value.write", // pragma: allowlist secret - a permission name
     });
     for (const key of Object.values(CAPABILITY_PERMISSIONS)) expect(ROLE_PERMISSIONS.admin).toContain(key);
   });

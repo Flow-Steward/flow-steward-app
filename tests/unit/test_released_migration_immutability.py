@@ -94,7 +94,7 @@ def test_the_released_baseline_changes_only_together_with_a_migration() -> None:
 
 
 def test_upgrade_preflight_accepts_the_0_9_23_baseline() -> None:
-    baseline_0_9_23 = "941704d8df2b0e362ebfe17c7e36ac7e377dc8bcd40916683f146e0fc0d8db3c"
+    baseline_0_9_23 = "941704d8df2b0e362ebfe17c7e36ac7e377dc8bcd40916683f146e0fc0d8db3c"  # pragma: allowlist secret - a schema fingerprint
     assert baseline_0_9_23 in upgrade_preflight._released_baselines(ROOT)
 
 

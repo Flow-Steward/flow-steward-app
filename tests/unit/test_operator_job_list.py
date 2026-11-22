@@ -77,7 +77,7 @@ STORED = {
             "object_key": "key",
         },
         "lines": [{"sku": "A-1"}, {"sku": "B-2"}, {"qty": 3}],
-        "api_key": {"secret_ref": "sec-9"},
+        "api_key": {"secret_ref": "sec-9"},  # pragma: allowlist secret
     },
     "outputs": {"supplier": "ACME", "total": 0},
     "submitted_by": {"id": "operator-7", "kind": "person"},
@@ -522,7 +522,7 @@ def test_filter_values_never_hold_secrets_files_or_objects():
     values = build_filter_values(
         {
             "api_token": "plain-token",
-            "password": "hunter2",
+            "password": "hunter2",  # pragma: allowlist secret
             "mail_login": reference,
             "customer_code": "declared",
             "document": {"filename": "a.pdf", "artifact_id": "art"},

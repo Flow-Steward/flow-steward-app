@@ -27,7 +27,7 @@ export const CAPABILITY_PERMISSIONS: Readonly<Record<FrontendCapability, Permiss
   // registry read serves the sections, not these pages.
   read_registry: "registry.manage",
   run_workflows: "workflows.run",
-  manage_secret_values: "secrets.value.write",
+  manage_secret_values: "secrets.value.write", // pragma: allowlist secret - a permission name
 };
 
 export function hasCapability(

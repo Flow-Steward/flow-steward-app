@@ -33,7 +33,7 @@ _PERMANENT_OAUTH_DENIALS = (
 )
 _TEMPORARY_OAUTH_DENIALS = ("oauth_provider_unavailable",)
 
-SKIP_SECRETS_MISSING = "connection_secrets_missing"
+SKIP_SECRETS_MISSING = "connection_secrets_missing"  # pragma: allowlist secret - a skip reason code
 SKIP_AUTHORIZATION_REQUIRED = "authorization_required"
 SKIP_REFRESH_UNAVAILABLE = "oauth_refresh_unavailable"
 SKIP_RESOLUTION_FAILED = "connection_resolution_failed"

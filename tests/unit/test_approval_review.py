@@ -958,10 +958,13 @@ SECRET_KEYS_REVIEW = {
     "editable": ["supplier", "password", "connection", "accounts"],
     "values": {
         "supplier": "ACME",
-        "password": "hunter2",
-        "connection": {"host": "db.example", "credentials": {"api_key": "key-123"}},
+        "password": "hunter2",  # pragma: allowlist secret
+        "connection": {
+            "host": "db.example",
+            "credentials": {"api_key": "key-123"},  # pragma: allowlist secret
+        },
         "accounts": [
-            {"label": "main", "credentials": {"api_key": "key-456"}},
+            {"label": "main", "credentials": {"api_key": "key-456"}},  # pragma: allowlist secret
             {"label": "spare", "access_token": "tok-789"},
         ],
     },
@@ -995,21 +998,25 @@ def test_decision_history_keeps_only_masked_before_and_after() -> None:
     payload["review"]["invalid"] = {}
     # Every value must pass its shape on approve; the undeclared key stays out here.
     payload["review"]["values"]["accounts"] = [
-        {"label": "main", "credentials": {"api_key": "key-456"}}
+        {"label": "main", "credentials": {"api_key": "key-456"}}  # pragma: allowlist secret
     ]
 
     meta = _persist(
         payload,
         _decision(
             values={
-                "password": "correct-horse",
-                "connection": {"host": "db2.example", "credentials": {"api_key": "key-999"}},
+                "password": "correct-horse",  # pragma: allowlist secret
+                "connection": {
+                    "host": "db2.example",
+                    "credentials": {"api_key": "key-999"},  # pragma: allowlist secret
+                },
             }
         ),
     )
 
     # The checked values travel raw to the resumed step only.
-    assert meta["workflow_resume"]["resume_value"]["review_values"]["password"] == "correct-horse"
+    review_values = meta["workflow_resume"]["resume_value"]["review_values"]
+    assert review_values["password"] == "correct-horse"  # pragma: allowlist secret
     stored = meta["approvals"][0]["review_changes"]
     assert stored == [
         {"field": "password", "before": "[REDACTED]", "after": "[REDACTED]"},
@@ -1031,8 +1038,8 @@ def test_history_serializer_masks_raw_entries_by_field_name() -> None:
             {"field": "api_token", "before": "tok-789", "after": "tok-790"},
             {
                 "field": "accounts",
-                "before": [{"credentials": {"api_key": "key-456"}}],
-                "after": [{"credentials": {"api_key": "key-123"}}],
+                "before": [{"credentials": {"api_key": "key-456"}}],  # pragma: allowlist secret
+                "after": [{"credentials": {"api_key": "key-123"}}],  # pragma: allowlist secret
             },
         ],
     }

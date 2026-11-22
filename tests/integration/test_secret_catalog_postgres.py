@@ -683,7 +683,7 @@ def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_datab
                 "INSERT INTO workspace_data_connections (connection_id, tenant_id, account_id,"
                 " workspace_id, display_name, secret_refs_jsonb)"
                 " VALUES ('dc_orders', %s, %s, %s, 'Orders DB',"
-                ' \'{"refs": {"password": "project_connection:dc_orders:password"}}\')',
+                ' \'{"refs": {"password": "project_connection:dc_orders:password"}}\')',  # pragma: allowlist secret
                 (tenant, ACCOUNT, WORKSPACE),
             )
         secret = service.create_secret(_human(), name="Orders DB password", value="pw")
