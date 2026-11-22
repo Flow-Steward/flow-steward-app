@@ -238,7 +238,7 @@ def test_a_stopped_stack_is_one_problem_and_what_needs_it_says_not_checked(
         root=state.root.parent,
         gateway=gateway,
         state=state,
-        config=SimpleNamespace(deployment_profile="compact"),
+        config=SimpleNamespace(deployment_profile="compact", environment="production"),
         log=doctor_probe.TemporaryDoctorLog(),
     )
 
@@ -331,7 +331,7 @@ def test_no_consumer_while_the_workers_are_down_is_not_checked(
         root=state.root.parent,
         gateway=gateway,
         state=state,
-        config=SimpleNamespace(deployment_profile=profile),
+        config=SimpleNamespace(deployment_profile=profile, environment="production"),
         log=doctor_probe.TemporaryDoctorLog(),
     )
     (check,) = [c for c in hint_checks() if c.check_id == "workers_consuming"]

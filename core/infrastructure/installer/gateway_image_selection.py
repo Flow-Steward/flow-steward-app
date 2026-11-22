@@ -66,11 +66,31 @@ class ImageSelectionOperations:
         self: DockerInstallerGateway,
         config: DeploymentConfig,
         environment: Mapping[str, str],
+        *,
+        development_extras_pending: bool = False,
     ) -> dict[str, str] | None:
-        refs = self._complete_exact_prebuilt_image_refs(config, environment)
+        """Return the complete immutable image selection, None, or refuse a partial one.
+
+        `development_extras_pending` is for a check made before an official development
+        installation built its extras: the frontend is never published, the installer
+        builds it from the release checkout and pins it by local ID afterwards, so a
+        missing frontend -- or the tag a source installation left -- is not a partial
+        selection yet.
+        """
+        if development_extras_pending:
+            environment = {
+                key: value
+                for key, value in environment.items()
+                if key != _EXACT_IMAGE_KEYS["frontend"]
+            }
+        refs = self._complete_exact_prebuilt_image_refs(
+            config, environment, development_extras_pending=development_extras_pending
+        )
         if refs is not None:
             return refs
-        required_roles = self._required_exact_roles(config)
+        required_roles = self._required_exact_roles(
+            config, development_extras_pending=development_extras_pending
+        )
         selected = {
             role: str(environment.get(key) or "").strip() for role, key in _EXACT_IMAGE_KEYS.items()
         }
@@ -147,8 +167,12 @@ class ImageSelectionOperations:
         self: DockerInstallerGateway,
         config: DeploymentConfig,
         environment: Mapping[str, str],
+        *,
+        development_extras_pending: bool = False,
     ) -> dict[str, str] | None:
-        required_roles = self._required_exact_roles(config)
+        required_roles = self._required_exact_roles(
+            config, development_extras_pending=development_extras_pending
+        )
         selected = {
             role: str(environment.get(key) or "").strip() for role, key in _EXACT_IMAGE_KEYS.items()
         }
@@ -288,11 +312,13 @@ class ImageSelectionOperations:
         )
 
     @staticmethod
-    def _required_exact_roles(config: DeploymentConfig) -> list[str]:
+    def _required_exact_roles(
+        config: DeploymentConfig, *, development_extras_pending: bool = False
+    ) -> list[str]:
         if config.deployment_profile == "compact":
             return ["compact"]
         roles = ["app", "worker", "control", "mcp", "cli"]
-        if config.environment == "development":
+        if config.environment == "development" and not development_extras_pending:
             roles.append("frontend")
         return roles
 

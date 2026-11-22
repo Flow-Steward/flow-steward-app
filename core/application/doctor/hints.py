@@ -129,10 +129,10 @@ def _backup_freshness(probe: HintProbe) -> DoctorFinding:
         return _hint(
             "backup_freshness",
             "fail",
-            "FS_BACKUP_ENCRYPTION_KEY is not in .env.prod: no backup can be made, and the "
-            "ones there cannot be read.",
+            "FS_BACKUP_ENCRYPTION_KEY is not in the installation's env file (.env.prod, or "
+            ".env for development): no backup can be made, and the ones there cannot be read.",
             "Put back the FS_BACKUP_ENCRYPTION_KEY this installation used (from where you "
-            "keep it) into .env.prod; a new key cannot read the old backups.",
+            "keep it) into that env file; a new key cannot read the old backups.",
         )
     facts = probe.backups()
     if facts.newest_verified_at is None:

@@ -54,7 +54,7 @@ def _probe(state, gateway, *, holding: bool = False) -> doctor_probe.Installatio
         root=state.root.parent,
         gateway=gateway,
         state=state,
-        config=SimpleNamespace(deployment_profile="compact"),
+        config=SimpleNamespace(deployment_profile="compact", environment="production"),
         log=doctor_probe.TemporaryDoctorLog(),
     )
     probe.holding = holding

@@ -24,6 +24,7 @@ _TRANSITION_FIELDS: dict[str, Any] = {
         "state": frozenset(
             {"not_configured", "clear", "recovery_required", "mutation_in_progress", "unknown"}
         ),
+        "recovery_required_scope": frozenset({"none", "release_upgrade", "other"}),
     },
     "stuck_jobs": {
         "persisted_count": int,
