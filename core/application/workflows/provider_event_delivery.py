@@ -82,8 +82,8 @@ class DeliveryBinding:
         payload = _as_dict(value)
         connection_id = _text(payload.get("connection_id"))
         try:
-            generation = int(payload.get("config_generation"))
-        except (TypeError, ValueError):
+            generation = int(payload["config_generation"])
+        except (KeyError, TypeError, ValueError):
             return None
         if not connection_id:
             return None
@@ -503,10 +503,14 @@ def dispatch_recorded_event(
                 outcomes.append({"delivery_key": key, "status": "failed"})
         return outcomes
 
+    def _run_after_commit() -> None:
+        # After the commit nobody reads the outcomes; each dispatch records its own.
+        _run()
+
     if not recorded.delivery_keys or not callable(enqueue_task_fn):
         return [{"delivery_key": key, "status": "pending"} for key in recorded.delivery_keys]
     if transaction_after_commit_supported(bl.conn):
-        register_transaction_after_commit(bl.conn, _run)
+        register_transaction_after_commit(bl.conn, _run_after_commit)
         return [{"delivery_key": key, "status": "pending"} for key in recorded.delivery_keys]
     return _run()
 

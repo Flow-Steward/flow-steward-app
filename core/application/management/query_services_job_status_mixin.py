@@ -42,6 +42,26 @@ class _JobDiagnosticQueries(Protocol):
 class JobQueryServiceStatusMixin:
     """Single-job reads; relies on the core mixin for scope and job context."""
 
+    # Provided by the host (JobQueryServiceCoreMixin): its constructor sets the
+    # callables, its methods resolve scope and job context.
+    _approval_query_service: Any
+    _build_runtime_payload_for_api: Any
+    _get_committed_checkpoint_values: Any
+    _get_logger: Any
+    _get_thread_state_snapshot: Any
+    _get_trace_store: Any
+    _job_context: Any
+    _job_workflow_display_name: Any
+    _job_workflow_metadata: Any
+    _json_obj: Any
+    _logger_or_raise: Any
+    _project_job_row_payload: Any
+    _resolve_artifact: Any
+    _scope: Any
+    _serialize_agent_message_row: Any
+    _serialize_event_row: Any
+    _serialize_log_row: Any
+
     async def get_job_status(
         self,
         job_id: str,

@@ -161,7 +161,8 @@ def serialize_approval_history_entry(entry: Mapping[str, Any]) -> dict[str, Any]
             for field in review.get("fields") or []
             if isinstance(field, Mapping) and str(field.get("name") or "").strip()
         ]
-        values = review.get("values") if isinstance(review.get("values"), Mapping) else {}
+        raw_values = review.get("values")
+        values = raw_values if isinstance(raw_values, Mapping) else {}
         safe["review"] = {
             "fields": fields,
             "values": {

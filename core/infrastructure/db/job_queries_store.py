@@ -127,7 +127,7 @@ def _value_filter_sql(spec: Mapping[str, Any]) -> tuple[str, list[Any]]:
         # The only job filter is its status (choice / choice_multi); "awaiting
         # review" also matches a parent whose Invoke chain waits for an approval.
         return _status_filter_sql(
-            [str(item) for item in value],
+            [str(item) for item in value or ()],
             review_chain_depth=spec.get("review_chain_depth"),
         )
     base = _VALUE_FILTER_BASES.get(source)
@@ -155,7 +155,7 @@ def _value_filter_sql(spec: Mapping[str, Any]) -> tuple[str, list[Any]]:
                 params.extend([key, key, bound])
         return "(" + SQL_AND.join(parts) + ")", params
     if filter_type in {"choice", "choice_multi"}:
-        options = [str(item) for item in value]
+        options = [str(item) for item in value or ()]
         # A select holds a string, a multi-select an array of strings: any match.
         return (
             f"(CASE jsonb_typeof({node})"

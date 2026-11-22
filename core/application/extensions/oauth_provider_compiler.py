@@ -455,12 +455,15 @@ def _compile_oauth_provider_rows(
                 message="A declared origin_binding must be used by at least one endpoint",
                 code="invalid_oauth_origin_binding",
             )
-        for field in credential_fields:
-            if field.runtime_only and field.field_id in {"client_id", "client_secret"}:
+        for credential_field in credential_fields:
+            if credential_field.runtime_only and credential_field.field_id in {
+                "client_id",
+                "client_secret",
+            }:
                 _error(
                     errors,
                     path=f"{path}.credential_fields",
-                    message=f"{field.field_id} is used by the authorization flow; it cannot be runtime-only",
+                    message=f"{credential_field.field_id} is used by the authorization flow; it cannot be runtime-only",
                     code="invalid_oauth_credential_field",
                 )
         client_id_fields = [field for field in credential_fields if field.field_id == "client_id"]

@@ -104,8 +104,10 @@ def _review_outputs(gate: _Gate, review_values: Any) -> dict[str, Any]:
     review = captured_review(gate.payload)
     if review is None:
         return {}
-    captured = review.get("values") if isinstance(review.get("values"), Mapping) else {}
-    invalid = review.get("invalid") if isinstance(review.get("invalid"), Mapping) else {}
+    raw_captured = review.get("values")
+    captured = raw_captured if isinstance(raw_captured, Mapping) else {}
+    raw_invalid = review.get("invalid")
+    invalid = raw_invalid if isinstance(raw_invalid, Mapping) else {}
     return {
         str(field.get("name")): captured.get(str(field.get("name")))
         for field in review.get("fields") or []

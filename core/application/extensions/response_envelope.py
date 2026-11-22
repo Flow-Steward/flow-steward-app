@@ -278,7 +278,7 @@ def _require_expected_poll_versions(
             else current_row.get(attribute)
         )
         try:
-            matches = int(payload[key]) == int(current)
+            matches = current is not None and int(payload[key]) == int(current)
         except (TypeError, ValueError):
             matches = False
         if not matches:

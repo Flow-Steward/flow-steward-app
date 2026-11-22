@@ -189,7 +189,8 @@ def operator_job_values(row: dict[str, Any], payload: dict[str, Any] | None) -> 
     stored = payload or {}
     status = str(row.get("status") or "").strip().lower()
     files = stored.get("input_files")
-    inputs = stored.get("inputs") if isinstance(stored.get("inputs"), dict) else {}
+    raw_inputs = stored.get("inputs")
+    inputs = raw_inputs if isinstance(raw_inputs, dict) else {}
     outputs: dict[str, Any] | None = None
     if status in SUCCESS_STATUSES:
         outputs = {

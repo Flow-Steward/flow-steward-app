@@ -115,7 +115,8 @@ def last_review_decision(
     approved = bool(public.get("approved"))
     # A rejection accepted nothing: no values and no corrections, only who
     # rejected it and why. Edits made before rejecting never reached the workflow.
-    review = public.get("review") if approved and isinstance(public.get("review"), dict) else {}
+    raw_review = public.get("review")
+    review = raw_review if approved and isinstance(raw_review, dict) else {}
     return {
         "access": "read",
         "job_id": holder_id,

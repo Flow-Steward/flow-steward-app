@@ -71,6 +71,7 @@ from .worker_delivery import (
     _queue_name_for_delivery,
 )
 from .worker_inbound_polling import (
+    BackgroundPollPorts,
     _background_poll_actions,
     _binding_poll_due,
     _parse_iso_datetime,
@@ -174,7 +175,7 @@ def main(
     ensure_guardrails_seeded: Callable[..., dict] | None = None,
     process_extension_response_envelope: Callable[..., object] | None = None,
     sweep_provider_event_dispatches: Callable[[], object] | None = None,
-    background_poll_ports: object | None = None,
+    background_poll_ports: BackgroundPollPorts | None = None,
     maintenance_active: Callable[[], bool] = _maintenance_inactive,
     curate_terminal_job: Callable[..., list[str]] | None = None,
     job_terminal_statuses: Collection[str] = (),

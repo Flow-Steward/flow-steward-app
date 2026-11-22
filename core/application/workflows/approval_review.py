@@ -548,7 +548,8 @@ def decide_review(
     fields = _captured_fields(review)
     by_name = {field.name: field for field in fields}
     editable = {str(name) for name in review.get("editable") or [] if str(name) in by_name}
-    initial = review.get("values") if isinstance(review.get("values"), Mapping) else {}
+    raw_initial = review.get("values")
+    initial = raw_initial if isinstance(raw_initial, Mapping) else {}
     edits = dict(values or {})
     for name in edits:
         if str(name) in RESERVED_REVIEW_FIELD_NAMES:
@@ -705,15 +706,16 @@ def public_review_decision(review: Mapping[str, Any], values: Mapping[str, Any])
     The operator's view of a finished job reads it back: what was accepted,
     under which labels. Secret fields are left out, as in the public review.
     """
-    fields = [
+    fields: list[dict[str, Any]] = [
         {key: row.get(key) for key in REVIEW_DECISION_FIELD_KEYS} for row in _public_fields(review)
     ]
+    names = [str(row["name"]) for row in fields]
     return {
         "fields": fields,
         "values": {
-            row["name"]: masked_review_value(values.get(row["name"]), key=row["name"])
-            for row in fields
-            if row["name"] in values
+            name: masked_review_value(values.get(name), key=name)
+            for name in names
+            if name in values
         },
     }
 
@@ -734,8 +736,10 @@ def public_review(
         return None
     fields = _public_fields(review)
     names = {row["name"] for row in fields}
-    values = review.get("values") if isinstance(review.get("values"), Mapping) else {}
-    invalid = review.get("invalid") if isinstance(review.get("invalid"), Mapping) else {}
+    raw_values = review.get("values")
+    values = raw_values if isinstance(raw_values, Mapping) else {}
+    raw_invalid = review.get("invalid")
+    invalid = raw_invalid if isinstance(raw_invalid, Mapping) else {}
     return {
         "fields": fields,
         "values": {
