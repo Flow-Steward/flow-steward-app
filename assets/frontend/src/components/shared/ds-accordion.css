@@ -1,5 +1,5 @@
 /* Bare published list: its consuming section owns the surrounding surface. */
-.fs-accordion-list { display: grid; gap: 6px; padding: 12px; }
+.fs-accordion-list { display: grid; gap: 6px; }
 
 .fs-accordion-item {
   min-width: 0;

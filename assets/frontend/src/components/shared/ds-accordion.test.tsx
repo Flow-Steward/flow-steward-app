@@ -62,4 +62,6 @@ it("sizes the accessory slot for what it holds, so two icon buttons stay clear o
   expect(css).toMatch(/\[data-accessory-slot="icon-pair"\] \{ --fs-accordion-accessory-width: calc\(var\(--fs-icon-button-size-sm\) \* 2 \+ 4px\); \}/);
   expect(css).toMatch(/grid-template-columns: minmax\(0, 1fr\) 10px var\(--fs-accordion-accessory-width\) 12px 15px;/);
   expect(css).toMatch(/\.fs-accordion-accessory \{[^}]*width: var\(--fs-accordion-accessory-width\);/);
+  // The list lines up with the panel's other content: it adds no inset of its own.
+  expect(css).toMatch(/\.fs-accordion-list \{ display: grid; gap: 6px; \}/);
 });
