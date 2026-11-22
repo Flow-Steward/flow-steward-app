@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Link } from "react-router";
 
 import { FilePreview } from "@/components/file-preview/file-preview";
 import { filePreviewKind, filePreviewUrl, previewTooLarge } from "@/components/file-preview/file-preview-model";
@@ -34,12 +35,21 @@ import {
  * One original file at a time, with its preview, and paging through several.
  * The page draws the preview itself (ADR 0080), the browser's PDF viewer never.
  */
-export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files: readonly ReviewFile[] }>) {
+export function ReviewOriginal({
+  jobId,
+  files,
+  layout = "inline",
+}: Readonly<{
+  jobId: string;
+  files: readonly ReviewFile[];
+  /** "pane": the review page's left column, a bar over a scrolling preview. */
+  layout?: "inline" | "pane";
+}>) {
   const { t } = useI18n();
   const maxBytes = useFilePreviewMaxBytes();
   const [index, setIndex] = useState(0);
   if (!files.length) {
-    return <p className="fs-empty-copy">{t("react.operator_review.no_original", "This review has no original file.")}</p>;
+    return <p className="fs-empty-copy fs-operator-original-empty">{t("react.operator_review.no_original", "This review has no original file.")}</p>;
   }
   const at = Math.min(index, files.length - 1);
   const file = files[at];
@@ -47,33 +57,49 @@ export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files
   const kind = previewTooLarge(file, maxBytes) ? "" : filePreviewKind(file);
   const preview = kind ? filePreviewUrl(href) : "";
   const name = file.filename || t("react.operator_review.original", "Original");
+  const pager =
+    files.length > 1 ? (
+      <div className="fs-operator-original-pager">
+        <button
+          aria-label={t("react.operator_review.previous_file", "Previous file")}
+          className="fs-icon-button"
+          disabled={at === 0}
+          onClick={() => setIndex(at - 1)}
+          type="button"
+        >
+          <ChevronLeft aria-hidden="true" />
+        </button>
+        <span>{t("react.operator_review.file_position", "File {position} of {total}", { position: String(at + 1), total: String(files.length) })}</span>
+        <button
+          aria-label={t("react.operator_review.next_file", "Next file")}
+          className="fs-icon-button"
+          disabled={at >= files.length - 1}
+          onClick={() => setIndex(at + 1)}
+          type="button"
+        >
+          <ChevronRight aria-hidden="true" />
+        </button>
+      </div>
+    ) : null;
+  const item = <JobFileItem file={{ ...file, download_url: href }} fallbackName={name} preview={false} />;
+  const shown = kind && preview ? <FilePreview key={preview} kind={kind} name={name} url={preview} /> : null;
   return (
-    <div className="fs-operator-original" data-testid="review-original">
-      {files.length > 1 ? (
-        <div className="fs-operator-original-pager">
-          <button
-            aria-label={t("react.operator_review.previous_file", "Previous file")}
-            className="fs-icon-button"
-            disabled={at === 0}
-            onClick={() => setIndex(at - 1)}
-            type="button"
-          >
-            <ChevronLeft aria-hidden="true" />
-          </button>
-          <span>{t("react.operator_review.file_position", "File {position} of {total}", { position: String(at + 1), total: String(files.length) })}</span>
-          <button
-            aria-label={t("react.operator_review.next_file", "Next file")}
-            className="fs-icon-button"
-            disabled={at >= files.length - 1}
-            onClick={() => setIndex(at + 1)}
-            type="button"
-          >
-            <ChevronRight aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
-      <JobFileItem file={{ ...file, download_url: href }} fallbackName={name} preview={false} />
-      {kind && preview ? <FilePreview key={preview} kind={kind} name={name} url={preview} /> : null}
+    <div className="fs-operator-original" data-layout={layout} data-testid="review-original">
+      {layout === "pane" ? (
+        <>
+          <div className="fs-operator-original-bar">
+            {pager}
+            {item}
+          </div>
+          <div className="fs-operator-original-canvas">{shown}</div>
+        </>
+      ) : (
+        <>
+          {pager}
+          {item}
+          {shown}
+        </>
+      )}
     </div>
   );
 }
@@ -115,11 +141,17 @@ type Decided = { approved: boolean; status: string; actor: string };
  */
 export function OperatorReviewPanel({
   review,
+  head,
+  back,
   onApprovedNext,
   onSkip,
   onDecided,
 }: Readonly<{
   review: JobReview;
+  /** The panel's heading: title, what to do and the steps through the list. */
+  head?: ReactNode;
+  /** The way back to the list, kept in the panel's footer beside the decision. */
+  back?: { to: string; label: string };
   /** After "Approve and next": open the next job of the list. */
   onApprovedNext: () => void;
   /** Leave this one undecided and open the next job. */
@@ -249,13 +281,41 @@ export function OperatorReviewPanel({
   const errors = { ...captured.invalid, ...fieldErrors };
   const locked = !canDecide || Boolean(decided) || Boolean(pending);
 
+  const approveButtons = canApprove ? (
+    <>
+      <Button
+        busy={pending === "approve"}
+        busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+        data-testid="review-approve"
+        onClick={() => ignoreAsyncResult(decide("approve"))}
+        type="button"
+        variant="secondary"
+      >
+        {approveLabel}
+      </Button>
+      <Button
+        aria-keyshortcuts="Control+Enter Meta+Enter"
+        busy={pending === "approve_next"}
+        busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
+        data-testid="review-approve-next"
+        onClick={() => ignoreAsyncResult(decide("approve_next"))}
+        type="button"
+        variant="primary"
+      >
+        {t("react.operator_review.approve_and_next", "{label} and next", { label: approveLabel })}
+      </Button>
+    </>
+  ) : null;
+  const deciding = canDecide && !decided;
+
   return (
     <div className="fs-operator-review" data-testid="operator-review">
-      <DsCard className="min-w-0" title={t("react.operator_review.original", "Original")}>
-        <ReviewOriginal files={captured.original} jobId={reviewJobId} />
-      </DsCard>
-      <DsCard className="min-w-0" description={message || undefined} title={t("react.operator_review.fields", "Check and correct")}>
-        <div className="grid gap-4">
+      <section aria-label={t("react.operator_review.original", "Original")} className="fs-operator-review-original">
+        <ReviewOriginal files={captured.original} jobId={reviewJobId} layout="pane" />
+      </section>
+      <section aria-label={t("react.operator_review.fields", "Check and correct")} className="fs-operator-review-check">
+        <div className="fs-operator-review-scroll">
+          {head}
           {decided ? (
             <DsAlert
               title={decided.approved ? t("react.operator_review.approved", "Approved with these values") : t("react.operator_review.rejected", "Rejected")}
@@ -267,30 +327,32 @@ export function OperatorReviewPanel({
               </p>
             </DsAlert>
           ) : null}
-          <WorkflowInputFields
-            disabled={locked}
-            errors={errors}
-            fields={formFields.shown}
-            notes={notes}
-            onChange={(name, next) => {
-              setValues((current) => ({ ...current, [name]: next }));
-              setFieldErrors((current) => {
-                if (!(name in current)) return current;
-                const rest = { ...current };
-                delete rest[name];
-                return rest;
-              });
-            }}
-            readOnlyFields={readOnly}
-            values={values}
-          />
-          {formFields.other.map((field) => (
-            <ReadOnlyReviewValue field={field} jobId={reviewJobId} key={field.name} value={values[field.name]} />
-          ))}
-          {canDecide && !decided ? (
-            <>
+          <DsCard className="min-w-0" description={message || undefined} title={t("react.operator_review.fields", "Check and correct")}>
+            <WorkflowInputFields
+              disabled={locked}
+              errors={errors}
+              fields={formFields.shown}
+              notes={notes}
+              onChange={(name, next) => {
+                setValues((current) => ({ ...current, [name]: next }));
+                setFieldErrors((current) => {
+                  if (!(name in current)) return current;
+                  const rest = { ...current };
+                  delete rest[name];
+                  return rest;
+                });
+              }}
+              readOnlyFields={readOnly}
+              values={values}
+            />
+            {formFields.other.map((field) => (
+              <ReadOnlyReviewValue field={field} jobId={reviewJobId} key={field.name} value={values[field.name]} />
+            ))}
+          </DsCard>
+          {deciding ? (
+            <DsCard className="min-w-0" title={t("jobs.detail.review.comment", "Comment")}>
               <label className="fs-field min-w-0">
-                <span className="fs-field-label">{t("jobs.detail.review.comment", "Comment")}</span>
+                <span className="fs-sr-only">{t("jobs.detail.review.comment", "Comment")}</span>
                 <textarea
                   className="fs-textarea"
                   data-testid="review-comment"
@@ -302,64 +364,48 @@ export function OperatorReviewPanel({
                   {t("jobs.detail.review.comment_rejection_requirement", "Required when rejecting. Optional when approving.")}
                 </span>
               </label>
-              {formError ? (
-                <div className="fs-field-helper error" role="alert">
-                  {formError}
-                </div>
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                {canApprove ? (
-                  <>
-                  <Button
-                    aria-keyshortcuts="Control+Enter Meta+Enter"
-                    busy={pending === "approve_next"}
-                    busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-                    data-testid="review-approve-next"
-                    onClick={() => ignoreAsyncResult(decide("approve_next"))}
-                    type="button"
-                    variant="primary"
-                  >
-                    {t("react.operator_review.approve_and_next", "{label} and next", { label: approveLabel })}
-                  </Button>
-                  <Button
-                    busy={pending === "approve"}
-                    busyLabel={t("react.projects.secret_approval.approving", "Approving…")}
-                    data-testid="review-approve"
-                    onClick={() => ignoreAsyncResult(decide("approve"))}
-                    type="button"
-                    variant="secondary"
-                  >
-                    {approveLabel}
-                  </Button>
-                  </>
-                ) : null}
-                {canReject ? (
-                  <Button
-                    busy={pending === "reject"}
-                    busyLabel={t("react.jobs.rejecting", "Rejecting…")}
-                    data-testid="review-reject"
-                    onClick={() => ignoreAsyncResult(decide("reject"))}
-                    type="button"
-                    variant="danger"
-                  >
-                    {rejectLabel}
-                  </Button>
-                ) : null}
-                {onSkip ? (
-                  <Button data-testid="review-skip" onClick={onSkip} type="button" variant="secondary">
-                    {t("react.operator_review.skip", "Skip")}
-                  </Button>
-                ) : null}
-              </div>
-            </>
-          ) : null}
-          {!canDecide ? (
-            <p className="fs-field-helper">
-              {t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")}
-            </p>
+            </DsCard>
           ) : null}
         </div>
-      </DsCard>
+        <footer className="fs-operator-review-foot">
+          {formError ? (
+            <p className="fs-operator-review-foot-note fs-ink-danger" role="alert">
+              {formError}
+            </p>
+          ) : (
+            <p className="fs-operator-review-foot-note">
+              {canDecide
+                ? ""
+                : t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")}
+            </p>
+          )}
+          <div className="fs-operator-review-actions">
+            {back ? (
+              <Link className="fs-button secondary" to={back.to}>
+                {back.label}
+              </Link>
+            ) : null}
+            {deciding && onSkip ? (
+              <Button data-testid="review-skip" onClick={onSkip} type="button" variant="secondary">
+                {t("react.operator_review.skip", "Skip")}
+              </Button>
+            ) : null}
+            {deciding && canReject ? (
+              <Button
+                busy={pending === "reject"}
+                busyLabel={t("react.jobs.rejecting", "Rejecting…")}
+                data-testid="review-reject"
+                onClick={() => ignoreAsyncResult(decide("reject"))}
+                type="button"
+                variant="danger"
+              >
+                {rejectLabel}
+              </Button>
+            ) : null}
+            {deciding ? approveButtons : null}
+          </div>
+        </footer>
+      </section>
     </div>
   );
 }

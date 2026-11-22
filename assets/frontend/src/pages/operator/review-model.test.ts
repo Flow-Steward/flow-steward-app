@@ -78,7 +78,10 @@ describe("review fields", () => {
     expect(widget({ name: "a" })).toBe("string:textarea");
     expect(widget({ name: "a", type: "number" })).toBe("number:number");
     expect(widget({ name: "a", type: "boolean" })).toBe("boolean:true_false");
-    expect(widget({ name: "a", type: "select", options: ["x"] })).toBe("select:select");
+    expect(widget({ name: "a", type: "select", options: ["x"] })).toBe("select:radio");
+    expect(widget({ name: "a", type: "select", options: ["in", "out", "a", "b"] })).toBe("select:radio");
+    expect(widget({ name: "a", type: "select", options: ["a", "b", "c", "d", "e"] })).toBe("select:select");
+    expect(widget({ name: "a", type: "select" })).toBe("select:select");
     expect(widget({ name: "a", type: "array", items: { type: "select", options: ["x", "y"] } })).toBe("select_list:multiselect");
     expect(widget({ name: "a", type: "array", items: { type: "object", properties: [{ name: "qty", type: "number" }] } })).toBe("object_list:repeater");
     expect(widget({ name: "a", type: "object", properties: { city: { type: "string" } } })).toBe("object:group");

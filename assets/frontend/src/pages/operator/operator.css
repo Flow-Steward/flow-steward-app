@@ -50,16 +50,172 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fs-operator-review {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--fs-space-150);
-  align-items: start;
+/* The review page (ADR 0075): the original on the left, the fields on the
+   right. From lg up it fills the space under the header with no page padding,
+   each column scrolls on its own and the decision stays in the footer. */
+.fs-shell-main:has(.fs-operator-review) {
+  padding: 0;
 }
 
-@media (max-width: 960px) {
+.fs-operator-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fs-operator-review-original {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-sidebar);
+}
+
+.fs-operator-original[data-layout="pane"] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+.fs-operator-original-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: 48px;
+  padding: var(--fs-space-075) var(--fs-space-150);
+  border-bottom: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-surface);
+}
+
+.fs-operator-original-bar > :last-child {
+  flex: 1 1 14rem;
+}
+
+.fs-operator-original-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--fs-space-250);
+}
+
+.fs-operator-original-canvas:empty {
+  display: none;
+}
+
+.fs-operator-review-original > .fs-operator-original-empty {
+  padding: var(--fs-space-150);
+}
+
+.fs-operator-review-check {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fs-operator-review-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-200);
+  min-height: 0;
+  padding: var(--fs-space-200);
+}
+
+.fs-operator-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+}
+
+.fs-operator-review-head-text {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-operator-review-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-display);
+  font-size: var(--fs-card-title-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: var(--fs-type-h3-line-height);
+}
+
+.fs-operator-review-sub {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+}
+
+.fs-operator-review-head .fs-operator-queue-steps {
+  flex: none;
+}
+
+.fs-operator-review-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--fs-z-local-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  margin-top: auto;
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border-top: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-surface);
+}
+
+.fs-operator-review-foot-note {
+  flex: 1 1 12rem;
+  margin: 0;
+  min-width: 0;
+  color: var(--fs-text-secondary);
+}
+
+.fs-operator-review-foot-note:empty {
+  flex-basis: 0;
+}
+
+.fs-operator-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fs-space-075);
+}
+
+/* lg, as the shell */
+@media (width >= 64rem) {
   .fs-operator-review {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(340px, 38%) minmax(0, 1fr);
+    height: calc(100dvh - var(--fs-header-height));
+    overflow: hidden;
+  }
+
+  .fs-operator-review-original {
+    border-right: 1px solid var(--fs-border-subtle);
+    border-bottom: 0;
+  }
+
+  .fs-operator-original-canvas {
+    max-height: none;
+  }
+
+  .fs-operator-review-scroll {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: var(--fs-space-250) var(--fs-space-300) var(--fs-space-300);
+  }
+
+  .fs-operator-review-foot {
+    position: static;
+    padding: var(--fs-space-150) var(--fs-space-300);
   }
 }
 

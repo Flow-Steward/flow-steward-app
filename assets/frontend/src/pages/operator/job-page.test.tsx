@@ -194,7 +194,9 @@ describe("OperatorJobPage review", () => {
     expect(input("document_date").type).toBe("date");
     expect(input("notes", "textarea")).toBeInTheDocument();
     expect(within(frame(container, "paid")).getByRole("switch")).toBeInTheDocument();
-    expect(within(frame(container, "currency")).getByRole("combobox")).toBeInTheDocument();
+    // A few choices are radio buttons, all seen at once.
+    const currency = within(frame(container, "currency")).getByRole("radiogroup");
+    expect(within(currency).getAllByRole("radio").map((radio) => (radio as HTMLInputElement).value)).toEqual(["EUR", "USD"]);
     expect(within(frame(container, "lines")).getByRole("table")).toBeInTheDocument();
     // Not editable: shown, never changed.
     expect(input("confidence")).toBeDisabled();
@@ -210,6 +212,29 @@ describe("OperatorJobPage review", () => {
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Recognize again" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("operator-queue-position")).toHaveTextContent("3 of 47"));
+  });
+
+  it("lays the review out as the original beside the panel: heading with the steps, cards, the decision in the footer", async () => {
+    renderPage();
+    const page = await screen.findByTestId("operator-review");
+
+    const [original, check] = Array.from(page.children);
+    expect(original).toHaveClass("fs-operator-review-original");
+    expect(within(original as HTMLElement).getByTestId("review-original")).toHaveAttribute("data-layout", "pane");
+    expect(check).toHaveClass("fs-operator-review-check");
+    const head = (check as HTMLElement).querySelector(".fs-operator-review-head") as HTMLElement;
+    expect(within(head).getByRole("heading", { level: 1 })).toHaveTextContent("Review");
+    expect(within(head).getByTestId("operator-queue-steps")).toBeInTheDocument();
+    // The old bar above the page is gone: the way back sits beside the decision.
+    expect(screen.queryByTestId("operator-queue")).not.toBeInTheDocument();
+    const foot = (check as HTMLElement).querySelector(".fs-operator-review-foot") as HTMLElement;
+    expect(within(foot).getByRole("link", { name: "Back to Contracts" })).toHaveAttribute("href", `/projects/p1/workflows/wf.contracts/work?${LIST}`);
+    // The primary decision is the last button, on the right.
+    const buttons = within(foot).getAllByRole("button");
+    expect(buttons.at(-1)).toHaveAttribute("data-testid", "review-approve-next");
+    // The fields and the comment are cards of their own.
+    const cards = Array.from((check as HTMLElement).querySelectorAll(".fs-card-title")).map((title) => title.textContent);
+    expect(cards).toEqual(["Check and correct", "Comment"]);
   });
 
   it("marks a corrected field with its initial value and sends the number typed in the locale", async () => {

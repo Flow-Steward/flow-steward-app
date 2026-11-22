@@ -57,6 +57,9 @@ export type JobReview = {
   decision?: OperatorReviewDecision | null;
 };
 
+/** Up to this many choices a review field shows them all as radio buttons. */
+export const RADIO_CHOICES = 4;
+
 const STRING_WIDGETS: Record<string, string> = {
   date: "date",
   "date-time": "date_time",
@@ -105,7 +108,8 @@ export function reviewFormField(field: ReviewField): FormFieldView | null {
     case "boolean":
       return { ...base, kind: "boolean", widget: "true_false" };
     case "select":
-      return { ...base, kind: "select", widget: "select" };
+      // A few choices are seen at once as radio buttons; a longer list stays a dropdown.
+      return { ...base, kind: "select", widget: base.options.length && base.options.length <= RADIO_CHOICES ? "radio" : "select" };
     case "object": {
       const subFields = nestedFields(field.properties).map(reviewFormField).filter((item): item is FormFieldView => item !== null);
       return subFields.length ? { ...base, kind: "object", widget: "group", sub_fields: subFields } : null;

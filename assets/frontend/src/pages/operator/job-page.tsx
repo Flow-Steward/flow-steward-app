@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { filePreviewKind, filePreviewUrl, previewTooLarge } from "@/components/file-preview/file-preview-model";
-import { DsAlert, DsPageHeader, PageContainer } from "@/components/shared/design-system";
+import { DsAlert, PageContainer } from "@/components/shared/design-system";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { useFilePreviewMaxBytes } from "@/lib/auth/file-preview-limit";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -230,26 +230,32 @@ export function OperatorJobPage() {
     );
   }
   if (data?.gate?.review && (data.access === "decide" || data.access === "read")) {
+    // The page fills the space under the header: the original on the left, the
+    // fields on the right, each scrolling on its own, the decision always in view.
     return (
-      <PageContainer width="wide">
-        {bar}
-        <DsPageHeader
-          description={t("react.operator_review.description", "Compare the fields with the original, correct what is wrong and decide.")}
-          eyebrow={section.data.title}
-          title={t("react.operator_review.title", "Review")}
-        />
-        <OperatorReviewPanel
-          key={`${data.gate.job_id}:${data.gate.approval_id ?? ""}`}
-          onApprovedNext={() => {
-            // The neighbours are by sort key: the one asked before the decision is still next.
-            openNext();
-            refreshAfterDecision();
-          }}
-          onDecided={refreshAfterDecision}
-          onSkip={openNext}
-          review={data}
-        />
-      </PageContainer>
+      <OperatorReviewPanel
+        back={{ to: listPath, label: t("react.operator_queue.back", "Back to {title}", { title: section.data.title }) }}
+        head={
+          <header className="fs-operator-review-head">
+            <div className="fs-operator-review-head-text">
+              <h1 className="fs-operator-review-title">{t("react.operator_review.title", "Review")}</h1>
+              <p className="fs-operator-review-sub">
+                {t("react.operator_review.description", "Compare the fields with the original, correct what is wrong and decide.")}
+              </p>
+            </div>
+            <QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />
+          </header>
+        }
+        key={`${data.gate.job_id}:${data.gate.approval_id ?? ""}`}
+        onApprovedNext={() => {
+          // The neighbours are by sort key: the one asked before the decision is still next.
+          openNext();
+          refreshAfterDecision();
+        }}
+        onDecided={refreshAfterDecision}
+        onSkip={openNext}
+        review={data}
+      />
     );
   }
   // Any other job, running, finished or waiting where the caller cannot decide:
