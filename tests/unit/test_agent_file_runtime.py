@@ -312,3 +312,42 @@ def test_invocation_runtime_reaches_langgraph_thread_and_forked_agent():
         result = graph.invoke({"read": ""})
     assert result["read"] == "hello"
     assert current_agent_file_runtime() is None
+
+
+def test_a_file_list_binds_each_file_under_a_numbered_name():
+    """Several uploads in one input (ADR 0075): one agent step reads every page."""
+
+    class Pages:
+        def __init__(self):
+            self.metas = {
+                f"art_p{index}": {
+                    **ArtifactPlane(f"page {index}".encode()).meta,
+                    "artifact_id": f"art_p{index}",
+                    "filename": "scan.jpg",
+                    "content_type": "image/jpeg",
+                }
+                for index in (1, 2)
+            }
+
+        def get_artifact(self, artifact_id):
+            return self.metas.get(artifact_id)
+
+    runtime = AgentFileRuntime(plane=Pages(), account_id="a", project_id="p", job_id="j")
+    state = {"inputs": {"pages": [{"artifact_id": "art_p1"}, {"artifact_id": "art_p2"}]}}
+
+    files = runtime.bind_files([{"name": "pages", "source": "state.inputs.pages"}], state)
+
+    assert [row["name"] for row in files.list_files()] == ["pages_1", "pages_2"]
+    assert [row["size_bytes"] for row in files.list_files()] == [6, 6]
+    with pytest.raises(AgentFileAccessError):
+        runtime.bind_files(
+            [
+                {"name": "pages", "source": "state.inputs.pages"},
+                {"name": "pages_1", "source": "state.inputs.pages"},
+            ],
+            state,
+        )
+    with pytest.raises(AgentFileAccessError):
+        runtime.bind_files(
+            [{"name": "pages", "source": "state.inputs.pages"}], {"inputs": {"pages": []}}
+        )

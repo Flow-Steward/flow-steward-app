@@ -1557,10 +1557,11 @@ class TestProjectConnectionService:
 
 
 def _interactive_scope() -> ScopeContext:
+    # Choosing a stored secret for a connection is configuration: the admin's (ADR 0075).
     return ScopeContext(
         account_id=DEFAULT_ACCOUNT_ID,
         actor_id="person-1",
-        principal_type="operator",
+        principal_type="admin",
         auth_source="local",
     )
 

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
+import { permissionsForRoles } from "@/test/role-permissions";
 import { SettingsUsersPage } from "@/pages/settings/users";
 import type { UserRecord } from "@/pages/settings/shared/types";
 import {
@@ -60,6 +61,7 @@ function authValue(roles = ["admin"]) {
         username: "admin@example.com",
         display_name: "Admin",
         roles,
+        permissions: permissionsForRoles(roles),
         account_id: "acc-1",
         account_ids: ["acc-1"],
         account_memberships: [],
@@ -94,8 +96,8 @@ describe("SettingsUsersPage", () => {
     expect(screen.getByText("maya@example.com")).toBeInTheDocument();
   });
 
-  it("does not request users or accounts for a non-admin", async () => {
-    mockedUseAuth.mockReturnValue(authValue(["viewer"]));
+  it.each([["viewer"], ["operator"]])("does not request users or accounts for a %s", async (role) => {
+    mockedUseAuth.mockReturnValue(authValue([role]));
     renderUsersPage();
     await waitFor(() => expect(screen.getByText("Administrator access required")).toBeInTheDocument());
     expect(mockedFetchUsersCollection).not.toHaveBeenCalled();
@@ -170,7 +172,7 @@ describe("SettingsUsersPage", () => {
       display_name: "Mail warning user",
       email: "mail-warning@example.com",
       password: "temporary-pass", // pragma: allowlist secret - disposable user fixture
-      roles: ["viewer"],
+      role: "viewer",
       is_active: true,
       must_change_password: true,
     }));
@@ -409,5 +411,54 @@ describe("SettingsUsersPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(mockedUpdateUser).toHaveBeenCalledWith("u1", { display_name: "Maya Updated" }));
     await waitFor(() => expect(screen.getByText("Access for Maya Chen was updated.")).toBeInTheDocument());
+  });
+  // ADR 0076 §7: a user holds one system role; the form offers one of three.
+  it("offers one role out of three, each with what it can do", async () => {
+    const user = userEvent.setup();
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Add user" }));
+    const dialog = screen.getByRole("dialog", { name: "Add user" });
+    const roles = within(dialog).getByRole("group", { name: /Role/ });
+
+    expect(within(roles).getAllByRole("radio")).toHaveLength(3);
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).toBeChecked();
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).toHaveAccessibleName(/changes nothing/);
+    expect(within(roles).getByRole("radio", { name: /Operator/ })).toHaveAccessibleName(/starts workflows, decides approvals/);
+    expect(within(roles).getByRole("radio", { name: /Admin/ })).toHaveAccessibleName(/Sets everything up/);
+    expect(within(dialog).queryByRole("checkbox", { name: /Admin|Operator|Viewer/ })).not.toBeInTheDocument();
+
+    await user.click(within(roles).getByText("Operator"));
+    expect(within(roles).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).not.toBeChecked();
+  });
+
+  it("changes a user's role by sending the one chosen role", async () => {
+    const user = userEvent.setup();
+    mockedUpdateUser.mockResolvedValue({ user: { display_name: "Maya Chen" } });
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit access" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit access for Maya Chen" });
+
+    expect(within(dialog).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    await user.click(within(dialog).getByText("Admin"));
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(mockedUpdateUser).toHaveBeenCalledWith("u1", { role: "admin" }));
+  });
+
+  it("shows a user who still holds several roles with the highest one chosen", async () => {
+    const user = userEvent.setup();
+    mockedFetchUsersCollection.mockResolvedValue({
+      users: [{ id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["viewer", "operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] }],
+      total: 1, page: 1, per_page: 5, total_pages: 1,
+    });
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit access" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit access for Maya Chen" });
+
+    expect(within(dialog).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: /Viewer/ })).not.toBeChecked();
   });
 });

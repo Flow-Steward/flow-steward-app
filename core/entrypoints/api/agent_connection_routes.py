@@ -33,8 +33,10 @@ class AgentAccessTokenRequest(BaseModel):
 
     client_id: str = Field(min_length=1, max_length=64)
     package_id: str = Field(min_length=1, max_length=64)
-    preset: str = Field(min_length=1, max_length=64)
-    expiry_days: int
+    # ADR 0076 §5: without these the token gets the person's role and the server's
+    # expiry; only an admin may send them.
+    preset: str | None = Field(default=None, min_length=1, max_length=64)
+    expiry_days: int | None = None
     project_ids: list[str] = Field(default_factory=list, max_length=500)
 
 
@@ -65,6 +67,14 @@ def create_agent_connection_router(
     async def agent_access_setup(request: Request):
         try:
             payload = await run_in_threadpool(_service().setup_view, _user(request))
+        except AgentConnectionError as error:
+            return _error(error)
+        return JSONResponse(payload, headers=_NO_STORE)
+
+    @router.get("/api/auth/agent-access/connections", include_in_schema=False)
+    async def agent_access_connections(request: Request):
+        try:
+            payload = await run_in_threadpool(_service().connections, _user(request))
         except AgentConnectionError as error:
             return _error(error)
         return JSONResponse(payload, headers=_NO_STORE)

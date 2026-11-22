@@ -31,11 +31,11 @@ describe("settings account and access API", () => {
   });
 
   it("sends exact create and changed-only update user payloads", async () => {
-    const createPayload = { display_name: "Maya Chen", email: "maya@example.com", password: "temporary-pass", roles: ["viewer"], account_ids: ["acc-1"], primary_account_id: "acc-1", is_active: true, must_change_password: true };
+    const createPayload = { display_name: "Maya Chen", email: "maya@example.com", password: "temporary-pass", role: "viewer", account_ids: ["acc-1"], primary_account_id: "acc-1", is_active: true, must_change_password: true };
     await createUser(createPayload);
-    await updateUser("u1", { roles: ["operator"], primary_account_id: "acc-2" });
+    await updateUser("u1", { role: "operator", primary_account_id: "acc-2" });
     expect(mockedFetchJson).toHaveBeenNthCalledWith(1, "/api/auth/users", { method: "POST", body: JSON.stringify(createPayload) });
-    expect(mockedFetchJson).toHaveBeenNthCalledWith(2, "/api/auth/users/u1", { method: "PUT", body: JSON.stringify({ roles: ["operator"], primary_account_id: "acc-2" }) });
+    expect(mockedFetchJson).toHaveBeenNthCalledWith(2, "/api/auth/users/u1", { method: "PUT", body: JSON.stringify({ role: "operator", primary_account_id: "acc-2" }) });
   });
 
   it("keeps the temporary-password requirement explicit", async () => {

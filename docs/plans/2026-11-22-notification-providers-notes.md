@@ -3,8 +3,8 @@
 Generic Core capability for every `notification_provider` extension. Landed in
 release batch 0.9.24. The guide for extension authors is the "Notification
 Providers" section of `docs/extension-authoring-agent-playbook.md`; the decision
-record is `docs/architecture/adr/draft-notification-connection-capabilities-and-system-email-sender.md`
-(number pending).
+record is ADR 0081,
+`docs/architecture/adr/0081-notification-connection-capabilities-and-system-email-sender.md`.
 
 ## What changed
 

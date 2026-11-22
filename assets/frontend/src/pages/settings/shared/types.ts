@@ -116,7 +116,8 @@ export type CreateUserInput = {
   display_name: string;
   email: string;
   password: string;
-  roles: string[];
+  /** One system role (ADR 0076 §7). */
+  role: string;
   account_ids?: string[];
   primary_account_id?: string;
   is_active: boolean;
@@ -128,7 +129,7 @@ export type UpdateUserInput = Partial<
     CreateUserInput,
     | "display_name"
     | "password"
-    | "roles"
+    | "role"
     | "account_ids"
     | "primary_account_id"
     | "is_active"
@@ -149,7 +150,8 @@ export type OAuthReadiness = {
   blockers: string[];
 };
 
-export type OAuthPresetId = "operational" | "full_authoring";
+/** `my_role`: the person's role, intersected with what the app asked for (ADR 0076 §5). */
+export type OAuthPresetId = "my_role" | "operational" | "full_authoring";
 
 export type OAuthConsentPreset = {
   id: OAuthPresetId;
@@ -172,19 +174,44 @@ export type OAuthConsentClient = {
   redirect_uri_loopback: boolean;
 };
 
+/** One permission of the catalogue, in its plain description. */
+export type PermissionDescription = { key: string; description: string };
+
+/**
+ * ADR 0076 §5: what the app gets "as my role" on the consent screen. The server gives
+ * the dates; the page only formats them.
+ */
+export type OAuthConsentRoleAccess = {
+  preset: "my_role";
+  role: "admin" | "operator" | "viewer";
+  scopes: string[];
+  /** What the app will be able to do, from the permission catalogue. */
+  permissions: PermissionDescription[];
+  /** The app asked for less than the person's role allows. */
+  narrower: boolean;
+  available: boolean;
+  expiry_days: number;
+  expires_at: string;
+};
+
 export type OAuthConsentView = {
   request_id: string;
   expires_at: string;
   client: OAuthConsentClient;
+  user?: { username: string; display_name: string; role: string };
   requested_scopes: string[];
+  role_access?: OAuthConsentRoleAccess;
+  /** Only an admin chooses a preset, an expiry and projects. */
+  advanced_options?: boolean;
   presets: OAuthConsentPreset[];
   default_preset: OAuthPresetId | null;
   expiry_days_options: number[];
   default_expiry_days: number;
 };
 
+/** An operator or a viewer sends only the decision: their role, the server's expiry. */
 export type OAuthConsentDecision =
-  | { decision: "approve"; preset: OAuthPresetId; expiry_days: number; project_ids: string[] }
+  | { decision: "approve"; preset?: OAuthPresetId; expiry_days?: number; project_ids?: string[] }
   | { decision: "deny" };
 
 export type OAuthGrantStatus = "active" | "expired" | "revoked";
@@ -272,6 +299,18 @@ export type AgentSkillPackage = {
   description: string;
 };
 
+/**
+ * ADR 0076 §5: the access an agent gets from a person who does not choose one. An
+ * operator or a viewer connects with their role's permissions and the server's
+ * expiry; only an admin (`advanced_options`) chooses a preset, an expiry or projects.
+ */
+export type AgentRoleAccess = {
+  preset: "my_role";
+  scopes: string[];
+  expiry_days: number;
+  advanced_options: boolean;
+};
+
 export type AgentAccessSetup = {
   mcp_url: string;
   mcp_blocker: string;
@@ -280,7 +319,10 @@ export type AgentAccessSetup = {
   packages: AgentSkillPackage[];
   presets: OAuthConsentPreset[];
   expiry_days_options: number[];
+  /** The end date of each expiry choice, from the server. */
+  expiry_dates?: Record<string, string>;
   default_expiry_days: number;
+  role_access: AgentRoleAccess;
   first_request: AgentSetupStep;
   clients: AgentClient[];
 };
@@ -297,12 +339,40 @@ export type AgentAccessToken = {
   expired?: boolean;
 };
 
+/**
+ * Without `preset`, `expiry_days` and `project_ids` the token gets the person's role
+ * and the server's expiry; only an admin may send them (ADR 0076 §5).
+ */
 export type AgentAccessTokenRequest = {
   client_id: string;
   package_id: string;
-  preset: OAuthPresetId;
-  expiry_days: number;
-  project_ids: string[];
+  preset?: OAuthPresetId;
+  expiry_days?: number;
+  project_ids?: string[];
+};
+
+/**
+ * ADR 0076 §5: one AI agent connection of the person, as the AI agents page and the
+ * app shell notice show it. Every date and `ending_soon` come from the server.
+ */
+export type AgentConnection = {
+  id: string;
+  kind: "personal_token" | "oauth_grant";
+  /** The wizard client a token was made for; empty for a cloud client's grant. */
+  client_id: string;
+  client_label: string;
+  created_at: string | null;
+  ends_at: string | null;
+  last_used_at: string | null;
+  days_left: number | null;
+  ending_soon: boolean;
+  /** `connect_again`: a fresh token from this page; `reconnect_from_client`: OAuth again. */
+  renew: "connect_again" | "reconnect_from_client";
+};
+
+export type AgentConnectionsPage = {
+  connections: AgentConnection[];
+  reminder_days: number;
 };
 
 export type AgentAccessIssueResult = {

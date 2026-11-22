@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 import re
+from collections.abc import Mapping
 from typing import Any
 from urllib.parse import urlencode
 
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
+from core.application.auth.effective_permissions import (
+    NOT_ROLE_BASED,
+    effective_permissions,
+    load_role_permissions,
+    owner_role_permissions,
+    principal_permission_kind,
+    role_permission_keys,
+)
 from core.application.auth.inbound_oauth_policy import (
     MCP_FORWARD_HEADER,
     PROTOCOL_PATHS,
@@ -19,14 +29,23 @@ from core.application.auth.inbound_oauth_policy import (
     oauth_forward_accepted,
     oauth_principal_denied_route,
 )
+from core.application.auth.permissions import (
+    ADMIN_ROLE,
+    OPERATOR_ROLE,
+    SYSTEM_ROLE_PERMISSIONS,
+    highest_system_role,
+)
 from core.application.auth.principal import (
     ResolvedPrincipal,
+    is_machine_principal,
     is_token_scoped_principal,
     principal_has_required_scopes,
 )
+from core.application.auth.route_permissions import route_admin_only, route_permission
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.mcp_dev_proxy import MCP_DEV_AUTH_HEADER, mcp_dev_proxy_enabled
 
+_LOG = logging.getLogger(__name__)
 _TOKEN_COMMAND = "command:*"
 _PATH_API_PROJECTS = "/api/projects/"
 _TOKEN_READ = "read:*"
@@ -115,6 +134,71 @@ def _is_catalog_secret_delete(path: str, method: str) -> bool:
 def _is_operator_delete(path: str, method: str) -> bool:
     """The only DELETE requests below admin: unbinding and deleting catalog secrets."""
     return _is_secret_unbind(path, method) or _is_catalog_secret_delete(path, method)
+
+
+#: A person's writes to their own account: signing out, password, email, own tokens,
+#: OAuth grants and the AI agent wizard (ADR 0076 ``account.self``).
+OWN_ACCOUNT_PERMISSION = "account.self"
+#: Open owner question (ADR 0076 part 2): a person signed in through an external
+#: provider writes to their own account only with what the profile writes need, the
+#: operator's today. ``account.self`` would let an external viewer do it as well.
+_EXTERNAL_OWN_ACCOUNT_WRITE_PERMISSION = "account.profile.write"
+#: No rule of the route table maps the request: a write nobody may make.
+_UNMAPPED = object()
+_WORKFLOW_RUN_RE = re.compile(r"^/api/workflows/[^/]+/run$")
+
+
+def _route_needs(method: str, path: str, permission: str) -> bool:
+    match = route_permission(method, path)
+    return match is not None and match.permission == permission
+
+
+def _is_workflow_run_write(path: str, method: str) -> bool:
+    """Starting a workflow from the registry route: a service account's operator work."""
+    return method == "POST" and bool(_WORKFLOW_RUN_RE.fullmatch(path))
+
+
+def _stored_role_permissions(bl: Any) -> Mapping[str, frozenset[str]]:
+    """The ``role_permissions`` rows, read once per request.
+
+    A table without a single row was never seeded (the migration writes the system
+    roles' lists): the system roles then act on the catalogue matrix those rows hold,
+    instead of every operator and viewer losing every permission.
+    """
+    stored = load_role_permissions(bl.conn)
+    if stored:
+        return stored
+    _LOG.warning("role_permissions holds no rows; using the system roles' catalogue lists")
+    return SYSTEM_ROLE_PERMISSIONS
+
+
+def _person_route_permission(
+    method: str,
+    path: str,
+    *,
+    interactive_source: str,
+    contributed_own_account_write: bool,
+) -> str | None | object:
+    """The permission a person's request needs, ``None`` for any signed-in person, or
+    :data:`_UNMAPPED` when no rule maps it.
+
+    A write an edition contributes as a person's own-account route (the
+    ``self_service_auth_write_paths`` registry) needs ``account.self`` like Core's own.
+    """
+    match = route_permission(method, path)
+    if match is not None:
+        permission = match.permission
+    elif contributed_own_account_write:
+        permission = OWN_ACCOUNT_PERMISSION
+    else:
+        return _UNMAPPED
+    if (
+        permission == OWN_ACCOUNT_PERMISSION
+        and method not in _HTTP_SAFE_METHODS
+        and interactive_source == "external"
+    ):
+        return _EXTERNAL_OWN_ACCOUNT_WRITE_PERMISSION
+    return permission
 
 
 _VIEWER_EXTENSION_DETAIL_RE = re.compile(r"^/api/extensions/([^/]+)(?:/compiled-manifest)?$")
@@ -404,7 +488,6 @@ async def local_auth_middleware(
     local_auth_bootstrap_required_fn,
     auth_account_tables_available_fn,
     roles_intersect_fn,
-    is_admin_only_route_fn,
     is_registry_read_route_fn,
     is_self_service_auth_write_route_fn,
     csrf_request_valid_fn,
@@ -420,6 +503,8 @@ async def local_auth_middleware(
     err_operator_role_required: str,
     path_bootstrap: str,
     path_login: str,
+    load_role_permissions_fn: Any = None,
+    err_route_not_mapped: str = "No permission is defined for this route",
 ) -> Any:
     request.state.auth_user = None
     request.state.auth_principal = None
@@ -556,9 +641,13 @@ async def local_auth_middleware(
         return JSONResponse({"error": "CSRF validation failed"}, status_code=403)
 
     authoring_validate = _is_workflow_authoring_validate(path, method)
+    machine = is_machine_principal(user)
+    # ADR 0076 §3: token scopes and service accounts keep their rules. A former
+    # admin-only route, a delete and creating workflows need admin:all from a token and
+    # the admin role from a service account (its operator deletes excepted).
     admin_required = bool(
-        is_admin_only_route_fn(path)
-        or (method == "DELETE" and not _is_operator_delete(path, method))
+        route_admin_only(method, path)
+        or (method == "DELETE" and not (machine and _is_operator_delete(path, method)))
         or _is_workflow_authoring_create(path, method)
     )
     registry_read_route = bool(is_registry_read_route_fn(path))
@@ -592,6 +681,44 @@ async def local_auth_middleware(
             status_code=403,
         )
 
+    own_account_write = method not in _HTTP_SAFE_METHODS and (
+        _route_needs(method, path, OWN_ACCOUNT_PERMISSION)
+        or bool(is_self_service_auth_write_route_fn(path))
+    )
+    if principal_permission_kind(principal) != NOT_ROLE_BASED:
+        # A person, or a person's own token: the route table and the permissions of
+        # the person's role (ADR 0076 §4). A token's scopes were checked above, so it
+        # acts within both its scopes and its owner's role.
+        try:
+            # An admin holds the whole catalogue implicitly and has no rows to read.
+            stored = (
+                {}
+                if highest_system_role(principal.roles) == ADMIN_ROLE
+                else await run_in_threadpool(
+                    load_role_permissions_fn or _stored_role_permissions, bl
+                )
+            )
+        except Exception:
+            return JSONResponse({"error": "Role permissions are unavailable"}, status_code=503)
+        granted = effective_permissions(principal, role_permissions=stored)
+        request.state.effective_permissions = granted
+        user["permissions"] = sorted(granted.permissions)
+        permission = _person_route_permission(
+            method,
+            path,
+            interactive_source=auth_source,
+            contributed_own_account_write=own_account_write,
+        )
+        if permission is _UNMAPPED:
+            return JSONResponse({"error": err_route_not_mapped}, status_code=403)
+        owner = owner_role_permissions(principal, role_permissions=stored)
+        if permission is not None and permission not in owner:
+            operator_holds = permission in role_permission_keys(OPERATOR_ROLE, stored)
+            error = err_operator_role_required if operator_holds else err_admin_role_required
+            return JSONResponse({"error": error}, status_code=403)
+        return await call_next(request)
+
+    # Service accounts, extension runtime and system actors: their rules are unchanged.
     if admin_required:
         if not roles_intersect_fn(user.get("roles") or [], auth_admin_roles):
             return JSONResponse({"error": err_admin_role_required}, status_code=403)
@@ -600,23 +727,23 @@ async def local_auth_middleware(
             if not roles_intersect_fn(user.get("roles") or [], auth_write_roles):
                 return JSONResponse({"error": err_operator_role_required}, status_code=403)
         else:
-            required_roles = (
-                auth_write_roles
-                if project_callback_write or project_action_write
-                else auth_admin_roles
+            operator_write = (
+                (project_callback_write and machine)
+                or project_action_write
+                or _is_workflow_run_write(path, method)
             )
+            required_roles = auth_write_roles if operator_write else auth_admin_roles
             if not roles_intersect_fn(user.get("roles") or [], required_roles):
-                error = (
-                    err_operator_role_required
-                    if project_callback_write or project_action_write
-                    else err_admin_role_required
-                )
+                error = err_operator_role_required if operator_write else err_admin_role_required
                 return JSONResponse({"error": error}, status_code=403)
     elif method not in _HTTP_SAFE_METHODS and not authoring_validate:
-        if auth_source == "local" and is_self_service_auth_write_route_fn(path):
+        if auth_source == "local" and own_account_write:
             return await call_next(request)
-        if not roles_intersect_fn(user.get("roles") or [], auth_write_roles):
-            return JSONResponse({"error": err_operator_role_required}, status_code=403)
+        operator_write = machine
+        required_roles = auth_write_roles if operator_write else auth_admin_roles
+        if not roles_intersect_fn(user.get("roles") or [], required_roles):
+            error = err_operator_role_required if operator_write else err_admin_role_required
+            return JSONResponse({"error": error}, status_code=403)
 
     return await call_next(request)
 

@@ -151,6 +151,9 @@ class OrchestratorState(TypedDict):
     )
     approval_context: str | None
     user_approved: bool | None
+    # The checked values of an approved typed review (ADR 0075) on the
+    # state-based resume path; the Approval node turns them into its outputs.
+    approval_review_values: dict[str, Any] | None
     # Set by approval gate on rejection; cleared by the producing agent after use.
     # Annotated with a last-write-wins reducer because LangGraph 1.x applies
     # Command.update and the goto-target node's return dict in the same step,
@@ -365,6 +368,7 @@ class OrchestratorStateModel(BaseModel):
     external_effect_resolution_ref: dict[str, Any] | None = None
     approval_context: str | None = None
     user_approved: bool | None = None
+    approval_review_values: dict[str, Any] | None = None
     review_feedback: str | None = None
     reviewer_comments: str | None = None
     risk_notes: str | None = None

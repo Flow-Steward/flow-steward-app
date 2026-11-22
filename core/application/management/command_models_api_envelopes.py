@@ -179,6 +179,85 @@ class ApiV2ProjectsEnvelopeView(ViewModel):
     )
 
 
+_OPERATOR_SECTION_EXAMPLE: dict[str, Any] = {
+    "project_id": "proj_42",
+    "project_name": "Payments",
+    "workspace_id": "ws_1",
+    "workflow_id": "contracts",
+    "workflow_name": "Contracts",
+    "title": "Contracts",
+    "runnable": False,
+    "blocked_reasons": [
+        {
+            "code": "operator.effects_not_acknowledged",
+            "message": "An admin has not confirmed the real effects of this workflow's "
+            "current contract",
+            "path": "settings.operator.effects_acknowledged",
+            "severity": "error",
+        }
+    ],
+}
+
+
+class ApiV2OperatorSectionsDataView(ViewModel):
+    #: ADR 0075: one item per published workflow in each project the user can see.
+    sections: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ApiV2OperatorSectionsEnvelopeView(ViewModel):
+    model_config = ConfigDict(
+        title="API v2 Operator Sections Envelope",
+        json_schema_extra={
+            "description": "The operator and viewer menu: (project, workflow) sections.",
+            "example": {
+                "ok": True,
+                "kind": "list",
+                "data": {"sections": [_OPERATOR_SECTION_EXAMPLE]},
+                "error": None,
+                "meta": {"resource": "operator-sections"},
+            },
+        },
+    )
+
+    ok: bool = True
+    kind: str = "list"
+    data: ApiV2OperatorSectionsDataView = Field(default_factory=ApiV2OperatorSectionsDataView)
+    error: dict[str, Any] | None = None
+    meta: ApiEnvelopeMetaView = Field(
+        default_factory=lambda: ApiEnvelopeMetaView(resource="operator-sections")
+    )
+
+
+class ApiV2OperatorSectionEnvelopeView(ViewModel):
+    model_config = ConfigDict(
+        title="API v2 Operator Section Envelope",
+        json_schema_extra={
+            "description": "One operator section: the workflow's resolved operator form, "
+            "list and result settings with their issues.",
+            "example": {
+                "ok": True,
+                "kind": "detail",
+                "data": {
+                    **_OPERATOR_SECTION_EXAMPLE,
+                    "workflow_revision": 12,
+                    "effects_acknowledged": False,
+                    "operator": {"workflow_id": "contracts", "published": True},
+                },
+                "error": None,
+                "meta": {"resource": "operator-sections"},
+            },
+        },
+    )
+
+    ok: bool = True
+    kind: str = "detail"
+    data: dict[str, Any] = Field(default_factory=dict)
+    error: dict[str, Any] | None = None
+    meta: ApiEnvelopeMetaView = Field(
+        default_factory=lambda: ApiEnvelopeMetaView(resource="operator-sections")
+    )
+
+
 class ApiV2ProjectJobsEnvelopeView(ViewModel):
     model_config = ConfigDict(
         title="API v2 Project Job List Envelope",

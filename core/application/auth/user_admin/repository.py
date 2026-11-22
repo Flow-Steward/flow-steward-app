@@ -9,6 +9,10 @@ from core.application.auth.account_memberships import sync_user_account_membersh
 from core.application.auth.local_credentials import authenticator_policy_available
 from core.application.auth.password import password_hash
 from core.application.auth.password_history import require_unused_password
+from core.application.auth.role_assignments import (
+    global_assignments,
+    replace_user_role_assignments,
+)
 from core.application.management.errors import ServiceConflictError, ServiceNotFoundError
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -24,6 +28,37 @@ def _lock_user_lifecycle(cur: Any) -> None:
         "SELECT pg_advisory_xact_lock(hashtext(%s))",
         ("flow-steward:user-lifecycle",),
     )
+
+
+#: The role every installation's first user gets, whatever the channel (CLI, API).
+FIRST_USER_ROLE = "admin"
+#: Roles of a user created without explicit roles once an installation has users.
+DEFAULT_USER_ROLES = ("viewer",)
+
+
+class FirstUserMustBeAdminError(ValueError):
+    """Explicit roles without admin for the first user would lock everyone out."""
+
+
+def _roles_for_new_user(cur: Any, roles: list[str]) -> list[str]:
+    """The roles to grant, decided under the user-lifecycle lock.
+
+    The first user of an installation is always an administrator: without roles
+    they get admin, and roles without admin are refused, so nobody ends up with
+    an installation no one can administer.
+    """
+    cur.execute("SELECT EXISTS (SELECT 1 FROM users)")
+    row = cur.fetchone()
+    users_exist = bool(row[0]) if row else False
+    if users_exist:
+        return list(roles) or list(DEFAULT_USER_ROLES)
+    if not roles:
+        return [FIRST_USER_ROLE]
+    if FIRST_USER_ROLE not in roles:
+        raise FirstUserMustBeAdminError(
+            "The first user must be an administrator: choose the admin role or leave the role out"
+        )
+    return list(roles)
 
 
 def _table_exists(bl: Any, table_name: str) -> bool:
@@ -190,6 +225,8 @@ def create_auth_user(
 ) -> str:
     seed_default_roles(bl)
     with bl.conn.cursor() as cur:
+        _lock_user_lifecycle(cur)
+        roles = _roles_for_new_user(cur, roles)
         cur.execute(
             """
             INSERT INTO users (
@@ -216,17 +253,7 @@ def create_auth_user(
         user_id = str((row[0] if row else 0) or "").strip()
         if not user_id:
             raise RuntimeError("failed to create user")
-        cur.execute("DELETE FROM user_roles WHERE user_id = %s", (user_id,))
-        cur.execute(
-            """
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT %s, id
-            FROM roles
-            WHERE key = ANY(%s)
-            ON CONFLICT (user_id, role_id) DO NOTHING
-            """,
-            (user_id, roles),
-        )
+        replace_user_role_assignments(cur, user_id=user_id, assignments=global_assignments(roles))
         sync_user_account_memberships(
             bl,
             user_id=user_id,
@@ -301,18 +328,9 @@ def update_auth_user(
                 (bool(must_change_password), normalized_user_id),
             )
         if roles is not None:
-            cur.execute("DELETE FROM user_roles WHERE user_id = %s", (normalized_user_id,))
-            if roles:
-                cur.execute(
-                    """
-                    INSERT INTO user_roles (user_id, role_id)
-                    SELECT %s, id
-                    FROM roles
-                    WHERE key = ANY(%s)
-                    ON CONFLICT (user_id, role_id) DO NOTHING
-                    """,
-                    (normalized_user_id, roles),
-                )
+            replace_user_role_assignments(
+                cur, user_id=normalized_user_id, assignments=global_assignments(roles)
+            )
         if requested_account_ids is not None and primary_account_id is not None:
             cur.execute(
                 "UPDATE users SET account_id = %s WHERE id = %s",

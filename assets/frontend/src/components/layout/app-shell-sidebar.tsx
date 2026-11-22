@@ -1,8 +1,9 @@
 import { useI18n } from "@/lib/i18n/useI18n";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import {
   Check,
+  ChevronDown,
   ChevronsUpDown,
   GalleryVerticalEnd,
   LogOut,
@@ -62,6 +63,8 @@ function SidebarTooltip({
 }
 
 export type AppShellSidebarProps = {
+  /** Whether the account menu links to Users & access (the `administer_platform` capability). */
+  canManageUsers: boolean;
   loggingOut: boolean;
   onExpandRail: () => void;
   onLogout: () => Promise<void>;
@@ -275,6 +278,7 @@ function WorkspaceMenu({
 }
 
 type AccountMenuProps = {
+  canManageUsers: boolean;
   loggingOut: boolean;
   onLogout: () => Promise<void>;
   onOpenChange: (open: boolean) => void;
@@ -286,6 +290,7 @@ type AccountMenuProps = {
 };
 
 function AccountMenu({
+  canManageUsers,
   loggingOut,
   onLogout,
   onOpenChange,
@@ -349,16 +354,19 @@ function AccountMenu({
         </span>
         <span>{t("react.shared.account_profile", "Account profile")}</span>
       </NavLink>
-      <NavLink
-        className="fs-shell-menu__item"
-        role="menuitem"
-        to="/settings/users"
-      >
-        <span className="fs-shell-menu__icon">
-          <Users aria-hidden="true" size={16} strokeWidth={1.5} />
-        </span>
-        <span>{t("react.shared.users_amp_access", "Users & access")}</span>
-      </NavLink>
+      {/* The route is admin-only; operators and viewers do not see a dead link. */}
+      {canManageUsers ? (
+        <NavLink
+          className="fs-shell-menu__item"
+          role="menuitem"
+          to="/settings/users"
+        >
+          <span className="fs-shell-menu__icon">
+            <Users aria-hidden="true" size={16} strokeWidth={1.5} />
+          </span>
+          <span>{t("react.shared.users_amp_access", "Users & access")}</span>
+        </NavLink>
+      ) : null}
       <hr className="fs-shell-menu__separator" />
       <fieldset className="fs-shell-menu__section">
         <legend className="fs-shell-menu__label">{t("react.shared.appearance", "Appearance")}</legend>
@@ -477,7 +485,39 @@ function SidebarRailEdge({ onToggleRail }: Readonly<{ onToggleRail: () => void }
   );
 }
 
+/**
+ * A group whose label folds its items (an operator's project, ADR 0075). It
+ * starts open; the collapsed rail always shows the items, as icons.
+ */
+function CollapsibleSidebarGroup({
+  items,
+  label,
+  railState,
+}: Readonly<{ items: ReactNode; label: string; railState: SidebarRailState }>) {
+  const [open, setOpen] = useState(true);
+  const itemsId = useId();
+  const expanded = open || railState === "collapsed";
+  return (
+    <section className="fs-app-sidebar__group">
+      <button
+        aria-controls={itemsId}
+        aria-expanded={expanded}
+        className="fs-app-sidebar__group-label fs-app-sidebar__group-toggle"
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <ChevronDown aria-hidden="true" />
+        <span>{label}</span>
+      </button>
+      <div hidden={!expanded} id={itemsId}>
+        {items}
+      </div>
+    </section>
+  );
+}
+
 export function AppShellSidebar({
+  canManageUsers,
   loggingOut,
   onExpandRail,
   onLogout,
@@ -525,29 +565,40 @@ export function AppShellSidebar({
         />
       </div>
       <nav aria-label={t("react.shared.primary", "Primary")} className="fs-app-sidebar__content">
-        {visibleSections.map((section) => (
-          <section className="fs-app-sidebar__group" key={section.key}>
-            <p className="fs-app-sidebar__group-label">{section.label}</p>
-            {section.items.map((item) => {
-              const active = isActiveSidebarPath(
-                pathname,
-                item.to,
-                visibleSections,
-              );
-              return (
-                <SidebarNavigationItem
-                  active={active}
-                  item={item}
-                  key={item.key}
-                  railState={railState}
-                />
-              );
-            })}
-          </section>
-        ))}
+        {visibleSections.map((section) => {
+          const items = section.items.map((item) => {
+            const active = isActiveSidebarPath(
+              pathname,
+              item.to,
+              visibleSections,
+            );
+            return (
+              <SidebarNavigationItem
+                active={active}
+                item={item}
+                key={item.key}
+                railState={railState}
+              />
+            );
+          });
+          return section.collapsible ? (
+            <CollapsibleSidebarGroup
+              items={items}
+              key={section.key}
+              label={section.label}
+              railState={railState}
+            />
+          ) : (
+            <section className="fs-app-sidebar__group" key={section.key}>
+              <p className="fs-app-sidebar__group-label">{section.label}</p>
+              {items}
+            </section>
+          );
+        })}
       </nav>
       <footer className="fs-app-sidebar__footer">
         <AccountMenu
+          canManageUsers={canManageUsers}
           loggingOut={loggingOut}
           onLogout={onLogout}
           onOpenChange={(open) => setOpenMenu(open ? "account" : null)}

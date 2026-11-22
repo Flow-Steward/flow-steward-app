@@ -35,10 +35,52 @@ def workflow_test_file_max_bytes() -> int:
 
 
 def file_preview_max_bytes() -> int:
-    """Largest generated image or PDF the run view previews inline."""
+    """Largest file the browser previews: image, PDF, text, spreadsheet or Word document."""
     return _bounded_bytes(
         "FS_FILE_PREVIEW_MAX_BYTES", fallback=20 * _MIB, minimum=1024, maximum=256 * _MIB
     )
 
 
-__all__ = ["base64_file_max_bytes", "file_preview_max_bytes", "workflow_test_file_max_bytes"]
+def _bounded_count(name: str, *, fallback: int, maximum: int) -> int:
+    try:
+        default = int(registry_default_value(name))
+    except (KeyError, TypeError, ValueError):
+        default = fallback
+    try:
+        value = int(_runtime_env.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(0, min(maximum, value))
+
+
+def browser_run_upload_limits() -> dict[str, int]:
+    """Files a person uploads to start a real run from the browser (ADR 0075).
+
+    The deployment's attachment policy owns these numbers: the same
+    `FS_ATTACHMENT_MAX_SIZE_BYTES` and `FS_ATTACHMENT_MAX_FILES` that admission
+    checks per file. Zero keeps its existing meaning: no limit. Test files have
+    their own budget and are not used here.
+    """
+    max_file_bytes = _bounded_count(
+        "FS_ATTACHMENT_MAX_SIZE_BYTES", fallback=20 * _MIB, maximum=1024 * _MIB
+    )
+    max_files = _bounded_count("FS_ATTACHMENT_MAX_FILES", fallback=10, maximum=1000)
+    # The policy limits each file and the count, as task attachments do; the run
+    # total follows from them, so four 6 MB pages fit a 20 MB policy. Zero on
+    # either side means no limit there, so no total either.
+    max_total_bytes = (
+        min(max_file_bytes * max_files, 1024 * _MIB) if max_file_bytes and max_files else 0
+    )
+    return {
+        "max_file_bytes": max_file_bytes,
+        "max_total_bytes": max_total_bytes,
+        "max_files": max_files,
+    }
+
+
+__all__ = [
+    "base64_file_max_bytes",
+    "browser_run_upload_limits",
+    "file_preview_max_bytes",
+    "workflow_test_file_max_bytes",
+]

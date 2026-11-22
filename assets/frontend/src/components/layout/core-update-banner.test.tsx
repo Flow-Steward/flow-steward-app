@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { CoreUpdateBanner } from "./core-update-banner";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 const notice = {
   status: "update_available", current_version: "0.9.17", latest_version: "0.9.18",
@@ -10,7 +11,7 @@ const notice = {
 };
 
 function view(role: string | null, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
-  return <AuthContext.Provider value={{ session: role ? { roles: [role], user: { roles: [role] } } : null } as AuthContextValue}>
+  return <AuthContext.Provider value={{ session: role ? { roles: [role], user: { roles: [role], permissions: permissionsForRoles([role]) } } : null } as AuthContextValue}>
     <QueryClientProvider client={client}><p>Dashboard</p><CoreUpdateBanner /></QueryClientProvider>
   </AuthContext.Provider>;
 }

@@ -34,7 +34,6 @@ _is_public_auth_path: _AnyCallable
 _auth_tables_available: _AnyCallable
 _get_user_by_session_token: _AnyCallable
 _auth_account_tables_available: _AnyCallable
-_is_admin_only_route: _AnyCallable
 _is_registry_read_route: _AnyCallable
 _is_self_service_auth_write_route: _AnyCallable
 _sanitize_retryable_interrupted_step_snapshot: _AnyCallable

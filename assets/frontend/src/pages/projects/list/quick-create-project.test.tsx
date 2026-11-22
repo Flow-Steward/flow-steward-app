@@ -8,6 +8,7 @@ import { fetchModelSelectionOptions, fetchProjectsList } from "@/pages/projects/
 import { fetchDataConnections } from "@/pages/registry/datasets/api";
 import { fetchWorkspaces } from "@/pages/registry/workspaces/api";
 import { fetchWorkflows } from "@/pages/workflows/shared/api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/projects/list/api", () => ({
   fetchModelSelectionOptions: vi.fn(),
@@ -27,7 +28,7 @@ const adminAuth: AuthContextValue = {
   session: {
     authenticated: true,
     roles: ["admin"],
-    user: { roles: ["admin"] },
+    user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) },
   } as AuthContextValue["session"],
   status: "authenticated",
 };

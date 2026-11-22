@@ -102,6 +102,10 @@ class ApprovalDecisionInput(ViewModel):
     override_content: str = ""
     approval_id: str
     external_actor: ExternalActorInput | None = None
+    #: Edits of a typed review's editable fields (ADR 0075): field name to value.
+    #: Absent when the person changed nothing; the server lays them over the
+    #: values captured when the review opened.
+    values: dict[str, Any] | None = None
 
     @field_validator("approval_id", mode="before")
     @classmethod
@@ -166,6 +170,10 @@ class ApprovalDecisionInput(ViewModel):
             raise ValueError("comment exceeds maximum length")
         if any(ord(ch) < 32 and ch not in "\t\n\r" for ch in self.comment):
             raise ValueError("comment contains control characters")
+        if self.values is not None and any(
+            not isinstance(name, str) or not name.strip() for name in self.values
+        ):
+            raise ValueError("values must name review fields")
         return self
 
 
@@ -586,11 +594,11 @@ class WorkflowRunInput(ViewModel):
     @field_validator("files")
     @classmethod
     def validate_uploads(cls, value: list[WorkflowRunFileInput]) -> list[WorkflowRunFileInput]:
+        # Several entries may share an input_name: a file-list input (``type: array``,
+        # ``items.type: file``) takes one entry per file, in order. Whether a name
+        # takes one or several is the contract's, checked when uploads are bound.
         if sum(len(row.decoded_content()) for row in value) > 1_048_576:
             raise ValueError("File uploads exceed 1 MiB decoded total")
-        names = [row.input_name for row in value]
-        if len(set(names)) != len(names):
-            raise ValueError("Each file input must have exactly one upload")
         return value
 
     @field_validator("project_id", "workflow_id", mode="before")
@@ -611,6 +619,20 @@ class WorkflowRunInput(ViewModel):
         return validate_bounded_json_object(value)
 
 
+class BrowserRunFileInput(WorkflowRunFileInput):
+    """A real upload from the browser: bounded by the attachment policy, not 1 MiB.
+
+    The size is checked against the configured policy by the request model before
+    decoding (ADR 0075); the MCP/API launch keeps its own fixed budget.
+    """
+
+    content_base64: str = Field(min_length=1, repr=False)
+
+
+def _base64_length(decoded_bytes: int) -> int:
+    return 4 * ((decoded_bytes + 2) // 3)
+
+
 class BuilderWorkflowRunInput(ViewModel):
     """Acknowledged browser launch of one saved revision; runtime authority is server-owned."""
 
@@ -620,7 +642,7 @@ class BuilderWorkflowRunInput(ViewModel):
     acknowledged: bool = Field(strict=True)
     summary: str = Field(min_length=1, max_length=10000)
     inputs: dict[str, Any] = Field(default_factory=dict)
-    files: list[WorkflowRunFileInput] = Field(default_factory=list, max_length=10)
+    files: list[BrowserRunFileInput] = Field(default_factory=list)
 
     @field_validator("acknowledged")
     @classmethod
@@ -646,8 +668,33 @@ class BuilderWorkflowRunInput(ViewModel):
 
     @field_validator("files")
     @classmethod
-    def validate_uploads(cls, value: list[WorkflowRunFileInput]) -> list[WorkflowRunFileInput]:
-        return WorkflowRunInput.validate_uploads(value)
+    def validate_uploads(cls, value: list[BrowserRunFileInput]) -> list[BrowserRunFileInput]:
+        from core.infrastructure.config.workflow_file_limits import browser_run_upload_limits
+
+        limits = browser_run_upload_limits()
+        max_files = limits["max_files"]
+        max_file = limits["max_file_bytes"]
+        max_total = limits["max_total_bytes"]
+        # The count covers every input together. Several entries may share an
+        # input_name (a file-list input, in upload order); the contract decides
+        # whether a name takes one or several when the uploads are bound.
+        if max_files and len(value) > max_files:
+            raise ValueError(f"A run accepts at most {max_files} files")
+        if max_file:
+            # Refuse an oversized body before decoding it.
+            encoded_cap = _base64_length(max_file)
+            for row in value:
+                if len(row.content_base64) > encoded_cap:
+                    raise ValueError(f"'{row.filename}' is larger than {max_file} bytes")
+        total = 0
+        for row in value:
+            size = len(row.decoded_content())
+            if max_file and size > max_file:
+                raise ValueError(f"'{row.filename}' is larger than {max_file} bytes")
+            total += size
+        if max_total and total > max_total:
+            raise ValueError(f"The files of one run exceed {max_total} bytes together")
+        return value
 
 
 class ProjectTaskEnqueueInput(ViewModel):

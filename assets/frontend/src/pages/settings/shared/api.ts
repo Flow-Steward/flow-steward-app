@@ -12,6 +12,7 @@ import type {
   AgentAccessSetup,
   AgentAccessToken,
   AgentAccessTokenRequest,
+  AgentConnectionsPage,
   McpOAuthSetting,
   OAuthConsentDecision,
   OAuthConsentView,
@@ -559,6 +560,11 @@ export async function revokePlatformClient(clientId: string): Promise<PlatformCl
 
 export async function fetchAgentAccessSetup(): Promise<AgentAccessSetup> {
   return fetchJson<AgentAccessSetup>("/api/auth/agent-access/setup");
+}
+
+/** The person's AI agent connections and when each ends (ADR 0076 §5). */
+export async function fetchAgentConnections(): Promise<AgentConnectionsPage> {
+  return fetchJson<AgentConnectionsPage>("/api/auth/agent-access/connections");
 }
 
 /**

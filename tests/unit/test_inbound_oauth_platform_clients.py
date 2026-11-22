@@ -9,8 +9,8 @@ from pathlib import Path
 import pytest
 
 from core.application.auth import inbound_oauth_platform_clients as platform_clients
-from core.application.auth.enforce import is_admin_only_route
 from core.application.auth.inbound_oauth_clients import validate_client_id
+from core.application.auth.route_permissions import route_admin_only
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -69,9 +69,9 @@ def test_an_unknown_preset_is_refused_before_storage() -> None:
 
 
 def test_the_management_routes_are_admin_only() -> None:
-    assert is_admin_only_route("/api/settings/mcp-oauth/platform-clients")
-    assert is_admin_only_route("/api/settings/mcp-oauth/platform-clients/x/revoke")
-    assert not is_admin_only_route("/api/settings/mcp-oauth/platform-clientsx")
+    assert route_admin_only("GET", "/api/settings/mcp-oauth/platform-clients")
+    assert route_admin_only("POST", "/api/settings/mcp-oauth/platform-clients/x/revoke")
+    assert not route_admin_only("POST", "/api/settings/mcp-oauth/platform-clientsx")
 
 
 @pytest.mark.parametrize("role", ["app", "compact"])

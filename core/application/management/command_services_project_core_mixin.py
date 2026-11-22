@@ -295,11 +295,21 @@ class ProjectCommandServiceCoreMixin:
         provided_workflow_inputs: dict[str, Any],
         attachment_rows: list[dict[str, Any]],
     ) -> None:
-        """Validate named uploads and bind their content descriptors before admission."""
+        """Validate named uploads and bind their content descriptors before admission.
+
+        A ``file`` input takes exactly one upload. A file-list input (``type: array``,
+        ``items.type: file``) takes one upload per file and receives their
+        descriptors as a list in upload order (ADR 0075); its ``min_items`` /
+        ``max_items`` are checked by the contract validation that follows.
+        """
         file_fields = {
-            row.name: row for row in workflow_interface.expected_inputs if row.type == "file"
+            row.name: row
+            for row in workflow_interface.expected_inputs
+            if row.type == "file" or row.is_file_list
         }
-        uploads = {row.get("input_name"): row for row in attachment_rows}
+        uploads: dict[str, list[dict[str, Any]]] = {}
+        for row in attachment_rows:
+            uploads.setdefault(row.get("input_name"), []).append(row)
         if set(uploads) - set(file_fields):
             raise ServiceValidationError("Upload input_name must name a declared file input")
         for name, field in file_fields.items():
@@ -312,13 +322,51 @@ class ProjectCommandServiceCoreMixin:
                     f"Workflow file input '{name}' requires an actual upload in files",
                     payload={"code": "workflow_file_input_required"},
                 )
-        for name, row in uploads.items():
-            provided_workflow_inputs[name] = {
-                "filename": row["filename"],
-                "content_type": row["mime_type"],
-                "size_bytes": row["size_bytes"],
-                "sha256": row["sha256"],
-            }
+            if not field.is_file_list and len(uploads.get(name) or []) > 1:
+                message = f"File input '{name}' takes one file; declare it as a list of files"
+                raise ServiceValidationError(
+                    message,
+                    status_code=422,
+                    payload={
+                        "error": message,
+                        "code": "workflow_file_input_single",
+                        "input_name": name,
+                    },
+                )
+        for name, rows in uploads.items():
+            descriptors = [
+                {
+                    "filename": row["filename"],
+                    "content_type": row["mime_type"],
+                    "size_bytes": row["size_bytes"],
+                    "sha256": row["sha256"],
+                }
+                for row in rows
+            ]
+            provided_workflow_inputs[name] = (
+                descriptors if file_fields[name].is_file_list else descriptors[0]
+            )
+
+    @staticmethod
+    def _bind_stored_file_inputs(
+        workflow_interface: Any,
+        inputs: dict[str, Any],
+        attachment_rows: list[dict[str, Any]],
+        stored_refs: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """The run inputs with each upload replaced by its stored artifact reference.
+
+        A file-list input receives the list of references in upload order; a
+        ``file`` input receives its one reference.
+        """
+        lists = {row.name for row in workflow_interface.expected_inputs if row.is_file_list}
+        final_inputs = dict(inputs)
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for uploaded, stored in zip(attachment_rows, stored_refs, strict=True):
+            grouped.setdefault(uploaded["input_name"], []).append(dict(stored))
+        for name, refs in grouped.items():
+            final_inputs[name] = refs if name in lists else refs[0]
+        return final_inputs
 
     def _validated_attachment_rows(self, command: ProjectTaskEnqueueInput) -> list[dict[str, Any]]:
         attachments = list(command.files or [])

@@ -10,6 +10,11 @@ from typing import Any
 
 from core.application.orchestration.active_step import ActiveStep, active_step
 from core.application.orchestration.task_envelope import TEST_RUN_SOURCES
+from core.application.workflows.approval_review import (
+    REVIEW_PAYLOAD_KEY,
+    open_review,
+    review_config,
+)
 from core.application.workflows.workflow_step_kinds import STEP_KIND_APPROVAL
 
 APPROVAL_NODE = "human_approval_gate"
@@ -19,6 +24,7 @@ GATE_KIND_APPROVAL = "approval"
 GATE_KIND_AUTONOMY = "autonomy_gate"
 GATE_KIND_RECOVERY = "recovery"
 DEFAULT_APPROVAL_MESSAGE = "Please review and approve this step before proceeding."
+LITERAL_PREFIX = "literal:"
 
 
 def _is_meaningful_content(value: object) -> bool:
@@ -384,6 +390,29 @@ def _show_output_value(
     return text if _is_meaningful_content(text) else None
 
 
+def review_source_value(state: Mapping[str, Any], selector: str) -> tuple[Any, str]:
+    """One review ``from`` / ``original`` selector, read like an Invoke input mapping."""
+    source = str(selector or "").strip()
+    if source.startswith(LITERAL_PREFIX):
+        raw = source[len(LITERAL_PREFIX) :].strip()
+        try:
+            return json.loads(raw), ""
+        except ValueError:
+            return raw, ""
+    from core.application.orchestration.expected_input_sources import (
+        resolve_expected_input_source,
+    )
+
+    return resolve_expected_input_source(dict(state), source, "approval.review")
+
+
+def _open_review(state: Mapping[str, Any], config: Mapping[str, Any]) -> dict[str, Any] | None:
+    review = review_config(config)
+    if review is None:
+        return None
+    return open_review(review, resolve=lambda selector: review_source_value(state, selector))
+
+
 def _authored_gate(state: Mapping[str, Any], current: ActiveStep) -> _Gate:
     config = _approval_config(current)
     artifacts = _latest_message_artifacts(state)
@@ -418,6 +447,15 @@ def _authored_gate(state: Mapping[str, Any], current: ActiveStep) -> _Gate:
     }
     if shown:
         payload["gate_meta"] = {"show_outputs": list(shown)}
+    for label_key in ("approve_label", "reject_label"):
+        label = str(config.get(label_key) or "").strip()
+        if label:
+            payload[label_key] = label
+    review = _open_review(state, config)
+    if review is not None:
+        # Captured whole and typed with the approval identity: the decision is
+        # checked against what the person saw, not against a later definition.
+        payload[REVIEW_PAYLOAD_KEY] = review
     return _Gate(
         kind=GATE_KIND_APPROVAL,
         current=current,

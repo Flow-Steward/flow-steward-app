@@ -7,6 +7,7 @@ import { acknowledgeJob, unacknowledgeJob } from "@/pages/jobs/detail/api";
 import { DashboardPage } from "@/pages/dashboard";
 import { fetchDashboardSummary } from "@/pages/dashboard/api";
 import { queryKeys } from "@/lib/query/keys";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/dashboard/api", () => ({ fetchDashboardSummary: vi.fn() }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: () => true }));
@@ -71,7 +72,7 @@ describe("JobsDetailPage acknowledge", () => {
     const auth = mockedUseAuth.getMockImplementation()?.();
     mockedUseAuth.mockReturnValue({
       ...auth,
-      session: { authenticated: true, roles: ["viewer"], user: { roles: ["viewer"] } },
+      session: { authenticated: true, roles: ["viewer"], user: { roles: ["viewer"], permissions: permissionsForRoles(["viewer"]) } },
     } as never);
     primeApi(terminalJob("failed", {
       job: { id: 42, status: "failed", acknowledged_at: acknowledged ? "2026-04-25T11:00:00Z" : null },

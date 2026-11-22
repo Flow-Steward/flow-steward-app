@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import asdict
 from datetime import date, datetime
 from typing import Protocol, cast
 
@@ -19,6 +20,13 @@ from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
 from core.application.settings.timezone_service import day_boundaries_utc, resolve_effective_user_tz
+from core.application.workflows.approval_waiting_propagation import (
+    STATUS_AWAITING_APPROVAL,
+    STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_REVIEW,
+    awaiting_review_targets,
+    invoke_chain_max_depth,
+)
 from core.application.workflows.workflow_action_contract import action_run_label
 from core.application.workflows.workflow_hook_contract import hook_run_label
 
@@ -27,6 +35,42 @@ from .query_services_common import *  # NOSONAR
 
 #: Page-size ceiling of grouped attention.
 _ATTENTION_PAGE_MAX = 2000
+#: History filters by how a run started: Test Run, the UI form or the API/MCP.
+SUPPORTED_JOB_TASK_SOURCES = frozenset({"workflow_test_run", "manual_ui", "mcp_workflow"})
+
+
+#: Statuses of a job that may wait for a person's review (ADR 0075 queue).
+_REVIEW_WAIT_STATUSES = frozenset({STATUS_AWAITING_APPROVAL, STATUS_AWAITING_CHILD})
+
+
+def _store_value_filters(items: Sequence[Any]) -> list[dict[str, Any]]:
+    """Checked operator filters as the store reads them; the status filter with the
+    Invoke depth its "awaiting review" value follows down a chain."""
+    specs: list[dict[str, Any]] = []
+    for item in items:
+        spec = asdict(item)
+        if spec.get("source") == "job" and STATUS_AWAITING_REVIEW in (spec.get("value") or ()):
+            spec["review_chain_depth"] = max(1, invoke_chain_max_depth())
+        specs.append(spec)
+    return specs
+
+
+def _review_status_filter(statuses: Sequence[str] | None) -> dict[str, Any] | None:
+    """The list's status filter as one store predicate when it holds "awaiting review".
+
+    The statuses stay alternatives (any match); "awaiting review" matches a job
+    waiting for approval itself or anywhere down its Invoke chain.
+    """
+    if not statuses or STATUS_AWAITING_REVIEW not in statuses:
+        return None
+    return {
+        "id": "status",
+        "source": "job",
+        "key": "status",
+        "type": "choice_multi",
+        "value": tuple(statuses),
+        "review_chain_depth": max(1, invoke_chain_max_depth()),
+    }
 
 
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
@@ -321,6 +365,119 @@ class JobQueryServiceCoreMixin:
             if isinstance(row, dict)
         ]
 
+    def _operator_list(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        *,
+        project_id: Any,
+        workflow_id: str | None,
+        task_source: str | None,
+        group_by: str,
+        filters: Any,
+    ) -> Any:
+        """The operator list of one workflow in one project (ADR 0075), checked against the scope.
+
+        Its columns and filters come from the workflow's ``settings.operator``; a
+        filter the workflow does not configure is refused, never applied as a path.
+        """
+        from core.application.projects.operator_sections import load_operator_workflow
+        from core.application.registry.workflow_operator_list import (
+            OperatorFilterError,
+            operator_filters,
+            parse_filters_param,
+        )
+
+        if not project_id or not workflow_id:
+            raise ServiceValidationError(
+                "operator_view needs project_id and workflow_id", status_code=422
+            )
+        if str(group_by or "").strip():
+            raise ServiceValidationError("operator_view cannot be grouped", status_code=422)
+        if task_source == "workflow_test_run":
+            raise ServiceValidationError(
+                "The operator list does not show Test Runs", status_code=422
+            )
+        project = bl.get_project(str(project_id)) if hasattr(bl, "get_project") else None
+        if not project:
+            raise ServiceNotFoundError(PROJECT_NOT_FOUND_MESSAGE)
+        require_project_access(resolved, dict(project))
+        require_workflow_access(resolved, workflow_id)
+        loaded = load_operator_workflow(workflow_id)
+        if loaded is None:
+            raise ServiceNotFoundError("Workflow not found")
+        if loaded.row.get("account_id") or loaded.row.get("scope_kind") != "system":
+            require_account_access(resolved, loaded.row)
+        settings, _view = loaded.runtime()
+        try:
+            value_filters = operator_filters(
+                parse_filters_param(filters), settings, loaded.contract
+            )
+        except OperatorFilterError as exc:
+            raise ServiceValidationError(
+                str(exc),
+                status_code=422,
+                payload={"error": str(exc), "code": exc.code, "filter_id": exc.filter_id},
+            ) from exc
+        return settings, value_filters
+
+    def _list_rows_with_operator_values(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        rows: list[dict[str, Any]],
+        operator: Any,
+    ) -> list[AttentionJobView]:
+        """The page's rows; in the operator list, with its column values from one batch read."""
+        views = [
+            AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        if operator is None:
+            return views
+        from core.application.registry.workflow_operator_list import operator_row_values
+
+        settings = operator[0]
+        columns = list(settings.list.columns) if settings is not None else []
+        job_ids = [str(row.get("id") or row.get("job_id") or "") for row in rows]
+        reader = getattr(bl, "read_job_operator_payloads", None)
+        payloads = (
+            reader(job_ids=job_ids, account_id=resolved.account_id)
+            if callable(reader) and job_ids
+            else {}
+        )
+        targets = self._review_targets(bl, resolved, rows)
+        for view, row in zip(views, rows, strict=False):
+            job_id = str(row.get("id") or row.get("job_id") or "")
+            payload = payloads.get(job_id)
+            values = operator_row_values(columns, row, payload)
+            view.operator_values = cast(dict[str, Any], redact(values))
+            view.submitted_by = (payload or {}).get("submitted_by")
+            view.review_job_id = targets.get(job_id)
+        return views
+
+    @staticmethod
+    def _review_targets(
+        bl: Any, resolved: ScopeContext, rows: list[dict[str, Any]]
+    ) -> dict[str, str]:
+        """Job id -> the job holding the approval it waits for, read for the page at once.
+
+        A target the caller may not read is left out: the row still says it
+        waits, but not where.
+        """
+        waiting = [
+            str(row.get("id") or row.get("job_id") or "")
+            for row in rows
+            if str(row.get("status") or "").strip().lower() in _REVIEW_WAIT_STATUSES
+        ]
+        found = awaiting_review_targets(bl, waiting) if waiting else {}
+        return {
+            job_id: str(target.get("review_job_id"))
+            for job_id, target in found.items()
+            if target.get("review_job_id") and job_row_in_scope(resolved, dict(target))
+        }
+
     def list_jobs(
         self,
         *,
@@ -339,13 +496,24 @@ class JobQueryServiceCoreMixin:
         hide_acknowledged: bool = False,
         from_date: str = "",
         to_date: str = "",
-    ) -> JobsListView | JobsAttentionGroupsView:
+        operator_view: bool = False,
+        filters: Any = None,
+        around: str = "",
+    ) -> JobsListView | JobsAttentionGroupsView | JobsQueuePositionView:
         """List jobs; ``status`` takes one status, several, or comma lists of them (any match).
 
         ``hide_acknowledged`` leaves out runs an operator has acknowledged.
-        ``task_source`` optionally restricts history to whole-workflow Test Runs.
+        ``task_source`` optionally restricts history to Test Runs, UI or API runs.
+        ``operator_view`` (with ``project_id`` and ``workflow_id``) lists the operator
+        list of that workflow in that project (ADR 0075): no Test Runs, each row with
+        ``operator_values`` for the configured columns; ``filters`` (a JSON object of
+        configured filter id -> value) narrows it on full input and output values.
         ``from_date`` and ``to_date`` include whole local calendar days, using
         the start time or queued time for a run that has not started.
+        ``around`` (a job id) answers, instead of a page, where that job is in
+        this same list and which jobs come before and after it (the operator
+        queue): found by its sort key, so a job that has just left the filter
+        still has the right neighbours.
         """
         resolved = self._scope(scope)
         try:
@@ -378,12 +546,12 @@ class JobQueryServiceCoreMixin:
         ):
             if exact and selected and str(selected) != str(exact):
                 raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
-        if task_source is not None and task_source != "workflow_test_run":
+        if task_source is not None and task_source not in SUPPORTED_JOB_TASK_SOURCES:
             raise ServiceValidationError(
                 "Unsupported task_source value",
                 payload={
                     "error": "Unsupported task_source value",
-                    "supported": ["workflow_test_run"],
+                    "supported": sorted(SUPPORTED_JOB_TASK_SOURCES),
                 },
             )
         bl = self._get_logger()
@@ -398,6 +566,11 @@ class JobQueryServiceCoreMixin:
         # the store pages or counts, so `stuck` also lists `orphaned` runs.
         normalized_status = job_status_filter_statuses(normalized_statuses) or None
         echoed_status = ",".join(normalized_statuses) or None
+        # "Awaiting review" (ADR 0075, the operator queue) is no stored status: with
+        # it the status filter becomes one predicate that reads the Invoke chain.
+        review_status_filter = _review_status_filter(normalized_status)
+        if review_status_filter is not None:
+            normalized_status = None
         normalized_workflow_id = str(workflow_id or "").strip() or None
         normalized_search = " ".join(str(search or "").split()) or None
         if (
@@ -406,6 +579,19 @@ class JobQueryServiceCoreMixin:
             and normalized_project_id not in resolved.allowed_project_ids
         ):
             raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
+        operator = None
+        if operator_view:
+            operator = self._operator_list(
+                bl,
+                resolved,
+                project_id=normalized_project_id,
+                workflow_id=normalized_workflow_id,
+                task_source=task_source,
+                group_by=group_by,
+                filters=filters,
+            )
+        elif filters not in (None, "", {}):
+            raise ServiceValidationError("filters need operator_view", status_code=422)
         if normalized_workflow_id:
             require_workflow_access(resolved, normalized_workflow_id)
             if resolved.workflow_id and normalized_workflow_id != resolved.workflow_id:
@@ -427,6 +613,12 @@ class JobQueryServiceCoreMixin:
                 filters["workflow_id"] = normalized_workflow_id
             if task_source is not None:
                 filters["task_source"] = task_source
+            if operator is not None:
+                filters["exclude_task_source"] = "workflow_test_run"
+                if operator[1]:
+                    filters["value_filters"] = _store_value_filters(operator[1])
+            if review_status_filter is not None:
+                filters["value_filters"] = [*filters.get("value_filters", []), review_status_filter]
             if normalized_search:
                 filters["search"] = normalized_search
             if hide_acknowledged:
@@ -436,6 +628,40 @@ class JobQueryServiceCoreMixin:
             if started_before is not None:
                 filters["started_before"] = started_before
             return filters
+
+        around_id = str(around or "").strip()
+        if around_id:
+            if normalized_group:
+                raise ServiceValidationError("around cannot be grouped", status_code=422)
+            if operator is not None:
+                # A section's queue steps only through its own jobs: a job of
+                # another project or workflow is not found, not positioned.
+                from core.application.management.query_services_approval import job_in_section
+
+                around_job = bl.get_job(around_id) if hasattr(bl, "get_job") else None
+                if not isinstance(around_job, dict) or not job_in_section(
+                    around_job,
+                    project_id=str(normalized_project_id or ""),
+                    workflow_id=str(normalized_workflow_id or ""),
+                ):
+                    raise ServiceNotFoundError("Job not found")
+            restricted = bool(resolved.allowed_project_ids and normalized_project_id is None)
+            neighbours = (
+                bl.list_job_neighbours(
+                    job_id=around_id,
+                    project_id=None if restricted else normalized_project_id,
+                    project_ids=sorted(resolved.allowed_project_ids) if restricted else None,
+                    status=normalized_status,
+                    account_id=acct,
+                    **_list_filter_kwargs(),
+                    **_workspace_filter_kwargs(),
+                )
+                if workspace_allowed and hasattr(bl, "list_job_neighbours")
+                else None
+            )
+            if not neighbours:
+                raise ServiceNotFoundError("Job not found")
+            return JobsQueuePositionView.model_validate(neighbours)
 
         if not normalized_group:
             if not workspace_allowed:
@@ -543,11 +769,7 @@ class JobQueryServiceCoreMixin:
                         else len(rows)
                     )
             return JobsListView(
-                jobs=[
-                    AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
-                    for row in rows
-                    if isinstance(row, dict)
-                ],
+                jobs=self._list_rows_with_operator_values(bl, resolved, rows, operator),
                 total=int(total or 0),
                 page=normalized_page,
                 per_page=normalized_per_page,

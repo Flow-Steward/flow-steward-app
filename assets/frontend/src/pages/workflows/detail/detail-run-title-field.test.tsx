@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 
 import { WorkflowSettingsSmartSetup } from "./detail-workflow-settings-smart-setup";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 function Settings({ initial = "" }: Readonly<{ initial?: string }>) {
   const [runTitle, setRunTitle] = useState(initial);
-  return <AuthContext.Provider value={{ session: { user: { roles: ["admin"] } } } as unknown as AuthContextValue}><WorkflowSettingsSmartSetup ctx={{
+  return <AuthContext.Provider value={{ session: { user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as unknown as AuthContextValue}><WorkflowSettingsSmartSetup ctx={{
     drawerMode: "workflow-settings", setDrawerTab: () => undefined, workflowFormDirty: false,
     workflowId: "scrape", selectedProjectId: "project-1", advancedMode: false, drawerTab: "smart-setup",
     workflowDisplayNameDraft: "Scrape a site", workflowDescriptionDraft: "", workflowEnabledDraft: true,

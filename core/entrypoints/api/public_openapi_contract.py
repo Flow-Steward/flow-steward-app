@@ -45,6 +45,44 @@ def apply_public_token_approval_contract(schema: dict[str, Any]) -> None:
             "expires_at": {"type": ["string", "null"], "format": "date-time"},
             "allowed_actions": {"type": "array", "items": {"type": "string"}},
             "content": {"$ref": "#/components/schemas/TokenApprovalContentV1"},
+            "review": {
+                "anyOf": [{"$ref": "#/components/schemas/ApprovalReviewV1"}, {"type": "null"}]
+            },
+        },
+    }
+    components["ApprovalReviewV1"] = {
+        "type": "object",
+        "description": (
+            "Typed review fields of an Approval step: what the person checks and "
+            "may correct before deciding (ADR 0075)."
+        ),
+        "additionalProperties": False,
+        "required": ["fields", "values", "invalid", "original"],
+        "properties": {
+            "fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name", "label", "type", "required", "editable"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "label": {"type": "string"},
+                        "type": {"type": "string"},
+                        "required": {"type": "boolean"},
+                        "editable": {"type": "boolean"},
+                        "options": {"type": "array", "items": {"type": "string"}},
+                        "items": {"type": ["object", "null"]},
+                        "properties": {"type": ["array", "null"]},
+                        "min_items": {"type": ["integer", "null"]},
+                        "max_items": {"type": ["integer", "null"]},
+                        "format": {"type": ["string", "null"]},
+                        "description": {"type": "string"},
+                    },
+                },
+            },
+            "values": {"type": "object", "additionalProperties": True},
+            "invalid": {"type": "object", "additionalProperties": {"type": "string"}},
+            "original": {"type": "array", "items": {"type": "object"}},
         },
     }
 

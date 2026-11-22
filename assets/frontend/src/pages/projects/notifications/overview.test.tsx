@@ -7,6 +7,7 @@ import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { ProjectNotificationOverview } from "@/pages/projects/notifications/overview";
 import { fetchProjectNotificationOverview, type NotificationOverviewEntry } from "@/pages/projects/notifications/overview-api";
 import type * as OverviewApiModule from "@/pages/projects/notifications/overview-api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/projects/notifications/overview-api", async (importOriginal) => ({
   ...(await importOriginal<typeof OverviewApiModule>()),
@@ -74,7 +75,7 @@ const ENTRIES: NotificationOverviewEntry[] = [
 
 function renderOverview(role: "admin" | "viewer" = "admin") {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const auth = { session: { authenticated: true, roles: [role], user: { roles: [role] } } } as unknown as AuthContextValue;
+  const auth = { session: { authenticated: true, roles: [role], user: { roles: [role], permissions: permissionsForRoles([role]) } } } as unknown as AuthContextValue;
   return render(
     <AuthContext.Provider value={auth}>
       <QueryClientProvider client={queryClient}>

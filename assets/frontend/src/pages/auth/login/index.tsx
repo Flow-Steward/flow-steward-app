@@ -117,8 +117,13 @@ function appendNextParam(path: string, nextPath: string) {
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
 
+/**
+ * Where a successful sign-in goes: a safe explicit `next`, else the index, whose
+ * HomeGate sends each role to its own landing (admins to the Dashboard,
+ * operators and viewers to their sections, ADR 0075).
+ */
 function normalizeNextPath(raw: string | null) {
-  return raw && isSafeLocalPath(raw) ? raw : "/dashboard";
+  return raw && isSafeLocalPath(raw) ? raw : "/";
 }
 
 function payloadRecord(error: HttpError) {
@@ -131,7 +136,7 @@ function payloadRecord(error: HttpError) {
 function readAuthenticatorEnrollment(value: unknown): AuthenticatorEnrollment | null {
   if (!value || typeof value !== "object") return null;
   const { token, secret, uri } = value as Record<string, unknown>;
-  return typeof token === "string" && typeof secret === "string" && typeof uri === "string" && uri.startsWith("otpauth://")
+  return typeof token === "string" && typeof secret === "string" && typeof uri === "string" && uri.startsWith("otpauth://") // pragma: allowlist secret -- type checks of an enrollment payload, not a credential
     ? { token, secret, uri }
     : null;
 }

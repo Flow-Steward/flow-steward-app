@@ -133,6 +133,41 @@ def serialize_approval_history_entry(entry: Mapping[str, Any]) -> dict[str, Any]
             for key, value in external_actor.items()
             if key in {"id", "display_name"} and isinstance(value, (str, type(None)))
         }
+    review_changes = entry.get("review_changes")
+    if isinstance(review_changes, list):
+        from core.application.workflows.approval_review import masked_review_value
+
+        # A typed review's edits (ADR 0075): the field, what the application
+        # found and what the person made of it, masked by the field name too.
+        safe["review_changes"] = [
+            {
+                "field": str(change.get("field") or ""),
+                "before": masked_review_value(change.get("before"), key=change.get("field")),
+                "after": masked_review_value(change.get("after"), key=change.get("field")),
+            }
+            for change in review_changes
+            if isinstance(change, Mapping) and str(change.get("field") or "").strip()
+        ]
+    review = entry.get("review")
+    if isinstance(review, Mapping):
+        from core.application.workflows.approval_review import (
+            REVIEW_DECISION_FIELD_KEYS,
+            masked_review_value,
+        )
+
+        # The accepted values of an approved typed review with their fields.
+        fields = [
+            {key: field.get(key) for key in REVIEW_DECISION_FIELD_KEYS}
+            for field in review.get("fields") or []
+            if isinstance(field, Mapping) and str(field.get("name") or "").strip()
+        ]
+        values = review.get("values") if isinstance(review.get("values"), Mapping) else {}
+        safe["review"] = {
+            "fields": fields,
+            "values": {
+                str(name): masked_review_value(value, key=name) for name, value in values.items()
+            },
+        }
     return safe
 
 

@@ -24,6 +24,8 @@ import {
 import { useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
+import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { fetchJson } from "@/lib/http/client";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -41,6 +43,7 @@ import { AppShellHeader } from "@/components/layout/app-shell-header";
 import { ShellLayout } from "@/components/layout/app-shell-layout";
 import { MaintenanceBanner } from "@/components/layout/maintenance-banner";
 import { CoreUpdateBanner } from "@/components/layout/core-update-banner";
+import { AgentExpiryBanner } from "@/components/layout/agent-expiry-banner";
 import {
   readSidebarRailState,
   toggleSidebarRailState,
@@ -48,10 +51,16 @@ import {
   writeSidebarRailState,
 } from "@/components/layout/app-shell-rail-state";
 import { AppShellSidebar } from "@/components/layout/app-shell-sidebar";
+import {
+  buildProjectSectionNavigation,
+} from "@/components/layout/project-section-navigation";
+import { fetchOperatorSections } from "@/pages/operator/api";
+import { queryKeys } from "@/lib/query/keys";
 import { AdvancedSearchDialog } from "@/components/search/advanced-search-dialog";
 import {
   APPROVALS_REFRESH_EVENT,
   approvalJobId,
+  approvalJobPath,
   dedupeEntries,
   defaultSearchRoute,
   normalizeNavigationEntries,
@@ -67,7 +76,7 @@ import {
   type NavSection,
   type WorkspaceOption,
 } from "@/components/layout/app-shell-helpers";
-import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
+import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
   EXTENSION_UPDATES_QUERY_KEY,
@@ -90,6 +99,14 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   const [approvalLoaded, setApprovalLoaded] = useState(false);
   const [approvalError, setApprovalError] = useState("");
   const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  // Choosing a page in the mobile drawer takes you there and closes the drawer.
+  const [mobileNavPath, setMobileNavPath] = useState(location.pathname);
+  if (mobileNavPath !== location.pathname) {
+    setMobileNavPath(location.pathname);
+    setMobileNavOpen(false);
+  }
   const [railState, setRailState] = useState<SidebarRailState>(() =>
     readSidebarRailState(
       globalThis.window === undefined ? null : globalThis.localStorage,
@@ -242,19 +259,9 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     };
   }, [themeMode]);
 
-  const roles = useMemo(() => {
-    const rawRoles = auth.session?.user?.roles || auth.session?.roles || [];
-    return rawRoles
-      .map((role) =>
-        firstStringFromUnknownValue([role, ""])
-          .trim()
-          .toLowerCase(),
-      )
-      .filter(isTruthy);
-  }, [auth.session]);
-
-  const isAdmin = roles.includes("admin");
-  const isOperator = roles.includes("operator");
+  // ADR 0076: menus follow the permissions the server computed for the person.
+  const permissions = useMemo(() => sessionPermissions(auth.session), [auth.session]);
+  const isAdmin = hasCapability(permissions, "administer_platform");
   // WordPress's count bubble on Plugins. Only administrators see Extensions in
   // the navigation, so only they ask; a failed check simply shows no count.
   const extensionUpdatesQuery = useQuery({
@@ -265,7 +272,16 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     staleTime: EXTENSION_UPDATES_STALE_TIME_MS,
   });
   const extensionUpdateCount = extensionUpdatesQuery.data?.count ?? 0;
-  const hasRegistryAccess = isAdmin || isOperator || !auth.session?.user;
+  // ADR 0066 amendment: the registry is configuration, the admin's. Operators and
+  // viewers work in the sections of workflows the admin published (ADR 0075).
+  const hasRegistryAccess = isAdmin || !auth.session?.user;
+  const sectionsView = Boolean(auth.session?.user) && !isAdmin;
+  const sectionNavigationQuery = useQuery({
+    queryKey: queryKeys.operatorSections,
+    queryFn: fetchOperatorSections,
+    enabled: sectionsView,
+    staleTime: 60_000,
+  });
   const currentAccountId = firstStringFromUnknownValue([auth.session?.user?.account_id, auth.session?.account_memberships?.[0]?.account_id, ""]).trim();
   const canReadApprovals = Boolean(
     auth.session?.authenticated || auth.session?.user,
@@ -509,9 +525,25 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
       }
     : null;
 
-  const sidebarSections = [mainSection, registrySection, systemSection, ...injectedSections]
+  const adminSidebarSections = [mainSection, registrySection, systemSection, ...injectedSections]
     .filter((section): section is NavSection => section !== null)
     .filter((section) => section.items.length > 0);
+  // An operator also replaces secret values (a changed mailbox password); a viewer only reads.
+  const operatorSettingsSection: NavSection | null = hasCapability(permissions, "manage_secret_values")
+    ? {
+        key: "operator_settings",
+        label: t("shell.nav.settings", "Settings"),
+        items: [{ key: "secrets", to: "/secrets", label: t("shell.nav.secrets", "Secrets"), icon: KeyRound }],
+      }
+    : null;
+  const sidebarSections = sectionsView
+    ? [
+        ...buildProjectSectionNavigation(sectionNavigationQuery.data ?? [], {
+          singleLabel: t("react.operator.menu", "Sections"),
+        }),
+        ...(operatorSettingsSection ? [operatorSettingsSection] : []),
+      ]
+    : adminSidebarSections;
   const routeLabels = useMemo(
     () => {
       const sidebarRouteLabels = sidebarSections.flatMap((section) =>
@@ -559,7 +591,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     const jobId = approvalJobId(job);
     if (!jobId) return;
     setApprovalsOpen(false);
-    ignoreAsyncResult(navigate(`/jobs/${encodeURIComponent(jobId)}`));
+    ignoreAsyncResult(navigate(approvalJobPath(job, sectionsView ? sectionNavigationQuery.data : undefined)));
   }
 
   async function handleLogout() {
@@ -615,6 +647,8 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
       onOpenSearch={openGlobalSearchSurface}
       onRetryApprovals={() => ignoreAsyncResult(refreshAwaitingApprovals())}
       onToggleApprovals={() => setApprovalsOpen((current) => !current)}
+      mobileNavOpen={mobileNavOpen}
+      onOpenMobileNav={() => setMobileNavOpen(true)}
       onToggleRail={toggleRail}
       pendingApprovals={pendingApprovals}
       railExpanded={railState === "expanded"}
@@ -632,6 +666,7 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   ) : null;
   const sidebar = (
     <AppShellSidebar
+      canManageUsers={hasCapability(permissions, "manage_users")}
       loggingOut={loggingOut}
       onExpandRail={expandRail}
       onLogout={handleLogout}
@@ -655,7 +690,10 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     <div className="app-shell-root" data-shell-theme={themeMode}>
       <ShellLayout
         header={header}
-        maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}</>}
+        maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}<AgentExpiryBanner /></>}
+        closeMobileNavLabel={t("react.shared.close_menu", "Close menu")}
+        mobileNavOpen={mobileNavOpen}
+        onCloseMobileNav={closeMobileNav}
         railState={railState}
         sidebar={sidebar}
       >

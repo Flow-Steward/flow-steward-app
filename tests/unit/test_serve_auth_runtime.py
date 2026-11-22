@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.application.auth import request_principal_runtime, serve_auth_runtime
+from core.application.auth.route_permissions import route_permission
 
 
 @pytest.fixture(autouse=True)
@@ -705,13 +706,14 @@ def test_is_public_auth_path_supports_static_and_webhook_routes() -> None:
 def test_roles_intersect_and_self_service_routes_normalize_inputs() -> None:
     assert request_principal_runtime.roles_intersect(["Admin", "viewer"], {"admin"}) is True
     assert request_principal_runtime.roles_intersect(["viewer"], {"admin"}) is False
-    assert serve_auth_runtime.is_self_service_auth_write_route("/api/auth/logout") is True
-    assert serve_auth_runtime.is_self_service_auth_write_route("/api/auth/tokens/7/revoke") is True
-    assert (
-        serve_auth_runtime.is_self_service_auth_write_route("/api/users/me/email-change/request")
-        is True
-    )
-    assert serve_auth_runtime.is_self_service_auth_write_route("/api/projects") is False
+    # A person's own-account writes are ``account.self`` in the ADR 0076 route table.
+    for path in (
+        "/api/auth/logout",
+        "/api/auth/tokens/7/revoke",
+        "/api/users/me/email-change/request",
+    ):
+        assert route_permission("POST", path).permission == "account.self"
+    assert route_permission("POST", "/api/projects").permission != "account.self"
     assert request_principal_runtime.normalize_requested_roles(
         ["Admin", "viewer", "viewer", "unknown"]
     ) == [

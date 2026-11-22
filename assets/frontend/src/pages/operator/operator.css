@@ -1,0 +1,351 @@
+/* Operator section list (ADR 0075): file cells and the column picker. */
+.fs-operator-file-strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-050);
+  max-width: 22rem;
+}
+
+.fs-operator-file-link {
+  display: inline-block;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+.fs-operator-file-more {
+  color: var(--fs-text-tertiary);
+  white-space: nowrap;
+}
+
+.fs-operator-column-picker {
+  display: grid;
+  gap: var(--fs-space-075);
+  min-width: 12rem;
+}
+
+/* The review queue (ADR 0075): position and steps, then the original beside the fields. */
+.fs-operator-queue {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  margin-bottom: var(--fs-space-100);
+}
+
+.fs-operator-queue-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-050);
+}
+
+.fs-operator-queue-steps {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The review page (ADR 0075), edge to edge with no page padding: the original
+   above the fields, the decision sticky at the bottom. From 80rem up the two
+   sit side by side in the space under the header, each scrolling on its own. */
+.fs-shell-main:has(.fs-operator-review) {
+  padding: 0;
+}
+
+.fs-operator-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.fs-operator-review-original {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-bottom: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-sidebar);
+}
+
+.fs-operator-original[data-layout="pane"] {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+}
+
+.fs-operator-original-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: 48px;
+  padding: var(--fs-space-075) var(--fs-space-150);
+  border-bottom: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-surface);
+}
+
+.fs-operator-original-bar > :last-child {
+  flex: 1 1 14rem;
+}
+
+.fs-operator-original-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 60vh;
+  overflow: auto;
+  padding: var(--fs-space-250);
+}
+
+.fs-operator-original-canvas:empty {
+  display: none;
+}
+
+.fs-operator-review-original > .fs-operator-original-empty {
+  padding: var(--fs-space-150);
+}
+
+.fs-operator-review-check {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Alone on a wide screen the panel's content keeps a readable width. */
+.fs-operator-review[data-original="none"] .fs-operator-review-scroll > * {
+  width: 100%;
+  max-width: var(--fs-page-width-standard);
+  margin-inline: auto;
+}
+
+/* The panel holds its own visually hidden labels, so none stretches the page. */
+.fs-operator-review-scroll {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fs-space-200);
+  min-height: 0;
+  padding: var(--fs-space-200);
+}
+
+.fs-operator-review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--fs-space-150);
+}
+
+.fs-operator-review-head-text {
+  display: grid;
+  gap: var(--fs-space-050);
+  min-width: 0;
+}
+
+.fs-operator-review-title {
+  margin: 0;
+  color: var(--fs-text-primary);
+  font-family: var(--ff-display);
+  font-size: var(--fs-type-h2-size);
+  font-weight: var(--fs-type-weight-medium);
+  line-height: var(--fs-type-h2-line-height);
+}
+
+.fs-operator-review-sub {
+  margin: 0;
+  color: var(--fs-text-tertiary);
+}
+
+.fs-operator-review-head .fs-operator-queue-steps {
+  flex: none;
+}
+
+.fs-operator-review-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: var(--fs-z-local-sticky);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  margin-top: auto;
+  padding: var(--fs-space-150) var(--fs-space-200);
+  border-top: 1px solid var(--fs-border-subtle);
+  background: var(--fs-bg-surface);
+}
+
+.fs-operator-review-foot-note {
+  flex: 1 1 12rem;
+  margin: 0;
+  min-width: 0;
+  color: var(--fs-text-secondary);
+}
+
+.fs-operator-review-foot-note:empty {
+  flex-basis: 0;
+}
+
+.fs-operator-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--fs-space-075);
+}
+
+/* Two columns once the panel beside the sidebar has room for its buttons. */
+@media (width >= 80rem) {
+  /* The inset is the screen's height and the page takes what the header and
+     any banner above it leave, whatever their height. */
+  .fs-shell-inset:has(.fs-operator-review) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .fs-shell-main:has(.fs-operator-review) {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .fs-operator-review {
+    flex: 1 1 auto;
+    grid-template-columns: minmax(340px, 38%) minmax(0, 1fr);
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* A job without files: the panel alone. */
+  .fs-operator-review[data-original="none"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fs-operator-review-original {
+    border-right: 1px solid var(--fs-border-subtle);
+    border-bottom: 0;
+  }
+
+  .fs-operator-original-canvas {
+    max-height: none;
+  }
+
+  .fs-operator-review-scroll {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: var(--fs-space-250) var(--fs-space-300) var(--fs-space-300);
+  }
+
+  .fs-operator-review-foot {
+    position: static;
+    padding: var(--fs-space-150) var(--fs-space-300);
+  }
+}
+
+.fs-operator-original {
+  display: grid;
+  gap: var(--fs-space-100);
+}
+
+.fs-operator-original-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-075);
+}
+
+.fs-operator-corrected {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075);
+}
+
+/* A decided value and its "Corrected · Was" note, apart rather than run together. */
+.fs-operator-decided-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075) var(--fs-space-150);
+}
+
+
+/* A job of a section: label and value rows (ADR 0075). */
+.fs-operator-values {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+}
+
+.fs-operator-value-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
+  gap: var(--fs-space-075);
+  align-items: baseline;
+}
+
+.fs-operator-value-row dt {
+  color: var(--fs-text-tertiary);
+}
+
+.fs-operator-value-row dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .fs-operator-value-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
+
+.fs-operator-file-more {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.fs-operator-file-list {
+  display: grid;
+  gap: var(--fs-space-050);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-width: 22rem;
+}
+
+.fs-operator-file-list .fs-operator-file-link {
+  max-width: 20rem;
+}
+
+/* A value shown with the form's own layout, read-only (ADR 0075): no row
+   actions, and the field's label is the row's label beside it. */
+.fs-operator-readonly-form {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.fs-operator-readonly-form > .fs-workflow-form > .fs-workflow-field > .fs-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fs-operator-readonly-form .fs-workflow-repeater-actions,
+.fs-operator-readonly-form .fs-workflow-repeater-table th:last-child,
+.fs-operator-readonly-form .fs-workflow-repeater > div:last-child,
+.fs-operator-readonly-form .fs-workflow-repeater-row-head button {
+  display: none;
+}

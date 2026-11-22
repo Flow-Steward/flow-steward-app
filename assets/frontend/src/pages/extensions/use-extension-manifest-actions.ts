@@ -66,7 +66,7 @@ export function useExtensionManifestActions(
     externalEffectsQuery,
     selectedProjectId,
     extensionInstallId,
-    canManageProject,
+    canUseExtensions,
     pageConnection,
     location,
   } = hubState;
@@ -92,7 +92,7 @@ export function useExtensionManifestActions(
     const intent = pendingManifestActionIntentRef.current;
     const retained = retainedFor(effect);
     if (!intent || !retained || resolution.effect_id !== effect.effect_id || resolution.approval_id !== ""
-      || scopeRef.current !== scopeKey || !canManageProject) return;
+      || scopeRef.current !== scopeKey || !canUseExtensions) return;
     const extensionKey = detailExtension!.extension_id;
     const originalError = componentErrors[retained.componentId];
     const originalResult = actionResultByExtension[extensionKey];
@@ -136,7 +136,7 @@ export function useExtensionManifestActions(
 
   async function recoverEffect(effect: ExtensionExternalEffect, decision?: { action: "approve" | "reject"; comment: string }) {
     const key = `${scopeKey}:${effect.effect_id}`;
-    if (!canManageProject || scopeRef.current !== scopeKey || recoveryInFlight.current.has(key)) return;
+    if (!canUseExtensions || scopeRef.current !== scopeKey || recoveryInFlight.current.has(key)) return;
     if (decision ? !effect.decision_allowed || !decision.comment.trim() : !effect.retry_supported || effect.retry_unavailable_reason === "retry_in_progress" || !effect.resolution_ref || !retainedFor(effect)) return;
     recoveryInFlight.current.add(key);
     setRecoveryState((current) => ({ ...current, [key]: { busy: true } }));
@@ -176,7 +176,7 @@ export function useExtensionManifestActions(
     .filter((effect) => !recoveryState[`${scopeKey}:${effect.effect_id}`]?.dismissed)
     .map((effect) => {
       const key = `${scopeKey}:${effect.effect_id}`;
-      return { effect, canManage: canManageProject, originalRequestAvailable: Boolean(retainedFor(effect)),
+      return { effect, canManage: canUseExtensions, originalRequestAvailable: Boolean(retainedFor(effect)),
         busy: Boolean(recoveryState[key]?.busy), error: recoveryState[key]?.error || "",
         onDecision: (action, comment) => recoverEffect(effect, { action, comment }),
         onRetry: () => recoverEffect(effect),

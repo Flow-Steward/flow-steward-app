@@ -232,3 +232,7 @@ dd .fs-button.fs-agent-copy { position: static; }
   .fs-agent-step-head { flex-wrap: wrap; }
   .fs-agent-step-body { padding-left: var(--fs-space-200); }
 }
+
+/* Your connections (ADR 0076 §5): one row per connection, no step mark, so the
+   ending-soon warning lines up with the client name. */
+.fs-agent-connection .fs-agent-step-body { padding-left: var(--fs-space-200); }

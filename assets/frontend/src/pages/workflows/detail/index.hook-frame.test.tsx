@@ -31,6 +31,7 @@ import { WorkflowHookOfLinks } from "./detail-hook-of-links";
 import { WorkflowsDetailPage } from "./index";
 import type { JobExecutionSnapshot } from "@/pages/jobs/detail/api";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { permissionsForRoles } from "@/test/role-permissions";
 const hitTestDescriptor = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
 beforeAll(() => Object.defineProperty(document, "elementsFromPoint", { configurable: true, value: () => [] }));
 afterAll(() => {
@@ -619,7 +620,7 @@ function renderActorHookBuilder(actor: HookActor = HOOK_ACTOR_A) {
     initialEntries: ["/registry/workflows/weekly_report/builder?project_id=project_beta"],
   });
   const content = (current: HookActor) => <AuthContext.Provider value={{ session: {
-    authenticated: true, roles: ["admin"], user: { id: current.userId, account_id: current.accountId, roles: ["admin"] },
+    authenticated: true, roles: ["admin"], user: { id: current.userId, account_id: current.accountId, roles: ["admin"], permissions: permissionsForRoles(["admin"]) },
   } } as ReturnType<typeof mockedUseAuth>}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>;
   const view = render(content(actor));
   return { ...view, client, router, switchActor: (next: HookActor) => view.rerender(content(next)) };
@@ -1747,7 +1748,7 @@ it("cancels an empty hook's first Add before creating or switching the client wo
 // DEVHOOK03: real page, palette, controller and renderer. These assertions cover
 // local state only; real persistence/reload remains native root acceptance.
 function setDeclarationSession(mode?: string) {
-  mockedUseAuth.mockReturnValue({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"] }, environment: { edition: "community", ...(mode === undefined ? {} : { mode }) } } } as ReturnType<typeof mockedUseAuth>);
+  mockedUseAuth.mockReturnValue({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) }, environment: { edition: "community", ...(mode === undefined ? {} : { mode }) } } } as ReturnType<typeof mockedUseAuth>);
 }
 function installPersonalDeclarationAuthor() {
   mockedFetchWorkflowDetail.mockResolvedValue(workflowDetailFixture({ enabled: false, steps: [] }));

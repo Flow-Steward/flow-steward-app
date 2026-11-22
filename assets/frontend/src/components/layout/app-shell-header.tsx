@@ -2,7 +2,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 
 import { Fragment } from "react";
 
-import { Bell, ChevronRight, PanelLeft } from "lucide-react";
+import { Bell, ChevronRight, Menu, PanelLeft } from "lucide-react";
 import { NavLink } from "react-router";
 
 import type { ShellBreadcrumb } from "@/components/layout/app-shell-breadcrumbs";
@@ -12,6 +12,7 @@ import {
   approvalJobTitle,
   type AwaitingApprovalJob,
 } from "@/components/layout/app-shell-helpers";
+import { SHELL_NAVIGATION_ID } from "@/components/layout/app-shell-layout";
 import { AppShellSearchTrigger } from "@/components/layout/app-shell-search-trigger";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
@@ -29,6 +30,9 @@ export type AppShellHeaderProps = {
   onRetryApprovals: () => void;
   onToggleApprovals: () => void;
   onToggleRail: () => void;
+  /** Below md the sidebar is a drawer: the header shows the menu button instead of the rail toggle. */
+  onOpenMobileNav?: () => void;
+  mobileNavOpen?: boolean;
   pendingApprovals: number;
   railExpanded: boolean;
 };
@@ -45,6 +49,8 @@ export function AppShellHeader({
   onRetryApprovals,
   onToggleApprovals,
   onToggleRail,
+  onOpenMobileNav,
+  mobileNavOpen = false,
   pendingApprovals,
   railExpanded,
 }: Readonly<AppShellHeaderProps>) {
@@ -55,7 +61,7 @@ export function AppShellHeader({
       <div data-testid="header-order-trigger">
         <IconButton
           aria-expanded={railExpanded}
-          className="fs-app-header__trigger"
+          className="fs-app-header__trigger fs-app-header__trigger--rail"
           icon={PanelLeft}
           iconSize={16}
           label={t("react.shared.toggle_sidebar", "Toggle sidebar")}
@@ -63,6 +69,19 @@ export function AppShellHeader({
           showTooltip={false}
           size="small"
         />
+        {onOpenMobileNav ? (
+          <IconButton
+            aria-controls={SHELL_NAVIGATION_ID}
+            aria-expanded={mobileNavOpen}
+            className="fs-app-header__trigger fs-app-header__trigger--mobile"
+            icon={Menu}
+            iconSize={24}
+            label={t("react.shared.open_menu", "Open menu")}
+            onClick={onOpenMobileNav}
+            showTooltip={false}
+            size="small"
+          />
+        ) : null}
       </div>
       <span
         aria-hidden="true"

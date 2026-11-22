@@ -141,7 +141,8 @@ def stack(pg_conn, default_account, monkeypatch):
         text=True,
     )
     browser = TestClient(app, base_url=ORIGIN, follow_redirects=False)
-    browser.cookies.set("fs_session", world.users["operator"]["session"])
+    # An admin: only an admin limits a grant to projects (ADR 0076 §5).
+    browser.cookies.set("fs_session", world.users["admin"]["session"])
     browser.cookies.set("fs_csrf", CSRF)
     try:
         _wait(f"http://127.0.0.1:{mcp_port}/.well-known/oauth-protected-resource/mcp")
@@ -344,7 +345,7 @@ def test_token_for_another_resource_is_refused_by_the_mcp_server(stack) -> None:
     code = query_of(
         service.decide(
             request_id,
-            user=world.principal("operator"),
+            user=world.principal("admin"),
             browser_binding=outcome.browser_binding,
             decision="approve",
             preset_id="operational",

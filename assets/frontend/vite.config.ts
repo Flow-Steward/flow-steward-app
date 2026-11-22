@@ -19,6 +19,20 @@ const frontendExtensionManifest = resolveOptionalManifest(
   process.env.VITE_FRONTEND_EXTENSION_MANIFEST,
 );
 const platformKitRoot = path.resolve(__dirname, "../platform-kit");
+// pdf.js loads its JavaScript image decoders by name from one folder
+// (src/components/file-preview/pdf-assets.ts); a folder per version keeps the
+// year-long asset cache from serving one release's decoder to the next.
+const pdfJsDecoder = /^(?:jbig2|openjpeg)_nowasm_fallback\.js$/;
+const pdfJsVersion = readPackageVersion("pdfjs-dist");
+
+function readPackageVersion(name: string) {
+  try {
+    const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, "node_modules", name, "package.json"), "utf-8")) as { version?: unknown };
+    return typeof manifest.version === "string" ? manifest.version : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
 const platformKitStaticPrefix = "/static/platform-kit/";
 
 function resolveOptionalManifest(value: string | undefined) {
@@ -131,9 +145,25 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       output: {
+        assetFileNames(asset) {
+          const name = asset.names[0] ?? "";
+          return pdfJsDecoder.test(name) ? `assets/pdfjs-${pdfJsVersion}/[name][extname]` : "assets/[name]-[hash][extname]";
+        },
         manualChunks(id) {
           if (!id.includes("node_modules")) {
             return undefined;
+          }
+          // Document previewers (ADR 0080) load only when a preview opens, each
+          // with its library; none of them joins the shared vendor chunk.
+          if (id.includes("/pdfjs-dist/")) {
+            return "pdf-preview-vendor";
+          }
+          if (id.includes("/xlsx/")) {
+            return "spreadsheet-preview-vendor";
+          }
+          // JSZip's browser build is self-contained, so its Node stream helpers never load.
+          if (id.includes("/docx-preview/") || id.includes("/jszip/")) {
+            return "docx-preview-vendor";
           }
           if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
             return "react-vendor";

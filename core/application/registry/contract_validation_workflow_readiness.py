@@ -35,6 +35,12 @@ from .contract_validation_entities import *  # noqa: F403,F401  # NOSONAR
 from .state_selector_shape import StateSelectorShape
 from .workflow_lookup import get_registry_artifact_row, get_workflow_row
 from core.application.workflows.workflow_step_kinds import STEP_KIND_APPROVAL, STEP_KIND_WAIT
+from core.application.workflows.approval_review import (
+    review_config,
+    review_config_issues,
+    review_source_issues,
+)
+from core.application.registry.workflow_contract import WorkflowContractField
 
 
 def _workflow_project_scopes(db, workflow_id: str) -> list[dict[str, str]]:
@@ -182,6 +188,83 @@ def _approval_response_mapping_issues(step: dict, step_path: str) -> list[dict]:
         for index, target in enumerate(targets)
         if is_reserved_state_target(target)
     ]
+
+
+def _approval_review_issues(
+    step: dict,
+    step_path: str,
+    *,
+    workflow: dict,
+    workflow_id: str,
+    resolver,
+) -> list[dict]:
+    """Definition issues of an Approval step's typed review fields (ADR 0075).
+
+    A source is resolved the way an Invoke input mapping is; when its type is
+    not known (a free agent answer) the field stays as declared.
+    """
+    if _step_kind(step) != STEP_KIND_APPROVAL:
+        return []
+    override = step.get("override")
+    config = override.get(STEP_KIND_APPROVAL) if isinstance(override, dict) else None
+    review = review_config(config)
+    if review is None:
+        return []
+    review_path = f"{step_path}.override.{STEP_KIND_APPROVAL}.review"
+    issues = review_config_issues(review, path=review_path)
+    try:
+        type_map = resolver.get_available_type_map_for_step(
+            workflow_id, str(step.get("step_id") or "").strip()
+        )
+    except Exception:
+        return issues
+    inputs = {
+        str(row.get("name") or "").strip(): row
+        for row in _workflow_input_rows(workflow)
+        if str(row.get("name") or "").strip()
+    }
+
+    def _source_type(selector: str, field_name: str) -> tuple[str | None, str]:
+        # As at the Invoke boundary, a bare dotted path is not a state selector.
+        if "." in selector and not selector.startswith(("state.", "message.", LITERAL_PREFIX)):
+            return None, "source_not_available"
+        found, error = _resolve_invoke_mapping_source_type(
+            source_selector=selector,
+            child_input_name=field_name,
+            available_type_map=type_map,
+        )
+        if error == "dynamic_message_selector":
+            return None, ""
+        return found, error
+
+    def _original_is_file(selector: str, found_type: str | None) -> bool:
+        name = selector.removeprefix("state.").removeprefix("inputs.")
+        row = inputs.get(name) if selector.startswith(("inputs.", "state.inputs.")) else None
+        if row is None or found_type not in {"array", "list"}:
+            return True
+        try:
+            field = WorkflowContractField.model_validate(row)
+        except Exception:
+            return True
+        return field.type == "file" or field.is_file_list
+
+    issues.extend(
+        review_source_issues(
+            review,
+            path=review_path,
+            source_type=_source_type,
+            compatible=IOResolver._check_type_compat,
+            original_is_file=_original_is_file,
+        )
+    )
+    return issues
+
+
+def _workflow_input_rows(workflow: dict) -> list[dict]:
+    settings = workflow.get("settings") if isinstance(workflow, dict) else None
+    callable_cfg = settings.get("callable") if isinstance(settings, dict) else None
+    rows = callable_cfg.get("expected_inputs") if isinstance(callable_cfg, dict) else None
+    return [row for row in rows or [] if isinstance(row, dict)]
 
 
 def _output_names(outputs) -> set[str]:
@@ -504,6 +587,15 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
             )
         )
         errors.extend(_approval_response_mapping_issues(step, step_path))
+        errors.extend(
+            _approval_review_issues(
+                step,
+                step_path,
+                workflow=wf,
+                workflow_id=workflow_id,
+                resolver=resolver,
+            )
+        )
         if step_kind in {"template", "transform"}:
             for reference in discover_step_state_selectors(step, step_path=step_path):
                 problem = selector_shape.problem(step_id, reference.selector)

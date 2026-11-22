@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  approvalJobPath,
   defaultSearchRoute,
   isGlobalSearchCategory,
   normalizeGlobalSearchGroups,
@@ -85,5 +86,32 @@ describe("stored theme preference", () => {
       read.mockRestore();
       write.mockRestore();
     }
+  });
+});
+
+describe("approvalJobPath", () => {
+  const child = {
+    id: "child-1",
+    project_id: "p1",
+    selected_workflow: "wf.check",
+    root_job_id: "root-1",
+    root_workflow: "wf.contracts",
+  };
+  const sections = [{ project_id: "p1", workflow_id: "wf.contracts" }];
+
+  it("opens a section's job from the top of its Invoke chain for someone who works in sections", () => {
+    expect(approvalJobPath(child, sections)).toBe("/projects/p1/workflows/wf.contracts/work/jobs/root-1");
+  });
+
+  it("opens Job Details for an admin and for a job outside the person's sections", () => {
+    expect(approvalJobPath(child)).toBe("/jobs/child-1");
+    expect(approvalJobPath(child, [{ project_id: "p2", workflow_id: "wf.contracts" }])).toBe("/jobs/child-1");
+    expect(approvalJobPath({ id: "j1", project_id: "p1" }, sections)).toBe("/jobs/j1");
+  });
+
+  it("opens a job that holds its own approval as itself", () => {
+    expect(approvalJobPath({ id: "j2", project_id: "p1", root_job_id: "j2", root_workflow: "wf.contracts" }, sections)).toBe(
+      "/projects/p1/workflows/wf.contracts/work/jobs/j2",
+    );
   });
 });

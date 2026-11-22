@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import UTC, datetime
 from typing import Any
 
@@ -357,6 +358,51 @@ def build_invocation_snapshot(
     return shrunk
 
 
+#: ``meta.filter_values`` keeps full values, but one value of a run must not grow
+#: every jobs-list read without bound.
+FILTER_VALUE_MAX_STRING_BYTES = 64 * 1024
+FILTER_VALUE_MAX_ITEMS = 1000
+
+
+def _filterable_scalar(value: Any) -> bool:
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return isinstance(value, (bool, int, str))
+
+
+def _bounded_filter_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    encoded = value.encode("utf-8")
+    if len(encoded) <= FILTER_VALUE_MAX_STRING_BYTES:
+        return value
+    return encoded[:FILTER_VALUE_MAX_STRING_BYTES].decode("utf-8", errors="ignore")
+
+
+def build_filter_values(
+    inputs: dict[str, Any] | None, *, declared_secret_inputs: set[str] | None = None
+) -> dict[str, Any]:
+    """Full values of a run's top-level inputs that a jobs list can filter by (ADR 0075).
+
+    Kept apart from ``meta.invocation``, whose projection cuts strings at 2 KB and
+    lists at 25 items: a filter compares the whole value. Only strings, numbers,
+    booleans and lists of them are kept; secrets (declared or credential-like by
+    name), secret references, files and objects never are.
+    """
+    from core.application.jobs.job_invocation_artifacts import is_secret_like_input
+
+    values: dict[str, Any] = {}
+    for key, value in (inputs or {}).items():
+        name = str(key or "").strip()
+        if not name or is_secret_like_input(name, declared_secret_inputs):
+            continue
+        if _filterable_scalar(value):
+            values[name] = _bounded_filter_value(value)
+        elif isinstance(value, list) and all(_filterable_scalar(item) for item in value):
+            values[name] = [_bounded_filter_value(item) for item in value[:FILTER_VALUE_MAX_ITEMS]]
+    return values
+
+
 def normalize_entry_path(
     entry_path: str | None,
     *,
@@ -591,6 +637,10 @@ def enqueue_workflow_start(
         files=normalized_files,
         invocation_patch=invocation_patch,
         declared_secret_inputs=declared_secret_inputs,
+    )
+    # Every run channel passes here; the jobs list filters on these full values.
+    effective_meta["filter_values"] = build_filter_values(
+        execution_inputs, declared_secret_inputs=declared_secret_inputs
     )
     effective_meta = safe_workflow_job_metadata(effective_meta)
     replay_snapshot = {

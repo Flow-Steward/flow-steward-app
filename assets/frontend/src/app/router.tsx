@@ -7,6 +7,8 @@ import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { PagePlaceholder } from "@/components/shared/page-placeholder";
 import { registeredPageComponents } from "@/app/extensions";
 import { RequireAdmin, RequireAuth, RequireCapability } from "@/lib/auth/guards";
+import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { BootstrapPage } from "@/pages/auth/bootstrap";
@@ -31,6 +33,9 @@ const JobsListPage = lazyNamed(() => import("@/pages/jobs/list"), "JobsListPage"
 const MonitoringPage = lazyNamed(() => import("@/pages/monitoring"), "MonitoringPage");
 const ProjectsDetailPage = lazyNamed(() => import("@/pages/projects/detail"), "ProjectsDetailPage");
 const ProjectsListPage = lazyNamed(() => import("@/pages/projects/list"), "ProjectsListPage");
+const OperatorSectionPage = lazyNamed(() => import("@/pages/operator/section-page"), "OperatorSectionPage");
+const OperatorSectionsHomePage = lazyNamed(() => import("@/pages/operator/home"), "OperatorSectionsHomePage");
+const OperatorJobPage = lazyNamed(() => import("@/pages/operator/job-page"), "OperatorJobPage");
 const RegistryAgentsPage = lazyNamed(() => import("@/pages/registry/agents"), "RegistryAgentsPage");
 const RegistryAgentsDetailPage = lazyNamed(
   () => import("@/pages/registry/agents/detail"),
@@ -139,8 +144,10 @@ export function HomeGate() {
     return <Navigate replace to="/bootstrap" />;
   }
 
-  // A signed-in user lands on the Dashboard, the overview built on live data.
-  return <Navigate replace to={auth.isAuthenticated ? "/dashboard" : "/login"} />;
+  if (!auth.isAuthenticated) return <Navigate replace to="/login" />;
+  // An admin lands on the Dashboard; operators and viewers on their sections (ADR 0075).
+  const administers = hasCapability(sessionPermissions(auth.session), "administer_platform");
+  return <Navigate replace to={administers ? "/dashboard" : "/sections"} />;
 }
 
 function ProtectedLayout() {
@@ -270,6 +277,10 @@ function AppRoutes() {
 
         <Route element={<ProtectedLayout />}>
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="sections" element={<OperatorSectionsHomePage />} />
+          {/* ADR 0066 amendment: an operator replaces secret values (a changed
+              mailbox password) without the registry; binding stays the admin's. */}
+          <Route path="secrets" element={<RequireCapability capability="manage_secret_values"><RegistrySecretsPage /></RequireCapability>} />
           <Route path="extensions" element={<RequireCapability capability="administer_platform"><ExtensionsHubPage /></RequireCapability>} />
           <Route path="extensions/:extensionId" element={<ExtensionsHubPage />} />
           <Route path="security" element={<RequireCapability capability="administer_platform"><SettingsSecurityPage /></RequireCapability>} />
@@ -283,6 +294,10 @@ function AppRoutes() {
             <Route index element={<ProjectsListPage />} />
             <Route path="new" element={<ShellNotFound />} />
             <Route path=":projectId" element={<ProjectsDetailPage />} />
+            {/* ADR 0075: a published workflow in one project, where operators and viewers work. */}
+            <Route path=":projectId/workflows/:workflowId/work" element={<OperatorSectionPage />} />
+            {/* A job of the section, with the list it was opened from (the review queue). */}
+            <Route path=":projectId/workflows/:workflowId/work/jobs/:jobId" element={<OperatorJobPage />} />
             {/* The Notifications tab is a read-only overview; subscriptions are edited here. */}
             <Route path=":projectId/kb" element={<ShellNotFound />} />
           </Route>
@@ -302,7 +317,7 @@ function AppRoutes() {
               <Route path="notifications" />
             </Route>
             <Route path="account" element={<SettingsAccountPage />} />
-            <Route path="users" element={<RequireCapability capability="administer_platform"><SettingsUsersPage /></RequireCapability>} />
+            <Route path="users" element={<RequireCapability capability="manage_users"><SettingsUsersPage /></RequireCapability>} />
             <Route path=":settingsPageKey" element={<RequireCapability capability="administer_platform"><SettingsDynamicRoute /></RequireCapability>} />
           </Route>
 

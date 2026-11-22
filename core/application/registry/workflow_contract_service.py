@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 from typing import Any
 
 from jsonschema import Draft202012Validator
@@ -24,6 +23,18 @@ from core.application.registry.workflow_contract import (
     interface_from_definition,
     interface_from_settings,
     json_object,
+)
+from core.application.registry.workflow_contract_shape import (
+    FIELD_STRING_FORMATS,
+    ITEM_FIELD_TYPES,
+    coerce_contract_value,
+    is_item_bound,
+)
+from core.application.registry.workflow_contract_shape import (
+    is_empty_contract_value as _is_empty_value,
+)
+from core.application.registry.workflow_contract_shape import (
+    is_missing_contract_value as _is_missing_contract_value,
 )
 from core.application.registry.workflow_lookup import get_workflow_row
 from core.application.workflow_documents import prefix_issues, validate_report_snapshot
@@ -595,16 +606,6 @@ def _json_schema_error_path(error: Any, *, prefix: str = "inputs") -> str:
     return ".".join([prefix, *parts]) if parts else prefix
 
 
-def _is_empty_value(value: Any) -> bool:
-    if value is None:
-        return True
-    if isinstance(value, str):
-        return not value.strip()
-    if isinstance(value, (list, tuple, set, dict)):
-        return len(value) == 0
-    return False
-
-
 def _contains_secret_reference(value: Any) -> bool:
     from core.infrastructure.security.secret_reference import is_secret_reference
 
@@ -615,14 +616,6 @@ def _contains_secret_reference(value: Any) -> bool:
     if isinstance(value, (list, tuple, set)):
         return any(_contains_secret_reference(item) for item in value)
     return False
-
-
-def _is_missing_contract_value(value: Any, field: WorkflowContractField) -> bool:
-    if value is None:
-        return True
-    if field.type in {"object", "array"}:
-        return False
-    return _is_empty_value(value)
 
 
 def _resolved_default(field: WorkflowContractField) -> tuple[bool, Any, str]:
@@ -639,87 +632,6 @@ def _resolved_default(field: WorkflowContractField) -> tuple[bool, Any, str]:
         reference = SecretReference(name=field.name, ref_key=field.default_secret_ref)
         return True, reference.to_wire(), ""
     return coerce_contract_value(field.default, field)
-
-
-def coerce_contract_value(value: Any, field: WorkflowContractField) -> tuple[bool, Any, str]:
-    field_type = field.type
-    name = field.name
-    if field_type in {"string", "paragraph", "select"}:
-        if isinstance(value, (dict, list, tuple, set)):
-            return False, None, f"Workflow field '{name}' must be text"
-        text = str(value if value is not None else "").strip()
-        if field_type == "select" and field.options and text not in field.options:
-            return (
-                False,
-                None,
-                f"Workflow field '{name}' must be one of: {', '.join(field.options)}",
-            )
-        return True, text, ""
-    if field_type == "secret":
-        # A caller may supply a secret for a field with no configured default.
-        # It is held for the run the way a configured one is — as a reference,
-        # never as plaintext — so nothing between here and the tool boundary has
-        # the value to print, persist or checkpoint.
-        if isinstance(value, (dict, list, tuple, set)):
-            return False, None, f"Workflow field '{name}' must be a secret value"
-        text = str(value if value is not None else "")
-        if not text.strip():
-            return False, None, f"Workflow field '{name}' must be a secret value"
-        from core.infrastructure.security.secret_codec import encrypt_secret
-        from core.infrastructure.security.secret_reference import SecretReference
-
-        return True, SecretReference(name=name, ciphertext=encrypt_secret(text)).to_wire(), ""
-    if field_type == "number":
-        if isinstance(value, bool):
-            return False, None, f"Workflow field '{name}' must be a number"
-        if isinstance(value, (int, float)):
-            return (
-                (True, value, "")
-                if math.isfinite(float(value))
-                else (False, None, f"Workflow field '{name}' must be a finite number")
-            )
-        text = str(value or "").strip()
-        try:
-            parsed = float(text)
-        except ValueError:
-            return False, None, f"Workflow field '{name}' must be a number"
-        if not math.isfinite(parsed):
-            return False, None, f"Workflow field '{name}' must be a finite number"
-        return True, int(parsed) if parsed.is_integer() else parsed, ""
-    if field_type == "boolean":
-        if isinstance(value, bool):
-            return True, value, ""
-        if isinstance(value, (int, float)):
-            return True, bool(value), ""
-        text = str(value or "").strip().lower()
-        if text in {"1", "true", "yes", "on"}:
-            return True, True, ""
-        if text in {"0", "false", "no", "off"}:
-            return True, False, ""
-        return False, None, f"Workflow field '{name}' must be boolean"
-    if field_type == "object":
-        obj = json_object(value)
-        if obj:
-            return True, obj, ""
-        if value == {}:
-            return True, {}, ""
-        return False, None, f"Workflow field '{name}' must be an object"
-    if field_type == "array":
-        if isinstance(value, list):
-            return True, value, ""
-        if isinstance(value, (tuple, set)):
-            return True, list(value), ""
-        if isinstance(value, str):
-            try:
-                parsed = json.loads(value)
-            except Exception:
-                return False, None, f"Workflow field '{name}' must be an array"
-            if isinstance(parsed, list):
-                return True, parsed, ""
-        return False, None, f"Workflow field '{name}' must be an array"
-    if field_type == "file":
-        return (not _is_empty_value(value)), value, f"Workflow field '{name}' must be a file"
-    return False, None, f"Workflow field '{name}' has unsupported type '{field_type}'"
 
 
 def coerce_public_input_value(
@@ -854,6 +766,8 @@ def _json_schema_for_field(field: WorkflowContractField) -> dict[str, Any]:
         schema = {"type": "string"}
         if field_type == "paragraph":
             schema["format"] = "textarea"
+        if field_type != "select" and field.format in FIELD_STRING_FORMATS:
+            schema["format"] = field.format
         if field_type == "select" and field.options:
             schema["enum"] = list(field.options)
     elif field_type == "number":
@@ -862,8 +776,13 @@ def _json_schema_for_field(field: WorkflowContractField) -> dict[str, Any]:
         schema = {"type": "boolean"}
     elif field_type == "object":
         schema = {"type": "object", "additionalProperties": True}
+        _add_object_properties_schema(schema, field)
     elif field_type == "array":
-        schema = {"type": "array", "items": {}}
+        schema = {"type": "array", "items": _json_schema_for_items(field)}
+        if is_item_bound(field.min_items):
+            schema["minItems"] = field.min_items
+        if is_item_bound(field.max_items):
+            schema["maxItems"] = field.max_items
     elif field_type == "file":
         schema = {"type": "object", "additionalProperties": True, "x-fs-type": "file"}
     else:
@@ -875,6 +794,25 @@ def _json_schema_for_field(field: WorkflowContractField) -> dict[str, Any]:
     if field.contract_id:
         schema["x-contract-id"] = field.contract_id
     return schema
+
+
+def _json_schema_for_items(field: WorkflowContractField) -> dict[str, Any]:
+    """The element schema of an array; any value without a usable ``items``."""
+    item = field.item_field()
+    if item is None or item.is_secret or item.type not in ITEM_FIELD_TYPES:
+        return {}
+    return _json_schema_for_field(item)
+
+
+def _add_object_properties_schema(schema: dict[str, Any], field: WorkflowContractField) -> None:
+    """Declared sub-fields; other keys stay allowed, as they are at run time."""
+    rows = [row for row in field.property_fields() or [] if row.name and not row.is_secret]
+    if not rows:
+        return
+    schema["properties"] = {row.name: _json_schema_for_field(row) for row in rows}
+    required = [row.name for row in rows if row.required]
+    if required:
+        schema["required"] = required
 
 
 def _json_schema_for_returned_file(field: WorkflowReturnedFile) -> dict[str, Any]:

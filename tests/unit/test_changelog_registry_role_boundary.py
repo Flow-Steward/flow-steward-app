@@ -11,6 +11,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from core.application.auth.auth_http_runtime import build_local_auth_middleware_handler
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.request_principal_runtime import roles_intersect
 from core.infrastructure.runtime import http_app_auth_runtime
@@ -84,7 +85,6 @@ def _auth_handler(
         local_auth_bootstrap_required_fn=lambda _bl=None: False,
         auth_account_tables_available_fn=lambda _bl: False,
         roles_intersect_fn=roles_intersect,
-        is_admin_only_route_fn=http_app_auth_runtime._is_admin_only_route,
         is_registry_read_route_fn=http_app_auth_runtime._is_registry_read_route,
         is_self_service_auth_write_route_fn=lambda _path: False,
         csrf_request_valid_fn=lambda _request: True,
@@ -100,6 +100,7 @@ def _auth_handler(
         err_operator_role_required="Operator role required",
         path_bootstrap="/bootstrap",
         path_login="/login",
+        load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
     )
 
 

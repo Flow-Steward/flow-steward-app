@@ -3,6 +3,9 @@ import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+// ADR 0076: the menus follow the permissions the bootstrap sends.
+import roleMatrix from "../../src/test/fixtures/role-permissions.json";
+
 const bootstrap = {
   status: "ok",
   auth: {
@@ -17,6 +20,7 @@ const bootstrap = {
       username: "maya@acme.dev",
       display_name: "Maya Chen",
       roles: ["admin"],
+      permissions: roleMatrix.admin,
       account_id: "acc-1",
       account_ids: ["acc-1", "acc-2"],
       account_memberships: [
@@ -136,7 +140,7 @@ test("OSS user creation and editing need no tenant selection", async ({ page }, 
   await dialog.getByRole("button", { name: "Add user", exact: true }).click();
   expect((await createRequest).postDataJSON()).toEqual({
     display_name: "New User", email: "new@example.com", password: "temporary-pass", // pragma: allowlist secret - disposable user fixture
-    roles: ["viewer"], is_active: true, must_change_password: true,
+    role: "viewer", is_active: true, must_change_password: true,
   });
   await expect(dialog).toBeHidden();
   await expect(page.getByText("New User was added.", { exact: true })).toBeVisible();

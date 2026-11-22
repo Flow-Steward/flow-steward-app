@@ -24,6 +24,7 @@ import { WorkflowTriggersSurface } from "./detail-triggers-surface";
 import { useWorkflowSettingsController, useWorkflowSettingsHydration } from "./detail-workflow-settings-controller";
 import { WorkflowHistorySurface } from "./detail-workflow-history-surface";
 import { WorkflowSettingsSmartSetup } from "./detail-workflow-settings-smart-setup";
+import { OperatorSettingsSurface } from "./detail-operator-settings-surface";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 import "./detail-builder-inspectors.css";
@@ -45,8 +46,8 @@ function TriggersTab({ ctx }: Readonly<{ ctx: Parameters<typeof useWorkflowTrigg
 }
 
 /**
- * The workflow page's settings tabs: Smart setup, Webhook, Schedules, Automation
- * and History, over one settings form whose drafts and unsaved-changes guard
+ * The workflow page's settings tabs: Smart setup, For operators, Webhook,
+ * Schedules, Automation and History, over one settings form whose drafts and unsaved-changes guard
  * outlive a change of tab. Graph and step authoring stay in Builder.
  */
 function ignoreSaveNotice() {
@@ -134,6 +135,7 @@ export default function WorkflowSettingsSurface({ workflowId, projectId, tab, on
         <div id="workflow-settings-surface"><WorkflowSettingsSmartSetup ctx={ctx} /></div>
         {triggersWasOpened ? <TriggersTab ctx={ctx} /> : null}
         {active && drawerTab === "schedules" ? <WorkflowScheduleProjectContext workflowId={workflowId} projectHint={projectId} onProjectChange={(id) => { const next = new URLSearchParams(searchParams); next.set("project_id", id); setSearchParams(next, { replace: true }); }} onTurnOnScheduleChannel={() => changeDrawerTab("smart-setup")} /> : null}
+        {active && drawerTab === "operator" ? <OperatorSettingsSurface ctx={ctx} /> : null}
         {active && drawerTab === "automation" ? <AutomationRuleEditor projectId={selectedProjectId} scopeKind="workflow" workflowId={workflowId} /> : null}
         {active && drawerTab === "history" ? <WorkflowHistorySurface ctx={ctx} /> : null}
       </div>}

@@ -182,13 +182,13 @@ def seed_default_roles(bl) -> None:
     with bl.conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO roles (key, label)
+            INSERT INTO roles (key, label, is_system)
             VALUES
-                ('admin', 'Admin'),
-                ('operator', 'Operator'),
-                ('viewer', 'Viewer')
+                ('admin', 'Admin', true),
+                ('operator', 'Operator', true),
+                ('viewer', 'Viewer', true)
             ON CONFLICT (key) DO UPDATE
-            SET label = EXCLUDED.label
+            SET label = EXCLUDED.label, is_system = true
             """
         )
 
@@ -250,6 +250,7 @@ def get_user_roles(bl, user_id: Any) -> list[str]:
             FROM user_roles ur
             JOIN roles r ON r.id = ur.role_id
             WHERE ur.user_id = %s
+              AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
             ORDER BY r.key
             """,
             (normalized_user_id,),

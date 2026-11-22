@@ -146,8 +146,22 @@ def create_frontend_shell_router(
 
         @router.get("/projects", include_in_schema=False)
         @router.get("/projects/{project_id}", include_in_schema=False)
-        async def public_projects_shell(project_id: str = ""):
-            _ = project_id
+        # ADR 0075: a published workflow's section in one project, and the
+        # sections landing of operators and viewers.
+        @router.get("/projects/{project_id}/workflows/{workflow_id}/work", include_in_schema=False)
+        # A job opened from a section (review page and queue): a reload or a
+        # shared link must reach the app, not the JSON 404 of the API.
+        @router.get(
+            "/projects/{project_id}/workflows/{workflow_id}/work/jobs/{job_id}",
+            include_in_schema=False,
+        )
+        @router.get("/sections", include_in_schema=False)
+        # ADR 0066 amendment: where an operator replaces a secret value.
+        @router.get("/secrets", include_in_schema=False)
+        async def public_projects_shell(
+            project_id: str = "", workflow_id: str = "", job_id: str = ""
+        ):
+            _ = (project_id, workflow_id, job_id)
             return _shell_response()
 
     if "extensions" in enabled_public_groups:

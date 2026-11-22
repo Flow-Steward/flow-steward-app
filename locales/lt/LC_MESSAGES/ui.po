@@ -14126,7 +14126,6 @@ msgstr "Atjungti nuo juostos pabaigos"
 msgid "react.workflows.concurrency_positive_integer"
 msgstr "Įveskite sveikąjį skaičių, didesnį už nulį, arba palikite lauką tuščią."
 
-
 msgid "react.workflows.compare_datasets"
 msgstr "Palyginti duomenų rinkinius"
 
@@ -15153,6 +15152,12 @@ msgstr "Perjungti pasirinktą"
 
 msgid "react.shared.toggle_sidebar"
 msgstr "Perjungti šoninę juostą"
+
+msgid "react.shared.open_menu"
+msgstr "Atidaryti meniu"
+
+msgid "react.shared.close_menu"
+msgstr "Uždaryti meniu"
 
 msgid "react.shared.toggled_successfully"
 msgstr "Būsena sėkmingai pakeista."
@@ -27745,7 +27750,6 @@ msgstr "Matomoje srityje, dar neprijungta"
 msgid "react.workflows.search_steps"
 msgstr "Ieškoti žingsnių"
 
-
 msgid "react.workflows.unavailable_extension"
 msgstr "Neprieinamas plėtinys"
 
@@ -27760,7 +27764,6 @@ msgstr "Paskyra aktyvi"
 
 msgid "react.settings.description"
 msgstr "Aprašymas"
-
 
 msgid "react.workflows.delete_guard_checking"
 msgstr "Tikrinamos išsaugotos automatizavimo taisyklės…"
@@ -28247,7 +28250,6 @@ msgstr "Naudoti numatytąją reikšmę"
 msgid "react.workflows.hook_valid_json_required"
 msgstr "Įveskite tinkamą JSON."
 
-
 msgid "react.workflows.step_parameters_saved_with_issues"
 msgstr "Žingsnio parametrai išsaugoti. Dar liko darbo eigos patikros problemų."
 
@@ -28325,7 +28327,6 @@ msgstr "Sukonfigūruota, neaktyvu"
 
 msgid "react.workflows.test_run_inactive_defaults"
 msgstr "Sukonfigūruotos numatytosios reikšmės ir bandomieji failai netaikomi, kol darbo eigos sąsaja išjungta."
-
 
 msgid "react.workflows.container_items_processed"
 msgstr "Apdorota {processed} iš {selected} elementų"
@@ -30873,7 +30874,6 @@ msgstr "Kai kurių užduočių nepavyko perkelti į šiukšlinę"
 msgid "react.jobs.trash_failed"
 msgstr "Nepavyko perkelti užduoties į šiukšlinę."
 
-
 #: assets/frontend/src/pages/jobs/detail/job-detail-page-sections.tsx
 msgid "jobs.detail.usage.title"
 msgstr "Modelių naudojimas"
@@ -31574,3 +31574,1341 @@ msgstr "Šie ryšiai prisijungimo duomenis ima iš šios konfigūracijos. Jie i�
 #: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
 msgid "react.extensions.connections_kept"
 msgstr "Išsaugomi ryšiai"
+
+msgid "react.workflows.contract_format"
+msgstr "Formatas"
+
+msgid "react.workflows.contract_format_any"
+msgstr "Bet koks tekstas"
+
+msgid "react.workflows.contract_format_date"
+msgstr "Data"
+
+msgid "react.workflows.contract_format_date_time"
+msgstr "Data ir laikas"
+
+msgid "react.workflows.contract_format_time"
+msgstr "Laikas"
+
+msgid "react.workflows.contract_format_email"
+msgstr "El. pašto adresas"
+
+msgid "react.workflows.contract_format_uri"
+msgstr "URI"
+
+msgid "react.workflows.contract_item_type"
+msgstr "Elemento tipas"
+
+msgid "react.workflows.contract_item_type_any"
+msgstr "Bet kokia reikšmė"
+
+msgid "react.workflows.contract_min_items"
+msgstr "Mažiausiai elementų"
+
+msgid "react.workflows.contract_max_items"
+msgstr "Daugiausiai elementų"
+
+msgid "react.workflows.contract_item_options"
+msgstr "Elemento parinktys"
+
+msgid "react.workflows.contract_item_properties"
+msgstr "Elemento savybės (JSON)"
+
+msgid "react.workflows.contract_properties"
+msgstr "Savybės (JSON)"
+
+msgid "react.workflows.contract_properties_help"
+msgstr "Laukų sąrašas JSON formatu: name, type, required, options, format. Grupės gali būti įdėtos iki 3 lygių."
+
+msgid "react.workflows.contract_properties_invalid"
+msgstr "Lauko „{value0}“ savybės turi būti laukų sąrašas JSON formatu."
+
+msgid "react.workflows.contract_item_bound_invalid"
+msgstr "Lauko „{value0}“ elementų skaičiai turi būti sveikieji skaičiai, ne mažesni už nulį."
+
+msgid "react.operator_form.wysiwyg_mode"
+msgstr "Redaktoriaus režimas"
+
+msgid "react.operator_form.wysiwyg_write"
+msgstr "Rašyti"
+
+msgid "react.operator_form.wysiwyg_preview"
+msgstr "Peržiūra"
+
+msgid "react.operator_form.wysiwyg_placeholder"
+msgstr "Veikia Markdown: **paryškinta**, sąrašai, nuorodos"
+
+msgid "react.operator_form.choose"
+msgstr "Pasirinkite…"
+
+msgid "react.operator_form.choose_several"
+msgstr "Pasirinkite vieną ar kelis…"
+
+msgid "react.operator_form.row_number"
+msgstr "{label}, eilutė {index}"
+
+msgid "react.operator_form.remove_row"
+msgstr "Pašalinti eilutę {index}"
+
+msgid "react.operator_form.row"
+msgstr "Eilutė"
+
+msgid "react.operator_form.row_actions"
+msgstr "Eilutės veiksmai"
+
+msgid "react.operator_form.row_heading"
+msgstr "Eilutė {index}"
+
+msgid "react.operator_form.add_row"
+msgstr "Pridėti eilutę"
+
+msgid "react.operator_form.chosen_files"
+msgstr "Pasirinkti failai: {label}"
+
+msgid "react.operator_form.remove_file"
+msgstr "Pašalinti {name}"
+
+msgid "react.operator.send_failed"
+msgstr "Nepavyko išsiųsti"
+
+msgid "react.operator.field_required"
+msgstr "Užpildykite: {field}."
+
+msgid "react.operator.field_min_items"
+msgstr "Pridėkite bent {count}."
+
+msgid "react.operator.field_max_items"
+msgstr "Pridėkite ne daugiau kaip {count}."
+
+msgid "react.operator.row_field_required"
+msgstr "Užpildykite {field} eilutėje {row}."
+
+msgid "react.operator.nothing_to_send"
+msgstr "Pridėkite bent vieną elementą siuntimui."
+
+msgid "react.operator.check_the_form"
+msgstr "Patikrinkite pažymėtus laukus."
+
+msgid "react.operator.files_too_large"
+msgstr "Failas tuščias arba failų daugiau ar jie didesni, nei leidžia ši diegimo vieta."
+
+msgid "react.operator.upload_limits"
+msgstr "Iki {files} failų, kiekvienas iki {size} MB."
+
+msgid "react.operator.close_form"
+msgstr "Uždaryti formą"
+
+msgid "react.operator.foreach_hint"
+msgstr "Kiekvienas failas ar elementas tampa atskiru vykdymu sąraše."
+
+msgid "react.operator.bulk_hint"
+msgstr "Viskas, ką išsiunčiate, tampa vienu vykdymu sąraše."
+
+msgid "react.operator.submission_progress"
+msgstr "Priimta {accepted} iš {total}"
+
+msgid "react.operator.retry_failed"
+msgstr "Pakartoti nepavykusius ({count})"
+
+msgid "react.operator.sending_now"
+msgstr "Siunčiama…"
+
+msgid "react.operator.send"
+msgstr "Siųsti"
+
+msgid "react.operator.new_submission"
+msgstr "Naujas pateikimas"
+
+msgid "react.operator.failed_items"
+msgstr "Neišsiųsta"
+
+msgid "react.operator.columns"
+msgstr "Stulpeliai"
+
+msgid "react.operator.shown_columns"
+msgstr "Rodomi stulpeliai"
+
+msgid "react.operator.new"
+msgstr "Naujas"
+
+msgid "react.operator.blocked"
+msgstr "Nauji pateikimai sustabdyti"
+
+msgid "react.operator.not_runnable"
+msgstr "Administratorius turi užbaigti šios darbo eigos nustatymus, kad ji priimtų naujus pateikimus."
+
+msgid "react.operator.loading"
+msgstr "Atidaromas skyrius"
+
+msgid "react.operator.not_found"
+msgstr "Šis skyrius nepasiekiamas."
+
+msgid "react.operator.author_api"
+msgstr "{name} (API)"
+
+msgid "react.operator.value_yes"
+msgstr "Taip"
+
+msgid "react.operator.value_no"
+msgstr "Ne"
+
+msgid "react.operator.filter_yes"
+msgstr "Taip"
+
+msgid "react.operator.filter_no"
+msgstr "Ne"
+
+msgid "react.operator.loading_menu"
+msgstr "Ieškoma jūsų skyrių"
+
+msgid "react.operator.none_yet"
+msgstr "Skyrių dar nėra"
+
+msgid "react.operator.none_yet_detail"
+msgstr "Jums dar nepaskelbta jokia darbo eiga. Administratorius ją paskelbia darbo eigos nustatymuose ir susieja su jūsų projektu."
+
+msgid "react.shared.filter_from"
+msgstr "Nuo"
+
+msgid "react.shared.filter_to"
+msgstr "Iki"
+
+msgid "react.shared.apply_filter"
+msgstr "Taikyti"
+
+msgid "react.operator.menu"
+msgstr "Skyriai"
+
+msgid "react.operator_queue.back"
+msgstr "Atgal į {title}"
+
+msgid "react.operator_queue.label"
+msgstr "Eilė"
+
+msgid "react.operator_queue.left_list"
+msgstr "Sąraše jau nebėra · liko {total}"
+
+msgid "react.operator_queue.loading"
+msgstr "Atidaromas darbas"
+
+msgid "react.operator_queue.next"
+msgstr "Kitas darbas (J)"
+
+msgid "react.operator_queue.position"
+msgstr "{position} iš {total}"
+
+msgid "react.operator_queue.previous"
+msgstr "Ankstesnis darbas (K)"
+
+msgid "react.operator_review.already_decided"
+msgstr "Dėl šios peržiūros jau nuspręsta kitur. Atidarykite kitą darbą."
+
+msgid "react.operator_review.approve_and_next"
+msgstr "{label} ir toliau"
+
+msgid "react.operator_review.approved"
+msgstr "Patvirtinta su šiomis reikšmėmis"
+
+msgid "react.operator_review.corrected"
+msgstr "Pataisyta"
+
+msgid "react.operator_review.decided_by"
+msgstr "Nusprendė {actor}"
+
+msgid "react.operator_review.decided_status"
+msgstr "Vykdymo būsena: {status}"
+
+msgid "react.operator_review.description"
+msgstr "Palyginkite laukus su originalu, pataisykite klaidas ir nuspręskite."
+
+msgid "react.operator_review.empty_value"
+msgstr "tuščia"
+
+msgid "react.operator_review.fields"
+msgstr "Patikrinkite ir pataisykite"
+
+msgid "react.operator_review.file_position"
+msgstr "Failas {position} iš {total}"
+
+msgid "react.operator_review.next_file"
+msgstr "Kitas failas"
+
+msgid "react.operator_review.no_original"
+msgstr "Ši peržiūra neturi originalaus failo."
+
+msgid "react.operator_review.original"
+msgstr "Originalas"
+
+msgid "react.operator_review.previous_file"
+msgstr "Ankstesnis failas"
+
+msgid "react.operator_review.rejected"
+msgstr "Atmesta"
+
+msgid "react.operator_review.skip"
+msgstr "Praleisti"
+
+msgid "react.operator_review.title"
+msgstr "Peržiūra"
+
+msgid "react.operator_review.waiting_elsewhere"
+msgstr "Šis darbas laukia sprendimo žmonių, kurie turi prieigą prie jo."
+
+msgid "react.operator_review.was"
+msgstr "Buvo: {value}"
+
+msgid "react.operator.status_awaiting_review"
+msgstr "Laukia peržiūros"
+
+msgid "react.workflows.operator.widget_text"
+msgstr "Tekstas"
+
+msgid "react.workflows.operator.widget_textarea"
+msgstr "Teksto sritis"
+
+msgid "react.workflows.operator.widget_wysiwyg"
+msgstr "Formatuoto teksto redaktorius"
+
+msgid "react.workflows.operator.widget_email"
+msgstr "El. paštas"
+
+msgid "react.workflows.operator.widget_url"
+msgstr "URL"
+
+msgid "react.workflows.operator.widget_date"
+msgstr "Datos parinkiklis"
+
+msgid "react.workflows.operator.widget_date_time"
+msgstr "Datos ir laiko parinkiklis"
+
+msgid "react.workflows.operator.widget_time"
+msgstr "Laiko parinkiklis"
+
+msgid "react.workflows.operator.widget_select"
+msgstr "Išskleidžiamasis sąrašas"
+
+msgid "react.workflows.operator.widget_radio"
+msgstr "Akutės"
+
+msgid "react.workflows.operator.widget_button_group"
+msgstr "Mygtukų grupė"
+
+msgid "react.workflows.operator.widget_checkbox"
+msgstr "Žymimieji langeliai"
+
+msgid "react.workflows.operator.widget_multiselect"
+msgstr "Sąrašas su keliomis reikšmėmis"
+
+msgid "react.workflows.operator.widget_number"
+msgstr "Skaičius"
+
+msgid "react.workflows.operator.widget_true_false"
+msgstr "Taip / Ne"
+
+msgid "react.workflows.operator.widget_file"
+msgstr "Failo įkėlimas"
+
+msgid "react.workflows.operator.widget_files"
+msgstr "Kelių failų įkėlimas"
+
+msgid "react.workflows.operator.widget_group"
+msgstr "Grupė"
+
+msgid "react.workflows.operator.widget_repeater"
+msgstr "Kartotuvas"
+
+msgid "react.workflows.operator.widget_text_help"
+msgstr "Viena teksto eilutė."
+
+msgid "react.workflows.operator.widget_textarea_help"
+msgstr "Kelios paprasto teksto eilutės."
+
+msgid "react.workflows.operator.widget_wysiwyg_help"
+msgstr "Tekstas su antraštėmis, sąrašais ir nuorodomis (Markdown)."
+
+msgid "react.workflows.operator.widget_email_help"
+msgstr "El. pašto adresas, kurį tikrina naršyklė."
+
+msgid "react.workflows.operator.widget_url_help"
+msgstr "Interneto adresas."
+
+msgid "react.workflows.operator.widget_date_help"
+msgstr "Kalendorius dienai pasirinkti."
+
+msgid "react.workflows.operator.widget_date_time_help"
+msgstr "Diena ir laikas."
+
+msgid "react.workflows.operator.widget_time_help"
+msgstr "Paros laikas."
+
+msgid "react.workflows.operator.widget_select_help"
+msgstr "Išskleidžiamas parinkčių sąrašas."
+
+msgid "react.workflows.operator.widget_radio_help"
+msgstr "Visos parinktys matomos, pasirenkama viena."
+
+msgid "react.workflows.operator.widget_button_group_help"
+msgstr "Parinktys kaip mygtukų eilė."
+
+msgid "react.workflows.operator.widget_checkbox_help"
+msgstr "Po žymimąjį langelį kiekvienai parinkčiai."
+
+msgid "react.workflows.operator.widget_multiselect_help"
+msgstr "Sąrašas su paieška, kuriame galima pasirinkti kelias parinktis."
+
+msgid "react.workflows.operator.widget_number_help"
+msgstr "Skaičius operatoriaus lokalės formatu."
+
+msgid "react.workflows.operator.widget_true_false_help"
+msgstr "Jungiklis."
+
+msgid "react.workflows.operator.widget_file_help"
+msgstr "Vienas failas."
+
+msgid "react.workflows.operator.widget_files_help"
+msgstr "Keli failai įkėlimo tvarka."
+
+msgid "react.workflows.operator.widget_group_help"
+msgstr "Polaukiai kartu."
+
+msgid "react.workflows.operator.widget_repeater_help"
+msgstr "Polaukių eilutės; operatorius prideda ir šalina eilutes."
+
+msgid "react.workflows.operator.kind_string"
+msgstr "Tekstas"
+
+msgid "react.workflows.operator.kind_select"
+msgstr "Pasirinkimas"
+
+msgid "react.workflows.operator.kind_select_list"
+msgstr "Keli pasirinkimai"
+
+msgid "react.workflows.operator.kind_number"
+msgstr "Skaičius"
+
+msgid "react.workflows.operator.kind_boolean"
+msgstr "Taip / ne"
+
+msgid "react.workflows.operator.kind_file"
+msgstr "Failas"
+
+msgid "react.workflows.operator.kind_file_list"
+msgstr "Failai"
+
+msgid "react.workflows.operator.kind_object"
+msgstr "Grupė"
+
+msgid "react.workflows.operator.kind_object_list"
+msgstr "Grupių sąrašas"
+
+msgid "react.workflows.operator.kind_unsupported"
+msgstr "Forma šio tipo nepalaiko"
+
+msgid "react.workflows.operator.condition_equals"
+msgstr "lygu"
+
+msgid "react.workflows.operator.condition_not_equals"
+msgstr "nelygu"
+
+msgid "react.workflows.operator.condition_greater"
+msgstr "didesnis už"
+
+msgid "react.workflows.operator.condition_less"
+msgstr "mažesnis už"
+
+msgid "react.workflows.operator.condition_contains"
+msgstr "turi"
+
+msgid "react.workflows.operator.condition_not_contains"
+msgstr "neturi"
+
+msgid "react.workflows.operator.condition_pattern"
+msgstr "atitinka šabloną"
+
+msgid "react.workflows.operator.condition_empty"
+msgstr "neturi reikšmės"
+
+msgid "react.workflows.operator.condition_not_empty"
+msgstr "turi bet kokią reikšmę"
+
+msgid "react.workflows.operator.widget_dialog_help"
+msgstr "Rodomi tik valdikliai, tinkantys šio lauko tipui {type} sutartyje."
+
+msgid "react.workflows.operator.use_widget"
+msgstr "Naudoti valdiklį"
+
+msgid "react.workflows.operator.choose_widget"
+msgstr "Pasirinkti valdiklį"
+
+msgid "react.workflows.operator.widget_default"
+msgstr "(numatytasis)"
+
+msgid "react.workflows.operator.condition_no_other_fields"
+msgstr "Nėra kito lauko, nuo kurio galėtų priklausyti."
+
+msgid "react.workflows.operator.condition_required_note"
+msgstr "Šis laukas sutartyje privalomas, todėl negali priklausyti nuo sąlygos. Pirmiausia padarykite jį neprivalomą sutartyje."
+
+msgid "react.workflows.operator.condition_always"
+msgstr "Rodomas visada."
+
+msgid "react.workflows.operator.condition_or"
+msgstr "arba"
+
+msgid "react.workflows.operator.condition_show_if"
+msgstr "Rodyti šį lauką, jei"
+
+msgid "react.workflows.operator.condition_field"
+msgstr "Taisyklė {number}: laukas"
+
+msgid "react.workflows.operator.condition_operator"
+msgstr "Taisyklė {number}: operatorius"
+
+msgid "react.workflows.operator.condition_value"
+msgstr "Taisyklė {number}: reikšmė"
+
+msgid "react.workflows.operator.condition_remove"
+msgstr "Šalinti taisyklę {number}"
+
+msgid "react.workflows.operator.condition_and"
+msgstr "ir"
+
+msgid "react.workflows.operator.condition_add_group"
+msgstr "Pridėti taisyklių grupę"
+
+msgid "react.workflows.operator.field_tab_general"
+msgstr "Bendra"
+
+msgid "react.workflows.operator.field_tab_presentation"
+msgstr "Pateikimas"
+
+msgid "react.workflows.operator.field_tab_conditions"
+msgstr "Sąlyginė logika"
+
+msgid "react.workflows.operator.instructions"
+msgstr "Nurodymai"
+
+msgid "react.workflows.operator.placeholder"
+msgstr "Vietos rezervavimo tekstas"
+
+msgid "react.workflows.operator.prepend"
+msgstr "Priešdėlis"
+
+msgid "react.workflows.operator.append"
+msgstr "Priesaga"
+
+msgid "react.workflows.operator.width"
+msgstr "Plotis, % formos eilutės"
+
+msgid "react.workflows.operator.option_labels"
+msgstr "Parinkčių pavadinimai"
+
+msgid "react.workflows.operator.option_labels_help"
+msgstr "Reikšmės imamos iš sutarties; operatorius mato pavadinimus."
+
+msgid "react.workflows.operator.option_label_for"
+msgstr "Parinkties {option} pavadinimas"
+
+msgid "react.workflows.operator.layout"
+msgstr "Išdėstymas"
+
+msgid "react.workflows.operator.layout_table"
+msgstr "Lentelė"
+
+msgid "react.workflows.operator.layout_block"
+msgstr "Blokas"
+
+msgid "react.workflows.operator.layout_row"
+msgstr "Eilutė"
+
+msgid "react.workflows.operator.button_label"
+msgstr "Pridėjimo mygtuko tekstas"
+
+msgid "react.workflows.operator.button_label_default"
+msgstr "Pridėti eilutę"
+
+msgid "react.workflows.operator.sub_fields"
+msgstr "Polaukiai"
+
+msgid "react.workflows.operator.field_key"
+msgstr "Raktas"
+
+msgid "react.workflows.operator.field_type"
+msgstr "Tipas"
+
+msgid "react.workflows.operator.field_required"
+msgstr "Privalomas"
+
+msgid "react.workflows.operator.yes"
+msgstr "Taip"
+
+msgid "react.workflows.operator.no"
+msgstr "Ne"
+
+msgid "react.workflows.operator.contract_owns_fields"
+msgstr "Raktas, tipas, privalomumas ir parinktys imami iš workflow sutarties. Juos keiskite Smart setup skiltyje."
+
+msgid "react.workflows.operator.widget"
+msgstr "Valdiklis"
+
+msgid "react.workflows.operator.widget_none"
+msgstr "Šiam tipui netinka nė vienas"
+
+msgid "react.workflows.operator.hidden"
+msgstr "Paslėptas nuo operatoriaus"
+
+msgid "react.workflows.operator.fixed_note"
+msgstr "Sutartis šią reikšmę fiksuoja, todėl forma jos niekada nerodo."
+
+msgid "react.workflows.operator.hidden_help"
+msgstr "Paslėptas laukas iš formos niekada nesiunčiamas; taikoma sutarties numatytoji reikšmė."
+
+msgid "react.workflows.operator.hidden_required_warning"
+msgstr "Privalomas sutartyje ir neturi numatytosios reikšmės: kol jis paslėptas, publikuoti negalima."
+
+msgid "react.workflows.operator.used_as_column"
+msgstr "Sąrašo stulpelis"
+
+msgid "react.workflows.operator.used_as_filter"
+msgstr "Sąrašo filtras"
+
+msgid "react.workflows.operator.field_settings"
+msgstr "{name} nustatymai"
+
+msgid "react.workflows.operator.required_badge"
+msgstr "Privalomas"
+
+msgid "react.workflows.operator.fixed_badge"
+msgstr "Fiksuotas sutartyje"
+
+msgid "react.workflows.operator.hidden_badge"
+msgstr "Paslėptas"
+
+msgid "react.workflows.operator.conditional_badge"
+msgstr "Su sąlyga"
+
+msgid "react.workflows.operator.issue_count"
+msgstr "Problemos: {count}"
+
+msgid "react.workflows.operator.no_fields"
+msgstr "Sutartyje nėra laukų, kuriuos forma galėtų parodyti."
+
+msgid "react.workflows.operator.display_auto"
+msgstr "Automatiškai"
+
+msgid "react.workflows.operator.display_text"
+msgstr "Tekstas"
+
+msgid "react.workflows.operator.display_number"
+msgstr "Skaičius"
+
+msgid "react.workflows.operator.display_date"
+msgstr "Data"
+
+msgid "react.workflows.operator.display_datetime"
+msgstr "Data ir laikas"
+
+msgid "react.workflows.operator.display_time"
+msgstr "Laikas"
+
+msgid "react.workflows.operator.display_wysiwyg"
+msgstr "Formatuotas tekstas"
+
+msgid "react.workflows.operator.display_boolean"
+msgstr "Taip / ne"
+
+msgid "react.workflows.operator.display_file_links"
+msgstr "Failų nuorodos"
+
+msgid "react.workflows.operator.display_table"
+msgstr "Lentelė"
+
+msgid "react.workflows.operator.display_list"
+msgstr "Sąrašas"
+
+msgid "react.workflows.operator.display_json"
+msgstr "JSON"
+
+msgid "react.workflows.operator.display_currency"
+msgstr "Valiuta"
+
+msgid "react.workflows.operator.display_status"
+msgstr "Būsena"
+
+msgid "react.workflows.operator.display_user"
+msgstr "Naudotojas"
+
+msgid "react.workflows.operator.display_count"
+msgstr "Kiekis"
+
+msgid "react.workflows.operator.job_id"
+msgstr "Paleidimo ID"
+
+msgid "react.workflows.operator.job_status"
+msgstr "Būsena"
+
+msgid "react.workflows.operator.job_created_at"
+msgstr "Sukurta"
+
+msgid "react.workflows.operator.job_started_at"
+msgstr "Pradėta"
+
+msgid "react.workflows.operator.job_finished_at"
+msgstr "Baigta"
+
+msgid "react.workflows.operator.job_duration"
+msgstr "Trukmė"
+
+msgid "react.workflows.operator.job_submitted_by"
+msgstr "Pateikė"
+
+msgid "react.workflows.operator.filter_search"
+msgstr "Teksto paieška"
+
+msgid "react.workflows.operator.filter_number_range"
+msgstr "Skaičių intervalas"
+
+msgid "react.workflows.operator.filter_date_range"
+msgstr "Datų intervalas"
+
+msgid "react.workflows.operator.filter_boolean"
+msgstr "Taip / ne"
+
+msgid "react.workflows.operator.filter_choice"
+msgstr "Vienas pasirinkimas"
+
+msgid "react.workflows.operator.filter_choice_multi"
+msgstr "Keli pasirinkimai"
+
+msgid "react.workflows.operator.source_job"
+msgstr "Paleidimas"
+
+msgid "react.workflows.operator.source_output"
+msgstr "Išvestis"
+
+msgid "react.workflows.operator.source_input"
+msgstr "Įvestis"
+
+msgid "react.workflows.operator.preview"
+msgstr "Peržiūra"
+
+msgid "react.workflows.operator.preview_help"
+msgstr "Forma taip, kaip ją su šiais nustatymais mato operatorius. Iš čia niekas nesiunčiama."
+
+msgid "react.workflows.operator.no_outputs"
+msgstr "Workflow neturi išvesčių ir grąžinamų failų."
+
+msgid "react.workflows.operator.result_help"
+msgstr "Kaip baigtas paleidimas rodo operatoriui savo išvestis ir grąžinamus failus."
+
+msgid "react.workflows.operator.display"
+msgstr "Rodymas"
+
+msgid "react.workflows.operator.display_of"
+msgstr "{name} rodymas"
+
+msgid "react.workflows.operator.decimals"
+msgstr "Dešimtainės vietos"
+
+msgid "react.workflows.operator.result_hidden"
+msgstr "Slėpti {name}"
+
+msgid "react.workflows.operator.hidden_short"
+msgstr "Paslėpta"
+
+msgid "react.workflows.operator.columns"
+msgstr "Stulpeliai"
+
+msgid "react.workflows.operator.columns_help"
+msgstr "Ką rodo operatoriaus paleidimų sąrašas: paleidimo laukus, įvestis ir išvestis. Failai rodomi kaip atsisiuntimo nuorodos."
+
+msgid "react.workflows.operator.no_columns"
+msgstr "Stulpelių nėra: sąrašas rodo paleidimą, jo būseną ir sukūrimo laiką."
+
+msgid "react.workflows.operator.source"
+msgstr "Šaltinis"
+
+msgid "react.workflows.operator.column_source"
+msgstr "Stulpelio {number} šaltinis"
+
+msgid "react.workflows.operator.value"
+msgstr "Reikšmė"
+
+msgid "react.workflows.operator.column_value"
+msgstr "Stulpelio {number} reikšmė"
+
+msgid "react.workflows.operator.heading"
+msgstr "Antraštė"
+
+msgid "react.workflows.operator.column_heading"
+msgstr "Stulpelio {number} antraštė"
+
+msgid "react.workflows.operator.column_issue"
+msgstr "Stulpelis {number}: {message}"
+
+msgid "react.workflows.operator.format"
+msgstr "Formatas"
+
+msgid "react.workflows.operator.column_format"
+msgstr "Stulpelio {number} formatas"
+
+msgid "react.workflows.operator.remove_column"
+msgstr "Šalinti stulpelį {number}"
+
+msgid "react.workflows.operator.add_column"
+msgstr "Pridėti stulpelį"
+
+msgid "react.workflows.operator.filters"
+msgstr "Filtrai"
+
+msgid "react.workflows.operator.filters_help"
+msgstr "Filtrai lygina visas pateiktas reikšmes. Failų filtruoti negalima. Tekstinę reikšmę galima filtruoti pagal datas, kai jos formatas workflow kontrakte yra „Data“ arba „Data ir laikas“. Kiekviename sąraše yra paleidimo būsenos filtras su įtaisyta būsena „Laukia peržiūros“."
+
+msgid "react.workflows.operator.filter_value"
+msgstr "Filtro {number} reikšmė"
+
+msgid "react.workflows.operator.filter_type"
+msgstr "Filtro tipas"
+
+msgid "react.workflows.operator.filter_type_of"
+msgstr "Filtro {number} tipas"
+
+msgid "react.workflows.operator.filter_label"
+msgstr "Filtro {number} pavadinimas"
+
+msgid "react.workflows.operator.filter_source"
+msgstr "Filtro {number} šaltinis"
+
+msgid "react.workflows.operator.filter_issue"
+msgstr "Filtras {number}: {message}"
+
+msgid "react.workflows.operator.remove_filter"
+msgstr "Šalinti filtrą {number}"
+
+msgid "react.workflows.operator.add_filter"
+msgstr "Pridėti filtrą"
+
+msgid "react.workflows.operator.ack_pending"
+msgstr "Bus patvirtinta kitu išsaugojimu."
+
+msgid "react.workflows.operator.ack_done"
+msgstr "Patvirtino {by} {at}, versija {revision}."
+
+msgid "react.workflows.operator.ack_stale"
+msgstr "Po paskutinio patvirtinimo sutartis pasikeitė. Patvirtinkite realų poveikį dar kartą."
+
+msgid "react.workflows.operator.ack_missing"
+msgstr "Nepatvirtinta. Kol nepatvirtinsite, operatoriai negali paleisti workflow."
+
+msgid "react.workflows.operator.publish"
+msgstr "Rodyti operatoriams"
+
+msgid "react.workflows.operator.publish_help"
+msgstr "Jį savo meniu mato kiekvieno su šiuo workflow susieto projekto operatoriai ir peržiūrėtojai."
+
+msgid "react.workflows.operator.publish_needs_ui"
+msgstr "Pirmiausia Smart setup skiltyje įjunkite UI paleidimo kanalą: per jį operatoriaus forma paleidžia vykdymus."
+
+msgid "react.workflows.operator.open_smart_setup"
+msgstr "Atidaryti Smart setup"
+
+msgid "react.workflows.operator.menu_title"
+msgstr "Meniu pavadinimas"
+
+msgid "react.workflows.operator.menu_section"
+msgstr "Meniu"
+
+msgid "react.workflows.operator.appears_in"
+msgstr "Kur rodomas"
+
+msgid "react.workflows.operator.no_linked_projects"
+msgstr "Šis workflow dar nesusietas su jokiu projektu. Susiekite jį su projektu, kad jis ten būtų rodomas."
+
+msgid "react.workflows.operator.submission"
+msgstr "Pateikimas"
+
+msgid "react.workflows.operator.mode_bulk"
+msgstr "Bulk: vienas paleidimas su viskuo, ką pateikia operatorius"
+
+msgid "react.workflows.operator.mode_foreach"
+msgstr "For each: po paleidimą kiekvienam sąrašo ar failų įvesties elementui; kitos reikšmės kartojamos kiekviename paleidime"
+
+msgid "react.workflows.operator.foreach_target"
+msgstr "Po paleidimą kiekvienam elementui iš"
+
+msgid "react.workflows.operator.effects"
+msgstr "Realus poveikis"
+
+msgid "react.workflows.operator.acknowledge"
+msgstr "Patvirtinti realų poveikį"
+
+msgid "react.workflows.operator.ack_help"
+msgstr "Operatoriaus pateikimas paleidžia workflow su realiu poveikiu. Pakeitus workflow sutartį, patvirtinimas panaikinamas."
+
+msgid "react.workflows.operator.issues"
+msgstr "Problemos"
+
+msgid "react.workflows.operator.warning"
+msgstr "Įspėjimas"
+
+msgid "react.workflows.operator.error"
+msgstr "Klaida"
+
+msgid "react.workflows.operator.show_issue"
+msgstr "Rodyti"
+
+msgid "react.workflows.operator.no_issues"
+msgstr "Problemų nėra."
+
+msgid "react.workflows.operator.unavailable"
+msgstr "Operatoriaus forma nepasiekiama"
+
+msgid "react.workflows.operator.unavailable_help"
+msgstr "Nepavyko perskaityti workflow sutarties operatoriaus formai."
+
+msgid "react.workflows.operator.sub_form"
+msgstr "Forma"
+
+msgid "react.workflows.operator.sub_result"
+msgstr "Rezultatas"
+
+msgid "react.workflows.operator.sub_list"
+msgstr "Lentelė"
+
+msgid "react.workflows.operator.sub_publication"
+msgstr "Publikavimas"
+
+msgid "react.workflows.operator.form_help"
+msgstr "Laukai imami iš workflow sutarties jos tvarka. Pasirinkite, kaip rodyti kiekvieną; laukus pridėkite, šalinkite ar keiskite jų tipą Smart setup skiltyje."
+
+msgid "react.workflows.operator.tab"
+msgstr "Operatoriams"
+
+msgid "react.workflows.review.from_workflow_help"
+msgstr "Pasirinkto workflow įvestys tampa peržiūros laukais su savo tipais, privalomumu ir parinktimis."
+
+msgid "react.workflows.review.fields"
+msgstr "Peržiūros laukai"
+
+msgid "react.workflows.review.take_fields"
+msgstr "Paimti laukus"
+
+msgid "react.workflows.review.from_workflow"
+msgstr "Paimti laukus iš workflow"
+
+msgid "react.workflows.review.workflows_unavailable"
+msgstr "Nepavyko įkelti workflow sąrašo."
+
+msgid "react.workflows.review.workflow_no_inputs"
+msgstr "Šis workflow neturi įvesčių."
+
+msgid "react.workflows.review.help"
+msgstr "Tipizuotos reikšmės, kurias peržiūrėtojas tikrina ir gali pataisyti. Patvirtinus jos tampa šio žingsnio išvestimis, pavyzdžiui, tolesniam Invoke žingsniui."
+
+msgid "react.workflows.review.from_workflow_hint"
+msgstr "Laukai paimti iš {workflow}."
+
+msgid "react.workflows.review.add_field"
+msgstr "Pridėti lauką"
+
+msgid "react.workflows.review.no_fields"
+msgstr "Peržiūros laukų nėra: peržiūrėtojas patvirtina arba atmeta neredaguodamas reikšmių."
+
+msgid "react.workflows.review.unnamed_field"
+msgstr "Laukas be pavadinimo"
+
+msgid "react.workflows.review.editable"
+msgstr "Redaguojamas"
+
+msgid "react.workflows.review.read_only"
+msgstr "Tik skaitymui"
+
+msgid "react.workflows.review.label_placeholder"
+msgstr "Bendra suma"
+
+msgid "react.workflows.review.description_placeholder"
+msgstr "Rodoma peržiūrėtojui po lauku"
+
+msgid "react.workflows.review.editable_label"
+msgstr "Peržiūrėtojas gali pataisyti"
+
+msgid "react.workflows.review.source"
+msgstr "Pradinė reikšmė iš"
+
+msgid "react.workflows.review.source_of"
+msgstr "{name} pradinė reikšmė"
+
+msgid "react.workflows.review.source_placeholder"
+msgstr "Ankstesnio žingsnio rezultatas arba įvestis; tuščia – pradeda be reikšmės"
+
+msgid "react.workflows.review.suggested"
+msgstr "Atitikmenys:"
+
+msgid "react.workflows.review.type_unknown"
+msgstr "tipas nežinomas"
+
+msgid "react.workflows.review.remove_field"
+msgstr "Šalinti lauką"
+
+msgid "react.workflows.review.original"
+msgstr "Originalas, rodomas šalia laukų"
+
+msgid "react.workflows.review.no_original"
+msgstr "Be originalo"
+
+msgid "react.workflows.review.original_help"
+msgstr "Failų įvestis arba ankstesnio žingsnio failas; keli failai vartomi."
+
+msgid "react.workflows.review.approve_label"
+msgstr "Patvirtinimo mygtukas"
+
+msgid "react.workflows.review.reject_label"
+msgstr "Atmetimo mygtukas"
+
+msgid "react.workflows.operator.save_refused"
+msgstr "Operatoriaus forma neišsaugota. Ištaisykite prie jos laukų parodytas problemas."
+
+msgid "react.operator.foreach_target_unavailable"
+msgstr "Šios formos išsiųsti negalima: laukas, kurio reikšmės siunčiamos po vieną, nerodomas. Paprašykite administratoriaus patikrinti skiltį."
+
+msgid "react.operator.batch_locked"
+msgstr "Dalis šio pateikimo priimta. Pakartokite nepavykusius elementus arba pradėkite naują pateikimą."
+
+msgid "react.operator.field_invalid_number"
+msgstr "Įveskite skaičių."
+
+msgid "react.operator.row_field_invalid_number"
+msgstr "Įveskite skaičių lauke {field}, {row} eilutėje."
+
+msgid "react.operator_job.title"
+msgstr "Užduotis"
+
+msgid "react.operator_job.full_details"
+msgstr "Visa užduoties informacija"
+
+msgid "react.operator_job.submitted_by"
+msgstr "Pateikė {name}"
+
+msgid "react.operator_job.submitted"
+msgstr "Pateikta"
+
+msgid "react.operator_job.nothing_submitted"
+msgstr "Reikšmių nepateikta."
+
+msgid "react.operator_job.result"
+msgstr "Rezultatas"
+
+msgid "react.operator_job.no_result"
+msgstr "Šis vykdymas negrąžino nieko, ką būtų galima parodyti."
+
+msgid "react.operator_job.review"
+msgstr "Patikra"
+
+msgid "react.operator_job.review_hidden"
+msgstr "Šią užduotį patikrino žmonės, turintys prieigą prie jos."
+
+msgid "react.operator_job.review_approved_by"
+msgstr "Patvirtino {actor} · {when}"
+
+msgid "react.operator_job.review_rejected_by"
+msgstr "Atmetė {actor} · {when}"
+
+msgid "react.operator_job.review_changes"
+msgstr "Patikros metu pataisyta"
+
+msgid "react.operator.all_files"
+msgstr "Visi failai ({count})"
+
+msgid "react.operator.filter_source"
+msgstr "Šaltinis"
+
+msgid "react.operator.source_form"
+msgstr "Forma"
+
+msgid "react.operator.source_api"
+msgstr "API ir MCP"
+
+msgid "react.jobs.file_preview_password"
+msgstr "Šis failas apsaugotas slaptažodžiu. Atsisiųskite jį, kad atidarytumėte."
+
+msgid "react.jobs.file_preview_unreadable"
+msgstr "Šio failo nepavyko perskaityti peržiūrai. Atsisiųskite jį, kad atidarytumėte."
+
+msgid "react.jobs.file_preview_previous_page"
+msgstr "Ankstesnis puslapis"
+
+msgid "react.jobs.file_preview_next_page"
+msgstr "Kitas puslapis"
+
+msgid "react.jobs.file_preview_page_position"
+msgstr "{page} puslapis iš {total}"
+
+msgid "react.jobs.file_preview_zoom_out"
+msgstr "Sumažinti"
+
+msgid "react.jobs.file_preview_zoom_in"
+msgstr "Padidinti"
+
+msgid "react.jobs.file_preview_fit_width"
+msgstr "Pritaikyti pagal plotį"
+
+msgid "react.jobs.file_preview_pdf_page"
+msgstr "{name}, {page} puslapis"
+
+msgid "react.jobs.file_preview_rows_shown"
+msgstr "Rodoma {shown} eil. iš {total}."
+
+msgid "react.jobs.file_preview_columns_shown"
+msgstr "Rodoma {shown} stulp. iš {total}."
+
+msgid "react.jobs.file_preview_sheets"
+msgstr "{name} lapai"
+
+msgid "react.jobs.file_preview_empty_sheet"
+msgstr "Šis lapas tuščias."
+
+msgid "react.operator_job.result_pending"
+msgstr "Rezultatas bus rodomas čia, kai vykdymas baigsis."
+
+msgid "react.operator_job.title_more"
+msgstr "{name} ir dar {count}"
+
+msgid "react.operator_job.send_again"
+msgstr "Siųsti dar kartą"
+
+msgid "react.operator_job.loading_files"
+msgstr "Įkeliami failai…"
+
+msgid "react.operator_job.files_not_loaded"
+msgstr "Nepavyko įkelti šio darbo failų: {count}. Pridėkite juos formoje."
+
+msgid "react.operator_job.reject_reason"
+msgstr "Priežastis: {comment}"
+
+msgid "react.operator_job.resend_missing"
+msgstr "Nepavyko įkelti šių ankstesnio darbo failų:"
+
+msgid "react.operator_job.resend_without_missing"
+msgstr "Siųsti be šių failų"
+
+msgid "react.operator_job.resend_missing_block"
+msgstr "Vėl pridėkite trūkstamus failus arba patvirtinkite siuntimą be jų."
+
+msgid "react.operator_form.take_photo"
+msgstr "Fotografuoti"
+
+msgid "react.operator_form.preparing_photo"
+msgstr "Ruošiama nuotrauka…"
+
+msgid "react.settings.choose_a_role"
+msgstr "Pasirinkite vaidmenį."
+
+msgid "react.settings.role_admin"
+msgstr "Administratorius"
+
+msgid "react.settings.role_operator"
+msgstr "Operatorius"
+
+msgid "react.settings.role_viewer"
+msgstr "Stebėtojas"
+
+msgid "react.settings.role_admin_description"
+msgstr "Viską paruošia: naudotojus, plėtinius, projektus, darbo eigas ir slaptažodžius."
+
+msgid "react.settings.role_operator_description"
+msgstr "Atlieka darbą: paleidžia darbo eigas, priima sprendimus dėl patvirtinimų ir atnaujina slaptažodžius."
+
+msgid "react.settings.role_viewer_description"
+msgstr "Mato istoriją, rezultatus ir failus, nieko nekeičia."
+
+msgid "react.projects.history_restore_admin_only"
+msgstr "Reviziją atkurti gali tik administratorius."
+
+msgid "react.oauth.preset_my_role"
+msgstr "Tokia pati prieiga kaip jūsų"
+
+msgid "react.agent_access.advanced_options_admin_only"
+msgstr "Jūsų agentas gauna jūsų vaidmens prieigą; prieigą, galiojimo laiką ir projektus pasirenka tik administratorius."
+
+msgid "react.agent_access.advanced_options"
+msgstr "Išplėstinės parinktys"
+
+msgid "react.agent_access.hide_advanced_options"
+msgstr "Slėpti išplėstines parinktis"
+
+msgid "react.agent_access.role_access_summary"
+msgstr "{client} gauna tokią pačią prieigą kaip jūs. Jis niekada negali daugiau nei jūs."
+
+msgid "react.agent_access.role_access_expiry"
+msgstr "Veikia {days} d.; bet kada galite prisijungti iš naujo."
+
+msgid "react.agent_access.connect"
+msgstr "Prijungti"
+
+msgid "react.agent_access.connect_again"
+msgstr "Prijungti iš naujo"
+
+msgid "react.agent_access.address_title"
+msgstr "Adresas"
+
+msgid "react.agent_access.role_connected_instruction"
+msgstr "Pridėkite Flow Steward programoje {client} pagal toliau pateiktus žingsnius; adresas ir jūsų raktas jau įrašyti."
+
+msgid "react.oauth.role_access_narrower"
+msgstr "{client} paprašė mažiau, nei leidžia jūsų vaidmuo, todėl gauna tik šią jūsų prieigos dalį."
+
+msgid "react.oauth.role_access_admin"
+msgstr "{client} galės daryti tai, ką Flow Steward galite jūs."
+
+msgid "react.oauth.role_access_operator"
+msgstr "{client} galės matyti tai, ką matote jūs, ir atlikti jūsų darbą: paleisti darbo eigas, priimti sprendimus dėl patvirtinimų ir valdyti užduotis. Flow Steward nustatymų keisti negalės."
+
+msgid "react.oauth.role_access_viewer"
+msgstr "{client} galės matyti tai, ką Flow Steward matote jūs. Nieko keisti negalės."
+
+msgid "react.oauth.role_access_details"
+msgstr "Ką galės daryti"
+
+msgid "react.oauth.role_access_expiry"
+msgstr "Veikia {days} d., iki {date}. Kad veiktų ir toliau, prisijunkite iš naujo iš programos."
+
+msgid "react.oauth.role_access_description"
+msgstr "Programa veikia jūsų vardu ir niekada negali daugiau, nei leidžia jūsų vaidmuo."
+
+msgid "react.oauth.signed_in_as_role"
+msgstr "Prisijungta kaip {name} · {role}"
+
+msgid "react.oauth.signed_in_as"
+msgstr "Prisijungta kaip {name}"
+
+msgid "react.oauth.allow_short"
+msgstr "Leisti"
+
+msgid "react.oauth.preset_my_role_description"
+msgstr "Tai, ką leidžia jūsų vaidmuo, apribota tuo, ko paprašė programa."
+
+msgid "react.agent_access.connections_title"
+msgstr "Jūsų ryšiai"
+
+msgid "react.agent_access.connection_ends_on"
+msgstr "Veikia iki {date}"
+
+msgid "react.agent_access.connection_no_end"
+msgstr "Neturi pabaigos datos"
+
+msgid "react.agent_access.connection_ending_title"
+msgstr "{client} nustos veikti po {days} d., {date}"
+
+msgid "react.agent_access.connection_reconnect_from_client"
+msgstr "Kad veiktų ir toliau, iš naujo prijunkite Flow Steward iš {client}. Flow Steward dar kartą paprašys jūsų leidimo."
+
+msgid "react.agent_access.connection_connect_again_copy"
+msgstr "Kad veiktų ir toliau, prijunkite iš naujo: gausite naują raktą, kurį reikės įrašyti į {client}."
+
+msgid "react.agent_access.oauth_role_access_summary"
+msgstr "{client} jungiasi per OAuth: prisijungdami leidžiate tai Flow Steward."
+
+msgid "react.agent_access.oauth_role_access_body"
+msgstr "Kai pridedate Flow Steward programoje {client}, prisijungiate prie Flow Steward ir tai leidžiate. {client} gauna tokią pačią prieigą kaip jūs {days} d.; prijungus iš naujo iš {client} ji atnaujinama."
+
+msgid "react.agent_access.expiry_notice_one"
+msgstr "Jūsų DI agento ryšys {client} nustos veikti {date}."
+
+msgid "react.agent_access.expiry_notice_many"
+msgstr "{count} jūsų DI agentų ryšiai netrukus nustos veikti."
+
+msgid "react.agent_access.expiry_notice_link"
+msgstr "Atverti DI agentus"
+
+msgid "react.agent_access.expiry_notice_dismiss"
+msgstr "Paslėpti"
+
+msgid "react.permissions.account_self"
+msgstr "Tvarkyti savo prisijungimą: atsijungti, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
+
+msgid "react.permissions.account_profile_write"
+msgstr "Keisti savo profilį, laiko juostą, kalbą ir datos formatą bei perjungti paskyrą"
+
+msgid "react.permissions.jobs_read"
+msgstr "Skaityti užduotis, jų rezultatus, failus, žurnalus ir patvirtinimus"
+
+msgid "react.permissions.projects_read"
+msgstr "Skaityti projektus, jų ryšius, tvarkaraščius ir istoriją"
+
+msgid "react.permissions.workflows_read"
+msgstr "Skaityti projekto darbo eigas, jų sutartis ir patikrą"
+
+msgid "react.permissions.reports_read"
+msgstr "Skaityti darbo eigų ataskaitas"
+
+msgid "react.permissions.notify_read"
+msgstr "Skaityti projekto pranešimų maršrutus ir pristatymus"
+
+msgid "react.permissions.secrets_read"
+msgstr "Skaityti saugomų slaptažodžių pavadinimus, metaduomenis ir kur jie naudojami, bet ne jų reikšmes"
+
+msgid "react.permissions.extensions_read"
+msgstr "Skaityti įdiegto plėtinio informaciją"
+
+msgid "react.permissions.platform_read"
+msgstr "Skaityti nustatymus, saugumo radinius, stebėseną, paiešką ir šiukšlinę"
+
+msgid "react.permissions.registry_read"
+msgstr "Skaityti darbo eigų registrą, jo istoriją, plėtinius, teikėjus ir apkrovą"
+
+msgid "react.permissions.workflows_run"
+msgstr "Paleisti darbo eigą ir peržiūrėti, kurią darbo eigą paleistų pateikimas"
+
+msgid "react.permissions.approvals_decide"
+msgstr "Priimti sprendimus dėl patvirtinimų ir pakeisti vykdymo sprendimus"
+
+msgid "react.permissions.jobs_write"
+msgstr "Atšaukti, paleisti iš naujo, pakartoti užduoties žingsnį, pažymėti ir atžymėti užduotis kaip peržiūrėtas"
+
+msgid "react.permissions.reports_write"
+msgstr "Sugeneruoti darbo eigos ataskaitą"
+
+msgid "react.permissions.notify_dispatch"
+msgstr "Siųsti pranešimą administratoriaus sukonfigūruotu maršrutu"
+
+msgid "react.permissions.extensions_use"
+msgstr "Vykdyti plėtinio puslapio veiksmus ir užklausas bei išspręsti išorinį poveikį"
+
+msgid "react.permissions.secrets_value_write"
+msgstr "Kurti saugomą slaptažodį, keisti jo reikšmę ir metaduomenis"
+
+msgid "react.permissions.projects_write"
+msgstr "Kurti, keisti ir trinti projektus, jų ryšius, tvarkaraščius, maršrutus ir politiką"
+
+msgid "react.permissions.workspaces_manage"
+msgstr "Kurti, keisti ir archyvuoti darbo sritis"
+
+msgid "react.permissions.workflows_manage"
+msgstr "Kurti, importuoti, keisti ir trinti darbo eigas, jų paleidiklius ir susiejimus su projektais"
+
+msgid "react.permissions.registry_manage"
+msgstr "Keisti agentus, įrankius, įgūdžius, duomenų sutartis, duomenų rinkinius, MCP jungtis ir teikėjus"
+
+msgid "react.permissions.extensions_manage"
+msgstr "Diegti, konfigūruoti, įjungti ir šalinti plėtinius"
+
+msgid "react.permissions.jobs_manage"
+msgstr "Trinti užduotis, pakartoti žingsnį, iš naujo perduoti įvykį ir atkurti ar sustabdyti vykdytojus"
+
+msgid "react.permissions.secrets_bind"
+msgstr "Pasirinkti, kurį saugomą slaptažodį naudoja ryšys ar darbo eiga, arba panaikinti šį pasirinkimą"
+
+msgid "react.permissions.secrets_delete"
+msgstr "Ištrinti saugomą slaptažodį kartu su visomis vietomis, kur jis naudojamas"
+
+msgid "react.permissions.secrets_approve"
+msgstr "Patvirtinti konfigūracijos saugomų slaptažodžių naudojimą; tik prisijungęs žmogus"
+
+msgid "react.permissions.users_manage"
+msgstr "Tvarkyti naudotojus, paskyras ir tarnybines paskyras"
+
+msgid "react.permissions.settings_manage"
+msgstr "Keisti diegimo nustatymus, saugumo politiką, modelių teikėjus ir atnaujinimus"
+
+msgid "react.permissions.platform_manage"
+msgstr "Vykdyti bendrąsias komandas, atkurti ar išvalyti šiukšlinę ir priimti agentų bei reakcijų užklausas"

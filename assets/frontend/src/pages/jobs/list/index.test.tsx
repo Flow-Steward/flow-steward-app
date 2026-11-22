@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { JobsListPage } from "@/pages/jobs/list";
 import { LOADER_DELAY_MS, LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -228,7 +229,7 @@ describe("JobsListPage", () => {
     mockedUseAuth.mockReturnValue({
       session: {
         user: {
-          roles: ["admin"],
+          roles: ["admin"], permissions: permissionsForRoles(["admin"]),
         },
       },
     } as never);
@@ -729,7 +730,7 @@ describe("JobsListPage first load", () => {
     vi.useFakeTimers();
     mockedUseAuth.mockReset();
     mockedFetchJson.mockReset();
-    mockedUseAuth.mockReturnValue({ session: { user: { roles: ["admin"] } } } as never);
+    mockedUseAuth.mockReturnValue({ session: { user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never);
     const jobsAnswer = new Promise((resolve) => {
       resolveJobs = resolve;
     });

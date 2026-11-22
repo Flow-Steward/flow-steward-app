@@ -89,7 +89,8 @@ def workflow_trigger(
 
     Discover workflows, read workflow_contract, and ask for missing required inputs
     before calling. For file inputs, send files with input_name, filename, mime_type,
-    and content_base64 (strict base64; 10 files, 1 MiB decoded total).
+    and content_base64 (strict base64; 10 files, 1 MiB decoded total). A list-of-files
+    input takes one entry per file with the same input_name, in order.
     Never send server paths, URLs or invented artifact IDs as files.
     Pass declared inputs in payload. Inputs with a configured default are fixed
     (`caller_may_supply: false` in workflow_contract) and must not be sent: the

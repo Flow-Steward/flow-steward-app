@@ -106,9 +106,11 @@ def _is_public_auth_path(current_app: FastAPI, path: str) -> bool:
 
 
 def _is_self_service_auth_write_route(current_app: FastAPI, path: str) -> bool:
-    return runtime._serve_auth_runtime.is_self_service_auth_write_route(
-        path
-    ) or _optional_route_allowed(current_app, path, "self_service_auth_write_paths")
+    """A write an edition contributes as a person's own-account route.
+
+    Core's own-account writes are ``account.self`` in the route table (ADR 0076).
+    """
+    return _optional_route_allowed(current_app, path, "self_service_auth_write_paths")
 
 
 def _build_event_command_service_factory(current_app: FastAPI):
@@ -197,6 +199,9 @@ def _build_composed_service_factories(
             *args, **kwargs
         ),
         to_json_obj=lambda value: runtime._to_json_obj(value),
+        resolve_artifact=ArtifactPresentationResolver(runtime._artifact_plane)
+        if runtime._artifact_plane is not None
+        else None,
     )
     extension_query_service = runtime._query_service_runtime.build_extension_query_service_factory(
         get_logger=get_identity_store,
@@ -395,7 +400,6 @@ def create_app(
             ),
             auth_account_tables_available=lambda bl: api_routes._auth_account_tables_available(bl),
             roles_intersect=lambda actual, required: api_routes._roles_intersect(actual, required),
-            is_admin_only_route=lambda path: api_routes._is_admin_only_route(path),
             is_registry_read_route=lambda path: api_routes._is_registry_read_route(path),
             is_self_service_auth_write_route=lambda path: _is_self_service_auth_write_route(
                 current_app, path

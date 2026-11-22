@@ -373,9 +373,7 @@ def test_uploaded_bytes_are_persisted_and_bound_before_dispatch(
     assert "content_base64" not in repr(prepared)
 
 
-@pytest.mark.parametrize(
-    "kind", ["too_many", "too_large", "aggregate", "duplicate", "path", "fake_handle"]
-)
+@pytest.mark.parametrize("kind", ["too_many", "too_large", "aggregate", "path", "fake_handle"])
 def test_direct_upload_request_rejects_invalid_transport_before_job(kind):
     import base64
 
@@ -394,8 +392,6 @@ def test_direct_upload_request_rejects_invalid_transport_before_job(kind):
             }
             for i in range(2)
         ]
-    elif kind == "duplicate":
-        files = [upload, upload]
     elif kind == "path":
         files = [{**upload, "content_path": "/etc/passwd"}]
     elif kind == "fake_handle":
@@ -513,7 +509,6 @@ def _builder_request(**overrides):
         {"kept_test_outputs": {}},
         {"files": [{"input_name": "upload", "filename": "a.csv", "content_base64": "!"}]},
         {"files": [{"input_name": "upload", "filename": "a.csv", "artifact_id": "fake"}]},
-        {"files": [{"input_name": "upload", "filename": "a.csv", "content_base64": "YQ=="}] * 2},
     ],
 )
 def test_builder_rejects_unacknowledged_or_spoofed_requests(builder_workflow_service, overrides):
@@ -678,9 +673,15 @@ def test_builder_preserves_editor_catalog_and_workflow_owner_project_scope(
 
 
 @pytest.mark.parametrize("kind", ["unknown", "empty_name", "oversized", "aggregate", "too_many"])
-def test_builder_rejects_bad_actual_uploads_before_admission(builder_workflow_service, kind):
+def test_builder_rejects_bad_actual_uploads_before_admission(
+    builder_workflow_service, kind, monkeypatch
+):
     import base64
 
+    # ADR 0075: the browser launch follows the attachment policy; pin it at the
+    # sizes this test exercises (1 MiB per run, 10 files).
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_SIZE_BYTES", str(1_048_576))
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_FILES", "10")
     service, fields, queued, _ = builder_workflow_service
     create_artifact = MagicMock()
     service._artifact_plane = SimpleNamespace(create_artifact=create_artifact)
@@ -716,3 +717,418 @@ def test_builder_can_run_a_linked_global_system_definition(builder_workflow_serv
     workflow.update(account_id=None, scope_kind="system")
     service.start_builder_workflow_run("stock-import", _builder_request())
     assert len(queued) == 1
+
+
+def _publish(workflow: dict, *, acknowledged: bool = True, **settings) -> None:
+    """Publish the workflow to operators the way an admin save leaves it (ADR 0075)."""
+    from core.application.registry.workflow_contract import interface_from_definition
+    from core.application.registry.workflow_operator_form import contract_fingerprint
+
+    operator = {"published": True, **settings}
+    if acknowledged:
+        operator["effects_acknowledged"] = {
+            "by": "admin-1",
+            "at": "2026-11-19T10:00:00+00:00",
+            "revision": workflow.get("revision") or 0,
+            "contract_sha": contract_fingerprint(interface_from_definition(workflow)),
+        }
+    workflow["settings"]["operator"] = operator
+
+
+def _operator(**fields) -> ScopeContext:
+    return ScopeContext(
+        **{
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "actor_id": "operator-7",
+            "principal_type": "operator",
+            "auth_source": "local",
+            **fields,
+        }
+    )
+
+
+def test_builder_run_records_the_server_owned_author(builder_workflow_service):
+    """ADR 0075: the history's author comes from the authenticated scope only."""
+    service, _, queued, workflow = builder_workflow_service
+    _publish(workflow)
+
+    service.start_builder_workflow_run(
+        "stock-import",
+        _builder_request(),
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7", principal_type="operator"
+        ),
+    )
+
+    assert queued[0]["meta"]["submitted_by"] == {"id": "operator-7", "kind": "person"}
+
+
+def test_a_form_cannot_name_the_author(builder_workflow_service):
+    """An undeclared input such as `submitted_by` is refused by the strict contract."""
+    service, _, queued, _ = builder_workflow_service
+
+    with pytest.raises(ServiceValidationError, match="not declared"):
+        service.start_builder_workflow_run(
+            "stock-import",
+            _builder_request(inputs={"submitted_by": {"id": "someone-else"}}),
+            scope=ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7"),
+        )
+    assert queued == []
+
+
+def test_api_run_records_the_same_author_as_the_form(direct_workflow_service):
+    from core.application.registry.registry_manager import RegistryManager
+
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string", "required": True})
+    workflow = RegistryManager.instance().db_store.get_workflow("stock-import")
+    workflow.update(enabled=True, revision=7, account_id=DEFAULT_ACCOUNT_ID)
+    workflow["settings"]["callable"]["trigger_channels"] = ["ui", "mcp"]
+    _publish(workflow)
+
+    service.start_mcp_workflow_run(
+        {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}},
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID, actor_id="operator-7", principal_type="operator"
+        ),
+    )
+
+    assert queued[0]["meta"]["submitted_by"] == {"id": "operator-7", "kind": "person"}
+
+
+# --- ADR 0075: an operator runs only what an admin published to the project -------------
+
+
+@pytest.mark.parametrize(
+    ("change", "code"),
+    [
+        ("unpublished", "operator.not_published"),
+        ("unacknowledged", "operator.effects_not_acknowledged"),
+        ("unbound", "operator.not_bound"),
+        ("broken_form", "form.widget_incompatible"),
+        ("stale_acknowledgement", "operator.effects_not_acknowledged"),
+    ],
+)
+def test_an_operator_form_run_needs_publication_binding_and_acknowledgement(
+    builder_workflow_service, change, code
+):
+    from core.application.management.errors import ServiceForbiddenError
+
+    service, fields, queued, workflow = builder_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    _publish(workflow, acknowledged=change != "unacknowledged")
+    if change == "unpublished":
+        workflow["settings"]["operator"]["published"] = False
+    if change == "unbound":
+        service._get_logger().get_project_run_config.return_value["project_workflows"] = [
+            {"workflow_id": "stock-import", "enabled": True},
+            {"workflow_id": "other", "enabled": True},
+        ]
+        service._get_logger().get_project_run_config.return_value["project_workflows"][0][
+            "deleted_at"
+        ] = "2026-11-01"
+    if change == "broken_form":
+        workflow["settings"]["operator"]["form"] = {"fields": {"supplier": {"widget": "number"}}}
+    if change == "stale_acknowledgement":
+        # The contract changed after the admin confirmed its effects.
+        fields.append({"name": "warehouse", "type": "string"})
+
+    with pytest.raises((ServiceForbiddenError, ServiceValidationError)) as refused:
+        service.start_builder_workflow_run("stock-import", _builder_request(), scope=_operator())
+
+    if isinstance(refused.value, ServiceForbiddenError):
+        assert code in [reason["code"] for reason in refused.value.payload["reasons"]]
+        assert refused.value.payload["code"] == "operator_run_not_allowed"
+    else:
+        # The Builder's own link check answers first for an unbound workflow.
+        assert change == "unbound"
+    assert queued == []
+
+
+def test_an_operator_runs_a_published_acknowledged_bound_workflow(builder_workflow_service):
+    service, fields, queued, workflow = builder_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    _publish(workflow, menu_title="Stock")
+
+    result = service.start_builder_workflow_run(
+        "stock-import", _builder_request(inputs={"supplier": "acme"}), scope=_operator()
+    )
+
+    assert result.job_id == "91"
+    assert len(queued) == 1
+
+
+@pytest.mark.parametrize(
+    "scope",
+    [
+        ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="admin-1", principal_type="admin"),
+        ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="user-42"),
+    ],
+)
+def test_admins_keep_the_builder_checks_without_publication(builder_workflow_service, scope):
+    service, _, queued, _ = builder_workflow_service
+
+    service.start_builder_workflow_run("stock-import", _builder_request(), scope=scope)
+
+    assert len(queued) == 1
+
+
+@pytest.mark.parametrize("state", ["unpublished", "unbound", "published"])
+def test_the_api_and_mcp_launch_hold_an_operator_to_the_same_rule(direct_workflow_service, state):
+    from core.application.management.errors import ServiceForbiddenError
+    from core.application.registry.registry_manager import RegistryManager
+
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+    workflow = RegistryManager.instance().db_store.get_workflow("stock-import")
+    workflow.update(enabled=True, revision=7, account_id=DEFAULT_ACCOUNT_ID)
+    workflow["settings"]["callable"]["trigger_channels"] = ["ui", "mcp"]
+    if state != "unpublished":
+        _publish(workflow)
+    if state == "unbound":
+        service._get_logger().get_project_run_config.return_value["project_workflows"] = []
+    command = {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}}
+
+    if state == "published":
+        service.start_mcp_workflow_run(command, scope=_operator(auth_source="pat"))
+        assert len(queued) == 1
+        return
+    with pytest.raises(ServiceForbiddenError) as refused:
+        service.start_mcp_workflow_run(command, scope=_operator(auth_source="pat"))
+    expected = "operator.not_published" if state == "unpublished" else "operator.not_bound"
+    assert expected in [reason["code"] for reason in refused.value.payload["reasons"]]
+    assert queued == []
+
+
+def test_a_service_account_keeps_its_api_launch(direct_workflow_service):
+    service, fields, queued = direct_workflow_service
+    fields.append({"name": "supplier", "type": "string"})
+
+    service.start_mcp_workflow_run(
+        {"project_id": PROJECT_ID, "workflow_id": "stock-import", "inputs": {"supplier": "a"}},
+        scope=ScopeContext(
+            account_id=DEFAULT_ACCOUNT_ID,
+            actor_id="sa-1",
+            principal_type="service_account",
+            auth_source="machine",
+        ),
+    )
+
+    assert len(queued) == 1
+
+
+# --- ADR 0075: several files in one input ----------------------------------------------
+
+PAGES = {"name": "pages", "type": "array", "items": {"type": "file"}, "required": True}
+
+
+def _page(index: int, *, filename: str = "", input_name: str = "pages") -> dict:
+    import base64
+
+    return {
+        "input_name": input_name,
+        "filename": filename or f"page-{index}.jpg",
+        "mime_type": "image/jpeg",
+        "content_base64": base64.b64encode(f"page {index}".encode()).decode(),
+    }
+
+
+@pytest.fixture
+def stored_uploads(builder_workflow_service, monkeypatch):
+    """Real admission and binding; artifact storage and the queue are recorded."""
+    import hashlib
+    from contextlib import nullcontext
+
+    service, fields, queued, _ = builder_workflow_service
+    saved = []
+    prepared = {}
+    store = service._get_logger()
+
+    def create_artifact(**kwargs):
+        saved.append((kwargs["artifact_id"], kwargs["filename"], kwargs["body"]))
+        return SimpleNamespace(artifact_id=kwargs["artifact_id"]), {
+            "filename": kwargs["filename"],
+            "content_type": kwargs["content_type"],
+            "size_bytes": len(kwargs["body"]),
+            "sha256": hashlib.sha256(kwargs["body"]).hexdigest(),
+            "object_key": f"artifacts/{kwargs['artifact_id']}/{kwargs['filename']}",
+        }
+
+    def enqueue(**kwargs):
+        store.get_job.return_value = {"meta": kwargs["meta"]}
+        prepared.update(kwargs["pre_publish_fn"]("91", store))
+        queued.append(kwargs)
+        return 91
+
+    service._artifact_plane = SimpleNamespace(create_artifact=create_artifact)
+    service._enqueue_task = enqueue
+    monkeypatch.setattr(
+        "core.infrastructure.db.db_pool.transaction_connection", lambda *_a, **_k: nullcontext()
+    )
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_SIZE_BYTES", str(1_048_576))
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_FILES", "10")
+    return service, fields, queued, saved, prepared
+
+
+def test_four_pages_become_four_artifacts_and_one_list_input(stored_uploads):
+    service, fields, queued, saved, prepared = stored_uploads
+    fields.append(PAGES)
+    # Two pages share a filename: each still keeps its own stored copy.
+    files = [_page(1), _page(2, filename="scan.jpg"), _page(3, filename="scan.jpg"), _page(4)]
+
+    result = service.start_builder_workflow_run("stock-import", _builder_request(files=files))
+
+    assert result.job_id == "91"
+    assert len(queued) == 1
+    assert [row[1] for row in saved] == ["page-1.jpg", "scan.jpg", "scan.jpg", "page-4.jpg"]
+    assert [row[2] for row in saved] == [f"page {index}".encode() for index in range(1, 5)]
+    pages = prepared["inputs"]["pages"]
+    assert [ref["artifact_id"] for ref in pages] == [row[0] for row in saved]
+    assert len({ref["artifact_id"] for ref in pages}) == 4
+    assert all(ref["field_name"] == "pages" for ref in pages)
+    assert pages == prepared["files"]
+    assert prepared["task_envelope"]["inputs"]["pages"] == pages
+    invocation = prepared["invocation"]
+    assert [row["artifact_id"] for row in invocation["files"]] == [row[0] for row in saved]
+    assert [row["field_name"] for row in invocation["files"]] == ["pages"] * 4
+    mapped = queued[0]["meta"]["invocation"]["mapped_inputs"]["pages"]
+    assert [row["filename"] for row in mapped] == [
+        "page-1.jpg",
+        "scan.jpg",
+        "scan.jpg",
+        "page-4.jpg",
+    ]
+    assert "content_base64" not in repr(prepared)
+
+
+def test_the_operator_list_gives_each_page_its_artifact(stored_uploads):
+    from core.application.registry.workflow_operator_form import OperatorListColumn
+    from core.application.registry.workflow_operator_list import operator_row_values
+
+    service, fields, queued, saved, prepared = stored_uploads
+    fields.append(PAGES)
+    files = [_page(1, filename="scan.jpg"), _page(2, filename="scan.jpg")]
+    service.start_builder_workflow_run("stock-import", _builder_request(files=files))
+    column = OperatorListColumn.model_validate({"id": "pages", "source": "input", "path": "pages"})
+
+    values = operator_row_values(
+        [column],
+        {"status": "running"},
+        {
+            "inputs": queued[0]["meta"]["invocation"]["mapped_inputs"],
+            "input_files": prepared["invocation"]["files"],
+        },
+    )
+
+    assert [row["artifact_id"] for row in values["pages"]] == [row[0] for row in saved]
+
+
+def test_a_single_file_input_refuses_a_second_file_before_storage(stored_uploads):
+    service, fields, queued, saved, _ = stored_uploads
+    fields.append({"name": "source", "type": "file", "required": True})
+    files = [_page(1, input_name="source"), _page(2, input_name="source")]
+
+    with pytest.raises(ServiceValidationError) as refused:
+        service.start_builder_workflow_run("stock-import", _builder_request(files=files))
+
+    assert refused.value.status_code == 422
+    assert refused.value.payload["code"] == "workflow_file_input_single"
+    assert refused.value.payload["input_name"] == "source"
+    assert "'source'" in str(refused.value)
+    assert queued == []
+    assert saved == []
+
+
+def test_the_api_launch_takes_several_files_for_a_list_and_one_for_a_file(
+    direct_workflow_service,
+):
+    service, fields, _ = direct_workflow_service
+    fields.extend([dict(PAGES), {"name": "source", "type": "file", "required": False}])
+    commands = []
+
+    def capture(command, **_kwargs):
+        commands.append(command)
+        return SimpleNamespace(job_id="91")
+
+    create_artifact = MagicMock()
+    service._artifact_plane = SimpleNamespace(create_artifact=create_artifact)
+    with pytest.raises(ServiceValidationError) as refused:
+        service.start_mcp_workflow_run(
+            {
+                "project_id": PROJECT_ID,
+                "workflow_id": "stock-import",
+                "files": [_page(1), _page(2), *[_page(i, input_name="source") for i in (3, 4)]],
+            }
+        )
+    assert refused.value.status_code == 422
+    assert refused.value.payload["input_name"] == "source"
+    create_artifact.assert_not_called()
+
+    with patch.object(service, "enqueue_manual_task", side_effect=capture):
+        service.start_mcp_workflow_run(
+            {"project_id": PROJECT_ID, "workflow_id": "stock-import", "files": [_page(1), _page(2)]}
+        )
+    assert [row.input_name for row in commands[0].files] == ["pages", "pages"]
+    assert [row.filename for row in commands[0].files] == ["page-1.jpg", "page-2.jpg"]
+
+
+@pytest.mark.parametrize(
+    ("shape", "count", "message"),
+    [
+        ({"min_items": 2}, 1, "at least 2"),
+        ({"max_items": 3}, 4, "at most 3"),
+    ],
+)
+def test_item_bounds_of_a_file_list_are_checked_before_storage(
+    stored_uploads, shape, count, message
+):
+    service, fields, queued, saved, _ = stored_uploads
+    fields.append({**PAGES, **shape})
+    files = [_page(index) for index in range(1, count + 1)]
+
+    with pytest.raises(ServiceValidationError, match=message):
+        service.start_builder_workflow_run("stock-import", _builder_request(files=files))
+
+    assert queued == []
+    assert saved == []
+
+
+def test_a_required_file_list_needs_uploads_not_json(stored_uploads):
+    service, fields, queued, saved, _ = stored_uploads
+    fields.append(PAGES)
+
+    with pytest.raises(ServiceValidationError) as missing:
+        service.start_builder_workflow_run("stock-import", _builder_request())
+    assert missing.value.payload["code"] == "workflow_file_input_required"
+    with pytest.raises(ServiceValidationError, match="through files"):
+        service.start_builder_workflow_run(
+            "stock-import", _builder_request(inputs={"pages": [{"artifact_id": "art_fake"}]})
+        )
+    assert queued == []
+    assert saved == []
+
+
+def test_more_files_than_the_policy_allows_are_refused_before_storage(stored_uploads, monkeypatch):
+    service, fields, queued, saved, _ = stored_uploads
+    fields.append(PAGES)
+    monkeypatch.setenv("FS_ATTACHMENT_MAX_FILES", "3")
+
+    with pytest.raises(ValidationError, match="at most 3 files"):
+        service.start_builder_workflow_run(
+            "stock-import", _builder_request(files=[_page(index) for index in range(4)])
+        )
+
+    assert queued == []
+    assert saved == []
+
+
+def test_one_file_input_still_receives_one_reference(stored_uploads):
+    service, fields, _, saved, prepared = stored_uploads
+    fields.append({"name": "source", "type": "file", "required": True})
+
+    service.start_builder_workflow_run(
+        "stock-import", _builder_request(files=[_page(1, input_name="source")])
+    )
+
+    assert prepared["inputs"]["source"]["artifact_id"] == saved[0][0]
+    assert prepared["inputs"]["source"]["field_name"] == "source"

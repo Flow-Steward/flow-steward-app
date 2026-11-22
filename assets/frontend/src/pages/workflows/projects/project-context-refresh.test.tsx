@@ -5,9 +5,10 @@ import { createMemoryRouter, RouterProvider, Route, Routes, useLocation } from "
 import { WorkflowsProjectsPage } from "@/pages/workflows/projects";
 import { WorkflowsOverviewPage } from "@/pages/workflows/overview";
 import { WorkflowsBuilderPage } from "@/pages/workflows/builder";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/use-is-admin", () => ({ useIsAdmin: () => true, useCanReadWorkflowRegistry: () => true }));
-vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], timezone: "UTC" } } }) }));
+vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]), timezone: "UTC" } } }) }));
 
 // Keep first-import compilation outside these interaction assertions.
 beforeAll(async () => {

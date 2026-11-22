@@ -38,6 +38,8 @@ export type NavSection = {
   key: string;
   label: string;
   items: NavEntry[];
+  /** The label folds and unfolds the items (an operator's project group, ADR 0075). */
+  collapsible?: boolean;
 };
 
 export type AccountMembership = {
@@ -114,6 +116,9 @@ export type AwaitingApprovalJob = {
   status?: string | null;
   status_label?: string | null;
   step_label?: string | null;
+  /** The top of its Invoke chain and that job's workflow: what a section shows (ADR 0075). */
+  root_job_id?: string | null;
+  root_workflow?: string | null;
   [key: string]: unknown;
 };
 
@@ -471,6 +476,26 @@ function normalizeAwaitingApprovalJobs(
 
 export function approvalJobId(row: AwaitingApprovalJob): string {
   return firstStringFromUnknownValue([row.id, row.job_id, ""]).trim();
+}
+
+/**
+ * Where the approval bell opens a waiting job. For someone who works in
+ * sections (operator, viewer), a job of a section opens on that section's job
+ * page, from the top of its Invoke chain, which shows the review wherever it is
+ * held; anything else, and every job for an admin, opens Job Details.
+ */
+export function approvalJobPath(
+  row: AwaitingApprovalJob,
+  sections?: readonly { project_id: string; workflow_id: string }[],
+): string {
+  const jobId = approvalJobId(row);
+  const projectId = firstStringFromUnknownValue([row.project_id, ""]).trim();
+  const workflowId = firstStringFromUnknownValue([row.root_workflow, ""]).trim();
+  const rootId = firstStringFromUnknownValue([row.root_job_id, ""]).trim() || jobId;
+  if (sections && projectId && workflowId && sections.some((item) => item.project_id === projectId && item.workflow_id === workflowId)) {
+    return `/projects/${encodeURIComponent(projectId)}/workflows/${encodeURIComponent(workflowId)}/work/jobs/${encodeURIComponent(rootId)}`;
+  }
+  return `/jobs/${encodeURIComponent(jobId)}`;
 }
 
 export function approvalJobTitle(row: AwaitingApprovalJob, t: I18nContextValue["t"] = fallbackContext.t): string {

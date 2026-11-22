@@ -44,6 +44,29 @@ def approval_lock(thread_id: str) -> threading.RLock:
         return lock
 
 
+def approval_decision_fingerprint(decision: ApprovalDecisionInput) -> str:
+    """The idempotency fingerprint of one decision.
+
+    ``values`` joins it only when the decision carries them: a decision without
+    edits keeps the fingerprint it had before review fields existed, so a retry
+    across an update replays instead of conflicting, and the same key with other
+    edits conflicts.
+    """
+    fingerprinted: dict[str, Any] = {
+        "approval_id": decision.approval_id,
+        "approved": decision.approved,
+        "action": decision.action,
+        "comment": decision.comment,
+        "override_content": decision.override_content,
+        "external_actor": (
+            decision.external_actor.model_dump(mode="json") if decision.external_actor else None
+        ),
+    }
+    if decision.values is not None:
+        fingerprinted["values"] = decision.values
+    return canonical_json_hash(fingerprinted)
+
+
 class ApprovalDecisionService:
     """Own first-decision-wins validation and the atomic idempotency transaction."""
 
@@ -169,20 +192,7 @@ class ApprovalDecisionService:
             with transaction as transaction_conn:
                 if str(idempotency_key or "").strip():
                     account_id = str(getattr(scope, "account_id", "") or DEFAULT_ACCOUNT_ID)
-                    fingerprint = canonical_json_hash(
-                        {
-                            "approval_id": decision.approval_id,
-                            "approved": decision.approved,
-                            "action": decision.action,
-                            "comment": decision.comment,
-                            "override_content": decision.override_content,
-                            "external_actor": (
-                                decision.external_actor.model_dump(mode="json")
-                                if decision.external_actor
-                                else None
-                            ),
-                        }
-                    )
+                    fingerprint = approval_decision_fingerprint(decision)
                     if transaction_conn is None:
                         raise ServiceUnavailableError("Idempotency storage is unavailable")
                     idempotency_service = RequestIdempotencyService(
@@ -332,4 +342,4 @@ class ApprovalDecisionService:
             lock.release()
 
 
-__all__ = ["ApprovalDecisionService"]
+__all__ = ["ApprovalDecisionService", "approval_decision_fingerprint"]

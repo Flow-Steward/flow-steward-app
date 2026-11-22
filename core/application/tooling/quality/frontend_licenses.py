@@ -3,8 +3,10 @@
 
 Two rules, both read from ``assets/frontend/package-lock.json``:
 
-1. Every production package has a license on the allowlist. Local links (the
-   vendored compatibility shims) carry none and are exempt.
+1. Every production package has a license on the allowlist. An SPDX expression
+   passes when one ``OR`` alternative has every ``AND`` term on the list: JSZip's
+   ``(MIT OR GPL-3.0-or-later)`` is used under MIT, pako's ``(MIT AND Zlib)`` needs
+   both. Local links (the vendored compatibility shims) carry none and are exempt.
 2. Every package in the production closure of a root named in
    ``assets/frontend/third-party-notices.json`` has its section, at the locked
    version and license, in ``assets/frontend/public/third-party-notices.txt``.
@@ -36,8 +38,9 @@ NOTICE_ROOTS = FRONTEND / "third-party-notices.json"
 NOTICES = FRONTEND / "public" / "third-party-notices.txt"
 
 ALLOWED_LICENSES = frozenset(
-    {"0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "OFL-1.1"}
+    {"0BSD", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT", "OFL-1.1", "Zlib"}
 )
+_SPDX_TOKEN = re.compile(r"\(|\)|[^\s()]+")
 LICENSE_FILE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "license")
 EXTRA_NOTICE_FILES = ("NOTICE", "NOTICE.txt", "CopyrightNotice.txt")
 SECTION_RULE = "=" * 72
@@ -110,13 +113,61 @@ def production_closure(packages: dict[str, dict], roots: Iterable[str]) -> list[
     return sorted(seen.values(), key=lambda item: (item.name, item.version, item.path))
 
 
+def license_allowed(expression: str) -> bool:
+    """Whether an SPDX license expression can be met with allowlisted licenses only.
+
+    ``OR`` lets the product choose one alternative, ``AND`` requires every term,
+    and ``AND`` binds tighter. ``WITH`` exceptions and anything unparsable fail.
+    """
+    tokens = _SPDX_TOKEN.findall(expression)
+    position = 0
+
+    def atom() -> bool:
+        nonlocal position
+        if position >= len(tokens):
+            raise ValueError("unexpected end")
+        token = tokens[position]
+        position += 1
+        if token == "(":
+            value = alternatives()
+            if position >= len(tokens) or tokens[position] != ")":
+                raise ValueError("unbalanced parenthesis")
+            position += 1
+            return value
+        if token in {")", "AND", "OR", "WITH"}:
+            raise ValueError(f"unexpected {token}")
+        return token in ALLOWED_LICENSES
+
+    def conjunction() -> bool:
+        nonlocal position
+        value = atom()
+        while position < len(tokens) and tokens[position] == "AND":
+            position += 1
+            value = atom() and value
+        return value
+
+    def alternatives() -> bool:
+        nonlocal position
+        value = conjunction()
+        while position < len(tokens) and tokens[position] == "OR":
+            position += 1
+            value = conjunction() or value
+        return value
+
+    try:
+        allowed = alternatives()
+    except ValueError:
+        return False
+    return allowed and position == len(tokens)
+
+
 def license_problems(packages: dict[str, dict]) -> list[str]:
     problems = []
     for path, entry in sorted(packages.items()):
         if not path or not _is_production(entry) or entry.get("link"):
             continue
         license_id = str(entry.get("license") or "")
-        if license_id not in ALLOWED_LICENSES:
+        if not license_allowed(license_id):
             problems.append(
                 f"{_package_name(path)}@{entry.get('version')}: license {license_id or '(none)'} "
                 "is not on the allowlist"

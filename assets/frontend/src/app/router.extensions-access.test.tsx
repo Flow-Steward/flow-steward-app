@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 
 import { AppRouter } from "@/app/router";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/components/layout/AppShell", () => ({
   AppShell: () => <Outlet />,
@@ -27,7 +28,7 @@ function authValue(role?: "admin" | "operator" | "viewer"): AuthContextValue {
     session: {
       authenticated,
       roles: role ? [role] : [],
-      user: { roles: role ? [role] : [] },
+      user: { roles: role ? [role] : [], permissions: role ? permissionsForRoles([role]) : [] },
     } as AuthContextValue["session"],
     status: authenticated ? "authenticated" : "anonymous",
   };

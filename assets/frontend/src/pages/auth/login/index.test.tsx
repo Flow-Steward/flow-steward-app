@@ -91,6 +91,7 @@ function renderLogin({
         <PasswordLengthNotice />
         <Routes>
           <Route element={<LoginPage />} path="/login" />
+          <Route element={<div>Home destination</div>} path="/" />
           <Route element={<div>Dashboard destination</div>} path="/dashboard" />
           <Route element={<div>Security destination</div>} path="/settings/security" />
           <Route element={<div>Bootstrap destination</div>} path="/bootstrap" />
@@ -409,7 +410,7 @@ describe("LoginPage", () => {
     fireEvent.change(factor, { target: { value: "abcd-efgh-jkmn" } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
 
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -478,7 +479,7 @@ describe("LoginPage", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeVisible());
     expect(refresh).toHaveBeenCalledTimes(1);
   });
 
@@ -521,6 +522,7 @@ describe("LoginPage", () => {
         <MemoryRouter initialEntries={["/login"]}>
           <Routes>
             <Route element={<LoginPage />} path="/login" />
+            <Route element={<div>Home destination</div>} path="/" />
             <Route element={<div>Dashboard destination</div>} path="/dashboard" />
           </Routes>
         </MemoryRouter>
@@ -538,20 +540,43 @@ describe("LoginPage", () => {
     expect(screen.getByLabelText(/^Email address$/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Welcome back" })).not.toBeInTheDocument();
     expect(screen.queryByText("Taking you to your dashboard…")).not.toBeInTheDocument();
-    expect(screen.queryByText("Dashboard destination")).not.toBeInTheDocument();
+    expect(screen.queryByText("Home destination")).not.toBeInTheDocument();
 
     resolveRefresh();
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
   });
 
-  it("rejects an unsafe next route and returns a successful sign-in to the dashboard", async () => {
+  it("without next, a successful sign-in goes to the role-based home, never straight to the Dashboard", async () => {
+    // ADR 0075: the index (HomeGate) decides the landing; an operator or viewer
+    // must not be sent into the admin Dashboard by the login fallback.
+    mockedFetchJson.mockResolvedValueOnce({ user: { username: "operator@example.com" } });
+    renderLogin({ sessionOverrides: { roles: ["operator"] } });
+    fillCredentials("operator@example.com");
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
+    expect(screen.queryByText("Dashboard destination")).not.toBeInTheDocument();
+  });
+
+  it("keeps a safe explicit next after sign-in", async () => {
+    mockedFetchJson.mockResolvedValueOnce({ user: { username: "person@example.com" } });
+    renderLogin({ route: "/login?next=/settings/security" });
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
+  });
+
+  it("rejects an unsafe next route and returns a successful sign-in to the role-based home", async () => {
     mockedFetchJson.mockResolvedValueOnce({ user: { username: "person@example.com" } });
     renderLogin({ route: "/login?next=/%5Cattacker.example" });
     fillCredentials();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
   });
 
   it("requests account selection, retains credentials, validates it, and then completes sign-in", async () => {
@@ -582,7 +607,7 @@ describe("LoginPage", () => {
     fireEvent.change(accountSelect, { target: { value: "platform" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
     expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
       method: "POST",
       body: JSON.stringify({
@@ -731,7 +756,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByLabelText(/^Confirm password$/i), { target: { value: permanent } });
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
 
-    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Home destination")).toBeInTheDocument());
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(mockedFetchJson).toHaveBeenCalledTimes(2);
     const [, init] = mockedFetchJson.mock.calls[1] ?? [];
@@ -763,7 +788,7 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Set password and sign in" }));
 
     await waitFor(() => expect(screen.getByText("new_password must be at least 14 characters")).toBeInTheDocument());
-    expect(screen.queryByText("Dashboard destination")).not.toBeInTheDocument();
+    expect(screen.queryByText("Home destination")).not.toBeInTheDocument();
   });
 
   it("renders normalized flash feedback as an informational notice", () => {

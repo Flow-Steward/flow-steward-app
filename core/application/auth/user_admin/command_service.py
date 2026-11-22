@@ -52,6 +52,7 @@ from core.application.auth.user_admin.policies import (
     resolve_user,
 )
 from core.application.auth.user_admin.projection import normalize_user_payload
+from core.application.auth.user_admin.repository import FirstUserMustBeAdminError
 from core.application.management.errors import (
     ServiceConflictError,
     ServiceForbiddenError,
@@ -200,7 +201,13 @@ class UserAdminCommandService:
 
         password = require_password(command.password)
         display_name = str(command.display_name or "").strip() or email
-        roles = normalized_roles(command.roles, normalize_roles_fn=self._normalize_requested_roles)
+        # No role means the default the repository decides under its lock: admin
+        # for an installation's first user, viewer after that.
+        roles = (
+            normalized_roles([command.role], normalize_roles_fn=self._normalize_requested_roles)
+            if command.role
+            else []
+        )
         if self._get_user_by_username(bl, email):
             raise ServiceConflictError("Email already exists")
 
@@ -211,18 +218,21 @@ class UserAdminCommandService:
         )
         require_account_access(requested_account_ids, allowed_account_ids)
 
-        user_id = self._repository.create_auth_user(
-            bl,
-            email=email,
-            password_hash_value=self._password_hash(password),
-            display_name=display_name,
-            is_active=bool(command.is_active),
-            must_change_password=bool(command.must_change_password),
-            roles=roles,
-            primary_account_id=primary_account_id,
-            requested_account_ids=requested_account_ids,
-            seed_default_roles=self._seed_default_roles,
-        )
+        try:
+            user_id = self._repository.create_auth_user(
+                bl,
+                email=email,
+                password_hash_value=self._password_hash(password),
+                display_name=display_name,
+                is_active=bool(command.is_active),
+                must_change_password=bool(command.must_change_password),
+                roles=roles,
+                primary_account_id=primary_account_id,
+                requested_account_ids=requested_account_ids,
+                seed_default_roles=self._seed_default_roles,
+            )
+        except FirstUserMustBeAdminError as exc:
+            raise ServiceValidationError(str(exc)) from exc
         if not user_id:
             raise ServiceUnavailableError("Failed to create user")
 
@@ -235,7 +245,7 @@ class UserAdminCommandService:
             actor=context.actor,
             status="ok",
             detail={
-                "roles": roles,
+                "roles": list(created.get("roles") or roles),
                 "is_active": bool(command.is_active),
                 "must_change_password": bool(command.must_change_password),
                 "account_ids": requested_account_ids,
@@ -462,7 +472,7 @@ class UserAdminCommandService:
             UserUpdateInput(
                 user_id=command.user_id,
                 email=command.email,
-                roles=command.roles,
+                role=command.role,
                 actor=command.actor,
             ),
             audit_context=audit_context,
@@ -503,7 +513,7 @@ class UserAdminCommandService:
                 command.password,
                 command.is_active,
                 command.must_change_password,
-                command.roles,
+                command.role,
                 command.account_ids,
                 command.account_id,
             )
@@ -514,8 +524,8 @@ class UserAdminCommandService:
             require_password(command.password) if command.password is not None else None
         )
         roles = (
-            normalized_roles(command.roles, normalize_roles_fn=self._normalize_requested_roles)
-            if command.roles is not None
+            normalized_roles([command.role], normalize_roles_fn=self._normalize_requested_roles)
+            if command.role is not None
             else None
         )
         requested_account_ids: list[str] | None = None
@@ -571,7 +581,7 @@ class UserAdminCommandService:
                 "source": context.source,
                 "changed_display_name": command.display_name is not None,
                 "changed_password": command.password is not None,
-                "changed_roles": command.roles is not None,
+                "changed_roles": command.role is not None,
                 "changed_is_active": command.is_active is not None,
                 "changed_must_change_password": command.must_change_password is not None,
                 "changed_accounts": command.account_ids is not None

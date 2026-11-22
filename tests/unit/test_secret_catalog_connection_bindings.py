@@ -23,9 +23,19 @@ def test_binding_needs_bind_authority_before_any_database_work() -> None:
         _service().bind_connection_fields("conn-1", machine, bindings={"api_token": "secret-1"})
 
 
-def test_binding_refuses_an_oauth_grant_field_and_an_empty_choice() -> None:
+def test_an_operator_person_cannot_bind_a_connection_field() -> None:
     person = ScopeContext(
         account_id="acct-1", actor_id="person", principal_type="operator", auth_source="local"
+    )
+
+    with pytest.raises(ServiceForbiddenError, match="Admin role required"):
+        _service().bind_connection_fields("conn-1", person, bindings={"api_token": "secret-1"})
+
+
+def test_binding_refuses_an_oauth_grant_field_and_an_empty_choice() -> None:
+    # Binding is configuration: an administrator (ADR 0066 amendment).
+    person = ScopeContext(
+        account_id="acct-1", actor_id="person", principal_type="admin", auth_source="local"
     )
 
     with pytest.raises(ServiceValidationError, match="OAuth grant"):

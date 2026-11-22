@@ -464,6 +464,9 @@ async def _build_job_detail_contract(
             )
             if isinstance(gate_view.get("payload"), dict):
                 approval_gate = dict(gate_view["payload"])
+            if isinstance(gate_view.get("review"), dict):
+                # The public typed review of an Approval step (ADR 0075).
+                approval_gate["review"] = dict(gate_view["review"])
             if approval_gate or gate_view.get("thread_id"):
                 approval_gate["thread_id"] = str(
                     gate_view.get("thread_id") or job.get("thread_id") or ""

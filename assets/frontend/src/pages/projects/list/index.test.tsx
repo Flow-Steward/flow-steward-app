@@ -11,6 +11,7 @@ import { fetchWorkflows } from "@/pages/workflows/shared/api";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/projects/list/api", () => ({
   fetchModelSelectionOptions: vi.fn(),
@@ -47,7 +48,7 @@ function authValue(role: Role): AuthContextValue {
     session: {
       authenticated: true,
       roles: [role],
-      user: { id: "user-1", account_id: "account-1", roles: [role] },
+      user: { id: "user-1", account_id: "account-1", roles: [role], permissions: permissionsForRoles([role]) },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -165,7 +166,8 @@ describe("ProjectsListPage", () => {
 
   it.each([
     ["admin", true, true],
-    ["operator", false, true],
+    // Deleting a project is DELETE /api/projects/{id}: projects.write, the admin's.
+    ["operator", false, false],
     ["viewer", false, false],
   ] as const)("offers creation only to admin while preserving %s project access", async (role, canCreate, canDelete) => {
     localStorage.setItem("platform:selected-workspace-id", "ws-1");

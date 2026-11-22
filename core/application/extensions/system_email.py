@@ -53,6 +53,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Your account has been created. You can now sign in using {email}.\n\n"
             "If you did not expect this, please contact your administrator.",
         ),
+        "agent_connection_expiring": (
+            "Your AI agent connection stops working soon",
+            "Hi {display_name},\n\n"
+            "Your AI agent connection {client} stops working on {end_date}.\n\n"
+            "To keep it working, open AI agents in Flow Steward, choose Connect again "
+            "and put the new key into {client}:\n"
+            "{agents_url}\n\n"
+            "If you no longer use this connection, you can ignore this email.",
+        ),
+        "agent_app_connection_expiring": (
+            "Your AI app connection stops working soon",
+            "Hi {display_name},\n\n"
+            "The connection of {client} to Flow Steward stops working on {end_date}.\n\n"
+            "To keep it working, connect Flow Steward again from {client}. "
+            "Flow Steward asks you to allow it once more.\n\n"
+            "Your AI agent connections: {agents_url}\n\n"
+            "If you no longer use this connection, you can ignore this email.",
+        ),
     },
     "lt": {
         "password_reset": (
@@ -78,6 +96,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Sveiki, {display_name},\n\n"
             "Jūsų paskyra sukurta. Dabar galite prisijungti naudodami adresą {email}.\n\n"
             "Jei nesitikėjote šio laiško, susisiekite su administratoriumi.",
+        ),
+        "agent_connection_expiring": (
+            "Jūsų DI agento ryšys netrukus nustos veikti",
+            "Sveiki, {display_name},\n\n"
+            "Jūsų DI agento ryšys {client} nustos veikti {end_date}.\n\n"
+            "Kad jis veiktų toliau, Flow Steward atverkite skiltį „DI agentai“, pasirinkite "
+            "„Prijungti iš naujo“ ir įrašykite naują raktą į {client}:\n"
+            "{agents_url}\n\n"
+            "Jei šio ryšio nebenaudojate, galite nepaisyti šio laiško.",
+        ),
+        "agent_app_connection_expiring": (
+            "Jūsų DI programos ryšys netrukus nustos veikti",
+            "Sveiki, {display_name},\n\n"
+            "Programos {client} ryšys su Flow Steward nustos veikti {end_date}.\n\n"
+            "Kad jis veiktų toliau, iš naujo prijunkite Flow Steward iš {client}. "
+            "Flow Steward dar kartą paprašys jūsų leidimo.\n\n"
+            "Jūsų DI agentų ryšiai: {agents_url}\n\n"
+            "Jei šio ryšio nebenaudojate, galite nepaisyti šio laiško.",
         ),
     },
 }
@@ -295,9 +331,38 @@ def send_signup_notification_email(
     )
 
 
+def send_agent_connection_expiring_email(
+    *,
+    recipient: str,
+    client: str,
+    end_date: str,
+    agents_url: str,
+    oauth_app: bool,
+    display_name: str = "",
+    locale: str = "",
+    bl: Any = None,
+) -> dict[str, Any]:
+    """Tell the owner that an AI agent connection stops working on ``end_date``.
+
+    ``oauth_app`` is a cloud client connected through OAuth consent, renewed from the
+    client itself; otherwise it is a personal agent token, renewed with Connect again.
+    """
+    return _send(
+        "agent_app_connection_expiring" if oauth_app else "agent_connection_expiring",
+        recipient=recipient,
+        locale=locale,
+        bl=bl,
+        display_name=display_name,
+        client=client,
+        end_date=end_date,
+        agents_url=agents_url,
+    )
+
+
 __all__ = [
     "find_email_connection",
     "render_system_email",
+    "send_agent_connection_expiring_email",
     "send_email_change_verification_email",
     "send_password_reset_email",
     "send_signup_notification_email",

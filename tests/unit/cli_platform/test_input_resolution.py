@@ -356,11 +356,11 @@ def test_validation_aggregates_required_group_and_model_issues() -> None:
         fields=USERS_SET_ROLES_SPEC.fields,
         exactly_one_of=USERS_SET_ROLES_SPEC.exactly_one_of,
         preliminary_issues=(
-            FieldIssue(field="roles", message="This field is required.", code="missing"),
+            FieldIssue(field="role", message="This field is required.", code="missing"),
         ),
     )
 
     assert [(issue.field, issue.code) for issue in result.issues] == [
-        ("roles", "missing"),
+        ("role", "missing"),
         ("target", "exactly_one_of"),
     ]

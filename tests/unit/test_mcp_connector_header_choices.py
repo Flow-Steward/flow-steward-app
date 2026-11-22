@@ -112,12 +112,13 @@ def _row(refs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _operator(**fields: Any) -> ScopeContext:
+def _admin(**fields: Any) -> ScopeContext:
+    # Configuring a connector and binding its secret is the admin's (ADR 0066 amendment).
     return ScopeContext(
         account_id="acct",
         project_id="proj",
         tenant_id="tenant",
-        principal_type="operator",
+        principal_type="admin",
         auth_source="local",
         actor_id="ops",
         **fields,
@@ -339,7 +340,7 @@ def test_create_binds_the_chosen_header_after_the_row_and_keeps_typed_values(
             headers={"X-Tenant": "acme"},
             header_secret_choices={"Authorization": {"secret_id": "s1", "prefix": "Bearer "}},
         ),
-        scope=_operator(),
+        scope=_admin(),
     )
 
     assert order == ["insert", "bind", "update"]
@@ -392,7 +393,7 @@ def test_one_header_cannot_be_typed_and_chosen(monkeypatch, bindings) -> None:
                 headers={"authorization": "Bearer typed"},
                 header_secret_choices={"Authorization": {"secret_id": "s1"}},
             ),
-            scope=_operator(),
+            scope=_admin(),
         )
     assert rows == {}
 
@@ -425,7 +426,7 @@ def test_update_changes_the_chosen_secret_and_keeps_typed_values(monkeypatch, bi
         McpConnectorUpdateInput(
             header_secret_choices={"Authorization": {"secret_id": "s2", "prefix": "Token "}}
         ),
-        scope=_operator(),
+        scope=_admin(),
     )
 
     assert saves == []
@@ -443,7 +444,7 @@ def test_update_with_no_choices_stops_using_the_secret(monkeypatch, bindings) ->
     svc, rows, _saves, _order = _service(monkeypatch, _Conn(), existing=_existing_with_choice())
 
     view = svc.update_connector(
-        CONNECTOR, McpConnectorUpdateInput(header_secret_choices={}), scope=_operator()
+        CONNECTOR, McpConnectorUpdateInput(header_secret_choices={}), scope=_admin()
     )
 
     assert bindings.events == [("unbind", "Authorization", "")]
@@ -460,7 +461,7 @@ def test_replacing_typed_headers_keeps_the_choice_without_rebinding(monkeypatch,
     svc.update_connector(
         CONNECTOR,
         McpConnectorUpdateInput(headers_mode="replace", headers={"X-Tenant": "beta"}),
-        scope=_operator(),
+        scope=_admin(),
     )
 
     assert saves == [{"X-Tenant": "beta"}]
@@ -483,7 +484,7 @@ def test_choosing_a_secret_for_a_typed_header_deletes_only_its_typed_value(
         McpConnectorUpdateInput(
             header_secret_choices={"Authorization": {"secret_id": "s1", "prefix": "Bearer "}}
         ),
-        scope=_operator(),
+        scope=_admin(),
     )
 
     assert saves == []
@@ -498,9 +499,7 @@ def test_clear_removes_typed_values_and_choices(monkeypatch, bindings) -> None:
     bindings.bound = {"Authorization": "s1"}
     svc, rows, _saves, _order = _service(monkeypatch, _Conn(), existing=_existing_with_choice())
 
-    svc.update_connector(
-        CONNECTOR, McpConnectorUpdateInput(headers_mode="clear"), scope=_operator()
-    )
+    svc.update_connector(CONNECTOR, McpConnectorUpdateInput(headers_mode="clear"), scope=_admin())
 
     assert ("unbind", "Authorization", "") in bindings.events
     assert rows[CONNECTOR][header_secrets.HEADER_SECRET_REFS_FIELD] == {}
@@ -555,7 +554,7 @@ def test_changing_the_endpoint_with_bind_authority_keeps_the_catalog_header(
     view = svc.update_connector(
         CONNECTOR,
         McpConnectorUpdateInput(base_url="https://new.example.test/mcp"),
-        scope=_operator(),
+        scope=_admin(),
     )
 
     assert view.base_url == "https://new.example.test/mcp"
@@ -693,7 +692,7 @@ def test_switching_oauth_mode_with_a_catalog_header_needs_bind_authority(
     assert rows[CONNECTOR] == existing
     assert bindings.events == []
 
-    view = svc.update_connector(CONNECTOR, update, scope=_operator())
+    view = svc.update_connector(CONNECTOR, update, scope=_admin())
     assert view.auth_mode == after_mode
     assert view.header_secret_choices == {"X-Service-Context": {"secret_id": "s1", "prefix": ""}}
 

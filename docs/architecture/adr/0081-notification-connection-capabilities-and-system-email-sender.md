@@ -1,7 +1,6 @@
-# ADR (number pending): Per-connection notification capabilities, an explicit system email sender, and borrowed connection credentials
+# ADR 0081. Per-connection notification capabilities, an explicit system email sender, and borrowed connection credentials
 
-Status: Proposed for 0.9.24. The number is assigned by the release coordinator;
-add the file to the ADR index under that number.
+Status: Proposed for 0.9.24.
 
 Date: 2026-11-22
 

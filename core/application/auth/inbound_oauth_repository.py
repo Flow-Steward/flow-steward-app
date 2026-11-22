@@ -480,6 +480,8 @@ def resolve_access_token(conn: Any, token_hash: str, now: datetime) -> dict | No
                 SELECT array_agg(ro.key ORDER BY ro.key) AS roles
                 FROM user_roles ur JOIN roles ro ON ro.id = ur.role_id
                 WHERE ur.user_id = g.user_id
+                  AND ur.workspace_id IS NULL AND ur.project_id IS NULL
+                  AND ur.workflow_id IS NULL
             ) r ON true
             WHERE t.token_hash = %s
               AND t.expires_at > %s

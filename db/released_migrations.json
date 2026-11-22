@@ -11,7 +11,7 @@
     "fingerprint in the commit that adds that migration.",
     "released_baseline_fingerprints is append-only: every baseline a published release shipped, the supported upgrade sources of ADR 0056."
   ],
-  "baseline_schema_fingerprint": "c3dfa2ee6c4f008e6792dcb1e7e0bcf9eae50b4d3162209ba38afe508ea15207",
+  "baseline_schema_fingerprint": "bee01d39d2fb3719ae8e6abd6af2a7393ee0fca3daf99cdadcb4a4718c524b28",
   "migrations": {
     "20261101153533_inbound_oauth_tables.sql": "c8f4063e2e456fe7b3004e7a41c924b6bcbfabe82e2c7bc7707a4418364ec3c0",
     "20261103090000_retired_agent_type.sql": "6a88aa8465458201edd171494c9e3c60cc89204ef35c6dec7fc10c02afc539f0",
@@ -23,6 +23,8 @@
     "20261114150000_scheduled_job_name.sql": "c6fd2502c1b86131a3a4ef973b9ba38fab6547993514246011615e721712adb6",
     "20261114160000_workflow_wait_events.sql": "325479d2c82b49d28627040b6b171bd3942ab295774b7750711a559858a03433",
     "20261114190000_raw_body_callback_auth.sql": "c172ba6363edc4aa43d29db4cf02864cf6c542ce299d908df2b676a6fe7d0510",
+    "20261120090000_role_permissions.sql": "bfb99044c641e048ad249fb4c4b67c830019aea5f7334e7a7bd373fb07cd6d39",
+    "20261120140000_agent_expiry_reminders.sql": "2907fddff8a2320cd725aeb2f5f8b8ed0ef1af92ead90c30d972c2cccd5e4caf",
     "20261120160000_local_auth_credentials.sql": "be8d43f0ed110eb2e76e50c3353c78adddbe8ecc9b9bc960de213bb08a642e9f",
     "20261120160100_local_password_history.sql": "6d6abcbd6f82ab3587fc119609ccabf02c845ee260aa9b916cb327c7964ec0ec",
     "20261122120000_user_authenticator_policy.sql": "5d6ed1f59bdcc6be73febaf39b5a507f7ed87c0db037b550046c85952e7f9629",

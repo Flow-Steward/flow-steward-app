@@ -61,6 +61,7 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "users",
     "roles",
     "user_roles",
+    "role_permissions",
     "user_account_memberships",
     "auth_sessions",
     "auth_password_resets",
@@ -314,6 +315,12 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("auth_totp_factors", "last_used_step"),
     ("auth_mfa_recovery_codes", "user_id"),
     ("auth_mfa_recovery_codes", "code_hash"),
+    ("roles", "is_system"),
+    ("roles", "description"),
+    ("user_roles", "workspace_id"),
+    ("user_roles", "project_id"),
+    ("user_roles", "workflow_id"),
+    ("user_roles", "role_is_system"),
 )
 
 REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (

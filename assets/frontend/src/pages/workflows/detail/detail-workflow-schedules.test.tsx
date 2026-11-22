@@ -11,6 +11,7 @@ import { WorkflowSchedules } from "./detail-workflow-schedules";
 import { fetchWorkflowContract } from "@/pages/projects/detail/api";
 import { fetchProjectWorkflowBindings } from "@/pages/projects/workflows/api";
 import { fetchProjectScheduledJobs, createProjectScheduledJob, deleteProjectScheduledJob, toggleProjectScheduledJob, updateProjectScheduledJob, previewProjectCron } from "@/pages/projects/scheduled-jobs/api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/projects/detail/api", () => ({ fetchWorkflowContract: vi.fn() }));
 vi.mock("@/pages/projects/workflows/api", () => ({ fetchProjectWorkflowBindings: vi.fn() }));
@@ -135,7 +136,7 @@ function Settings({ projectId = "project-1", initialSchedule = true, unitEditor 
   // Editor unit coverage is separate from the real route/navigation journey.
   if (unitEditor) return <WorkflowSchedules projectId={projectId} workflowId="wf-1" />;
   // Smart setup renders in the Workflow settings drawer for an author; Save rests until a setting differs from the saved one.
-  return <AuthContext.Provider value={{ session: { user: { roles: ["admin"] } } } as unknown as AuthContextValue}><WorkflowSettingsSmartSetup ctx={{
+  return <AuthContext.Provider value={{ session: { user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as unknown as AuthContextValue}><WorkflowSettingsSmartSetup ctx={{
     drawerMode: "workflow-settings", setDrawerTab: () => undefined,
     workflowFormDirty: channels.join(",") !== (initialSchedule ? "schedule" : ""),
     workflowId: "wf-1", selectedProjectId: projectId, advancedMode: false, drawerTab: "smart-setup",
