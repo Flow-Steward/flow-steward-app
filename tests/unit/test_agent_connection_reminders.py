@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from core.application.auth import agent_connection_reminders as reminders
+from core.application.auth.agent_connection_catalog import CLAUDE_CODE_LABEL
 from core.application.auth.agent_connection_repository import (
     KIND_OAUTH_GRANT,
     KIND_PERSONAL_TOKEN,
@@ -28,7 +29,7 @@ def _row(kind: str, row_id: str, *, created_days_ago: float, ends_in_days: float
     return {
         "kind": kind,
         "id": row_id,
-        "label": "AI agent · Claude Code" if kind == KIND_PERSONAL_TOKEN else "ChatGPT",
+        "label": f"AI agent · {CLAUDE_CODE_LABEL}" if kind == KIND_PERSONAL_TOKEN else "ChatGPT",
         "created_at": NOW - created_days_ago * DAY,
         "expires_at": NOW + ends_in_days * DAY,
         "username": "anna@example.test",
@@ -79,7 +80,7 @@ def test_a_connection_says_when_it_ends_and_how_it_is_renewed() -> None:
         _row(KIND_PERSONAL_TOKEN, "tok-1", created_days_ago=85, ends_in_days=5), NOW
     )
     assert token["client_id"] == "claude_code"
-    assert token["client_label"] == "Claude Code"
+    assert token["client_label"] == CLAUDE_CODE_LABEL
     assert token["ends_at"] == (NOW + 5 * DAY).isoformat()
     assert token["days_left"] == 5
     assert token["ending_soon"] is True
@@ -178,11 +179,11 @@ def test_each_connection_entering_the_window_is_reminded_once(table) -> None:
 
     first = _pass(send).run_once()
     assert first == {"due": 2, "sent": 2, "skipped": 0, "failed": 0, "no_email": 0}
-    assert [item["client"] for item in sent] == ["Claude Code", "ChatGPT"]
+    assert [item["client"] for item in sent] == [CLAUDE_CODE_LABEL, "ChatGPT"]
     token, grant = sent
     assert token == {
         "recipient": "anna@example.test",
-        "client": "Claude Code",
+        "client": CLAUDE_CODE_LABEL,
         "end_date": (NOW + 5 * DAY).date().isoformat(),
         "agents_url": "https://fs.example.com/settings/account?tab=ai-agents",
         "oauth_app": False,
@@ -214,7 +215,7 @@ def test_an_email_connection_removed_mid_pass_leaves_the_reminder_due(table) -> 
 
     summary = _pass(send).run_once()
     assert summary["no_email"] == 1
-    assert calls == ["Claude Code"]  # the pass stops at the first refusal
+    assert calls == [CLAUDE_CODE_LABEL]  # the pass stops at the first refusal
     assert table.rows["tok-due"]["sent_at"] is None
 
 
@@ -241,7 +242,7 @@ def test_a_reminder_another_pass_took_is_skipped(table, monkeypatch) -> None:
     sent: list[str] = []
     summary = _pass(lambda **values: sent.append(values["client"]) or {"ok": True}).run_once()
     assert summary["skipped"] == 1
-    assert sent == ["Claude Code"]
+    assert sent == [CLAUDE_CODE_LABEL]
 
 
 # --- the email text ----------------------------------------------------------------------
@@ -274,7 +275,7 @@ def test_the_reminder_email_names_the_client_the_date_and_the_renewal(
     )
     result = system_email.send_agent_connection_expiring_email(
         recipient="Anna@Example.test",
-        client="Claude Code",
+        client=CLAUDE_CODE_LABEL,
         end_date="2026-11-25",
         agents_url="https://fs.example.com/settings/account?tab=ai-agents",
         oauth_app=oauth_app,
@@ -286,7 +287,7 @@ def test_the_reminder_email_names_the_client_the_date_and_the_renewal(
     [message] = delivered
     assert message["subject"] == subject
     assert message["recipients"] == ["anna@example.test"]
-    assert "Claude Code" in message["message"]
+    assert CLAUDE_CODE_LABEL in message["message"]
     assert "2026-11-25" in message["message"]
     assert "https://fs.example.com/settings/account?tab=ai-agents" in message["message"]
     assert renew in message["message"]

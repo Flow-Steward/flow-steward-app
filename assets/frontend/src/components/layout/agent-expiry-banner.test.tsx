@@ -9,7 +9,7 @@ function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
     id: "tok-1",
     kind: "personal_token",
     client_id: "claude_code",
-    client_label: "Claude Code",
+    client_label: "Desk Agent",
     created_at: "2026-08-27T12:00:00Z",
     ends_at: "2026-11-25T12:00:00Z",
     last_used_at: null,
@@ -37,7 +37,7 @@ afterEach(() => { vi.unstubAllGlobals(); });
 it("tells the owner which agent connection stops working and links to the AI agents page", async () => {
   const fetch = serve([connection(), connection({ id: "tok-2", client_label: "Cursor", ending_soon: false, days_left: 60 })]);
   render(view());
-  await waitFor(() => expect(screen.getByText(/^Your AI agent connection Claude Code stops working on /)).toBeVisible());
+  await waitFor(() => expect(screen.getByText(/^Your AI agent connection Desk Agent stops working on /)).toBeVisible());
   expect(screen.getByRole("link", { name: "Open AI agents" })).toHaveAttribute("href", "/settings/account?tab=ai-agents");
   expect(String(fetch.mock.calls[0][0])).toBe("/api/auth/agent-access/connections");
 });

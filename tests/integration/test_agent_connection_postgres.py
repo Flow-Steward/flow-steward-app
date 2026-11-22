@@ -14,6 +14,7 @@ import uuid
 
 import pytest
 
+from core.application.auth.agent_connection_catalog import CLAUDE_CODE_LABEL
 from core.application.auth.agent_connection_service import (
     AgentConnectionError,
     AgentConnectionService,
@@ -265,7 +266,11 @@ def test_each_agent_connection_ending_within_seven_days_is_reminded_once(world) 
     from core.application.auth.agent_connection_reminders import AgentExpiryReminders
 
     due_token = _agent_token(
-        world, "viewer", label="AI agent · Claude Code", created_days_ago=85, ends_in_days=5
+        world,
+        "viewer",
+        label=f"AI agent · {CLAUDE_CODE_LABEL}",
+        created_days_ago=85,
+        ends_in_days=5,
     )
     later_token = _agent_token(
         world, "viewer", label="AI agent · Cursor", created_days_ago=10, ends_in_days=80
@@ -301,7 +306,7 @@ def test_each_agent_connection_ending_within_seven_days_is_reminded_once(world) 
     ]
     assert sorted((item["client"], item["oauth_app"]) for item in ours) == [
         ("Claude", True),
-        ("Claude Code", False),
+        (CLAUDE_CODE_LABEL, False),
     ]
     assert _reminded(world, "personal_access_tokens", due_token)
     assert _reminded(world, "oauth_grants", due_grant)
@@ -316,7 +321,11 @@ def test_each_agent_connection_ending_within_seven_days_is_reminded_once(world) 
 
 def test_the_ai_agents_page_lists_connections_with_their_end(world, http) -> None:
     due_token = _agent_token(
-        world, "viewer", label="AI agent · Claude Code", created_days_ago=85, ends_in_days=5
+        world,
+        "viewer",
+        label=f"AI agent · {CLAUDE_CODE_LABEL}",
+        created_days_ago=85,
+        ends_in_days=5,
     )
     _agent_token(world, "viewer", label="deploy script", created_days_ago=85, ends_in_days=5)
     grant = _oauth_grant(world, "viewer", created_days_ago=1, ends_in_days=60)
