@@ -458,24 +458,30 @@ describe("OperatorJobPage finished job", () => {
     expect(within(submitted).queryByText("OCR model")).not.toBeInTheDocument();
     // The uploaded pages are shown, not listed as links: the previewer above the values.
     expect(within(submitted).queryByText("Pages")).not.toBeInTheDocument();
-    const original = within(screen.getByTestId("operator-job-submitted")).getByTestId("review-original");
+    // The same layout as the review: the uploaded pages on the left, the panel on the right.
+    const page = screen.getByTestId("operator-job");
+    expect(page).toHaveClass("fs-operator-review");
+    expect(page).toHaveAttribute("data-original", "shown");
+    const [left, right] = Array.from(page.children) as HTMLElement[];
+    expect(left).toHaveClass("fs-operator-review-original");
+    const original = within(left).getByTestId("review-original");
+    expect(original).toHaveAttribute("data-layout", "pane");
     expect(within(original).getByText("p1.jpg")).toBeInTheDocument();
     expect(within(original).getByRole("link", { name: /download/i })).toHaveAttribute("href", "/api/jobs/j3/artifacts/a1");
-    // What was sent beside what came back, as the approved wireframe.
-    const columns = screen.getByTestId("operator-job-columns");
-    expect(columns).toHaveClass("fs-operator-job-columns");
-    expect(columns).not.toHaveClass("fs-operator-job-columns--text");
-    expect(columns.children[0]).toBe(screen.getByTestId("operator-job-submitted"));
-    expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-result"));
-    expect(columns.children[1]).toContainElement(screen.getByTestId("operator-job-review"));
-    // One header row: back to the list, the job named by its file, when, who and how long; then status and steps.
+    expect(right).toHaveClass("fs-operator-review-check");
+    // The cards in the panel: the result, the decided review, then the other submitted values.
+    const cards = Array.from(right.querySelectorAll(".fs-card")).map((card) => card.getAttribute("data-testid"));
+    expect(cards).toEqual(["operator-job-result", "operator-job-review", "operator-job-submitted"]);
+    // The heading: the job named by its file, its status, when, who and how long, and the steps.
     const head = screen.getByTestId("operator-job-head");
-    expect(within(head).getByRole("link", { name: "Back to Contracts" })).toBeInTheDocument();
     expect(within(head).getByRole("heading", { level: 1 })).toHaveTextContent("p1.jpg");
     expect(within(head).getByTestId("operator-job-meta")).toHaveTextContent(/Olga · 3\.1s$/);
     expect(within(head).getByTestId("operator-job-status")).toHaveTextContent("Completed");
     expect(within(head).getByTestId("operator-queue-steps")).toBeInTheDocument();
     expect(screen.queryByTestId("operator-queue")).not.toBeInTheDocument();
+    // The way back sits in the footer, as on the review.
+    const foot = right.querySelector(".fs-operator-review-foot") as HTMLElement;
+    expect(within(foot).getByRole("link", { name: "Back to Contracts" })).toHaveAttribute("href", `/projects/p1/workflows/wf.contracts/work?${LIST}`);
     // Anyone who may not run it gets no Send again.
     expect(screen.queryByTestId("operator-job-send-again")).not.toBeInTheDocument();
 
@@ -594,9 +600,10 @@ describe("OperatorJobPage finished job", () => {
     });
     renderPage();
 
-    const submitted = await screen.findByTestId("operator-job-submitted");
-    expect(await within(submitted).findByTestId("file-preview")).toHaveAttribute("data-kind", "pdf");
-    expect(within(submitted).queryByText("No values were submitted.")).not.toBeInTheDocument();
+    const original = await screen.findByTestId("operator-page-original");
+    expect(await within(original).findByTestId("file-preview")).toHaveAttribute("data-kind", "pdf");
+    // Files only: no Submitted card saying nothing was sent.
+    expect(screen.queryByTestId("operator-job-submitted")).not.toBeInTheDocument();
 
     const result = screen.getByTestId("operator-job-outputs");
     expect(within(result).getByText("report.pdf")).toBeInTheDocument();
@@ -770,7 +777,9 @@ describe("OperatorJobPage finished job", () => {
     renderPage();
 
     expect(await screen.findByTestId("operator-formatted-text")).toBeInTheDocument();
-    expect(screen.getByTestId("operator-job-columns")).toHaveClass("fs-operator-job-columns--text");
+    // No files: the panel alone, the whole width.
+    expect(screen.getByTestId("operator-job")).toHaveAttribute("data-original", "none");
+    expect(screen.queryByTestId("operator-page-original")).not.toBeInTheDocument();
   });
 
   it("shows no result before the run succeeded and only that a review was decided without access", async () => {
@@ -779,8 +788,8 @@ describe("OperatorJobPage finished job", () => {
 
     expect(await screen.findByText("This job was reviewed by people who have access to it.")).toBeInTheDocument();
     expect(screen.queryByTestId("operator-job-result")).not.toBeInTheDocument();
-    // The right column keeps its place and says where the result will be.
-    expect(within(screen.getByTestId("operator-job-columns")).getByTestId("operator-job-result-pending")).toHaveTextContent(
+    // The panel keeps the result's place and says where it will be.
+    expect(screen.getByTestId("operator-job-result-pending")).toHaveTextContent(
       "The result appears here when the run finishes.",
     );
     expect(screen.queryByText("Marta")).not.toBeInTheDocument();

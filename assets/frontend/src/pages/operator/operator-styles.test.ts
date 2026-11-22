@@ -2,10 +2,10 @@ import repeaterStyles from "@/components/workflow-inputs/workflow-input-fields.c
 import operatorStyles from "@/pages/operator/operator.css?raw";
 
 describe("operator job view layout", () => {
-  it("puts what was sent beside what came back, the text result wider, one column when narrow", () => {
-    expect(operatorStyles).toMatch(/\.fs-operator-job-columns\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 1fr\);/);
-    expect(operatorStyles).toMatch(/\.fs-operator-job-columns--text\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(0, 2fr\);/);
-    expect(operatorStyles).toMatch(/@media \(max-width: 960px\)\s*\{\s*\.fs-operator-job-columns,\s*\.fs-operator-job-columns--text\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
+  it("lays every job out as its review, the panel alone and readable when the job has no files", () => {
+    expect(operatorStyles).not.toMatch(/fs-operator-job-columns/);
+    expect(operatorStyles).toMatch(/\.fs-operator-review\[data-original="none"\]\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(operatorStyles).toMatch(/\.fs-operator-review\[data-original="none"\] \.fs-operator-review-scroll > \*\s*\{[^}]*max-width:\s*var\(--fs-page-width-standard\);/);
   });
 });
 

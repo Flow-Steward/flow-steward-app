@@ -117,6 +117,13 @@
   min-height: 0;
 }
 
+/* Alone on a wide screen the panel's content keeps a readable width. */
+.fs-operator-review[data-original="none"] .fs-operator-review-scroll > * {
+  width: 100%;
+  max-width: var(--fs-page-width-standard);
+  margin-inline: auto;
+}
+
 .fs-operator-review-scroll {
   display: flex;
   flex-direction: column;
@@ -214,6 +221,11 @@
     overflow: hidden;
   }
 
+  /* A job without files: the panel alone. */
+  .fs-operator-review[data-original="none"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .fs-operator-review-original {
     border-right: 1px solid var(--fs-border-subtle);
     border-bottom: 0;
@@ -253,79 +265,6 @@
   gap: var(--fs-space-050);
 }
 
-
-/* A job of a section (ADR 0075): what was sent beside what came back; a text
-   result gets the wider column. One column on a narrow screen. */
-.fs-operator-job-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--fs-space-150);
-  align-items: start;
-}
-
-.fs-operator-job-columns--text {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-}
-
-.fs-operator-job-side {
-  display: grid;
-  gap: var(--fs-space-150);
-  min-width: 0;
-}
-
-@media (max-width: 960px) {
-  .fs-operator-job-columns,
-  .fs-operator-job-columns--text {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* The job's own header: back to the list, what was sent and when, then its
-   status and the steps through the list (ADR 0075). */
-.fs-operator-job-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--fs-space-100);
-  margin-bottom: var(--fs-space-150);
-}
-
-.fs-operator-job-head-main {
-  display: flex;
-  align-items: center;
-  gap: var(--fs-space-100);
-  min-width: 0;
-}
-
-.fs-operator-job-back {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-050);
-  flex: none;
-}
-
-.fs-operator-job-title {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.fs-operator-job-head-side {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-100);
-}
-
-.fs-operator-job-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-100);
-}
-
-.fs-operator-job-details {
-  margin-left: auto;
-}
 
 /* A job of a section: label and value rows (ADR 0075). */
 .fs-operator-values {

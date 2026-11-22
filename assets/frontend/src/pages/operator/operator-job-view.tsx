@@ -1,4 +1,4 @@
-import { ArrowLeft, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
@@ -14,13 +14,14 @@ import { renderMarkdownBlocks } from "@/pages/extensions/extension-markdown";
 import { formatStepDuration } from "@/pages/jobs/detail/job-detail-execution";
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
 
+import { OperatorPageHead, OperatorPageShell } from "./operator-page-shell";
 import { ReviewOriginal } from "./review-panel";
 import { reviewFileUrl, reviewFiles, reviewFormField, reviewFormValues, type JobReview, type ReviewField, type ReviewFile } from "./review-model";
 import { OperatorCell } from "./section-cell";
 import { OperatorSubmitDialog, type SubmissionPrefill } from "./submit-dialog";
 import type { OperatorListColumn, OperatorResultFieldConfig, OperatorReviewDecision, OperatorSectionDetail } from "./types";
 
-type Row = { label: string; value: ReactNode; name: string; formatted?: boolean };
+type Row = { label: string; value: ReactNode; name: string };
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
@@ -171,7 +172,7 @@ function resultRows(section: OperatorSectionDetail, outputs: Record<string, unkn
     } else {
       shown = <ValueCell decimals={config?.decimals ?? null} format={RESULT_FORMATS[config?.display ?? ""] ?? "auto"} jobId={jobId} name={name} source="output" value={value} />;
     }
-    rows.push({ name, label, value: shown, formatted });
+    rows.push({ name, label, value: shown });
   }
   return rows;
 }
@@ -298,12 +299,11 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
 }
 
 /**
- * A job of a section as operators and viewers see it (ADR 0075), laid out as
- * the approved wireframe: what was sent on the left (the uploaded files with
- * their preview, then the form's values), what came back on the right (the
- * result as the admin configured it once the run succeeded, then the decided
- * review, here or on the Invoke child that held it). A text result gets the
- * wider column. No step graph; an admin keeps a link to the full Job Details.
+ * A job of a section as operators and viewers see it (ADR 0075), in the same
+ * layout as its review: the uploaded files on the left, and on the right the
+ * result as the admin configured it once the run succeeded, the decided
+ * review (here or on the Invoke child that held it) and the other submitted
+ * values. No step graph; an admin keeps a link to the full Job Details.
  */
 export function OperatorJobView({
   section,
@@ -350,7 +350,6 @@ export function OperatorJobView({
       value: <SubmittedValue field={field} jobId={jobId} value={inputs[field.name]} />,
     }));
   const result = outputs ? resultRows(section, outputs, jobId) : [];
-  const textResult = result.length > 0 && result.every((row) => row.formatted);
   const by = record(values?.submitted_by);
   const byName = String(by.name ?? by.display_name ?? by.id ?? "");
   const author = byName && by.kind === "service_account" ? t("react.operator.author_api", "{name} (API)", { name: byName }) : byName;
@@ -382,84 +381,77 @@ export function OperatorJobView({
   };
   return (
     <>
-      <header className="fs-operator-job-head" data-testid="operator-job-head">
-        <div className="fs-operator-job-head-main">
-          <Link
-            aria-label={t("react.operator_queue.back", "Back to {title}", { title: section.title })}
-            className="fs-button secondary sm fs-operator-job-back"
-            to={listPath}
-          >
-            <ArrowLeft aria-hidden="true" />
-            {section.title}
-          </Link>
-          <div className="min-w-0">
-            <h1 className="fs-page-title fs-operator-job-title">{title}</h1>
-            {meta ? (
-              <p className="fs-page-description" data-testid="operator-job-meta">
-                {meta}
-              </p>
+      <OperatorPageShell
+        actions={
+          <>
+            <Link className="fs-button secondary" to={listPath}>
+              {t("react.operator_queue.back", "Back to {title}", { title: section.title })}
+            </Link>
+            {isAdmin ? (
+              <Link className="fs-button secondary" data-testid="operator-job-details-link" to={`/jobs/${encodeURIComponent(jobId)}`}>
+                {t("react.operator_job.full_details", "Full job details")}
+              </Link>
             ) : null}
-          </div>
-        </div>
-        <div className="fs-operator-job-head-side">
-          <span data-testid="operator-job-status">
-            <ValueCell jobId={jobId} name="status" source="job" value={status} />
-          </span>
-          {steps}
-        </div>
-      </header>
-      <div className="grid gap-4" data-testid="operator-job">
+            {canRun && runnable ? (
+              <Button
+                busy={preparing}
+                busyLabel={t("react.operator_job.loading_files", "Loading the files…")}
+                data-testid="operator-job-send-again"
+                onClick={() => void startResend()}
+                type="button"
+                variant="secondary"
+              >
+                <RotateCcw aria-hidden="true" />
+                {t("react.operator_job.send_again", "Send again")}
+              </Button>
+            ) : null}
+          </>
+        }
+        head={
+          <OperatorPageHead
+            status={
+              <span data-testid="operator-job-status">
+                <ValueCell jobId={jobId} name="status" source="job" value={status} />
+              </span>
+            }
+            steps={steps}
+            sub={meta ? <span data-testid="operator-job-meta">{meta}</span> : null}
+            testId="operator-job-head"
+            title={title}
+          />
+        }
+        original={originals.length ? <ReviewOriginal files={originals} jobId={jobId} layout="pane" /> : null}
+        originalLabel={t("react.operator_review.original", "Original")}
+        panelLabel={t("react.operator_job.title", "Job")}
+        testId="operator-job"
+      >
         {review?.waiting && review.access === "none" ? (
           <DsAlert title={t("react.operator_review.waiting_elsewhere", "This job waits for a decision by people who have access to it.")} tone="neutral" />
         ) : null}
-        <div className={textResult ? "fs-operator-job-columns fs-operator-job-columns--text" : "fs-operator-job-columns"} data-testid="operator-job-columns">
-          <DsCard className="min-w-0" testId="operator-job-submitted" title={t("react.operator_job.submitted", "Submitted")}>
-            <div className="grid gap-3">
-              {originals.length ? <ReviewOriginal files={originals} jobId={jobId} /> : null}
-              {submitted.length ? <ValueList rows={submitted} testId="operator-job-inputs" /> : null}
-              {originals.length || submitted.length ? null : (
-                <p className="fs-empty-copy">{t("react.operator_job.nothing_submitted", "No values were submitted.")}</p>
-              )}
-            </div>
-          </DsCard>
-          <div className="fs-operator-job-side">
-            {outputs ? (
-              <DsCard className="min-w-0" testId="operator-job-result" title={t("react.operator_job.result", "Result")}>
-                {result.length ? (
-                  <ValueList rows={result} testId="operator-job-outputs" />
-                ) : (
-                  <p className="fs-empty-copy">{t("react.operator_job.no_result", "This run returned nothing to show.")}</p>
-                )}
-              </DsCard>
+        {outputs ? (
+          <DsCard className="min-w-0" testId="operator-job-result" title={t("react.operator_job.result", "Result")}>
+            {result.length ? (
+              <ValueList rows={result} testId="operator-job-outputs" />
             ) : (
-              <DsCard className="min-w-0" testId="operator-job-result-pending" title={t("react.operator_job.result", "Result")}>
-                <p className="fs-empty-copy">{t("react.operator_job.result_pending", "The result appears here when the run finishes.")}</p>
-              </DsCard>
+              <p className="fs-empty-copy">{t("react.operator_job.no_result", "This run returned nothing to show.")}</p>
             )}
-            {review?.decision ? <ReviewDecisionCard decision={review.decision} /> : null}
-          </div>
-        </div>
-        <div className="fs-operator-job-foot">
-          {canRun && runnable ? (
-            <Button
-              busy={preparing}
-              busyLabel={t("react.operator_job.loading_files", "Loading the files…")}
-              data-testid="operator-job-send-again"
-              onClick={() => void startResend()}
-              type="button"
-              variant="secondary"
-            >
-              <RotateCcw aria-hidden="true" />
-              {t("react.operator_job.send_again", "Send again")}
-            </Button>
-          ) : null}
-          {isAdmin ? (
-            <Link className="fs-link fs-operator-job-details" data-testid="operator-job-details-link" to={`/jobs/${encodeURIComponent(jobId)}`}>
-              {t("react.operator_job.full_details", "Full job details")}
-            </Link>
-          ) : null}
-        </div>
-      </div>
+          </DsCard>
+        ) : (
+          <DsCard className="min-w-0" testId="operator-job-result-pending" title={t("react.operator_job.result", "Result")}>
+            <p className="fs-empty-copy">{t("react.operator_job.result_pending", "The result appears here when the run finishes.")}</p>
+          </DsCard>
+        )}
+        {review?.decision ? <ReviewDecisionCard decision={review.decision} /> : null}
+        {submitted.length || !originals.length ? (
+          <DsCard className="min-w-0" testId="operator-job-submitted" title={t("react.operator_job.submitted", "Submitted")}>
+            {submitted.length ? (
+              <ValueList rows={submitted} testId="operator-job-inputs" />
+            ) : (
+              <p className="fs-empty-copy">{t("react.operator_job.nothing_submitted", "No values were submitted.")}</p>
+            )}
+          </DsCard>
+        ) : null}
+      </OperatorPageShell>
       {resend ? (
         <OperatorSubmitDialog
           onClose={() => setResend(null)}

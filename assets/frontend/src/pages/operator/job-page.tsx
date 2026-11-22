@@ -18,6 +18,7 @@ import { fetchJobsQueuePosition, type JobsQueuePosition } from "@/pages/jobs/lis
 import { fetchJobReview, fetchOperatorSection } from "./api";
 import { isTypingTarget, operatorJobPath, queueListFilters, sectionListPath } from "./queue";
 import { OperatorJobView } from "./operator-job-view";
+import { OperatorPageHead } from "./operator-page-shell";
 import { OperatorReviewPanel } from "./review-panel";
 import { reviewFileUrl, reviewPageDecides, type JobReview } from "./review-model";
 import "./operator.css";
@@ -236,15 +237,11 @@ export function OperatorJobPage() {
       <OperatorReviewPanel
         back={{ to: listPath, label: t("react.operator_queue.back", "Back to {title}", { title: section.data.title }) }}
         head={
-          <header className="fs-operator-review-head">
-            <div className="fs-operator-review-head-text">
-              <h1 className="fs-operator-review-title">{t("react.operator_review.title", "Review")}</h1>
-              <p className="fs-operator-review-sub">
-                {t("react.operator_review.description", "Compare the fields with the original, correct what is wrong and decide.")}
-              </p>
-            </div>
-            <QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />
-          </header>
+          <OperatorPageHead
+            steps={<QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />}
+            sub={t("react.operator_review.description", "Compare the fields with the original, correct what is wrong and decide.")}
+            title={t("react.operator_review.title", "Review")}
+          />
         }
         key={`${data.gate.job_id}:${data.gate.approval_id ?? ""}`}
         onApprovedNext={() => {
@@ -259,24 +256,22 @@ export function OperatorJobPage() {
     );
   }
   // Any other job, running, finished or waiting where the caller cannot decide:
-  // the operator view, never the technical step graph. Its own header holds the
-  // way back, the status and the steps through the queue.
+  // the operator view in the same layout as the review, never the technical
+  // step graph.
   return (
-    <PageContainer width="wide">
-      <OperatorJobView
-        // One view per job: the Send again form and its file load belong to this job only.
-        key={jobId}
-        jobId={jobId}
-        listPath={listPath}
-        onResent={(jobIds) => {
-          void queryClient.invalidateQueries({ queryKey: ["operator", "queue"] });
-          // One new run: open it, with the same list around it.
-          if (jobIds.length === 1) open(jobIds[0]);
-        }}
-        review={data}
-        section={section.data}
-        steps={<QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />}
-      />
-    </PageContainer>
+    <OperatorJobView
+      // One view per job: the Send again form and its file load belong to this job only.
+      key={jobId}
+      jobId={jobId}
+      listPath={listPath}
+      onResent={(jobIds) => {
+        void queryClient.invalidateQueries({ queryKey: ["operator", "queue"] });
+        // One new run: open it, with the same list around it.
+        if (jobIds.length === 1) open(jobIds[0]);
+      }}
+      review={data}
+      section={section.data}
+      steps={<QueueSteps onNext={nextId ? () => open(nextId) : null} onPrevious={previousId ? () => open(previousId) : null} position={position.data} />}
+    />
   );
 }

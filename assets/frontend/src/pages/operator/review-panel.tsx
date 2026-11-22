@@ -15,6 +15,8 @@ import { submitApprovalDecision, type ApprovalDecisionPayload } from "@/pages/jo
 import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
 import { ReadableDataFields } from "@/pages/jobs/detail/readable-data-fields";
 
+import { OperatorPageShell } from "./operator-page-shell";
+
 import {
   gateActions,
   reviewConflict,
@@ -309,103 +311,101 @@ export function OperatorReviewPanel({
   const deciding = canDecide && !decided;
 
   return (
-    <div className="fs-operator-review" data-testid="operator-review">
-      <section aria-label={t("react.operator_review.original", "Original")} className="fs-operator-review-original">
-        <ReviewOriginal files={captured.original} jobId={reviewJobId} layout="pane" />
-      </section>
-      <section aria-label={t("react.operator_review.fields", "Check and correct")} className="fs-operator-review-check">
-        <div className="fs-operator-review-scroll">
-          {head}
-          {decided ? (
-            <DsAlert
-              title={decided.approved ? t("react.operator_review.approved", "Approved with these values") : t("react.operator_review.rejected", "Rejected")}
-              tone="success"
+    <OperatorPageShell
+      actions={
+        <>
+          {back ? (
+            <Link className="fs-button secondary" to={back.to}>
+              {back.label}
+            </Link>
+          ) : null}
+          {deciding && onSkip ? (
+            <Button data-testid="review-skip" onClick={onSkip} type="button" variant="secondary">
+              {t("react.operator_review.skip", "Skip")}
+            </Button>
+          ) : null}
+          {deciding && canReject ? (
+            <Button
+              busy={pending === "reject"}
+              busyLabel={t("react.jobs.rejecting", "Rejecting…")}
+              data-testid="review-reject"
+              onClick={() => ignoreAsyncResult(decide("reject"))}
+              type="button"
+              variant="danger"
             >
-              <p>
-                {t("react.operator_review.decided_status", "Run status: {status}", { status: decided.status || "—" })}
-                {decided.actor ? ` · ${t("react.operator_review.decided_by", "Decided by {actor}", { actor: decided.actor })}` : ""}
-              </p>
-            </DsAlert>
+              {rejectLabel}
+            </Button>
           ) : null}
-          <DsCard className="min-w-0" description={message || undefined} title={t("react.operator_review.fields", "Check and correct")}>
-            <WorkflowInputFields
-              disabled={locked}
-              errors={errors}
-              fields={formFields.shown}
-              notes={notes}
-              onChange={(name, next) => {
-                setValues((current) => ({ ...current, [name]: next }));
-                setFieldErrors((current) => {
-                  if (!(name in current)) return current;
-                  const rest = { ...current };
-                  delete rest[name];
-                  return rest;
-                });
-              }}
-              readOnlyFields={readOnly}
-              values={values}
+          {deciding ? approveButtons : null}
+        </>
+      }
+      footNote={
+        formError ? (
+          <p className="fs-operator-review-foot-note fs-ink-danger" role="alert">
+            {formError}
+          </p>
+        ) : canDecide ? null : (
+          <p className="fs-operator-review-foot-note">
+            {t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")}
+          </p>
+        )
+      }
+      head={head}
+      original={<ReviewOriginal files={captured.original} jobId={reviewJobId} layout="pane" />}
+      originalLabel={t("react.operator_review.original", "Original")}
+      panelLabel={t("react.operator_review.fields", "Check and correct")}
+      testId="operator-review"
+    >
+      {decided ? (
+        <DsAlert
+          title={decided.approved ? t("react.operator_review.approved", "Approved with these values") : t("react.operator_review.rejected", "Rejected")}
+          tone="success"
+        >
+          <p>
+            {t("react.operator_review.decided_status", "Run status: {status}", { status: decided.status || "—" })}
+            {decided.actor ? ` · ${t("react.operator_review.decided_by", "Decided by {actor}", { actor: decided.actor })}` : ""}
+          </p>
+        </DsAlert>
+      ) : null}
+      <DsCard className="min-w-0" description={message || undefined} title={t("react.operator_review.fields", "Check and correct")}>
+        <WorkflowInputFields
+          disabled={locked}
+          errors={errors}
+          fields={formFields.shown}
+          notes={notes}
+          onChange={(name, next) => {
+            setValues((current) => ({ ...current, [name]: next }));
+            setFieldErrors((current) => {
+              if (!(name in current)) return current;
+              const rest = { ...current };
+              delete rest[name];
+              return rest;
+            });
+          }}
+          readOnlyFields={readOnly}
+          values={values}
+        />
+        {formFields.other.map((field) => (
+          <ReadOnlyReviewValue field={field} jobId={reviewJobId} key={field.name} value={values[field.name]} />
+        ))}
+      </DsCard>
+      {deciding ? (
+        <DsCard className="min-w-0" title={t("jobs.detail.review.comment", "Comment")}>
+          <div className="fs-field min-w-0">
+            <textarea
+              aria-label={t("jobs.detail.review.comment", "Comment")}
+              className="fs-textarea"
+              data-testid="review-comment"
+              disabled={Boolean(pending)}
+              onChange={(event) => setComment(event.target.value)}
+              value={comment}
             />
-            {formFields.other.map((field) => (
-              <ReadOnlyReviewValue field={field} jobId={reviewJobId} key={field.name} value={values[field.name]} />
-            ))}
-          </DsCard>
-          {deciding ? (
-            <DsCard className="min-w-0" title={t("jobs.detail.review.comment", "Comment")}>
-              <div className="fs-field min-w-0">
-                <textarea
-                  aria-label={t("jobs.detail.review.comment", "Comment")}
-                  className="fs-textarea"
-                  data-testid="review-comment"
-                  disabled={Boolean(pending)}
-                  onChange={(event) => setComment(event.target.value)}
-                  value={comment}
-                />
-                <span className="fs-field-helper">
-                  {t("jobs.detail.review.comment_rejection_requirement", "Required when rejecting. Optional when approving.")}
-                </span>
-              </div>
-            </DsCard>
-          ) : null}
-        </div>
-        <footer className="fs-operator-review-foot">
-          {formError ? (
-            <p className="fs-operator-review-foot-note fs-ink-danger" role="alert">
-              {formError}
-            </p>
-          ) : (
-            <p className="fs-operator-review-foot-note">
-              {canDecide
-                ? ""
-                : t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")}
-            </p>
-          )}
-          <div className="fs-operator-review-actions">
-            {back ? (
-              <Link className="fs-button secondary" to={back.to}>
-                {back.label}
-              </Link>
-            ) : null}
-            {deciding && onSkip ? (
-              <Button data-testid="review-skip" onClick={onSkip} type="button" variant="secondary">
-                {t("react.operator_review.skip", "Skip")}
-              </Button>
-            ) : null}
-            {deciding && canReject ? (
-              <Button
-                busy={pending === "reject"}
-                busyLabel={t("react.jobs.rejecting", "Rejecting…")}
-                data-testid="review-reject"
-                onClick={() => ignoreAsyncResult(decide("reject"))}
-                type="button"
-                variant="danger"
-              >
-                {rejectLabel}
-              </Button>
-            ) : null}
-            {deciding ? approveButtons : null}
+            <span className="fs-field-helper">
+              {t("jobs.detail.review.comment_rejection_requirement", "Required when rejecting. Optional when approving.")}
+            </span>
           </div>
-        </footer>
-      </section>
-    </div>
+        </DsCard>
+      ) : null}
+    </OperatorPageShell>
   );
 }
