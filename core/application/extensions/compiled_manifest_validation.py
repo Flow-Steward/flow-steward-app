@@ -515,6 +515,7 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
         action_ids=action_ids,
         query_ids=query_ids,
         manifest_kind=str(compiled_manifest.get("kind") or "").strip().lower(),
+        declares_connection_notification=_declares_connection_notification(compiled_manifest),
     )
     _validate_external_effect_pre_save_actions(
         compiled_manifest,
@@ -872,3 +873,13 @@ def _validate_extension_dependencies(
                     )
             except ValueError:
                 pass
+
+
+def _declares_connection_notification(compiled_manifest: dict) -> bool:
+    """Whether any connection type states its own notification target (a mixed provider)."""
+    from core.application.extensions.notification_capability import connection_type_rows
+
+    return any(
+        isinstance(row, dict) and isinstance(row.get("notification"), dict)
+        for row in connection_type_rows(compiled_manifest)
+    )

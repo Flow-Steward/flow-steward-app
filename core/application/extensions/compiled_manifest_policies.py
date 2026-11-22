@@ -340,6 +340,7 @@ def _validate_external_effects(
     action_ids: set[str],
     query_ids: set[str],
     manifest_kind: str = "",
+    declares_connection_notification: bool = False,
 ) -> list[dict]:
     if value in (None, ""):
         return []
@@ -504,7 +505,11 @@ def _validate_external_effects(
         normalized.append(row)
 
     _validate_single_notification_target_kind(
-        normalized, issues=issues, manifest_path=manifest_path, manifest_kind=manifest_kind
+        normalized,
+        issues=issues,
+        manifest_path=manifest_path,
+        manifest_kind=manifest_kind,
+        declares_connection_notification=declares_connection_notification,
     )
     return normalized
 
@@ -515,6 +520,7 @@ def _validate_single_notification_target_kind(
     issues: list[dict],
     manifest_path: str,
     manifest_kind: str = "",
+    declares_connection_notification: bool = False,
 ) -> None:
     """A notification provider must address one kind of target, or say so at build time.
 
@@ -528,6 +534,11 @@ def _validate_single_notification_target_kind(
     them, so requiring agreement would reject a correct manifest.
     """
     if manifest_kind != NOTIFICATION_PROVIDER_KIND:
+        return
+    # A mixed provider states the target kind of each connection type in its
+    # `notification` block; the route form follows the selected connection, so its
+    # effects may legitimately address different kinds of target.
+    if declares_connection_notification:
         return
     declared = {
         kind
