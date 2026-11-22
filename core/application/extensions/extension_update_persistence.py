@@ -98,6 +98,40 @@ def _install_candidate_or_apply_handoff(
     )
 
 
+def _reconcile_candidate_oauth_release(prepared: PreparedUpdate, transaction_conn: Any) -> None:
+    """Move OAuth configurations with the install when the update did not change sign-in.
+
+    The release install path does this on activation; an archive update reaches the
+    new release here and must do the same, or every OAuth connection of the install
+    stays blocked (oauth_runtime_blocked) until someone opens the setup page.
+    """
+    request = prepared.request
+    current = request.install_store.get(
+        extension_id=prepared.extension_id,
+        account_id=account_id(request.scope),
+    )
+    if current is None:
+        return
+    release_id = str(getattr(current, "release_id", "") or "").strip()
+    if not release_id or release_id == str(prepared.previous_release_id or "").strip():
+        return
+    get_release = getattr(request.runtime_store, "get_release", None)
+    release = get_release(release_id) if callable(get_release) else None
+    descriptor = dict(getattr(release, "descriptor", None) or {})
+    if not descriptor:
+        return
+    from .oauth_release_activation import reconcile_install_oauth_release
+
+    reconcile_install_oauth_release(
+        transaction_conn,
+        account_id=str(getattr(current, "account_id", "") or account_id(request.scope)),
+        install_id=str(getattr(current, "install_id", "") or ""),
+        extension_id=prepared.extension_id,
+        release_id=release_id,
+        descriptor=descriptor,
+    )
+
+
 def persist_candidate_update(
     *,
     context: ExtensionLifecycleContext,
@@ -124,6 +158,7 @@ def persist_candidate_update(
             prepared=prepared,
             managed_release=managed_release,
         )
+        _reconcile_candidate_oauth_release(prepared, transaction_conn)
         enabled = state.set_enabled_state_locked(
             prepared.extension_id,
             bl=request.bl,

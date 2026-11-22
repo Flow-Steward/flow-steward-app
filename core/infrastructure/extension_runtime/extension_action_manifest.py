@@ -241,7 +241,9 @@ def _resolve_action_manifest(
                 **(
                     {"connection_type_ids": _normalize_string_list(row["connection_type_ids"])}
                     if isinstance(row.get("connection_type_ids"), list)
-                    and str(_as_dict(row.get("background")).get("kind") or "").strip()
+                    and str(
+                        _as_dict(_as_dict(row.get("contract")).get("background")).get("kind") or ""
+                    ).strip()
                     == "connection_poll"
                     else {}
                 ),
