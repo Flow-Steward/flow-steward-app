@@ -1169,7 +1169,13 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-dialog { position: relative; display: flex; flex-direction: column; width: min(var(--fs-form-dialog-width), var(--fs-modal-max-width)); height: var(--fs-form-dialog-height); max-height: var(--fs-modal-max-height); margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--fs-form-dialog-border); border-radius: var(--fs-form-dialog-radius); background: var(--fs-form-dialog-bg); color: inherit; box-shadow: var(--fs-form-dialog-shadow); animation: fs-settings-dialog-enter var(--fs-motion-dialog-enter); }
 .fs-dialog.add-user { width: min(var(--fs-add-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-add-user-dialog-height); }
 .fs-dialog.edit-user { width: min(var(--fs-edit-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-edit-user-dialog-height); }
-.fs-dialog.confirm { width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width)); height: var(--fs-confirmation-dialog-height); }
+/* A confirmation keeps the canon's width as its floor and grows to fit its
+   actions, so a verb-plus-object label is never cut off; only the footer widens
+   it, the text above wraps to whatever width that gives. */
+.fs-dialog.confirm { width: fit-content; min-width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width)); max-width: var(--fs-modal-max-width); height: var(--fs-confirmation-dialog-height); }
+.fs-dialog.confirm > .fs-dialog-header,
+.fs-dialog.confirm > .fs-dialog-body { width: 0; min-width: 100%; }
+.fs-dialog.confirm > .fs-dialog-footer .fs-button { white-space: nowrap; }
 .fs-dialog.secret { width: min(var(--fs-one-time-secret-dialog-width), var(--fs-modal-max-width)); height: var(--fs-one-time-secret-dialog-height); }
 
 /* Catalog: wide and of fixed height, so it does not jump as a filter changes
@@ -1287,7 +1293,7 @@ body:has(.fs-dialog-layer) .fs-filter-menu { z-index: var(--fs-z-modal-popup); }
   .fs-dialog { width: min(var(--fs-form-dialog-width), var(--fs-modal-max-width-narrow)); max-height: var(--fs-modal-max-height-narrow); }
   .fs-dialog.add-user { width: min(var(--fs-add-user-dialog-width), var(--fs-modal-max-width-narrow)); }
   .fs-dialog.edit-user { width: min(var(--fs-edit-user-dialog-width), var(--fs-modal-max-width-narrow)); }
-  .fs-dialog.confirm { width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width-narrow)); }
+  .fs-dialog.confirm { width: fit-content; min-width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width-narrow)); max-width: var(--fs-modal-max-width-narrow); }
   .fs-dialog.secret { width: min(var(--fs-one-time-secret-dialog-width), var(--fs-modal-max-width-narrow)); }
   .fs-dialog.catalog { width: var(--fs-modal-max-width-narrow); height: var(--fs-modal-max-height-narrow); }
 
@@ -1310,6 +1316,8 @@ body:has(.fs-dialog-layer) .fs-filter-menu { z-index: var(--fs-z-modal-popup); }
   .fs-card-footer { padding: var(--fs-card-padding-compact); }
   .fs-button { min-width: 0; }
   .fs-dialog-footer .fs-button { flex: 1; }
+  /* Two long actions that do not fit side by side stack instead of clipping. */
+  .fs-dialog.confirm > .fs-dialog-footer { flex-wrap: wrap; }
   .fs-secret-row { grid-template-columns: minmax(0, 1fr); }
 }
 
