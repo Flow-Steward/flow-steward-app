@@ -212,7 +212,7 @@ describe("shared design-system adapters", () => {
       expect(from).toHaveFocus();
 
       await user.keyboard("{Escape}");
-      expect(await screen.findByRole("menuitem", { name: label })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: label })).toBeInTheDocument());
     });
   });
 

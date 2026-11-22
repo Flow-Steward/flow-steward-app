@@ -9,13 +9,16 @@ import { JobFileItem } from "@/pages/jobs/detail/job-detail-file-preview";
 type RenderParams = { canvas: HTMLCanvasElement; viewport: { width: number; height: number }; annotationMode: number };
 
 const pdf = vi.hoisted(() => {
-  const render = vi.fn((_params: RenderParams) => ({ promise: Promise.resolve(), cancel: vi.fn() }));
+  const render = vi.fn<(params: RenderParams) => { promise: Promise<void>; cancel: () => void }>(() => ({
+    promise: Promise.resolve(),
+    cancel: vi.fn(),
+  }));
   const page = {
     getViewport: ({ scale }: { scale: number }) => ({ width: 600 * scale, height: 800 * scale }),
     render,
   };
-  const loadedDocument = { numPages: 3, getPage: vi.fn(async (_page: number) => page) };
-  const getDocument = vi.fn((_options: Record<string, unknown>) => ({
+  const loadedDocument = { numPages: 3, getPage: vi.fn<(pageNumber: number) => Promise<typeof page>>(async () => page) };
+  const getDocument = vi.fn<(options: Record<string, unknown>) => { promise: Promise<typeof loadedDocument>; destroy: () => Promise<undefined> }>(() => ({
     promise: Promise.resolve(loadedDocument),
     destroy: vi.fn(async () => undefined),
   }));
@@ -23,8 +26,8 @@ const pdf = vi.hoisted(() => {
 });
 
 const docx = vi.hoisted(() => ({
-  parseAsync: vi.fn(async (_data: unknown, _options: Record<string, unknown>) => ({})),
-  renderDocument: vi.fn(async (_document: unknown, _options: Record<string, unknown>): Promise<Node[]> => []),
+  parseAsync: vi.fn<(data: unknown, options: Record<string, unknown>) => Promise<object>>(async () => ({})),
+  renderDocument: vi.fn<(document: unknown, options: Record<string, unknown>) => Promise<Node[]>>(async () => []),
 }));
 
 vi.mock("pdfjs-dist", () => ({ AnnotationMode: { ENABLE: 1 }, GlobalWorkerOptions: pdf.workerOptions, getDocument: pdf.getDocument }));
@@ -103,7 +106,7 @@ describe("DOCX preview", () => {
 
     await waitFor(() => expect(screen.getByTitle("contract.docx").tagName).toBe("IFRAME"));
     const frame = screen.getByTitle("contract.docx") as HTMLIFrameElement;
-    expect(frame.getAttribute("sandbox")).toBe("allow-same-origin");
+    expect(frame).toHaveAttribute("sandbox", "allow-same-origin");
     expect(frame).not.toHaveAttribute("src");
     await waitFor(() => expect(frame.contentDocument?.body.textContent).toContain("Agreement text"));
     const body = frame.contentDocument?.body as HTMLElement;

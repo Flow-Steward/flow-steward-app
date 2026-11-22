@@ -53,7 +53,9 @@ it("sizes the accessory slot for what it holds, so two icon buttons stay clear o
     { id: "pair", header: "Pair row", panel: "", accessory: <span />, accessorySlot: "icon-pair" },
     { id: "plain", header: "Plain row", panel: "" },
   ]} />);
-  const header = (name: string) => screen.getByRole("button", { name }).parentElement;
+  const header = (name: string) =>
+    // eslint-disable-next-line testing-library/no-node-access -- the accessory slot is a layout attribute of the header row, which has no role.
+    screen.getByRole("button", { name }).parentElement;
   expect(header("Switch row")).toHaveAttribute("data-accessory-slot", "switch");
   expect(header("Pair row")).toHaveAttribute("data-accessory-slot", "icon-pair");
   expect(header("Plain row")).not.toHaveAttribute("data-accessory-slot");

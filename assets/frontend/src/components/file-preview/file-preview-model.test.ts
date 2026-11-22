@@ -1,4 +1,3 @@
-/* eslint-disable testing-library/no-node-access -- sanitized nodes are inspected as DOM. */
 import { docxStyleText, sanitizeDocxNodes } from "@/components/file-preview/docx-sanitize";
 import { filePreviewKind, isDocumentPreviewKind, previewTooLarge } from "@/components/file-preview/file-preview-model";
 import { csvPreviewSlice } from "@/components/file-preview/spreadsheet-preview-model";
@@ -86,7 +85,7 @@ describe("a rendered Word document's nodes", () => {
     const kept = sanitizeDocxNodes([style, section]);
 
     expect(kept).toEqual([section]);
-    expect(section.textContent).toContain("Contract here");
+    expect(section).toHaveTextContent("Contract here");
     expect(section.querySelector("script, iframe, form, input, object")).toBeNull();
     expect(section.querySelector("[onclick], [onerror]")).toBeNull();
     const [scriptLink, outsideLink, anchor] = Array.from(section.querySelectorAll("a"));
@@ -109,6 +108,6 @@ describe("a rendered Word document's nodes", () => {
     expect(sanitizeDocxNodes([svg, math])).toEqual([svg, math]);
     expect(svg.querySelector("rect")).not.toBeNull();
     expect(svg.querySelector("a, animate")).toBeNull();
-    expect(math.textContent).toBe("x+1");
+    expect(math).toHaveTextContent(/^x\+1$/);
   });
 });

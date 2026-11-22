@@ -26,7 +26,9 @@ function view() {
 }
 
 function serve(connections: AgentConnection[]) {
-  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({ connections, reminder_days: 7 }));
+  const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(async () =>
+    Response.json({ connections, reminder_days: 7 }),
+  );
   vi.stubGlobal("fetch", fetch);
   return fetch;
 }
@@ -67,10 +69,10 @@ it("is dismissed per connection in this browser and comes back for another one",
   unmount();
 
   serve([connection()]);
-  const again = render(view());
+  const utils = render(view());
   await waitFor(() => expect(screen.getByText("Dashboard")).toBeVisible());
   expect(screen.queryByTestId("agent-expiry-notice")).not.toBeInTheDocument();
-  again.unmount();
+  utils.unmount();
 
   serve([connection(), connection({ id: "grant-1", kind: "oauth_grant", client_label: "ChatGPT" })]);
   render(view());

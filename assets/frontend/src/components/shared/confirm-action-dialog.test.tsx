@@ -61,7 +61,9 @@ describe("confirmation dialog width", () => {
 
     const button = screen.getByRole("button", { name: LONG_LABEL });
     expect(button).toHaveTextContent(LONG_LABEL);
+    // eslint-disable-next-line testing-library/no-node-access -- the width rule is a layout fact of the footer inside the confirm dialog, which has no role of its own.
     const footer = button.closest(".fs-dialog-footer");
+    // eslint-disable-next-line testing-library/no-node-access -- see above: the dialog box that must grow is the footer's parent.
     expect(footer?.parentElement).toHaveClass("fs-dialog", "confirm");
   });
 });
