@@ -1,597 +1,597 @@
-# ADR 0075 UI разделы проекта поверх запуска и истории workflow
+# ADR 0075 Project UI sections built on workflow runs and history
 
 Status: Proposed
 
 Date: 2026-11-18
 
-## Решение
+## Decision
 
-Операторский раздел в core использует существующий Jobs list и стандартное
-модальное окно для формы запуска. Администратор публикует и настраивает форму
-один раз в Workflow Settings. Раздел автоматически появляется в каждом доступном
-проекте с активной привязкой этого workflow и показывает его jobs в контексте
-выбранного проекта. Выполнение, идемпотентность, история и хранение файлов
-используют существующие механизмы.
+The operator section in core uses the existing Jobs list and the standard
+modal dialog for the run form. The admin publishes and configures the form
+once in Workflow Settings. The section appears automatically in every accessible
+project with an active binding of this workflow and shows its jobs in the context
+of the selected project. Execution, idempotency, history and file storage
+use existing mechanisms.
 
-Администратор сохраняет текущий интерфейс управления. Операторы видят общую
-историю запусков выбранного workflow в проекте в рамках действующих полномочий.
-Это соответствует командной области доверия [ADR 0066](0066-global-roles-and-secret-provider-boundary.md).
-Политика личного владельца, extension, новые маршруты записи, новое файловое
-хранилище и отдельный durable-механизм приёма пачки в эту функциональность не входят.
-Запуск, решение approval и сохранение настроек используют существующие маршруты;
-добавлены только три маршрута чтения (см. [Маршруты чтения](#маршруты-чтения)).
-Существующие ограничения account, tenant, ресурсов и токенов сохраняются.
+The admin keeps the current management interface. Operators see the shared
+run history of the selected workflow in the project, within their current permissions.
+This matches the team trust scope of [ADR 0066](0066-global-roles-and-secret-provider-boundary.md).
+A personal-owner policy, an extension, new write routes, new file
+storage and a separate durable mechanism for accepting a batch are out of scope for this feature.
+Runs, approval decisions and saving settings use existing routes;
+only three read routes are added (see [Read routes](#read-routes)).
+Existing account, tenant, resource and token limits stay in place.
 
-## Роли
+## Roles
 
-Разделы опираются на чёткое разделение глобальных ролей, которое этот ADR
-вносит поправкой в [ADR 0066](0066-global-roles-and-secret-provider-boundary.md#amendment-2026-11-18-proposed-in-adr-0075-admin-configures-operator-works-viewer-reads):
+The sections rely on a clear split of global roles, which this ADR
+adds as an amendment to [ADR 0066](0066-global-roles-and-secret-provider-boundary.md#amendment-2026-11-18-proposed-in-adr-0075-admin-configures-operator-works-viewer-reads):
 
-| Роль | Что делает |
+| Role | What it does |
 |---|---|
-| Admin | Управляет пользователями, расширениями, проектами, workflow, триггерами, подключениями, привязками и одобрением секретов. Публикует и настраивает операторскую форму в Workflow Settings |
-| Operator | Свою работу в разделах: запускает workflow, загружает файлы, проверяет результат и принимает решения approvals, смотрит историю. Может ввести или заменить значение секрета, например пароль почты, не меняя его привязку. Административного интерфейса не видит |
-| Viewer | Те же разделы и история только для чтения, без действий. Например, аналитик или руководитель |
+| Admin | Manages users, extensions, projects, workflows, triggers, connections, bindings and secret approval. Publishes and configures the operator form in Workflow Settings |
+| Operator | Does their work in sections: runs workflows, uploads files, reviews results and decides approvals, views history. Can enter or replace a secret value, for example a mail password, without changing its binding. Does not see the admin interface |
+| Viewer | The same sections and history, read-only, with no actions. For example, an analyst or a manager |
 
-Полномочия роли одинаковы в UI, API и MCP. При запуске дополнительно проверяется,
-включён ли конкретный канал у workflow. Личный токен действует с ролью своего
-владельца. MCP позволяет работать из любого клиента, в том числе с телефона.
+Role permissions are the same in the UI, API and MCP. On a run, the server also checks
+whether the specific channel is enabled for the workflow. A personal token acts with the role of its
+owner. MCP makes it possible to work from any client, including a phone.
 
-Подключение бухгалтерской системы, выбор подключения для workflow и его
-бизнес-логика относятся к настройке и остаются у администратора: их делает
-специалист, который настраивает workflow и знает, какие методы API он вызывает.
+Connecting the accounting system, choosing a connection for a workflow and its
+business logic are configuration and stay with the admin: they are done by the
+specialist who configures the workflow and knows which API methods it calls.
 
-## Как администратор публикует workflow
+## How the admin publishes a workflow
 
-В Workflow Settings администратор выполняет следующие действия.
+In Workflow Settings the admin does the following.
 
-1. Выбирает каналы запуска в `settings.callable.trigger_channels`. Например,
-   для API-интеграции достаточно `api`, а для входящего webhook — `webhook`.
-   Для операторской формы требуется `ui` и явное включение «Показывать оператору».
-   По умолчанию операторская публикация выключена. Администратор подтверждает
-   реальные эффекты workflow при публикации.
-2. При необходимости задаёт название пункта меню и настраивает форму входов:
-   виджет, подпись, подсказку, видимость и условия показа каждого поля
-   (см. [Настройка формы, результата и списка](#настройка-формы-результата-и-списка)).
-   Без настройки форма строится из контракта входов автоматически.
-3. Выбирает For each или Bulk. Для For each задаёт перебираемое поле. Остальные
-   значения формы повторяются в каждом запуске.
-4. Настраивает показ результата и список запусков: колонки из полей запуска,
-   входов и выходов, а также фильтры по этим полям.
+1. Selects run channels in `settings.callable.trigger_channels`. For example,
+   `api` is enough for an API integration, and `webhook` for an incoming webhook.
+   The operator form requires `ui` and an explicit "Show to operators" switch.
+   Operator publishing is off by default. The admin confirms the
+   workflow's real effects when publishing.
+2. Optionally sets the menu item name and configures the input form:
+   widget, label, hint, visibility and display conditions of each field
+   (see [Form, result and list settings](#form-result-and-list-settings)).
+   Without configuration, the form is built from the input contract automatically.
+3. Chooses For each or Bulk. For For each, sets the field to iterate over. The other
+   form values are repeated in every run.
+4. Configures the result display and the run list: columns from run fields,
+   inputs and outputs, and filters on those fields.
 
-Проверка человеком между шагами настраивается не здесь, а в самом workflow
-в Builder: Approval-шаг с полями (см. [Проверка человеком](#проверка-человеком-approval-с-полями)).
+Human review between steps is not configured here but in the workflow itself
+in Builder: an Approval step with fields (see [Human review](#human-review-approval-with-fields)).
 
-Операторская публикация, представление формы и результата, режим отправки,
-колонки и фильтры хранятся в JSON настроек определения workflow рядом с
+Operator publishing, the form and result presentation, the submission mode,
+columns and filters are stored in the workflow definition's settings JSON next to
 `settings.callable`.
-Администратор сохраняет их через существующее изменение workflow. Один workflow
-имеет одну такую конфигурацию. Для всех его проектных привязок используются
-одни и те же форма и колонки. Источник привязок — `project_workflows`.
-Хранение настроек в существующем JSON позволяет обойтись без миграции схемы.
+The admin saves them through the existing workflow update. One workflow
+has one such configuration. All of its project bindings use
+the same form and columns. The source of bindings is `project_workflows`.
+Storing settings in the existing JSON avoids a schema migration.
 
-Отключение публикации или канала `ui` убирает пункт из всех проектов. Удаление
-или отключение привязки убирает его из соответствующего проекта. Ранее принятые
-jobs доступны через существующую историю в пределах полномочий пользователя.
-Если опубликованный workflow временно выключен или его контракт несовместим
-с настройками формы, раздел с активной привязкой и каналом `ui` показывает
-историю и причину блокировки отправки.
+Turning off publishing or the `ui` channel removes the item from all projects. Deleting
+or disabling a binding removes it from the corresponding project. Previously accepted
+jobs remain available through the existing history, within the user's permissions.
+If a published workflow is temporarily disabled or its contract is incompatible
+with the form settings, a section with an active binding and the `ui` channel shows
+the history and the reason submission is blocked.
 
-## Настройка формы, результата и списка
+## Form, result and list settings
 
-Образец — редактор полей ACF (Advanced Custom Fields): список полей, у каждого
-раскрываемые настройки на вкладках General / Validation / Presentation /
-Conditional logic, окно выбора типа и repeater со строками подполей. Разница
-в том, что поля и их типы данных уже заданы контрактом workflow. Администратор
-не добавляет и не удаляет поля в этом редакторе, а выбирает, как каждое поле
-показать. Набор типов меньше, чем в CMS: сущностей WordPress
-(записи, таксономии, пользователи, ссылки) здесь нет.
+The model is the ACF (Advanced Custom Fields) field editor: a list of fields, each with
+expandable settings on the General / Validation / Presentation /
+Conditional logic tabs, a type picker dialog and a repeater with rows of subfields. The difference
+is that fields and their data types are already defined by the workflow contract. The admin
+does not add or remove fields in this editor but chooses how to show each
+field. The set of types is smaller than in a CMS: there are no WordPress entities
+(posts, taxonomies, users, links) here.
 
-В Workflow Settings появляется вкладка «Для оператора» с подвкладками
-«Форма», «Результат», «Список» и «Публикация».
+Workflow Settings gets a "For operators" tab with the sub-tabs
+"Form", "Result", "List" and "Publication".
 
-### Форма: поля входов
+### Form: input fields
 
-Список повторяет `expected_inputs` в порядке контракта; порядок для формы
-меняется перетаскиванием. В строке: подпись, ключ и тип данных из контракта
-(только чтение), видимость, виджет, участие в колонках и фильтрах.
+The list follows `expected_inputs` in contract order; the form order
+is changed by drag and drop. Each row shows: label, key and data type from the contract
+(read-only), visibility, widget, and use in columns and filters.
 
-Каждое поле настраивается так:
+Each field is configured as follows:
 
-| Вкладка | Что задаёт администратор | Откуда остальное |
+| Tab | What the admin sets | Where the rest comes from |
 |---|---|---|
-| General | Виджет из совместимых с типом данных, подпись для оператора, видимость | Ключ, тип, обязательность и `options` — из контракта |
-| Validation | Ничего | Обязательность, ограничения, типы и размер файлов — из контракта и действующих лимитов вложений |
-| Presentation | Подсказка, placeholder, prepend/append, ширина, подписи вариантов, у repeater раскладка Table / Block / Row и текст кнопки добавления | — |
-| Conditional logic | «Показать поле, если [поле] [оператор] [значение]»; условия через «и» внутри группы, группы правил через «или» | Операторы зависят от типа поля, как в ACF |
+| General | A widget compatible with the data type, the label for the operator, visibility | Key, type, required flag and `options` come from the contract |
+| Validation | Nothing | Required flag, constraints, file types and sizes come from the contract and the current attachment limits |
+| Presentation | Hint, placeholder, prepend/append, width, option labels; for a repeater, the Table / Block / Row layout and the add button text | — |
+| Conditional logic | "Show the field if [field] [operator] [value]"; conditions are joined with "and" within a group, rule groups with "or" | Operators depend on the field type, as in ACF |
 
-Виджет выбирается только из совместимых с типом данных контракта:
+A widget can be chosen only from those compatible with the contract data type:
 
-| Тип в контракте | Виджеты |
+| Contract type | Widgets |
 |---|---|
 | `string` | Text, Text Area, WYSIWYG, Email, URL, Date, Date Time, Time |
 | `select` (`options`) | Select, Radio, Button Group |
-| массив значений `select` | Checkbox, Select с несколькими значениями |
+| array of `select` values | Checkbox, multi-value Select |
 | `number` | Number |
 | `boolean` | True / False |
-| `file` | загрузка одного файла |
-| массив `file` | загрузка нескольких файлов (например, 4 страницы одного договора) |
-| `object` с описанными свойствами | Group |
-| массив `object` с описанными свойствами | Repeater |
+| `file` | single file upload |
+| array of `file` | multiple file upload (for example, 4 pages of one contract) |
+| `object` with described properties | Group |
+| array of `object` with described properties | Repeater |
 
-Файловое поле всегда показывается как загрузка файлов, а не как текстовое
-поле: один файл или несколько определяет контракт, а не форма. `secret`
-в операторской форме не показывается: значения секретов вводятся через
-каталог секретов.
+A file field is always shown as a file upload, not as a text
+field: whether it takes one file or several is decided by the contract, not the form. `secret`
+is not shown in the operator form: secret values are entered through the
+secret catalog.
 
-Допустимые значения выбора хранятся в контракте (`options`), поэтому сервер
-проверяет их одинаково в UI, API и MCP. Форма задаёт только подписи
-вариантов. Если администратор показывает строку как Select, варианты
-записываются в контракт этого поля.
+Allowed choice values are stored in the contract (`options`), so the server
+validates them the same way in the UI, API and MCP. The form only sets option
+labels. If the admin shows a string as a Select, the options
+are written into that field's contract.
 
-**Скрытое поле.** Технический параметр, который оператору знать не нужно,
-администратор делает скрытым. Значение берётся из `default` поля в контракте.
-Скрытое обязательное поле без значения по умолчанию — ошибка настройки,
-публикация с ней блокируется. Оператор не может передать скрытое поле
-через форму. API и MCP работают по контракту, как и сейчас.
+**Hidden field.** The admin makes a technical parameter the operator does not need
+to know about hidden. Its value is taken from the field's `default` in the contract.
+A hidden required field without a default value is a configuration error;
+publishing is blocked while it exists. The operator cannot pass a hidden field
+through the form. The API and MCP work by the contract, as they do now.
 
-**Repeater.** Каждая строка — ряд из инпутов подполей, например «Название»,
-«Сайт», «Email». Кнопка добавляет новый ряд, рядом удаление строки.
-Минимум и максимум строк берутся из контракта.
+**Repeater.** Each row is a line of subfield inputs, for example "Name",
+"Website", "Email". A button adds a new row; each row has a delete control next to it.
+The minimum and maximum number of rows come from the contract.
 
-**Условия показа** действуют только в форме. Скрытое условием поле не
-отправляется. Поле с условием не может быть обязательным в контракте:
-«обязательно, когда показано» проверяет форма.
+**Display conditions** apply only in the form. A field hidden by a condition is not
+submitted. A field with a condition cannot be required in the contract:
+"required when shown" is checked by the form.
 
-### Результат: поля выходов
+### Result: output fields
 
-Тот же список для `expected_outputs` и возвращаемых файлов, но без валидации
-и условий. Администратор задаёт подпись, порядок и вид показа (текст, число
-с форматом, дата, WYSIWYG как отформатированный текст, файлы ссылками на
-скачивание, repeater таблицей). Страница запуска показывает поданные входы
-и полученный результат по этим настройкам.
+The same list for `expected_outputs` and returned files, but without validation
+and conditions. The admin sets the label, order and display kind (text, number
+with a format, date, WYSIWYG as formatted text, files as download
+links, repeater as a table). The run page shows the submitted inputs
+and the received result according to these settings.
 
-### Список: колонки и фильтры
+### List: columns and filters
 
-**Колонки.** Администратор добавляет колонку, выбирая поле из трёх
-источников: поля запуска (дата, статус, автор), входы и выходы. Для колонки
-задаются заголовок, формат и порядок (перетаскиванием). Файлы показываются
-именами со ссылками на скачивание.
+**Columns.** The admin adds a column by choosing a field from three
+sources: run fields (date, status, author), inputs and outputs. For each column
+the admin sets the header, format and order (by drag and drop). Files are shown as
+names with download links.
 
-**Фильтры.** Администратор добавляет фильтр, выбирая поле и тип фильтра
-из совместимых с типом данных:
+**Filters.** The admin adds a filter by choosing a field and a filter type
+from those compatible with the data type:
 
-| Данные | Тип фильтра |
+| Data | Filter type |
 |---|---|
-| дата, дата и время | Диапазон дат |
-| `number` | Диапазон чисел |
-| `boolean` | Да / нет |
-| `select` и массив `select` | Выбор одного или нескольких из `options` поля |
-| `string` | Поиск по тексту |
-| статус job | Выбор статуса |
-| файлы | недоступно |
+| date, date and time | Date range |
+| `number` | Number range |
+| `boolean` | Yes / no |
+| `select` and array of `select` | Choice of one or more of the field's `options` |
+| `string` | Text search |
+| job status | Status choice |
+| files | not available |
 
-Значения выбора берутся из контракта; динамическая подгрузка значений из
-истории в первую версию не входит.
+Choice values come from the contract; loading values dynamically from
+history is not in the first version.
 
-Фильтр сравнивает полные значения поля, а не отображаемую проекцию.
-`meta.invocation.mapped_inputs` обрезает строки длиннее 2 КБ и массивы длиннее
-25 элементов, поэтому совпадение за пределом обрезки было бы пропущено. При
-приёме запуска сервер записывает в `meta` job полные значения входов, по которым
-можно фильтровать: строки, числа, boolean, `select`, массивы `select`, даты.
-Записываются все такие входы контракта, а не только настроенные фильтры, —
-фильтр, добавленный позже, работает и на старых запусках. Секреты и файлы не
-записываются. Выходы уже хранятся целиком в `meta.workflow_outputs`.
+A filter compares full field values, not the display projection.
+`meta.invocation.mapped_inputs` truncates strings longer than 2 KB and arrays longer than
+25 items, so a match beyond the truncation limit would be missed. When it
+accepts a run, the server writes into the job's `meta` the full values of inputs that
+can be filtered: strings, numbers, booleans, `select`, `select` arrays, dates.
+It writes all such inputs of the contract, not only the configured filters, so
+a filter added later also works on old runs. Secrets and files are not
+written. Outputs are already stored in full in `meta.workflow_outputs`.
 
-## Проверка человеком: Approval с полями
+## Human review: Approval with fields
 
-Работа с документом часто требует сверки человеком между шагами: распознать
-счёт, проверить и исправить распознанное, выгрузить в бухгалтерскую систему.
-Исправить сумму руками быстрее, чем ждать повторного распознавания, которое
-снова может ошибиться. Это делает существующий Approval-шаг, которому даются
-типизированные входы и выходы, как у любого другого шага. Весь процесс —
-один workflow и одна job: распознать → проверить → выгрузить через
-существующий `invoke_workflow`.
+Work with a document often needs a human check between steps: recognize
+an invoice, check and correct the recognized data, export it to the accounting system.
+Correcting an amount by hand is faster than waiting for another recognition, which
+can be wrong again. The existing Approval step does this, given
+typed inputs and outputs like any other step. The whole process is
+one workflow and one job: recognize → review → export through the
+existing `invoke_workflow`.
 
-Сейчас Approval показывает человеку `show_outputs`, склеенные в одну строку
-текста, и принимает решение approve / reject с комментарием. Остальное уже
-есть: ветки `approved` / `rejected`, решения в UI и MCP, уведомления, история
-решений с автором, отказ второму решению (`approval_already_resolved`) и
-продолжение job после решения.
+Today Approval shows the human `show_outputs` joined into one line of
+text and accepts an approve / reject decision with a comment. The rest already
+exists: the `approved` / `rejected` branches, decisions in the UI and MCP, notifications, decision
+history with the author, refusal of a second decision (`approval_already_resolved`) and
+job continuation after the decision.
 
-### Поля проверки
+### Review fields
 
-Админ в Builder добавляет Approval-шагу поля проверки. Поле — та же модель,
-что поле контракта workflow: ключ, подпись, тип (`string`, `paragraph`,
-`number`, `boolean`, `select`, дата, массивы, `object`), обязательность,
-варианты. Отдельной системы типов нет.
+The admin adds review fields to the Approval step in Builder. A field is the same model
+as a workflow contract field: key, label, type (`string`, `paragraph`,
+`number`, `boolean`, `select`, date, arrays, `object`), required flag,
+options. There is no separate type system.
 
-- **Начальное значение** задаётся обычным маппингом из выходов предыдущих
-  шагов, например `Распознать.total → total`. Builder предлагает совпадения
-  по имени и типу, админ подтверждает.
-- **«Взять поля из workflow»** заполняет список полей входами выбранного
-  workflow — например, того, который вызывается дальше для выгрузки — вместе
-  с типами, обязательностью и вариантами. Типы вручную не описываются.
-- **Редактируемость** задаётся для каждого поля; остальные оператор только видит.
-- **Оригинал** — необязательный файловый вход или файл предыдущего шага,
-  который показывается слева для сверки.
+- **The initial value** is set by an ordinary mapping from the outputs of previous
+  steps, for example `Recognize.total → total`. Builder suggests matches
+  by name and type; the admin confirms.
+- **"Take fields from a workflow"** fills the field list with the inputs of the selected
+  workflow — for example, the one called next for the export — together
+  with types, required flags and options. Types are not described by hand.
+- **Editability** is set per field; the operator only sees the rest.
+- **The original** is an optional file input or a file from a previous step,
+  shown on the left for comparison.
 
-Если тип источника неизвестен, например свободный ответ агента, поле
-получает тип `paragraph`. Approval без полей работает как сейчас.
+If the source type is unknown, for example a free-form agent answer, the field
+gets the `paragraph` type. Approval without fields works as it does now.
 
-### Показ: виджет по типу
+### Display: widget by type
 
-Админ не обязан настраивать показ. Каждый тип имеет виджет по умолчанию:
+The admin does not have to configure the display. Each type has a default widget:
 
-| Тип | Виджет по умолчанию |
+| Type | Default widget |
 |---|---|
-| `string` | Текстовое поле |
+| `string` | Text field |
 | `paragraph` | Text Area |
-| `number` | Числовое поле |
-| `boolean` | Переключатель |
-| `select` | Выпадающий список |
-| дата, дата и время | Выбор даты |
-| массив `select` | Выбор нескольких |
-| массив `object` | Таблица строк, как repeater |
-| `file`, массив `file` | Ссылки и предпросмотр, только просмотр |
+| `number` | Number field |
+| `boolean` | Toggle |
+| `select` | Dropdown |
+| date, date and time | Date picker |
+| array of `select` | Multi-select |
+| array of `object` | Table of rows, like a repeater |
+| `file`, array of `file` | Links and preview, view only |
 
-Виджеты те же, что в операторской форме запуска (`WorkflowInputFields`).
-Выбор другого виджета, подписи вариантов и условия показа для полей проверки
-в первую версию не входят; позже их добавляет тот же редактор полей, что
-у формы запуска, без изменения модели.
+The widgets are the same as in the operator run form (`WorkflowInputFields`).
+Choosing another widget, option labels and display conditions for review fields
+are not in the first version; later the same field editor as
+the run form adds them, without changing the model.
 
-### Решение и выходы шага
+### Decision and step outputs
 
-При открытии проверки сервер сохраняет начальные значения полей целиком
-и типизированно вместе с approval. Текстовое ограничение `content`
-(1000 символов) к ним не применяется.
+When a review opens, the server stores the fields' initial values in full
+and typed, together with the approval. The `content` text limit
+(1000 characters) does not apply to them.
 
-- **Approve.** Решение approval принимает `values` — правки только
-  редактируемых полей. Сервер накладывает их на сохранённые значения,
-  проверяет итог по типам и обязательности и отдаёт его как типизированные
-  выходы шага: `Approval.total`, `Approval.lines`. Следующие шаги маппят их
-  как обычно, например `Approval.total → Выгрузить.total`. Разница с
-  начальными значениями записывается в историю решения: что приложение
-  распознало, что исправил человек и кто.
-- **Reject.** Комментарий сохраняется и становится выходом ветки `rejected`.
-  Если ветка ведёт на повторное распознавание, комментарий передаётся туда
-  как обратная связь.
+- **Approve.** The approval decision accepts `values` — edits of editable
+  fields only. The server applies them to the stored values,
+  validates the result by type and required flag and returns it as the step's typed
+  outputs: `Approval.total`, `Approval.lines`. Later steps map them
+  as usual, for example `Approval.total → Export.total`. The difference from
+  the initial values is written to the decision history: what the application
+  recognized, what the human corrected, and who.
+- **Reject.** The comment is saved and becomes the output of the `rejected` branch.
+  If the branch leads to another recognition, the comment is passed there
+  as feedback.
 
-Исходные значения остаются в выходах шага распознавания. Если бухгалтер
-исправил «31,85» на «318,50», в выгрузку уходит 318.50, а распознанное
-значение сохраняется в истории.
+The original values stay in the recognition step's outputs. If the accountant
+corrects "31,85" to "318,50", 318.50 goes to the export, and the recognized
+value is kept in history.
 
-Второе решение по той же проверке получает существующий отказ. Права —
-существующие права решения approvals: operator решает, viewer только видит.
+A second decision on the same review gets the existing refusal. Permissions are
+the existing approval decision permissions: the operator decides, the viewer only sees.
 
-**Кто может отправлять правки.** Сейчас токены принимают решения по approval,
-но `override_content` им запрещён. Для `values` правило такое:
+**Who can submit edits.** Today tokens can decide approvals,
+but `override_content` is forbidden to them. For `values` the rule is:
 
-| Кто | Решение без правок | Решение с `values` |
+| Who | Decision without edits | Decision with `values` |
 |---|---|---|
-| Человек в UI (сессия) | да | да |
-| Личный токен человека (API, MCP) | да | да, с ролью владельца токена |
-| Машинный токен (service account, `is_machine_principal`) | да | нет, отказ 422 |
+| A human in the UI (session) | yes | yes |
+| A human's personal token (API, MCP) | yes | yes, with the token owner's role |
+| Machine token (service account, `is_machine_principal`) | yes | no, 422 refusal |
 
-Личный токен действует от имени человека, и проверку с телефона через MCP
-нужно поддержать. Машинный токен — автоматизация: она может подтвердить, но
-не может подменить проверяемые человеком данные. Оба случая закрепляются
-тестами.
+A personal token acts on behalf of a human, and review from a phone through MCP
+must be supported. A machine token is automation: it can approve but
+cannot replace data that a human reviews. Both cases are pinned by
+tests.
 
-**Фиксация на момент открытия.** Вместе с `approval_id` при открытии
-проверки сохраняются: схема полей, список редактируемых полей и начальные
-значения. Решение проверяется по этой сохранённой схеме, а не по текущему
-определению workflow: правка workflow, пока проверка открыта, не меняет
-правила уже открытой проверки. Проверенные правки входят:
+**Snapshot at open time.** Together with `approval_id`, when the review
+opens the server stores: the field schema, the list of editable fields and the initial
+values. A decision is validated against this stored schema, not against the current
+workflow definition: editing the workflow while a review is open does not change
+the rules of a review already open. Validated edits go:
 
-- в сохранённую команду возобновления (`build_approval_resume_value`) — после
-  рестарта воркер продолжает с исправленными значениями;
-- в отпечаток идемпотентности решения — повтор с тем же ключом, но другой
-  суммой, получает конфликт, а не ответ на прежнее решение. Решение без
-  `values` сохраняет прежний отпечаток: ключ `values` добавляется в хеш только
-  когда правки переданы. Так решение, принятое до обновления Core и повторённое
-  клиентом после него с тем же ключом, получает прежний ответ, а не конфликт.
+- into the stored resume command (`build_approval_resume_value`) — after
+  a restart the worker continues with the corrected values;
+- into the decision's idempotency fingerprint — a retry with the same key but a different
+  amount gets a conflict, not the response to the earlier decision. A decision without
+  `values` keeps the previous fingerprint: the `values` key is added to the hash only
+  when edits are passed. So a decision made before a Core update and retried by
+  the client after it with the same key gets the earlier response, not a conflict.
 
-Approval, открытый до обновления Core, не имеет сохранённой схемы и решается
-по прежним правилам: без `values`, как сейчас.
+An Approval opened before a Core update has no stored schema and is decided
+by the previous rules: without `values`, as now.
 
-### Совместимость с выпущенными workflow
+### Compatibility with released workflows
 
-- **Новые ключи необязательны и меняют поведение только там, где объявлены.**
-  Без `review` Approval работает как сейчас. Без `items`, `properties`,
-  `format`, `min_items` / `max_items` поле контракта проверяется по прежним
-  правилам: например, `array` и `object` по-прежнему принимают JSON-строку.
-  Новые проверки включаются только для явно объявленных ограничений.
-- **«Взять поля из workflow» — подсказка редактора.** Исполнение использует
-  сохранённые поля шага, а не поля источника. При импорте ссылка на
-  источник перепривязывается тем же способом, что ссылки `invoke_workflow`;
-  если источник не найден, ссылка снимается, а поля остаются.
-- **Минимальная версия Core.** Шаблоны каталога и пакеты extension с
-  типизированным Approval или новыми ключами контракта объявляют минимальную
-  версию Core через существующие ограничения совместимости. Старая установка
-  не импортирует их молча с потерей полей.
-- **Существующие workflow не переделываются массово.** Шаблон из каталога
-  импортируется локальной копией, которую можно доработать в Builder.
-  Защищённый граф extension меняется новым релизом extension или
-  оборачивается верхним workflow с `Invoke`, если контракт это разрешает.
+- **New keys are optional and change behavior only where they are declared.**
+  Without `review`, Approval works as now. Without `items`, `properties`,
+  `format`, `min_items` / `max_items`, a contract field is validated by the previous
+  rules: for example, `array` and `object` still accept a JSON string.
+  New checks turn on only for explicitly declared constraints.
+- **"Take fields from a workflow" is an editor hint.** Execution uses
+  the step's stored fields, not the source's fields. On import, the reference to the
+  source is rebound the same way as `invoke_workflow` references;
+  if the source is not found, the reference is removed and the fields stay.
+- **Minimum Core version.** Catalog templates and extension packages with
+  a typed Approval or new contract keys declare a minimum
+  Core version through the existing compatibility constraints. An old installation
+  does not silently import them with fields lost.
+- **Existing workflows are not reworked in bulk.** A catalog template
+  is imported as a local copy that can be refined in Builder.
+  A protected extension graph is changed by a new extension release or
+  wrapped in a top-level workflow with `Invoke`, if the contract allows it.
 
-### Страница проверки
+### Review page
 
-Пока job в `awaiting_approval` на Approval-шаге с полями, страница job
-в операторском виде показывает:
+While a job is in `awaiting_approval` on an Approval step with fields, the job page
+in the operator view shows:
 
-- слева — оригинал через существующий предпросмотр файлов job, несколько
-  файлов листаются; PDF, таблицы и DOCX страница рисует сама
+- on the left — the original, through the existing job file preview; several
+  files can be paged through; the page renders PDF, spreadsheets and DOCX itself
   ([ADR 0080](0080-in-browser-document-preview.md));
-- справа — поля проверки виджетами по типу; изменённое поле отмечено
-  и показывает начальное значение;
-- кнопки — подписи шага (`approve_label`, `reject_label`), например
-  «Выгрузить в бухгалтерию» и «Распознать заново»; комментарий по правилам шага.
+- on the right — review fields as widgets by type; a changed field is marked
+  and shows its initial value;
+- buttons — the step's labels (`approve_label`, `reject_label`), for example
+  "Export to accounting" and "Recognize again"; the comment follows the step's rules.
 
-Viewer видит страницу без полей ввода и кнопок. После решения страница
-показывает принятые значения, автора правок и дальнейший статус job.
+The viewer sees the page without input fields and buttons. After the decision the page
+shows the accepted values, the author of the edits and the job's further status.
 
-### Очередь без возврата в список
+### Queue without returning to the list
 
-Оператор проверяет документы подряд, не возвращаясь в список. Страница job
-открывается в контексте списка, из которого пришёл пользователь: тот же проект,
-workflow, фильтры и сортировка. Наверху — «3 из 47» и переход к предыдущей
-и следующей job (клавиши J / K). Основное решение можно принять как
-«Подтвердить и дальше» (Ctrl+Enter): решение принимается, и сразу открывается
-следующая job; её дальнейший статус виден в списке. Следующая job
-и предпросмотр её первого файла загружаются заранее.
+The operator reviews documents one after another without returning to the list. The job page
+opens in the context of the list the user came from: the same project,
+workflow, filters and sorting. At the top — "3 of 47" and navigation to the previous
+and next job (J / K keys). The main decision can be made as
+"Approve and next" (Ctrl+Enter): the decision is made and the next job
+opens immediately; the decided job's further status is visible in the list. The next job
+and the preview of its first file are preloaded.
 
-«Ждёт проверки» — это job в `awaiting_approval` и job в `awaiting_child`,
-у которой где-то ниже по цепочке вызовов ждёт решения Approval. Глубина не
-ограничена одним `Invoke`: в цепочке `A → B → C` с Approval в `C` у `A` и `B`
-статус `awaiting_child`, и `A` попадает в очередь своего раздела. Цепочка
-читается так же, как её уже проходит рассылка уведомлений об ожидании
-approval: по связям `meta.invoke_parent_job_id` / `meta.invoke_children`
-в базе, с защитой от циклов и ограничением глубины.
+"Awaiting review" means a job in `awaiting_approval` and a job in `awaiting_child`
+that has an Approval waiting for a decision somewhere down its call chain. Depth is not
+limited to one `Invoke`: in the chain `A → B → C` with an Approval in `C`, `A` and `B` have
+the `awaiting_child` status, and `A` enters the queue of its section. The chain
+is read the same way the approval-waiting notifications already
+walk it: through the `meta.invoke_parent_job_id` / `meta.invoke_children` links
+in the database, with cycle protection and a depth limit.
 
-Строка — job раздела, страница открывает проверку той job, где стоит Approval,
-и решает её с правами этой job. Права разделены:
+A row is a job of the section; the page opens the review of the job where the Approval is
+and decides it with that job's permissions. Permissions are split:
 
-- есть право решать — поля ввода и кнопки;
-- есть только чтение — поля и оригинал видны без полей ввода и кнопок;
-- нет права чтения — строка в очереди есть, но поля, значения и файлы
-  проверки не загружаются; страница сообщает, что проверка ждёт решения
-  у тех, у кого есть доступ.
+- with decide permission — input fields and buttons;
+- with read-only permission — fields and the original are visible without input fields and buttons;
+- with no read permission — the row is in the queue, but the review's fields, values and files
+  are not loaded; the page says the review is awaiting a decision
+  by those who have access.
 
-Решённая job выпадает из фильтра «Ждёт проверки».
-Поэтому соседи определяются относительно текущей job по сортировке списка,
-а не по номеру строки, и ни одна job не пропускается и не показывается
-дважды. Сервер отдаёт соседей и позицию в существующем `/api/v2/jobs` по тем
-же фильтрам. Без контекста списка, например по прямой ссылке, очередь
-строится по фильтрам раздела по умолчанию.
+A decided job drops out of the "Awaiting review" filter.
+So neighbors are determined relative to the current job by the list sorting,
+not by row number, and no job is skipped or shown
+twice. The server returns neighbors and the position in the existing `/api/v2/jobs` with the same
+filters. Without a list context, for example from a direct link, the queue
+is built from the section's default filters.
 
-### Примеры применения
+### Usage examples
 
-| Сценарий | Поля проверки |
+| Scenario | Review fields |
 |---|---|
-| Счёт перед выгрузкой в бухгалтерию | Поставщик, сумма, дата, строки (таблица); оригинал слева |
-| Блог-пост перед публикацией | Текст (`paragraph`), редактируемый; reject с комментарием «переписать вступление» |
-| Квалификация лида | Оценка (`select`), которую менеджер может поменять |
-| Скидка перед отправкой клиенту | Процент (`number`) с правкой |
-| Модерация | Флаги (`boolean`), только просмотр |
-| Простое подтверждение | Без полей, как сейчас |
+| Invoice before export to accounting | Supplier, amount, date, lines (table); original on the left |
+| Blog post before publishing | Text (`paragraph`), editable; reject with the comment "rewrite the intro" |
+| Lead qualification | Score (`select`) that the manager can change |
+| Discount before sending to a customer | Percentage (`number`), editable |
+| Moderation | Flags (`boolean`), view only |
+| Simple confirmation | No fields, as now |
 
-## Что видят оператор и viewer
+## What the operator and viewer see
 
-### Список запусков и форма
+### Run list and form
 
-Раздел открывается сразу на существующем Jobs list с заголовком workflow или
-настроенным названием, например «Чеки». Используются та же таблица, панель
-фильтров, поиск и пагинация. `project_id` и `workflow_id` берутся из раздела
-и всегда передаются в запрос списка. Выбор другого проекта или workflow
-происходит через меню. Существующие фильтры по датам, статусу и типу вызова
-и фильтры, настроенные администратором, уточняют запрос внутри этого раздела.
-UI-запуски имеют `task_source=manual_ui`.
+The section opens directly on the existing Jobs list with the workflow title or
+the configured name, for example "Receipts". It uses the same table, filter
+panel, search and pagination. `project_id` and `workflow_id` come from the section
+and are always passed in the list request. Another project or workflow is
+selected through the menu. The existing filters by date, status and call type
+and the filters configured by the admin narrow the request within this section.
+UI runs have `task_source=manual_ui`.
 
-Колонки и фильтры задаются в Workflow Settings на вкладке «Список». Название
-проекта и workflow уже заданы контекстом раздела, поэтому в списке можно
-вывести дату, файлы, поставщика, сумму, статус и автора запуска. Одна строка
-соответствует одной job. Файл отображается по имени с доступным скачиванием
-через существующие ссылки на файлы job. Значения выходов заполняются по
-завершении job. Проекция колонок использует данные, разрешённые к показу
-пользователю. Пользователь может скрыть часть колонок у себя; набор колонок
-задаёт администратор.
+Columns and filters are set in Workflow Settings on the "List" tab. The project
+and workflow names are already given by the section context, so the list can
+show the date, files, supplier, amount, status and the author of the run. One row
+is one job. A file is shown by name with download available
+through the existing job file links. Output values are filled in when
+the job finishes. The column projection uses data the user is allowed
+to see. A user can hide some columns for themselves; the admin
+defines the set of columns.
 
-В шапке списка пользователь с правом запуска нажимает **New**. Форма открывается
-в стандартном `DsDialog` по образцу создания агента. Длинная форма прокручивается
-внутри диалога, в том числе на узком экране. Viewer открывает тот же список,
-результаты и файлы в режиме чтения. Сервер проверяет права независимо от элементов,
-которые видны в интерфейсе.
+In the list header, a user with run permission clicks **New**. The form opens
+in the standard `DsDialog`, following the agent creation dialog. A long form scrolls
+inside the dialog, including on a narrow screen. The viewer opens the same list,
+results and files in read mode. The server checks permissions independently of the elements
+visible in the interface.
 
-### Группировка меню по проектам
+### Menu grouping by project
 
-Навигация оператора и viewer автоматически зависит от числа доступных
-пользователю проектов с опубликованными workflow:
+Operator and viewer navigation depends automatically on the number of projects
+with published workflows accessible to the user:
 
-- Если проект один, его разделы отображаются на верхнем уровне меню,
-  без дополнительного родительского пункта с названием проекта.
-- Если проектов несколько, название каждого проекта становится родительским
-  пунктом раскрываемой группы, а его разделы — вложенными пунктами меню.
-- Проекты без видимых разделов не создают пустых групп и не влияют на выбор
-  между плоским и сгруппированным меню. Если разделов нет, показывается
-  пустое состояние.
+- If there is one project, its sections are shown at the top level of the menu,
+  without an extra parent item with the project name.
+- If there are several projects, each project's name becomes the parent
+  item of a collapsible group, and its sections become nested menu items.
+- Projects without visible sections do not create empty groups and do not affect the choice
+  between a flat and a grouped menu. If there are no sections, an empty
+  state is shown.
 
-Меню собирается из активных привязок с учётом публикации, канала `ui` и прав
-пользователя. Для каждой подходящей пары `(project_id, workflow_id)` создаётся
-один пункт с настроенным названием или названием workflow. Оба идентификатора
-входят в адрес раздела, в том числе при отображении на верхнем уровне меню.
+The menu is built from active bindings, taking into account publishing, the `ui` channel and the user's
+permissions. For each matching `(project_id, workflow_id)` pair, one
+item is created with the configured name or the workflow name. Both identifiers
+are part of the section address, including when it is shown at the top level of the menu.
 
-## Режимы отправки
+## Submission modes
 
-| Режим | Выполнение | История |
+| Mode | Execution | History |
 |---|---|---|
-| For each | N обычных запусков, по одному на элемент; свой стабильный ключ идемпотентности на каждый элемент при повторе той же отправки | N jobs, у каждого свой статус и результат |
-| Bulk | Один обычный запуск со всеми значениями формы, совместимыми с контрактом workflow | Одна job с общим статусом и результатом |
+| For each | N ordinary runs, one per item; each item has its own stable idempotency key when the same submission is retried | N jobs, each with its own status and result |
+| Bulk | One ordinary run with all form values compatible with the workflow contract | One job with a shared status and result |
 
-Режим определяется смыслом одного запуска. Четыре страницы одного договора —
-Bulk: одна job получает все четыре файла. Четыре отдельных чека — For each:
-четыре jobs, по одной на чек.
+The mode is determined by what one run means. Four pages of one contract are
+Bulk: one job gets all four files. Four separate receipts are For each:
+four jobs, one per receipt.
 
-Режим задаёт администратор. Для чеков выбирается For each: пользователь
-выбирает пачку, UI отправляет отдельные запросы с ограниченной параллельностью
-и показывает, какие из них приняты и какие завершились ошибкой отправки.
-Повтор того же запроса использует прежний ключ; намеренная новая обработка —
-новый. Закрытие браузера не гарантирует отправку оставшихся элементов.
-Отдельного серверного журнала пачки, атомарности всей отправки и автоматического
-восстановления неотправленных элементов нет. Принятые jobs выполняет текущая очередь.
+The admin sets the mode. For receipts, For each is chosen: the user
+selects a batch, the UI sends separate requests with limited concurrency
+and shows which of them were accepted and which failed to submit.
+A retry of the same request uses the previous key; an intentional new run uses
+a new one. Closing the browser does not guarantee that the remaining items are submitted.
+There is no separate server-side batch log, no atomicity of the whole submission and no automatic
+recovery of unsubmitted items. Accepted jobs are run by the current queue.
 
-Вход каждого запуска проходит существующую валидацию. Если контракт требует
-массив, For each передаёт одноэлементный массив, только когда это допускают
-его ограничения. Файловый вход получает настоящий загруженный файл.
-Массив файлов в одном входе (Bulk, например 4 фото одного договора) требует
-доработки хранения: каждый файл сохраняется отдельным артефактом job
-существующим `_persist_file_refs`, а вход получает их список в порядке загрузки.
-Увеличение лимита байтов само это не решает.
+Each run's input goes through the existing validation. If the contract requires
+an array, For each passes a single-item array only when its
+constraints allow it. A file input gets a real uploaded file.
+An array of files in one input (Bulk, for example 4 photos of one contract) needs
+a storage change: each file is saved as a separate job artifact by
+the existing `_persist_file_refs`, and the input gets their list in upload order.
+Raising the byte limit alone does not solve this.
 
-## Маршруты чтения
+## Read routes
 
-Записи раздела идут через существующие маршруты: запуск —
-`POST /api/workflows/{id}/run` и `/api/workflow-runs`, решение —
-`POST /api/approvals/{thread_id}`, настройка — изменение workflow. Список
-раздела и очередь — параметры существующего `GET /api/v2/jobs`
+Section writes go through existing routes: runs —
+`POST /api/workflows/{id}/run` and `/api/workflow-runs`, decisions —
+`POST /api/approvals/{thread_id}`, settings — the workflow update. The section
+list and the queue are parameters of the existing `GET /api/v2/jobs`
 (`operator_view`, `filters`, `around`).
 
-Для чтения добавлены три проекции. Их нельзя собрать из существующих ответов
-без утечки или без N запросов: меню и раздел требуют разрешить привязки,
-публикацию, контракт и права за один проход на сервере, а проверка должна
-пройти по цепочке Invoke и проверить права на той job, где стоит Approval.
+Three projections are added for reading. They cannot be assembled from existing responses
+without a leak or without N requests: the menu and the section need bindings,
+publishing, the contract and permissions resolved in one pass on the server, and the review must
+walk the Invoke chain and check permissions on the job where the Approval is.
 
-| Маршрут | Зачем | Права |
+| Route | Purpose | Permissions |
 |---|---|---|
-| `GET /api/v2/projects/sections` | Меню operator и viewer: пары (проект, workflow) из активных привязок опубликованных workflow с каналом `ui`, с причинами блокировки | Любая роль; токену нужен `projects.read`. Только проекты и workflow, видимые вызывающему, с учётом `allowed_project_ids` / `allowed_workflow_ids` токена |
-| `GET /api/v2/projects/{project_id}/workflows/{workflow_id}/section` | Один раздел: настройки формы, списка и результата, разрешённые по текущему контракту, с issues и ревизией для запуска | Как у меню; раздел, которого нет в меню вызывающего, — 404 |
-| `GET /api/v2/jobs/{job_id}/review` | Проверка, которую ждёт job — здесь или ниже по цепочке Invoke — и доступ вызывающего к ней | Токену нужен `jobs.read`. Доступ считается на job, где стоит Approval: `decide` (operator, admin) — поля, значения, оригинал и кнопки; `read` (viewer) — то же без решения; `none` — только «ждёт решения», без полей, значений, файлов и id. С `project_id` и `workflow_id` раздела job вне этой пары — 404 |
+| `GET /api/v2/projects/sections` | The operator and viewer menu: (project, workflow) pairs from active bindings of published workflows with the `ui` channel, with blocking reasons | Any role; a token needs `projects.read`. Only projects and workflows visible to the caller, taking into account the token's `allowed_project_ids` / `allowed_workflow_ids` |
+| `GET /api/v2/projects/{project_id}/workflows/{workflow_id}/section` | One section: form, list and result settings resolved against the current contract, with issues and the revision for the run | Same as the menu; a section that is not in the caller's menu — 404 |
+| `GET /api/v2/jobs/{job_id}/review` | The review the job is waiting for — here or further down the Invoke chain — and the caller's access to it | A token needs `jobs.read`. Access is computed on the job where the Approval is: `decide` (operator, admin) — fields, values, original and buttons; `read` (viewer) — the same without deciding; `none` — only "awaiting decision", without fields, values, files and ids. With the section's `project_id` and `workflow_id`, a job outside that pair — 404 |
 
-Все три — тонкие адаптеры над сервисами запросов; логика в
-`core/application`. Они не меняют данных и не дают прав сверх тех, что
-проверяются на существующих маршрутах записи.
+All three are thin adapters over query services; the logic is in
+`core/application`. They do not change data and do not grant permissions beyond those
+checked on the existing write routes.
 
-## Необходимые доработки
+## Required changes
 
-1. **Запуск для operator через существующий маршрут.** Форма раздела вызывает
-   тот же `POST /api/workflows/{id}/run`, что и Builder, с ревизией,
-   идемпотентностью, UI-каналом и проверками ресурсов. Нужны две правки:
-   исключение для этого маршрута в middleware (сейчас запись в `/api/workflows/...`
-   разрешена только admin) и проверка роли в самом маршруте (сейчас только admin).
-   Для operator сервер проверяет публикацию workflow и активную привязку к
-   указанному проекту. Operator подтверждает реальные эффекты при отправке
-   формы. Административный запуск из Builder сохраняет свои проверки.
-2. **Разделение ролей в middleware.** Запись по умолчанию разрешена только admin;
-   operator получает явный список: запуск workflow, решения approvals,
-   отмена и повтор jobs, значения секретов и действия своей учётной записи.
-   `PUT /api/projects/{id}` становится admin-only; это также закрывает
-   нынешний обход, при котором operator через него меняет привязки workflow
-   и политику проекта, хотя `PUT .../workflows` и `PUT .../policy` требуют admin.
-3. **Лимиты реальной загрузки.** Подключить существующую конфигурацию
-   ограничений вложений к UI-запуску. Согласовать лимит декодированных байтов,
-   ограничение длины base64 и проверку frontend: сейчас в них зашит 1 MiB.
-   `FS_WORKFLOW_TEST_FILE_MAX_BYTES` относится к тестовым файлам;
-   реальные загрузки должны учитывать `FS_ATTACHMENT_MAX_SIZE_BYTES`
-   и действующую политику количества и типов вложений.
-4. **Автор запуска при необходимости колонки.** Записывать подтверждённую
-   личность из scope в `jobs.meta`, не принимая её из полей формы.
-   Это отображаемые метаданные, а не новая политика владения. Миграция не нужна;
-   у старых jobs значение может отсутствовать.
-5. **Связать UI с существующими данными.** Сохранять конфигурацию из Workflow
-   Settings через существующее изменение workflow. Формировать меню из
-   доступных проектных привязок. Использовать Jobs list в контексте раздела с
-   фиксированными фильтрами проекта и workflow и настроенными колонками.
-   Разрешить поддержанные значения фильтра `task_source`, включая `manual_ui`,
-   в API, query service и frontend.
-6. **Расширить контракт полей.** В режиме полей добавить описание элементов
-   массива (`items`: тип, `options`, вложенные свойства) и свойств объекта
-   (`properties`), минимум и максимум элементов, а также `format` строки
-   (`date`, `date-time`, `time`, `email`, `uri`). Это нужно для repeater,
-   group, нескольких файлов, множественного выбора и дат. Существующие
-   определения остаются корректными: новые ключи необязательны, а без них
-   действуют прежние правила проверки, включая JSON-строки для `array`
-   и `object`.
-7. **Фильтры на сервере.** Существующий список jobs в контексте раздела
-   принимает настроенные фильтры и применяет их к полным значениям
-   фильтруемых входов, записанным при приёме запуска, и к выходам
-   (`meta.workflow_outputs`). Обрезанная проекция `mapped_inputs` для фильтров
-   не используется. Сервер принимает только фильтры из настройки workflow,
-   а не произвольные JSON-пути.
-8. **Редактор в Workflow Settings.** Вкладка «Для оператора» с подвкладками
-   «Форма», «Результат», «Список» и «Публикация», собранная из существующих
-   компонентов дизайн-системы, включая `DsDialog` для выбора виджета.
-   Проверки настройки (несовместимый виджет, скрытое обязательное поле без
-   значения, условие на несуществующее поле) выполняются сервером при
-   сохранении и при публикации.
-9. **Approval с полями.** В конфигурации Approval-шага — поля проверки
-   (модель поля контракта), маппинг начальных значений, редактируемость,
-   оригинал, «Взять поля из workflow». Сохранение начальных значений целиком
-   при открытии проверки; `values` в решении approval (UI, API, MCP) с
-   проверкой только редактируемых полей и итога по типам; типизированные
-   выходы шага для маппинга и проверок Builder; комментарий reject как выход
-   ветки `rejected`; разница правок в истории решения. Публичная проекция
-   approval отдаёт поля проверки тем, кто вправе видеть job. Approval без
-   полей не меняется. Схема, редактируемые поля и начальные значения
-   фиксируются вместе с `approval_id`; правки входят в команду возобновления
-   и отпечаток идемпотентности; `values` с машинного токена отклоняются.
-10. **Страница проверки и очередь.** Операторский вид страницы job в
-   `awaiting_approval`: оригинал, поля виджетами по типу с отметкой
-   исправлений, кнопки решения. Соседи и позиция job в `/api/v2/jobs` по
-   фильтрам списка, переход J / K, «Подтвердить и дальше», предзагрузка
-   следующей job.
+1. **Operator runs through the existing route.** The section form calls
+   the same `POST /api/workflows/{id}/run` as Builder, with revision,
+   idempotency, the UI channel and resource checks. Two changes are needed:
+   an exception for this route in the middleware (today writes to `/api/workflows/...`
+   are allowed only to admin) and a role check in the route itself (today admin only).
+   For the operator, the server checks the workflow's publishing and an active binding to
+   the given project. The operator confirms real effects when submitting
+   the form. The admin run from Builder keeps its checks.
+2. **Role split in the middleware.** Writes are allowed only to admin by default;
+   the operator gets an explicit list: running workflows, approval decisions,
+   cancelling and retrying jobs, secret values and actions on their own account.
+   `PUT /api/projects/{id}` becomes admin-only; this also closes
+   the current bypass where the operator changes workflow bindings
+   and project policy through it, although `PUT .../workflows` and `PUT .../policy` require admin.
+3. **Real upload limits.** Connect the existing attachment limits
+   configuration to the UI run. Align the decoded byte limit,
+   the base64 length limit and the frontend check: today 1 MiB is hard-coded in them.
+   `FS_WORKFLOW_TEST_FILE_MAX_BYTES` applies to test files;
+   real uploads must respect `FS_ATTACHMENT_MAX_SIZE_BYTES`
+   and the current policy for attachment count and types.
+4. **Run author when the column needs it.** Write the verified
+   identity from scope into `jobs.meta`, without taking it from form fields.
+   This is display metadata, not a new ownership policy. No migration is needed;
+   old jobs may lack the value.
+5. **Connect the UI to existing data.** Save the configuration from Workflow
+   Settings through the existing workflow update. Build the menu from
+   accessible project bindings. Use the Jobs list in the section context with
+   fixed project and workflow filters and the configured columns.
+   Allow the supported `task_source` filter values, including `manual_ui`,
+   in the API, query service and frontend.
+6. **Extend the field contract.** In fields mode, add a description of array
+   items (`items`: type, `options`, nested properties) and object properties
+   (`properties`), minimum and maximum item counts, and string `format`
+   (`date`, `date-time`, `time`, `email`, `uri`). This is needed for repeater,
+   group, multiple files, multi-select and dates. Existing
+   definitions stay valid: the new keys are optional, and without them
+   the previous validation rules apply, including JSON strings for `array`
+   and `object`.
+7. **Server-side filters.** The existing jobs list in the section context
+   accepts the configured filters and applies them to the full values of
+   filterable inputs written when the run was accepted, and to outputs
+   (`meta.workflow_outputs`). The truncated `mapped_inputs` projection is not used
+   for filters. The server accepts only filters from the workflow settings,
+   not arbitrary JSON paths.
+8. **Editor in Workflow Settings.** A "For operators" tab with the sub-tabs
+   "Form", "Result", "List" and "Publication", built from existing
+   design-system components, including `DsDialog` for choosing a widget.
+   Configuration checks (incompatible widget, hidden required field without
+   a value, condition on a non-existent field) are run by the server on
+   save and on publish.
+9. **Approval with fields.** In the Approval step configuration — review fields
+   (the contract field model), initial value mapping, editability,
+   the original, "Take fields from a workflow". Storing initial values in full
+   when the review opens; `values` in the approval decision (UI, API, MCP) with
+   validation of editable fields only and of the result by type; typed
+   step outputs for mapping and Builder checks; the reject comment as the output
+   of the `rejected` branch; the diff of edits in the decision history. The public approval
+   projection returns review fields to those allowed to see the job. Approval without
+   fields does not change. The schema, editable fields and initial values
+   are pinned together with `approval_id`; edits go into the resume command
+   and the idempotency fingerprint; `values` from a machine token are rejected.
+10. **Review page and queue.** The operator view of the job page in
+   `awaiting_approval`: the original, fields as widgets by type with corrections
+   marked, decision buttons. Neighbors and the job's position in `/api/v2/jobs` by
+   the list filters, J / K navigation, "Approve and next", preloading of
+   the next job.
 
-Файлы уже сохраняются как артефакты job через `_persist_file_refs`;
-новый способ хранения не вводится. Backend-логика остаётся в прикладных
-сервисах, маршруты — тонкими адаптерами, UI — в `assets/frontend/`.
-Работа считается готовой, когда однократная публикация добавляет workflow в
-меню operator и viewer во всех доступных связанных проектах с отдельной
-историей и фильтрами в каждом проекте. Workflow с `api` или `webhook` без `ui`
-отсутствуют в меню. For each и совместимый Bulk создают обычные jobs, фото
-проходит настроенные лимиты, а сервер отклоняет запуск оператором без публикации
-и любые записи operator и viewer вне разрешённых действий. Форма показывает
-только видимые поля выбранными виджетами, файловые входы — загрузкой одного
-или нескольких файлов по контракту, repeater — рядами подполей; скрытые поля
-получают значение по умолчанию. Настроенные колонки и фильтры работают
-в каждом связанном проекте, включая совпадения за пределом обрезки проекции.
-Bulk с четырьмя файлами договора создаёт одну job, For each с четырьмя чеками —
-четыре jobs. На странице job в `awaiting_approval` оператор видит оригинал
-слева и поля проверки справа виджетами по типу; исправленное поле отмечено.
-«Подтвердить и дальше» принимает решение с правками и открывает следующую job
-очереди без возврата в список. Следующий шаг получает исправленные значения
-из выходов Approval, распознанные значения и автор правок сохраняются в
-истории. Reject передаёт комментарий в ветку `rejected`. Фильтр «Ждёт
-проверки» работает в каждом связанном проекте и находит проверку на любой
-глубине вызовов (`A → B → C`) с разделением прав: решение, только чтение,
-без чтения поля и файлы не загружаются. Решение без правок, принятое до
-обновления Core и повторённое после него с тем же ключом, получает прежний
-ответ. Уже выпущенный workflow из extension и старый шаблон каталога
-устанавливаются или импортируются, открываются и запускаются с прежними
-данными без изменений поведения.
+Files are already saved as job artifacts through `_persist_file_refs`;
+no new storage method is introduced. Backend logic stays in application
+services, routes stay thin adapters, the UI stays in `assets/frontend/`.
+The work is done when a single publish adds the workflow to
+the operator and viewer menu in all accessible bound projects, with separate
+history and filters in each project. Workflows with `api` or `webhook` without `ui`
+are absent from the menu. For each and compatible Bulk create ordinary jobs, a photo
+passes the configured limits, and the server rejects an operator run without publishing
+and any operator and viewer writes outside the allowed actions. The form shows
+only visible fields with the chosen widgets, file inputs as upload of one
+or several files per the contract, a repeater as rows of subfields; hidden fields
+get their default value. The configured columns and filters work
+in every bound project, including matches beyond the projection truncation limit.
+Bulk with four contract files creates one job, For each with four receipts —
+four jobs. On a job page in `awaiting_approval` the operator sees the original
+on the left and review fields on the right as widgets by type; a corrected field is marked.
+"Approve and next" makes the decision with edits and opens the next job in
+the queue without returning to the list. The next step gets the corrected values
+from the Approval outputs; the recognized values and the author of the edits are kept in
+history. Reject passes the comment to the `rejected` branch. The "Awaiting
+review" filter works in every bound project and finds a review at any
+call depth (`A → B → C`) with split permissions: decide, read-only,
+and with no read access the fields and files are not loaded. A decision without edits made before
+a Core update and retried after it with the same key gets the earlier
+response. An already released workflow from an extension and an old catalog template
+are installed or imported, opened and run with the previous
+data without behavior changes.
 
-При проверке в браузере на обычном и узком экране список виден сразу, кнопка
-**New** открывает форму в модальном окне, а фильтрация по дате сохраняет контекст
-проекта и workflow.
+In a browser check on a normal and a narrow screen, the list is visible immediately, the
+**New** button opens the form in a modal dialog, and filtering by date keeps the project
+and workflow context.
 
-## Существующие владельцы
+## Existing owners
 
-- [Сервис UI-запуска](../../../core/application/management/command_services_project_run_requests_mixin.py).
-- [Маршрут Builder](../../../core/entrypoints/api/workflows_builder_run.py).
-- [Проверка ролей в middleware](../../../core/application/auth/auth_http_runtime.py).
-- [Маршруты только для admin](../../../core/application/auth/config.py).
-- [Контракт workflow и каналы запуска](../../../core/application/registry/workflow_contract.py).
-- [Редактор Workflow Settings](../../../assets/frontend/src/pages/workflows/detail/detail-workflow-settings-controller.ts).
-- [Список Jobs и его фильтры](../../../assets/frontend/src/pages/jobs/list/index.tsx).
-- [Модальное окно создания в Registry](../../../assets/frontend/src/pages/registry/shared/catalog-create-dialog.tsx).
-- [Изменение проекта](../../../core/application/management/command_services_project_crud_mixin.py).
-- [Модели файлового запроса](../../../core/application/management/command_models_api_inputs.py).
-- [Сохранение файлов job](../../../core/application/management/command_services_project_tasks_mixin.py).
-- [Публичный фильтр истории](../../../core/entrypoints/api/contracts_v2.py).
-- [Проверка фильтра в query service](../../../core/application/management/query_services_job_core_mixin.py).
-- [Сборка конфигурации проекта и привязки workflow](../../../core/infrastructure/db/logger_policy_projects_mixin.py).
-- [Содержимое и ветки Approval-шага](../../../core/application/orchestration/approval_payload.py).
-- [Узел Approval в графе Builder](../../../core/application/orchestration/graph/builder_approval_gate.py).
-- [Решение approval и его конфликты](../../../core/application/management/approval_decision_service.py).
-- [Публичная проекция approval](../../../core/application/jobs/public_approval_serializer.py).
-- [Ключи конфигурации шагов](../../../core/application/workflows/workflow_step_config_contracts.py).
-- [Предпросмотр файлов job](../../../assets/frontend/src/pages/jobs/detail/job-detail-file-preview.tsx).
-- [Панели решения approval на странице job](../../../assets/frontend/src/pages/jobs/detail/job-detail-review-panels.tsx).
+- [UI run service](../../../core/application/management/command_services_project_run_requests_mixin.py).
+- [Builder route](../../../core/entrypoints/api/workflows_builder_run.py).
+- [Role check in the middleware](../../../core/application/auth/auth_http_runtime.py).
+- [Admin-only routes](../../../core/application/auth/config.py).
+- [Workflow contract and run channels](../../../core/application/registry/workflow_contract.py).
+- [Workflow Settings editor](../../../assets/frontend/src/pages/workflows/detail/detail-workflow-settings-controller.ts).
+- [Jobs list and its filters](../../../assets/frontend/src/pages/jobs/list/index.tsx).
+- [Create dialog in Registry](../../../assets/frontend/src/pages/registry/shared/catalog-create-dialog.tsx).
+- [Project update](../../../core/application/management/command_services_project_crud_mixin.py).
+- [File request models](../../../core/application/management/command_models_api_inputs.py).
+- [Job file storage](../../../core/application/management/command_services_project_tasks_mixin.py).
+- [Public history filter](../../../core/entrypoints/api/contracts_v2.py).
+- [Filter validation in the query service](../../../core/application/management/query_services_job_core_mixin.py).
+- [Project configuration and workflow binding assembly](../../../core/infrastructure/db/logger_policy_projects_mixin.py).
+- [Approval step content and branches](../../../core/application/orchestration/approval_payload.py).
+- [Approval node in the Builder graph](../../../core/application/orchestration/graph/builder_approval_gate.py).
+- [Approval decision and its conflicts](../../../core/application/management/approval_decision_service.py).
+- [Public approval projection](../../../core/application/jobs/public_approval_serializer.py).
+- [Step configuration keys](../../../core/application/workflows/workflow_step_config_contracts.py).
+- [Job file preview](../../../assets/frontend/src/pages/jobs/detail/job-detail-file-preview.tsx).
+- [Approval decision panels on the job page](../../../assets/frontend/src/pages/jobs/detail/job-detail-review-panels.tsx).

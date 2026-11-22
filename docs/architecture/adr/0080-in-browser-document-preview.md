@@ -1,138 +1,143 @@
-# ADR 0080 Превью документов в браузере
+# ADR 0080 In-browser document preview
 
 Status: Proposed
 
 Date: 2026-11-20
 
-## Решение
+## Decision
 
-Core показывает PDF, таблицы и документы Word прямо на странице, без
-серверной конвертации. Файл читается браузером через существующий маршрут
-превью файла job с сессией пользователя, а рисует его библиотека, которую
-страница загружает только при открытии превью. Один общий компонент
-превью используется в списке файлов job и в оригинале на странице проверки
-оператора ([ADR 0075](0075-project-user-sections.md#страница-проверки)).
+Core shows PDFs, spreadsheets and Word documents directly on the page, without
+server-side conversion. The browser reads the file through the existing job
+file preview route with the user's session, and a library that the page loads
+only when a preview opens renders it. One shared preview component is used in
+the job file list and for the original on the operator's review page
+([ADR 0075](0075-project-user-sections.md#review-page)).
 
-Встроенный просмотрщик PDF браузера не используется: он отличается между
-браузерами, а встроенный браузер приложения скачивает PDF вместо показа.
+The browser's built-in PDF viewer is not used: it differs between browsers,
+and the application's built-in browser downloads PDFs instead of showing them.
 
-## Форматы
+## Formats
 
-| Формат | Чем показывается | Что видит пользователь |
+| Format | Rendered with | What the user sees |
 |---|---|---|
-| PNG, JPEG, GIF, WebP | Элемент `img`, как раньше | Изображение |
-| TXT, Markdown, JSON | Текст как символы, как раньше | Текст без разметки |
-| PDF | pdf.js, canvas | Одна страница, листание, масштаб «по ширине», «+» и «−» |
-| XLSX, XLS, CSV | SheetJS Community Edition | Таблица только для чтения, вкладки листов, первые 200 строк и 50 столбцов с пометкой «показано N из M» |
-| DOCX | docx-preview | Документ в изолированном фрейме |
+| PNG, JPEG, GIF, WebP | An `img` element, as before | The image |
+| TXT, Markdown, JSON | Text as characters, as before | Text without markup |
+| PDF | pdf.js, canvas | One page, paging, "fit width" zoom, "+" and "−" |
+| XLSX, XLS, CSV | SheetJS Community Edition | A read-only table, sheet tabs, the first 200 rows and 50 columns with a "showing N of M" note |
+| DOCX | docx-preview | The document in an isolated frame |
 
-DOC, PPT, PPTX, ODT, RTF, TIFF и прочие форматы превью не получают и остаются
-с кнопкой «Скачать». Вид файла определяется по объявленному типу, а
-расширение используется только когда тип не объявлен: файл, объявленный
-другим типом, по расширению не показывается. Это правило одинаково
-в браузере и на сервере.
+DOC, PPT, PPTX, ODT, RTF, TIFF and other formats get no preview and keep the
+"Download" button. The file kind is determined by the declared type; the
+extension is used only when no type is declared: a file declared with another
+type is not shown based on its extension. This rule is the same in the
+browser and on the server.
 
-В таблице формулы не вычисляются: показывается значение, сохранённое в файле,
-отформатированное его собственным числовым форматом. Стандартный формат даты
-показывается как `ГГГГ-ММ-ДД`. CSV читается как UTF-8, значения остаются как
-записаны; считаются все строки файла, а разбираются только показанные.
+Spreadsheet formulas are not evaluated: the table shows the value stored in
+the file, formatted with the file's own number format. The standard date
+format is shown as `YYYY-MM-DD`. CSV is read as UTF-8 and values stay as
+written; all rows of the file are counted, but only the shown rows are parsed.
 
-## Библиотеки и лицензии
+## Libraries and licenses
 
-Лицензии проверены по метаданным пакетов и файлам LICENSE в их архивах.
-Все версии закреплены точно в `assets/frontend/package.json` и
-`package-lock.json` с контрольной суммой.
+Licenses were checked against package metadata and the LICENSE files in the
+package archives. All versions are pinned exactly in
+`assets/frontend/package.json` and in `package-lock.json` with a checksum.
 
-| Библиотека | Версия | Лицензия | Источник |
+| Library | Version | License | Source |
 |---|---|---|---|
 | pdf.js (`pdfjs-dist`) | 6.5.438 | Apache-2.0 | npm |
 | SheetJS Community Edition (`xlsx`) | 0.20.3 | Apache-2.0 | `https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz` |
 | docx-preview | 0.4.1 | Apache-2.0 | npm |
-| JSZip (зависимость docx-preview) | 3.10.2 | MIT или GPL-3.0-or-later, используется MIT | npm |
-| pako (внутри браузерной сборки JSZip) | 1.0.11 | MIT AND Zlib | npm |
+| JSZip (docx-preview dependency) | 3.10.2 | MIT or GPL-3.0-or-later, MIT used | npm |
+| pako (inside the JSZip browser build) | 1.0.11 | MIT AND Zlib | npm |
 
-SheetJS ставится из официального CDN SheetJS: пакет `xlsx` 0.18.5 в реестре npm
-устарел и имеет известные уязвимости. Архив закреплён в lockfile по URL и
-`sha512`, поэтому `npm ci` проверяет его так же, как пакеты из реестра.
+SheetJS is installed from the official SheetJS CDN: the `xlsx` 0.18.5 package
+in the npm registry is outdated and has known vulnerabilities. The archive is
+pinned in the lockfile by URL and `sha512`, so `npm ci` verifies it the same
+way as registry packages.
 
-Проверка лицензий фронтенда (`frontend-licenses`) читает SPDX-выражения: при `OR`
-достаточно одной разрешённой альтернативы, при `AND` разрешены должны быть все.
-В список разрешённых добавлена Zlib, разрешительная лицензия, совместимая
-с Apache-2.0. Пакеты перечислены в `NOTICE`.
+The frontend license check (`frontend-licenses`) reads SPDX expressions: with
+`OR`, one allowed alternative is enough; with `AND`, all must be allowed. Zlib,
+a permissive license compatible with Apache-2.0, is added to the allow list.
+The packages are listed in `NOTICE`.
 
-Из pdf.js в сборку попадают только код, worker и JavaScript-декодеры JBIG2
-(PDFium, BSD-3-Clause) и OpenJPEG (BSD-2-Clause). Стандартные шрифты пакета
-(в том числе Liberation под GPL с исключением для шрифтов), CMap-файлы и
-WebAssembly не поставляются: недостающие стандартные шрифты заменяются
-системными.
+Only the pdf.js code, the worker and the JavaScript decoders for JBIG2
+(PDFium, BSD-3-Clause) and OpenJPEG (BSD-2-Clause) go into the build. The
+package's standard fonts (including Liberation under the GPL with a font
+exception), CMap files and WebAssembly are not shipped: missing standard fonts
+are replaced with system fonts.
 
-## Безопасность
+## Security
 
-- Ничего из файла не выполняется. Сервер отдаёт XLSX, XLS, CSV и DOCX как
-  `application/octet-stream` с `Content-Disposition: attachment`,
-  `Content-Security-Policy: sandbox; default-src 'none'` и `nosniff`: браузер
-  не открывает их сам, их читает только код страницы.
-- PDF рисуется только как картинка на canvas: без слоя аннотаций и форм,
-  без текстового слоя и ссылок, без JavaScript документа (песочница
-  скриптов pdf.js не создаётся), без XFA. pdf.js начиная с версии 5 не
-  вычисляет код из документа, поэтому переключатель `isEvalSupported` удалён
-  из библиотеки. WebAssembly выключен (`useWasm: false`), так как CSP
-  приложения не разрешает его компиляцию; вместо него работают
-  JavaScript-декодеры.
-- Worker pdf.js и декодеры лежат в сборке приложения и отдаются им самим,
-  CDN во время работы не используется. Декодеры хранятся в папке своей версии
-  pdf.js, потому что pdf.js загружает их по имени.
-- Значения ячеек таблицы показываются как текст. Формулы, макросы и
-  внешние ссылки не обрабатываются.
-- DOCX защищён двумя независимыми мерами:
-  - Документ показывается в `iframe` с `sandbox="allow-same-origin"` без
-    `allow-scripts`: внутри ничего не выполняется, фрейм не открывает окна и
-    не переходит по адресам приложения. `allow-same-origin` нужен, чтобы
-    страница сама записала документ во фрейм; без `allow-scripts` это
-    сочетание безопасно. Стили документа остаются внутри фрейма.
-  - Узлы, которые построил docx-preview, очищаются до показа: остаются только
-    нужные документу элементы HTML, SVG и MathML, удаляются обработчики `on*`,
-    ссылки оставляют только якоря внутри документа (внешний адрес виден
-    во всплывающей подсказке), изображения — только `data:image/…`, прочитанные
-    из самого файла. docx-preview работает без встроенных HTML-частей
-    (`altChunk`), встроенных шрифтов, комментариев и исправлений.
+- Nothing from the file is executed. The server serves XLSX, XLS, CSV and DOCX
+  as `application/octet-stream` with `Content-Disposition: attachment`,
+  `Content-Security-Policy: sandbox; default-src 'none'` and `nosniff`: the
+  browser does not open them by itself; only the page's code reads them.
+- A PDF is rendered only as an image on a canvas: no annotation or form layer,
+  no text layer or links, no document JavaScript (the pdf.js scripting sandbox
+  is not created), no XFA. Since version 5, pdf.js does not evaluate code from
+  the document, so the `isEvalSupported` switch was removed from the library.
+  WebAssembly is off (`useWasm: false`) because the application's CSP does not
+  allow compiling it; the JavaScript decoders work instead.
+- The pdf.js worker and decoders are part of the application build and are
+  served by the application itself; no CDN is used at runtime. The decoders
+  are kept in a folder named after their pdf.js version, because pdf.js loads
+  them by name.
+- Spreadsheet cell values are shown as text. Formulas, macros and external
+  links are not processed.
+- DOCX is protected by two independent measures:
+  - The document is shown in an `iframe` with `sandbox="allow-same-origin"`
+    without `allow-scripts`: nothing runs inside, and the frame opens no
+    windows and does not navigate to application addresses.
+    `allow-same-origin` is needed so the page itself can write the document
+    into the frame; without `allow-scripts` this combination is safe. The
+    document's styles stay inside the frame.
+  - The nodes built by docx-preview are sanitized before display: only the
+    HTML, SVG and MathML elements the document needs remain, `on*` handlers
+    are removed, links keep only anchors inside the document (the external
+    address is visible in a tooltip), and images keep only `data:image/…`
+    read from the file itself. docx-preview runs without embedded HTML parts
+    (`altChunk`), embedded fonts, comments and tracked changes.
 
-  Выбраны обе меры, потому что каждая закрывает пропуск другой: ошибка
-  очистки не запустит скрипт в фрейме без `allow-scripts`, а очистка не
-  зависит от поддержки `sandbox` браузером. CSP приложения запрещает
-  встроенные `<style>`, и фрейм наследует её, поэтому стили документа
-  применяются как сконструированная таблица стилей (`adoptedStyleSheets`).
+  Both measures were chosen because each closes a gap in the other: a
+  sanitizer bug cannot run a script in a frame without `allow-scripts`, and
+  sanitization does not depend on the browser supporting `sandbox`. The
+  application's CSP forbids inline `<style>`, and the frame inherits it, so the
+  document's styles are applied as a constructed stylesheet
+  (`adoptedStyleSheets`).
 
-## Предел размера
+## Size limit
 
-Предел — существующий `FS_FILE_PREVIEW_MAX_BYTES` (по умолчанию 20 МиБ).
-Bootstrap приложения передаёт его вошедшему пользователю в
-`limits.file_preview.max_bytes`, так же как `limits.run_upload`. Файл больше
-предела сразу показывается только с кнопкой «Скачать» и пояснением, без
-запроса превью. Сервер проверяет тот же предел и отвечает 413 до чтения файла.
+The limit is the existing `FS_FILE_PREVIEW_MAX_BYTES` (20 MiB by default). The
+application bootstrap passes it to the signed-in user in
+`limits.file_preview.max_bytes`, the same way as `limits.run_upload`. A file
+over the limit is shown immediately with only the "Download" button and an
+explanation, without a preview request. The server checks the same limit and
+responds with 413 before reading the file.
 
-## Ленивая загрузка
+## Lazy loading
 
-Каждая библиотека загружается динамическим `import()` только при открытии
-превью своего вида и собирается в отдельный chunk (`pdf-preview-vendor`,
-`spreadsheet-preview-vendor`, `docx-preview-vendor`). Основной bundle и общий
-`vendor` их не содержат. Список файлов без открытого превью не загружает ни
-байтов файла, ни кода библиотек.
+Each library is loaded with a dynamic `import()` only when a preview of its
+kind opens, and is built into a separate chunk (`pdf-preview-vendor`,
+`spreadsheet-preview-vendor`, `docx-preview-vendor`). The main bundle and the
+shared `vendor` chunk do not contain them. A file list without an open preview
+loads neither file bytes nor library code.
 
-## Конвертеры — только extension
+## Converters only as extensions
 
-Core не зависит от серверных конвертеров документов (Gotenberg, LibreOffice и
-подобных) и не вызывает их. Если понадобится превью DOC, PPT, ODT или RTF
-через конвертацию, оно делается отдельным extension со своим сервисом. Core
-при этом не меняется и продолжает показывать такие файлы с кнопкой «Скачать».
+Core does not depend on server-side document converters (Gotenberg,
+LibreOffice and similar) and does not call them. If a preview of DOC, PPT, ODT
+or RTF through conversion is ever needed, a separate extension with its own
+service provides it. Core does not change and keeps showing such files with
+the "Download" button.
 
-## Существующие владельцы
+## Existing owners
 
-- [Общий компонент превью](../../../assets/frontend/src/components/file-preview/file-preview.tsx).
-- [Виды файлов и предел размера](../../../assets/frontend/src/components/file-preview/file-preview-model.ts).
-- [Очистка DOCX](../../../assets/frontend/src/components/file-preview/docx-sanitize.ts).
-- [Файл job в списке](../../../assets/frontend/src/pages/jobs/detail/job-detail-file-preview.tsx).
-- [Оригинал на странице проверки](../../../assets/frontend/src/pages/operator/review-panel.tsx).
-- [Маршрут превью файла job](../../../core/entrypoints/api/job_detail_routes.py).
-- [Предел в bootstrap](../../../core/entrypoints/api/app_bootstrap.py).
-- [Проверка лицензий фронтенда](../../../core/application/tooling/quality/frontend_licenses.py).
+- [Shared preview component](../../../assets/frontend/src/components/file-preview/file-preview.tsx).
+- [File kinds and size limit](../../../assets/frontend/src/components/file-preview/file-preview-model.ts).
+- [DOCX sanitization](../../../assets/frontend/src/components/file-preview/docx-sanitize.ts).
+- [Job file in the list](../../../assets/frontend/src/pages/jobs/detail/job-detail-file-preview.tsx).
+- [Original on the review page](../../../assets/frontend/src/pages/operator/review-panel.tsx).
+- [Job file preview route](../../../core/entrypoints/api/job_detail_routes.py).
+- [Limit in bootstrap](../../../core/entrypoints/api/app_bootstrap.py).
+- [Frontend license check](../../../core/application/tooling/quality/frontend_licenses.py).

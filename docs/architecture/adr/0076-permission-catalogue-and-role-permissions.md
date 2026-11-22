@@ -1,266 +1,273 @@
-# ADR 0076 Каталог прав и права ролей в базе данных
+# ADR 0076 Permission catalogue and role permissions in the database
 
 Status: Proposed
 
 Date: 2026-11-19
 
-Related: [ADR 0066](0066-global-roles-and-secret-provider-boundary.md) (изменяет
-один пункт), [ADR 0075](0075-project-user-sections.md),
-[ADR 0057](0057-secret-catalog.md), [ADR 0047](0047-inbound-mcp-oauth.md) (пресеты доступа агента),
+Related: [ADR 0066](0066-global-roles-and-secret-provider-boundary.md) (changes
+one item), [ADR 0075](0075-project-user-sections.md),
+[ADR 0057](0057-secret-catalog.md), [ADR 0047](0047-inbound-mcp-oauth.md) (agent access presets),
 [ADR 0020](0020-oss-single-tenant-registry-boundary.md),
 [ADR 0012](0012-post-1.0-sql-migrations.md)
 
-## Контекст
+## Context
 
-Роли `admin`, `operator`, `viewer` глобальные (ADR 0066). Кто какую роль
-имеет, хранится в базе: `roles` и `user_roles`. Что роль может делать, описано
-в коде, причём в трёх местах:
+The roles `admin`, `operator` and `viewer` are global (ADR 0066). Who has which
+role is stored in the database: `roles` and `user_roles`. What a role can do is
+described in code, in three places:
 
-| Где | Что описывает |
+| Where | What it describes |
 |---|---|
-| `core/application/auth/operator_work.py`, `auth/config.py`, `auth_http_runtime.py` | Какие записи разрешены operator; какие маршруты только для admin; по умолчанию запись человека требует admin |
-| `assets/frontend/src/lib/auth/capabilities.ts` (`CAPABILITY_ROLES`) | Что показывает интерфейс каждой роли |
-| `_required_http_scopes`, `core/entrypoints/mcp/server_tool_scopes.py`, `agent_access_presets.py` | Какие scopes нужны токену для маршрута и MCP-инструмента; пресеты доступа AI-агента |
+| `core/application/auth/operator_work.py`, `auth/config.py`, `auth_http_runtime.py` | Which writes operator may make; which routes are admin-only; by default a person's write requires admin |
+| `assets/frontend/src/lib/auth/capabilities.ts` (`CAPABILITY_ROLES`) | What the interface shows to each role |
+| `_required_http_scopes`, `core/entrypoints/mcp/server_tool_scopes.py`, `agent_access_presets.py` | Which scopes a token needs for a route and an MCP tool; AI agent access presets |
 
-Три описания расходятся. Ревью ADR 0075 нашло такие случаи: пункт меню
-«Users & access» у operator, хотя маршрут только для admin; выбор пресета
-агента, который operator не понимает и может выбрать неверно. Правило «у роли
-одни и те же права в UI, API и MCP» сейчас держится на дисциплине, а не на
-устройстве системы.
+The three descriptions diverge. The ADR 0075 review found such cases: the
+"Users & access" menu item shown to operator although the route is admin-only;
+an agent preset choice that operator does not understand and may get wrong. The
+rule "a role has the same permissions in the UI, API and MCP" now rests on
+discipline, not on how the system is built.
 
-Продукту нужно:
+The product needs:
 
-- одинаковые права роли во всех интерфейсах, проверяемые тестом;
-- простое подключение AI-агента для operator и viewer: одна кнопка, права
-  своей роли, без выбора пресета и срока;
-- заготовка под частную (private) редакцию: дополнительные роли (например, администратор
-  workspace), назначение роли на уровне workspace или проекта, редактор прав.
-  В open-source версии этого не будет, пока не попросит сообщество, но ядро не
-  должно требовать переделки, когда это появится.
+- the same role permissions in every interface, checked by a test;
+- a simple AI agent connection for operator and viewer: one button, the
+  permissions of their own role, no choice of preset or lifetime;
+- groundwork for a private edition: additional roles (for example, a workspace
+  administrator), role assignment at workspace or project level, a permission
+  editor. The open-source version will not have this until the community asks
+  for it, but the core must not need rework when it arrives.
 
-ADR 0066 запрещает добавлять «неиспользуемые реестры политик, таблицы
-членства, переключатели и пользовательские настройки на будущее». Этот ADR
-меняет этот пункт для двух вещей: связи «роль → права» и необязательной
-области действия назначения роли. Обе используются сразу: первая — каждой
-проверкой прав, вторая — проверкой, что в open source назначения глобальные.
+ADR 0066 forbids adding "unused policy registries, membership tables, switches
+and user-facing controls in anticipation". This ADR changes that item for two
+things: the "role → permissions" link and an optional scope for a role
+assignment. Both are used right away: the first by every permission check, the
+second by the check that assignments in open source are global.
 
-## Решение
+## Decision
 
-### 1. Каталог прав в коде
+### 1. Permission catalogue in code
 
-Модуль `core/application/auth/permissions.py` — единственный список прав.
-Право — это ключ вида `<область>.<действие>` с описанием и признаками:
+The module `core/application/auth/permissions.py` is the only list of
+permissions. A permission is a key of the form `<area>.<action>` with a
+description and flags:
 
-- ключи совпадают с существующей таксономией scopes токенов (`jobs.read`,
-  `jobs.write`, `projects.read`, `workflows.read`, `registry.read`,
-  `secrets:bind` и т. д.); недостающие добавляются в ту же таксономию:
-  например, `workflows.run`, `approvals.decide`, `secrets.value.write`,
-  `users.manage`, `settings.manage`;
-- признак «только точное совпадение» сохраняется для прав вроде
-  `secrets:bind` и `secrets:write` (ADR 0057): их не даёт ни `admin:all`,
-  ни шаблон `*`;
-- права остаются в коде, потому что каждое привязано к конкретной проверке.
-  Право без проверки бессмысленно, проверка без права — ошибка, которую ловит
-  тест (раздел 6).
+- keys match the existing token scope taxonomy (`jobs.read`, `jobs.write`,
+  `projects.read`, `workflows.read`, `registry.read`, `secrets:bind` and so
+  on); missing ones are added to the same taxonomy: for example,
+  `workflows.run`, `approvals.decide`, `secrets.value.write`, `users.manage`,
+  `settings.manage`;
+- the "exact match only" flag is kept for permissions such as `secrets:bind`
+  and `secrets:write` (ADR 0057): neither `admin:all` nor the `*` pattern
+  grants them;
+- permissions stay in code because each one is tied to a specific check. A
+  permission without a check is meaningless; a check without a permission is an
+  error, and a test catches it (section 6).
 
-### 2. Права ролей в базе
+### 2. Role permissions in the database
 
-Новая таблица `role_permissions(role_id, permission_key)`. Таблица `roles`
-получает `is_system boolean` и `description`.
+New table `role_permissions(role_id, permission_key)`. The `roles` table gets
+`is_system boolean` and `description`.
 
-- **Системные роли** `admin`, `operator`, `viewer` заполняются миграцией и
-  повторяют сегодняшнюю матрицу без изменений поведения. Их права в open
-  source не меняются ни через UI, ни через API: это защищает от того, что
-  admin случайно запрёт сам себя.
-- **Admin** получает все права каталога неявно, а не списком. Новое право
-  сразу доступно admin без миграции.
-- **Operator и viewer** получают явный список. Новое право по умолчанию есть
-  только у admin; чтобы дать его operator, нужна миграция, которая это явно
-  записывает. Безопасное значение по умолчанию — «нельзя».
-- Ключ в таблице, которого нет в каталоге, игнорируется и попадает в журнал;
-  на права он не влияет.
-- Схема меняется в `db/schema` и отдельной идемпотентной миграцией в
-  `db/migrations` с обновлением `baseline_schema_fingerprint` (ADR 0012,
-  поправка 2026-11-01).
+- **System roles** `admin`, `operator`, `viewer` are filled by a migration and
+  reproduce today's matrix with no change in behaviour. In open source their
+  permissions cannot be changed through the UI or the API: this protects admin
+  from accidentally locking themselves out.
+- **Admin** gets every permission in the catalogue implicitly, not as a list. A
+  new permission is available to admin at once, without a migration.
+- **Operator and viewer** get an explicit list. By default a new permission
+  belongs only to admin; to give it to operator, a migration must record that
+  explicitly. The safe default is "denied".
+- A key in the table that is not in the catalogue is ignored and logged; it
+  does not affect permissions.
+- The schema changes in `db/schema` and in a separate idempotent migration in
+  `db/migrations`, with `baseline_schema_fingerprint` updated (ADR 0012,
+  2026-11-01 amendment).
 
-### 3. Одна функция итоговых прав
+### 3. One effective-permissions function
 
-`effective_permissions(principal)` вычисляет набор прав один раз на запрос и
-кладёт его в `ScopeContext`:
+`effective_permissions(principal)` computes the permission set once per request
+and puts it in `ScopeContext`:
 
-| Кто | Итоговые права |
+| Who | Effective permissions |
 |---|---|
-| Человек в браузере | Права его ролей из `role_permissions` |
-| Личный токен человека (API, MCP, OAuth-клиент) | Права ролей владельца ∩ scopes токена. Токен никогда не шире владельца |
-| Service account | Как сейчас: его гранты и scopes (ADR 0066, пункт 4) |
-| Расширение во время выполнения | Как сейчас: его runtime-гранты |
+| A person in the browser | The permissions of their roles from `role_permissions` |
+| A person's personal token (API, MCP, OAuth client) | The owner's role permissions ∩ the token's scopes. A token is never wider than its owner |
+| Service account | As now: its grants and scopes (ADR 0066, item 4) |
+| An extension at runtime | As now: its runtime grants |
 
-Права говорят, **что** можно делать («решать approvals»). Ресурсные проверки —
-account, workspace, проект, workflow, владение, ограничения токена
-`allowed_project_ids` / `allowed_workflow_ids` — говорят, **над чем**. Они не
-меняются и не заменяются правами.
+Permissions say **what** may be done ("decide approvals"). Resource checks —
+account, workspace, project, workflow, ownership, the token restrictions
+`allowed_project_ids` / `allowed_workflow_ids` — say **on what**. They do not
+change and are not replaced by permissions.
 
-### 4. Все интерфейсы берут права из одного места
+### 4. Every interface takes permissions from one place
 
-- **HTTP.** Таблица «маршрут → право» заменяет список `operator_work.py`,
-  список маршрутов только для admin и правило «запись по умолчанию — admin».
-  Запись без права в таблице отклоняется: по умолчанию закрыто.
-- **MCP.** `server_tool_scopes.py` ссылается на те же ключи. Инструмент
-  по-прежнему проксирует вызов в API с токеном вызывающего, так что итоговая
-  проверка одна.
-- **Интерфейс.** Bootstrap отдаёт `permissions` текущего пользователя.
-  `CAPABILITY_ROLES` удаляется; видимость пунктов меню, кнопок и вкладок
-  считается из прав.
+- **HTTP.** A "route → permission" table replaces the `operator_work.py` list,
+  the list of admin-only routes and the "a write defaults to admin" rule. A
+  write with no permission in the table is rejected: closed by default.
+- **MCP.** `server_tool_scopes.py` refers to the same keys. A tool still
+  proxies the call to the API with the caller's token, so there is one final
+  check.
+- **Interface.** Bootstrap returns the current user's `permissions`.
+  `CAPABILITY_ROLES` is removed; the visibility of menu items, buttons and tabs
+  is computed from permissions.
 
-### 5. Подключение AI-агента без выбора
+### 5. AI agent connection without choices
 
-- Operator и viewer подключают агента одной кнопкой. Токен получает права их
-  роли: пресет «как у меня». Срок действия задаёт сервер, перед истечением
-  человек получает напоминание. Выбора пресета, прав и срока у них нет.
-- После подключения показываются адрес, кнопка «Копировать» и одна короткая
-  инструкция для их клиента.
-- Admin сохраняет расширенные настройки (полный доступ на авторинг, срок,
-  ограничение по проектам и workflow), свёрнутыми по умолчанию.
+- Operator and viewer connect an agent with one button. The token gets the
+  permissions of their role: the "same as me" preset. The server sets the
+  lifetime, and the person gets a reminder before it expires. They have no
+  choice of preset, permissions or lifetime.
+- After connecting, they see the address, a "Copy" button and one short
+  instruction for their client.
+- Admin keeps the advanced settings (full authoring access, lifetime,
+  restriction by projects and workflows), collapsed by default.
 
-### 6. Тест-матрица
+### 6. Test matrix
 
-Один тест проходит по всем HTTP-маршрутам из OpenAPI и всем MCP-инструментам и
-проверяет:
+One test walks every HTTP route from OpenAPI and every MCP tool and checks
+that:
 
-- у каждого маршрута записи и у каждого инструмента есть право в таблице;
-- для каждой системной роли интерфейс, HTTP и MCP дают одинаковый ответ
-  «можно / нельзя»;
-- до удаления `operator_work.py` матрица из базы совпадает с его списком
-  (переход без изменения поведения).
+- every write route and every tool has a permission in the table;
+- for each system role, the interface, HTTP and MCP give the same "allowed /
+  denied" answer;
+- until `operator_work.py` is removed, the matrix from the database matches its
+  list (a transition with no change in behaviour).
 
-### 7. Одна системная роль на пользователя
+### 7. One system role per user
 
-Системные роли — лестница: viewer < operator < admin (`_ROLE_LEVELS` в
-`core/application/auth/principal.py`). Проверки берут высшую роль, поэтому
-admin с отмеченными operator и viewer имеет те же права, что просто admin.
-Чекбоксы в форме пользователя это скрывают и заставляют гадать.
+System roles are a ladder: viewer < operator < admin (`_ROLE_LEVELS` in
+`core/application/auth/principal.py`). Checks take the highest role, so an
+admin with operator and viewer also ticked has the same permissions as a plain
+admin. The checkboxes in the user form hide this and make people guess.
 
-- Форма пользователя предлагает выбор одной роли из трёх с коротким
-  описанием прав каждой, а не чекбоксы.
-- CLI `--role` принимает одно значение.
-- Сервер хранит у пользователя одну системную роль; если пришло несколько,
-  сохраняется высшая.
-- Миграция оставляет пользователям с несколькими системными ролями высшую.
-  Права не меняются: высшая роль действует и сейчас.
-- `user_roles` остаётся списком назначений. Несколько назначений нужны для
-  разных областей (пункт 8) и для ролей вне лестницы в частной редакции, а не для
-  нескольких системных ролей в одной области.
+- The user form offers a choice of one role out of three, with a short
+  description of each role's permissions, instead of checkboxes.
+- CLI `--role` accepts one value.
+- The server stores one system role per user; if several arrive, the highest
+  is kept.
+- The migration leaves users with several system roles the highest one.
+  Permissions do not change: the highest role is already the one in effect.
+- `user_roles` stays a list of assignments. Several assignments are needed for
+  different scopes (item 8) and for roles outside the ladder in the private
+  edition, not for several system roles in one scope.
 
-### 8. Область назначения роли (схема сейчас, включение — частная редакция)
+### 8. Role assignment scope (schema now, enabling it — private edition)
 
-Назначение роли может относиться ко всей установке или к её части.
-`user_roles` получает необязательные `workspace_id`, `project_id`,
-`workflow_id`. Чем больше полей заполнено, тем уже область:
+A role assignment can apply to the whole installation or to a part of it.
+`user_roles` gets optional `workspace_id`, `project_id`, `workflow_id`. The more
+fields are filled, the narrower the scope:
 
-| Назначение | Что даёт |
+| Assignment | What it grants |
 |---|---|
-| Без области | Роль во всей установке (как сейчас у всех) |
-| `workspace_id` | Роль во всех проектах workspace |
-| `project_id` | Роль в одном проекте, во всех его workflow |
-| `project_id` + `workflow_id` | Роль в одном workflow одного проекта — ровно раздел ADR 0075 |
+| No scope | The role across the whole installation (as everyone has now) |
+| `workspace_id` | The role in every project of the workspace |
+| `project_id` | The role in one project, in all its workflows |
+| `project_id` + `workflow_id` | The role in one workflow of one project — exactly an ADR 0075 section |
 
-Примеры:
+Examples:
 
-- operator только в проекте 1 — одно назначение `(operator, проект 1)`;
-- operator в проектах 1 и 2 — два назначения;
-- operator во всех проектах — одно назначение без области;
-- operator в проекте 1 только для workflow X и Y — два назначения
-  `(operator, проект 1, X)` и `(operator, проект 1, Y)`;
-- разные роли в разных местах: `(operator, проект 1)` и `(viewer, проект 2)`.
+- operator only in project 1 — one assignment `(operator, project 1)`;
+- operator in projects 1 and 2 — two assignments;
+- operator in all projects — one assignment with no scope;
+- operator in project 1 only for workflows X and Y — two assignments
+  `(operator, project 1, X)` and `(operator, project 1, Y)`;
+- different roles in different places: `(operator, project 1)` and
+  `(viewer, project 2)`.
 
-Правило пункта 7 действует для каждой области отдельно: в одной области у
-пользователя одна системная роль. Если глобальная роль и роль в области
-различаются, действует высшая.
+The item 7 rule applies to each scope separately: in one scope a user has one
+system role. If the global role and the role in a scope differ, the higher one
+applies.
 
-Проверки не пишутся заново. Сужение по проектам и workflow уже работает для
-токенов через `allowed_project_ids` / `allowed_workflow_ids` в `ScopeContext`:
-списки, меню разделов, jobs, `require_project_access`,
-`require_workflow_access`. Назначения пользователя заполняют те же поля.
-Новое одно: когда роли в разных областях различаются, итоговые права
-считаются для ресурса запроса (проект, workflow), а не одним набором на запрос;
-`effective_permissions` принимает ресурс.
+Checks are not rewritten. Narrowing by projects and workflows already works for
+tokens through `allowed_project_ids` / `allowed_workflow_ids` in
+`ScopeContext`: lists, section menus, jobs, `require_project_access`,
+`require_workflow_access`. User assignments fill the same fields. The one new
+thing: when roles in different scopes differ, effective permissions are
+computed for the request's resource (project, workflow), not as one set per
+request; `effective_permissions` takes the resource.
 
-В open source сервис отклоняет назначение с областью, и действует только
-вариант «без области» — одна командная зона доверия ADR 0066. Частная редакция
-включает области, роли вроде «администратор workspace», редактор назначений
-и аудит изменений поверх этих таблиц, не меняя каталог, проверки и
-интерфейсы. Если сообщество попросит ограничение по проектам и в open source,
-это одно решение — снять запрет, без переделки ядра.
+In open source the service rejects a scoped assignment, and only the "no scope"
+option applies — the single team trust zone of ADR 0066. The private edition
+enables scopes, roles such as "workspace administrator", an assignment editor
+and change auditing on top of these tables, without changing the catalogue,
+the checks or the interfaces. If the community asks for project restrictions in
+open source too, that is one decision — lift the ban — with no core rework.
 
-### Изменение ADR 0066
+### Change to ADR 0066
 
-Пункт «Do not add unused policy registries, membership tables, configuration
-switches or user-facing controls in anticipation of that work» больше не
-запрещает `role_permissions`, признак системной роли и необязательную область
-назначения роли из этого ADR. Остальное в ADR 0066 действует: роли глобальные,
-одна командная зона доверия, назначений по проектам и пользовательских
-редакторов прав в open source нет.
+The item "Do not add unused policy registries, membership tables, configuration
+switches or user-facing controls in anticipation of that work" no longer
+forbids `role_permissions`, the system role flag and the optional role
+assignment scope from this ADR. The rest of ADR 0066 stands: roles are global,
+there is one team trust zone, and open source has no per-project assignments
+and no user-facing permission editors.
 
-## Совместимость
+## Compatibility
 
-- Поведение ролей не меняется: миграция переносит сегодняшнюю матрицу, тест
-  раздела 6 сравнивает её со старым списком.
-- Токены сохраняют свои scopes и шаблоны (`jobs:*`, `*:read`, `admin:all`).
-  Существующий токен человека, scopes которого шире прав владельца, после
-  перехода действует в пределах прав владельца. Это ужесточение, а не
-  расширение; оно перечисляется в release notes.
-- Service accounts и runtime-гранты расширений не меняются.
-- Установки 0.9.x получают таблицы миграцией; данные `user_roles` сохраняются.
+- Role behaviour does not change: the migration carries over today's matrix,
+  and the section 6 test compares it with the old list.
+- Tokens keep their scopes and patterns (`jobs:*`, `*:read`, `admin:all`). An
+  existing personal token whose scopes are wider than its owner's permissions
+  acts within the owner's permissions after the transition. This is a
+  tightening, not a widening; it is listed in the release notes.
+- Service accounts and extension runtime grants do not change.
+- 0.9.x installations get the tables through a migration; `user_roles` data is
+  kept.
 
-## Отклонённые варианты
+## Rejected options
 
-- **Оставить права только в коде.** Расхождения между UI, API и MCP
-  останутся, а частная редакция потребует переделки ядра.
-- **Хранить в базе и сам каталог прав.** Ключ без проверки в коде ничего не
-  значит; это создаёт права, которые выглядят настроенными, но не работают.
-- **Внешний движок политик (OPA, Casbin).** Избыточен для трёх ролей и
-  глобального назначения; его можно подключить позже за той же функцией
-  `effective_permissions`.
-- **Включить назначения по проектам в open source сейчас.** Противоречит одной
-  зоне доверия ADR 0066 и не запрошено сообществом; схема и проверки готовы,
-  включение — отдельное решение.
+- **Keep permissions only in code.** The divergence between UI, API and MCP
+  would remain, and the private edition would need core rework.
+- **Store the permission catalogue itself in the database.** A key without a
+  check in code means nothing; this creates permissions that look configured
+  but do not work.
+- **An external policy engine (OPA, Casbin).** Excessive for three roles and
+  global assignment; it can be plugged in later behind the same
+  `effective_permissions` function.
+- **Enable per-project assignments in open source now.** It contradicts the
+  single trust zone of ADR 0066 and the community has not asked for it; the
+  schema and checks are ready, enabling them is a separate decision.
 
-## План внедрения
+## Implementation plan
 
-1. Каталог прав и функция `effective_permissions` (по-прежнему читает права из
-   кода); тест-матрица на текущем поведении.
-2. Таблицы и миграция с системными ролями; функция читает права из базы; тест
-   сравнения со старым списком.
-3. HTTP-маршруты на таблицу «маршрут → право»; удаление `operator_work.py` и
-   списка маршрутов только для admin.
-4. MCP-инструменты на те же ключи.
-5. `permissions` в bootstrap; интерфейс без `CAPABILITY_ROLES`.
-6. Подключение агента одной кнопкой для operator и viewer.
-7. Одна системная роль на пользователя: форма, CLI, сервер, миграция.
-8. Колонки области в `user_roles` (`workspace_id`, `project_id`, `workflow_id`),
-   `effective_permissions` с ресурсом, отказ назначения с областью в open source.
+1. The permission catalogue and the `effective_permissions` function (still
+   reading permissions from code); the test matrix on current behaviour.
+2. Tables and the migration with system roles; the function reads permissions
+   from the database; the test comparing with the old list.
+3. HTTP routes on the "route → permission" table; removal of `operator_work.py`
+   and the list of admin-only routes.
+4. MCP tools on the same keys.
+5. `permissions` in bootstrap; the interface without `CAPABILITY_ROLES`.
+6. One-button agent connection for operator and viewer.
+7. One system role per user: form, CLI, server, migration.
+8. Scope columns in `user_roles` (`workspace_id`, `project_id`, `workflow_id`),
+   `effective_permissions` with a resource, rejection of scoped assignments in
+   open source.
 
-## Критерии готовности
+## Definition of done
 
-- В коде один список прав; `CAPABILITY_ROLES` и `operator_work.py` удалены.
-- Тест-матрица проходит для всех маршрутов и MCP-инструментов; маршрут записи
-  без права не проходит тест.
-- Для каждой системной роли UI, API и MCP дают одинаковый ответ на одни и те
-  же действия.
-- Operator и viewer подключают AI-агента одной кнопкой без выбора; токен не
-  шире прав владельца.
-- Обновление установки 0.9.x сохраняет пользователей и их роли; поведение ролей
-  не меняется.
-- Форма пользователя и CLI назначают одну системную роль; у пользователей с
-  несколькими системными ролями после миграции остаётся высшая.
+- Code has one list of permissions; `CAPABILITY_ROLES` and `operator_work.py`
+  are removed.
+- The test matrix passes for all routes and MCP tools; a write route without a
+  permission fails the test.
+- For each system role, the UI, API and MCP give the same answer for the same
+  actions.
+- Operator and viewer connect an AI agent with one button and no choices; the
+  token is not wider than the owner's permissions.
+- Upgrading a 0.9.x installation keeps users and their roles; role behaviour
+  does not change.
+- The user form and the CLI assign one system role; users with several system
+  roles keep the highest after the migration.
 
-## Существующие владельцы
+## Existing owners
 
-- [Роли, токены и middleware](../../../core/application/auth/auth_http_runtime.py).
-- [Записи operator](../../../core/application/auth/operator_work.py).
-- [Маршруты только для admin](../../../core/application/auth/config.py).
-- [Совпадение scopes](../../../core/application/auth/scope_contracts.py).
-- [Scopes MCP-инструментов](../../../core/entrypoints/mcp/server_tool_scopes.py).
-- [Пресеты доступа агента](../../../core/application/auth/agent_access_presets.py).
-- [Права в интерфейсе](../../../assets/frontend/src/lib/auth/capabilities.ts).
-- Таблицы `roles`, `user_roles`: `db/schema/001_schema_part_04.sql`.
+- [Roles, tokens and middleware](../../../core/application/auth/auth_http_runtime.py).
+- [Operator writes](../../../core/application/auth/operator_work.py).
+- [Admin-only routes](../../../core/application/auth/config.py).
+- [Scope matching](../../../core/application/auth/scope_contracts.py).
+- [MCP tool scopes](../../../core/entrypoints/mcp/server_tool_scopes.py).
+- [Agent access presets](../../../core/application/auth/agent_access_presets.py).
+- [Permissions in the interface](../../../assets/frontend/src/lib/auth/capabilities.ts).
+- Tables `roles`, `user_roles`: `db/schema/001_schema_part_04.sql`.

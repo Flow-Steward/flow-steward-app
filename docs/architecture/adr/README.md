@@ -117,10 +117,10 @@ ADR takes the next unused number; never reuse a retired number.
 | [0070](0070-impacted-tier3-selection-and-parallel-hosted-gate.md) | Impacted Tier 3 selection and a parallel hosted release gate | Accepted |
 | [0071](0071-wait-for-an-event.md) | Wait for an event | Accepted |
 | [0072](0072-generic-signed-extension-callbacks.md) | Generic signed extension callbacks | Accepted |
-| [0075](0075-project-user-sections.md) | UI разделы проекта поверх запуска и истории workflow | Proposed |
-| [0076](0076-permission-catalogue-and-role-permissions.md) | Каталог прав и права ролей в базе данных | Proposed |
+| [0075](0075-project-user-sections.md) | Project UI sections built on workflow runs and history | Proposed |
+| [0076](0076-permission-catalogue-and-role-permissions.md) | Permission catalogue and role permissions in the database | Proposed |
 | [0079](0079-classify-only-inferred-workflow-selection.md) | Classify a task only when nobody chose its workflow | Accepted |
-| [0080](0080-in-browser-document-preview.md) | Превью документов в браузере | Proposed |
+| [0080](0080-in-browser-document-preview.md) | In-browser document preview | Proposed |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;
