@@ -124,7 +124,7 @@ describe("ShellLayout", () => {
     expect(shellStyles).toMatch(/\.fs-shell-sidebar-close\s*\{[^}]*z-index: calc\(var\(--fs-z-local-sticky\) \+ 1\);/);
     expect(shellStyles).toMatch(/\.fs-app-sidebar__brand-header\s*\{[^}]*z-index: var\(--fs-z-local-sticky\);/);
     expect(shellStyles).toMatch(/\.fs-shell-sidebar-close \.fs-icon-button\.fs-app-header__trigger,\s*\.fs-app-header \.fs-icon-button\.fs-app-header__trigger--mobile\s*\{\s*width: var\(--fs-hit-target-touch\);\s*height: var\(--fs-hit-target-touch\);\s*color: var\(--fs-text-primary\);/);
-    expect(shellStyles).toMatch(/\.fs-app-header__trigger--mobile svg\s*\{\s*stroke-width: 2\.5;/);
+    expect(shellStyles).toMatch(/\.fs-app-header__trigger--mobile svg\s*\{\s*width: 24px;\s*height: 24px;\s*stroke-width: 2\.5;/);
     expect(shellStyles).toMatch(
       /@media \(width >= theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-shell-sidebar-frame\s*\{[\s\S]*position: fixed;[\s\S]*width: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);[\s\S]*\.fs-shell-inset\s*\{[\s\S]*margin-left: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);/,
     );

@@ -70,9 +70,13 @@
     color: var(--fs-text-primary);
   }
 
-  /* A 24px glyph with a heavier line, so the two buttons read at a glance. */
+  /* A 24px glyph with a heavier line, so the two buttons read at a glance. The
+     size is set here: `.fs-icon-button[data-size="small"] svg` sizes the glyph in
+     CSS and would override the icon's own size attribute. */
   .fs-shell-sidebar-close .fs-icon-button.fs-app-header__trigger svg,
   .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile svg {
+    width: 24px;
+    height: 24px;
     stroke-width: 2.5;
   }
 
