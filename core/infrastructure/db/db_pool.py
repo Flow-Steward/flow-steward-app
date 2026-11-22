@@ -62,7 +62,8 @@ class _AfterCommitFrame:
     __slots__ = ("callbacks", "open")
 
     def __init__(self) -> None:
-        self.callbacks: list[Callable[[], None]] = []
+        # A callback's return value is ignored.
+        self.callbacks: list[Callable[[], object]] = []
         self.open = True
 
 
@@ -247,8 +248,11 @@ def transaction_after_commit_supported(db: Any) -> bool:
     return frame is not None and frame.open
 
 
-def register_transaction_after_commit(db: Any, callback: Callable[[], None]) -> bool:
-    """Register work for the current managed root transaction's durable commit."""
+def register_transaction_after_commit(db: Any, callback: Callable[[], object]) -> bool:
+    """Register work for the current managed root transaction's durable commit.
+
+    The callback's return value is ignored.
+    """
     if not callable(callback):
         raise TypeError("transaction after-commit callback must be callable")
     target = _connection_target(db)
