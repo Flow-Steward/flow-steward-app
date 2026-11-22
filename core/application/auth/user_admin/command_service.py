@@ -5,11 +5,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol, TypeAlias
 
+from core.application.auth import mfa_repository
 from core.application.auth.account_memberships import normalize_membership_account_ids
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
 from core.application.auth.enforce import normalize_requested_roles
+from core.application.auth.local_credentials import (
+    authenticator_policy_available,
+    authenticator_storage_available,
+)
 from core.application.auth.password import password_hash
 from core.application.auth.rate_limit import (
     ClearUserLoginFailures,
@@ -26,6 +31,8 @@ from core.application.auth.user_admin.contracts import (
     PublicUserView,
     UserActiveUpdateInput,
     UserAuditContext,
+    UserAuthenticatorAction,
+    UserAuthenticatorResult,
     UserCreateInput,
     UserDeleteInput,
     UserDeleteResultView,
@@ -47,9 +54,12 @@ from core.application.auth.user_admin.policies import (
 from core.application.auth.user_admin.projection import normalize_user_payload
 from core.application.management.errors import (
     ServiceConflictError,
+    ServiceForbiddenError,
+    ServiceNotFoundError,
     ServiceUnavailableError,
     ServiceValidationError,
 )
+from core.infrastructure.db.db_pool import transaction_connection
 
 LoggerFactory: TypeAlias = Callable[[], Any]
 AuthTablesAvailable: TypeAlias = Callable[[Any], bool]
@@ -269,6 +279,61 @@ class UserAdminCommandService:
             status="password_updated",
             user=result.user,
             revoked_sessions=result.revoked_sessions,
+        )
+
+    def update_authenticator(
+        self,
+        *,
+        user_id: str,
+        actor_user_id: str,
+        actor: str,
+        action: UserAuthenticatorAction,
+        allowed_account_ids: list[str],
+    ) -> UserAuthenticatorResult:
+        if not actor_user_id or actor_user_id.casefold() == user_id.casefold():
+            raise ServiceForbiddenError("An administrator must manage another user's authenticator")
+        bl = self._logger()
+        if not (authenticator_storage_available(bl) and authenticator_policy_available(bl)):
+            raise ServiceUnavailableError("Authenticator storage is unavailable")
+
+        revoked_sessions = 0
+        with transaction_connection(bl) as conn, conn.cursor() as cur:
+            target = mfa_repository.lock_admin_target(cur, user_id)
+            if target is None:
+                raise ServiceNotFoundError(f"Local user id={user_id} not found")
+            username, primary_account_id, required, reset_pending = target
+            membership_ids = mfa_repository.admin_target_membership_ids(cur, user_id)
+            require_account_access([primary_account_id, *membership_ids], allowed_account_ids)
+
+            if action == "reset":
+                mfa_repository.delete_factor(cur, user_id)
+                mfa_repository.mark_reset_pending(cur, user_id)
+                revoked_sessions = mfa_repository.revoke_sessions(cur, user_id)
+            else:
+                new_requirement = action == "require"
+                if required != new_requirement:
+                    mfa_repository.set_authenticator_required(cur, user_id, new_requirement)
+                    if not reset_pending and not mfa_repository.active_factor_exists(cur, user_id):
+                        mfa_repository.clear_pending_factor(cur, user_id)
+                        if new_requirement:
+                            revoked_sessions = mfa_repository.revoke_sessions(cur, user_id)
+                required = new_requirement
+
+        self._log_auth_audit_event(
+            bl,
+            action=f"user_authenticator_{action}",
+            username=username,
+            actor=actor,
+            status="ok",
+            detail={"source": "api", "revoked_sessions": revoked_sessions},
+        )
+        status = (
+            "authenticator_reset"
+            if action == "reset"
+            else ("authenticator_required" if required else "authenticator_optional")
+        )
+        return UserAuthenticatorResult(
+            status=status, authenticator_required=required, revoked_sessions=revoked_sessions
         )
 
     def force_password_reset(

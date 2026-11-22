@@ -11,6 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from core.application.auth.user_admin.contracts import UserAuthenticatorAction
 from core.application.extensions.direct_effect_recovery_models import DirectEffectResolutionRef
 from core.application.extensions.identity import normalize_extension_id
 from core.application.management.command_models_extensions import McpHeaderSecretChoice
@@ -226,6 +227,7 @@ class AuthLoginRequest(BaseModel):
     # password can do is replace itself with this one (B3).
     new_password: str = ""
     mfa_code: str = Field(default="", max_length=128)
+    authenticator_enrollment_token: str = Field(default="", max_length=64)
 
     @property
     def username(self) -> str:
@@ -236,6 +238,12 @@ class AuthChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
     revoke_other_sessions: bool = True
+
+
+class AuthUserAuthenticatorRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: UserAuthenticatorAction
 
 
 class AuthPersonalTokenCreateRequest(BaseModel):

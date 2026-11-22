@@ -7,6 +7,7 @@ import {
   saveAccountProfileRecord,
   setTemporaryUserPassword,
   updateUser,
+  updateUserAuthenticator,
 } from "@/pages/settings/shared/api";
 
 vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn() }));
@@ -42,6 +43,14 @@ describe("settings account and access API", () => {
     expect(mockedFetchJson).toHaveBeenCalledWith("/api/auth/users/u1", {
       method: "PUT",
       body: JSON.stringify({ password: "temporary-pass", must_change_password: false }),
+    });
+  });
+
+  it("sends authenticator administration to the encoded user endpoint", async () => {
+    await updateUserAuthenticator("user/id", "reset");
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/auth/users/user%2Fid/authenticator", {
+      method: "POST",
+      body: JSON.stringify({ action: "reset" }),
     });
   });
 

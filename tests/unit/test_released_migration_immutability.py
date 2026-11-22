@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from core.application.tooling.db import migration_runner
+from core.application.tooling.db import migration_runner, upgrade_preflight
 from core.infrastructure.db.schema_state import canonical_schema_fingerprint
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -91,6 +91,11 @@ def test_the_released_baseline_changes_only_together_with_a_migration() -> None:
         "(IF NOT EXISTS), then record the new baseline_schema_fingerprint in "
         f"{MANIFEST.name} in the same commit."
     )
+
+
+def test_upgrade_preflight_accepts_the_0_9_23_baseline() -> None:
+    baseline_0_9_23 = "941704d8df2b0e362ebfe17c7e36ac7e377dc8bcd40916683f146e0fc0d8db3c"
+    assert baseline_0_9_23 in upgrade_preflight._released_baselines(ROOT)
 
 
 def test_editing_a_released_migration_still_fails_the_upgrade_closed(tmp_path: Path) -> None:

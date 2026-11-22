@@ -1031,7 +1031,9 @@ CREATE TABLE public.users (
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     date_format character varying(16),
     time_format character varying(8),
-    password_changed_at timestamp with time zone DEFAULT now() NOT NULL
+    password_changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    authenticator_required boolean DEFAULT false NOT NULL,
+    authenticator_reset_pending boolean DEFAULT false NOT NULL
 );
 
 

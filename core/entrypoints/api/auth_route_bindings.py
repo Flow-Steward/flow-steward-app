@@ -115,6 +115,7 @@ def register_auth_routes(
         err_local_auth_disabled=err_local_auth_disabled,
         err_invalid_json_body=err_invalid_json_body,
         auth_csrf_cookie_name=auth_csrf_cookie_name,
+        csrf_request_valid=csrf_request_valid,
     )
     app.include_router(auth_users_router)
 

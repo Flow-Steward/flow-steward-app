@@ -10,6 +10,7 @@ import psycopg
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, env_flag
 from core.application.auth.local_credentials import (
+    authenticator_policy_available,
     local_session_credential_filter,
     password_age_available,
 )
@@ -277,6 +278,7 @@ def get_user_by_username(bl, username: str) -> dict | None:
             , {locale_select}
             , {acct_select}
             , {password_age_select} AS password_changed_at
+            {authenticator_required_select}
             FROM users u
             WHERE lower(u.username) = lower(%s)
               {active_clause}
@@ -289,6 +291,9 @@ def get_user_by_username(bl, username: str) -> dict | None:
                 acct_select=acct_select,
                 password_age_select=psycopg_sql.SQL(
                     "u.password_changed_at" if password_age_available(bl) else "NULL"
+                ),
+                authenticator_required_select=psycopg_sql.SQL(
+                    ", u.authenticator_required" if authenticator_policy_available(bl) else ""
                 ),
                 active_clause=active_clause,
             ),
@@ -324,6 +329,7 @@ def get_user_by_id(bl, user_id: Any) -> dict | None:
             , {tz_select}
             , {locale_select}
             , {acct_select}
+            {authenticator_required_select}
             FROM users u
             WHERE u.id = %s
               {active_clause}
@@ -334,6 +340,9 @@ def get_user_by_id(bl, user_id: Any) -> dict | None:
                 tz_select=tz_select,
                 locale_select=locale_select,
                 acct_select=acct_select,
+                authenticator_required_select=psycopg_sql.SQL(
+                    ", u.authenticator_required" if authenticator_policy_available(bl) else ""
+                ),
                 active_clause=active_clause,
             ),
             (normalized_user_id,),

@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from core.application.auth import user_profile_repository
 from core.application.auth.account_memberships import normalize_membership_account_ids
 from core.application.auth.config import AUTH_PASSWORD_RESET_TTL_MINUTES, DEFAULT_ACCOUNT_ID
+from core.application.auth.csrf import csrf_request_valid as default_csrf_request_valid
 from core.application.auth.email import normalize_email_address
 from core.application.auth.inbound_oauth_policy import oauth_introspection_fields
 from core.application.auth.password import password_reset_token_hash
@@ -23,6 +24,7 @@ from core.application.auth.serve_auth_runtime import public_base_url
 from core.application.auth.user_admin.command_service import UserAdminCommandService
 from core.application.auth.user_admin.contracts import (
     UserAuditContext,
+    UserAuthenticatorResult,
     UserCreateInput,
     UserDeleteInput,
     UserSelectorInput,
@@ -43,6 +45,7 @@ from core.application.management.errors import (
 )
 from core.application.management.requests import (
     AuthEmailChangeRequest,
+    AuthUserAuthenticatorRequest,
     AuthUserCreateRequest,
     AuthUserProfileUpdateRequest,
     AuthUserUpdateRequest,
@@ -90,6 +93,7 @@ def create_auth_users_router(
     err_local_auth_disabled: str,
     err_invalid_json_body: str,
     auth_csrf_cookie_name: str,
+    csrf_request_valid: Callable[[Request], bool] = default_csrf_request_valid,
     user_query_service: UserAdminQueryService | None = None,
     user_command_service: UserAdminCommandService | None = None,
 ) -> APIRouter:
@@ -987,5 +991,35 @@ def create_auth_users_router(
             "username": str(result.user.username or ""),
             "revoked_sessions": result.revoked_sessions,
         }
+
+    @router.post("/api/auth/users/{user_id}/authenticator", response_model=UserAuthenticatorResult)
+    def api_auth_users_authenticator(
+        user_id: UUID, body: AuthUserAuthenticatorRequest, request: Request
+    ):
+        if not local_auth_enabled():
+            return JSONResponse({"error": err_local_auth_disabled}, status_code=400)
+        try:
+            admin_user = require_authenticated_user(request, required_roles=auth_admin_roles)
+        except PermissionError:
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        if (
+            getattr(request.state, "auth_source", None) not in {"local", "external"}
+            or is_token_scoped_principal(admin_user)
+            or "authorization" in request.headers
+        ):
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        if not csrf_request_valid(request):
+            return JSONResponse({"error": "CSRF validation failed"}, status_code=403)
+
+        try:
+            return user_command_service.update_authenticator(
+                user_id=str(user_id),
+                actor_user_id=str(admin_user.get("id") or ""),
+                actor=str(admin_user.get("username") or "admin"),
+                action=body.action,
+                allowed_account_ids=_admin_managed_account_ids(admin_user),
+            )
+        except Exception as exc:
+            return _user_service_error(exc)
 
     return router

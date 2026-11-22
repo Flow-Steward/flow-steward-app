@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
@@ -109,6 +109,15 @@ class UserAuditContext(ViewModel):
     source: str
 
 
+UserAuthenticatorAction = Literal["require", "unrequire", "reset"]
+
+
+class UserAuthenticatorResult(ViewModel):
+    status: str
+    authenticator_required: bool
+    revoked_sessions: int
+
+
 class PublicUserView(ViewModel):
     """Allowlisted user projection safe for every management transport."""
 
@@ -119,6 +128,7 @@ class PublicUserView(ViewModel):
     display_name: str = ""
     is_active: bool = True
     must_change_password: bool = False
+    authenticator_required: bool = False
     roles: list[str] = Field(default_factory=list)
     account_id: str = ""
     account_ids: list[str] = Field(default_factory=list)

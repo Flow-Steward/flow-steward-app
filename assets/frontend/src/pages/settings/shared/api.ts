@@ -21,6 +21,7 @@ import type {
   ProfileField,
   ProfileSaveResult,
   UpdateUserInput,
+  UserAuthenticatorAction,
   UserFilters,
   UserPage,
 } from "@/pages/settings/shared/types";
@@ -243,6 +244,13 @@ export async function forceResetUser(id: string) {
   return fetchJson<unknown>(`/api/auth/users/${encodeURIComponent(id)}/force-password-reset`, {
     method: "POST",
     body: JSON.stringify({}),
+  });
+}
+
+export async function updateUserAuthenticator(id: string, action: UserAuthenticatorAction) {
+  return fetchJson<unknown>(`/api/auth/users/${encodeURIComponent(id)}/authenticator`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
   });
 }
 

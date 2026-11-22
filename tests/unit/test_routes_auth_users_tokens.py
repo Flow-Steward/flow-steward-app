@@ -54,6 +54,12 @@ class _Cursor:
         if "SELECT u.id::text AS id, u.is_active" in normalized:
             self._next_fetchone = {"id": _USER_77, "is_active": True, "is_admin": False}
             return
+        if "SELECT username, account_id::text, authenticator_required" in normalized:
+            self._next_fetchone = ("newuser@example.com", "acc-default", False, False)
+            return
+        if "SELECT account_id::text FROM user_account_memberships" in normalized:
+            self._next_fetchall = [("acc-default",)]
+            return
         if "GROUP BY u.id" in normalized:
             self._next_fetchall = [
                 {
@@ -268,7 +274,17 @@ def test_auth_introspection_of_an_oauth_token_names_its_grant_and_never_synthesi
 
 def test_auth_users_router_success_paths() -> None:
     cursor = _Cursor()
-    bl = SimpleNamespace(conn=_Conn(cursor))
+    bl = SimpleNamespace(
+        conn=_Conn(cursor),
+        _table_exists=lambda _table: True,
+        _column_exists=lambda _table, column: (
+            column
+            in {
+                "authenticator_required",
+                "authenticator_reset_pending",
+            }
+        ),
+    )
     auth_user = {
         "id": 1,
         "username": "admin",
@@ -384,10 +400,12 @@ def test_auth_users_router_success_paths() -> None:
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["users"][0]["email"] == "admin"
+    assert listed.json()["users"][0]["authenticator_required"] is False
     list_queries = [query for query in cursor.executed_queries if "GROUP BY u.id" in query]
     assert list_queries
     assert ", ," not in list_queries[-1]
     assert "must_change_password" in list_queries[-1]
+    assert "u.authenticator_required" in list_queries[-1]
     assert "u.created_at" in list_queries[-1]
     assert "u.account_id = ANY" in list_queries[-1]
 
@@ -434,6 +452,28 @@ def test_auth_users_router_success_paths() -> None:
     force_reset = client.post(f"/api/auth/users/{_USER_77}/force-password-reset")
     assert force_reset.status_code == 200
     assert force_reset.json()["revoked_sessions"] == 2
+
+    authenticator_url = f"/api/auth/users/{_USER_77}/authenticator"
+    same_origin = {"Origin": "http://testserver"}
+    local_admin = _client_with_state(router, auth_user=auth_user, auth_source="local")
+    assert local_admin.post(authenticator_url, json={"action": "reset"}).status_code == 403
+    token_admin = _client_with_state(router, auth_user=auth_user, auth_source="pat")
+    assert (
+        token_admin.post(
+            authenticator_url, json={"action": "reset"}, headers=same_origin
+        ).status_code
+        == 403
+    )
+    external_admin = _client_with_state(router, auth_user=auth_user, auth_source="external")
+    reset_authenticator = external_admin.post(
+        authenticator_url, json={"action": "reset"}, headers=same_origin
+    )
+    assert reset_authenticator.status_code == 200, reset_authenticator.text
+    assert reset_authenticator.json() == {
+        "status": "authenticator_reset",
+        "authenticator_required": False,
+        "revoked_sessions": 2,
+    }
 
     deleted = client.delete(f"/api/auth/users/{_USER_77}")
     assert deleted.status_code == 200

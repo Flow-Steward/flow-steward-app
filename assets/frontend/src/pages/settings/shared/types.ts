@@ -90,7 +90,11 @@ export type UserRecord = {
   account_memberships?: AccountMembership[];
   is_active: boolean;
   must_change_password: boolean;
+  authenticator_required?: boolean;
+  deleted_at?: string | null;
 };
+
+export type UserAuthenticatorAction = "require" | "unrequire" | "reset";
 
 export type UserPage = {
   users: UserRecord[];

@@ -114,6 +114,54 @@ def delete_factor(cur: Any, user_id: str) -> None:
     cur.execute("DELETE FROM auth_mfa_recovery_codes WHERE user_id = %s", (user_id,))
 
 
+def clear_pending_factor(cur: Any, user_id: str) -> None:
+    cur.execute(
+        """
+        UPDATE auth_totp_factors
+        SET pending_secret_enc = NULL, pending_expires_at = NULL
+        WHERE user_id = %s AND pending_secret_enc IS NOT NULL
+        """,
+        (user_id,),
+    )
+
+
+def clear_reset_pending(cur: Any, user_id: str) -> None:
+    cur.execute("UPDATE users SET authenticator_reset_pending = false WHERE id = %s", (user_id,))
+
+
+def lock_admin_target(cur: Any, user_id: str) -> tuple[str, str, bool, bool] | None:
+    cur.execute(
+        """
+        SELECT username, account_id::text, authenticator_required, authenticator_reset_pending
+        FROM users
+        WHERE id = %s AND deleted_at IS NULL AND password_hash <> ''
+        FOR UPDATE
+        """,
+        (user_id,),
+    )
+    return cur.fetchone()
+
+
+def admin_target_membership_ids(cur: Any, user_id: str) -> list[str]:
+    # The user lock is acquired before reading memberships so we see committed account edits.
+    cur.execute(
+        "SELECT account_id::text FROM user_account_memberships WHERE user_id = %s",
+        (user_id,),
+    )
+    return [row[0] for row in cur.fetchall()]
+
+
+def mark_reset_pending(cur: Any, user_id: str) -> None:
+    cur.execute("UPDATE users SET authenticator_reset_pending = true WHERE id = %s", (user_id,))
+
+
+def set_authenticator_required(cur: Any, user_id: str, required: bool) -> None:
+    cur.execute(
+        "UPDATE users SET authenticator_required = %s WHERE id = %s",
+        (required, user_id),
+    )
+
+
 def active_cookie_session_id(
     cur: Any, user_id: str, token_hash: str, *, lock: bool = False
 ) -> str | None:
@@ -131,12 +179,13 @@ def active_cookie_session_id(
     return str(row["id"] if isinstance(row, dict) else row[0])
 
 
-def revoke_other_sessions(cur: Any, user_id: str, session_id: str) -> None:
+def revoke_sessions(cur: Any, user_id: str, *, keep_session_id: str | None = None) -> int:
     cur.execute(
         """
         UPDATE auth_sessions
         SET revoked = true, updated_at = now()
-        WHERE user_id = %s AND id <> %s AND revoked = false
+        WHERE user_id = %s AND id IS DISTINCT FROM %s AND revoked = false
         """,
-        (user_id, session_id),
+        (user_id, keep_session_id),
     )
+    return cur.rowcount

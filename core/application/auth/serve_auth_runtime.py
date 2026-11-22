@@ -16,6 +16,7 @@ import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.local_credentials import (
+    authenticator_policy_available,
     local_session_credential_filter,
     password_age_available,
 )
@@ -258,6 +259,7 @@ def get_user_by_username(
             ", ",
             auth_user_account_id_select_fn(bl, alias="u"),
             ", u.password_changed_at" if password_age_available(bl) else "",
+            ", u.authenticator_required" if authenticator_policy_available(bl) else "",
             sql_from_users,
             "WHERE lower(u.username) = lower(%s)",
             auth_user_deleted_condition_fn(bl, alias="u"),
@@ -295,6 +297,7 @@ def get_user_by_id(
             auth_user_locale_select_fn(bl, alias="u"),
             ", ",
             auth_user_account_id_select_fn(bl, alias="u"),
+            ", u.authenticator_required" if authenticator_policy_available(bl) else "",
             sql_from_users,
             "WHERE u.id = %s",
             auth_user_deleted_condition_fn(bl, alias="u"),

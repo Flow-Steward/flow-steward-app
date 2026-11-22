@@ -438,6 +438,50 @@ describe("LoginPage", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("enrolls an authenticator at sign-in and shows recovery codes before continuing", async () => {
+    const token = "a".repeat(64);
+    const setupKey = "EXAMPLESETUPKEY";
+    const recoveryCode = "abcd-efgh-jkmn";
+    mockedFetchJson
+      .mockRejectedValueOnce(loginError(403, {
+        mfa_enrollment_required: true,
+        authenticator_enrollment: { token, secret: setupKey, uri: `otpauth://fixture/Flow%20Steward?secret=${setupKey}` },
+      }))
+      .mockRejectedValueOnce(loginError(403, { mfa_required: true }))
+      .mockResolvedValueOnce({ recovery_codes: [recoveryCode], user: { username: "person@example.com" } });
+    const { refresh } = renderLogin();
+    fillCredentials();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(screen.getByRole("img", { name: "Authenticator setup QR code" })).toBeVisible());
+    expect(screen.getByText(setupKey)).toBeVisible();
+    const code = screen.getByLabelText("Authenticator code", { exact: true });
+    fireEvent.change(code, { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify and sign in" }));
+    await waitFor(() => expect(screen.getByText("The code could not be verified. Enter a new code and try again.")).toBeVisible());
+    expect(refresh).not.toHaveBeenCalled();
+
+    fireEvent.change(code, { target: { value: "654321" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify and sign in" }));
+    await waitFor(() => expect(screen.getByText(recoveryCode)).toBeVisible());
+    expect(screen.queryByText(setupKey)).not.toBeInTheDocument();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: "person@example.com",
+        password: TEST_PASSWORD,
+        remember_me: true,
+        mfa_code: "654321",
+        authenticator_enrollment_token: token,
+      }),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeVisible());
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the canonical in-button loader while sign-in is pending", async () => {
     mockedFetchJson.mockReturnValueOnce(new Promise(() => undefined));
     renderLogin();

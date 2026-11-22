@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.account_memberships import sync_user_account_memberships
+from core.application.auth.local_credentials import authenticator_policy_available
 from core.application.auth.password import password_hash
 from core.application.auth.password_history import require_unused_password
 from core.application.management.errors import ServiceConflictError, ServiceNotFoundError
@@ -124,6 +125,9 @@ def list_auth_users(
             params.extend([normalized_account_ids, normalized_account_ids])
 
     where_sql = " ".join(conditions)
+    authenticator_required = (
+        "u.authenticator_required" if authenticator_policy_available(bl) else "false"
+    )
     with _dict_cursor(bl) as cur:
         cur.execute(
             f"SELECT COUNT(*) AS total FROM users u WHERE 1 = 1 {where_sql}",  # nosec B608 - fixed predicates.
@@ -139,6 +143,7 @@ def list_auth_users(
             f"""
             SELECT u.id, u.username, u.display_name, u.is_active,
                    u.must_change_password AS must_change_password,
+                   {authenticator_required} AS authenticator_required,
                    u.deleted_at AS deleted_at,
                    u.account_id AS account_id,
                    u.created_at, u.updated_at,
