@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 
 import { ShellLayout } from "@/components/layout/app-shell-layout";
 import settingsStyles from "@/components/shared/design-system.css?raw";
@@ -105,13 +107,50 @@ describe("ShellLayout", () => {
     );
   });
 
-  it("keeps the non-rail composition below the tablet breakpoint", () => {
+  it("turns the sidebar into a full-width drawer below the tablet breakpoint", () => {
+    // Hidden until the header's menu button opens it, then fixed over the whole
+    // viewport; the page scroll is held while it is open.
     expect(shellStyles).toMatch(
-      /@media \(width < theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-shell-layout\s*\{[\s\S]*display: flex;[\s\S]*flex-direction: column;[\s\S]*\}[\s\S]*\.fs-shell-sidebar-frame\s*\{[\s\S]*position: static;[\s\S]*order: 2;[\s\S]*\}[\s\S]*\.fs-shell-inset\s*\{[\s\S]*order: 1;[\s\S]*margin-left: 0;/,
+      /@media \(width < theme\(--breakpoint-md\)\)\s*\{\s*\.fs-shell-sidebar-frame\s*\{\s*display: none;\s*\}\s*\.fs-shell-layout\[data-mobile-nav="open"\] \.fs-shell-sidebar-frame\s*\{[^}]*position: fixed;[^}]*inset: 0;[^}]*display: block;[^}]*overflow-y: auto;/,
     );
+    expect(shellStyles).toMatch(/:root:has\(\.fs-shell-layout\[data-mobile-nav="open"\]\)\s*\{\s*overflow: hidden;/);
+    // The menu button replaces the rail toggle there; the close button lives only there.
+    expect(shellStyles).toMatch(/@media \(width < theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-app-header__trigger--rail\s*\{\s*display: none;/);
+    expect(shellStyles).toMatch(/@media \(width >= theme\(--breakpoint-md\)\)\s*\{\s*\.fs-shell-sidebar-close,\s*\.fs-app-header__trigger--mobile\s*\{\s*display: none;/);
     expect(shellStyles).toMatch(
       /@media \(width >= theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-shell-sidebar-frame\s*\{[\s\S]*position: fixed;[\s\S]*width: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);[\s\S]*\.fs-shell-inset\s*\{[\s\S]*margin-left: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);/,
     );
+  });
+
+  it("opens the drawer with focus on its close button, closes on Escape and returns focus", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <ShellLayout
+          header={<button onClick={() => setOpen(true)} type="button">Open menu</button>}
+          mobileNavOpen={open}
+          onCloseMobileNav={() => setOpen(false)}
+          railState="collapsed"
+          sidebar={<nav>Navigation</nav>}
+        >
+          <div />
+        </ShellLayout>
+      );
+    }
+    render(<Harness />);
+    const layout = screen.getByTestId("app-shell-layout");
+    expect(layout).toHaveAttribute("data-mobile-nav", "closed");
+    const opener = screen.getByRole("button", { name: "Open menu" });
+    await user.click(opener);
+    expect(layout).toHaveAttribute("data-mobile-nav", "open");
+    expect(screen.getByRole("button", { name: "Close menu" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(layout).toHaveAttribute("data-mobile-nav", "closed");
+    expect(opener).toHaveFocus();
+    await user.click(opener);
+    await user.click(screen.getByRole("button", { name: "Close menu" }));
+    expect(layout).toHaveAttribute("data-mobile-nav", "closed");
   });
 
   it("lets rail overlays escape while sidebar content owns scrolling", () => {

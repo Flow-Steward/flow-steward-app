@@ -951,6 +951,26 @@ describe("AppShell", () => {
     expect(localStorage.getItem("fsb-rail")).toBe("expanded");
   });
 
+  it("opens the navigation as a drawer from the header's menu button and closes it on navigation", async () => {
+    mockAuthenticatedSession({
+      switchAccount: vi.fn(async () => undefined),
+    });
+
+    await renderShell();
+
+    const layout = screen.getByTestId("app-shell-layout");
+    const menuButton = within(screen.getByRole("banner")).getByRole("button", { name: "Open menu" });
+    expect(menuButton).toHaveAttribute("aria-controls", "app-shell-navigation");
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    expect(layout).toHaveAttribute("data-mobile-nav", "closed");
+    fireEvent.click(menuButton);
+    expect(layout).toHaveAttribute("data-mobile-nav", "open");
+    expect(menuButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Close menu" })).toHaveFocus();
+    fireEvent.click(screen.getByRole("link", { name: "Jobs" }));
+    await waitFor(() => expect(layout).toHaveAttribute("data-mobile-nav", "closed"));
+  });
+
   it("shows workspace failure without removing the current shell and retries", async () => {
     mockAuthenticatedSession({
       switchAccount: vi.fn(async () => undefined),

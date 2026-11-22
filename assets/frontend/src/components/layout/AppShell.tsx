@@ -99,6 +99,14 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   const [approvalLoaded, setApprovalLoaded] = useState(false);
   const [approvalError, setApprovalError] = useState("");
   const [approvalsOpen, setApprovalsOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  // Choosing a page in the mobile drawer takes you there and closes the drawer.
+  const [mobileNavPath, setMobileNavPath] = useState(location.pathname);
+  if (mobileNavPath !== location.pathname) {
+    setMobileNavPath(location.pathname);
+    setMobileNavOpen(false);
+  }
   const [railState, setRailState] = useState<SidebarRailState>(() =>
     readSidebarRailState(
       globalThis.window === undefined ? null : globalThis.localStorage,
@@ -639,6 +647,8 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
       onOpenSearch={openGlobalSearchSurface}
       onRetryApprovals={() => ignoreAsyncResult(refreshAwaitingApprovals())}
       onToggleApprovals={() => setApprovalsOpen((current) => !current)}
+      mobileNavOpen={mobileNavOpen}
+      onOpenMobileNav={() => setMobileNavOpen(true)}
       onToggleRail={toggleRail}
       pendingApprovals={pendingApprovals}
       railExpanded={railState === "expanded"}
@@ -681,6 +691,9 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
       <ShellLayout
         header={header}
         maintenance={<><MaintenanceBanner />{isAdmin ? <CoreUpdateBanner /> : null}<AgentExpiryBanner /></>}
+        closeMobileNavLabel={t("react.shared.close_menu", "Close menu")}
+        mobileNavOpen={mobileNavOpen}
+        onCloseMobileNav={closeMobileNav}
         railState={railState}
         sidebar={sidebar}
       >

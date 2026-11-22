@@ -25,23 +25,66 @@
   padding: 24px;
 }
 
+/* Below md the sidebar is a full-width drawer opened from the header's menu
+   button, so the page never carries the navigation under its content. */
 @media (width < theme(--breakpoint-md)) {
-  .fs-shell-layout {
-    display: flex;
-    flex-direction: column;
+  .fs-shell-sidebar-frame {
+    display: none;
   }
 
-  .fs-shell-sidebar-frame {
-    position: static;
-    order: 2;
-    width: auto;
-    overflow: visible;
+  .fs-shell-layout[data-mobile-nav="open"] .fs-shell-sidebar-frame {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--fs-sidebar-rail-bg);
+    animation: fs-shell-drawer-in var(--fs-sidebar-motion-rail) var(--fs-sidebar-ease-enter);
+  }
+
+  .fs-shell-layout[data-mobile-nav="open"] .fs-app-sidebar {
+    min-height: 100dvh;
+  }
+
+  :root:has(.fs-shell-layout[data-mobile-nav="open"]) {
+    overflow: hidden;
+  }
+
+  .fs-shell-sidebar-close {
+    position: absolute;
+    top: 0;
+    right: var(--fs-sidebar-logo-horizontal-padding);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    height: var(--fs-sidebar-brand-height);
   }
 
   .fs-shell-inset {
-    order: 1;
     min-width: 0;
     margin-left: 0;
+  }
+
+  .fs-app-header__trigger--rail {
+    display: none;
+  }
+}
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-shell-sidebar-close,
+  .fs-app-header__trigger--mobile {
+    display: none;
+  }
+}
+
+@keyframes fs-shell-drawer-in {
+  from { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-shell-layout[data-mobile-nav="open"] .fs-shell-sidebar-frame {
+    animation: none;
   }
 }
 
