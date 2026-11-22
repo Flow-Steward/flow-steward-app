@@ -67,6 +67,13 @@
   .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile {
     width: var(--fs-hit-target-touch);
     height: var(--fs-hit-target-touch);
+    color: var(--fs-text-primary);
+  }
+
+  /* A 24px glyph with a heavier line, so the two buttons read at a glance. */
+  .fs-shell-sidebar-close .fs-icon-button.fs-app-header__trigger svg,
+  .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile svg {
+    stroke-width: 2.5;
   }
 
   .fs-shell-inset {

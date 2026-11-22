@@ -75,7 +75,7 @@ export function AppShellHeader({
             aria-expanded={mobileNavOpen}
             className="fs-app-header__trigger fs-app-header__trigger--mobile"
             icon={Menu}
-            iconSize={18}
+            iconSize={24}
             label={t("react.shared.open_menu", "Open menu")}
             onClick={onOpenMobileNav}
             showTooltip={false}

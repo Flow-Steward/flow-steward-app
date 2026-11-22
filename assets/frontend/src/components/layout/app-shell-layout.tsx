@@ -61,7 +61,7 @@ export function ShellLayout({
             <IconButton
               className="fs-app-header__trigger"
               icon={X}
-              iconSize={18}
+              iconSize={24}
               label={closeMobileNavLabel}
               onClick={onCloseMobileNav}
               showTooltip={false}
