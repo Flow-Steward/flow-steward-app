@@ -4,6 +4,8 @@ import operatorStyles from "@/pages/operator/operator.css?raw";
 describe("operator job view layout", () => {
   it("lays every job out as its review, the panel alone and readable when the job has no files", () => {
     expect(operatorStyles).not.toMatch(/fs-operator-job-columns/);
+    // A visually hidden label inside the panel is placed against it, never against the page.
+    expect(operatorStyles).toMatch(/\.fs-operator-review-scroll\s*\{\s*position:\s*relative;/);
     expect(operatorStyles).toMatch(/\.fs-operator-review\[data-original="none"\]\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
     expect(operatorStyles).toMatch(/\.fs-operator-review\[data-original="none"\] \.fs-operator-review-scroll > \*\s*\{[^}]*max-width:\s*var\(--fs-page-width-standard\);/);
   });

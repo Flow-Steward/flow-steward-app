@@ -124,7 +124,9 @@
   margin-inline: auto;
 }
 
+/* The panel holds its own visually hidden labels, so none stretches the page. */
 .fs-operator-review-scroll {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--fs-space-200);
