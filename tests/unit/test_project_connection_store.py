@@ -164,8 +164,11 @@ def test_platform_runtime_connection_query_keeps_extension_oauth_identity() -> N
         "ingress_config": {},
         "workflow_mappings": {},
         "tags": [],
+        "state_version": 0,
+        "config_generation": 1,
     }
     sql, _params = conn.calls[-1]
+    assert "state_version, config_generation" in sql
     assert "oauth_configuration_id" in sql
     assert "oauth_provider_id" in sql
     assert "oauth_granted_scopes" in sql

@@ -411,7 +411,14 @@ def enqueue_workflow_start(
     pre_publish_fn=None,
     preparation_additional_heartbeat=None,
     fail_on_pre_publish_error: bool = False,
+    job_created_hook=None,
 ) -> str:
+    """Build the start envelope and create the job through ``enqueue_task_fn``.
+
+    ``job_created_hook(conn, job_id)`` runs inside the transaction that creates
+    the job and its outbox row; raising rolls the job back. It is passed to the
+    queue adapter only when given.
+    """
     clean_task_id = str(task_id or "").strip()
     clean_summary = str(task_summary or "").strip()
     clean_task_source = str(task_source or "").strip()
@@ -614,5 +621,6 @@ def enqueue_workflow_start(
             pre_publish_fn=pre_publish_fn,
             preparation_additional_heartbeat=preparation_additional_heartbeat,
             fail_on_pre_publish_error=bool(fail_on_pre_publish_error),
+            **({"job_created_hook": job_created_hook} if job_created_hook is not None else {}),
         )
     )

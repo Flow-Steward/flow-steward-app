@@ -235,6 +235,82 @@ def _validate_host_mutation_batch(
     return prepared, []
 
 
+def _require_expected_poll_versions(
+    payload: dict[str, Any], poll_context: Any, db: Any, connection_id: str
+) -> bool:
+    """A state write may carry the versions it was computed from; they must match.
+
+    Inside a connection poll they are compared with what the poll started from
+    (its caller already locked and judged the row); outside one, with the row as
+    locked in this transaction. Returns whether versions were carried.
+    """
+    if all(
+        payload.get(key) in (None, "")
+        for key in ("expected_state_version", "expected_config_generation")
+    ):
+        return False
+    current_row: dict[str, Any] = {}
+    if poll_context is None:
+        with db.conn.cursor() as cur:
+            cur.execute(
+                "SELECT state_version, config_generation FROM project_connections "
+                "WHERE connection_id = %s FOR UPDATE",
+                (connection_id,),
+            )
+            row = cur.fetchone()
+        if row:
+            current_row = (
+                dict(row)
+                if isinstance(row, dict)
+                else {"state_version": row[0], "config_generation": row[1]}
+            )
+    carried = False
+    for key, attribute in (
+        ("expected_state_version", "state_version"),
+        ("expected_config_generation", "config_generation"),
+    ):
+        if payload.get(key) in (None, ""):
+            continue
+        carried = True
+        current = (
+            getattr(poll_context, attribute)
+            if poll_context is not None
+            else current_row.get(attribute)
+        )
+        try:
+            matches = int(payload[key]) == int(current)
+        except (TypeError, ValueError):
+            matches = False
+        if not matches:
+            raise ValueError("host_mutation_poll_version_mismatch")
+    return carried
+
+
+def _poll_mode_changed(
+    extension: dict[str, Any] | None, before: dict[str, Any], after: dict[str, Any]
+) -> bool:
+    from core.application.extensions.connection_poll_commit import background_poll_mode_fields
+
+    return any(
+        _text(before.get(field)) != _text(after.get(field))
+        for field in background_poll_mode_fields(extension)
+    )
+
+
+def _bump_connection_generation(db: Any, connection_id: str) -> None:
+    from core.application.extensions.connection_poll_commit import bump_config_generation
+
+    with db.conn.cursor() as cur:
+        bump_config_generation(cur, connection_id)
+
+
+def _advance_connection_state_version(db: Any, connection_id: str) -> None:
+    from core.application.extensions.connection_poll_commit import advance_state_version
+
+    with db.conn.cursor() as cur:
+        advance_state_version(cur, connection_id)
+
+
 def process_host_mutations(
     invocation: dict[str, Any],
     *,
@@ -245,6 +321,7 @@ def process_host_mutations(
     project_id: str,
     connection_id: str | None = None,
     extension_install_id: str | None = None,
+    poll_context: Any = None,
 ) -> dict[str, Any]:
     mutations = response_host_mutations(invocation)
     if not mutations:
@@ -327,6 +404,9 @@ def process_host_mutations(
                         raise ValueError("host_mutation_install_scope_mismatch")
                     if _text(existing.get("account_id")) != _text(account_id):
                         raise ValueError("host_mutation_account_scope_mismatch")
+                    versions_carried = _require_expected_poll_versions(
+                        payload, poll_context, transaction_db, existing_connection_id
+                    )
                     token_to_consume = _text(payload.get("consume_ingress_token"))
                     if token_to_consume:
                         consume = getattr(
@@ -377,6 +457,14 @@ def process_host_mutations(
                         extension_id=extension_id,
                         **carried,
                     )
+                    if poll_context is None and versions_carried:
+                        _advance_connection_state_version(transaction_db, existing_connection_id)
+                    if poll_context is None and _poll_mode_changed(
+                        extension,
+                        _as_dict(existing.get("ingress_config")),
+                        _as_dict(carried.get("ingress_config")),
+                    ):
+                        _bump_connection_generation(transaction_db, existing_connection_id)
                 elif kind == "notification_delivery_log":
                     delivery_payload = dict(payload)
                     delivery_payload.pop("project_id", None)
@@ -443,9 +531,13 @@ def process_project_state_updates(
     connection_id: str | None = None,
     actor_id: str | None = None,
     extension_install_id: str | None = None,
+    poll_context: Any = None,
 ) -> dict[str, Any]:
     """Apply a response's project-state updates and host mutations, then store
-    its ``resume_waits`` for waiting runs (ADR 0071) once both succeeded."""
+    its ``resume_waits`` for waiting runs (ADR 0071) once both succeeded.
+
+    ``poll_context`` (a ``ConnectionPollContext``) marks a connection poll whose
+    caller holds the connection row lock and has judged the result current."""
     result = _apply_project_state_updates(
         invocation,
         extension=extension,
@@ -456,6 +548,7 @@ def process_project_state_updates(
         connection_id=connection_id,
         actor_id=actor_id,
         extension_install_id=extension_install_id,
+        poll_context=poll_context,
     )
     if invocation.get("status") != "failed":
         from core.application.jobs.workflow_wait_event_delivery import deliver_wait_events
@@ -486,6 +579,7 @@ def _apply_project_state_updates(
     connection_id: str | None = None,
     actor_id: str | None = None,
     extension_install_id: str | None = None,
+    poll_context: Any = None,
 ) -> dict[str, Any]:
     updates = _response_project_state_updates(invocation)
     if not updates:
@@ -498,6 +592,7 @@ def _apply_project_state_updates(
             project_id=project_id,
             connection_id=connection_id,
             extension_install_id=extension_install_id,
+            poll_context=poll_context,
         )
         return {"applied": [], "errors": []}
     applied: list[dict[str, Any]] = []
@@ -645,6 +740,7 @@ def _apply_project_state_updates(
             project_id=project_id,
             connection_id=connection_id,
             extension_install_id=extension_install_id,
+            poll_context=poll_context,
         )
     return result
 

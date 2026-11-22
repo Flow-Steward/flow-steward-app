@@ -112,4 +112,51 @@ def build_worker_inbound_poll_response_processor(
     return process
 
 
-__all__ = ["build_worker_inbound_poll_response_processor"]
+def build_background_poll_ports() -> Any:
+    """Application use cases the worker's background poll loop calls."""
+    from core.application.extensions.background_poll_connection import (
+        clear_background_poll_skip,
+        ingress_defaults,
+        record_background_poll_skip,
+        resolve_background_poll_connection,
+    )
+    from core.infrastructure.runtime.worker.worker_inbound_polling import BackgroundPollPorts
+
+    return BackgroundPollPorts(
+        ingress_defaults=ingress_defaults,
+        resolve_connection=resolve_background_poll_connection,
+        record_skip=record_background_poll_skip,
+        clear_skip=clear_background_poll_skip,
+    )
+
+
+def build_provider_event_dispatch_sweep() -> Callable[[], Any] | None:
+    """The worker's periodic sweep of pending provider-event dispatch records."""
+    from core.application.workflows.provider_event_delivery import (
+        sweep_pending_provider_event_dispatches,
+    )
+    from core.infrastructure.db.platform_stores import (
+        PlatformInboundPollingStore,
+        resolve_observability_dsn,
+    )
+
+    dsn = resolve_observability_dsn(
+        str(CONFIG.get("fs_observability_dsn") or CONFIG.get("fs_db_dsn") or "")
+    )
+    if not dsn:
+        return None
+
+    def sweep() -> list[dict[str, Any]]:
+        with PlatformInboundPollingStore.dedicated(dsn) as bl:
+            return sweep_pending_provider_event_dispatches(
+                bl, enqueue_task_fn=create_enqueue_task_handler(get_logger=lambda: bl)
+            )
+
+    return sweep
+
+
+__all__ = [
+    "build_background_poll_ports",
+    "build_provider_event_dispatch_sweep",
+    "build_worker_inbound_poll_response_processor",
+]

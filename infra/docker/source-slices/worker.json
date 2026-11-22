@@ -65,6 +65,7 @@
     "core/application/extensions/artifact_presentation.py",
     "core/application/extensions/artifact_retention.py",
     "core/application/extensions/artifact_storage.py",
+    "core/application/extensions/background_poll_connection.py",
     "core/application/extensions/binding_cleanup_service.py",
     "core/application/extensions/binding_constants.py",
     "core/application/extensions/binding_context.py",
@@ -97,6 +98,7 @@
     "core/application/extensions/composite_actions.py",
     "core/application/extensions/connection_config_mutation.py",
     "core/application/extensions/connection_partition_validation.py",
+    "core/application/extensions/connection_poll_commit.py",
     "core/application/extensions/connection_viability.py",
     "core/application/extensions/data_migration_plan.py",
     "core/application/extensions/data_migrations.py",
@@ -735,9 +737,6 @@
     "core/application/tooling/db/bootstrap_seed.py",
     "core/application/tooling/testing/__init__.py",
     "core/application/tooling/testing/runtime_env.py",
-    "core/application/webhooks/__init__.py",
-    "core/application/webhooks/provider_delivery_repository.py",
-    "core/application/webhooks/signature_verifiers.py",
     "core/application/workflow_documents/__init__.py",
     "core/application/workflow_documents/report_compiler.py",
     "core/application/workflow_documents/report_definition.py",
@@ -782,6 +781,7 @@
     "core/application/workflows/platform_test_run_common.py",
     "core/application/workflows/platform_test_run_runtime.py",
     "core/application/workflows/project_credential_versions.py",
+    "core/application/workflows/provider_event_delivery.py",
     "core/application/workflows/provider_event_trigger_dispatch.py",
     "core/application/workflows/reaction_runtime.py",
     "core/application/workflows/reaction_scopes.py",
@@ -1278,6 +1278,14 @@
     },
     {
       "path": "db/migrations/20261120160100_local_password_history.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261122120000_user_authenticator_policy.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261122130000_connection_poll_delivery.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

@@ -169,6 +169,8 @@ class ProjectConnectionRepositoryMixin:
         payload["ingress_config"] = _as_dict(payload.get("ingress_config"))
         payload["workflow_mappings"] = _as_dict(payload.get("workflow_mappings"))
         payload["tags"] = _normalize_tags(payload.get("tags"))
+        payload["state_version"] = _coerce_int(payload.get("state_version"), 0)
+        payload["config_generation"] = _coerce_int(payload.get("config_generation"), 1)
         return payload
 
     def list_project_connections(
@@ -211,6 +213,7 @@ class ProjectConnectionRepositoryMixin:
                        enabled,
                        connection_config, secret_refs, connection_routes,
                        ingress_config, workflow_mappings,
+                       state_version, config_generation,
                        tags, created_at, updated_at
                 FROM project_connections
                 WHERE {conditions}
@@ -290,6 +293,7 @@ class ProjectConnectionRepositoryMixin:
                        enabled,
                        connection_config, secret_refs, connection_routes,
                        ingress_config, workflow_mappings,
+                       state_version, config_generation,
                        tags, created_at, updated_at
                 FROM project_connections
                 WHERE {conditions}

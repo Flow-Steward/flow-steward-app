@@ -402,6 +402,64 @@ class TestProjectConnectionService:
             "refs": {"bot_token": f"project_connection:{result.connection_id}:bot_token"}
         }
 
+    def test_create_connection_writes_declared_ingress_defaults(self, monkeypatch):
+        """A new connection carries its type's poll-mode default (off)."""
+        from core.application.extensions.install import ExtensionInstallStore
+
+        install_store = ExtensionInstallStore()
+        install = install_store.install(
+            extension_id="acme.notifier",
+            version="1.0.0",
+            account_id=DEFAULT_ACCOUNT_ID,
+        )
+        svc, bl = _make_service(install_store=install_store)
+        asked: list[dict] = []
+        monkeypatch.setattr(
+            svc,
+            "_extension_ingress_defaults",
+            lambda **kwargs: asked.append(kwargs) or {"inbound_mode": "off", "interval": 60},
+        )
+        inp = ProjectConnectionCreateInput(
+            extension_id="acme.notifier",
+            extension_install_id=install.install_id,
+            connection_config={"parse_mode": "HTML"},
+            secret_refs=["bot_token"],
+            ingress_config={"interval": 30},
+        )
+        bl._cursor_inner.execute = MagicMock()
+        svc.create_connection(1, inp, scope=_trusted_scope("operator"))
+        saved = bl.create_project_connection.call_args.args[0]
+        assert saved["ingress_config"] == {"inbound_mode": "off", "interval": 30}
+        assert asked[0]["extension_id"] == "acme.notifier"
+
+    def test_extension_ingress_defaults_read_the_connection_type_schema(self, monkeypatch):
+        svc, bl = _make_service()
+        monkeypatch.setattr(
+            svc,
+            "_extension_runtime_row",
+            lambda **_kwargs: {
+                "connection_types": [
+                    {
+                        "connection_type_id": "items_app",
+                        "ingress_schema": {
+                            "type": "object",
+                            "properties": {"sync_mode": {"default": "off"}},
+                        },
+                    },
+                    {"connection_type_id": "other_app"},
+                ]
+            },
+        )
+        assert svc._extension_ingress_defaults(
+            bl=bl, extension_id="acme.items", connection_type="items_app"
+        ) == {"sync_mode": "off"}
+        assert (
+            svc._extension_ingress_defaults(
+                bl=bl, extension_id="acme.items", connection_type="other_app"
+            )
+            == {}
+        )
+
     def test_fixture_oauth_connection_requires_exact_install_binding(self):
         svc, _ = _make_service()
 

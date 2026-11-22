@@ -363,6 +363,10 @@ class ProviderEventIngestInput(ViewModel):
     project_id: str
     result: dict[str, Any] = Field(default_factory=dict)
     events: list[dict[str, Any]] = Field(default_factory=list)
+    #: Set by a connection poll: the connection and config_generation the events
+    #: were polled under. Its events are stored once per source_id inside the
+    #: caller's poll transaction, and their workflow starts wait for its commit.
+    connection_poll: dict[str, Any] | None = None
 
 
 class ProviderEventIngestResultView(ViewModel):

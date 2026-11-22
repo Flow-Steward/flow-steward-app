@@ -313,6 +313,61 @@ class ProjectConnectionContract:
             if self._normalize_text(name)
         }
 
+    def _extension_ingress_defaults(
+        self,
+        *,
+        bl: Any,
+        extension_id: str | None,
+        connection_type: str = "",
+    ) -> dict[str, Any]:
+        """Declared ``ingress_schema`` defaults of the connection type (poll mode off)."""
+        normalized_extension_id = self._normalize_text(extension_id)
+        if not normalized_extension_id:
+            return {}
+        normalized_row = self._extension_runtime_row(bl=bl, extension_id=normalized_extension_id)
+        if not normalized_row:
+            return {}
+        from core.application.extensions.background_poll_connection import ingress_defaults
+
+        return ingress_defaults(normalized_row, connection_type)
+
+    def _extension_runtime_row(self, *, bl: Any, extension_id: str) -> dict[str, Any]:
+        normalized_extension_id = self._normalize_text(extension_id)
+        extension_row: dict[str, Any] = {}
+        if bl is not None and hasattr(bl, "get_extension"):
+            try:
+                candidate = bl.get_extension(normalized_extension_id)
+            except Exception:
+                candidate = None
+            if isinstance(candidate, dict):
+                extension_row = dict(candidate)
+        if not extension_row:
+            try:
+                from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+                    load_extension_from_filesystem,
+                )
+
+                candidate = load_extension_from_filesystem(normalized_extension_id)
+            except Exception:
+                candidate = None
+            if isinstance(candidate, dict):
+                extension_row = dict(candidate)
+        if not extension_row:
+            return {}
+        try:
+            from core.infrastructure.extension_runtime.extension_runtime import (
+                normalize_extension_row_for_runtime,
+            )
+
+            normalized_candidate = normalize_extension_row_for_runtime(extension_row)
+            return (
+                dict(normalized_candidate)
+                if isinstance(normalized_candidate, dict)
+                else dict(extension_row)
+            )
+        except Exception:
+            return dict(extension_row)
+
     def _extension_connection_schemas(
         self,
         *,

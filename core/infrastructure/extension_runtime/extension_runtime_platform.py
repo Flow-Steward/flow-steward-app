@@ -30,6 +30,20 @@ def _connection_partition_errors(
     return [str(error) for error in errors]
 
 
+def _background_interval_fields(extension: dict) -> frozenset[str]:
+    """Poll interval fields: changing one does not restart a poll's sync."""
+    compiled = _as_dict(extension.get("compiled_manifest"))
+    rows = extension.get("action_definitions") or compiled.get("action_definitions") or []
+    fields: set[str] = set()
+    for row in _as_list(rows):
+        background = _as_dict(_as_dict(_as_dict(row).get("contract")).get("background"))
+        if background.get("kind") == "connection_poll":
+            field = _string_or(background.get("interval_field"))
+            if field:
+                fields.add(field)
+    return frozenset(fields)
+
+
 def _connection_partition_schema(
     extension: dict,
     *,
@@ -543,10 +557,40 @@ def _run_platform_action(
                 response={"ok": False, "error": "project_connection_storage_unavailable"},
                 timeout_seconds=timeout_seconds,
             )
+        selected_connection_id = _string_or(
+            _as_dict(target).get("connection_id")
+            or _as_dict(_as_dict(target).get("connection")).get("connection_id")
+            or _as_dict(runtime_context).get("connection_id")
+        )
+        patch_connection_type = _string_or(config.get("connection_type_id"))
+        if selected_connection_id:
+            # The selected connection decides its own type; a patch that lists
+            # connection_type_ids applies only to connections of those types.
+            selected_row = _as_dict(
+                bl.get_project_connection(
+                    project_id=str(project_id),
+                    connection_id=selected_connection_id,
+                    extension_id=extension_id,
+                    enabled_only=False,
+                )
+            )
+            selected_type = _string_or(selected_row.get("connection_type"))
+            allowed_types = [
+                _string_or(item) for item in _as_list(config.get("connection_type_ids"))
+            ]
+            if not selected_row or (allowed_types and selected_type not in allowed_types):
+                return _platform_invocation_result(
+                    extension=extension,
+                    status="failed",
+                    detail="invalid_connection",
+                    response={"ok": False, "error": "invalid_connection"},
+                    timeout_seconds=timeout_seconds,
+                )
+            patch_connection_type = patch_connection_type or selected_type
         try:
             ingress_schema = _connection_partition_schema(
                 extension,
-                connection_type=_string_or(config.get("connection_type_id")),
+                connection_type=patch_connection_type,
                 partition="ingress",
                 runtime_context=runtime_context,
             )
@@ -557,6 +601,8 @@ def _run_platform_action(
         operation_result = _as_dict(
             operation_runner(
                 "ingress_patch",
+                connection_id=selected_connection_id,
+                generation_exempt_fields=_background_interval_fields(extension),
                 store=bl,
                 project_id=str(project_id),
                 extension_id=extension_id,
@@ -565,7 +611,7 @@ def _run_platform_action(
                 extension_install_id=_string_or(
                     _as_dict(runtime_context).get("extension_install_id")
                 ),
-                connection_type=_string_or(config.get("connection_type_id")),
+                connection_type=patch_connection_type,
                 account_id=_string_or(_as_dict(runtime_context).get("account_id")),
                 ingress_schema=ingress_schema,
             )

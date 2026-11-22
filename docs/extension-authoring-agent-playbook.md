@@ -1157,6 +1157,158 @@ Rules the host enforces:
 Document the event types and the key your extension uses on its workflow page or
 README, so workflow authors can fill `event_types` and `correlation_key`.
 
+## Background Connection Polls
+
+An extension can watch an external system and start workflows from what it finds
+there, without webhooks: the worker calls one of its actions in the background,
+once per interval and once per project connection. Any extension kind may do
+this, `tool_provider` included. The example below polls "items" from a service
+through two connection types: `items_user` (OAuth) and `items_app` (its own
+secret).
+
+### Declare the poll
+
+```yaml
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: items_user
+    auth: {type: oauth2, provider_id: items_oauth, scopes: {required: [items.read]}}
+    ingress_schema: &item_ingress
+      type: object
+      properties:
+        sync_mode: {type: string, enum: ["off", polling], default: "off"}
+        sync_scope: {type: string}
+        poll_interval_seconds: {type: integer, minimum: 30, default: 60}
+  - connection_type_id: items_app
+    config_schema: {type: object, required: [account_ref], properties: {account_ref: {type: string}}}
+    secret_schema: {type: object, required: [client_secret], properties: {client_secret: {type: string}}}
+    ingress_schema: *item_ingress
+
+# ui/actions/actions.yaml (excerpt)
+- action_id: poll_items
+  workflow_visible: false
+  connection_type_ids: [items_user, items_app]   # never called for other types
+  handler:
+    mode: extension
+    config:
+      runtime_resources: {project_connection: true, provider_key: acme.items}
+      host_mutations: [project_connection_upsert]
+  contract:
+    serialization: {resource: item_sync}          # one poll per connection at a time
+    background:
+      kind: connection_poll
+      interval_field: poll_interval_seconds
+      mode_field: sync_mode
+      transport_policy: webhook_preferred
+```
+
+- **Types.** With `connection_type_ids`, the worker calls the action only for
+  connections of those types. Without it the action runs for every connection of
+  the install and keeps the older `required_provider_secrets` check.
+- **Credentials per type.** Each call receives its connection resolved the way
+  operations receive it, in `target.connection`. An OAuth type gets a valid,
+  refreshed access token in `secrets`. Any other type gets its own connection
+  secrets, and must have every key its `secret_schema` lists as `required`.
+  - A connection that cannot be resolved is skipped before the call. A missing
+    secret is shown as `ingress_config.background_poll_status`; a revoked grant
+    stops polling until the connection is reconnected.
+  - A temporary token-refresh failure skips that one interval.
+- **Off by default.** A `default` in the type's `ingress_schema` is written into
+  `ingress_config` when the connection is created. A missing mode also counts as
+  that default. Declare `default: "off"` for the mode field, so a new connection
+  polls only after someone switches it on. The values `polling` and `auto` mean
+  on; anything else means off.
+
+### What the action receives
+
+`target.connection` has `connection_id`, `connection_type`, `config`, `secrets`,
+`ingress_config` (with declared defaults filled in), `state_version` and
+`config_generation`.
+
+- `state_version` moves on every saved poll state.
+- `config_generation` moves when what is polled changes:
+  - the connection is disabled, enabled, reconnected, or its settings change;
+  - a field written through `project_connection_ingress_patch` changes,
+    except the background `interval_field`;
+  - a `project_connection_upsert` outside a poll changes the `mode_field`.
+
+Store your sync state in `ingress_config` and keep the generation it belongs to
+inside it. When the generation you receive differs, start a new sync instead of
+continuing the old one.
+
+### What the action returns
+
+```json
+{
+  "ok": true,
+  "result": {"processed_updates": 2},
+  "events": [
+    {"event_type": "acme.item.created", "source_id": "acme:conn_1:item-17",
+     "payload": {"connection_id": "conn_1", "item_id": "item-17"}}
+  ],
+  "host_mutations": [
+    {"kind": "project_connection_upsert",
+     "payload": {"connection_id": "conn_1",
+                 "ingress_config": {"sync_mode": "polling", "item_sync": {"cursor": "c-42"}},
+                 "expected_state_version": 7,
+                 "expected_config_generation": 3}}
+  ]
+}
+```
+
+- `event_type` must be listed in the manifest's `supported_events`.
+- `source_id` is the event's stable identity. Make it unique per connection and
+  never reuse it, for example `<prefix>:<connection_id>:<immutable item id>`. An
+  event whose `source_id` was already stored is ignored: it starts nothing and
+  notifies nobody.
+- Echo the `state_version` and `config_generation` you received as
+  `expected_state_version` / `expected_config_generation`. The host never takes
+  them from you as truth. It compares them with what the poll started from and
+  refuses a state write that does not match.
+
+### What the host guarantees
+
+The result is committed in one transaction that locks the connection row: the
+events, one dispatch record per matching workflow trigger, and the cursor, all
+together.
+
+- **Exactly once.** One job per event and matching workflow, through crashes of
+  the worker or the host, repeated pages and two workers polling at once.
+  - A crash before the commit loses the whole result, so the next poll reads the
+    same page again.
+  - Each job is created in one transaction with its delivery record. Unfinished
+    records are retried by a sweep every 60 s.
+- **Stale results.** A result is judged against the connection as it is now.
+  - Another worker saved state meanwhile: the events are kept and the cursor is
+    dropped.
+  - The configuration changed, the connection was disabled or the mode switched
+    off: the events and the cursor are both dropped.
+- **Switch-off.** Once switching the poll off (or disabling the workflow trigger)
+  has committed, no new job starts for events that were still pending. A job
+  queued before it runs normally.
+
+### Settings form
+
+Let the user switch the poll on and off with the platform operation
+`project_connection_ingress_patch`. Send the selected connection as
+`target.connection_id`:
+
+```yaml
+- action_id: save_sync_settings
+  workflow_visible: false
+  connection_type_ids: [items_user, items_app]
+  handler:
+    mode: platform
+    operation: project_connection_ingress_patch
+    config:
+      connection_type_ids: [items_user, items_app]   # other types: invalid_connection
+      fields: [sync_mode, poll_interval_seconds, sync_scope]
+```
+
+The patch locks that connection, writes only the declared fields, validates them
+against the connection type's `ingress_schema`, and moves `config_generation`
+when a field other than the poll interval changes.
+
 ## Testing And Verification
 
 Every real extension should have both a smoke script and pytest coverage.

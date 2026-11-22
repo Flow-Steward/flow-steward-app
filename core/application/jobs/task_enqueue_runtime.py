@@ -470,6 +470,7 @@ def enqueue_task(
     fail_on_pre_publish_error: bool = False,
     artifact_plane=None,
     replay_snapshot: dict[str, Any] | None = None,
+    job_created_hook=None,
 ) -> int:
     dsn = config.get("fs_observability_dsn", "") or config.get("fs_db_dsn", "")
     if not dsn:
@@ -502,6 +503,7 @@ def enqueue_task(
         replay_snapshot=replay_snapshot,
         notification_dispatch_fn=dispatch_project_notification_event,
         notification_account_id=project_account_id_fn(bl, project_id),
+        job_created_hook=job_created_hook,
     )
 
 

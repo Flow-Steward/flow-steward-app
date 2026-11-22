@@ -453,7 +453,17 @@ class ProjectConnectionService(ProjectConnectionContract):
             connection_config=connection_config,
             secret_refs=sanitized_secret_refs,
             connection_routes=inp.connection_routes,
-            ingress_config=inp.ingress_config,
+            # The type's declared ingress defaults (a poll mode of "off")
+            # are written at creation, so a new connection polls only once
+            # someone switches it on.
+            ingress_config={
+                **self._extension_ingress_defaults(
+                    bl=bl,
+                    extension_id=runtime_payload["extension_id"],
+                    connection_type=resolved_connection_type,
+                ),
+                **dict(inp.ingress_config or {}),
+            },
             workflow_mappings=inp.workflow_mappings,
             tags=inp.tags,
         )

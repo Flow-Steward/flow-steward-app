@@ -467,11 +467,12 @@ class ExtensionOAuthRepository(OAuthConfigurationRepositoryMixin, OAuthStateRepo
                        oauth_provider_security_fingerprint,
                        oauth_provider_revocation_fingerprint,
                        enabled, health_status, runtime_status, last_seen_ok_at,
-                       last_error, connection_config, secret_refs
+                       last_error, connection_config, secret_refs, ingress_config
                    ) VALUES (
                        %s, %s, %s, %s, %s, %s, %s, 1, %s, %s, %s, %s, %s,
                        %s::jsonb, %s::jsonb, %s, %s, true, %s, %s,
-                       CASE WHEN %s THEN now() ELSE NULL END, %s, %s::jsonb, %s::jsonb
+                       CASE WHEN %s THEN now() ELSE NULL END, %s, %s::jsonb, %s::jsonb,
+                       %s::jsonb
                    )
                    RETURNING connection_id, project_id, extension_id, account_id,
                              display_name, connection_kind, connection_type,
@@ -506,6 +507,7 @@ class ExtensionOAuthRepository(OAuthConfigurationRepositoryMixin, OAuthStateRepo
                     values["last_error"],
                     _json_payload(values["connection_config"]),
                     _json_payload(values["secret_refs"]),
+                    _json_payload(values.get("ingress_config") or {}),
                 ),
             )
             return _row_to_dict(cur, cur.fetchone())

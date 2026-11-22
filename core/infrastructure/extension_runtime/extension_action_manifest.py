@@ -236,6 +236,13 @@ def _resolve_action_manifest(
                 "handler": _as_dict(row.get("handler") or row.get("runtime") or {}),
                 "command_type": str(row.get("command_type") or "").strip(),
                 "mutates_platform": bool(row.get("mutates_platform", False)),
+                # A connection_poll action is called only for connections of
+                # these types; the worker filters before any call.
+                **(
+                    {"connection_type_ids": _normalize_string_list(row["connection_type_ids"])}
+                    if isinstance(row.get("connection_type_ids"), list)
+                    else {}
+                ),
                 # Carried through compilation deliberately: the runtime reads the
                 # policy from the compiled action, so dropping it here would turn
                 # a declared protection off with nothing to notice.
