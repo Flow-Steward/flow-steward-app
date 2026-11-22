@@ -189,9 +189,12 @@ class OAuthConfigurationDeleteMixin:
             require_configuration_change_allowed,
         )
 
-        require_configuration_change_allowed(
-            self._repository, scope, configuration_id=str(configuration_id)
-        )
+        # Read in the service's own transaction, so the revocation below runs on an
+        # idle connection (a provider call never waits inside a database transaction).
+        with self._transaction_factory():
+            require_configuration_change_allowed(
+                self._repository, scope, configuration_id=str(configuration_id)
+            )
         prepared: _PreparedDelete
         with self._transaction_factory():
             prepared = self._prepare_configuration_delete(

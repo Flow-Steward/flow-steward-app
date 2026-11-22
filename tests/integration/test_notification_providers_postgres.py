@@ -10,6 +10,7 @@ point at that bundle.
 
 from __future__ import annotations
 
+import contextlib
 import copy
 import json
 import logging
@@ -1046,6 +1047,7 @@ def test_a_project_admin_cannot_edit_the_senders_oauth_configuration(world: Worl
     _choose(world, chosen)
     service = OAuthConfigurationService.__new__(OAuthConfigurationService)
     service._repository = world.store
+    service._transaction_factory = contextlib.nullcontext
 
     with pytest.raises(ServiceForbiddenError) as raised:
         service._save_configuration(

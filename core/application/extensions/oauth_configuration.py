@@ -494,9 +494,10 @@ class OAuthConfigurationService(OAuthConfigurationDeleteMixin):
                 require_configuration_change_allowed,
             )
 
-            require_configuration_change_allowed(
-                self._repository, scope, configuration_id=str(command.configuration_id)
-            )
+            with self._transaction_factory():
+                require_configuration_change_allowed(
+                    self._repository, scope, configuration_id=str(command.configuration_id)
+                )
         prepared = self._prepare(
             scope,
             install_id,

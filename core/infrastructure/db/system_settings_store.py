@@ -10,6 +10,48 @@ from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 from core.infrastructure.db.psycopg_runtime import errorcodes
 
+
+class _MappingCursor:
+    """A plain cursor whose rows come back as dicts, on either connection kind.
+
+    The platform connection takes psycopg2's ``cursor_factory``; a raw psycopg 3
+    connection (an OAuth callback's transaction, for one) does not. Settings are
+    read from both, so rows are mapped from the cursor description instead.
+    """
+
+    def __init__(self, cursor: Any) -> None:
+        self._cursor = cursor
+
+    def __enter__(self) -> _MappingCursor:
+        self._cursor.__enter__()
+        return self
+
+    def __exit__(self, *exc: Any) -> Any:
+        return self._cursor.__exit__(*exc)
+
+    def execute(self, *args: Any, **kwargs: Any) -> Any:
+        return self._cursor.execute(*args, **kwargs)
+
+    def _as_dict(self, row: Any) -> Any:
+        if row is None or isinstance(row, dict):
+            return row
+        names = [column[0] for column in (self._cursor.description or [])]
+        return dict(zip(names, row, strict=False))
+
+    def fetchone(self) -> Any:
+        return self._as_dict(self._cursor.fetchone())
+
+    def fetchall(self) -> list[Any]:
+        return [self._as_dict(row) for row in self._cursor.fetchall()]
+
+
+def _dict_cursor(conn: Any) -> Any:
+    try:
+        return conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor)
+    except TypeError:
+        return _MappingCursor(conn.cursor())
+
+
 RETENTION_SETTINGS_KEY = "retention_policy"
 SECURITY_POLICY_SETTINGS_KEY = "security_policy"
 SECURITY_POSTURE_LOOP_STATUS_KEY = "security_posture_loop_status"
@@ -102,7 +144,7 @@ def get_system_setting(
 ) -> dict[str, Any] | None:
     resolved_account_id = normalize_account_id(account_id)
     try:
-        with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+        with _dict_cursor(conn) as cur:
             cur.execute(
                 """
                 SELECT
@@ -166,7 +208,7 @@ def save_retention_settings(
     resolved_account_id = normalize_account_id(account_id)
     updated_by = str(actor or "system").strip() or "system"
     try:
-        with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+        with _dict_cursor(conn) as cur:
             cur.execute(
                 """
                 INSERT INTO system_settings (
@@ -228,7 +270,7 @@ def save_system_setting(
         raise ValueError("setting_key is required")
     actor = str(updated_by or "system").strip() or "system"
     try:
-        with conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+        with _dict_cursor(conn) as cur:
             cur.execute(
                 """
                 INSERT INTO system_settings (

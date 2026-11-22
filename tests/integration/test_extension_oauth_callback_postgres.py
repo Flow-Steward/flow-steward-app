@@ -1051,8 +1051,10 @@ def test_reconnect_post_connect_failure_clears_stale_verified_identity_and_keeps
     assert runtime_status == "unavailable"
     assert last_seen_ok_at == historical_last_seen
     assert last_error == "provider_unavailable"
+    # The bound account stays as the reconnect's constraint (a failed verification
+    # never repoints the connection); the unconfirmed identity details are dropped.
+    assert config["oauth"]["subject"] == "old-generic-subject"
     assert not {
-        "subject",
         "verified_display_name",
         "verified_email",
         "safe_metadata",
