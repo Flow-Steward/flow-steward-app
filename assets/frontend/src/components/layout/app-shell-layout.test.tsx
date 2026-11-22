@@ -115,8 +115,15 @@ describe("ShellLayout", () => {
     );
     expect(shellStyles).toMatch(/:root:has\(\.fs-shell-layout\[data-mobile-nav="open"\]\)\s*\{\s*overflow: hidden;/);
     // The menu button replaces the rail toggle there; the close button lives only there.
-    expect(shellStyles).toMatch(/@media \(width < theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-app-header__trigger--rail\s*\{\s*display: none;/);
-    expect(shellStyles).toMatch(/@media \(width >= theme\(--breakpoint-md\)\)\s*\{\s*\.fs-shell-sidebar-close,\s*\.fs-app-header__trigger--mobile\s*\{\s*display: none;/);
+    // The wrappers are hidden: `.fs-icon-button` restates display after these rules,
+    // so hiding the button itself would lose to it.
+    expect(shellStyles).toMatch(/@media \(width < theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-icon-button-wrap:has\(> \.fs-app-header__trigger--rail\)\s*\{\s*display: none;/);
+    expect(shellStyles).toMatch(/@media \(width >= theme\(--breakpoint-md\)\)\s*\{\s*\.fs-shell-sidebar-close,\s*\.fs-icon-button-wrap:has\(> \.fs-app-header__trigger--mobile\)\s*\{\s*display: none;/);
+    expect(shellStyles).not.toMatch(/^\s*\.fs-app-header__trigger--(rail|mobile)\s*\{\s*display: none;/m);
+    // The close button sits above the brand row and both drawer buttons are finger-sized.
+    expect(shellStyles).toMatch(/\.fs-shell-sidebar-close\s*\{[^}]*z-index: calc\(var\(--fs-z-local-sticky\) \+ 1\);/);
+    expect(shellStyles).toMatch(/\.fs-app-sidebar__brand-header\s*\{[^}]*z-index: var\(--fs-z-local-sticky\);/);
+    expect(shellStyles).toMatch(/\.fs-shell-sidebar-close \.fs-icon-button\.fs-app-header__trigger,\s*\.fs-app-header \.fs-icon-button\.fs-app-header__trigger--mobile\s*\{\s*width: var\(--fs-hit-target-touch\);\s*height: var\(--fs-hit-target-touch\);/);
     expect(shellStyles).toMatch(
       /@media \(width >= theme\(--breakpoint-md\)\)\s*\{[\s\S]*\.fs-shell-sidebar-frame\s*\{[\s\S]*position: fixed;[\s\S]*width: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);[\s\S]*\.fs-shell-inset\s*\{[\s\S]*margin-left: calc\(var\(--fs-shell-sidebar-width\) \+ 1px\);/,
     );

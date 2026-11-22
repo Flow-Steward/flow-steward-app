@@ -51,14 +51,22 @@
     overflow: hidden;
   }
 
+  /* Above the sidebar's brand row, which is itself raised to the local sticky layer. */
   .fs-shell-sidebar-close {
     position: absolute;
     top: 0;
     right: var(--fs-sidebar-logo-horizontal-padding);
-    z-index: 1;
+    z-index: calc(var(--fs-z-local-sticky) + 1);
     display: flex;
     align-items: center;
     height: var(--fs-sidebar-brand-height);
+  }
+
+  /* Finger-sized: the menu button and the drawer's close button. */
+  .fs-shell-sidebar-close .fs-icon-button.fs-app-header__trigger,
+  .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile {
+    width: var(--fs-hit-target-touch);
+    height: var(--fs-hit-target-touch);
   }
 
   .fs-shell-inset {
@@ -66,14 +74,15 @@
     margin-left: 0;
   }
 
-  .fs-app-header__trigger--rail {
+  /* The wrapper, not the button: `.fs-icon-button` sets its own display later in this file. */
+  .fs-icon-button-wrap:has(> .fs-app-header__trigger--rail) {
     display: none;
   }
 }
 
 @media (width >= theme(--breakpoint-md)) {
   .fs-shell-sidebar-close,
-  .fs-app-header__trigger--mobile {
+  .fs-icon-button-wrap:has(> .fs-app-header__trigger--mobile) {
     display: none;
   }
 }
