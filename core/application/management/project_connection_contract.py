@@ -632,9 +632,15 @@ class ProjectConnectionContract:
         )
 
         if config_schema:
+            from core.application.extensions.connection_partition_validation import (
+                extension_owned_partition,
+            )
+
+            # Core's own keys (an OAuth connection's oauth block) are not the
+            # extension's to declare.
             _json_schema_validate_value(
                 schema=config_schema,
-                value=normalized_config,
+                value=extension_owned_partition("config", normalized_config),
                 path="connection_config",
                 errors=errors,
             )

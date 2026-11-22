@@ -919,3 +919,144 @@ def test_host_mutation_batch_validates_before_any_write() -> None:
 
     assert invocation["detail"] == "host_mutation_provider_forbidden"
     db.log_notification_delivery.assert_not_called()
+
+
+def _oauth_connection_case(payload: dict) -> tuple[MagicMock, dict, dict]:
+    """An OAuth connection under closed schemas; Core keeps its own keys in both partitions."""
+    db = MagicMock()
+    db.get_project_connection.return_value = {
+        "connection_id": "conn_oauth",
+        "account_id": "acc_a",
+        "project_id": "project_1",
+        "extension_id": "acme.items",
+        "connection_kind": "extension",
+        "connection_type": "items_user",
+        "extension_install_id": "install_exact",
+        "enabled": True,
+        "connection_config": {
+            "account_ref": "a",
+            "oauth": {"lifecycle_status": "connected", "subject": "user-1"},
+        },
+        "secret_refs": {},
+        "connection_routes": [],
+        "ingress_config": {
+            "sync_mode": "polling",
+            "background_poll_status": {"status": "skipped", "reason": "x"},
+        },
+        "workflow_mappings": {},
+    }
+    invocation = {
+        "status": "succeeded",
+        "operation_type": "action",
+        "operation_id": "poll_items",
+        "response": {
+            "host_mutations": [
+                {
+                    "kind": "project_connection_upsert",
+                    "payload": {"connection_id": "conn_oauth", **payload},
+                }
+            ]
+        },
+    }
+    closed = {"type": "object", "additionalProperties": False}
+    extension = {
+        "extension_install_id": "install_exact",
+        "connection_types": [
+            {
+                "connection_type_id": "items_user",
+                "config_schema": {**closed, "properties": {"account_ref": {"type": "string"}}},
+                "ingress_schema": {
+                    **closed,
+                    "properties": {
+                        "sync_mode": {"type": "string"},
+                        "item_sync": {"type": "object"},
+                    },
+                },
+            }
+        ],
+        "install_metadata": {
+            "runtime_grants": {
+                "mutations": {"project_connection_upsert": {"scope": "owning_extension"}}
+            }
+        },
+        "action_definitions": [
+            {
+                "action_id": "poll_items",
+                "handler": {
+                    "mode": "extension",
+                    "config": {"host_mutations": ["project_connection_upsert"]},
+                },
+            }
+        ],
+    }
+    return db, invocation, extension
+
+
+def test_an_ingress_only_upsert_on_an_oauth_connection_passes_closed_schemas() -> None:
+    from core.application.extensions import response_envelope
+
+    db, invocation, extension = _oauth_connection_case(
+        {"ingress_config": {"sync_mode": "polling", "item_sync": {"cursor": "c-1"}}}
+    )
+
+    response_envelope.process_host_mutations(
+        invocation,
+        extension=extension,
+        extension_id="acme.items",
+        db=db,
+        account_id="acc_a",
+        project_id="project_1",
+        extension_install_id="install_exact",
+    )
+
+    assert invocation["status"] == "succeeded", invocation.get("detail")
+    saved = db.upsert_project_connection.call_args.kwargs
+    # Core's oauth block is kept, never judged by the extension's schema.
+    assert saved["connection_config"]["oauth"]["lifecycle_status"] == "connected"
+    assert saved["ingress_config"]["item_sync"] == {"cursor": "c-1"}
+
+
+def test_an_unknown_extension_config_key_is_still_refused() -> None:
+    from core.application.extensions import response_envelope
+
+    db, invocation, extension = _oauth_connection_case(
+        {"connection_config": {"account_ref": "a", "undeclared": "value"}}
+    )
+
+    response_envelope.process_host_mutations(
+        invocation,
+        extension=extension,
+        extension_id="acme.items",
+        db=db,
+        account_id="acc_a",
+        project_id="project_1",
+        extension_install_id="install_exact",
+    )
+
+    assert invocation["status"] == "failed"
+    assert invocation["detail"] == "invalid_payload"
+    db.upsert_project_connection.assert_not_called()
+
+
+def test_core_owned_keys_are_not_judged_by_any_partition_caller() -> None:
+    from core.application.extensions.connection_partition_validation import (
+        require_valid_connection_partitions,
+        validate_connection_partition,
+    )
+
+    _db, _invocation, extension = _oauth_connection_case({})
+    require_valid_connection_partitions(
+        extension,
+        connection_type="items_user",
+        connection_config={"account_ref": "a", "oauth": {"subject": "user-1"}},
+        ingress_config={"sync_mode": "polling", "background_poll_status": {"reason": "x"}},
+    )
+    assert (
+        validate_connection_partition(
+            extension, connection_type="items_user", partition="config", value={"oauth": {}}
+        )
+        == []
+    )
+    assert validate_connection_partition(
+        extension, connection_type="items_user", partition="config", value={"rogue": 1}
+    )
