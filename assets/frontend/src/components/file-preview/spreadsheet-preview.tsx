@@ -1,5 +1,5 @@
 /**
- * An XLSX, XLS or CSV file as a read-only table, one sheet per tab (ADR 0077).
+ * An XLSX, XLS or CSV file as a read-only table, one sheet per tab (ADR 0080).
  *
  * SheetJS Community Edition reads the file in the page. Formulas are never
  * calculated: a cell shows the value the spreadsheet saved with it, formatted

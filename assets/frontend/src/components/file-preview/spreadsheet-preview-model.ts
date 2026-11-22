@@ -1,4 +1,4 @@
-/** How much of a spreadsheet the preview draws (ADR 0077). */
+/** How much of a spreadsheet the preview draws (ADR 0080). */
 
 export const SPREADSHEET_PREVIEW_ROWS = 200;
 export const SPREADSHEET_PREVIEW_COLUMNS = 50;

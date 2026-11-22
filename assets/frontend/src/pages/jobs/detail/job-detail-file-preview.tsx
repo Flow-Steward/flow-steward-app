@@ -16,7 +16,7 @@ import { firstReadableText, safeLinkHref, type Entity } from "@/pages/jobs/detai
  *
  * Seeing the file where it was made is faster than downloading it to find out
  * it is the wrong one. The preview comes from the job's own preview endpoint and
- * is drawn by the page itself (ADR 0077), so a preview never runs anything: text
+ * is drawn by the page itself (ADR 0080), so a preview never runs anything: text
  * is shown as characters, Markdown and HTML included. A file above the preview
  * limit is offered as a download only.
  */

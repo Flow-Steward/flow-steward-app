@@ -153,7 +153,7 @@ export default defineConfig({
           if (!id.includes("node_modules")) {
             return undefined;
           }
-          // Document previewers (ADR 0077) load only when a preview opens, each
+          // Document previewers (ADR 0080) load only when a preview opens, each
           // with its library; none of them joins the shared vendor chunk.
           if (id.includes("/pdfjs-dist/")) {
             return "pdf-preview-vendor";

@@ -1,5 +1,5 @@
 /**
- * A Word (DOCX) document drawn by docx-preview inside a sandboxed frame (ADR 0077).
+ * A Word (DOCX) document drawn by docx-preview inside a sandboxed frame (ADR 0080).
  *
  * Two guards, each enough on its own for script:
  * - The frame is `sandbox="allow-same-origin"` without `allow-scripts`: nothing

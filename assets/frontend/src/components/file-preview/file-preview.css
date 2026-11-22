@@ -1,4 +1,4 @@
-/* Files previewed in the page (ADR 0077): text, PDF pages, sheets and Word documents. */
+/* Files previewed in the page (ADR 0080): text, PDF pages, sheets and Word documents. */
 .fs-file-preview {
   display: grid;
   gap: var(--fs-space-100);

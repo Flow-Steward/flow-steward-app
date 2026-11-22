@@ -32,7 +32,7 @@ import {
 
 /**
  * One original file at a time, with its preview, and paging through several.
- * The page draws the preview itself (ADR 0077), the browser's PDF viewer never.
+ * The page draws the preview itself (ADR 0080), the browser's PDF viewer never.
  */
 export function ReviewOriginal({ jobId, files }: Readonly<{ jobId: string; files: readonly ReviewFile[] }>) {
   const { t } = useI18n();

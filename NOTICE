@@ -7,7 +7,7 @@ contributors.
 The source code in this repository is licensed under the Apache License, Version 2.0.
 See the LICENSE file for details.
 
-Third-party components in the web UI document preview (ADR 0077)
+Third-party components in the web UI document preview (ADR 0080)
 -----------------------------------------------------------------
 
 The browser previews PDF, spreadsheet and Word files with these libraries,

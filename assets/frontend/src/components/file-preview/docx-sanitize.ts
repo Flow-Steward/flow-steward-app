@@ -1,5 +1,5 @@
 /**
- * What of a rendered Word document may reach the page (ADR 0077).
+ * What of a rendered Word document may reach the page (ADR 0080).
  *
  * docx-preview builds DOM nodes from the document's XML. Before they are shown,
  * every element outside the HTML, SVG and MathML a document needs is removed

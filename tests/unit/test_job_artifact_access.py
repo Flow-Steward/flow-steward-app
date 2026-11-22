@@ -422,7 +422,7 @@ def test_text_over_the_preview_limit_is_refused_without_reading_it(
 def test_documents_are_served_as_opaque_bytes_for_the_page_previewer(
     monkeypatch: pytest.MonkeyPatch, content_type: str, filename: str
 ) -> None:
-    """ADR 0077: the browser previews these itself, so they never open as a page."""
+    """ADR 0080: the browser previews these itself, so they never open as a page."""
     body = b"PK\x03\x04<html><script>alert(1)</script>"
     monkeypatch.setattr(
         dependencies, "_artifact_read_bytes", lambda _artifact_id, *, max_size_bytes: body

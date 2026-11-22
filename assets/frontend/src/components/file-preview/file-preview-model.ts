@@ -1,5 +1,5 @@
 /**
- * Which files the app previews in the browser, and where from (ADR 0077).
+ * Which files the app previews in the browser, and where from (ADR 0080).
  *
  * A declared type decides; the file name speaks only when the type is missing, so
  * a file declared as something else is never previewed because of its extension.

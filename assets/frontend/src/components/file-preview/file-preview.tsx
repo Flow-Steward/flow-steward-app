@@ -1,5 +1,5 @@
 /**
- * A file shown in the page itself (ADR 0077): an image, text as characters, or a
+ * A file shown in the page itself (ADR 0080): an image, text as characters, or a
  * PDF, spreadsheet or Word document drawn by a previewer the page runs. The
  * browser's own PDF viewer is never used: it differs between browsers, and the
  * in-app browser downloads PDFs instead of showing them.

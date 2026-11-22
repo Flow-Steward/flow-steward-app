@@ -70,7 +70,7 @@ _XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.
 _XLS_MEDIA_TYPE = "application/vnd.ms-excel"
 _CSV_MEDIA_TYPE = "text/csv"
 _DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-#: Spreadsheets and Word documents the browser previews itself (ADR 0077). They
+#: Spreadsheets and Word documents the browser previews itself (ADR 0080). They
 #: are read by the page as bytes, never rendered by the browser: served as an
 #: opaque attachment in a sandbox, whatever their declared type.
 _DOCUMENT_PREVIEW_TYPES = frozenset(
@@ -501,7 +501,7 @@ def register_job_detail_routes(router: APIRouter, dependencies: JobDetailRouteDe
         and connect policies do not allow. TXT, Markdown and JSON come back as UTF-8
         ``text/plain`` for the page to show as characters. XLSX, XLS, CSV and
         DOCX come back as opaque bytes that the page's own previewer reads
-        (ADR 0077); nothing is converted here.
+        (ADR 0080); nothing is converted here.
         """
         try:
             download = job_query_service().get_job_artifact_download(

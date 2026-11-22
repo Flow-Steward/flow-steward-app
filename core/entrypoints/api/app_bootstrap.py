@@ -263,7 +263,7 @@ def create_api_app_bootstrap_router(
                     "mode": installation_mode(),
                 },
                 # ADR 0075: the browser checks a real run's files against the same
-                # policy the server enforces, instead of a fixed size. ADR 0077: a
+                # policy the server enforces, instead of a fixed size. ADR 0080: a
                 # file over the preview limit is offered as a download only.
                 "limits": {
                     "run_upload": browser_run_upload_limits()

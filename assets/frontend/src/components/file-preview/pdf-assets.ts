@@ -1,5 +1,5 @@
 /**
- * pdf.js files served by the app itself, never by a CDN (ADR 0077): the worker,
+ * pdf.js files served by the app itself, never by a CDN (ADR 0080): the worker,
  * and the JavaScript image decoders pdf.js uses for JPEG 2000 and JBIG2 scans
  * when WebAssembly is off. The app's CSP does not allow compiling WebAssembly,
  * so the previewer turns it off and these decoders take over.

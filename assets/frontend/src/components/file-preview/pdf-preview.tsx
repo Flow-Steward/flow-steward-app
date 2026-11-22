@@ -1,5 +1,5 @@
 /**
- * A PDF drawn by pdf.js onto a canvas, one page at a time (ADR 0077).
+ * A PDF drawn by pdf.js onto a canvas, one page at a time (ADR 0080).
  *
  * Only the page picture is drawn: no annotation or form layer, no text layer,
  * no links, no document JavaScript (pdf.js runs scripts only through a
