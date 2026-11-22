@@ -37,3 +37,10 @@ describe("operator review page layout", () => {
     expect(operatorStyles).toMatch(/\.fs-operator-review-foot\s*\{\s*position:\s*sticky;\s*bottom:\s*0;/);
   });
 });
+
+describe("operator values that line up", () => {
+  it("keeps a corrected note apart from its value and row numbers level with their controls", () => {
+    expect(operatorStyles).toMatch(/\.fs-operator-decided-value\s*\{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*gap:\s*var\(--fs-space-075\) var\(--fs-space-150\);/);
+    expect(repeaterStyles).toMatch(/td\.fs-workflow-repeater-index\s*\{\s*line-height:\s*var\(--fs-input-height\);/);
+  });
+});

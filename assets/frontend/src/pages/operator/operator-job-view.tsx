@@ -253,16 +253,15 @@ function ReviewDecisionCard({ decision }: Readonly<{ decision: OperatorReviewDec
         name: field.name,
         label: field.label || field.name,
         value: (
-          <>
+          <span className="fs-operator-decided-value">
             {value}
             {change ? (
               <span className="fs-operator-corrected" data-testid={`decision-corrected-${field.name}`}>
-                {" "}
-                <DsBadge tone="orange">{t("react.operator_review.corrected", "Corrected")}</DsBadge>{" "}
-                {t("react.operator_review.was", "Was: {value}", { value: change.before === null || change.before === undefined ? "—" : typeof change.before === "object" ? JSON.stringify(change.before) : String(change.before) })}
+                <DsBadge tone="orange">{t("react.operator_review.corrected", "Corrected")}</DsBadge>
+                <span>{t("react.operator_review.was", "Was: {value}", { value: change.before === null || change.before === undefined ? "—" : typeof change.before === "object" ? JSON.stringify(change.before) : String(change.before) })}</span>
               </span>
             ) : null}
-          </>
+          </span>
         ),
       };
     });

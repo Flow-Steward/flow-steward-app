@@ -96,6 +96,13 @@
   white-space: nowrap;
 }
 
+/* The row number sits level with the row's controls, even when a field below it shows an error. */
+.fs-workflow-repeater-table td.fs-workflow-repeater-index {
+  line-height: var(--fs-input-height);
+  color: var(--fs-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .fs-workflow-file-list {
   display: grid;
   gap: var(--fs-space-050);

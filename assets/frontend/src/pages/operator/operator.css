@@ -264,7 +264,15 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--fs-space-050);
+  gap: var(--fs-space-075);
+}
+
+/* A decided value and its "Corrected · Was" note, apart rather than run together. */
+.fs-operator-decided-value {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-075) var(--fs-space-150);
 }
 
 
