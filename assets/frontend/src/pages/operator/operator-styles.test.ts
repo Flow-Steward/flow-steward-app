@@ -22,11 +22,11 @@ describe("operator job view at narrow width", () => {
 });
 
 describe("operator review page layout", () => {
-  it("fills the space under the header and any banner from lg up, each column scrolling, and stacks below", () => {
+  it("fills the space under the header and any banner from 80rem up, each column scrolling, and stacks below", () => {
     expect(operatorStyles).toMatch(/\.fs-shell-main:has\(\.fs-operator-review\)\s*\{\s*padding:\s*0;/);
     expect(operatorStyles).toMatch(/\.fs-operator-review\s*\{\s*display:\s*grid;\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
     expect(operatorStyles).toMatch(
-      /@media \(width >= 64rem\)\s*\{[^@]*\.fs-shell-inset:has\(\.fs-operator-review\)\s*\{\s*display:\s*flex;\s*flex-direction:\s*column;\s*height:\s*100dvh;/,
+      /@media \(width >= 80rem\)\s*\{[^@]*\.fs-shell-inset:has\(\.fs-operator-review\)\s*\{\s*display:\s*flex;\s*flex-direction:\s*column;\s*height:\s*100dvh;/,
     );
     expect(operatorStyles).toMatch(
       /\.fs-operator-review\s*\{\s*flex:\s*1 1 auto;\s*grid-template-columns:\s*minmax\(340px, 38%\) minmax\(0, 1fr\);\s*min-height:\s*0;/,

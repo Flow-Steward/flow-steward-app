@@ -50,9 +50,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The review page (ADR 0075): the original on the left, the fields on the
-   right. From lg up it fills the space under the header with no page padding,
-   each column scrolls on its own and the decision stays in the footer. */
+/* The review page (ADR 0075), edge to edge with no page padding: the original
+   above the fields, the decision sticky at the bottom. From 80rem up the two
+   sit side by side in the space under the header, each scrolling on its own. */
 .fs-shell-main:has(.fs-operator-review) {
   padding: 0;
 }
@@ -190,8 +190,8 @@
   gap: var(--fs-space-075);
 }
 
-/* lg, as the shell */
-@media (width >= 64rem) {
+/* Two columns once the panel beside the sidebar has room for its buttons. */
+@media (width >= 80rem) {
   /* The inset is the screen's height and the page takes what the header and
      any banner above it leave, whatever their height. */
   .fs-shell-inset:has(.fs-operator-review) {
