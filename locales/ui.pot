@@ -30036,3 +30036,51 @@ msgstr ""
 #: assets/frontend/src/pages/settings/email/index.tsx
 msgid "react.settings.system_email_stop_question"
 msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts assets/frontend/src/pages/extensions/extension-action-error-guidance.ts assets/frontend/src/pages/workflows/detail/detail-extension-connection.ts
+msgid "react.extensions.credentials_unavailable_configuration_removed_or_incomplete"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.choose_the_sign_in_configuration_this_connection_takes_its_credentials_from"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.the_chosen_sign_in_configuration_cannot_provide_this_connection_s_credentials"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.sign_in_configuration"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.no_sign_in_configuration_yet"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.this_connection_takes_its_credentials_from_a_sign_in_configuration_set_one_up_first"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.value0_incomplete"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.choose_a_sign_in_configuration"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.the_connection_signs_in_as_the_application_with_this_configuration_s_values"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-configuration-form.tsx
+msgid "react.extensions.oauth_runtime_credential_field_hint"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.oauth_delete_kept_credentials_connections"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.connections_kept"
+msgstr ""

@@ -865,6 +865,7 @@ CREATE TABLE public.project_connections (
     state_version bigint DEFAULT 0 NOT NULL,
     config_generation bigint DEFAULT 1 NOT NULL,
     sender_revision bigint DEFAULT 1 NOT NULL,
+    credentials_configuration_id uuid,
     CONSTRAINT project_connections_connection_kind_check CHECK ((connection_kind = ANY (ARRAY['extension'::text, 'mcp_connector'::text, 'extension_runtime'::text]))),
     CONSTRAINT project_connections_credential_revision_check CHECK ((credential_revision >= 1)),
     CONSTRAINT project_connections_extension_runtime_require_install_check CHECK (((connection_kind <> 'extension_runtime'::text) OR (COALESCE(extension_install_id, ''::text) <> ''::text))),

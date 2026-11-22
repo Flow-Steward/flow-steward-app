@@ -180,6 +180,7 @@ CREDENTIAL_FIELD_KEYS = {
     "placeholder",
     "required",
     "secret",
+    "usage",
     "validation",
     "value_type",
 }

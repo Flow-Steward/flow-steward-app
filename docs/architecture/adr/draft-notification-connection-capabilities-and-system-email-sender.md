@@ -1,4 +1,4 @@
-# ADR (number pending): Per-connection notification capabilities and an explicit system email sender
+# ADR (number pending): Per-connection notification capabilities, an explicit system email sender, and borrowed connection credentials
 
 Status: Proposed for 0.9.24. The number is assigned by the release coordinator;
 add the file to the ADR index under that number.
@@ -73,6 +73,16 @@ connection after the sender was chosen.
    every kept copy (invocation log and audit, effect ledger fingerprint, domain
    event ledger, delivery rows, error text, platform logs) holds a placeholder
    with length and hash.
+
+9. **Credentials from an OAuth configuration.** A non-OAuth connection type may
+   declare `credentials_from`; its connections store
+   `credentials_configuration_id` (a column of its own: `oauth_configuration_id`
+   means "holds its own grant") and receive the mapped values from the
+   configuration's current revision on every path that builds
+   `target.connection`. OAuth credential fields may be `usage: runtime`. A
+   deleted or incomplete configuration leaves the connection
+   `credentials_unavailable`; a change of it revokes a system sender's
+   confirmation.
 
 ## Consequences
 

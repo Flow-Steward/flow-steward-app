@@ -57,6 +57,7 @@
     "core/application/extensions/compiled_manifest_validation.py",
     "core/application/extensions/composite_actions.py",
     "core/application/extensions/connection_config_mutation.py",
+    "core/application/extensions/connection_credentials.py",
     "core/application/extensions/connection_partition_validation.py",
     "core/application/extensions/connection_poll_commit.py",
     "core/application/extensions/connection_viability.py",
@@ -745,6 +746,10 @@
     },
     {
       "path": "db/migrations/20261122140000_system_email_sender.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261122150000_connection_credentials_from.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

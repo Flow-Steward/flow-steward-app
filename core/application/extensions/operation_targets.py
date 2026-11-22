@@ -456,7 +456,7 @@ def _direct_action_connection_target(
             ) from exc
         if oauth_secrets:
             secrets.update(oauth_secrets)
-    return {
+    target = {
         "connection_id": str(connection.get("connection_id") or "").strip(),
         "account_id": str(connection.get("account_id") or "").strip(),
         "project_id": str(connection.get("project_id") or "").strip(),
@@ -468,6 +468,35 @@ def _direct_action_connection_target(
         "secret_refs": secret_refs,
         "secrets": secrets,
     }
+    return with_borrowed_credentials(bl, connection, target)
+
+
+def with_borrowed_credentials(
+    bl: Any, connection: dict[str, Any], target: dict[str, Any]
+) -> dict[str, Any]:
+    """*target* with the values its connection takes from an OAuth configuration.
+
+    Every path that builds ``target.connection`` calls this, so a rotated
+    configuration secret reaches each linked connection on its next call.
+    """
+    from core.application.extensions.connection_credentials import (
+        CredentialsUnavailable,
+        apply_borrowed_credentials,
+    )
+
+    try:
+        return apply_borrowed_credentials(bl, connection, target)
+    except CredentialsUnavailable as exc:
+        connection_id = str(connection.get("connection_id") or "").strip()
+        raise ServiceValidationError(
+            f"credentials_unavailable:{connection_id}",
+            payload={
+                "error": "credentials_unavailable",
+                "code": "credentials_unavailable",
+                "connection_id": connection_id,
+                "reason": exc.detail,
+            },
+        ) from None
 
 
 @dataclass(frozen=True)

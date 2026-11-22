@@ -186,10 +186,14 @@ _IDENTITY_SQL = """
            connection.oauth_granted_scopes, connection.enabled, connection.connection_config,
            connection.secret_refs, connection.connection_routes, connection.ingress_config,
            connection.workflow_mappings, connection.sender_revision,
+           connection.credentials_configuration_id::text AS credentials_configuration_id,
+           COALESCE(connection.oauth_configuration_id,
+                    connection.credentials_configuration_id)::text AS signing_configuration_id,
            configuration.configuration_revision
       FROM project_connections AS connection
       LEFT JOIN extension_oauth_configurations AS configuration
-        ON configuration.configuration_id = connection.oauth_configuration_id
+        ON configuration.configuration_id = COALESCE(
+               connection.oauth_configuration_id, connection.credentials_configuration_id)
        AND configuration.account_id = connection.account_id
      WHERE connection.connection_id = %s
 """
@@ -260,7 +264,9 @@ def _confirmation_for(row: dict[str, Any], *, source: str, actor: str) -> Sender
         extension_install_id=_text(row.get("extension_install_id")),
         connection_type=_text(row.get("connection_type")),
         sender_revision=_int(row.get("sender_revision")),
-        configuration_id=_text(row.get("oauth_configuration_id")),
+        # The OAuth configuration it signs in with: its own grant's, or the one
+        # it takes its credentials from (credentials_from).
+        configuration_id=_text(row.get("signing_configuration_id")),
         configuration_revision=_int(row.get("configuration_revision")),
         source=source,
         confirmed_by=actor,
@@ -360,7 +366,7 @@ def sender_status(bl: Any) -> SenderStatus:
     configuration_revision = _int(row.get("configuration_revision"))
     if (
         _int(row.get("sender_revision")) != setting.sender_revision
-        or _text(row.get("oauth_configuration_id")) != setting.configuration_id
+        or _text(row.get("signing_configuration_id")) != setting.configuration_id
         or configuration_revision != setting.configuration_revision
     ):
         return SenderStatus(
@@ -388,8 +394,8 @@ def admission_check(bl: Any, status: SenderStatus) -> str:
         not row
         or row.get("enabled") is not True
         or _int(row.get("sender_revision")) != _int(status.connection.get("sender_revision"))
-        or _text(row.get("oauth_configuration_id"))
-        != _text(status.connection.get("oauth_configuration_id"))
+        or _text(row.get("signing_configuration_id"))
+        != _text(status.connection.get("signing_configuration_id"))
         or _int(row.get("configuration_revision")) != status.configuration_revision
     ):
         return SYSTEM_SENDER_CHANGED
@@ -541,7 +547,7 @@ def require_configuration_change_allowed(bl: Any, scope: Any, *, configuration_i
     if setting is None or not setting.connection_id:
         return
     row = read_connection_identity(bl, setting.connection_id)
-    if _text(row.get("oauth_configuration_id")) != _text(configuration_id):
+    if _text(row.get("signing_configuration_id")) != _text(configuration_id):
         return
     raise ServiceForbiddenError(
         "The system email sender signs in with this OAuth configuration. Only a "

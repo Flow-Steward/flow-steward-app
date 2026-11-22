@@ -31526,3 +31526,51 @@ msgstr "Stabdoma…"
 #: assets/frontend/src/pages/settings/email/index.tsx
 msgid "react.settings.system_email_stop_question"
 msgstr "Nebesiųsti sistemos el. pašto? Slaptažodžio atkūrimo laiškai ir kvietimai nebus siunčiami, o „Pamiršote slaptažodį?“ bus paslėpta."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts assets/frontend/src/pages/extensions/extension-action-error-guidance.ts assets/frontend/src/pages/workflows/detail/detail-extension-connection.ts
+msgid "react.extensions.credentials_unavailable_configuration_removed_or_incomplete"
+msgstr "Prisijungimo duomenys nepasiekiami: jo prisijungimo konfigūracija pašalinta arba neužbaigta."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.choose_the_sign_in_configuration_this_connection_takes_its_credentials_from"
+msgstr "Pasirinkite prisijungimo konfigūraciją, iš kurios šis ryšys ima prisijungimo duomenis."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.the_chosen_sign_in_configuration_cannot_provide_this_connection_s_credentials"
+msgstr "Pasirinkta prisijungimo konfigūracija negali pateikti šio ryšio prisijungimo duomenų. Ji pašalinta, priklauso kitam teikėjui arba jai trūksta privalomos reikšmės. Pasirinkite kitą konfigūraciją arba ją užbaikite."
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.sign_in_configuration"
+msgstr "Prisijungimo konfigūracija"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.no_sign_in_configuration_yet"
+msgstr "Prisijungimo konfigūracijos dar nėra"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.this_connection_takes_its_credentials_from_a_sign_in_configuration_set_one_up_first"
+msgstr "Šis ryšys prisijungimo duomenis ima iš prisijungimo konfigūracijos. Pirmiausia ją sukurkite teikėjo sąrankoje, tada grįžkite sukurti ryšio."
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.value0_incomplete"
+msgstr "{value0} (neužbaigta)"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.choose_a_sign_in_configuration"
+msgstr "Pasirinkite prisijungimo konfigūraciją"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.the_connection_signs_in_as_the_application_with_this_configuration_s_values"
+msgstr "Ryšys prisijungia kaip programa naudodamas šios konfigūracijos reikšmes; jų čia įvesti nereikia."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-configuration-form.tsx
+msgid "react.extensions.oauth_runtime_credential_field_hint"
+msgstr "Naudojama ryšių, kurie prisijungia kaip programa; prisijungimo metu nesiunčiama."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.oauth_delete_kept_credentials_connections"
+msgstr "Šie ryšiai prisijungimo duomenis ima iš šios konfigūracijos. Jie išsaugomi, bet neveiks, kol nebus susieti su kita konfigūracija."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.connections_kept"
+msgstr "Išsaugomi ryšiai"

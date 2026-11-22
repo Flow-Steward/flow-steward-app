@@ -33,6 +33,9 @@ SKIP_SECRETS_MISSING = "connection_secrets_missing"
 SKIP_AUTHORIZATION_REQUIRED = "authorization_required"
 SKIP_REFRESH_UNAVAILABLE = "oauth_refresh_unavailable"
 SKIP_RESOLUTION_FAILED = "connection_resolution_failed"
+#: The connection takes its credentials from an OAuth configuration that is gone
+#: or incomplete (``credentials_from``).
+SKIP_CREDENTIALS_UNAVAILABLE = "credentials_unavailable"
 
 
 def _text(value: Any) -> str:
@@ -130,6 +133,8 @@ def resolve_background_poll_connection(
         )
     except ServiceError as exc:
         detail = str(exc)
+        if "credentials_unavailable" in detail:
+            return PollConnectionResolution(skip_reason=SKIP_CREDENTIALS_UNAVAILABLE, lasting=True)
         if any(code in detail for code in _PERMANENT_OAUTH_DENIALS):
             return PollConnectionResolution(skip_reason=SKIP_AUTHORIZATION_REQUIRED, lasting=True)
         if any(code in detail for code in _TEMPORARY_OAUTH_DENIALS):
@@ -199,6 +204,7 @@ def clear_background_poll_skip(bl: Any, *, connection_id: str) -> None:
 
 __all__ = [
     "SKIP_AUTHORIZATION_REQUIRED",
+    "SKIP_CREDENTIALS_UNAVAILABLE",
     "SKIP_REFRESH_UNAVAILABLE",
     "SKIP_RESOLUTION_FAILED",
     "SKIP_SECRETS_MISSING",

@@ -79,6 +79,28 @@ BOUND_TYPE = {
     },
 }
 FILES_TYPE = {"connection_type_id": "example_files"}
+#: An application connection that takes its client values from an OAuth configuration.
+APP_TYPE = {
+    "connection_type_id": "example_mail_app",
+    "notification": {"target_kind": "recipient", "ledger_channel": "email"},
+    "config_schema": {"type": "object", "properties": {"sender": {"type": "string"}}},
+    "credentials_from": {
+        "oauth_provider_id": "example_oauth",
+        "fields": {
+            "client_id": {"into": "config", "as": "client_id"},
+            "client_secret": {"into": "secrets", "as": "client_secret"},
+            "tenant_id": {"into": "config", "as": "tenant_id"},
+        },
+    },
+}
+OAUTH_PROVIDER = {
+    "provider_id": "example_oauth",
+    "credential_fields": [
+        {"field_id": "client_id", "secret": False, "required": True},
+        {"field_id": "client_secret", "secret": True, "required": True},
+        {"field_id": "tenant_id", "secret": False, "required": True, "usage": "runtime"},
+    ],
+}
 
 
 def _manifest(connection_types: list[dict[str, Any]]) -> dict[str, Any]:
@@ -106,6 +128,7 @@ def _manifest(connection_types: list[dict[str, Any]]) -> dict[str, Any]:
     return {
         "kind": "notification_provider",
         "connection_types": connection_types,
+        "oauth_providers": [OAUTH_PROVIDER],
         "external_effects": [effect],
         "operation_manifest": [operation],
     }
@@ -271,7 +294,10 @@ def world(disposable_db, tmp_path, monkeypatch) -> Iterator[World]:
     project_id, other_project_id = str(uuid4()), str(uuid4())
     installs = {
         "mixed": Installed(
-            EXT, str(uuid4()), tmp_path / "mixed", [MAIL_TYPE, CHAT_TYPE, BOUND_TYPE, FILES_TYPE]
+            EXT,
+            str(uuid4()),
+            tmp_path / "mixed",
+            [MAIL_TYPE, CHAT_TYPE, BOUND_TYPE, FILES_TYPE, APP_TYPE],
         ),
         "mixed_other": Installed(
             OTHER_EXT, str(uuid4()), tmp_path / "mixed_other", [MAIL_TYPE, CHAT_TYPE]
@@ -355,6 +381,17 @@ def world(disposable_db, tmp_path, monkeypatch) -> Iterator[World]:
                     if i.extension_key == extension_key and i.primary
                 ),
                 "",
+            ),
+        )
+        from core.application.extensions import connection_credentials
+
+        monkeypatch.setattr(
+            connection_credentials,
+            "_extension_for_connection",
+            lambda _bl, connection: (
+                registry[connection["extension_install_id"]].record()
+                if connection.get("extension_install_id") in registry
+                else {}
             ),
         )
         monkeypatch.setattr(
@@ -1294,3 +1331,253 @@ def test_no_system_message_body_reaches_any_log(world: World, caplog) -> None:
     assert reset_token not in kept
     assert change_token not in kept
     assert "<redacted length=" in kept
+
+
+# --------------------------------------------------------------------------- C5
+
+
+def _rotate(world: World, configuration_id: str, client_secret: str) -> None:
+    """Store a new client secret; the configuration's revision moves with it."""
+    from core.application.auth.secrets import encrypt_secret
+    from core.application.extensions.oauth_configuration_secrets import (
+        configuration_secret_ref_key,
+    )
+    from core.infrastructure.db import model_provider_store
+
+    with psycopg.connect(world.dsn, autocommit=True) as conn:
+        model_provider_store.upsert_secret_ref(
+            conn,
+            account_id=DEFAULT_ACCOUNT_ID,
+            ref_key=configuration_secret_ref_key(configuration_id, "client_secret"),
+            encrypted_value=encrypt_secret(client_secret),
+        )
+    world.sql(
+        "UPDATE extension_oauth_configurations SET configuration_revision = "
+        "configuration_revision + 1 WHERE configuration_id = %s",
+        (configuration_id,),
+    )
+
+
+def _app_configuration(world: World, *, client_secret: str = "app-secret-1") -> str:
+    """An OAuth configuration whose client values application connections borrow."""
+    from core.application.extensions.oauth_configuration_secrets import (
+        configuration_secret_ref_key,
+    )
+
+    configuration_id = _oauth_configuration(world)
+    world.sql(
+        "UPDATE extension_oauth_configurations SET non_secret_config = %s::jsonb, "
+        "secret_refs = %s::jsonb WHERE configuration_id = %s",
+        (
+            json.dumps({"client_id": "app-client", "tenant_id": "directory-1"}),
+            json.dumps(
+                {
+                    "refs": {
+                        "client_secret": configuration_secret_ref_key(
+                            configuration_id, "client_secret"
+                        )
+                    }
+                }
+            ),
+            configuration_id,
+        ),
+    )
+    _rotate(world, configuration_id, client_secret)
+    return configuration_id
+
+
+def _app_connection(world: World, name: str, configuration_id: str) -> str:
+    connection_id = _connection(
+        world, name, connection_type="example_mail_app", config={"sender": f"{name}@example.com"}
+    )
+    world.sql(
+        "UPDATE project_connections SET credentials_configuration_id = %s WHERE connection_id = %s",
+        (configuration_id, connection_id),
+    )
+    return connection_id
+
+
+def _sent_connection(request: dict[str, Any]) -> dict[str, Any]:
+    return request["action_payload"]["target"]["connection"]
+
+
+def test_two_connections_borrow_one_configuration_and_follow_a_rotation(world: World) -> None:
+    configuration_id = _app_configuration(world, client_secret="app-secret-1")
+    first = _app_connection(world, "billing", configuration_id)
+    second = _app_connection(world, "support", configuration_id)
+    routes = [
+        _route("billing", connection_id=first, to=["a@example.com"]),
+        _route("support", connection_id=second, to=["b@example.com"]),
+    ]
+
+    world.dispatch(routes, event_id="evt-borrow-1")
+    _rotate(world, configuration_id, "app-secret-2")
+    world.dispatch(routes, event_id="evt-borrow-2")
+
+    requests = world.mixed.requests()
+    before, after = requests[:2], requests[2:]
+    for request in before:
+        connection = _sent_connection(request)
+        assert connection["config"]["client_id"] == "app-client"
+        assert connection["config"]["tenant_id"] == "directory-1"
+        assert connection["config"]["sender"].endswith("@example.com")
+        assert connection["secrets"] == {"client_secret": "app-secret-1"}
+    # No connection was edited: the rotated secret reaches both on the next call.
+    assert [_sent_connection(request)["secrets"] for request in after] == [
+        {"client_secret": "app-secret-2"},
+        {"client_secret": "app-secret-2"},
+    ]
+    kept = json.dumps(
+        {"invocations": world.store.invocation_logs, "deliveries": world.store.delivery_logs},
+        default=str,
+    )
+    assert "app-secret-1" not in kept
+    assert "app-secret-2" not in kept
+
+
+def test_every_call_path_receives_the_borrowed_values(world: World) -> None:
+    from core.application.extensions.background_poll_connection import (
+        resolve_background_poll_connection,
+    )
+    from core.application.extensions.operation_targets import _direct_action_connection_target
+    from core.application.orchestration.connector_connection import (
+        _build_runtime_connection_target,
+    )
+
+    configuration_id = _app_configuration(world)
+    connection_id = _app_connection(world, "app", configuration_id)
+
+    # Operations, resource queries and setup or test actions all build
+    # target.connection through this one function.
+    operation = _direct_action_connection_target(
+        world.store,
+        connection_id=connection_id,
+        account_id=DEFAULT_ACCOUNT_ID,
+        project_id=world.project_id,
+        extension_id=EXT,
+        extension_install_id=world.mixed.install_id,
+    )
+    poll = resolve_background_poll_connection(
+        world.store,
+        connection_row=world.store.get_project_connection(connection_id=connection_id),
+        extension=world.mixed.record(),
+        extension_id=EXT,
+        extension_install_id=world.mixed.install_id,
+        account_id=DEFAULT_ACCOUNT_ID,
+        project_id=world.project_id,
+    )
+    connector, logged = _build_runtime_connection_target(
+        world.store,
+        connection_binding={"connection_id": connection_id},
+        runtime_context={"project_id": world.project_id, "account_id": DEFAULT_ACCOUNT_ID},
+        extension_id=EXT,
+    )
+    world.dispatch(
+        [_route("app", connection_id=connection_id, to=["a@example.com"])], event_id="evt-paths"
+    )
+    [delivery] = world.mixed.requests()
+
+    assert poll.ok, poll.skip_reason
+    for target in (operation, poll.connection, connector, _sent_connection(delivery)):
+        assert target["config"]["client_id"] == "app-client"
+        assert target["config"]["tenant_id"] == "directory-1"
+        assert target["secrets"]["client_secret"] == "app-secret-1"
+    assert logged["secrets"] == {"client_secret": "<redacted>"}
+
+
+def test_deleting_the_configuration_lists_and_then_strands_its_linked_connections(
+    world: World,
+) -> None:
+    from core.application.extensions.oauth_configuration import OAuthConfigurationService
+    from core.application.extensions.oauth_repository import ExtensionOAuthRepository
+    from core.application.management.command_services_project_connection import (
+        ProjectConnectionService,
+    )
+
+    configuration_id = _app_configuration(world)
+    first = _app_connection(world, "billing", configuration_id)
+    second = _app_connection(world, "support", configuration_id)
+    [(revision,)] = world.sql(
+        "SELECT configuration_revision FROM extension_oauth_configurations "
+        "WHERE configuration_id = %s",
+        (configuration_id,),
+    )
+    service = OAuthConfigurationService.__new__(OAuthConfigurationService)
+    service._repository = ExtensionOAuthRepository(world.store.conn)
+    service._confirmation_key = b"fixture-confirmation-key"
+    service._resolve_extension_id = lambda *_a, **_k: EXT
+    admin = ScopeContext(
+        account_id=DEFAULT_ACCOUNT_ID,
+        tenant_id=world.tenant_id,
+        project_id=world.project_id,
+        principal_type="admin",
+        actor_id="admin-user",
+    )
+
+    impact = service._preview_configuration_delete(
+        admin, world.mixed.install_id, "example_oauth", configuration_id, expected_revision=revision
+    )
+
+    assert {view.connection_id: view.link for view in impact.connections} == {
+        first: "credentials",
+        second: "credentials",
+    }
+    assert impact.requires_confirmation is True
+
+    world.sql(
+        "DELETE FROM extension_oauth_configurations WHERE configuration_id = %s",
+        (configuration_id,),
+    )
+    view = ProjectConnectionService(get_logger=lambda: world.store).get_connection(
+        first, project_id=world.project_id, scope=_scope("operator", project_id=world.project_id)
+    )
+    assert view.credentials_status == "credentials_unavailable"
+    assert view.runtime_status == "not_ready"
+    [row] = world.dispatch(
+        [_route("billing", connection_id=first, to=["a@example.com"])], event_id="evt-stranded"
+    )
+    assert row["status"] == "failed"
+    assert row["error_text"].startswith("credentials_unavailable")
+    assert world.mixed.requests() == []
+
+
+def test_no_borrowed_secret_reaches_the_connection_api_or_browser_manifest(world: World) -> None:
+    from core.application.extensions.browser_manifest_projection import project_browser_manifest
+    from core.application.management.command_services_project_connection import (
+        ProjectConnectionService,
+    )
+
+    configuration_id = _app_configuration(world, client_secret="never-shown-secret")
+    connection_id = _app_connection(world, "app", configuration_id)
+    view = ProjectConnectionService(get_logger=lambda: world.store).get_connection(
+        connection_id,
+        project_id=world.project_id,
+        scope=_scope("operator", project_id=world.project_id),
+    )
+    manifest = project_browser_manifest(world.mixed.record()["compiled_manifest"])
+
+    assert view.credentials_configuration_id == configuration_id
+    assert view.credentials_status == ""
+    assert "never-shown-secret" not in view.model_dump_json()
+    assert "never-shown-secret" not in json.dumps(manifest, default=str)
+
+
+def test_a_linked_configuration_change_revokes_the_system_sender_confirmation(
+    world: World,
+) -> None:
+    configuration_id = _app_configuration(world)
+    sender = _app_connection(world, "noreply", configuration_id)
+    _choose(world, sender)
+
+    _rotate(world, configuration_id, "rotated-secret")
+
+    assert system_email_sender.sender_status(world.store).reason == "confirmation_revoked"
+    system_email_sender.confirm_sender(world.store, PLATFORM_ADMIN)
+    assert _available(world) is True
+    # Moving the connection to another configuration is a sender change too.
+    other = _app_configuration(world)
+    world.sql(
+        "UPDATE project_connections SET credentials_configuration_id = %s WHERE connection_id = %s",
+        (other, sender),
+    )
+    assert system_email_sender.sender_status(world.store).reason == "confirmation_revoked"

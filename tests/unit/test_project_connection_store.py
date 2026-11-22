@@ -166,6 +166,7 @@ def test_platform_runtime_connection_query_keeps_extension_oauth_identity() -> N
         "tags": [],
         "state_version": 0,
         "config_generation": 1,
+        "credentials_configuration_id": "",
     }
     sql, _params = conn.calls[-1]
     assert "state_version, config_generation" in sql

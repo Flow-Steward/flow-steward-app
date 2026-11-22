@@ -29,7 +29,7 @@ import { gridColumnLink } from "@/pages/extensions/extension-grid-links";
 import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { DsAlert, DsBadge } from "@/components/shared/design-system";
+import { DsAlert, DsBadge, DsFormSelect } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
@@ -39,7 +39,13 @@ import { isSystemEmailSenderLocked } from "./system-email-sender";
 import { SystemEmailSenderNotice } from "./system-email-sender-notice";
 import { ConnectionStoredSecretField } from "./extension-connection-secret-catalog";
 import { connectionDataForValues, manifestFieldIsSecret, manifestFieldPath } from "./connection-form-support";
-import { manifestFieldName, renderManifestField } from "./extension-manifest-fields";
+import { manifestFieldControlId, manifestFieldName, renderManifestField } from "./extension-manifest-fields";
+import {
+  CREDENTIALS_CONFIGURATION_FIELD,
+  borrowedConnectionPaths,
+  chosenCredentialsConfigurationId,
+  type CredentialsConfigurationOptions,
+} from "./connection-credentials-from";
 import {
   connectionSaveLabel,
   connectionSelectedType,
@@ -57,6 +63,95 @@ import {
   pressManifestAction,
   type ManifestRenderContext,
 } from "./extension-manifest-render-model";
+
+/**
+ * The select for the OAuth configuration a `credentials_from` connection signs in
+ * with. Without a configuration yet, it says so and points to the provider setup.
+ */
+function renderCredentialsConfigurationField({
+  componentId,
+  invalidFieldPath,
+  invalidMessage,
+  onChange,
+  onOpenSetup,
+  options,
+  t,
+  value,
+}: Readonly<{
+  componentId: string;
+  invalidFieldPath: string;
+  invalidMessage: string;
+  onChange: (configurationId: string) => void;
+  onOpenSetup?: (setupPageId: string) => void;
+  options: CredentialsConfigurationOptions | undefined;
+  t: I18nContextValue["t"];
+  value: string;
+}>) {
+  const label = t("react.extensions.sign_in_configuration", "Sign-in configuration");
+  const controlId = manifestFieldControlId(componentId, CREDENTIALS_CONFIGURATION_FIELD);
+  const helpId = `${controlId}-help`;
+  const errorId = `${controlId}-error`;
+  const isInvalid = invalidFieldPath === CREDENTIALS_CONFIGURATION_FIELD;
+  const configurations = options?.configurations ?? [];
+  const setupPageId = options?.setupPageId ?? "";
+  if (options?.status === "error") {
+    return (
+      <div className="fs-field" key={CREDENTIALS_CONFIGURATION_FIELD}>
+        <p className="fs-field-helper error" role="alert">{t("react.extensions.configurations_could_not_be_loaded_try_again", "Configurations could not be loaded. Try again.")}</p>
+        {options.retry ? (
+          <button className="fs-button sm" onClick={options.retry} type="button">{t("react.extensions.retry_loading_configurations", "Retry loading configurations")}</button>
+        ) : null}
+      </div>
+    );
+  }
+  if (options?.status === "ready" && !configurations.length) {
+    return (
+      <div className="fs-field" key={CREDENTIALS_CONFIGURATION_FIELD}>
+        <DsAlert title={t("react.extensions.no_sign_in_configuration_yet", "No sign-in configuration yet")} tone="warning">
+          <p>{t("react.extensions.this_connection_takes_its_credentials_from_a_sign_in_configuration_set_one_up_first", "This connection takes its credentials from a sign-in configuration. Set one up in the provider setup first, then come back to create the connection.")}</p>
+          {setupPageId && onOpenSetup ? (
+            <button className="fs-button sm" onClick={() => onOpenSetup(setupPageId)} type="button">{t("react.extensions.open_provider_setup", "Open provider setup")}</button>
+          ) : null}
+        </DsAlert>
+        {isInvalid && invalidMessage ? <span className="fs-field-helper error" id={errorId}>{invalidMessage}</span> : null}
+      </div>
+    );
+  }
+  const describedBy = [isInvalid ? errorId : "", helpId].filter(Boolean).join(" ");
+  return (
+    <div className="fs-field" key={CREDENTIALS_CONFIGURATION_FIELD}>
+      <span className="fs-required-label">
+        <label className="fs-field-label" htmlFor={controlId}>{label}</label>
+        <span aria-hidden="true" className="fs-required">*</span>
+      </span>
+      <DsFormSelect
+        ariaLabel={label}
+        describedBy={describedBy}
+        disabled={options?.status !== "ready"}
+        id={controlId}
+        invalid={isInvalid}
+        name={CREDENTIALS_CONFIGURATION_FIELD}
+        onChange={onChange}
+        options={configurations.map((configuration) => ({
+          value: configuration.configuration_id,
+          label: configuration.status === "incomplete"
+            ? t("react.extensions.value0_incomplete", "{value0} (incomplete)", { value0: configuration.display_name || configuration.configuration_id })
+            : configuration.display_name || configuration.configuration_id,
+        }))}
+        placeholder={options?.status === "ready"
+          ? t("react.extensions.choose_a_sign_in_configuration", "Choose a sign-in configuration")
+          : t("react.extensions.loading_configurations", "Loading configurations…")}
+        required
+        value={value}
+      />
+      {isInvalid && invalidMessage ? <span className="fs-field-helper error" id={errorId}>{invalidMessage}</span> : null}
+      <span className="fs-field-helper" id={helpId}>
+        {t("react.extensions.the_connection_signs_in_as_the_application_with_this_configuration_s_values", "The connection signs in as the application with this configuration's values; they are not entered here.")}
+      </span>
+    </div>
+  );
+}
+
 export function renderManifestComponent(
   component: Record<string, unknown>,
   context: ManifestRenderContext, t: I18nContextValue["t"] = fallbackContext.t
@@ -244,10 +339,27 @@ export function renderManifestComponent(
       ...values,
       ...(connectionTypeField(data) ? { [connectionTypeField(data)]: selectedConnectionType } : {}),
     };
-    const activeFields = fields.filter((field) => fieldVisibleForValues(field, effectiveValues));
     const connectionType = stringFrom(
       selectedVariant.connection_type || selectedConnectionType || data.connection_type || component.connection_type,
     );
+    // A type that borrows its credentials shows only its own fields, plus the
+    // choice of the configuration it borrows them from.
+    const credentialsFrom = context.connectionCredentialsFrom?.[connectionType] ?? null;
+    const borrowedPaths = borrowedConnectionPaths(credentialsFrom);
+    const credentialsOptions = credentialsFrom
+      ? context.credentialsConfigurations?.[credentialsFrom.oauthProviderId]
+      : undefined;
+    if (credentialsFrom) {
+      effectiveValues[CREDENTIALS_CONFIGURATION_FIELD] = chosenCredentialsConfigurationId(
+        values,
+        credentialsOptions?.configurations ?? [],
+      );
+    }
+    const activeFields = fields.filter((field) =>
+      fieldVisibleForValues(field, effectiveValues) && !borrowedPaths.has(manifestFieldPath(field)));
+    const alertFields = credentialsFrom
+      ? [...activeFields, { path: CREDENTIALS_CONFIGURATION_FIELD }]
+      : activeFields;
     const effectiveData = {
       ...data,
       ...selectedVariant,
@@ -295,7 +407,7 @@ export function renderManifestComponent(
           </div>
           <span className="fs-manifest-meta">{rows.length}{" "}{t("react.workflows.configured", "configured")}</span>
         </div>
-        {!feedback && componentAlert(activeFields) ? <DsAlert title={componentAlert(activeFields)} tone="danger" /> : null}
+        {!feedback && componentAlert(alertFields) ? <DsAlert title={componentAlert(alertFields)} tone="danger" /> : null}
         {rows.length ? (
           <div className="fs-manifest-list">
             {rows.map((row) =>
@@ -315,6 +427,18 @@ export function renderManifestComponent(
           {selectedLocked ? <SystemEmailSenderNotice row={selectedRow} /> : null}
           <fieldset className="contents" disabled={selectedLocked}>
           <div className="fs-manifest-fields">
+            {credentialsFrom ? renderCredentialsConfigurationField({
+              componentId,
+              invalidFieldPath,
+              invalidMessage: componentError,
+              onChange: (configurationId) => context.onFieldChange(componentId, CREDENTIALS_CONFIGURATION_FIELD, configurationId),
+              onOpenSetup: context.onNavigateToAnchor
+                ? (setupPageId) => context.onNavigateToAnchor?.(setupPageId, "")
+                : undefined,
+              options: credentialsOptions,
+              t,
+              value: stringFrom(effectiveValues[CREDENTIALS_CONFIGURATION_FIELD]),
+            }) : null}
             {activeFields.map((field) => {
               const rendered = renderManifestField({
                 componentId,

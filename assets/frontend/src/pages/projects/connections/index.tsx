@@ -12,6 +12,7 @@ import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
 import { ProjectSecretApprovals } from "@/pages/projects/connections/secret-approvals";
 import { SystemEmailSenderNotice } from "@/pages/extensions/system-email-sender-notice";
+import { credentialsUnavailable, credentialsUnavailableMessage } from "@/pages/extensions/connection-credentials-from";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 type ProjectConnectionsEditorProps = {
@@ -61,7 +62,10 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
             const connectionType = firstStringFromUnknownValue([connection.connection_type, ""]);
             const environment = firstStringFromUnknownValue([connection.environment, ""]);
             const lastSeenOkAt = firstStringFromUnknownValue([connection.last_seen_ok_at, ""]).trim();
-            const lastError = firstStringFromUnknownValue([connection.last_error, ""]).trim();
+            // A connection whose sign-in configuration is gone reports a code; say what it means.
+            const lastError = credentialsUnavailable(connection)
+              ? credentialsUnavailableMessage(t)
+              : firstStringFromUnknownValue([connection.last_error, ""]).trim();
             return (
               <div
                 className="fs-surface-radius border border-subtle fs-surface-inset px-3 py-3 text-sm fs-ink-secondary"

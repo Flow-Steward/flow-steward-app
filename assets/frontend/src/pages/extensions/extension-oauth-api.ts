@@ -43,6 +43,11 @@ export type OAuthConfigurationImpact = {
     connection_id: string;
     display_name?: string;
     connection_type?: string;
+    /**
+     * `oauth`: holds its own grant and is deleted with the configuration.
+     * `credentials`: takes its credentials from it and is kept. Absent means `oauth`.
+     */
+    link?: "oauth" | "credentials";
   }>;
   requires_confirmation: boolean;
   confirmation_token?: string;

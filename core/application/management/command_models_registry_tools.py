@@ -245,6 +245,8 @@ class ProjectConnectionCreateInput(ViewModel):
     ingress_config: dict[str, Any] = Field(default_factory=dict)
     workflow_mappings: dict[str, str] = Field(default_factory=dict)
     tags: list[str] = Field(default_factory=list)
+    #: The OAuth configuration a credentials_from connection type borrows from.
+    credentials_configuration_id: str | None = None
 
     @field_validator("extension_id", mode="before")
     @classmethod
@@ -290,6 +292,7 @@ class ProjectConnectionUpdateInput(ViewModel):
     ingress_config: dict[str, Any] | None = None
     workflow_mappings: dict[str, str] | None = None
     tags: list[str] | None = None
+    credentials_configuration_id: str | None = None
 
     @field_validator("extension_install_id", mode="before")
     @classmethod

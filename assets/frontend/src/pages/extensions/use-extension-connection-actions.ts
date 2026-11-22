@@ -42,6 +42,11 @@ import {
 } from "./connection-save";
 import { connectionSaveErrorMessage, errorFieldPath } from "./manifest-action-support";
 import { translatedExtensionActionErrorGuidance } from "./extension-action-error-guidance";
+import {
+  CREDENTIALS_CONFIGURATION_FIELD,
+  connectionCredentialsFromByType,
+  credentialsConfigurationSaveError,
+} from "./connection-credentials-from";
 
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
@@ -84,6 +89,7 @@ export function useExtensionConnectionActions(
     setStatusById,
     oauthConnectionTypes,
     activeManifestPage,
+    manifestQuery,
     projectStateQuery,
     oauthCallbackNotice,
     oauthCallbackConnection,
@@ -267,6 +273,10 @@ export function useExtensionConnectionActions(
       connection_id: stringFrom(row.connection_id),
       display_name: stringFrom(row.display_name),
       environment: stringFrom(row.environment),
+      // The OAuth configuration a connection borrows its credentials from.
+      ...(stringFrom(row.credentials_configuration_id)
+        ? { [CREDENTIALS_CONFIGURATION_FIELD]: stringFrom(row.credentials_configuration_id) }
+        : {}),
     };
     for (const field of listFromUnknown(component.fields)) {
       const path = manifestFieldPath(field);
@@ -402,6 +412,7 @@ export function useExtensionConnectionActions(
         const preparation = prepareConnectionSave({
           component,
           connectionMatchesCurrentInstall,
+          credentialsFromByType: connectionCredentialsFromByType(manifestQuery?.data),
           oauthConnectionTypes,
           projectConnections: projectConnectionsQuery.data,
           values,
@@ -465,6 +476,9 @@ export function useExtensionConnectionActions(
           handleConnectionSelect(component, {
             ...payload,
             connection_id: connectionId,
+            ...(preparation.credentialsFrom
+              ? { [CREDENTIALS_CONFIGURATION_FIELD]: preparation.credentialsConfigurationId }
+              : {}),
           }, true);
         }
       } catch (error) {
@@ -475,8 +489,10 @@ export function useExtensionConnectionActions(
           refetch: projectConnectionsQuery.refetch,
         });
         if (!isCurrentDraft()) return;
-        const message = connectionSaveErrorMessage(error, { oauthStartAttempted }, t);
-        const fieldPath = errorFieldPath(error);
+        // A refused sign-in configuration is shown beside its select.
+        const credentialsMessage = credentialsConfigurationSaveError(error, t);
+        const message = credentialsMessage || connectionSaveErrorMessage(error, { oauthStartAttempted }, t);
+        const fieldPath = credentialsMessage ? CREDENTIALS_CONFIGURATION_FIELD : errorFieldPath(error);
         setComponentError(component, message, fieldPath);
         // A field error is shown beside its field; repeating it beside Save says it twice.
         reportSaveFeedback(componentId, fieldPath ? undefined : { status: "error", message });

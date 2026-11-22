@@ -222,6 +222,16 @@ def _compile_oauth_provider_rows(
             required_value = field.get("required")
             secret_value = field.get("secret")
             browser_exposable_value = field.get("browser_exposable", False)
+            usage_value = field.get("usage", "exchange")
+            usage = _normalize_lower(usage_value) if isinstance(usage_value, str) else ""
+            if usage not in {"exchange", "runtime"}:
+                _error(
+                    errors,
+                    path=f"{field_path}.usage",
+                    message="credential field usage must be exchange or runtime",
+                    code="invalid_oauth_credential_field",
+                )
+                usage = "exchange"
             if not _valid_oauth_id(field_id):
                 _error(
                     errors,
@@ -330,6 +340,7 @@ def _compile_oauth_provider_rows(
                     autocomplete=autocomplete,
                     validation=normalized_validation,
                     browser_exposable=browser_exposable_value is True,
+                    usage=usage,
                 )
             )
 
@@ -444,6 +455,14 @@ def _compile_oauth_provider_rows(
                 message="A declared origin_binding must be used by at least one endpoint",
                 code="invalid_oauth_origin_binding",
             )
+        for field in credential_fields:
+            if field.runtime_only and field.field_id in {"client_id", "client_secret"}:
+                _error(
+                    errors,
+                    path=f"{path}.credential_fields",
+                    message=f"{field.field_id} is used by the authorization flow; it cannot be runtime-only",
+                    code="invalid_oauth_credential_field",
+                )
         client_id_fields = [field for field in credential_fields if field.field_id == "client_id"]
         if len(client_id_fields) != 1:
             _error(
@@ -468,10 +487,11 @@ def _compile_oauth_provider_rows(
             client_secret_fields = [
                 field for field in credential_fields if field.field_id == "client_secret"
             ]
+            # A runtime-only secret is never sent by the platform, so it needs no role.
             undeclared_secret_roles = [
                 field
                 for field in credential_fields
-                if field.secret and field.field_id != "client_secret"
+                if field.secret and field.field_id != "client_secret" and not field.runtime_only
             ]
             if undeclared_secret_roles:
                 _error(

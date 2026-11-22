@@ -512,6 +512,7 @@ BEGIN
         OR NEW.extension_id IS DISTINCT FROM OLD.extension_id
         OR NEW.project_id IS DISTINCT FROM OLD.project_id
         OR NEW.oauth_configuration_id IS DISTINCT FROM OLD.oauth_configuration_id
+        OR NEW.credentials_configuration_id IS DISTINCT FROM OLD.credentials_configuration_id
         OR NEW.oauth_provider_id IS DISTINCT FROM OLD.oauth_provider_id
         OR NEW.oauth_authorization_revision IS DISTINCT FROM OLD.oauth_authorization_revision
         OR (NEW.connection_config - 'oauth') IS DISTINCT FROM (OLD.connection_config - 'oauth')
@@ -561,3 +562,12 @@ CREATE TRIGGER trg_extension_oauth_configurations_revision
     BEFORE UPDATE ON public.extension_oauth_configurations
     FOR EACH ROW
     EXECUTE FUNCTION public.oauth_configuration_bump_revision();
+
+-- A connection type that authenticates as an application may take its client
+-- values from one OAuth configuration of its install (credentials_from). The
+-- link is its own column: oauth_configuration_id marks a connection that holds
+-- its own OAuth grant. No foreign key: a deleted configuration leaves the link
+-- in place, and the connection then reports credentials_unavailable.
+CREATE INDEX idx_project_connections_credentials_configuration
+    ON public.project_connections USING btree (credentials_configuration_id)
+    WHERE (credentials_configuration_id IS NOT NULL);

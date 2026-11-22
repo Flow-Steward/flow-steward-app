@@ -10,6 +10,7 @@ import {
   persistPreparedConnection,
   prepareConnectionSave,
 } from "./connection-save";
+import { RequiredFieldError } from "./manifest-action-support";
 
 vi.mock("@/pages/projects/connections/api", () => ({
   bindConnectionFieldSecret: vi.fn(),
@@ -206,5 +207,101 @@ describe("connection save of fields the form does not show", () => {
   it("keeps a config_fields value that is not a form field unless the form supplies one", () => {
     expect(prepare(editValues, { declareConfigFields: true, existing }).config.region).toBe("eu");
     expect(prepare({ ...editValues, region: "us" }, { declareConfigFields: true, existing }).config.region).toBe("us");
+  });
+});
+
+describe("connection save for a type that takes its credentials from an OAuth configuration", () => {
+  const appComponent = {
+    component_id: "app_connection",
+    type: "connection_form",
+    data: { connection_type: "example_app", required_secret_fields: ["client_secret"] },
+    fields: [
+      { path: "display_name", label: "Display name", widget: "text" },
+      { path: "site", label: "Site", widget: "text" },
+      { path: "client_secret", label: "Client secret", widget: "secret", required: true },
+    ],
+  };
+  const credentialsFromByType = {
+    example_app: {
+      oauthProviderId: "example_oauth",
+      fields: { client_secret: { into: "secrets" as const, as: "client_secret" } },
+    },
+  };
+
+  function payloadFor(values: Record<string, unknown>, projectConnections: unknown[] = []) {
+    const preparation = prepareConnectionSave({
+      component: appComponent,
+      connectionMatchesCurrentInstall: () => true,
+      credentialsFromByType,
+      oauthConnectionTypes: [],
+      projectConnections,
+      values,
+    });
+    return connectionPayloadForSave({
+      component: appComponent,
+      extensionInstallId: "install-1",
+      extensionKey: "example.app-extension",
+      fieldValues: preparation.fieldValues,
+      preparation,
+    });
+  }
+
+  it("creates the connection with the chosen configuration and asks for no borrowed secret", () => {
+    const payload = payloadFor({ display_name: "Reports", site: "main", credentials_configuration_id: "cfg-1" });
+
+    expect(payload).toEqual(expect.objectContaining({
+      connection_type: "example_app",
+      credentials_configuration_id: "cfg-1",
+      connection_config: { site: "main" },
+      secret_refs: { refs: {} },
+    }));
+  });
+
+  it("refuses to save until a configuration is chosen, naming the select", () => {
+    let refusal: unknown;
+    try {
+      payloadFor({ display_name: "Reports", site: "main" });
+    } catch (error) {
+      refusal = error;
+    }
+
+    expect(refusal).toBeInstanceOf(RequiredFieldError);
+    expect((refusal as RequiredFieldError).message).toBe("Choose the sign-in configuration this connection takes its credentials from.");
+    expect((refusal as RequiredFieldError).fieldPath).toBe("credentials_configuration_id");
+  });
+
+  it("sends the configuration on update only when it was switched", () => {
+    const existing = {
+      connection_id: "c1",
+      connection_type: "example_app",
+      credentials_configuration_id: "cfg-1",
+      connection_config: { site: "main" },
+    };
+
+    expect(payloadFor({ connection_id: "c1", site: "main", credentials_configuration_id: "cfg-1" }, [existing]))
+      .not.toHaveProperty("credentials_configuration_id");
+    expect(payloadFor({ connection_id: "c1", site: "main", credentials_configuration_id: "cfg-2" }, [existing]))
+      .toEqual(expect.objectContaining({ credentials_configuration_id: "cfg-2" }));
+  });
+
+  it("never sends a configuration for a type that borrows nothing", () => {
+    const preparation = prepareConnectionSave({
+      component,
+      connectionMatchesCurrentInstall: () => true,
+      credentialsFromByType,
+      oauthConnectionTypes: [],
+      projectConnections: [],
+      values: { display_name: "Main shop", api_token: "typed", credentials_configuration_id: "cfg-1" },
+    });
+    const payload = connectionPayloadForSave({
+      component,
+      extensionInstallId: "install-1",
+      extensionKey: "acme.shop",
+      fieldValues: preparation.fieldValues,
+      preparation,
+    });
+
+    expect(payload).not.toHaveProperty("credentials_configuration_id");
+    expect(payload.connection_config).not.toHaveProperty("credentials_configuration_id");
   });
 });

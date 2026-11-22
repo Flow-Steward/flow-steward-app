@@ -641,6 +641,7 @@ class OAuthConfigurationService:
             ),
             key=lambda item: str(item.get("connection_id") or ""),
         )
+        linked = self._linked_connections(configuration_id)
         views = [
             OAuthConfigurationConnectionImpact(
                 connection_id=str(item.get("connection_id") or ""),
@@ -648,9 +649,17 @@ class OAuthConfigurationService:
                 connection_type=str(item.get("connection_type") or ""),
             )
             for item in connections
+        ] + [
+            OAuthConfigurationConnectionImpact(
+                connection_id=str(item.get("connection_id") or ""),
+                display_name=str(item.get("display_name") or ""),
+                connection_type=str(item.get("connection_type") or ""),
+                link="credentials",
+            )
+            for item in linked
         ]
         views.sort(key=lambda item: item.connection_id)
-        requires_confirmation = bool(connections)
+        requires_confirmation = bool(connections or linked)
         list_bound_steps = getattr(
             self._repository, "list_workflow_steps_bound_to_connections", None
         )
@@ -676,7 +685,7 @@ class OAuthConfigurationService:
             configuration_id=configuration_id,
             expected_revision=expected_revision,
             changed_fields=["__delete__"],
-            change_policies=["reauthorization_required"] if connections else [],
+            change_policies=["reauthorization_required"] if connections or linked else [],
             connections=views,
             requires_confirmation=requires_confirmation,
             confirmation_token=_delete_confirmation_token(
@@ -687,11 +696,19 @@ class OAuthConfigurationService:
                 provider_id,
                 configuration_id,
                 expected_revision,
-                connections,
+                connections + linked,
             )
             if requires_confirmation
             else None,
         )
+
+    def _linked_connections(self, configuration_id: str) -> list[dict[str, Any]]:
+        """Connections that take their credentials from this configuration."""
+        if getattr(self._repository, "conn", None) is None:
+            return []
+        from core.application.extensions.connection_credentials import list_linked_connections
+
+        return list_linked_connections(self._repository, configuration_id=configuration_id)
 
     def delete_configuration(
         self,
@@ -820,7 +837,8 @@ class OAuthConfigurationService:
                     )
                     if prepared is not None:
                         revocations.append(prepared)
-        if connections:
+        linked = self._linked_connections(configuration_id)
+        if connections or linked:
             expected_confirmation = _delete_confirmation_token(
                 self._confirmation_key,
                 scope,
@@ -829,7 +847,7 @@ class OAuthConfigurationService:
                 provider_id,
                 configuration_id,
                 expected_revision,
-                connections,
+                connections + linked,
             )
             if not hmac.compare_digest(str(confirmation_token or ""), expected_confirmation):
                 impact = OAuthConfigurationImpact(
@@ -844,6 +862,15 @@ class OAuthConfigurationService:
                             connection_type=str(item.get("connection_type") or ""),
                         )
                         for item in connections
+                    ]
+                    + [
+                        OAuthConfigurationConnectionImpact(
+                            connection_id=str(item.get("connection_id") or ""),
+                            display_name=str(item.get("display_name") or ""),
+                            connection_type=str(item.get("connection_type") or ""),
+                            link="credentials",
+                        )
+                        for item in linked
                     ],
                     requires_confirmation=True,
                     confirmation_token=expected_confirmation,

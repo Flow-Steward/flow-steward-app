@@ -146,6 +146,7 @@ class ProjectConnectionService(ProjectConnectionContract):
             "health_status",
             "runtime_status",
             "last_error",
+            "credentials_configuration_id",
         ):
             payload[key] = self._normalize_text(payload.get(key))
 
@@ -429,6 +430,17 @@ class ProjectConnectionService(ProjectConnectionContract):
             ),
         )
 
+        credentials_configuration_id = self._credentials_link(
+            bl,
+            extension_id=runtime_payload["extension_id"],
+            connection_type=resolved_connection_type,
+            configuration_id=inp.credentials_configuration_id,
+            account_id=normalized_account_id,
+            project_id=str(project_id),
+            extension_install_id=runtime_payload["extension_install_id"],
+            required=True,
+        )
+
         conn = ProjectConnection(
             connection_id=connection_id,
             project_id=str(project_id),
@@ -480,6 +492,11 @@ class ProjectConnectionService(ProjectConnectionContract):
             ) from exc
 
         row = conn.model_dump(mode="json")
+        if credentials_configuration_id:
+            self._update_connection_row(
+                bl, connection_id, {"credentials_configuration_id": credentials_configuration_id}
+            )
+            row = self._get_connection_row(bl, connection_id) or row
         if catalog_bindings:
             self._bind_catalog_choices(
                 bl,
@@ -560,9 +577,34 @@ class ProjectConnectionService(ProjectConnectionContract):
             if val is not None:
                 updates[field] = val
 
-        if {"connection_config", "secret_refs", "connection_type", "extension_install_id"} & set(
-            updates
-        ) or ("enabled" in updates and bool(updates["enabled"]) != bool(existing.get("enabled"))):
+        if inp.credentials_configuration_id is not None:
+            updates["credentials_configuration_id"] = (
+                self._credentials_link(
+                    bl,
+                    extension_id=existing.get("extension_id"),
+                    connection_type=self._normalize_text(
+                        updates.get("connection_type", existing.get("connection_type"))
+                    ),
+                    configuration_id=inp.credentials_configuration_id,
+                    account_id=self._normalize_text(
+                        existing.get("account_id") or project.get("account_id")
+                    ),
+                    project_id=str(project_id),
+                    extension_install_id=self._normalize_text(existing.get("extension_install_id")),
+                    required=False,
+                )
+                or None
+            )
+
+        if {
+            "connection_config",
+            "secret_refs",
+            "connection_type",
+            "extension_install_id",
+            "credentials_configuration_id",
+        } & set(updates) or (
+            "enabled" in updates and bool(updates["enabled"]) != bool(existing.get("enabled"))
+        ):
             # The system email sender's identity is a platform administrator's call.
             from core.application.extensions.system_email_sender import (
                 require_sender_change_allowed,
@@ -881,6 +923,58 @@ class ProjectConnectionService(ProjectConnectionContract):
         rows = self._list_connection_rows(bl, project_id)
         return [ProjectConnectionView(**self._with_sender_flags(bl, scope, row)) for row in rows]
 
+    def _credentials_link(
+        self,
+        bl: Any,
+        *,
+        extension_id: Any,
+        connection_type: str,
+        configuration_id: str | None,
+        account_id: str,
+        project_id: str,
+        extension_install_id: str,
+        required: bool,
+    ) -> str:
+        """The OAuth configuration a credentials_from connection borrows from.
+
+        A type that declares ``credentials_from`` needs one on creation; any
+        other type may not have one.
+        """
+        from core.application.extensions.connection_credentials import (
+            credentials_from_spec,
+            validate_link,
+        )
+
+        normalized_extension_id = self._normalize_text(extension_id)
+        requested = self._normalize_text(configuration_id)
+        extension = (
+            self._extension_runtime_row(bl=bl, extension_id=normalized_extension_id)
+            if normalized_extension_id
+            else {}
+        )
+        spec = credentials_from_spec(extension, connection_type) if extension else None
+        if not requested:
+            if spec is not None and required:
+                raise ServiceValidationError(
+                    "Choose the OAuth configuration this connection takes its credentials from",
+                    payload={
+                        "error": "credentials_configuration_required",
+                        "code": "credentials_configuration_required",
+                        "oauth_provider_id": spec.provider_id,
+                    },
+                )
+            return ""
+        return validate_link(
+            bl,
+            extension=extension,
+            connection_type=connection_type,
+            configuration_id=requested,
+            account_id=account_id,
+            project_id=project_id,
+            extension_install_id=extension_install_id,
+            extension_id=normalized_extension_id,
+        )
+
     def _with_sender_flags(
         self, bl: Any, scope: ScopeContext, row: dict[str, Any] | None
     ) -> dict[str, Any]:
@@ -893,6 +987,15 @@ class ProjectConnectionService(ProjectConnectionContract):
         sender = is_system_sender(bl, self._normalize_text(payload.get("connection_id")))
         payload["system_email_sender"] = sender
         payload["system_email_sender_locked"] = sender and not is_platform_admin(scope)
+        if self._normalize_text(payload.get("credentials_configuration_id")):
+            from core.application.extensions.connection_credentials import credentials_status
+
+            status = credentials_status(bl, dict(row or {}))
+            payload["credentials_status"] = status
+            if status:
+                # Not ready until its OAuth configuration exists and is complete.
+                payload["runtime_status"] = "not_ready"
+                payload["last_error"] = status
         return payload
 
     def get_connection(

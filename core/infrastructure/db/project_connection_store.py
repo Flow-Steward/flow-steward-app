@@ -187,7 +187,8 @@ def get_project_connection_row(db: Any, connection_id: str) -> dict[str, Any] | 
                       oauth_provider_revocation_fingerprint, runtime_mode, remote_base_url,
                       health_status, runtime_status, last_seen_ok_at, last_error,
                       enabled, connection_config, secret_refs, connection_routes,
-                      ingress_config, workflow_mappings, tags, created_at, updated_at
+                      ingress_config, workflow_mappings, tags, created_at, updated_at,
+                      credentials_configuration_id::text AS credentials_configuration_id
                FROM project_connections
                WHERE connection_id = %s""",
             (connection_id,),
@@ -236,7 +237,8 @@ def get_project_connection_row_for_update(
                       oauth_provider_revocation_fingerprint, runtime_mode, remote_base_url,
                       health_status, runtime_status, last_seen_ok_at, last_error,
                       enabled, connection_config, secret_refs, connection_routes,
-                      ingress_config, workflow_mappings, tags, created_at, updated_at
+                      ingress_config, workflow_mappings, tags, created_at, updated_at,
+                      credentials_configuration_id::text AS credentials_configuration_id
                FROM project_connections
                WHERE connection_id = %s
                FOR UPDATE""",
@@ -258,7 +260,8 @@ def list_project_connection_rows(db: Any, project_id: Any) -> list[dict[str, Any
                       oauth_provider_revocation_fingerprint, runtime_mode, remote_base_url,
                       health_status, runtime_status, last_seen_ok_at, last_error,
                       enabled, connection_config, secret_refs, connection_routes,
-                      ingress_config, workflow_mappings, tags, created_at, updated_at
+                      ingress_config, workflow_mappings, tags, created_at, updated_at,
+                      credentials_configuration_id::text AS credentials_configuration_id
                FROM project_connections
                WHERE project_id = %s
                ORDER BY display_name, created_at""",
@@ -284,7 +287,8 @@ def list_extension_connection_rows_for_update(
                       oauth_provider_revocation_fingerprint, runtime_mode, remote_base_url,
                       health_status, runtime_status, last_seen_ok_at, last_error,
                       enabled, connection_config, secret_refs, connection_routes,
-                      ingress_config, workflow_mappings, tags, created_at, updated_at
+                      ingress_config, workflow_mappings, tags, created_at, updated_at,
+                      credentials_configuration_id::text AS credentials_configuration_id
                FROM project_connections
                WHERE extension_id = %s
                  AND connection_type = %s
@@ -320,7 +324,8 @@ def list_project_extension_connection_rows_for_update(
                       oauth_provider_revocation_fingerprint, runtime_mode, remote_base_url,
                       health_status, runtime_status, last_seen_ok_at, last_error,
                       enabled, connection_config, secret_refs, connection_routes,
-                      ingress_config, workflow_mappings, tags, created_at, updated_at
+                      ingress_config, workflow_mappings, tags, created_at, updated_at,
+                      credentials_configuration_id::text AS credentials_configuration_id
                FROM project_connections
                WHERE project_id = %s
                  AND extension_id = %s

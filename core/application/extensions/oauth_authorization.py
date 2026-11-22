@@ -164,7 +164,8 @@ def require_authorizable_configuration(
     nested_refs = secret_refs.get("refs")
     secret_refs = nested_refs if isinstance(nested_refs, Mapping) else {}
     for field in provider.credential_fields:
-        if not field.required:
+        # A runtime-only field serves connections that borrow it, not this flow.
+        if not field.required or field.runtime_only:
             continue
         if field.secret:
             ref_key = str(secret_refs.get(field.field_id) or "").strip()

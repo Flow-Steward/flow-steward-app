@@ -128,6 +128,7 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("project_connections", "state_version"),
     ("project_connections", "config_generation"),
     ("project_connections", "sender_revision"),
+    ("project_connections", "credentials_configuration_id"),
     ("extension_oauth_configurations", "configuration_id"),
     ("extension_oauth_configurations", "tenant_id"),
     ("extension_oauth_configurations", "account_id"),

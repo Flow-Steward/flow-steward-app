@@ -80,6 +80,33 @@ record is `docs/architecture/adr/draft-notification-connection-capabilities-and-
   URL and the event has a job. It is left out of the effect fingerprint, so a
   changed base URL never conflicts with an earlier claim.
 
+### Credentials from an OAuth configuration (C5)
+
+- Manifest: a non-OAuth connection type may declare
+  `credentials_from: {oauth_provider_id, fields: {<field_id>: {into, as}}}`;
+  checked at build time (`extension_contract_references._validate_connection_type_credentials_from`).
+  OAuth `credential_fields` accept `usage: runtime` (never sent by the platform's
+  sign-in, not needed for authorization; published only when set, so existing
+  provider fingerprints do not change).
+- Schema: `project_connections.credentials_configuration_id` (no foreign key, so a
+  deleted configuration strands the link) with an index; the sender-revision
+  trigger counts a link change. Migration
+  `20261122150000_connection_credentials_from.sql`.
+- New `core/application/extensions/connection_credentials.py`: resolves the mapped
+  values from the configuration's current revision (secrets decrypted from their
+  configuration refs) and merges them into `target.connection`. Wired into
+  `operation_targets._direct_action_connection_target` (operations, resource
+  queries, dispatch actions, background polls), notification delivery and
+  connector steps (which now also use the shared OAuth resolver).
+- Connection create requires the link for such a type
+  (`credentials_configuration_required`), update can change it, and both refuse a
+  missing, foreign or incomplete configuration (`credentials_unavailable`).
+  Views carry `credentials_configuration_id` and `credentials_status`; an
+  unavailable link shows `runtime_status: not_ready`.
+- Configuration delete impact lists linked connections with
+  `link: credentials`; they are kept. The system email sender confirmation
+  tracks the borrowed configuration's revision.
+
 ### Frontend
 
 - Route dialog and workflow automation editor follow the selected connection
@@ -105,6 +132,9 @@ record is `docs/architecture/adr/draft-notification-connection-capabilities-and-
    absent. A fresh install pins "none".
 5. **The `payload_sensitive` flag is present only when true**, so fingerprints of
    existing events do not change.
+6. **The C5 link has its own column**, not `oauth_configuration_id`: that column
+   marks a connection holding its own grant, and the schema's OAuth metadata
+   check, token refresh, disconnect and reauthorization paths all act on it.
 
 ## Tests (Tier 1, Docker `fs-audit`)
 

@@ -31098,3 +31098,51 @@ msgstr "Stopping…"
 #: assets/frontend/src/pages/settings/email/index.tsx
 msgid "react.settings.system_email_stop_question"
 msgstr "Stop sending system email? Password resets and invitations are not sent, and Forgot password? is hidden."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts assets/frontend/src/pages/extensions/extension-action-error-guidance.ts assets/frontend/src/pages/workflows/detail/detail-extension-connection.ts
+msgid "react.extensions.credentials_unavailable_configuration_removed_or_incomplete"
+msgstr "Credentials unavailable: its sign-in configuration was removed or is incomplete."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.choose_the_sign_in_configuration_this_connection_takes_its_credentials_from"
+msgstr "Choose the sign-in configuration this connection takes its credentials from."
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.the_chosen_sign_in_configuration_cannot_provide_this_connection_s_credentials"
+msgstr "The chosen sign-in configuration cannot provide this connection's credentials. It was removed, belongs to another provider, or is missing a required value. Choose another configuration or complete it."
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.sign_in_configuration"
+msgstr "Sign-in configuration"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.no_sign_in_configuration_yet"
+msgstr "No sign-in configuration yet"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.this_connection_takes_its_credentials_from_a_sign_in_configuration_set_one_up_first"
+msgstr "This connection takes its credentials from a sign-in configuration. Set one up in the provider setup first, then come back to create the connection."
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.value0_incomplete"
+msgstr "{value0} (incomplete)"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.choose_a_sign_in_configuration"
+msgstr "Choose a sign-in configuration"
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.the_connection_signs_in_as_the_application_with_this_configuration_s_values"
+msgstr "The connection signs in as the application with this configuration's values; they are not entered here."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-configuration-form.tsx
+msgid "react.extensions.oauth_runtime_credential_field_hint"
+msgstr "Used by connections that sign in as the application; not sent during sign-in."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.oauth_delete_kept_credentials_connections"
+msgstr "These connections take their credentials from this configuration. They are kept but stop working until they are linked to another configuration."
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.connections_kept"
+msgstr "Connections kept"

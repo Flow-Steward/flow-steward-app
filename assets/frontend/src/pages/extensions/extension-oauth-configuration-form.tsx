@@ -414,8 +414,11 @@ export function OAuthConfigurationForm({
       {provider.credential_fields.map((field) => {
         const present = field.secret && secretPresent(configuration, field.field_id);
         const replacing = !present || replacingSecrets.has(field.field_id);
+        // A runtime value is for connections that sign in as the application.
+        const runtimeOnly = field.usage === "runtime";
         const describedBy = [
           `${controlId(field.field_id)}-help`,
+          runtimeOnly ? `${controlId(field.field_id)}-usage` : "",
           errors[field.field_id] ? errorId(field.field_id) : "",
         ].filter(Boolean).join(" ");
         return (
@@ -425,6 +428,11 @@ export function OAuthConfigurationForm({
               {field.required ? <span aria-hidden="true" className="fs-required">*</span> : null}
             </span>
             <p className="fs-field-helper" id={`${controlId(field.field_id)}-help`}>{field.help_text}</p>
+            {runtimeOnly ? (
+              <p className="fs-field-helper" id={`${controlId(field.field_id)}-usage`}>
+                {t("react.extensions.oauth_runtime_credential_field_hint", "Used by connections that sign in as the application; not sent during sign-in.")}
+              </p>
+            ) : null}
             <input
               aria-describedby={describedBy}
               aria-invalid={errors[field.field_id] ? "true" : undefined}

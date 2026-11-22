@@ -328,8 +328,12 @@ def build_notification_connection_target(
         "ingress_config": _as_dict(connection.get("ingress_config")),
         "workflow_mappings": _as_dict(connection.get("workflow_mappings")),
     }
+    from core.application.extensions.connection_credentials import apply_borrowed_credentials
+
+    # Values the connection takes from an OAuth configuration, at its current revision.
+    runtime_payload = apply_borrowed_credentials(bl, connection, runtime_payload)
     logged_payload = {key: value for key, value in runtime_payload.items() if key != "secrets"}
-    logged_payload["secrets"] = dict.fromkeys(secrets, "<redacted>")
+    logged_payload["secrets"] = dict.fromkeys(runtime_payload.get("secrets") or {}, "<redacted>")
     return runtime_payload, logged_payload
 
 

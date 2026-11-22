@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
 import { ConnectionSecretApprovalStatus } from "./extension-connection-secret-catalog";
+import { credentialsUnavailable, credentialsUnavailableMessage } from "./connection-credentials-from";
 import { isSystemEmailSenderLocked } from "./system-email-sender";
 import { SystemEmailSenderNotice } from "./system-email-sender-notice";
 import {
@@ -232,6 +233,9 @@ export function renderConnectionRow({
           rowId,
           runtime,
         })}
+        {credentialsUnavailable(row) ? (
+          <p className="fs-manifest-row-detail is-error">{credentialsUnavailableMessage(t)}</p>
+        ) : null}
         <ConnectionSecretApprovalStatus projectId={context.projectId} row={row} />
         <SystemEmailSenderNotice row={row} />
       </div>

@@ -9,6 +9,7 @@ const extensionActionErrorGuidanceByCode: Readonly<Record<string, (t: I18nContex
   authorization_required: (t) => t("react.extensions.authorization_required_for_action", "Authorize this connection, then retry the action."),
   invalid_configuration: (t) => t("react.extensions.invalid_connection_configuration", "Review the connection configuration and correct the highlighted values."),
   system_sender_locked: (t) => t("react.extensions.system_email_sender_locked", "Only a platform administrator can change the system email sender's connection."),
+  credentials_unavailable: (t) => t("react.extensions.credentials_unavailable_configuration_removed_or_incomplete", "Credentials unavailable: its sign-in configuration was removed or is incomplete."),
   secret_configuration_unapproved: (t) => t("react.extensions.connection_secrets_not_approved", "This connection uses stored secrets that are not approved for it yet. Approval is needed again after the connection changes. Choose Approve use of secrets on the connection's card, then run the action again."),
 };
 

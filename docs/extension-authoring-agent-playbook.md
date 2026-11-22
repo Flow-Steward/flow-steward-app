@@ -1479,6 +1479,67 @@ connection is a candidate when it is enabled, its install is an enabled
 - A system email arrives as a `system.*` event with `payload_sensitive: true`,
   `route_config.to`, `subject`, and the plain-text body in `event.payload.message`.
 
+## Credentials From An OAuth Configuration
+
+A connection type that authenticates as an application (your extension runs the
+client-credentials exchange itself) does not have to repeat the same client
+values on every connection. It can borrow them from one OAuth configuration of
+the same install and project:
+
+```yaml
+# contracts/oauth_providers.yaml (excerpt)
+oauth_providers:
+  - provider_id: example_oauth
+    credential_fields:
+      - {field_id: client_id, value_type: text, required: true, secret: false, ...}
+      - {field_id: client_secret, value_type: secret, required: true, secret: true, ...}
+      - field_id: tenant_id
+        value_type: text
+        required: true
+        secret: false
+        usage: runtime        # stored and shown, never sent during sign-in
+        ...
+
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: example_app
+    config_schema:
+      type: object
+      properties: {account_ref: {type: string}}   # the type's own fields only
+    credentials_from:
+      oauth_provider_id: example_oauth
+      fields:                      # credential field id -> place in target.connection
+        client_id: {into: config, as: client_id}
+        client_secret: {into: secrets, as: client_secret}
+        tenant_id: {into: config, as: tenant_id}
+```
+
+- `usage: runtime` marks a credential field the platform's own sign-in never sends
+  to the authorization or token endpoint (default `exchange`). It does not block a
+  configuration from being authorized. `client_id` and `client_secret` cannot be
+  runtime-only.
+- The build refuses an unknown provider, an unknown field, a secret field going
+  `into: config`, a mapped name that is also one of the type's own config or
+  secret fields, and `credentials_from` on an `auth.type: oauth2` type (which
+  holds its own grant).
+- The connection stores the chosen configuration. The connection form offers the
+  install's configurations for that provider in the project and preselects the
+  only one; it shows only the type's own fields. The configuration must be
+  complete; whether it has been authorized does not matter.
+- Every call receives the mapped values from the configuration's current revision
+  in `target.connection.config` and `target.connection.secrets`: operations,
+  resource queries, setup and test actions, background polls, connector steps and
+  notification deliveries. A rotated secret reaches every linked connection on its
+  next call, with no connection edit. Secret values never reach the browser or
+  logs.
+- Deleting the configuration lists its linked connections in the delete impact
+  (`link: credentials`). They are kept, and until they are linked to another
+  configuration they report `credentials_unavailable` and are not ready; calls
+  through them fail with `credentials_unavailable`.
+- For the system email sender, a change of the borrowed configuration (a secret
+  rotation included) revokes the sender's confirmation until a platform
+  administrator confirms again.
+
 ## Testing And Verification
 
 Every real extension should have both a smoke script and pytest coverage.
