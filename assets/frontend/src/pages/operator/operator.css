@@ -142,9 +142,9 @@
   margin: 0;
   color: var(--fs-text-primary);
   font-family: var(--ff-display);
-  font-size: var(--fs-card-title-size);
+  font-size: var(--fs-type-h2-size);
   font-weight: var(--fs-type-weight-medium);
-  line-height: var(--fs-type-h3-line-height);
+  line-height: var(--fs-type-h2-line-height);
 }
 
 .fs-operator-review-sub {
@@ -192,9 +192,25 @@
 
 /* lg, as the shell */
 @media (width >= 64rem) {
+  /* The inset is the screen's height and the page takes what the header and
+     any banner above it leave, whatever their height. */
+  .fs-shell-inset:has(.fs-operator-review) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  .fs-shell-main:has(.fs-operator-review) {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
   .fs-operator-review {
+    flex: 1 1 auto;
     grid-template-columns: minmax(340px, 38%) minmax(0, 1fr);
-    height: calc(100dvh - var(--fs-header-height));
+    min-height: 0;
     overflow: hidden;
   }
 

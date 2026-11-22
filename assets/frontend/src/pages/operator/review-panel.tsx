@@ -351,9 +351,9 @@ export function OperatorReviewPanel({
           </DsCard>
           {deciding ? (
             <DsCard className="min-w-0" title={t("jobs.detail.review.comment", "Comment")}>
-              <label className="fs-field min-w-0">
-                <span className="fs-sr-only">{t("jobs.detail.review.comment", "Comment")}</span>
+              <div className="fs-field min-w-0">
                 <textarea
+                  aria-label={t("jobs.detail.review.comment", "Comment")}
                   className="fs-textarea"
                   data-testid="review-comment"
                   disabled={Boolean(pending)}
@@ -363,7 +363,7 @@ export function OperatorReviewPanel({
                 <span className="fs-field-helper">
                   {t("jobs.detail.review.comment_rejection_requirement", "Required when rejecting. Optional when approving.")}
                 </span>
-              </label>
+              </div>
             </DsCard>
           ) : null}
         </div>
