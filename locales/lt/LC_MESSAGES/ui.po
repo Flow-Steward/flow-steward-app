@@ -31294,3 +31294,235 @@ msgstr "Darbo eigos maršruto parinkimas"
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr "Agentas"
+
+#: assets/frontend/src/pages/extensions/extension-action-error-guidance.ts
+msgid "react.extensions.system_email_sender_locked"
+msgstr "Sistemos el. pašto siuntėjo ryšį gali keisti tik platformos administratorius."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_required"
+msgstr "Pasirinkite ryšį, per kurį pristatomas maršrutas {route}: nuo jo priklauso, ar maršrutas skirtas gavėjams, ar kanalui."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_unavailable"
+msgstr "Ryšys {connection} negali perduoti maršruto {route}. Pasirinkite kitą ryšį."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_missing"
+msgstr "Trūksta ryšio"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_cannot_carry_routes"
+msgstr "Ryšys negali perduoti maršrutų"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_recipients"
+msgstr "{connection} (gavėjai)"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_channel"
+msgstr "{connection} (kanalas)"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.choose_a_connection_first"
+msgstr "Pirmiausia pasirinkite ryšį: nuo jo priklauso, ar šis maršrutas skirtas gavėjams, ar kanalui."
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection_cannot_carry_routes_choose_another"
+msgstr "Šis ryšys nebegali perduoti pranešimų maršrutų. Pasirinkite kitą ryšį."
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.channel_set_by_connection"
+msgstr "Kanalas (nustatytas ryšio)"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection"
+msgstr "Ryšys"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.select_connection"
+msgstr "Pasirinkite ryšį"
+
+#: assets/frontend/src/pages/settings/hub/index.tsx
+msgid "settings.tab.email"
+msgstr "El. paštas"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-core.ts
+msgid "react.workflows.automation_connection_required"
+msgstr "Pasirinkite ryšį."
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_no_connection_yet"
+msgstr "ryšys dar nepasirinktas"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection"
+msgstr "Ryšys"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_select_connection"
+msgstr "Pasirinkite ryšį"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_unavailable"
+msgstr "{connection} (nepasiekiamas)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_recipients"
+msgstr "{connection} (gavėjai)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_channel"
+msgstr "{connection} (kanalas)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_choose_connection_first"
+msgstr "Pirmiausia pasirinkite ryšį: nuo jo priklauso, ar šis pranešimas siunčiamas gavėjams, ar į kanalą."
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_channel_set_by_connection"
+msgstr "Kanalas (nustatytas ryšio)"
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_notice"
+msgstr "Naudojamas kaip sistemos el. pašto siuntėjas"
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_settings_link"
+msgstr "Nustatymai › El. paštas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_selected"
+msgstr "Siuntėjas nepasirinktas: platforma nesiunčia el. laiškų, o „Pamiršote slaptažodį?“ paslėpta."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_missing"
+msgstr "Siuntėjo ryšio nebėra. Pasirinkite kitą siuntėją."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_disabled"
+msgstr "Siuntėjo ryšys išjungtas. Įjunkite jį plėtinio puslapyje arba pasirinkite kitą siuntėją."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_install_unavailable"
+msgstr "Siuntėjo ryšio plėtinys nepasiekiamas. Įjunkite jį arba pasirinkite kitą siuntėją."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_recipient"
+msgstr "Siuntėjo ryšys negali siųsti laiškų el. pašto adresu. Pasirinkite kitą siuntėją."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_reconfirm"
+msgstr "Siuntėjo ryšys pasikeitė po patvirtinimo. Patvirtinkite jį dar kartą."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_unknown"
+msgstr "Sistemos el. paštas nepasiekiamas."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_candidate_label"
+msgstr "{project} · {connection} · {extension}"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_admin_required"
+msgstr "Sistemos el. pašto siuntėją gali tvarkyti tik platformos administratorius."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_save_failed"
+msgstr "Sistemos el. pašto siuntėjo pakeisti nepavyko."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_saved"
+msgstr "Sistemos el. pašto siuntėjas išsaugotas."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed"
+msgstr "Sistemos el. pašto siuntėjas patvirtintas."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_cleared"
+msgstr "Sistemos el. paštas išjungtas: siuntėjas nepasirinktas."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_current_unavailable"
+msgstr "{connection} (dabartinis, nepasiekiamas)"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_project"
+msgstr "Projektas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_connection"
+msgstr "Ryšys"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_extension"
+msgstr "Plėtinys"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed_at"
+msgstr "Patvirtinta"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_carried_over"
+msgstr "Perkelta atnaujinant, dar nepatvirtinta"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_load_failed"
+msgstr "Nepavyko įkelti sistemos el. pašto nustatymų"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_description"
+msgstr "Projekto ryšys, siunčiantis pačios platformos el. laiškus: slaptažodžio atkūrimo, kvietimų ir paskyros pranešimus."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sender"
+msgstr "Sistemos el. pašto siuntėjas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_loading"
+msgstr "Įkeliami sistemos el. pašto nustatymai…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sending"
+msgstr "Sistemos el. paštas siunčiamas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_not_sending"
+msgstr "Sistemos el. paštas nesiunčiamas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirming"
+msgstr "Tvirtinama…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirm_again"
+msgstr "Patvirtinti dar kartą"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_sender"
+msgstr "Siuntėjas"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_no_candidates"
+msgstr "Nė vienas projekto ryšys negali siųsti el. pašto. Pirmiausia projekte prijunkite el. paštą palaikantį plėtinį."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_select_sender"
+msgstr "Pasirinkite siuntėją"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_help"
+msgstr "Išsaugojus ryšys pasirenkamas ir patvirtinamas kaip siuntėjas."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop"
+msgstr "Nebesiųsti sistemos el. pašto"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stopping"
+msgstr "Stabdoma…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop_question"
+msgstr "Nebesiųsti sistemos el. pašto? Slaptažodžio atkūrimo laiškai ir kvietimai nebus siunčiami, o „Pamiršote slaptažodį?“ bus paslėpta."

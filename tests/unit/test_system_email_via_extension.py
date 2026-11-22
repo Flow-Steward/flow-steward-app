@@ -1,4 +1,9 @@
-"""System email and workflow emails go out through a connected email extension."""
+"""System email and workflow emails go out through a connected email extension.
+
+System email uses only the connection a platform administrator chose and
+confirmed (``system_email_sender``); its database behaviour is covered in
+``tests/integration/test_notification_providers_postgres.py``.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +15,7 @@ from core.application.auth.user_admin.notifications import (
     SIGNUP_DELIVERY_WARNING,
     notify_signup_non_blocking,
 )
-from core.application.extensions import system_email
+from core.application.extensions import system_email, system_email_sender
 from core.application.extensions.event_email import render_event_email
 from core.application.notifications import delivery as notification_delivery
 from core.application.notifications import dispatch as notification_dispatch
@@ -47,7 +52,7 @@ def _connection(connection_id: str, extension_id: str) -> dict[str, Any]:
     }
 
 
-def test_the_oldest_email_connection_is_used_and_chat_extensions_are_not() -> None:
+def test_the_upgrade_pin_picks_the_oldest_email_connection_as_the_old_rule_did() -> None:
     store = _Store(
         [
             _connection("chat-1", "acme.chat"),
@@ -62,11 +67,10 @@ def test_the_oldest_email_connection_is_used_and_chat_extensions_are_not() -> No
         },
     )
 
-    found = system_email.find_email_connection(store)
+    chosen = system_email_sender.legacy_sender_choice(store)
 
-    assert found is not None
-    assert found[0]["connection_id"] == "mail-old"
-    assert found[1] == "acme.mail"
+    assert chosen is not None
+    assert chosen["connection_id"] == "mail-old"
 
 
 @pytest.mark.parametrize(
@@ -76,13 +80,49 @@ def test_the_oldest_email_connection_is_used_and_chat_extensions_are_not() -> No
         _email_extension(kind="tool_provider"),
     ],
 )
-def test_a_disabled_or_non_notification_extension_sends_no_email(extension) -> None:
+def test_a_disabled_or_non_notification_extension_is_never_pinned(extension) -> None:
     store = _Store([_connection("mail", "acme.mail")], {"acme.mail": extension})
 
-    assert system_email.find_email_connection(store) is None
+    assert system_email_sender.legacy_sender_choice(store) is None
 
 
-def test_a_password_reset_is_delivered_through_the_connection(monkeypatch) -> None:
+def _available(connection: dict[str, Any]) -> system_email_sender.SenderStatus:
+    return system_email_sender.SenderStatus(
+        available=True,
+        setting=system_email_sender.SenderSetting(
+            connection_id=connection["connection_id"],
+            extension_install_id="install-mail",
+            connection_type="example_mail",
+            sender_revision=3,
+        ),
+        connection={
+            **connection,
+            "extension_install_id": "install-mail",
+            "connection_type": "example_mail",
+            "sender_revision": 3,
+        },
+        extension={"extension_key": "acme.mail", "extension_install_id": "install-mail"},
+    )
+
+
+@pytest.fixture
+def chosen_sender(monkeypatch):
+    status = _available(_connection("mail", "acme.mail"))
+    monkeypatch.setattr(system_email_sender, "sender_status", lambda _bl: status)
+    monkeypatch.setattr(
+        notification_delivery,
+        "build_notification_connection_target",
+        lambda _bl, connection: (
+            {"connection_id": connection["connection_id"], "config": {"from": "x"}, "secrets": {}},
+            {"connection_id": connection["connection_id"], "config": {"from": "x"}, "secrets": {}},
+        ),
+    )
+    return status
+
+
+def test_a_password_reset_is_delivered_through_the_chosen_connection(
+    monkeypatch, chosen_sender
+) -> None:
     sent: list[dict[str, Any]] = []
 
     def deliver(bl, **kwargs):
@@ -90,7 +130,6 @@ def test_a_password_reset_is_delivered_through_the_connection(monkeypatch) -> No
         return {"status": "delivered"}
 
     monkeypatch.setattr(notification_delivery, "deliver_direct_notification", deliver)
-    store = _Store([_connection("mail", "acme.mail")], {"acme.mail": _email_extension()})
 
     result = system_email.send_password_reset_email(
         recipient="Anna@Example.com",
@@ -98,7 +137,7 @@ def test_a_password_reset_is_delivered_through_the_connection(monkeypatch) -> No
         expires_in_minutes=30,
         username="Anna",
         locale="lt-LT",
-        bl=store,
+        bl=object(),
     )
 
     assert result == {"ok": True, "reason": "sent", "provider": "acme.mail"}
@@ -107,21 +146,56 @@ def test_a_password_reset_is_delivered_through_the_connection(monkeypatch) -> No
     assert sent[0]["subject"] == "Slaptažodžio atkūrimas"
     assert "https://fs.example/reset-password?token=t" in sent[0]["message"]
     assert sent[0]["connection"]["connection_id"] == "mail"
+    # The send is built from the checked read and admitted before the call.
+    assert sent[0]["prepared_target"].connection_id == "mail"
+    assert sent[0]["prepared_target"].runtime_connection["config"] == {"from": "x"}
+    assert callable(sent[0]["admission_check"])
+    assert sent[0]["payload_sensitive"] is True
 
 
-def test_a_failed_delivery_is_reported_without_raising(monkeypatch) -> None:
+def test_a_failed_delivery_is_reported_without_raising(monkeypatch, chosen_sender) -> None:
     monkeypatch.setattr(
         notification_delivery,
         "deliver_direct_notification",
         lambda bl, **kwargs: {"status": "failed", "error_text": "smtp refused"},
     )
-    store = _Store([_connection("mail", "acme.mail")], {"acme.mail": _email_extension()})
 
     result = system_email.send_signup_notification_email(
-        recipient="new@example.com", display_name="New", bl=store
+        recipient="new@example.com", display_name="New", bl=object()
     )
 
     assert result == {"ok": False, "reason": "send_failed", "provider": "acme.mail"}
+
+
+def test_a_sender_changed_before_admission_is_reported(monkeypatch, chosen_sender) -> None:
+    monkeypatch.setattr(
+        notification_delivery,
+        "deliver_direct_notification",
+        lambda bl, **kwargs: {"status": "failed", "error_text": "system_sender_changed"},
+    )
+
+    result = system_email.send_signup_notification_email(
+        recipient="new@example.com", display_name="New", bl=object()
+    )
+
+    assert result["reason"] == "system_sender_changed"
+
+
+def test_without_a_confirmed_sender_nothing_is_sent(monkeypatch) -> None:
+    monkeypatch.setattr(
+        system_email_sender,
+        "sender_status",
+        lambda _bl: system_email_sender.SenderStatus(available=False, reason="not_selected"),
+    )
+    monkeypatch.setattr(
+        notification_delivery,
+        "deliver_direct_notification",
+        lambda *_a, **_k: pytest.fail("no sender, no delivery"),
+    )
+
+    assert system_email.send_password_reset_email(
+        recipient="a@example.com", reset_url="u", expires_in_minutes=5, bl=object()
+    ) == {"ok": False, "reason": "disabled_or_unconfigured"}
 
 
 def test_an_invalid_recipient_is_refused_before_anything_is_sent() -> None:
@@ -145,23 +219,22 @@ def test_messages_fall_back_to_english_and_name_an_anonymous_reader() -> None:
     assert "15 minutes" in body
 
 
-def test_availability_is_cached_briefly() -> None:
+def test_availability_is_cached_briefly(monkeypatch) -> None:
     calls: list[int] = []
 
-    class _CountingStore(_Store):
-        def list_enabled_extension_connections(self) -> list[dict]:
-            calls.append(1)
-            return []
+    def status(_bl):
+        calls.append(1)
+        return system_email_sender.SenderStatus(available=False, reason="not_selected")
 
-    store = _CountingStore([], {})
+    monkeypatch.setattr(system_email_sender, "sender_status", status)
     ticks = iter([1000.0, 1010.0, 1040.0])
-    system_email._availability_cache.clear()
+    system_email_sender.clear_availability_cache()
 
-    assert system_email.system_email_available(store, clock=lambda: next(ticks)) is False
-    assert system_email.system_email_available(store, clock=lambda: next(ticks)) is False
-    assert system_email.system_email_available(store, clock=lambda: next(ticks)) is False
+    assert system_email.system_email_available(object(), clock=lambda: next(ticks)) is False
+    assert system_email.system_email_available(object(), clock=lambda: next(ticks)) is False
+    assert system_email.system_email_available(object(), clock=lambda: next(ticks)) is False
     assert len(calls) == 2
-    system_email._availability_cache.clear()
+    system_email_sender.clear_availability_cache()
 
 
 def test_no_email_extension_means_no_signup_warning_but_a_failed_send_warns() -> None:
@@ -224,19 +297,18 @@ def test_an_email_extension_gets_the_standard_text_and_a_chat_one_does_not() -> 
     event = {"event_type": "job.completed", "workflow_id": "wf", "payload": {"message": "hi"}}
 
     route_config: dict[str, Any] = {}
-    emailed = notification_delivery._with_standard_email(_email_extension(), event, route_config)
+    emailed = notification_delivery._with_standard_email("recipient", event, route_config)
     assert route_config["subject"] == "✅ Workflow completed: wf"
     assert emailed["payload"]["message"].startswith("✅ Workflow completed")
 
     kept_subject = {"subject": "Nightly report"}
-    notification_delivery._with_standard_email(_email_extension(), event, kept_subject)
+    notification_delivery._with_standard_email("recipient", event, kept_subject)
     assert kept_subject["subject"] == "Nightly report"
 
-    chat = _email_extension(external_effects=[{"observability": {"target_kind": "channel"}}])
-    assert notification_delivery._with_standard_email(chat, event, {}) is event
+    assert notification_delivery._with_standard_email("channel", event, {}) is event
 
     system = {"event_type": "system.password_reset", "payload": {"message": "reset"}}
-    assert notification_delivery._with_standard_email(_email_extension(), system, {}) is system
+    assert notification_delivery._with_standard_email("recipient", system, {}) is system
 
 
 @pytest.mark.parametrize(
@@ -288,10 +360,18 @@ def test_without_a_given_store_the_shared_integration_store_is_used(monkeypatch)
     monkeypatch.setattr(
         PlatformIntegrationStore, "get_shared_instance", classmethod(lambda cls: store)
     )
-    system_email._availability_cache.clear()
+    seen: list[Any] = []
+
+    def status(bl):
+        seen.append(bl)
+        return _available(_connection("mail", "acme.mail"))
+
+    monkeypatch.setattr(system_email_sender, "sender_status", status)
+    system_email_sender.clear_availability_cache()
 
     assert system_email.system_email_available() is True
-    system_email._availability_cache.clear()
+    assert seen == [store]
+    system_email_sender.clear_availability_cache()
 
 
 def test_the_integration_store_can_find_and_deliver() -> None:

@@ -30866,3 +30866,235 @@ msgstr "Workflow routing"
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr "Agent"
+
+#: assets/frontend/src/pages/extensions/extension-action-error-guidance.ts
+msgid "react.extensions.system_email_sender_locked"
+msgstr "Only a platform administrator can change the system email sender's connection."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_required"
+msgstr "Choose the connection route {route} delivers through: it decides whether the route addresses recipients or a channel."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_unavailable"
+msgstr "Connection {connection} cannot carry route {route}. Choose another connection."
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_missing"
+msgstr "Connection missing"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_cannot_carry_routes"
+msgstr "Connection cannot carry routes"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_recipients"
+msgstr "{connection} (recipients)"
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_channel"
+msgstr "{connection} (channel)"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.choose_a_connection_first"
+msgstr "Choose a connection first: it decides whether this route addresses recipients or a channel."
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection_cannot_carry_routes_choose_another"
+msgstr "This connection can no longer carry notification routes. Choose another connection."
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.channel_set_by_connection"
+msgstr "Channel (set by the connection)"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection"
+msgstr "Connection"
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.select_connection"
+msgstr "Select connection"
+
+#: assets/frontend/src/pages/settings/hub/index.tsx
+msgid "settings.tab.email"
+msgstr "Email"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-core.ts
+msgid "react.workflows.automation_connection_required"
+msgstr "Choose a connection."
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_no_connection_yet"
+msgstr "no connection yet"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection"
+msgstr "Connection"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_select_connection"
+msgstr "Select connection"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_unavailable"
+msgstr "{connection} (unavailable)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_recipients"
+msgstr "{connection} (recipients)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_channel"
+msgstr "{connection} (channel)"
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_choose_connection_first"
+msgstr "Choose a connection first: it decides whether this notification goes to recipients or a channel."
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_channel_set_by_connection"
+msgstr "Channel (set by the connection)"
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_notice"
+msgstr "Used as the system email sender"
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_settings_link"
+msgstr "Settings › Email"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_selected"
+msgstr "No sender is selected: the platform sends no email; Forgot password? is hidden."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_missing"
+msgstr "The sender's connection no longer exists. Choose another sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_disabled"
+msgstr "The sender's connection is disabled. Enable it on its extension page, or choose another sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_install_unavailable"
+msgstr "The extension behind the sender's connection is not available. Enable it, or choose another sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_recipient"
+msgstr "The sender's connection cannot send to an email address. Choose another sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_reconfirm"
+msgstr "The sender's connection changed since it was confirmed. Confirm it again."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_unknown"
+msgstr "System email is not available."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_candidate_label"
+msgstr "{project} · {connection} · {extension}"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_admin_required"
+msgstr "Only a platform administrator can manage the system email sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_save_failed"
+msgstr "The system email sender could not be changed."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_saved"
+msgstr "System email sender saved."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed"
+msgstr "System email sender confirmed."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_cleared"
+msgstr "System email is off: no sender is selected."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_current_unavailable"
+msgstr "{connection} (current, unavailable)"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_project"
+msgstr "Project"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_connection"
+msgstr "Connection"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_extension"
+msgstr "Extension"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed_at"
+msgstr "Confirmed"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_carried_over"
+msgstr "Carried over by an upgrade, not confirmed yet"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_load_failed"
+msgstr "System email settings could not be loaded"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_description"
+msgstr "The project connection that sends the platform's own email: password resets, invitations and account notices."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sender"
+msgstr "System email sender"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_loading"
+msgstr "Loading system email settings…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sending"
+msgstr "Sending system email"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_not_sending"
+msgstr "Not sending system email"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirming"
+msgstr "Confirming…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirm_again"
+msgstr "Confirm again"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_sender"
+msgstr "Sender"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_no_candidates"
+msgstr "No project connection can send email. Connect an email-capable extension in a project first."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_select_sender"
+msgstr "Select a sender"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_help"
+msgstr "Saving chooses the connection and confirms it as the sender."
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop"
+msgstr "Stop sending system email"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stopping"
+msgstr "Stopping…"
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop_question"
+msgstr "Stop sending system email? Password resets and invitations are not sent, and Forgot password? is hidden."

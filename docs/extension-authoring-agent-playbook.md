@@ -1309,6 +1309,176 @@ The patch locks that connection, writes only the declared fields, validates them
 against the connection type's `ingress_schema`, and moves `config_generation`
 when a field other than the poll interval changes.
 
+## Notification Providers
+
+A `notification_provider` extension delivers the platform's notifications:
+workflow events and approvals sent through a project's notification routes, and
+optionally the platform's own system email. It reserves one action,
+`deliver_notification(event, route)`, and declares it as one
+`message_delivery` external effect (`idempotency: required`,
+`test_mode_behavior: suppress`). The example below is a provider `example` that
+emails people through `example_mail` and posts to a chat through
+`example_chat` and `example_chat_bound`.
+
+### Single-kind and mixed providers
+
+The delivery effect's `channel` and `observability.target_kind` are the defaults
+for every connection. A connection type may override them for deliveries through
+that type with its own `notification` block:
+
+```yaml
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: example_mail
+    notification: {target_kind: recipient, ledger_channel: email}
+  - connection_type_id: example_chat
+    notification: {target_kind: channel, ledger_channel: chat}
+  - connection_type_id: example_chat_bound
+    config_schema:
+      type: object
+      properties: {channel_label: {type: string}}   # display only
+    notification:
+      target_kind: channel
+      ledger_channel: chat
+      channel_source: connection                    # bound to one channel
+  - connection_type_id: example_files               # no block: carries no routes
+```
+
+- `target_kind` is `recipient` or `channel`. It fixes the route's address fields:
+  a `recipient` route has `to` (required), `cc`, `bcc` and `subject`; a `channel`
+  route has `channel_id` (required; `channel` is accepted as an alias).
+- `ledger_channel` is the external-effect ledger channel and rate-limit bucket for
+  deliveries through the type (default: the effect's `channel`).
+- `channel_source: connection` (channel types only; default `route`) means the
+  connection itself is bound to one channel, for example a URL that posts to one
+  place. Its routes carry no `channel_id`; the connection config's display-only
+  `channel_label` is shown instead of a channel picker. A route that sends a
+  channel to such a connection is refused.
+- Once one type declares a block, only types that declare one can carry routes
+  or send system email.
+- A provider is *mixed* when its declared types address more than one target
+  kind. Every route of a mixed provider, and of a provider with a
+  `channel_source: connection` type, must name its connection
+  (`route_config.connection_id`); the platform never falls back to the project's
+  runtime connection for it.
+- The build refuses an unknown `target_kind`, `channel_source: connection` on a
+  recipient type, and a `notification` block in an extension that is not a
+  `notification_provider`.
+- A provider that declares no block behaves as it always did.
+
+When a route is saved, and again before each delivery, the platform checks that
+the route's connection exists, is enabled, belongs to the route's project and to
+the provider's install, is of a type with a `notification` block, and that the
+route's fields fit that type. A refusal is `notification_connection_required` or
+`notification_connection_incompatible`: a validation error on save, and a failed
+delivery that is not retried.
+
+### The delivery request
+
+Each delivery runs your action once with this request (a local provider: the
+host runs your extension process and writes the request to its stdin):
+
+```json
+{
+  "action": "deliver_notification",
+  "idempotency_key": "<the claimed effect's key>",
+  "external_effect_id": "<the claimed effect's id>",
+  "action_payload": {
+    "action_id": "deliver_notification",
+    "target": {
+      "connection": {
+        "connection_id": "conn_1",
+        "connection_type": "example_chat_bound",
+        "display_name": "Operations chat",
+        "config": {"channel_label": "Operations"},
+        "secrets": {"<name>": "<value>"}
+      }
+    }
+  },
+  "event": {
+    "event_id": "evt_1",
+    "event_type": "job.failed",
+    "severity": "error",
+    "summary": "Invoice sync failed",
+    "job_id": "job_7",
+    "run_url": "https://flowsteward.example.com/jobs/job_7",
+    "payload": {"summary": "Invoice sync failed", "error": "Timeout"}
+  },
+  "route": {
+    "route_id": "route_1",
+    "route_key": "ops",
+    "provider_key": "example",
+    "event_type": "*",
+    "severity": "any",
+    "route_config": {"connection_id": "conn_1"}
+  },
+  "provider": {"provider_key": "example", "integration_key": "example"},
+  "contract_version": "extension_host_v2",
+  "runtime_context": {"external_effect_id": "<the claimed effect's id>", "...": "..."}
+}
+```
+
+- `idempotency_key` and `external_effect_id` are top-level. Key your own write
+  with `idempotency_key`: a retry of the same delivery carries the same pair,
+  and another event, route or connection carries another key. If it is missing,
+  fail before any write.
+- `route.route_config` holds `connection_id`, plus `to`/`cc`/`bcc`/`subject` for
+  a recipient route, `channel_id` for a channel route, and neither for a
+  `channel_source: connection` route. For a recipient route the platform fills `subject` and
+  `event.payload.message` with its standard email text, unless the route set a
+  subject; a channel route gets the event as it is and formats its own message.
+- `event.run_url` is the platform page of the run the event is about (for an
+  approval, the approval's own run). It is present only when the platform knows
+  its public address and the event has a run, and it never carries a token. Link
+  to it instead of building the address yourself.
+- A repeat of a delivery that already succeeded is answered by the platform from
+  its ledger (`provider_message_id` included); your extension is not called again.
+  A failure that you mark `definitely_no_external_effect: true` and
+  `retryable: true` is retried with the same key.
+- Remote notification providers are not supported yet. A future remote branch
+  will carry the same key in the remote action envelope's `idempotency_key`.
+
+### Credentials on delivery
+
+`target.connection` is resolved the way workflow operations resolve it:
+
+- an OAuth connection type gets a valid `access_token` in `secrets`, refreshed if
+  needed. A revoked grant fails the delivery with `authorization_required` before
+  your extension is called, and it is not retried;
+- any other type gets its own connection secrets (and any project provider
+  secrets attached to the connection).
+
+### Sensitive events
+
+An event may carry `payload_sensitive: true` (absent means false). The
+platform's own messages always do, because their body holds a single-use link.
+For such an event the subject and body reach only your delivery request; every
+copy the platform keeps (invocation log, extension audit, external-effect ledger,
+runtime journal, delivery rows, error text) holds a placeholder with the value's
+length and hash. Your extension must not log the subject, the body or any link
+in them either, at any log level, and must not echo them in its response or
+errors.
+
+### System email sender
+
+A platform administrator chooses one connection in Settings -> Email to send the
+platform's own email (password reset, welcome, email change confirmation). A
+connection is a candidate when it is enabled, its install is an enabled
+`notification_provider`, and its type resolves to `target_kind: recipient`.
+
+- The choice is confirmed against the connection's `sender_revision` and its
+  OAuth configuration's `configuration_revision`. Disabling or re-enabling the
+  connection, changing its settings, secrets, type, install or the account it is
+  connected as, or editing the OAuth configuration, revokes the confirmation
+  until an administrator confirms again. A token refresh does not.
+- While a connection is the system sender, only a platform administrator may
+  change those fields or delete it (`system_sender_locked` otherwise).
+- Right before your extension is called the platform checks the setting and both
+  revisions again; a change fails the send with `system_sender_changed` and no
+  call. There is never a fallback to another connection.
+- A system email arrives as a `system.*` event with `payload_sensitive: true`,
+  `route_config.to`, `subject`, and the plain-text body in `event.payload.message`.
+
 ## Testing And Verification
 
 Every real extension should have both a smoke script and pytest coverage.

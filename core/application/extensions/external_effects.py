@@ -399,8 +399,25 @@ def claim_external_effect_for_action(
     idempotency_key_override: str | None = None,
     test_mode: bool = False,
     resolution_ref: dict[str, Any] | None = None,
+    declaration_overrides: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Claim the declared effect of one action.
+
+    *declaration_overrides* narrows the declaration for this claim: ``channel``
+    and ``observability`` keys replace the declared ones (a notification
+    connection type's own ledger channel and target kind, for example).
+    """
     declaration = external_effect_declaration_for_operation(extension, operation_id)
+    if declaration and declaration_overrides:
+        overrides = _as_dict(declaration_overrides)
+        declaration = dict(declaration)
+        if _text(overrides.get("channel")):
+            declaration["channel"] = _text(overrides["channel"])
+        if isinstance(overrides.get("observability"), dict):
+            declaration["observability"] = {
+                **_as_dict(declaration.get("observability")),
+                **overrides["observability"],
+            }
     if resolution_ref is not None and not declaration:
         return {
             "declared": False,

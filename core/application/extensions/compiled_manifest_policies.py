@@ -654,12 +654,108 @@ def _validate_external_effect_pre_save_actions(
                 )
 
 
+def _validate_connection_type_notification_blocks(
+    compiled_manifest: dict[str, Any],
+    *,
+    issues: list[dict],
+    manifest_path: str,
+) -> None:
+    """A connection type's ``notification`` block, checked at build time.
+
+    Only a notification provider may declare one, and only with a known target
+    kind; ``channel_source: connection`` is for channel types alone.
+    """
+    from core.application.extensions.notification_capability import (
+        CHANNEL_SOURCE_CONNECTION,
+        CHANNEL_SOURCES,
+        NOTIFICATION_BLOCK_KEYS,
+        TARGET_KIND_CHANNEL,
+        TARGET_KINDS,
+        connection_type_rows,
+    )
+
+    def report(code: str, message: str, field_path: str) -> None:
+        issues.append(
+            _issue(
+                severity="error",
+                code=code,
+                message=message,
+                file_path=manifest_path,
+                field_path=field_path,
+            )
+        )
+
+    is_provider = (
+        str(compiled_manifest.get("kind") or "").strip().lower() == NOTIFICATION_PROVIDER_KIND
+    )
+    for idx, row in enumerate(connection_type_rows(compiled_manifest)):
+        if "notification" not in row:
+            continue
+        field_path = f"connection_types[{idx}].notification"
+        block = row.get("notification")
+        if not is_provider:
+            report(
+                "connection_type_notification_not_allowed",
+                "Only a notification_provider extension may declare a notification block "
+                "on a connection type",
+                field_path,
+            )
+            continue
+        if not isinstance(block, dict):
+            report(
+                "invalid_connection_type_notification",
+                "connection_types[].notification must be an object",
+                field_path,
+            )
+            continue
+        unknown = sorted(str(key) for key in block if str(key) not in NOTIFICATION_BLOCK_KEYS)
+        if unknown:
+            report(
+                "invalid_connection_type_notification",
+                "connection_types[].notification accepts only target_kind, ledger_channel "
+                f"and channel_source (got {', '.join(unknown)})",
+                field_path,
+            )
+        target_kind = str(block.get("target_kind") or "").strip()
+        if target_kind not in TARGET_KINDS:
+            report(
+                "unknown_notification_target_kind",
+                "connection_types[].notification.target_kind must be "
+                f"{' or '.join(sorted(TARGET_KINDS))}",
+                f"{field_path}.target_kind",
+            )
+        ledger_channel = block.get("ledger_channel")
+        if ledger_channel is not None and not str(ledger_channel or "").strip():
+            report(
+                "invalid_connection_type_notification",
+                "connection_types[].notification.ledger_channel must not be empty",
+                f"{field_path}.ledger_channel",
+            )
+        channel_source = str(block.get("channel_source") or "").strip()
+        if channel_source and channel_source not in CHANNEL_SOURCES:
+            report(
+                "invalid_notification_channel_source",
+                "connection_types[].notification.channel_source must be "
+                f"{' or '.join(sorted(CHANNEL_SOURCES))}",
+                f"{field_path}.channel_source",
+            )
+        elif channel_source == CHANNEL_SOURCE_CONNECTION and target_kind != TARGET_KIND_CHANNEL:
+            report(
+                "invalid_notification_channel_source",
+                "channel_source: connection is allowed only on a channel type",
+                f"{field_path}.channel_source",
+            )
+
+
 def _validate_notification_provider_delivery_contract(
     compiled_manifest: dict[str, Any],
     *,
     issues: list[dict],
     manifest_path: str,
 ) -> None:
+    _validate_connection_type_notification_blocks(
+        compiled_manifest, issues=issues, manifest_path=manifest_path
+    )
     if str(compiled_manifest.get("kind") or "").strip().lower() != NOTIFICATION_PROVIDER_KIND:
         return
     if str(compiled_manifest.get("release_stage") or "active").strip().lower() != "active":

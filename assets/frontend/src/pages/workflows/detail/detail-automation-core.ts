@@ -436,12 +436,22 @@ export function withNotificationChannelSelection(
   patch: {
     channelCapability?: string;
     channelId?: string;
+    /** The provider connection the notification goes through, when the provider needs one. */
+    connectionId?: string;
     providerKey?: string;
     /** Email addresses, comma-separated, for an email provider. */
     recipients?: string;
   },
 ): Record<string, unknown> {
   const next = { ...actionExtra };
+  if (patch.connectionId !== undefined) {
+    const connectionId = textOrEmpty(patch.connectionId);
+    if (connectionId) {
+      next.connection_id = connectionId;
+    } else {
+      delete next.connection_id;
+    }
+  }
   if (patch.recipients !== undefined) {
     if (patch.recipients.trim()) {
       next.recipients = patch.recipients;
@@ -486,6 +496,7 @@ export function actionExtraForPayload(
     delete next.route_key;
     delete next.route_keys;
     delete next.provider_key;
+    delete next.connection_id;
     delete next.channel_id;
     delete next.channel_capability;
     delete next.recipients;
@@ -503,6 +514,7 @@ export function actionExtraForPayload(
     }
     delete next.route_key;
     delete next.provider_key;
+    delete next.connection_id;
     delete next.channel_id;
     delete next.channel_capability;
     delete next.recipients;
@@ -510,10 +522,16 @@ export function actionExtraForPayload(
     delete next.route_key;
     delete next.route_keys;
     const providerKey = textOrEmpty(next.provider_key);
+    const connectionId = textOrEmpty(next.connection_id);
     const channelId = textOrEmpty(next.channel_id);
     const recipients = notificationRecipientsFromAction(next);
     if (!providerKey) {
       delete next.provider_key;
+    }
+    if (connectionId) {
+      next.connection_id = connectionId;
+    } else {
+      delete next.connection_id;
     }
     if (!channelId) {
       delete next.channel_id;
@@ -528,6 +546,7 @@ export function actionExtraForPayload(
     delete next.route_key;
     delete next.route_keys;
     delete next.provider_key;
+    delete next.connection_id;
     delete next.channel_id;
     delete next.channel_capability;
     delete next.recipients;
@@ -791,7 +810,14 @@ export function blankReactionDraft(
   return draftFromRuleShape(BLANK_RULE_BY_SCOPE[scopeKind], scopeKind, sources, stepKind, t);
 }
 
-export type ReactionDraftProblems = Partial<Record<"event" | "action" | "routeKeys" | "recipients" | "provider" | "channel", string>>;
+export type ReactionDraftProblems = Partial<Record<"event" | "action" | "routeKeys" | "recipients" | "provider" | "connection" | "channel", string>>;
+
+/**
+ * What a notification through a provider's connection addresses (see
+ * `resolveRouteTarget`): typed recipients, a picked channel, the one channel the
+ * connection is bound to, or nothing yet because the connection must be chosen.
+ */
+export type NotificationTargetKind = "recipient" | "channel" | "fixed_channel" | "connection_required" | "unknown";
 
 function validLiteralEmailRecipient(value: unknown): boolean {
   if (typeof value !== "string") return false;
@@ -813,7 +839,13 @@ function validLiteralEmailRecipient(value: unknown): boolean {
  */
 export function reactionDraftProblems(
   draft: WorkflowReactionDraft,
-  context: { recipientProviderKeys: ReadonlySet<string>; recipientFormatFor?: (providerKey: string) => string | null; channelIdsFor: (providerKey: string) => string[] | null },
+  context: {
+    recipientProviderKeys: ReadonlySet<string>;
+    recipientFormatFor?: (providerKey: string) => string | null;
+    channelIdsFor: (providerKey: string) => string[] | null;
+    /** What the selected connection addresses; without it the provider-level kind decides. */
+    targetKindFor?: (providerKey: string, connectionId: string) => NotificationTargetKind;
+  },
   t: I18nContextValue["t"] = fallbackContext.t,
 ): ReactionDraftProblems {
   const problems: ReactionDraftProblems = {};
@@ -825,9 +857,16 @@ export function reactionDraftProblems(
   }
   if (draft.actionTarget === NOTIFY_TARGET_EXTENSION_CHANNEL) {
     const providerKey = textOrEmpty(draft.actionExtra.provider_key);
+    const targetKind: NotificationTargetKind = context.targetKindFor
+      ? context.targetKindFor(providerKey, textOrEmpty(draft.actionExtra.connection_id))
+      : context.recipientProviderKeys.has(providerKey) ? "recipient" : "channel";
     if (!providerKey) {
       problems.provider = t("react.workflows.automation_app_required", "Choose an app.");
-    } else if (context.recipientProviderKeys.has(providerKey)) {
+    } else if (targetKind === "connection_required") {
+      problems.connection = t("react.workflows.automation_connection_required", "Choose a connection.");
+    } else if (targetKind === "fixed_channel") {
+      // The connection is bound to its channel: nothing more to choose.
+    } else if (targetKind === "recipient") {
       const emailFormat = context.recipientFormatFor?.(providerKey) === "email";
       if (emailFormat && !draft.enabled) return problems;
       if (!notificationRecipientsFromAction(draft.actionExtra).length) {

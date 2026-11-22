@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import "@/pages/extensions/extension-manifest.css";
 
 import { ConnectionSecretApprovalStatus } from "./extension-connection-secret-catalog";
+import { isSystemEmailSenderLocked } from "./system-email-sender";
+import { SystemEmailSenderNotice } from "./system-email-sender-notice";
 import {
   manifestActionBusy,
   manifestActionKey,
@@ -106,6 +108,7 @@ function renderOauthConnectionActions({
   component,
   context,
   lifecycle,
+  locked,
   oauthConnection,
   oauthIntent,
   oauthRetry,
@@ -115,6 +118,8 @@ function renderOauthConnectionActions({
   component: Record<string, unknown>;
   context: ManifestRenderContext;
   lifecycle: string;
+  /** The system email sender, read-only to this viewer. */
+  locked: boolean;
   oauthConnection: boolean;
   oauthIntent: string;
   oauthRetry: boolean;
@@ -128,6 +133,7 @@ function renderOauthConnectionActions({
           aria-label={`${oauthRetry ? t("settings.watchdog.retry", "Retry") : t("react.extensions.reconnect", "Reconnect")} ${accountLabel}`}
           busy={manifestActionBusy(context, connectionActionKey(component, row, "oauth"))}
           busyLabel={t("react.extensions.oauth_import_connecting", "Connecting…")}
+          disabled={locked}
           onClick={() => pressManifestAction(context, connectionActionKey(component, row, "oauth"), () => context.onConnectionOAuth(component, row, oauthIntent))}
           size="sm"
           type="button"
@@ -141,6 +147,7 @@ function renderOauthConnectionActions({
           aria-label={t("react.extensions.disconnect_value0", "Disconnect {value0}", { value0: accountLabel })}
           busy={manifestActionBusy(context, connectionActionKey(component, row, "disconnect"))}
           busyLabel={t("react.extensions.disconnecting", "Disconnecting…")}
+          disabled={locked}
           onClick={() => pressManifestAction(context, connectionActionKey(component, row, "disconnect"), () => context.onConnectionOAuthDisconnect(component, row))}
           size="sm"
           type="button"
@@ -187,6 +194,7 @@ export function renderConnectionRow({
     connectedEmail && connectedEmail !== displayName
       ? `${displayName} (${connectedEmail})`
       : displayName;
+  const locked = isSystemEmailSenderLocked(row);
   const disconnect = context.pendingDisconnect;
   if (disconnect?.connectionId === rowId) {
     // The row is replaced in place by its confirmation, and comes back on No.
@@ -225,6 +233,7 @@ export function renderConnectionRow({
           runtime,
         })}
         <ConnectionSecretApprovalStatus projectId={context.projectId} row={row} />
+        <SystemEmailSenderNotice row={row} />
       </div>
       <fieldset
         aria-label={t("react.extensions.value0_actions", "{value0} actions", { value0: accountLabel })}
@@ -244,6 +253,7 @@ export function renderConnectionRow({
           component,
           context,
           lifecycle,
+          locked,
           oauthConnection,
           oauthIntent,
           oauthRetry,
@@ -253,6 +263,7 @@ export function renderConnectionRow({
           aria-label={oauthConnection ? t("react.extensions.remove_value0", "Remove {value0}", { value0: accountLabel }) : undefined}
           busy={manifestActionBusy(context, connectionActionKey(component, row, "delete"))}
           busyLabel={oauthConnection ? t("react.extensions.removing_account", "Removing account…") : t("react.projects.deleting", "Deleting…")}
+          disabled={locked}
           onClick={() => pressManifestAction(context, connectionActionKey(component, row, "delete"), () => context.onConnectionDelete(component, row))}
           size="sm"
           type="button"

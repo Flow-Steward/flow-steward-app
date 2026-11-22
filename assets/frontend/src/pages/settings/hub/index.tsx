@@ -30,6 +30,7 @@ import {
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
+import { SettingsEmailPage } from "@/pages/settings/email";
 import { SettingsGeneralPage } from "@/pages/settings/general";
 import { SettingsNotificationsPage } from "@/pages/settings/notifications";
 import { SettingsProvidersPage } from "@/pages/settings/providers";
@@ -100,6 +101,7 @@ function getFallbackSettingsTabs(t: I18nContextValue["t"] = fallbackContext.t): 
   return [
   { pageKey: "general", path: "/settings/general", title: t("registry.workflow_detail.settings.general", "General") },
   { pageKey: "security", path: "/settings/security", title: t("account.security.title", "Security") },
+  { pageKey: "email", path: "/settings/email", title: t("settings.tab.email", "Email") },
   { pageKey: "service_accounts", path: "/settings/service-accounts", title: t("react.settings.service_accounts", "Service Accounts") },
   { pageKey: "retention", path: "/settings/retention", title: t("settings.retention.title", "Retention") },
   { pageKey: "notifications", path: "/settings/notifications", title: t("settings.tab.notifications", "Notifications") },
@@ -108,6 +110,7 @@ function getFallbackSettingsTabs(t: I18nContextValue["t"] = fallbackContext.t): 
 }
 
 const SETTINGS_PAGE_KEY_TO_PATH: Record<string, string> = {
+  email: "/settings/email",
   general: "/settings/general",
   model_providers: "/settings/providers",
   notifications: "/settings/notifications",
@@ -907,6 +910,8 @@ export function SettingsHubPage() {
         return <SettingsServiceAccountsPage />;
       case "security":
         return <SettingsSecurityPage embedded />;
+      case "email":
+        return <SettingsEmailPage />;
       default:
         if (tab.controlSurface?.kind === "resource_admin") {
           return <RegisteredResourceAdminSurface surface={tab.controlSurface} tab={tab} />;

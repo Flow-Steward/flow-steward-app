@@ -323,6 +323,45 @@ class ProjectCommandServiceCrudMixin:
             raise ServiceError("Failed to delete project") from exc
         return ProjectDeleteResultView(project_id=str(project_id))
 
+    @staticmethod
+    def _reject_incompatible_route_connections(
+        bl: Any, project_id: str, routes: list[dict], scope: ScopeContext
+    ) -> None:
+        """Refuse a route whose connection its provider's contract does not allow."""
+        from core.application.notifications.route_connections import validate_routes_for_save
+
+        project = bl.get_project(project_id) if hasattr(bl, "get_project") else None
+        account_id = (
+            str((project or {}).get("account_id") or "").strip()
+            or str(scope.account_id or "").strip()
+            or DEFAULT_ACCOUNT_ID
+        )
+        refused = validate_routes_for_save(
+            bl, project_id=project_id, account_id=account_id, routes=routes
+        )
+        if not refused:
+            return
+        index, decision = refused[0]
+        route_key = str(routes[index].get("route_key") or f"route {index + 1}").strip()
+        message = f"Notification route '{route_key}': {decision.detail}"
+        raise ServiceValidationError(
+            message,
+            payload={
+                "error": message,
+                "code": decision.error,
+                "route_key": route_key,
+                "routes": [
+                    {
+                        "index": idx,
+                        "route_key": str(routes[idx].get("route_key") or "").strip(),
+                        "code": item.error,
+                        "detail": item.detail,
+                    }
+                    for idx, item in refused
+                ],
+            },
+        )
+
     def update_notification_routes(
         self,
         project_id: Any,
@@ -336,6 +375,7 @@ class ProjectCommandServiceCrudMixin:
         if not hasattr(bl, "save_notification_routes"):
             raise ServiceUnavailableError("Notification routing persistence is not available")
         routes = [dict(item) for item in (command.routes or []) if isinstance(item, dict)]
+        self._reject_incompatible_route_connections(bl, str(project_id), routes, resolved)
         try:
             bl.save_notification_routes(str(project_id), routes)
             persisted = (

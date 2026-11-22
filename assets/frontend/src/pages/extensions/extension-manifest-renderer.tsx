@@ -35,6 +35,8 @@ import "@/pages/extensions/extension-manifest.css";
 
 import { ExtensionCallbackSetup } from "./extension-callback-setup";
 import { renderConnectionRow } from "./extension-manifest-connections";
+import { isSystemEmailSenderLocked } from "./system-email-sender";
+import { SystemEmailSenderNotice } from "./system-email-sender-notice";
 import { ConnectionStoredSecretField } from "./extension-connection-secret-catalog";
 import { connectionDataForValues, manifestFieldIsSecret, manifestFieldPath } from "./connection-form-support";
 import { manifestFieldName, renderManifestField } from "./extension-manifest-fields";
@@ -272,6 +274,8 @@ export function renderManifestComponent(
     });
     const selectedId = stringFrom(values.connection_id);
     const selectedRow = rows.find((row) => stringFrom(row.connection_id) === selectedId);
+    // The system email sender is read-only to anyone but a platform administrator.
+    const selectedLocked = isSystemEmailSenderLocked(selectedRow);
     const savedSecretPaths = new Set(
       Object.keys(connectionSecretRefs(objectOrEmpty(selectedRow).secret_refs)),
     );
@@ -308,6 +312,8 @@ export function renderManifestComponent(
           </div>
         ) : null}
         <form aria-label={title} className="fs-manifest-inset" onSubmit={(event) => event.preventDefault()}>
+          {selectedLocked ? <SystemEmailSenderNotice row={selectedRow} /> : null}
+          <fieldset className="contents" disabled={selectedLocked}>
           <div className="fs-manifest-fields">
             {activeFields.map((field) => {
               const rendered = renderManifestField({
@@ -338,11 +344,12 @@ export function renderManifestComponent(
               );
             })}
           </div>
+          </fieldset>
           <div className="min-h-8" role={feedback?.status === "error" ? "alert" : "status"}>
             {feedback ? <p className={feedback.status === "error" ? "m-0 text-xs text-[var(--fs-status-danger)]" : feedback.status === "success" ? "fs-manifest-success" : "fs-manifest-description"}>{feedback.message}</p> : null}
           </div>
           <div className="fs-manifest-actions">
-            <Button busy={feedback?.status === "saving" || manifestActionBusy(context, manifestActionKey("connection-save", componentId))} busyLabel={t("react.extensions.saving", "Saving…")} disabled={oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason)} onClick={() => pressManifestAction(context, manifestActionKey("connection-save", componentId), () => context.onConnectionSave(component, effectiveValues))} size="sm" title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button" variant="primary">
+            <Button busy={feedback?.status === "saving" || manifestActionBusy(context, manifestActionKey("connection-save", componentId))} busyLabel={t("react.extensions.saving", "Saving…")} disabled={selectedLocked || (oauthConnection && !selectedRow && Boolean(context.connectionCreationBlockedReason))} onClick={() => pressManifestAction(context, manifestActionKey("connection-save", componentId), () => context.onConnectionSave(component, effectiveValues))} size="sm" title={oauthConnection && !selectedRow ? context.connectionCreationBlockedReason : undefined} type="button" variant="primary">
               {connectionSaveLabel(selectedRow, oauthConnection, accountLabelText, t)}
             </Button>
             {manifestFormActions(component, t).map((action) => {

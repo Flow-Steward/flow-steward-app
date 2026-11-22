@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
 import { fetchProjectConnectionsList } from "@/pages/projects/connections/api";
 import { ProjectSecretApprovals } from "@/pages/projects/connections/secret-approvals";
+import { SystemEmailSenderNotice } from "@/pages/extensions/system-email-sender-notice";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
 type ProjectConnectionsEditorProps = {
@@ -82,6 +83,7 @@ export function ProjectConnectionsEditor({ projectId }: Readonly<ProjectConnecti
                       {connection.enabled === false ? <span>{t("react.projects.disabled_lowercase", "disabled")}</span> : <span>{t("react.projects.enabled_lowercase", "enabled")}</span>}
                     </div>
                     {lastError ? <p className="mt-1 text-xs fs-ink-attention">{lastError}</p> : null}
+                    <SystemEmailSenderNotice row={connection} />
                   </div>
                   {extensionId ? (
                     <Link

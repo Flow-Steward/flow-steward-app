@@ -560,6 +560,16 @@ class ProjectConnectionService(ProjectConnectionContract):
             if val is not None:
                 updates[field] = val
 
+        if {"connection_config", "secret_refs", "connection_type", "extension_install_id"} & set(
+            updates
+        ) or ("enabled" in updates and bool(updates["enabled"]) != bool(existing.get("enabled"))):
+            # The system email sender's identity is a platform administrator's call.
+            from core.application.extensions.system_email_sender import (
+                require_sender_change_allowed,
+            )
+
+            require_sender_change_allowed(bl, scope, connection_id=connection_id)
+
         if self._normalize_text(existing.get("oauth_configuration_id")) and (
             "connection_config" in updates
         ):
@@ -747,6 +757,11 @@ class ProjectConnectionService(ProjectConnectionContract):
             },
         )
 
+        from core.application.extensions.system_email_sender import (
+            require_sender_change_allowed,
+        )
+
+        require_sender_change_allowed(bl, scope, connection_id=connection_id)
         platform_secret_ref_names = self._oauth_platform_secret_ref_names(
             bl=bl,
             extension_id=existing.get("extension_id"),
@@ -828,6 +843,11 @@ class ProjectConnectionService(ProjectConnectionContract):
                 f"Connection '{connection_id}' not found in project {project_id}"
             ) from None
 
+        from core.application.extensions.system_email_sender import (
+            require_sender_change_allowed,
+        )
+
+        require_sender_change_allowed(bl, scope, connection_id=connection_id)
         configuration_id = self._normalize_text(existing.get("oauth_configuration_id"))
         if configuration_id:
             from core.application.extensions.oauth_connection_lifecycle import (
@@ -859,7 +879,21 @@ class ProjectConnectionService(ProjectConnectionContract):
         self._require_project_in_scope(bl, str(project_id), scope)
 
         rows = self._list_connection_rows(bl, project_id)
-        return [ProjectConnectionView(**self._normalize_connection_view_row(row)) for row in rows]
+        return [ProjectConnectionView(**self._with_sender_flags(bl, scope, row)) for row in rows]
+
+    def _with_sender_flags(
+        self, bl: Any, scope: ScopeContext, row: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        from core.application.extensions.system_email_sender import (
+            is_platform_admin,
+            is_system_sender,
+        )
+
+        payload = self._normalize_connection_view_row(row)
+        sender = is_system_sender(bl, self._normalize_text(payload.get("connection_id")))
+        payload["system_email_sender"] = sender
+        payload["system_email_sender_locked"] = sender and not is_platform_admin(scope)
+        return payload
 
     def get_connection(
         self,
@@ -901,7 +935,7 @@ class ProjectConnectionService(ProjectConnectionContract):
             raise ServiceNotFoundError(
                 f"Connection '{connection_id}' not found in project {project_id}"
             ) from None
-        return ProjectConnectionView(**self._normalize_connection_view_row(row))
+        return ProjectConnectionView(**self._with_sender_flags(bl, scope, row))
 
     # --- DB helpers ---
 

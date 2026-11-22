@@ -4,9 +4,21 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
+from core.application.extensions.notification_capability import (
+    NOTIFICATION_CONNECTION_INCOMPATIBLE,
+    NOTIFICATION_CONNECTION_REQUIRED,
+    NotificationCapability,
+    connection_capability,
+    declared_capabilities,
+    default_capability,
+    provider_requires_route_connection,
+)
 from core.application.extensions.notification_install_binding import select_notification_install
+from core.application.notifications import sensitive_payload
 from core.application.notifications.contracts import (
     _as_dict,
     _as_str,
@@ -145,6 +157,51 @@ def _load_notification_connection_row(
     return connection
 
 
+class NotificationAuthorizationRequired(RuntimeError):
+    """The connection's OAuth grant is gone; a person has to reconnect it."""
+
+    code = "authorization_required"
+
+    def __init__(self) -> None:
+        super().__init__(self.code)
+
+
+@dataclass(frozen=True)
+class PreparedDeliveryTarget:
+    """A connection already read and checked, delivered through without a reload.
+
+    System email builds one from the single read it checked the sender against,
+    so the extension receives exactly that snapshot.
+    """
+
+    extension: dict[str, Any]
+    extension_install_id: str
+    connection_id: str
+    runtime_connection: dict[str, Any]
+    logged_connection: dict[str, Any]
+    capability: NotificationCapability | None = None
+
+
+def _failed(
+    error_text: str,
+    *,
+    retryable: bool = True,
+    external_effect_id: str | None = None,
+    response: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "status": "failed",
+        "error_text": error_text,
+        "provider_message_id": "",
+        "external_effect_id": external_effect_id,
+        "response": response or {},
+    }
+    if not retryable:
+        # The dispatch records it dead-lettered: retrying cannot change the outcome.
+        result["retryable"] = False
+    return result
+
+
 def _notification_connection_target(
     bl,
     *,
@@ -166,7 +223,30 @@ def _notification_connection_target(
     )
     if not connection:
         return {}, {}
+    return build_notification_connection_target(bl, connection)
 
+
+def build_notification_connection_target(
+    bl, connection: dict[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """``target.connection`` for one delivery, built from this row without a reload.
+
+    Returns the payload the extension receives and the copy that may be logged
+    (secret values replaced). An OAuth connection gets a valid access token from
+    the same resolver workflow operations use; a revoked grant raises
+    :class:`NotificationAuthorizationRequired`.
+    """
+    from core.application.extensions.oauth_connection_runtime_config import (
+        runtime_connection_config,
+    )
+    from core.application.extensions.oauth_runtime import OAuthRuntimeTokenError
+    from core.application.extensions.operation_targets import (
+        OAUTH_AUTHORIZATION_REQUIRED_CODES,
+        is_extension_owned_oauth_connection,
+        resolve_connection_oauth_secrets,
+    )
+
+    connection_id = _as_str(connection.get("connection_id"))
     secrets: dict[str, str] = {}
     secret_refs = _as_dict(connection.get("secret_refs"))
     configuration_refs = _as_dict(secret_refs.get("refs"))
@@ -215,6 +295,23 @@ def _notification_connection_target(
                 )
             secrets[secret_name] = secret_value
 
+    config = _as_dict(connection.get("connection_config"))
+    if is_extension_owned_oauth_connection(connection):
+        try:
+            oauth_secrets = resolve_connection_oauth_secrets(bl, connection=connection)
+        except OAuthRuntimeTokenError as exc:
+            if exc.code in OAUTH_AUTHORIZATION_REQUIRED_CODES:
+                raise NotificationAuthorizationRequired() from None
+            raise RuntimeError(
+                f"connection_oauth_resolution_failed:{connection_id}:{exc.code}"
+            ) from None
+        except Exception as exc:
+            raise RuntimeError(
+                f"connection_oauth_resolution_failed:{connection_id}:{type(exc).__name__}"
+            ) from None
+        secrets.update({key: str(value) for key, value in dict(oauth_secrets or {}).items()})
+        config = runtime_connection_config(connection)
+
     runtime_payload = {
         "connection_id": _as_str(connection.get("connection_id")),
         "account_id": _as_str(connection.get("account_id")),
@@ -224,7 +321,7 @@ def _notification_connection_target(
         "extension_install_id": _as_str(connection.get("extension_install_id")),
         "environment": _as_str(connection.get("environment")),
         "credential_revision": int(connection.get("credential_revision") or 1),
-        "config": _as_dict(connection.get("connection_config")),
+        "config": config,
         "secret_refs": secret_refs,
         "secrets": secrets,
         "connection_routes": list(connection.get("connection_routes") or []),
@@ -261,21 +358,35 @@ def _claim_notification_external_effect(
     provider_payload: dict,
     action_payload: dict | None = None,
     test_mode: bool = False,
+    capability: NotificationCapability | None = None,
 ) -> dict[str, Any]:
     from core.application.extensions import external_effects
 
-    fingerprint_event = dict(event)
+    # A flagged event's body and subject never reach the ledger: its fingerprint
+    # is taken over placeholders that carry only their length and hash.
+    fingerprint_event = sensitive_payload.redact_event(event)
     # Delivery retries rebuild transport envelopes; wall-clock construction time is
-    # not part of the durable notification intent.
+    # not part of the durable notification intent, and neither is the run link
+    # (it follows the platform's configured address).
     fingerprint_event.pop("occurred_at", None)
+    fingerprint_event.pop("run_url", None)
     request_payload = {
         "action": "deliver_notification",
         "action_payload": _as_dict(action_payload),
         "event": fingerprint_event,
-        "route": route_payload,
+        "route": sensitive_payload.redact_route(route_payload, event),
         "provider": provider_payload,
     }
     source_ref = _notification_external_effect_source_ref(event, route_payload)
+    declaration_overrides: dict[str, Any] | None = None
+    if capability is not None and capability.declared:
+        # The connection type's own target kind and ledger channel.
+        source_ref["target_kind"] = capability.target_kind
+        source_ref["ledger_channel"] = capability.ledger_channel
+        declaration_overrides = {
+            "channel": capability.ledger_channel,
+            "observability": {"target_kind": capability.target_kind},
+        }
     intent_key = external_effects.external_effect_identity_hmac(
         purpose="notification-intent",
         value={
@@ -305,23 +416,25 @@ def _claim_notification_external_effect(
         request_payload=request_payload,
         idempotency_key_override=intent_key,
         test_mode=test_mode,
+        declaration_overrides=declaration_overrides,
     )
 
 
-def _with_standard_email(extension: dict, event: dict, route_config: dict) -> dict:
+def _with_standard_email(target_kind: str, event: dict, route_config: dict) -> dict:
     """Give a workflow event sent by email the platform's standard subject and text.
 
-    Only for an extension whose deliveries address a recipient (email); a chat
-    extension formats its own messages. A subject set on the route is kept. The
-    platform's own messages (``system.*``) already carry their text.
+    Only for a connection whose deliveries address a recipient (email); a chat
+    connection formats its own messages. The decision is the connection type's,
+    so one provider's recipient route gets it and its channel route does not. A
+    subject set on the route is kept. The platform's own messages (``system.*``)
+    already carry their text.
     """
     from core.application.auth.serve_auth_runtime import public_base_url
     from core.application.extensions.event_email import render_event_email
-    from core.application.extensions.external_effects import notification_target_kind
 
     if _as_str(event.get("event_type")).startswith("system."):
         return event
-    if notification_target_kind(extension) != "recipient":
+    if _as_str(target_kind) != "recipient":
         return event
     subject, body = render_event_email(event, base_url=public_base_url())
     route_config.setdefault("subject", subject)
@@ -329,6 +442,78 @@ def _with_standard_email(extension: dict, event: dict, route_config: dict) -> di
         route_config["subject"] = subject
     payload = {**_as_dict(event.get("payload")), "message": body}
     return {**event, "payload": payload}
+
+
+def _governed_route_refusal(
+    bl,
+    *,
+    provider: dict,
+    extension_key: str,
+    account_id: str,
+    project_id: str,
+    route_config: dict,
+    resolve_extension: Callable[[str], dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """A non-retryable failure when the provider's contract refuses this route.
+
+    Checked before any fallback to the project's runtime connection: a provider
+    whose routes must name their connection is never delivered through it.
+    """
+    from core.application.notifications.route_connections import (
+        check_route_connection,
+        load_route_connection,
+        provider_install_id,
+    )
+
+    connection = load_route_connection(bl, _as_str(route_config.get("connection_id")))
+    extension: dict[str, Any] | None = None
+    # The connection's own install decides; only without one (or when it is not
+    # this provider's) is the provider's unique install looked up.
+    for install_id in dict.fromkeys([_as_str(connection.get("extension_install_id")), ""]):
+        try:
+            extension = (
+                resolve_extension(install_id)
+                if resolve_extension is not None
+                else _resolve_notification_extension(
+                    bl, provider, extension_install_id=install_id, account_id=account_id
+                )
+            )
+        except Exception:
+            extension = None
+        if extension is not None:
+            break
+    if extension is None or not declared_capabilities(extension):
+        return None
+    decision = check_route_connection(
+        extension=extension,
+        extension_key=extension_key,
+        provider_install_id=provider_install_id(
+            bl, extension_key=extension_key, account_id=account_id
+        ),
+        project_id=project_id,
+        route_config=route_config,
+        connection=connection,
+    )
+    if decision.ok:
+        return None
+    return _failed(decision.error, retryable=False, response={"detail": decision.detail})
+
+
+def _with_run_url(event: dict) -> dict:
+    """Give the event ``run_url``: the run's page, when the platform knows its address.
+
+    Every provider gets it, so a channel can link to the run as the standard
+    email does. Absent without a public base URL or a job.
+    """
+    from core.application.auth.serve_auth_runtime import public_base_url
+    from core.application.extensions.event_email import event_run_url
+
+    run_url = event_run_url(event, base_url=public_base_url())
+    if not run_url:
+        event = dict(event)
+        event.pop("run_url", None)
+        return event
+    return {**event, "run_url": run_url}
 
 
 def _deliver_via_extension(
@@ -339,7 +524,16 @@ def _deliver_via_extension(
     route: dict,
     project_id: Any | None = None,
     test_mode: bool = False,
+    prepared_target: PreparedDeliveryTarget | None = None,
+    admission_check: Callable[[], str] | None = None,
 ) -> dict:
+    """Deliver one event through one route of a notification extension.
+
+    *prepared_target* delivers through a connection already read and checked,
+    without loading it again. *admission_check* runs at the admission point,
+    after everything is built and before the external-effect claim and the
+    extension call; a non-empty code it returns fails the delivery with neither.
+    """
     from core.application.extensions.provider_runtime import resolve_extension_runtime_config
 
     extension_id = _notification_extension_key(provider)
@@ -357,7 +551,7 @@ def _deliver_via_extension(
     }
     project_run_config: dict[str, Any] = {}
     normalized_project_id = _as_str(project_id)
-    if normalized_project_id and hasattr(bl, "get_project_run_config"):
+    if prepared_target is None and normalized_project_id and hasattr(bl, "get_project_run_config"):
         try:
             loaded = bl.get_project_run_config(normalized_project_id) or {}
             if isinstance(loaded, dict):
@@ -372,84 +566,108 @@ def _deliver_via_extension(
     extension_install_id = ""
     account_id = _as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID
     resolved_runtime: dict[str, Any] = {}
-    route_connection_id = _as_str(route_config.get("connection_id"))
-    if route_connection_id:
-        connection_id = route_connection_id
-    else:
-        resolved_runtime = resolve_extension_runtime_config(
-            extension_id,
-            project_run_config,
-            bl=bl,
-            project_id=normalized_project_id or None,
-        )
-        connection_id = _notification_connection_id(resolved_runtime, route_config)
     runtime_connection: dict[str, Any] = {}
     logged_connection: dict[str, Any] = {}
-    if connection_id:
-        scoped_connection = _load_notification_connection_row(
-            bl,
-            connection_id=connection_id,
-            account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
-            project_id=normalized_project_id,
-            extension_id=extension_id,
-            extension_install_id="",
-        )
-        extension_install_id = _as_str(scoped_connection.get("extension_install_id"))
-        if not extension_install_id:
-            return {
-                "status": "failed",
-                "error_text": f"connection_install_scope_missing:{connection_id}",
-                "provider_message_id": "",
-                "external_effect_id": None,
-                "response": {},
-            }
-        try:
-            extension = _resolve_notification_extension(
-                bl,
-                provider,
-                extension_install_id=extension_install_id,
-                account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
+    capability: NotificationCapability | None = None
+    resolved_extensions: dict[str, dict[str, Any]] = {}
+
+    def resolve_extension(install_id: str) -> dict[str, Any]:
+        # One install lookup per delivery, shared by the contract check and the send.
+        key = _as_str(install_id)
+        if key not in resolved_extensions:
+            resolved_extensions[key] = _resolve_notification_extension(
+                bl, provider, extension_install_id=key, account_id=account_id
             )
-        except Exception as exc:
-            return {
-                "status": "failed",
-                "error_text": _as_str(exc) or "extension_install_resolution_failed",
-                "provider_message_id": "",
-                "external_effect_id": None,
-                "response": {},
-            }
-        try:
-            runtime_connection, logged_connection = _notification_connection_target(
+        return resolved_extensions[key]
+
+    if prepared_target is not None:
+        extension = prepared_target.extension
+        extension_install_id = prepared_target.extension_install_id
+        connection_id = prepared_target.connection_id
+        runtime_connection = dict(prepared_target.runtime_connection)
+        logged_connection = dict(prepared_target.logged_connection)
+        capability = prepared_target.capability
+    else:
+        route_connection_id = _as_str(route_config.get("connection_id"))
+        refusal = (
+            None
+            if not route_connection_id
+            else _governed_route_refusal(
+                bl,
+                provider=provider,
+                extension_key=extension_id,
+                account_id=account_id,
+                project_id=normalized_project_id,
+                route_config=route_config,
+                resolve_extension=resolve_extension,
+            )
+        )
+        if refusal is not None:
+            return refusal
+        if route_connection_id:
+            connection_id = route_connection_id
+        else:
+            resolved_runtime = resolve_extension_runtime_config(
+                extension_id,
+                project_run_config,
+                bl=bl,
+                project_id=normalized_project_id or None,
+            )
+            connection_id = _notification_connection_id(resolved_runtime, route_config)
+        if connection_id:
+            scoped_connection = _load_notification_connection_row(
                 bl,
                 connection_id=connection_id,
-                account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
+                account_id=account_id,
                 project_id=normalized_project_id,
                 extension_id=extension_id,
-                extension_install_id=extension_install_id,
+                extension_install_id="",
             )
-        except Exception as exc:
-            return {
-                "status": "failed",
-                "error_text": _as_str(exc) or "connection_resolution_failed",
-                "provider_message_id": "",
-                "external_effect_id": None,
-                "response": {},
-            }
-        if not runtime_connection:
-            return {
-                "status": "failed",
-                "error_text": f"connection_resolution_failed:{connection_id}",
-                "provider_message_id": "",
-                "external_effect_id": None,
-                "response": {},
-            }
-    else:
-        extension = _resolve_notification_extension(bl, provider, account_id=account_id)
-        extension_install_id = _as_str(
-            extension.get("extension_install_id") or extension.get("install_id")
-        )
+            extension_install_id = _as_str(scoped_connection.get("extension_install_id"))
+            if not extension_install_id:
+                return _failed(f"connection_install_scope_missing:{connection_id}")
+            try:
+                extension = resolve_extension(extension_install_id)
+            except Exception as exc:
+                return _failed(_as_str(exc) or "extension_install_resolution_failed")
+            if not route_connection_id and provider_requires_route_connection(extension):
+                # Never delivered through the project's runtime connection.
+                return _failed(NOTIFICATION_CONNECTION_REQUIRED, retryable=False)
+            try:
+                runtime_connection, logged_connection = _notification_connection_target(
+                    bl,
+                    connection_id=connection_id,
+                    account_id=account_id,
+                    project_id=normalized_project_id,
+                    extension_id=extension_id,
+                    extension_install_id=extension_install_id,
+                )
+            except NotificationAuthorizationRequired as exc:
+                return _failed(exc.code, retryable=False)
+            except Exception as exc:
+                return _failed(_as_str(exc) or "connection_resolution_failed")
+            if not runtime_connection:
+                return _failed(f"connection_resolution_failed:{connection_id}")
+            capability = connection_capability(
+                extension, _as_str(runtime_connection.get("connection_type"))
+            )
+            if capability is None:
+                # Only types that declare a notification block carry routes.
+                return _failed(NOTIFICATION_CONNECTION_INCOMPATIBLE, retryable=False)
+        else:
+            extension = resolve_extension("")
+            extension_install_id = _as_str(
+                extension.get("extension_install_id") or extension.get("install_id")
+            )
+            if provider_requires_route_connection(extension):
+                return _failed(NOTIFICATION_CONNECTION_REQUIRED, retryable=False)
+            if declared_capabilities(extension):
+                return _failed(NOTIFICATION_CONNECTION_INCOMPATIBLE, retryable=False)
+    if capability is None:
+        capability = default_capability(extension)
     # Fills route_config (shared with route_payload) before the claim fingerprints it.
-    event = _with_standard_email(extension, event, route_config)
+    event = _with_standard_email(capability.target_kind, event, route_config)
+    event = _with_run_url(event)
     target_payload = {"connection": runtime_connection} if runtime_connection else {}
     logged_target_payload = {"connection": logged_connection} if logged_connection else {}
     action_payload = {
@@ -483,6 +701,12 @@ def _deliver_via_extension(
         "deliver_notification",
         provider_payload,
     )
+    if admission_check is not None:
+        # The admission point: nothing has been claimed or called yet, and
+        # nothing is reloaded after it.
+        refused = _as_str(admission_check())
+        if refused:
+            return _failed(refused, retryable=False)
     effect_claim = _claim_notification_external_effect(
         bl=bl,
         extension=extension,
@@ -496,10 +720,12 @@ def _deliver_via_extension(
         provider_payload=claim_provider_payload,
         action_payload=logged_action_payload,
         test_mode=test_mode,
+        capability=capability,
     )
     external_effect = _as_dict(effect_claim.get("effect"))
     external_effect_id = _as_str(external_effect.get("effect_id"))
     external_effect_claim_token = _as_str(external_effect.get("claim_token"))
+    idempotency_key = _as_str(external_effect.get("idempotency_key"))
     if effect_claim.get("declared") and not effect_claim.get("should_spawn"):
         from core.application.extensions.external_effect_replay import (
             hydrate_external_effect_claim,
@@ -604,6 +830,7 @@ def _deliver_via_extension(
         route_payload=route_payload,
         external_effect_id=external_effect_id,
         external_effect_claim_token=external_effect_claim_token,
+        idempotency_key=idempotency_key,
         invoke=invoke_delivery,
         persist=persist_delivery_updates,
         mark_running=mark_delivery_running,
@@ -655,6 +882,9 @@ def _deliver_via_extension(
             )
 
             invocation = external_effect_confirmation_failure_invocation(exc)
+    # A flagged event's body and subject reach only the extension: every copy
+    # kept by the platform gets placeholders instead.
+    invocation = sensitive_payload.scrub(invocation, event)
     if hasattr(bl, "log_extension_invocation"):
         raw_job_id = event.get("job_id")
         job_id_value = _as_str(raw_job_id) or None
@@ -662,7 +892,10 @@ def _deliver_via_extension(
             extension_key=_as_str(extension.get("extension_key")),
             invocation_type="notification_provider_deliver",
             status="ok" if invocation.get("status") == "succeeded" else "failed",
-            request={"event": event, "route": route_payload},
+            request={
+                "event": sensitive_payload.redact_event(event),
+                "route": sensitive_payload.redact_route(route_payload, event),
+            },
             response=invocation,
             error_text=_as_str(invocation.get("detail")),
             request_context={
@@ -778,6 +1011,9 @@ def deliver_direct_notification(
     recipients: list[str],
     subject: str,
     message: str,
+    prepared_target: PreparedDeliveryTarget | None = None,
+    admission_check: Callable[[], str] | None = None,
+    payload_sensitive: bool = False,
 ) -> dict:
     """Send one message through a notification extension's connection, outside any route.
 
@@ -785,6 +1021,10 @@ def deliver_direct_notification(
     project route, so the connection is named explicitly and the recipient travels
     in the route config, as it does for a configured email route. Delivery,
     secrets and the external-effect claim are the same as for any notification.
+
+    *prepared_target* is the connection as the caller read and checked it, sent
+    through without a reload; *admission_check* runs at the admission point.
+    *payload_sensitive* keeps the subject and body out of every kept copy.
     """
     project_id = _as_str(connection.get("project_id"))
     account_id = _as_str(connection.get("account_id")) or DEFAULT_ACCOUNT_ID
@@ -802,6 +1042,8 @@ def deliver_direct_notification(
         aggregate_id=project_id or None,
         event_id=event_id,
     )
+    if payload_sensitive:
+        event[sensitive_payload.SENSITIVE_FLAG] = True
     route = {
         "route_id": None,
         "route_key": f"direct:{_as_str(event_type)}",
@@ -826,4 +1068,6 @@ def deliver_direct_notification(
         event=event,
         route=route,
         project_id=project_id or None,
+        prepared_target=prepared_target,
+        admission_check=admission_check,
     )

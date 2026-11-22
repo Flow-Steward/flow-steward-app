@@ -579,6 +579,16 @@ class OAuthAuthorizationService:
         command: OAuthAuthorizationStart,
     ) -> OAuthAuthorizationStartResult:
         self._require_operator(scope)
+        if command.existing_connection_id:
+            # Reconnecting the system email sender (possibly as another account)
+            # is a platform administrator's call.
+            from core.application.extensions.system_email_sender import (
+                require_sender_change_allowed,
+            )
+
+            require_sender_change_allowed(
+                self._repository, scope, connection_id=command.existing_connection_id
+            )
         scope_values = self._scope_values(scope)
         normalized_install_id = str(install_id or "").strip()
         normalized_provider_id = str(provider_id or "").strip()

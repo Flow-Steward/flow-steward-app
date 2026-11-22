@@ -41,6 +41,7 @@ import {
   recoverFailedConnectionSave,
 } from "./connection-save";
 import { connectionSaveErrorMessage, errorFieldPath } from "./manifest-action-support";
+import { translatedExtensionActionErrorGuidance } from "./extension-action-error-guidance";
 
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
@@ -170,7 +171,10 @@ export function useExtensionConnectionActions(
       current.settle(true);
       setConfirmation(null);
     } catch (error) {
-      setConfirmationError(error instanceof Error ? error.message : stringFrom(current.failure, t("react.extensions.the_action_failed", "The action failed.")));
+      // A refusal the server names by code (the system email sender's lock, for one) reads as its guidance.
+      setConfirmationError(error instanceof Error
+        ? translatedExtensionActionErrorGuidance(t, error.message) || error.message
+        : stringFrom(current.failure, t("react.extensions.the_action_failed", "The action failed.")));
     } finally {
       setConfirmationPending(false);
     }
@@ -361,7 +365,9 @@ export function useExtensionConnectionActions(
         setPendingDisconnect({
           connectionId,
           pending: false,
-          error: error instanceof Error ? error.message : t("react.extensions.failed_to_disconnect_oauth_account", "Failed to disconnect OAuth account."),
+          error: error instanceof Error
+            ? translatedExtensionActionErrorGuidance(t, error.message) || error.message
+            : t("react.extensions.failed_to_disconnect_oauth_account", "Failed to disconnect OAuth account."),
         });
       }
     });

@@ -29804,3 +29804,235 @@ msgstr ""
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
 msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-action-error-guidance.ts
+msgid "react.extensions.system_email_sender_locked"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_required"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_missing"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_cannot_carry_routes"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_recipients"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_channel"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.choose_a_connection_first"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection_cannot_carry_routes_choose_another"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.channel_set_by_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.select_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/hub/index.tsx
+msgid "settings.tab.email"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-core.ts
+msgid "react.workflows.automation_connection_required"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_no_connection_yet"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_select_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_recipients"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_channel"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_choose_connection_first"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_channel_set_by_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_notice"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_settings_link"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_selected"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_missing"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_disabled"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_install_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_recipient"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_reconfirm"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_unknown"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_candidate_label"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_admin_required"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_save_failed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_saved"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_cleared"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_current_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_project"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_extension"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed_at"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_carried_over"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_load_failed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_description"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_loading"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sending"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_not_sending"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirming"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirm_again"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_no_candidates"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_select_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_help"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stopping"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop_question"
+msgstr ""

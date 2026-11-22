@@ -217,3 +217,71 @@ it("keeps the existing toggle path for an undeclared generic recipient provider"
   await waitFor(() => expect(writes).toHaveLength(1));
   expect(writes[0][0]).toMatchObject({ enabled: true, action: { provider_key: "acme.targets" } });
 });
+
+const SUITE_CONNECTIONS = [
+  { connection_id: "conn-mail", display_name: "Team inbox", connection_type: "example_mail", target_kind: "recipient", channel_source: "route", channel_label: "", enabled: true },
+  { connection_id: "conn-hook", display_name: "Release hook", connection_type: "bound_hook", target_kind: "channel", channel_source: "connection", channel_label: "Releases / General", enabled: true },
+];
+
+/** The listing has one entry per connection; both carry the provider's connections. */
+const MIXED_PROVIDER_ENTRIES = SUITE_CONNECTIONS.map((connection) => ({
+  provider_key: "example_suite", display_name: "Example suite", features: ["notify"],
+  notification_target_kind: "mixed", requires_connection: true, notification_eligible: true,
+  connection_id: connection.connection_id, target_kind: connection.target_kind,
+  channel_source: connection.channel_source, channel_label: connection.channel_label,
+  connections: SUITE_CONNECTIONS,
+}));
+
+const MIXED_RULE = { reaction_key: "suite", event_type: "job.failed", enabled: true,
+  action: { type: "notify", target: "extension_channel", provider_key: "example_suite" } };
+
+it("asks a mixed app for its connection first and saves the rule with it", async () => {
+  const writes = mountRules({ scopeKind: "workflow", providers: MIXED_PROVIDER_ENTRIES, reactions: [MIXED_RULE] });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: /^When / }));
+  const connection = await screen.findByRole("combobox", { name: "Connection" });
+  // One app, not one per connection.
+  expect(within(screen.getByRole("combobox", { name: "App" })).getAllByRole("option").map((option) => option.textContent)).toEqual(["Select app", "Example suite"]);
+  expect(screen.getByText(/Choose a connection first/)).toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: /^Recipients$/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("combobox", { name: "Channel" })).not.toBeInTheDocument();
+  await user.selectOptions(connection, "conn-mail");
+  await user.type(screen.getByRole("textbox", { name: /^Recipients/ }), "ops@example.com");
+  await user.click(screen.getByRole("button", { name: "Save rules" }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0][0].action).toMatchObject({ provider_key: "example_suite", connection_id: "conn-mail", recipients: ["ops@example.com"] });
+});
+
+it("shows a bound connection's channel without a picker and saves the rule without a channel", async () => {
+  const writes = mountRules({ scopeKind: "workflow", providers: MIXED_PROVIDER_ENTRIES, reactions: [MIXED_RULE] });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: /^When / }));
+  await user.selectOptions(await screen.findByRole("combobox", { name: "Connection" }), "conn-hook");
+  expect(screen.getByRole("textbox", { name: /set by the connection/i })).toHaveValue("Releases / General");
+  expect(screen.queryByRole("combobox", { name: "Channel" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Save rules" }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0][0].action).toMatchObject({ provider_key: "example_suite", connection_id: "conn-hook" });
+  expect(writes[0][0].action).not.toHaveProperty("channel_id");
+  expect(writes[0][0].action).not.toHaveProperty("recipients");
+});
+
+it("keeps a single-kind app's form as it was when the listing carries its connections", async () => {
+  const mail = { connection_id: "mail-1", display_name: "Primary sender", connection_type: "example_relay", target_kind: "recipient", channel_source: "route", channel_label: "", enabled: true };
+  const writes = mountRules({ scopeKind: "workflow", providers: [{
+    provider_key: "example_mail", display_name: "Mailer", features: ["notify"],
+    notification_target_kind: "recipient", notification_recipient_format: "email", requires_connection: false,
+    notification_eligible: true, connection_id: "mail-1", target_kind: "recipient", channel_source: "route", connections: [mail],
+  }], reactions: [{ reaction_key: "mail", event_type: "job.failed", enabled: true,
+    action: { type: "notify", target: "extension_channel", provider_key: "example_mail", recipients: ["old@example.com"] } }] });
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: /^When / }));
+  const input = await screen.findByRole("textbox", { name: /Email addresses/ });
+  expect(screen.queryByRole("combobox", { name: "Connection" })).not.toBeInTheDocument();
+  await user.clear(input);
+  await user.type(input, "ops@example.com");
+  await user.click(screen.getByRole("button", { name: "Save rules" }));
+  await waitFor(() => expect(writes).toHaveLength(1));
+  expect(writes[0][0].action).toMatchObject({ provider_key: "example_mail", recipients: ["ops@example.com"] });
+  expect(writes[0][0].action).not.toHaveProperty("connection_id");
+});

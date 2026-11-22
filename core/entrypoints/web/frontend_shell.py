@@ -175,6 +175,7 @@ def create_frontend_shell_router(
         @router.get("/settings/providers", include_in_schema=False)
         @router.get("/settings/service-accounts", include_in_schema=False)
         @router.get("/settings/security", include_in_schema=False)
+        @router.get("/settings/email", include_in_schema=False)
         @router.get("/settings/retention", include_in_schema=False)
         @router.get("/settings/notifications", include_in_schema=False)
         async def public_settings_shell():

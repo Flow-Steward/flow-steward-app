@@ -297,6 +297,7 @@ function AppRoutes() {
               <Route path="providers" />
               <Route path="service-accounts" />
               <Route path="security" />
+              <Route path="email" />
               <Route path="retention" />
               <Route path="notifications" />
             </Route>

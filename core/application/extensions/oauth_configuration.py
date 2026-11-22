@@ -495,6 +495,14 @@ class OAuthConfigurationService:
         confirmation_token: str | None,
     ) -> OAuthConfigurationView:
         _require_role(scope, "operator")
+        if command.configuration_id is not None:
+            from core.application.extensions.system_email_sender import (
+                require_configuration_change_allowed,
+            )
+
+            require_configuration_change_allowed(
+                self._repository, scope, configuration_id=str(command.configuration_id)
+            )
         prepared = self._prepare(
             scope,
             install_id,
@@ -695,6 +703,13 @@ class OAuthConfigurationService:
         expected_revision: int,
         confirmation_token: str | None = None,
     ) -> None:
+        from core.application.extensions.system_email_sender import (
+            require_configuration_change_allowed,
+        )
+
+        require_configuration_change_allowed(
+            self._repository, scope, configuration_id=str(configuration_id)
+        )
         prepared: _PreparedDelete
         with self._transaction_factory():
             prepared = self._prepare_configuration_delete(

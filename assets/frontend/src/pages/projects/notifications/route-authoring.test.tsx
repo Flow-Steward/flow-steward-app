@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
+import { HttpError } from "@/lib/http/errors";
 import { ProjectNotificationRoutesEditor } from "@/pages/projects/notifications";
 import type * as NotificationsApi from "@/pages/projects/notifications/api";
 import {
@@ -366,5 +367,171 @@ describe("notification route authoring", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Create route" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Create route" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith("project-1", [expect.objectContaining({ route_key: key })]));
+  });
+});
+
+describe("notification route form follows the selected connection", () => {
+  const suiteConnections = [
+    { connection_id: "conn-mail", display_name: "Team inbox", connection_type: "example_mail", target_kind: "recipient", channel_source: "route", channel_label: "", enabled: true },
+    { connection_id: "conn-chat", display_name: "Team chat", connection_type: "chat", target_kind: "channel", channel_source: "route", channel_label: "", enabled: true },
+    { connection_id: "conn-hook", display_name: "Release hook", connection_type: "bound_hook", target_kind: "channel", channel_source: "connection", channel_label: "Releases / General", enabled: true },
+  ];
+
+  function connectionProviders() {
+    providers.mockResolvedValue([
+      {
+        // Mixed: one provider whose connection types address different targets.
+        provider_key: "example_suite", display_name: "Example suite",
+        provider_type_key: "notification_provider", enabled: true, provider_enabled: true,
+        features: ["notify"], notification_target_kind: "mixed", requires_connection: true,
+        connection_id: "conn-mail", connections: suiteConnections,
+      },
+      {
+        // Not mixed: its only notification type is bound to one channel.
+        provider_key: "example_hook", display_name: "Example hook",
+        provider_type_key: "notification_provider", enabled: true, provider_enabled: true,
+        features: ["notify"], notification_target_kind: "channel", requires_connection: true,
+        connection_id: "hook-1",
+        connections: [{ connection_id: "hook-1", display_name: "Ops hook", connection_type: "bound_hook", target_kind: "channel", channel_source: "connection", channel_label: "Ops / Alerts", enabled: true }],
+      },
+      {
+        // Single-kind, as an outgoing-email extension looks: no connection to choose.
+        provider_key: "example_mail", display_name: "Example mail",
+        provider_type_key: "notification_provider", enabled: true, provider_enabled: true,
+        features: ["notify"], notification_target_kind: "recipient", requires_connection: false,
+        connection_id: "mail-1",
+        connections: [
+          { connection_id: "mail-1", display_name: "Primary sender", connection_type: "example_relay", target_kind: "recipient", channel_source: "route", channel_label: "", enabled: true },
+          { connection_id: "mail-2", display_name: "Backup sender", connection_type: "example_relay", target_kind: "recipient", channel_source: "route", channel_label: "", enabled: true },
+        ],
+      },
+    ]);
+    channels.mockResolvedValue([{
+      channel_id: "ops", display_name: "Operations", chat_id: "owned-target",
+      enabled: true, capabilities: { notify: true, human_decision: false },
+    }]);
+  }
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    connectionProviders();
+    routes.mockResolvedValue({ project_id: "project-1", notification_routes: [] });
+    save.mockResolvedValue({ project_id: "project-1", notification_routes: [] });
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response(
+      JSON.stringify({ project_id: "project-1", workflows: [] }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ));
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  async function openCreate(user: ReturnType<typeof userEvent.setup>, provider: string) {
+    renderEditor();
+    await user.click(await screen.findByRole("button", { name: "Create new" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create route" })).toBeEnabled());
+    await choose(user, "Provider", provider);
+  }
+
+  it("asks a mixed provider for its connection before any address field and refuses to save without one", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example suite");
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("combobox", { name: "Connection" })).toBeRequired();
+    expect(within(dialog).getByText(/Choose a connection first/)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox", { name: /recipient email/i })).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("combobox", { name: "Registered channel" })).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(/Choose the connection route/));
+    expect(within(dialog).getByRole("combobox", { name: "Connection" })).toHaveAttribute("aria-invalid", "true");
+    expect(save).not.toHaveBeenCalled();
+    expect(channels).not.toHaveBeenCalled();
+  });
+
+  it("shows recipient fields for a recipient connection and saves the route with its connection", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example suite");
+    await choose(user, "Connection", "Team inbox (recipients)");
+    await user.type(screen.getByRole("textbox", { name: /recipient email/i }), "ops@example.com");
+    expect(screen.queryByRole("combobox", { name: "Registered channel" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][1][0].route_config).toEqual({ connection_id: "conn-mail", to: ["ops@example.com"] });
+    expect(channels).not.toHaveBeenCalled();
+  });
+
+  it("lists the channels of the selected channel connection and saves the picked channel with it", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example suite");
+    await choose(user, "Connection", "Team chat (channel)");
+    await waitFor(() => expect(channels).toHaveBeenCalledWith("project-1", "example_suite", "conn-chat"));
+    expect(screen.queryByRole("textbox", { name: /recipient email/i })).not.toBeInTheDocument();
+    await choose(user, "Registered channel", "Operations (ops)");
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][1][0].route_config).toEqual({ connection_id: "conn-chat", channel_id: "ops" });
+  });
+
+  it("shows a bound connection's fixed channel without a picker and saves the route without a channel", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example suite");
+    await choose(user, "Connection", "Release hook (channel)");
+    expect(screen.getByRole("textbox", { name: /set by the connection/i })).toHaveValue("Releases / General");
+    expect(screen.getByRole("textbox", { name: /set by the connection/i })).toHaveAttribute("readonly");
+    expect(screen.queryByRole("combobox", { name: "Registered channel" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    const config = save.mock.calls[0][1][0].route_config;
+    expect(config).toEqual({ connection_id: "conn-hook" });
+    expect(config).not.toHaveProperty("channel");
+    expect(config).not.toHaveProperty("channel_id");
+    expect(config).not.toHaveProperty("to");
+    expect(channels).not.toHaveBeenCalled();
+  });
+
+  it("gives a provider with only a connection-bound channel type its fixed label, no picker, and no channel on save", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example hook");
+    // Its only connection is preselected.
+    expect(screen.getByRole("combobox", { name: "Connection" })).toHaveTextContent("Ops hook (channel)");
+    expect(screen.getByRole("textbox", { name: /set by the connection/i })).toHaveValue("Ops / Alerts");
+    expect(screen.queryByRole("combobox", { name: "Registered channel" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][1][0]).toMatchObject({ provider_key: "example_hook", route_config: { connection_id: "hook-1" } });
+    expect(save.mock.calls[0][1][0].route_config).not.toHaveProperty("channel_id");
+    expect(channels).not.toHaveBeenCalled();
+  });
+
+  it("keeps the single-kind provider's form as it was: no connection choice, recipient with its connection", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example mail");
+    expect(screen.queryByRole("combobox", { name: "Connection" })).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: /recipient email/i }), "ops@example.com");
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(save.mock.calls[0][1][0].route_config).toEqual({ connection_id: "mail-1", to: ["ops@example.com"] });
+  });
+
+  it("shows the server's connection refusal in the dialog and marks the connection", async () => {
+    const user = userEvent.setup();
+    await openCreate(user, "Example suite");
+    const key = (screen.getByRole("textbox", { name: /route key/i }) as HTMLInputElement).value;
+    save.mockRejectedValueOnce(new HttpError({
+      status: 400,
+      url: "/api/projects/project-1/notification-routes",
+      payload: {
+        error: `Notification route '${key}': This connection addresses recipients; the route needs 'to' and no channel.`,
+        code: "notification_connection_incompatible",
+        route_key: key,
+        routes: [{ index: 0, route_key: key, code: "notification_connection_incompatible", detail: "This connection addresses recipients." }],
+      },
+    }));
+    await choose(user, "Connection", "Team inbox (recipients)");
+    await user.type(screen.getByRole("textbox", { name: /recipient email/i }), "ops@example.com");
+    await user.click(screen.getByRole("button", { name: "Create route" }));
+    await waitFor(() => expect(within(screen.getByRole("dialog")).getByRole("alert"))
+      .toHaveTextContent("This connection addresses recipients; the route needs 'to' and no channel."));
+    expect(screen.getByRole("combobox", { name: "Connection" })).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("textbox", { name: /recipient email/i })).toHaveValue("ops@example.com");
   });
 });

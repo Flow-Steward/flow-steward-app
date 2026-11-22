@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
@@ -926,5 +927,67 @@ describe("renderManifestComponent", () => {
     expect(screen.getAllByRole("button")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Configure bot" }));
     expect(onNavigateToAnchor).toHaveBeenCalledWith("setup", "secrets_form");
+  });
+});
+
+describe("system email sender connection", () => {
+  const sender = {
+    connection_id: "mail-sender",
+    extension_id: "fixture.mail",
+    connection_type: "example_relay",
+    display_name: "Platform sender",
+    environment: "production",
+    connection_config: { host: "relay.example.test" },
+    system_email_sender: true,
+    system_email_sender_locked: true,
+  };
+
+  function renderSender(row: Record<string, unknown>) {
+    // The secret field reads the stored-secret catalog through react-query.
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        {renderManifestComponent(
+          {
+            component_id: "mail_connections",
+            type: "connection_form",
+            title: "Mail connections",
+            data: { connection_type: "example_relay" },
+            fields: [
+              { path: "host", label: "Host", widget: "text" },
+              { path: "access_key", label: "Access key", widget: "secret" },
+            ],
+          },
+          renderContext({
+            extensionId: "fixture.mail",
+            projectConnections: [row],
+            formValuesByComponent: { mail_connections: { connection_id: "mail-sender", host: "relay.example.test" } },
+          }),
+        )}
+      </QueryClientProvider>,
+    );
+  }
+
+  it("marks the sender and keeps its settings, secrets and delete read-only while it is locked", () => {
+    renderSender(sender);
+
+    expect(screen.getAllByText("Used as the system email sender").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Only a platform administrator can change the system email sender's connection.").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    const form = screen.getByRole("form", { name: "Mail connections" });
+    expect(within(form).getByRole("textbox", { name: "Host" })).toBeDisabled();
+    expect(within(form).getByLabelText("Access key")).toBeDisabled();
+    expect(within(form).getByRole("button", { name: "Save connection" })).toBeDisabled();
+  });
+
+  it("only marks the sender when this viewer may change it", () => {
+    renderSender({ ...sender, system_email_sender_locked: false });
+
+    expect(screen.getByText("Used as the system email sender")).toBeInTheDocument();
+    expect(screen.queryByText("Only a platform administrator can change the system email sender's connection.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeEnabled();
+    const form = screen.getByRole("form", { name: "Mail connections" });
+    expect(within(form).getByRole("textbox", { name: "Host" })).toBeEnabled();
+    expect(within(form).getByRole("button", { name: "Save connection" })).toBeEnabled();
   });
 });

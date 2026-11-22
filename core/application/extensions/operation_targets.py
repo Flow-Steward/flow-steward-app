@@ -182,6 +182,37 @@ def _resolve_extension_owned_oauth_runtime(
     )
 
 
+#: Token refusals after which the connection needs a person to reconnect it.
+OAUTH_AUTHORIZATION_REQUIRED_CODES = frozenset(
+    {"oauth_authorization_required", "oauth_needs_attention"}
+)
+
+
+def resolve_connection_oauth_secrets(
+    bl: Any,
+    *,
+    connection: dict[str, Any],
+    get_project_by_id: Callable[[str], Any] | None = None,
+) -> dict[str, str]:
+    """A valid access token for an extension-owned OAuth connection, refreshed if needed.
+
+    The one resolution every caller uses: workflow operations, background polls
+    and notification delivery. It raises ``OAuthRuntimeTokenError`` with a closed
+    code when the token cannot be had; a code in
+    ``OAUTH_AUTHORIZATION_REQUIRED_CODES`` means the grant is gone.
+    """
+    return _resolve_extension_owned_oauth_runtime(
+        bl, connection=connection, get_project_by_id=get_project_by_id
+    )
+
+
+def is_extension_owned_oauth_connection(connection: dict[str, Any]) -> bool:
+    return bool(
+        str(connection.get("oauth_configuration_id") or "").strip()
+        and str(connection.get("oauth_provider_id") or "").strip()
+    )
+
+
 def _direct_action_project_id(
     *,
     scope: ScopeContext | None,
@@ -343,11 +374,7 @@ def _direct_action_connection_target(
         and str(connection.get("connection_type") or "").strip() not in declared_connection_types
     ) or not set(required_oauth_scopes).issubset(granted_scopes):
         raise ServiceValidationError(f"connection_runtime_requirement_failed:{connection_id}")
-    extension_oauth = bool(
-        str(connection.get("oauth_configuration_id") or "").strip()
-        and str(connection.get("oauth_provider_id") or "").strip()
-    )
-    if extension_oauth:
+    if is_extension_owned_oauth_connection(connection):
         runtime_config = runtime_connection_config(connection)
         browser_target = {
             "connection_id": str(connection.get("connection_id") or "").strip(),
@@ -365,7 +392,7 @@ def _direct_action_connection_target(
         if browser_safe:
             return browser_target
         try:
-            oauth_secrets = _resolve_extension_owned_oauth_runtime(
+            oauth_secrets = resolve_connection_oauth_secrets(
                 bl,
                 connection=connection,
                 get_project_by_id=get_project_by_id,
