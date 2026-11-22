@@ -22,6 +22,7 @@ from core.application.registry.workflow_operator_form import JOB_STATUS_OPTIONS
 from core.application.workflows import approval_waiting_propagation
 from core.application.workflows.approval_review import open_review
 from core.infrastructure.db.job_queries_store import _build_attention_where
+from core.infrastructure.db.job_review_chain_store import awaiting_review_predicate
 from tests.unit.test_operator_job_list import (  # the section's workflow registry fixture
     ACCOUNT,
     PROJECT,
@@ -70,6 +71,16 @@ def test_awaiting_review_reads_the_invoke_chain_with_its_depth():
     assert "invoke_parent_job_id" in sql and "invoke_children" in sql
     assert "NOT parent.id = ANY(chain.path)" in sql, "a cycle in the links stops the walk"
     assert params[-2:] == [["failed"], 7]
+
+
+def test_the_review_predicate_splices_only_a_plain_table_alias():
+    sql, params = awaiting_review_predicate(3, alias="jobs_1")
+
+    assert sql.startswith("(LOWER(COALESCE(jobs_1.status, '')) = 'awaiting_approval'")
+    assert params == [3]
+    for alias in ("j; DROP TABLE jobs", "j.id", "", "J", "1j"):
+        with pytest.raises(ValueError):
+            awaiting_review_predicate(3, alias=alias)
 
 
 def test_only_an_awaiting_review_filter_carries_the_chain_depth(monkeypatch):

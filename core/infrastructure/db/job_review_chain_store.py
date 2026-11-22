@@ -21,6 +21,7 @@ and never revisits a job (a cycle in the links stops it).
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -31,6 +32,8 @@ from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 AWAITING_REVIEW_STATUS = "awaiting_review"
 #: Used when the caller does not pass the Invoke depth limit.
 DEFAULT_REVIEW_CHAIN_DEPTH = 5
+#: A table alias is spliced into SQL as an identifier, so only a plain one is accepted.
+_ALIAS_PATTERN = re.compile(r"[a-z_][a-z0-9_]{0,62}")
 
 _ENTRY = "(parent.meta -> 'invoke_children' -> (child.id::text))"
 _LINK = f"""
@@ -81,17 +84,19 @@ def review_chain_cte(max_depth: int) -> tuple[str, list[Any]]:
             AND NOT parent.id = ANY(chain.path)
             AND {_LINK}
     )
-    """
+    """  # nosec B608 - only fixed module constants are interpolated; depth is a parameter.
     return sql, [depth]
 
 
 def awaiting_review_predicate(max_depth: int, *, alias: str = "j") -> tuple[str, list[Any]]:
     """The jobs of ``alias`` that wait for review, here or down their Invoke chain."""
+    if not _ALIAS_PATTERN.fullmatch(alias):
+        raise ValueError(f"Invalid SQL table alias: {alias!r}")
     cte, params = review_chain_cte(max_depth)
     sql = (
         f"(LOWER(COALESCE({alias}.status, '')) = 'awaiting_approval'"
         f" OR (LOWER(COALESCE({alias}.status, '')) = 'awaiting_child'"
-        f" AND {alias}.id IN (WITH RECURSIVE {cte} SELECT ancestor_id FROM review_chain)))"
+        f" AND {alias}.id IN (WITH RECURSIVE {cte} SELECT ancestor_id FROM review_chain)))"  # nosec B608 - checked alias, fixed internal CTE.
     )
     return sql, params
 
@@ -146,7 +151,7 @@ def read_awaiting_review_targets(
             JOIN jobs t ON t.id = targets.review_job_id
             JOIN projects p ON p.id = t.project_id
             ORDER BY targets.job_id, targets.depth
-            """,
+            """,  # nosec B608 - the CTE is a fixed internal fragment; job ids are parameters.
             (*cte_params, ids, ids),
         )
         return {str(row["job_id"]): dict(row) for row in cur.fetchall()}
@@ -179,7 +184,7 @@ def read_review_roots(
             JOIN jobs root ON root.id = chain.ancestor_id
             WHERE chain.review_job_id = ANY(%s::uuid[])
             ORDER BY chain.review_job_id, chain.depth DESC
-            """,
+            """,  # nosec B608 - the CTE is a fixed internal fragment; job ids are parameters.
             (*cte_params, ids),
         )
         return {str(row["review_job_id"]): dict(row) for row in cur.fetchall()}
