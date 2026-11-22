@@ -46,6 +46,59 @@ def _email_spans(text: str) -> Iterator[tuple[int, int]]:
             yield start.start(), address_end
 
 
+# A phone is written with a "+" country code or with separators. A bare digit run
+# (receipt 0045821, invoice 5551234567) is a document number, order ID or code, and
+# pseudonymizing it destroys extracted data for good, since the token is one-way.
+_SEP = r"[-.\s]"
+_PHONE_END = r"(?!\w|[.-]\d|\.\.)"
+_PHONE_US_COUNTRY = re.compile(
+    rf"(?<![\w.+-])(?:\+1{_SEP}?|1{_SEP})(?:\(\d{{3}}\){_SEP}?|\d{{3}}{_SEP}?)\d{{3}}{_SEP}?\d{{4}}"
+    + _PHONE_END
+)
+_PHONE_US_AREA = re.compile(
+    r"(?<![\w.+-])(?:"
+    rf"\(\d{{3}}\){_SEP}?\d{{3}}{_SEP}?\d{{4}}"  # (555) 123-4567
+    rf"|\d{{3}}{_SEP}\d{{3}}{_SEP}?\d{{4}}"  # 555-123-4567, 555 1234567
+    rf"|\d{{6}}{_SEP}\d{{4}}"  # 555123-4567
+    rf"){_PHONE_END}"
+)
+# A local number is written 555-1234. "123.4567" is a decimal and "125 1500" two
+# columns of an OCR'd table, so neither a dot nor a space makes a local phone.
+_PHONE_US_LOCAL = re.compile(rf"(?<![\w.+-])\d{{3}}-\d{{4}}{_PHONE_END}")
+_PHONE_INTERNATIONAL = re.compile(r"(?<![\w+])\+\d{1,3}(?:[-.\s]?\(?\d{1,5}\)?){1,6}(?![\w+])")
+# A number right after a document-number label is that document's number, unless the
+# label belongs to a phone ("Phone No. 555-123-4567", "Tel. Nr. +370 612 34567").
+_DOCUMENT_LABEL_BEFORE = re.compile(
+    r"(?:(?<!\w)(?:nr|no|nº|num|number|ref|id)\.?|[#№])\s*[:#]?\s*$", re.IGNORECASE
+)
+_PHONE_WORD_BEFORE = re.compile(
+    r"(?<!\w)(?:tel|telephone|phone|ph|mob|mobile|cell|fax|telefonas|telefon|telefono|tlf)"
+    r"\.?\s*$",
+    re.IGNORECASE,
+)
+_LABEL_LOOKBACK = 40
+
+
+def _after_document_label(text: str, start: int) -> bool:
+    before = text[max(0, start - _LABEL_LOOKBACK) : start]
+    label = _DOCUMENT_LABEL_BEFORE.search(before)
+    return label is not None and _PHONE_WORD_BEFORE.search(before[: label.start()]) is None
+
+
+def _phone_spans(
+    pattern: re.Pattern[str], *, min_digits: int = 0, max_digits: int = 15
+) -> Callable[[str], Iterator[tuple[int, int]]]:
+    def spans(text: str) -> Iterator[tuple[int, int]]:
+        for match in pattern.finditer(text):
+            digits = sum(char.isdigit() for char in match.group())
+            if min_digits <= digits <= max_digits and not _after_document_label(
+                text, match.start()
+            ):
+                yield match.span()
+
+    return spans
+
+
 # ---------------------------------------------------------------------------
 # PII detector definitions
 # ---------------------------------------------------------------------------
@@ -73,27 +126,25 @@ _DETECTORS: list[PIIDetector] = [
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(
-            r"(?<![\w.])\+?1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"
-        ),
+        regex=_phone_spans(_PHONE_US_COUNTRY),
         severity="medium",
         description="US phone number with country code",
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(r"(?<![\w.])\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"),
+        regex=_phone_spans(_PHONE_US_AREA),
         severity="medium",
         description="US phone number with area code",
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(r"(?<![\w.-])\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"),
+        regex=_phone_spans(_PHONE_US_LOCAL),
         severity="medium",
         description="US local phone number",
     ),
     PIIDetector(
         pii_type="phone_international",
-        regex=re.compile(r"\+\d{1,3}[-.\s]?\d{4,14}"),
+        regex=_phone_spans(_PHONE_INTERNATIONAL, min_digits=7),
         severity="medium",
         description="International phone number",
     ),
