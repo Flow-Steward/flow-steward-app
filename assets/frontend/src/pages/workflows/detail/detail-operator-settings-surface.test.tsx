@@ -184,6 +184,11 @@ it("warns at once that a required field without a default cannot be hidden", asy
 
 it("reorders the form with the up and down buttons", async () => {
   const { payload, user } = renderSurface();
+  const firstUp = screen.getAllByRole("button", { name: /^Move .+ up$/ })[0];
+  // Two small icon buttons in a slot sized for them, the end one disabled.
+  expect(firstUp).toBeDisabled();
+  expect(firstUp).toHaveClass("fs-icon-button");
+  expect(firstUp.closest(".fs-accordion-header")).toHaveAttribute("data-accessory-slot", "icon-pair");
   await user.click(screen.getByRole("button", { name: "Move amount up" }));
   expect((payload().form as { order: string[] }).order).toEqual(["doc_type", "files", "signed_on", "urgent", "amount", "urgent_reason"]);
 });
@@ -213,9 +218,21 @@ it("publishes, names the projects it appears in and acknowledges the real effect
   await user.click(publish);
   await waitFor(() => expect(screen.getByText("Accounting, Legal")).toBeInTheDocument());
   expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Not confirmed");
-  await user.click(screen.getByRole("button", { name: "Confirm real effects" }));
+  // The submission modes are one group, one option per line.
+  expect(within(screen.getByRole("radiogroup", { name: "Submission" })).getAllByRole("radio")).toHaveLength(2);
+  // A checkbox, so the confirmation can be taken back before the save.
+  const confirm = screen.getByRole("checkbox", { name: "Confirm real effects" });
+  expect(confirm).not.toBeChecked();
+  const confirmLabel = confirm.closest("label");
+  if (!confirmLabel) throw new Error("no label for the confirmation");
+  await user.click(confirmLabel);
+  expect(confirm).toBeChecked();
   expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Confirmed with the next save.");
   expect(payload()).toMatchObject({ published: true, effects_acknowledged: { confirm: true } });
+  await user.click(confirmLabel);
+  expect(confirm).not.toBeChecked();
+  expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Not confirmed");
+  expect(payload()).toMatchObject({ effects_acknowledged: null });
 });
 
 it("lists issues with a jump to the field they name", async () => {
@@ -237,15 +254,23 @@ it("edits the list's columns and filters, offering only filter types that fit", 
   await choose(user, "Column 1 value", "Created");
   await choose(user, "Column 1 format", "Date and time");
   await user.type(screen.getByRole("textbox", { name: "Column 1 heading" }), "Date");
+  // One table row per column, under one row of headings.
+  const columnTable = screen.getByRole("table", { name: "Columns" });
+  expect(within(columnTable).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Source", "Value", "Heading", "Format", ""]);
+  expect(within(columnTable).getAllByRole("row")).toHaveLength(2);
 
   await user.click(screen.getByRole("button", { name: "Add filter" }));
-  await choose(user, "Filter 1 value", "Input · amount");
+  // Source first, then a value of that source, as for columns.
+  await choose(user, "Filter 1 source", "Input");
+  await choose(user, "Filter 1 value", "amount");
+  expect(within(screen.getByRole("table", { name: "Filters" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Source", "Value", "Filter type", "Label", ""]);
   await user.click(screen.getByRole("combobox", { name: "Filter 1 type" }));
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["Number range"]);
   await user.click(screen.getByRole("option", { name: "Number range" }));
   // Files cannot be filtered.
   await user.click(screen.getByRole("combobox", { name: "Filter 1 value" }));
-  expect(screen.queryByRole("option", { name: "Input · files" })).not.toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "amount" })).toBeInTheDocument();
+  expect(screen.queryByRole("option", { name: "files" })).not.toBeInTheDocument();
   await user.keyboard("{Escape}");
 
   expect(payload().list).toEqual({

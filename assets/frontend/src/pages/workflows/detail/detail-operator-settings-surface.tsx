@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 
-import { DsAlert, DsBadge, DsRadio, DsSelect, DsTabs } from "@/components/shared/design-system";
+import { DsAlert, DsBadge, DsCheckbox, DsRadio, DsSelect, DsTable, DsTabs } from "@/components/shared/design-system";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { Button } from "@/components/ui/button";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
@@ -14,7 +14,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { OperatorIssue } from "@/pages/operator/types";
 import { fetchWorkflowLinkedProjects } from "@/pages/workflows/shared/project-context";
 import { DrawerFooter, DrawerFooterSpacer } from "./detail-drawer-footer";
-import { IssueLines, OperatorFieldList, type FieldListState } from "./detail-operator-form-editor";
+import { IssueLines, MoveButtons, OperatorFieldList, type FieldListState } from "./detail-operator-form-editor";
 import { kindLabel } from "./detail-operator-labels";
 import {
   filterTypesFor,
@@ -94,16 +94,6 @@ function sourceLabel(source: OperatorValueSource, t: T): string {
   if (source === "job") return t("react.workflows.operator.source_job", "Run");
   if (source === "output") return t("react.workflows.operator.source_output", "Output");
   return t("react.workflows.operator.source_input", "Input");
-}
-
-function MoveButtons({ index, count, name, onMove }: Readonly<{ index: number; count: number; name: string; onMove: (delta: number) => void }>) {
-  const { t } = useI18n();
-  return (
-    <span className="flex gap-1">
-      <Button aria-label={t("react.workflows.report_move_up", "Move {name} up", { name })} disabled={index === 0} onClick={() => onMove(-1)} size="sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button>
-      <Button aria-label={t("react.workflows.report_move_down", "Move {name} down", { name })} disabled={index === count - 1} onClick={() => onMove(1)} size="sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button>
-    </span>
-  );
 }
 
 /** The operator form with the draft's settings, filled in place; nothing is sent. */
@@ -203,7 +193,12 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
     ...Object.keys(schemaProperties(view.input_schema)).map((path) => ({ source: "input" as const, path })),
     ...Object.keys(schemaProperties(view.output_schema)).map((path) => ({ source: "output" as const, path })),
   ].filter(({ source, path }) => filterTypesFor(view, source, path).length > 0);
-  const filterValueLabel = (source: OperatorValueSource, path: string) => `${sourceLabel(source, t)} · ${source === "job" ? jobColumnLabel(path, t) : path}`;
+  // Source first, then a value of that source, as for columns; only sources with a filterable value.
+  const filterSources = (["job", "input", "output"] as const).filter((source) => filterValues.some((value) => value.source === source));
+  const setFilterValue = (index: number, source: OperatorValueSource, path: string) => {
+    const nextTypes = filterTypesFor(view, source, path);
+    setFilters(filters.map((row, at) => at === index ? { ...row, source, path, id: "", type: (nextTypes.includes(row.type) ? row.type : nextTypes[0] ?? "") as OperatorFilterDraft["type"] } : row));
+  };
   const columnIssues = (index: number) => issuesUnder(issues, `${OPERATOR_SETTINGS_PATH}.list.columns[${index}]`);
   const filterIssues = (index: number) => issuesUnder(issues, `${OPERATOR_SETTINGS_PATH}.list.filters[${index}]`);
   return (
@@ -212,36 +207,50 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.columns", "Columns")}</p>
         <p className="fs-field-helper">{t("react.workflows.operator.columns_help", "What the operator's list of runs shows: fields of the run, inputs and outputs. Files show as download links.")}</p>
         {columns.length ? null : <p className="workflow-contract-empty">{t("react.workflows.operator.no_columns", "No columns: the list shows the run, its status and when it was created.")}</p>}
-        {columns.map((column, index) => {
-          const number = index + 1;
-          return (
-            <div className="space-y-1 rounded-lg border border-default p-2" key={`column-${index}`}>
-              <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.5fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto]">
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.source", "Source")}</span>
-                  <DsSelect ariaLabel={t("react.workflows.operator.column_source", "Column {number} source", { number })} className="mt-1" onChange={(source) => updateColumn(index, { source: source as OperatorValueSource, path: "", id: "" })} options={(["job", "input", "output"] as const).map((source) => ({ value: source, label: sourceLabel(source, t) }))} value={column.source} />
-                </label>
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.value", "Value")}</span>
-                  <DsSelect ariaLabel={t("react.workflows.operator.column_value", "Column {number} value", { number })} className="mt-1" onChange={(path) => updateColumn(index, { path, id: "" })} options={pathOptions(column.source)} searchable value={column.path} />
-                </label>
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.heading", "Heading")}</span>
-                  <input aria-label={t("react.workflows.operator.column_heading", "Column {number} heading", { number })} className="fs-input mt-1 w-full" onChange={(event) => updateColumn(index, { label: event.target.value })} value={column.label} />
-                </label>
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.format", "Format")}</span>
-                  <DsSelect ariaLabel={t("react.workflows.operator.column_format", "Column {number} format", { number })} className="mt-1" onChange={(format) => updateColumn(index, { format })} options={formats.map((format) => ({ value: format, label: displayLabel(format, t) }))} value={column.format || "auto"} />
-                </label>
-                <span className="flex gap-1">
-                  <MoveButtons count={columns.length} index={index} name={column.label || column.path || String(number)} onMove={(delta) => setColumns(moveAt(columns, index, delta))} />
-                  <Button aria-label={t("react.workflows.operator.remove_column", "Remove column {number}", { number })} onClick={() => setColumns(columns.filter((_, at) => at !== index))} size="sm" type="button" variant="ghost-danger"><Trash2 aria-hidden="true" /></Button>
-                </span>
-              </div>
-              <IssueLines issues={columnIssues(index)} />
-            </div>
-          );
-        })}
+        {columns.length ? (
+          <DsTable
+            ariaLabel={t("react.workflows.operator.columns", "Columns")}
+            columns={[
+              {
+                key: "source",
+                header: t("react.workflows.operator.source", "Source"),
+                width: 140,
+                cell: ({ column, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.column_source", "Column {number} source", { number })} onChange={(source) => updateColumn(index, { source: source as OperatorValueSource, path: "", id: "" })} options={(["job", "input", "output"] as const).map((source) => ({ value: source, label: sourceLabel(source, t) }))} value={column.source} />,
+              },
+              {
+                key: "value",
+                header: t("react.workflows.operator.value", "Value"),
+                cell: ({ column, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.column_value", "Column {number} value", { number })} onChange={(path) => updateColumn(index, { path, id: "" })} options={pathOptions(column.source)} searchable value={column.path} />,
+              },
+              {
+                key: "heading",
+                header: t("react.workflows.operator.heading", "Heading"),
+                cell: ({ column, number, index }) => <input aria-label={t("react.workflows.operator.column_heading", "Column {number} heading", { number })} className="fs-input w-full" onChange={(event) => updateColumn(index, { label: event.target.value })} value={column.label} />,
+              },
+              {
+                key: "format",
+                header: t("react.workflows.operator.format", "Format"),
+                width: 170,
+                cell: ({ column, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.column_format", "Column {number} format", { number })} onChange={(format) => updateColumn(index, { format })} options={formats.map((format) => ({ value: format, label: displayLabel(format, t) }))} value={column.format || "auto"} />,
+              },
+              {
+                key: "actions",
+                ariaLabel: "Actions",
+                header: null,
+                cell: ({ column, number, index }) => (
+                  <span className="inline-flex items-center gap-1">
+                    <MoveButtons count={columns.length} index={index} name={column.label || column.path || String(number)} onMove={(delta) => setColumns(moveAt(columns, index, delta))} />
+                    <Button aria-label={t("react.workflows.operator.remove_column", "Remove column {number}", { number })} onClick={() => setColumns(columns.filter((_, at) => at !== index))} size="sm" type="button" variant="ghost-danger"><Trash2 aria-hidden="true" /></Button>
+                  </span>
+                ),
+              },
+            ]}
+            embedded
+            rowKey={({ index }) => `column-${index}`}
+            rows={columns.map((column, index) => ({ column, index, number: index + 1 }))}
+          />
+        ) : null}
+        <IssueLines issues={columns.flatMap((_, index) => columnIssues(index).map((issue) => ({ ...issue, message: t("react.workflows.operator.column_issue", "Column {number}: {message}", { number: index + 1, message: issue.message }) })))} />
         <Button onClick={() => setColumns([...columns, { id: "", source: "input", path: inputPaths[0]?.path ?? "", label: "", format: "auto" }])} size="sm" type="button" variant="secondary">
           <Plus aria-hidden="true" />{t("react.workflows.operator.add_column", "Add column")}
         </Button>
@@ -249,35 +258,48 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
       <section className="space-y-2" data-testid="operator-list-filters">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.filters", "Filters")}</p>
         <p className="fs-field-helper">{t("react.workflows.operator.filters_help", "Filters compare the full submitted values. Files cannot be filtered. Every list has the run status filter with the built-in Awaiting review status.")}</p>
-        {filters.map((filter, index) => {
-          const number = index + 1;
-          const types = filterTypesFor(view, filter.source, filter.path);
-          return (
-            <div className="space-y-1 rounded-lg border border-default p-2" key={`filter-${index}`}>
-              <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto]">
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.value", "Value")}</span>
-                  <DsSelect ariaLabel={t("react.workflows.operator.filter_value", "Filter {number} value", { number })} className="mt-1" onChange={(value) => {
-                    const [source, ...rest] = value.split(".");
-                    const path = rest.join(".");
-                    const nextTypes = filterTypesFor(view, source as OperatorValueSource, path);
-                    setFilters(filters.map((row, at) => at === index ? { ...row, source: source as OperatorValueSource, path, id: "", type: (nextTypes.includes(row.type) ? row.type : nextTypes[0] ?? "") as OperatorFilterDraft["type"] } : row));
-                  }} options={filterValues.map(({ source, path }) => ({ value: `${source}.${path}`, label: filterValueLabel(source, path) }))} searchable value={`${filter.source}.${filter.path}`} />
-                </label>
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.operator.filter_type", "Filter type")}</span>
-                  <DsSelect ariaLabel={t("react.workflows.operator.filter_type_of", "Filter {number} type", { number })} className="mt-1" onChange={(type) => setFilters(filters.map((row, at) => at === index ? { ...row, type: type as OperatorFilterDraft["type"] } : row))} options={types.map((type) => ({ value: type, label: filterTypeLabel(type, t) }))} value={filter.type} />
-                </label>
-                <label className="block text-xs fs-ink-secondary">
-                  <span>{t("react.workflows.label", "Label")}</span>
-                  <input aria-label={t("react.workflows.operator.filter_label", "Filter {number} label", { number })} className="fs-input mt-1 w-full" onChange={(event) => setFilters(filters.map((row, at) => at === index ? { ...row, label: event.target.value } : row))} value={filter.label} />
-                </label>
-                <Button aria-label={t("react.workflows.operator.remove_filter", "Remove filter {number}", { number })} onClick={() => setFilters(filters.filter((_, at) => at !== index))} size="sm" type="button" variant="ghost-danger"><Trash2 aria-hidden="true" /></Button>
-              </div>
-              <IssueLines issues={filterIssues(index)} />
-            </div>
-          );
-        })}
+        {filters.length ? (
+          <DsTable
+            ariaLabel={t("react.workflows.operator.filters", "Filters")}
+            columns={[
+              {
+                key: "source",
+                header: t("react.workflows.operator.source", "Source"),
+                width: 140,
+                cell: ({ filter, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.filter_source", "Filter {number} source", { number })} onChange={(source) => {
+                  const first = filterValues.find((value) => value.source === source);
+                  if (first) setFilterValue(index, first.source, first.path);
+                }} options={filterSources.map((source) => ({ value: source, label: sourceLabel(source, t) }))} value={filter.source} />,
+              },
+              {
+                key: "value",
+                header: t("react.workflows.operator.value", "Value"),
+                cell: ({ filter, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.filter_value", "Filter {number} value", { number })} onChange={(path) => setFilterValue(index, filter.source, path)} options={filterValues.filter(({ source }) => source === filter.source).map(({ source, path }) => ({ value: path, label: source === "job" ? jobColumnLabel(path, t) : path }))} searchable value={filter.path} />,
+              },
+              {
+                key: "type",
+                header: t("react.workflows.operator.filter_type", "Filter type"),
+                width: 180,
+                cell: ({ filter, number, index }) => <DsSelect ariaLabel={t("react.workflows.operator.filter_type_of", "Filter {number} type", { number })} onChange={(type) => setFilters(filters.map((row, at) => at === index ? { ...row, type: type as OperatorFilterDraft["type"] } : row))} options={filterTypesFor(view, filter.source, filter.path).map((type) => ({ value: type, label: filterTypeLabel(type, t) }))} value={filter.type} />,
+              },
+              {
+                key: "label",
+                header: t("react.workflows.label", "Label"),
+                cell: ({ filter, number, index }) => <input aria-label={t("react.workflows.operator.filter_label", "Filter {number} label", { number })} className="fs-input w-full" onChange={(event) => setFilters(filters.map((row, at) => at === index ? { ...row, label: event.target.value } : row))} value={filter.label} />,
+              },
+              {
+                key: "actions",
+                ariaLabel: "Actions",
+                header: null,
+                cell: ({ number, index }) => <Button aria-label={t("react.workflows.operator.remove_filter", "Remove filter {number}", { number })} onClick={() => setFilters(filters.filter((_, at) => at !== index))} size="sm" type="button" variant="ghost-danger"><Trash2 aria-hidden="true" /></Button>,
+              },
+            ]}
+            embedded
+            rowKey={({ index }) => `filter-${index}`}
+            rows={filters.map((filter, index) => ({ filter, index, number: index + 1 }))}
+          />
+        ) : null}
+        <IssueLines issues={filters.flatMap((_, index) => filterIssues(index).map((issue) => ({ ...issue, message: t("react.workflows.operator.filter_issue", "Filter {number}: {message}", { number: index + 1, message: issue.message }) })))} />
         <Button disabled={!filterValues.length} onClick={() => {
           const first = filterValues.find(({ source, path }) => !filters.some((row) => row.source === source && row.path === path)) ?? filterValues[0];
           if (!first) return;
@@ -344,12 +366,14 @@ function PublicationEditor({ ctx, view, draft, setDraft, issues, onJump }: Reado
       </section>
       <section className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.submission", "Submission")}</p>
-        <DsRadio checked={draft.submission.mode === "bulk"} name={radioName} onChange={() => setDraft({ ...draft, submission: { mode: "bulk", target_input: "" } })} value="bulk">
-          {t("react.workflows.operator.mode_bulk", "Bulk: one run with everything the operator submits")}
-        </DsRadio>
-        <DsRadio checked={draft.submission.mode === "foreach"} name={radioName} onChange={() => setDraft({ ...draft, submission: { mode: "foreach", target_input: draft.submission.target_input || targets[0]?.[0] || "" } })} value="foreach">
-          {t("react.workflows.operator.mode_foreach", "For each: one run per item of a list or file input; the other values repeat in each run")}
-        </DsRadio>
+        <div aria-label={t("react.workflows.operator.submission", "Submission")} className="flex flex-col gap-2" role="radiogroup">
+          <DsRadio checked={draft.submission.mode === "bulk"} name={radioName} onChange={() => setDraft({ ...draft, submission: { mode: "bulk", target_input: "" } })} value="bulk">
+            {t("react.workflows.operator.mode_bulk", "Bulk: one run with everything the operator submits")}
+          </DsRadio>
+          <DsRadio checked={draft.submission.mode === "foreach"} name={radioName} onChange={() => setDraft({ ...draft, submission: { mode: "foreach", target_input: draft.submission.target_input || targets[0]?.[0] || "" } })} value="foreach">
+            {t("react.workflows.operator.mode_foreach", "For each: one run per item of a list or file input; the other values repeat in each run")}
+          </DsRadio>
+        </div>
         {draft.submission.mode === "foreach" ? (
           <label className="block text-xs fs-ink-secondary">
             <span>{t("react.workflows.operator.foreach_target", "One run per item of")}</span>
@@ -361,9 +385,13 @@ function PublicationEditor({ ctx, view, draft, setDraft, issues, onJump }: Reado
       <section className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.effects", "Real effects")}</p>
         <p className="text-xs" data-testid="operator-ack-status">{acknowledgementText(view, draft, t)}</p>
-        <Button disabled={draft.acknowledge} onClick={() => setDraft({ ...draft, acknowledge: true })} size="sm" type="button" variant="secondary">
+        {/* Saved with the workflow settings: ticked confirms the current contract, cleared withdraws the confirmation. */}
+        <DsCheckbox
+          checked={draft.acknowledge || Boolean(draft.effects_acknowledged && view.effects_acknowledged)}
+          onChange={(checked) => setDraft(checked ? { ...draft, acknowledge: true } : { ...draft, acknowledge: false, effects_acknowledged: null })}
+        >
           {t("react.workflows.operator.acknowledge", "Confirm real effects")}
-        </Button>
+        </DsCheckbox>
         <p className="fs-field-helper">{t("react.workflows.operator.ack_help", "An operator's submission runs the workflow with its real effects. A change of the workflow contract clears the confirmation.")}</p>
       </section>
       <section className="space-y-2" data-testid="operator-issues">
@@ -488,7 +516,7 @@ export function OperatorSettingsSurface({ ctx }: Readonly<{ ctx: Ctx }>) {
     );
   }
   return (
-    <div className="space-y-3" data-testid="workflow-operator-settings">
+    <div className="flex flex-col gap-3" data-testid="workflow-operator-settings">
       <DsTabs active={subTab} ariaLabel={t("react.workflows.operator.tab", "For operators")} idPrefix={idPrefix} items={tabs} onSelect={(key) => setSubTab(key as OperatorSubTab)} />
       <div aria-labelledby={`${idPrefix}-tab-${subTab}`} id={`${idPrefix}-panel-${subTab}`} role="tabpanel">{panel}</div>
       <DrawerFooter>

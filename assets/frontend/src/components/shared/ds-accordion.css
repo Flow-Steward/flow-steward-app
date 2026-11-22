@@ -13,7 +13,13 @@
   border-top: 3px solid var(--fs-accordion-open-accent);
   background: var(--fs-accordion-open-bg);
 }
-.fs-accordion-header { position: relative; }
+.fs-accordion-header {
+  --fs-accordion-accessory-width: var(--fs-switch-track-width);
+  position: relative;
+}
+.fs-accordion-header[data-accessory-slot="icon-pair"] {
+  --fs-accordion-accessory-width: calc(var(--fs-icon-button-size-sm) * 2 + 4px);
+}
 
 .fs-accordion-trigger {
   position: relative;
@@ -48,9 +54,9 @@
 }
 .fs-accordion-trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
 
-/* The trigger reserves 10px after the text, the 42px Switch slot, then 12px. */
+/* The trigger reserves 10px after the text, the accessory slot, then 12px. */
 .fs-accordion-header[data-has-accessory="true"] .fs-accordion-trigger {
-  grid-template-columns: minmax(0, 1fr) 10px var(--fs-switch-track-width) 12px 15px;
+  grid-template-columns: minmax(0, 1fr) 10px var(--fs-accordion-accessory-width) 12px 15px;
   column-gap: 0;
 }
 .fs-accordion-header[data-has-accessory="true"] .fs-accordion-trigger svg { grid-column: 5; }
@@ -63,7 +69,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--fs-switch-track-width);
+  gap: 4px;
+  width: var(--fs-accordion-accessory-width);
   transform: translateY(-50%);
 }
 .fs-accordion-header:has(.fs-switch-input:not(:checked)) .fs-accordion-trigger { color: var(--fs-text-tertiary); }

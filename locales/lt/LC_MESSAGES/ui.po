@@ -31886,6 +31886,9 @@ msgstr "Antraštė"
 msgid "react.workflows.operator.column_heading"
 msgstr "Stulpelio {number} antraštė"
 
+msgid "react.workflows.operator.column_issue"
+msgstr "Stulpelis {number}: {message}"
+
 msgid "react.workflows.operator.format"
 msgstr "Formatas"
 
@@ -31915,6 +31918,12 @@ msgstr "Filtro {number} tipas"
 
 msgid "react.workflows.operator.filter_label"
 msgstr "Filtro {number} pavadinimas"
+
+msgid "react.workflows.operator.filter_source"
+msgstr "Filtro {number} šaltinis"
+
+msgid "react.workflows.operator.filter_issue"
+msgstr "Filtras {number}: {message}"
 
 msgid "react.workflows.operator.remove_filter"
 msgstr "Šalinti filtrą {number}"

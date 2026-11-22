@@ -5,6 +5,7 @@ import { DsBadge, DsDialog, DsRadio, DsSelect, DsTabs } from "@/components/share
 import { DsAccordion } from "@/components/shared/ds-accordion";
 import { DsSwitch } from "@/components/shared/ds-switch";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import type { ConditionRule, FormFieldView } from "@/components/workflow-inputs/form-field";
 import { useI18n } from "@/lib/i18n/useI18n";
 import type { OperatorIssue } from "@/pages/operator/types";
@@ -380,7 +381,7 @@ function FieldPanel({
     );
   }
   return (
-    <div className="space-y-3" data-testid={`operator-field-panel-${key}`}>
+    <div className="flex flex-col gap-3" data-testid={`operator-field-panel-${key}`}>
       <IssueLines issues={elsewhere} />
       <DsTabs active={tab} ariaLabel={t("react.workflows.operator.field_settings", "Settings of {name}", { name: field.label || field.name })} idPrefix={idPrefix} items={tabs} onSelect={(next) => state.setFieldTab(key, next as OperatorFieldTab)} />
       <div aria-labelledby={`${idPrefix}-tab-${tab}`} id={`${idPrefix}-panel-${tab}`} role="tabpanel">{content}</div>
@@ -396,6 +397,17 @@ function FieldPanel({
         />
       ) : null}
     </div>
+  );
+}
+
+/** Up and down for one item of an ordered list; the end it sits at is disabled. */
+export function MoveButtons({ index, count, name, onMove }: Readonly<{ index: number; count: number; name: string; onMove: (delta: number) => void }>) {
+  const { t } = useI18n();
+  return (
+    <span className="inline-flex gap-1">
+      <IconButton disabled={index === 0} icon={ArrowUp} label={t("react.workflows.report_move_up", "Move {name} up", { name })} onClick={() => onMove(-1)} size="small" />
+      <IconButton disabled={index === count - 1} icon={ArrowDown} label={t("react.workflows.report_move_down", "Move {name} down", { name })} onClick={() => onMove(1)} size="small" />
+    </span>
   );
 }
 
@@ -433,11 +445,9 @@ export function OperatorFieldList(props: FieldListProps) {
         </span>
       ),
       accessory: onMove ? (
-        <span className="flex gap-1">
-          <Button aria-label={t("react.workflows.report_move_up", "Move {name} up", { name: label })} disabled={index === 0} onClick={() => onMove(field.name, -1)} size="sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button>
-          <Button aria-label={t("react.workflows.report_move_down", "Move {name} down", { name: label })} disabled={index === fields.length - 1} onClick={() => onMove(field.name, 1)} size="sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button>
-        </span>
+        <MoveButtons count={fields.length} index={index} name={label} onMove={(delta) => onMove(field.name, delta)} />
       ) : undefined,
+      accessorySlot: "icon-pair" as const,
       panel: openId === id ? (
         <FieldPanel config={config} field={field} keyPath={keyPath} node={props.nodes[field.name] ?? {}} props={props} siblings={fields} />
       ) : null,

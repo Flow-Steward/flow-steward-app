@@ -31458,6 +31458,9 @@ msgstr "Heading"
 msgid "react.workflows.operator.column_heading"
 msgstr "Column {number} heading"
 
+msgid "react.workflows.operator.column_issue"
+msgstr "Column {number}: {message}"
+
 msgid "react.workflows.operator.format"
 msgstr "Format"
 
@@ -31487,6 +31490,12 @@ msgstr "Filter {number} type"
 
 msgid "react.workflows.operator.filter_label"
 msgstr "Filter {number} label"
+
+msgid "react.workflows.operator.filter_source"
+msgstr "Filter {number} source"
+
+msgid "react.workflows.operator.filter_issue"
+msgstr "Filter {number}: {message}"
 
 msgid "react.workflows.operator.remove_filter"
 msgstr "Remove filter {number}"

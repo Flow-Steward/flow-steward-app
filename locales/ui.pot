@@ -30402,6 +30402,9 @@ msgstr ""
 msgid "react.workflows.operator.column_heading"
 msgstr ""
 
+msgid "react.workflows.operator.column_issue"
+msgstr ""
+
 msgid "react.workflows.operator.format"
 msgstr ""
 
@@ -30430,6 +30433,12 @@ msgid "react.workflows.operator.filter_type_of"
 msgstr ""
 
 msgid "react.workflows.operator.filter_label"
+msgstr ""
+
+msgid "react.workflows.operator.filter_source"
+msgstr ""
+
+msgid "react.workflows.operator.filter_issue"
 msgstr ""
 
 msgid "react.workflows.operator.remove_filter"
