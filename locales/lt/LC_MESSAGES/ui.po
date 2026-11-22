@@ -14994,6 +14994,12 @@ msgstr "Perjungti pasirinktą"
 msgid "react.shared.toggle_sidebar"
 msgstr "Perjungti šoninę juostą"
 
+msgid "react.shared.open_menu"
+msgstr "Atidaryti meniu"
+
+msgid "react.shared.close_menu"
+msgstr "Uždaryti meniu"
+
 msgid "react.shared.toggled_successfully"
 msgstr "Būsena sėkmingai pakeista."
 
@@ -32013,7 +32019,7 @@ msgid "react.workflows.operator.sub_result"
 msgstr "Rezultatas"
 
 msgid "react.workflows.operator.sub_list"
-msgstr "Sąrašas"
+msgstr "Lentelė"
 
 msgid "react.workflows.operator.sub_publication"
 msgstr "Publikavimas"

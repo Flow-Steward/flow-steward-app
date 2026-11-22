@@ -14776,6 +14776,12 @@ msgstr "Toggle selected"
 msgid "react.shared.toggle_sidebar"
 msgstr "Toggle sidebar"
 
+msgid "react.shared.open_menu"
+msgstr "Open menu"
+
+msgid "react.shared.close_menu"
+msgstr "Close menu"
+
 msgid "react.shared.toggled_successfully"
 msgstr "Toggled successfully."
 
@@ -31585,7 +31591,7 @@ msgid "react.workflows.operator.sub_result"
 msgstr "Result"
 
 msgid "react.workflows.operator.sub_list"
-msgstr "List"
+msgstr "Table"
 
 msgid "react.workflows.operator.sub_publication"
 msgstr "Publication"

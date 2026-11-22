@@ -13767,6 +13767,12 @@ msgstr ""
 msgid "react.shared.toggle_sidebar"
 msgstr ""
 
+msgid "react.shared.open_menu"
+msgstr ""
+
+msgid "react.shared.close_menu"
+msgstr ""
+
 msgid "react.shared.toggled_successfully"
 msgstr ""
 

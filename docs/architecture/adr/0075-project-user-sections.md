@@ -388,7 +388,7 @@ selected through the menu. The existing filters by date, status and call type
 and the filters configured by the admin narrow the request within this section.
 UI runs have `task_source=manual_ui`.
 
-Columns and filters are set in Workflow Settings on the "List" tab. The project
+Columns and filters are set in Workflow Settings on the "Table" tab. The project
 and workflow names are already given by the section context, so the list can
 show the date, files, supplier, amount, status and the author of the run. One row
 is one job. A file is shown by name with download available

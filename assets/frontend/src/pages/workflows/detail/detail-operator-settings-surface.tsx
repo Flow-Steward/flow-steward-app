@@ -202,7 +202,7 @@ function ListEditor({ view, draft, setDraft, issues }: Readonly<{ view: Operator
   const columnIssues = (index: number) => issuesUnder(issues, `${OPERATOR_SETTINGS_PATH}.list.columns[${index}]`);
   const filterIssues = (index: number) => issuesUnder(issues, `${OPERATOR_SETTINGS_PATH}.list.filters[${index}]`);
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-8">
       <section className="space-y-2" data-testid="operator-list-columns">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.columns", "Columns")}</p>
         <p className="fs-field-helper">{t("react.workflows.operator.columns_help", "What the operator's list of runs shows: fields of the run, inputs and outputs. Files show as download links.")}</p>
@@ -338,7 +338,7 @@ function PublicationEditor({ ctx, view, draft, setDraft, issues, onJump }: Reado
   const targets = Object.entries(inputs).filter(([name, node]) => isListLikeInput(node) && view.form_fields.some((field) => field.name === name));
   const submissionIssues = issuesUnder(issues, `${OPERATOR_SETTINGS_PATH}.submission`);
   return (
-    <div className="space-y-4" data-testid="operator-publication">
+    <div className="flex flex-col gap-8" data-testid="operator-publication">
       <section className="space-y-2">
         <div className="flex items-center gap-2 text-sm">
           <DsSwitch checked={draft.published} disabled={!uiOn && !draft.published} label={t("react.workflows.operator.publish", "Show to operators")} onCheckedChange={(published) => setDraft({ ...draft, published })} />
@@ -366,7 +366,7 @@ function PublicationEditor({ ctx, view, draft, setDraft, issues, onJump }: Reado
       </section>
       <section className="space-y-2">
         <p className="text-xs font-medium uppercase tracking-[0.12em] fs-ink-secondary">{t("react.workflows.operator.submission", "Submission")}</p>
-        <div aria-label={t("react.workflows.operator.submission", "Submission")} className="flex flex-col gap-2" role="radiogroup">
+        <div aria-label={t("react.workflows.operator.submission", "Submission")} className="flex flex-col" role="radiogroup">
           <DsRadio checked={draft.submission.mode === "bulk"} name={radioName} onChange={() => setDraft({ ...draft, submission: { mode: "bulk", target_input: "" } })} value="bulk">
             {t("react.workflows.operator.mode_bulk", "Bulk: one run with everything the operator submits")}
           </DsRadio>
@@ -484,7 +484,7 @@ export function OperatorSettingsSurface({ ctx }: Readonly<{ ctx: Ctx }>) {
   const tabs = [
     { key: "form", label: tabLabel(t("react.workflows.operator.sub_form", "Form"), `${OPERATOR_SETTINGS_PATH}.form`) },
     { key: "result", label: tabLabel(t("react.workflows.operator.sub_result", "Result"), `${OPERATOR_SETTINGS_PATH}.result`) },
-    { key: "list", label: tabLabel(t("react.workflows.operator.sub_list", "List"), `${OPERATOR_SETTINGS_PATH}.list`) },
+    { key: "list", label: tabLabel(t("react.workflows.operator.sub_list", "Table"), `${OPERATOR_SETTINGS_PATH}.list`) },
     { key: "publication", label: t("react.workflows.operator.sub_publication", "Publication") },
   ];
   let panel: ReactNode;
@@ -517,8 +517,11 @@ export function OperatorSettingsSurface({ ctx }: Readonly<{ ctx: Ctx }>) {
   }
   return (
     <div className="flex flex-col gap-3" data-testid="workflow-operator-settings">
-      <DsTabs active={subTab} ariaLabel={t("react.workflows.operator.tab", "For operators")} idPrefix={idPrefix} items={tabs} onSelect={(key) => setSubTab(key as OperatorSubTab)} />
-      <div aria-labelledby={`${idPrefix}-tab-${subTab}`} id={`${idPrefix}-panel-${subTab}`} role="tabpanel">{panel}</div>
+      {/* The tabs sit on their panel's accent strip, as the drawer's own tabs do. */}
+      <div>
+        <DsTabs active={subTab} ariaLabel={t("react.workflows.operator.tab", "For operators")} idPrefix={idPrefix} items={tabs} onSelect={(key) => setSubTab(key as OperatorSubTab)} />
+        <div aria-labelledby={`${idPrefix}-tab-${subTab}`} className="fs-tabs-panel" id={`${idPrefix}-panel-${subTab}`} role="tabpanel">{panel}</div>
+      </div>
       <DrawerFooter>
         <DrawerFooterSpacer />
         <SaveStateButton

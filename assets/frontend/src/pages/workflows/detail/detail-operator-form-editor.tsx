@@ -383,8 +383,10 @@ function FieldPanel({
   return (
     <div className="flex flex-col gap-3" data-testid={`operator-field-panel-${key}`}>
       <IssueLines issues={elsewhere} />
-      <DsTabs active={tab} ariaLabel={t("react.workflows.operator.field_settings", "Settings of {name}", { name: field.label || field.name })} idPrefix={idPrefix} items={tabs} onSelect={(next) => state.setFieldTab(key, next as OperatorFieldTab)} />
-      <div aria-labelledby={`${idPrefix}-tab-${tab}`} id={`${idPrefix}-panel-${tab}`} role="tabpanel">{content}</div>
+      <div>
+        <DsTabs active={tab} ariaLabel={t("react.workflows.operator.field_settings", "Settings of {name}", { name: field.label || field.name })} idPrefix={idPrefix} items={tabs} onSelect={(next) => state.setFieldTab(key, next as OperatorFieldTab)} />
+        <div aria-labelledby={`${idPrefix}-tab-${tab}`} className="fs-tabs-panel" id={`${idPrefix}-panel-${tab}`} role="tabpanel">{content}</div>
+      </div>
       {widgetOpen ? (
         <WidgetDialog
           current={widget}

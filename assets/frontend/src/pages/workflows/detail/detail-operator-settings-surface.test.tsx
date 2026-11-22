@@ -248,7 +248,7 @@ it("lists issues with a jump to the field they name", async () => {
 
 it("edits the list's columns and filters, offering only filter types that fit", async () => {
   const { payload, user } = renderSurface();
-  await user.click(screen.getByRole("tab", { name: "List" }));
+  await user.click(screen.getByRole("tab", { name: "Table" }));
   await user.click(screen.getByRole("button", { name: "Add column" }));
   await choose(user, "Column 1 source", "Run");
   await choose(user, "Column 1 value", "Created");
@@ -288,4 +288,11 @@ it("sets the result's labels, display and order", async () => {
   await user.type(within(total).getByRole("spinbutton"), "2");
   await user.click(screen.getByRole("button", { name: "Move verdict up" }));
   expect(payload().result).toEqual({ order: ["verdict", "total", "report"], fields: { total: { label: "Total", decimals: 2 } } });
+});
+
+it("sets its tabs on a panel with the accent strip, like the drawer's own tabs", () => {
+  renderSurface();
+  const panel = screen.getByRole("tabpanel");
+  expect(panel).toHaveClass("fs-tabs-panel");
+  expect(screen.getByRole("tablist", { name: "For operators" }).closest(".fs-tabs-scroll")?.parentElement).toContainElement(panel);
 });
