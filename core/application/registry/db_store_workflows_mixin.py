@@ -803,7 +803,7 @@ class RegistryDBStoreWorkflowsMixin:
         for_each = [_definition_for_each_payload(item) for item in source.get("for_each") or []]
         steps = [_definition_step_payload(step) for step in source.get("steps") or []]
 
-        from core.application.registry.workflow_operator_form import portable_settings
+        from core.application.registry.workflow_operator_form_checks import portable_settings
 
         # The clone's admin confirms its effects again (ADR 0075).
         settings = dict(portable_settings(dict(source.get("settings") or {})))

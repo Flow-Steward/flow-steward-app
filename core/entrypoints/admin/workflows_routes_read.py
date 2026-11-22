@@ -271,10 +271,10 @@ def _operator_editor_view(workflow: dict, interface: Any) -> dict[str, Any]:
     """``settings.operator`` resolved against this contract, for Workflow Settings (ADR 0075)."""
     from core.application.registry.workflow_operator_form import (
         compatibility_tables,
-        operator_contract,
         operator_runtime_view,
-        stored_operator_settings,
     )
+    from core.application.registry.workflow_operator_form_checks import stored_operator_settings
+    from core.application.registry.workflow_operator_form_model import operator_contract
 
     workflow_id = str(workflow.get("workflow_id") or "")
     _settings, view = operator_runtime_view(

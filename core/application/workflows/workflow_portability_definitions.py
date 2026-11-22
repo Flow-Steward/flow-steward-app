@@ -64,7 +64,7 @@ def _portable_extension_hint(item: dict[str, Any]) -> dict[str, Any]:
 
 class WorkflowPortabilityDefinitionsMixin:
     def _workflow_definition(self, workflow: dict[str, Any]) -> dict[str, Any]:
-        from core.application.registry.workflow_operator_form import portable_settings
+        from core.application.registry.workflow_operator_form_checks import portable_settings
 
         # An operator acknowledgement belongs to this installation's admin (ADR 0075).
         settings = portable_settings(_workflow_settings(workflow))

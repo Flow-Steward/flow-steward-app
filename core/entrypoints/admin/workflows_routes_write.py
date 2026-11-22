@@ -29,11 +29,11 @@ from core.application.workflows.workflow_secret_default_service import (
     WorkflowSecretMutationError,
 )
 from core.application.workflows.workflow_sample_file_service import WorkflowSampleFileError
-from core.application.registry.workflow_operator_form import (
-    OPERATOR_SETTING,
+from core.application.registry.workflow_operator_form_checks import (
     OperatorSettingsRejected,
     prepare_operator_settings_for_save,
 )
+from core.application.registry.workflow_operator_form_model import OPERATOR_SETTING
 from core.infrastructure.config.workflow_file_limits import workflow_test_file_max_bytes
 from core.application.workflows.workflow_activation_service import (
     WorkflowActivationValidationError,

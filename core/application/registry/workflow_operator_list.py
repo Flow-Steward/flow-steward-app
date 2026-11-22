@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from .workflow_operator_form import (
+from .workflow_operator_form_model import (
     JOB_STATUS_OPTIONS,
     OperatorContract,
     OperatorListColumn,

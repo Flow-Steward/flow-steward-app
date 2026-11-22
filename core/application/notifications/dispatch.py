@@ -17,10 +17,8 @@ from core.application.notifications.contracts import (
     _trace_id_for_job,
     _uuid_text_or_none,
 )
-from core.application.notifications.delivery import (
-    _deliver_via_provider_runtime,
-    _dispatch_status_from_delivery,
-)
+from core.application.notifications.delivery import _deliver_via_provider_runtime
+from core.application.notifications.delivery_support import _dispatch_status_from_delivery
 from core.application.orchestration.models import build_event_envelope_v1
 from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 

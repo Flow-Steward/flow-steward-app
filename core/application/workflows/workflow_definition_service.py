@@ -312,7 +312,7 @@ def create_workflow_with_definition(
     )
     if blocking:
         raise WorkflowDefinitionChangeError("The workflow definition has blocking issues", blocking)
-    from core.application.registry.workflow_operator_form import portable_settings
+    from core.application.registry.workflow_operator_form_checks import portable_settings
 
     # A created workflow starts without an operator acknowledgement (ADR 0075):
     # imports, templates and generated children have no admin who confirmed it here.
