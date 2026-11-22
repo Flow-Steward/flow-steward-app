@@ -336,6 +336,21 @@ class ExtensionReleaseInstallWorkflow:
         )
         if prepared.oauth_transition is not None:
             prepared.oauth_transition.apply()
+        if existing is not None and _normalize_text(getattr(existing, "release_id", "")) != (
+            release.release_id
+        ):
+            # Configurations still on the earlier release move with the install
+            # when it signs in as before; otherwise they say why they are blocked.
+            from .oauth_release_activation import reconcile_install_oauth_release
+
+            reconcile_install_oauth_release(
+                self._context.persistence_connection(),
+                account_id=prepared.account_id,
+                install_id=install_record.install_id,
+                extension_id=release.extension_id,
+                release_id=release.release_id,
+                descriptor=dict(getattr(release, "descriptor", {}) or {}),
+            )
         logger_connection = getattr(self._context.logger(), "conn", None)
         if runtime_identity_changed and logger_connection is not None:
             from core.application.settings import (

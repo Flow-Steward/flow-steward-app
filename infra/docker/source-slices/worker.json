@@ -164,6 +164,7 @@
     "core/application/extensions/oauth_lifecycle.py",
     "core/application/extensions/oauth_post_connect.py",
     "core/application/extensions/oauth_provider_compiler.py",
+    "core/application/extensions/oauth_release_activation.py",
     "core/application/extensions/oauth_release_upgrade.py",
     "core/application/extensions/oauth_release_upgrade_integration.py",
     "core/application/extensions/oauth_release_upgrade_repository.py",

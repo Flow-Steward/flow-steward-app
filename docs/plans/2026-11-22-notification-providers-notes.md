@@ -95,6 +95,32 @@ record is `docs/architecture/adr/draft-notification-connection-capabilities-and-
   (the claim, start, failure, retry, success and replay through the real
   external-effect ledger; the extension call itself is not run there).
 
+### An update keeps OAuth working when sign-in did not change (C3.6)
+
+- New `core/application/extensions/oauth_release_activation.py`, called from the
+  release install workflow right after the install row moves to the new release
+  (`command_install_release`). Every OAuth configuration of the install still on
+  an earlier release is judged with the same provider compilation the runtime
+  uses: same security and revocation fingerprints, and every connection already
+  granted the new release's required scopes, moves it and repins its connections
+  (no revision change, so nothing else is revoked). Otherwise the configuration
+  gets `last_error {"code": "oauth_release_reapproval_required", "reason": ...}`
+  and each affected connection `oauth.attention_code`; the runtime denies with
+  that code instead of `oauth_runtime_blocked`, and background polls treat it as
+  lasting.
+- Likely cause of the stand case: the existing transition skipped silently when
+  the stored release descriptors did not carry a fingerprinted OAuth contract
+  shape, leaving configurations on the old release until a manual reconcile.
+- Tests: `tests/integration/test_oauth_release_activation_postgres.py` (the
+  runtime's own row checks refuse the old pin, accept after activation; an added
+  required scope stays blocked with the code). A full step, poll and delivery
+  through a refreshed token is not run there; all three pass through these
+  checks before using a token.
+- Pre-existing, unrelated: `test_extension_release_repoint_order.py::
+  test_production_repoint_waits_for_scan_before_descriptor_decisions` fails with
+  a missing `registry_workflow_hook_bindings` table in its private schema, also
+  on the commit before this change.
+
 ### Credentials from an OAuth configuration (C5)
 
 - Manifest: a non-OAuth connection type may declare

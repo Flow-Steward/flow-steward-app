@@ -747,6 +747,14 @@ For OAuth-backed connections:
 - Store client credentials as platform secrets.
 - Put access tokens in runtime secrets.
 - Do not expose refresh tokens to extension handlers.
+- Releasing an update: when a provider signs in exactly as before and no
+  required scope is added, existing OAuth configurations and connections move
+  to the new release on activation and keep working. Changing how a provider
+  signs in, or adding a required scope that a connection was not granted, keeps
+  those connections blocked until they are set up or reconnected; they report
+  `oauth_release_reapproval_required`, with the reason
+  (`provider_sign_in_changed`, `provider_removed`, `required_scope_added`) on the
+  configuration and the connection.
 
 When the provider issues the refresh token in its own console (no redirect the
 platform can take part in), declare the provider with

@@ -104,6 +104,7 @@
     "core/application/extensions/oauth_contract_validation.py",
     "core/application/extensions/oauth_post_connect.py",
     "core/application/extensions/oauth_provider_compiler.py",
+    "core/application/extensions/oauth_release_activation.py",
     "core/application/extensions/oauth_repository.py",
     "core/application/extensions/oauth_repository_values.py",
     "core/application/extensions/oauth_runtime.py",

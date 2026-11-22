@@ -26,7 +26,11 @@ from core.application.extensions.connection_partition_validation import (
 _NOT_POLLED_OAUTH_STATES = frozenset(
     {"authorization_required", "needs_attention", "disconnecting", "post_connect_pending"}
 )
-_PERMANENT_OAUTH_DENIALS = ("oauth_authorization_required", "oauth_needs_attention")
+_PERMANENT_OAUTH_DENIALS = (
+    "oauth_authorization_required",
+    "oauth_needs_attention",
+    "oauth_release_reapproval_required",
+)
 _TEMPORARY_OAUTH_DENIALS = ("oauth_provider_unavailable",)
 
 SKIP_SECRETS_MISSING = "connection_secrets_missing"
