@@ -1,5 +1,5 @@
 import { useI18n } from "@/lib/i18n/useI18n";
-import { Check, ChevronDown, ChevronLeft, Search, X } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Plus, Search, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { createPortal } from "react-dom";
 
@@ -25,20 +25,19 @@ export type DsFilterField = {
   input?: "text" | "number_range" | "date_range";
 };
 
-/** A filter field with more options than this gets a search box above its list. */
-const FILTER_SEARCH_THRESHOLD = 10;
+const FILTER_SEARCH_MIN = 8;
+const FILTER_TOOLTIP_DELAY = 500;
 
 /** The arrow keys walk the back row, the search box and the options, in order. */
 const FILTER_NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
 /** Inputs whose arrow keys change their value natively (date segments, number steps). */
 const NATIVE_STEP_INPUT_TYPES = new Set(["date", "datetime-local", "time", "month", "week", "number"]);
 
-/** One line per label: a long one ends in an ellipsis, and `title` keeps it whole. */
-function FilterMenuText({ option }: Readonly<{ option: Pick<DsOption, "label" | "description"> }>) {
+function FilterMenuText({ option, descriptionId }: Readonly<{ option: Pick<DsOption, "label" | "description">; descriptionId?: string }>) {
   return (
     <span className="fs-filter-menu-text">
-      <span className="fs-filter-menu-label" title={option.label}>{option.label}</span>
-      {option.description ? <span className="fs-filter-menu-description" title={option.description}>{option.description}</span> : null}
+      <span className="fs-filter-menu-label">{option.label}</span>
+      {option.description ? <span className="fs-filter-menu-description" id={descriptionId}>{option.description}</span> : null}
     </span>
   );
 }
@@ -469,221 +468,418 @@ export function AdvancedTableFilters({
   disabled?: boolean;
 }>) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
+  const [anchor, setAnchor] = useState<{ button: HTMLButtonElement; fieldKey: string | null } | null>(null);
   const [fieldKey, setFieldKey] = useState<string | null>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [query, setQuery] = useState("");
+  const [tip, setTip] = useState<{ key: string; text: string; position: CSSProperties } | null>(null);
   const menuId = useId();
+  const tipId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const anchorBox = useRef<DOMRect | null>(null);
+  const tipTimer = useRef(0);
+  const tipKey = useRef<string | null>(null);
+  const pointerFocus = useRef(false);
   const field = fields.find((item) => item.key === fieldKey);
-  const activeFields = fields.filter((item) => values[item.key]);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const [query, setQuery] = useState("");
-  const searchable = Boolean(field && field.options.length > FILTER_SEARCH_THRESHOLD);
-  const visibleOptions = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!field || !searchable || !needle) return field?.options || [];
-    return field.options.filter((option) => `${option.label} ${option.description || ""}`.toLowerCase().includes(needle));
-  }, [field, query, searchable]);
+  const applied = fields.flatMap((item) => {
+    const value = values[item.key];
+    if (!value) return [];
+    const chosen = item.multiple ? filterFieldValues(value) : [value];
+    const labels = item.input
+      ? [typedFilterLabel(item, value)]
+      : chosen.map((selected) => item.options.find((option) => option.value === selected)?.label || selected);
+    return labels.length ? [{ item, labels }] : [];
+  });
+  const chosen = field?.multiple ? filterFieldValues(values[field.key]) : [field ? values[field.key] : ""];
+  const searchable = Boolean(field && !field.input && field.options.length >= FILTER_SEARCH_MIN);
+  const searchLabel = field
+    ? t("react.shared.search_value1", "Search {value1}", { value1: field.label.toLowerCase() })
+    : "";
+  const needle = query.trim().toLowerCase();
+  const visibleOptions = searchable && needle
+    ? field?.options.filter((option) => `${option.label} ${option.description || ""}`.toLowerCase().includes(needle)) ?? []
+    : field?.options ?? [];
 
-  /** Every stage change starts the value list unfiltered. */
-  function showField(key: string | null) {
+  useEffect(() => () => window.clearTimeout(tipTimer.current), []);
+
+  useLayoutEffect(() => {
+    if (!anchor) return;
+    // Keep the opening coordinates when a new pill shifts or widens the trigger.
+    const place = () => {
+      const rect = anchorBox.current;
+      const menu = menuRef.current?.getBoundingClientRect();
+      if (!rect || !menu) return;
+      const gap = 6;
+      const inset = 8;
+      const gutter = 16;
+      const below = rect.bottom + gap;
+      const above = rect.top - menu.height - gap;
+      const fitsBelow = below + menu.height <= window.innerHeight - inset;
+      const top = !fitsBelow && above >= inset ? above : Math.min(below, window.innerHeight - menu.height - inset);
+      const left = Math.min(Math.max(gutter, rect.left), window.innerWidth - menu.width - gutter);
+      setPosition({ top: Math.round(Math.max(inset, top)), left: Math.round(Math.max(gutter, left)) });
+    };
+    const reanchor = (event: Event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      if (anchor.button.isConnected) {
+        anchorBox.current = (anchor.fieldKey ? anchor.button.parentElement ?? anchor.button : anchor.button).getBoundingClientRect();
+      }
+      place();
+    };
+    const onOutsidePress = (event: MouseEvent) => {
+      if (
+        rootRef.current?.contains(event.target as Node) ||
+        menuRef.current?.contains(event.target as Node)
+      ) return;
+      window.clearTimeout(tipTimer.current);
+      tipKey.current = null;
+      setTip(null);
+      setAnchor(null);
+      setFieldKey(null);
+      setQuery("");
+    };
+    place();
+    window.addEventListener("resize", reanchor);
+    window.addEventListener("scroll", reanchor, true);
+    document.addEventListener("mousedown", onOutsidePress);
+    return () => {
+      window.removeEventListener("resize", reanchor);
+      window.removeEventListener("scroll", reanchor, true);
+      document.removeEventListener("mousedown", onOutsidePress);
+    };
+  }, [anchor, fieldKey, visibleOptions.length]);
+
+  function hideTip(key?: string) {
+    if (key && tipKey.current !== key) return;
+    window.clearTimeout(tipTimer.current);
+    tipKey.current = null;
+    setTip(null);
+  }
+
+  function tipEvents(key: string, text: string, truncatedOnly = false) {
+    function reveal(button: HTMLButtonElement, immediate: boolean) {
+      if (!text) return;
+      if (truncatedOnly && !Array.from(button.querySelectorAll(".fs-filter-menu-label, .fs-filter-menu-description"))
+        .some((label) => label.scrollWidth > label.clientWidth)) return;
+
+      hideTip();
+      tipKey.current = key;
+      const show = () => {
+        if (!button.isConnected) return;
+        const rect = button.getBoundingClientRect();
+        const position = {
+          "--filter-tooltip-left": `${rect.left}px`,
+          ...(rect.top > 64 ? { bottom: window.innerHeight - rect.top } : { top: rect.bottom }),
+        } as CSSProperties;
+        setTip({ key, text, position });
+      };
+      if (immediate) show();
+      else tipTimer.current = window.setTimeout(show, FILTER_TOOLTIP_DELAY);
+    }
+    return {
+      "aria-describedby": tip?.key === key ? tipId : undefined,
+      onBlur: () => hideTip(key),
+      onFocus: (event: React.FocusEvent<HTMLButtonElement>) => {
+        if (!pointerFocus.current && event.currentTarget.matches(":focus-visible")) reveal(event.currentTarget, true);
+      },
+      onPointerEnter: (event: React.PointerEvent<HTMLButtonElement>) => {
+        if (event.pointerType !== "touch") reveal(event.currentTarget, false);
+      },
+      onPointerLeave: () => hideTip(key),
+    };
+  }
+
+  function focusFirst(selector: string, previousField?: string) {
+    window.requestAnimationFrame(() => {
+      const menu = menuRef.current;
+      const candidates = Array.from(menu?.querySelectorAll<HTMLElement>(selector) ?? []);
+      (candidates.find((item) => previousField && item.dataset.filterField === previousField) ?? candidates[0] ?? menu)?.focus();
+    });
+  }
+
+  function showField(key: string) {
+    hideTip();
     setFieldKey(key);
     setQuery("");
+    focusFirst("[data-filter-search], [data-filter-value]:not(:disabled)");
   }
 
-  useEffect(() => {
-    if (!open) return;
-    // The toolbar sits inside `.fs-table-card`, which is `overflow: hidden`, so
-    // an inline popup is cut off at the card's bottom edge. Canon requires a
-    // table popup to live in a viewport layer and flip when it would collide,
-    // which is the same contract the row menu already follows.
-    const update = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      const menuRect = menuRef.current?.getBoundingClientRect();
-      if (!rect || !menuRect) return;
-      const popupGap = 6;
-      const viewportInset = 8;
-      // The menu is as wide as a phone allows minus a 16px gutter each side,
-      // so it keeps that gutter when it is pushed in from an edge.
-      const viewportGutter = 16;
-      const belowTop = rect.bottom + popupGap;
-      const aboveTop = rect.top - menuRect.height - popupGap;
-      const collidesWithViewport = belowTop + menuRect.height > window.innerHeight - viewportInset;
-      const opensAbove = aboveTop >= viewportInset && collidesWithViewport;
-      const top = opensAbove
-        ? aboveTop
-        : Math.min(belowTop, window.innerHeight - menuRect.height - viewportInset);
-      const left = Math.min(
-        Math.max(viewportGutter, rect.left),
-        window.innerWidth - menuRect.width - viewportGutter,
-      );
-      setPosition({ top: Math.round(Math.max(viewportInset, top)), left: Math.round(left) });
-    };
-    const close = (event: MouseEvent) => {
-      // The menu is portalled out of the wrapper, so it needs its own hit test.
-      if (
-        !rootRef.current?.contains(event.target as Node) &&
-        !menuRef.current?.contains(event.target as Node)
-      ) {
-        setOpen(false);
-        showField(null);
-      }
-    };
-    update();
-    window.addEventListener("resize", update);
-    window.addEventListener("scroll", update, true);
-    document.addEventListener("mousedown", close);
-    return () => {
-      window.removeEventListener("resize", update);
-      window.removeEventListener("scroll", update, true);
-      document.removeEventListener("mousedown", close);
-    };
-    // `fieldKey` re-runs the measurement because the value stage is a different
-    // height than the field stage, and so does a search that shortens the list.
-  }, [fieldKey, open, visibleOptions.length]);
-
-  function focusFirst(selector: string) {
-    window.requestAnimationFrame(() => menuRef.current?.querySelector<HTMLElement>(selector)?.focus());
+  function backToFields() {
+    hideTip();
+    setFieldKey(null);
+    setQuery("");
+    focusFirst("[data-filter-field]", fieldKey ?? undefined);
   }
 
-  function closeAndReturnFocus() {
-    setOpen(false);
-    showField(null);
-    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  function closeMenu(returnFocus = false) {
+    const button = anchor?.button;
+    hideTip();
+    setAnchor(null);
+    setFieldKey(null);
+    setQuery("");
+    if (returnFocus) {
+      window.requestAnimationFrame(() => (button?.isConnected ? button : triggerRef.current)?.focus());
+    }
+  }
+
+  function toggleMenu(button: HTMLButtonElement, key: string | null) {
+    if (anchor?.button === button) {
+      closeMenu();
+      return;
+    }
+    anchorBox.current = (key ? button.parentElement ?? button : button).getBoundingClientRect();
+    hideTip();
+    setAnchor({ button, fieldKey: key });
+    if (key) showField(key);
+    else {
+      setFieldKey(null);
+      setQuery("");
+      focusFirst("[data-filter-field]");
+    }
   }
 
   function moveFocus(key: string) {
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[data-filter-nav]") || []);
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[data-filter-nav]:not(:disabled)") || []);
     if (!items.length) return;
     const current = items.indexOf(document.activeElement as HTMLElement);
     let next = 0;
     if (key === "End") next = items.length - 1;
-    else if (key === "ArrowDown") next = current < 0 ? 0 : (current + 1) % items.length;
+    else if (key === "ArrowDown") next = (current + 1) % items.length;
     else if (key === "ArrowUp") next = current <= 0 ? items.length - 1 : current - 1;
     items[next]?.focus();
   }
 
   function handleMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (FILTER_NAV_KEYS.has(event.key)) {
-      // Home and End belong to the caret while the search box has focus.
-      if ((event.key === "Home" || event.key === "End") && event.target instanceof HTMLInputElement) return;
-      // A date, time or number field steps its own value with the arrows; only
-      // Escape and moving between items stay with the menu.
-      if (event.target instanceof HTMLInputElement && NATIVE_STEP_INPUT_TYPES.has(event.target.type)) return;
+    const target = event.target as HTMLElement;
+    const input = target instanceof HTMLInputElement ? target : null;
+    if (event.key === "Tab") {
+      (anchor?.button.isConnected ? anchor.button : triggerRef.current)?.focus();
+      closeMenu();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (field && !anchor?.fieldKey) backToFields();
+      else closeMenu(true);
+    } else if ((event.key === "ArrowLeft" && field && !input) ||
+      (event.key === "Backspace" && input?.hasAttribute("data-filter-search") && !input.value)) {
+      event.preventDefault();
+      backToFields();
+    } else if (event.key === "ArrowRight" && target.dataset.filterField) {
+      event.preventDefault();
+      showField(target.dataset.filterField);
+    } else if (FILTER_NAV_KEYS.has(event.key)) {
+      // Preserve caret navigation and native stepping in typed filter fields.
+      if (input && (event.key === "Home" || event.key === "End" || NATIVE_STEP_INPUT_TYPES.has(input.type))) return;
       event.preventDefault();
       moveFocus(event.key);
-      return;
+    } else if (searchable && target.hasAttribute("data-filter-value") &&
+      event.key.length === 1 && event.key !== " " && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      event.preventDefault();
+      setQuery((current) => current + event.key);
+      menuRef.current?.querySelector<HTMLInputElement>("[data-filter-search]")?.focus();
     }
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    if (fieldKey) {
-      showField(null);
-      focusFirst("[data-filter-field]");
+  }
+
+  function focusPointerRow(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch") return;
+    const row = (event.target as HTMLElement).closest<HTMLButtonElement>("button.fs-filter-menu-item:not(:disabled)");
+    if (!row || document.activeElement === row) return;
+    pointerFocus.current = true;
+    row.focus({ preventScroll: true });
+    pointerFocus.current = false;
+  }
+
+  function choose(option: DsOption) {
+    if (!field) return;
+    if (field.multiple) {
+      const next = chosen.includes(option.value) ? chosen.filter((value) => value !== option.value) : [...chosen, option.value];
+      onChange(field.key, next.join(","));
     } else {
-      closeAndReturnFocus();
+      if (values[field.key] !== option.value) onChange(field.key, option.value);
+      closeMenu(true);
     }
   }
 
   return (
-    <>
-      <div className="fs-active-filters">
-        {activeFields.map((item) => {
-          const chosen = item.multiple ? filterFieldValues(values[item.key]) : [values[item.key]];
-          const chosenLabels = item.input
-            ? [typedFilterLabel(item, values[item.key])]
-            : chosen.map((value) => item.options.find((option) => option.value === value)?.label || value);
-          return (
-            <span className="fs-applied-filter" key={item.key}>
-              <span>{item.label} · {chosenLabels.join(", ")}</span>
-              <button aria-label={t("react.shared.remove_value1_filter", "Remove {value1} filter", { value1: String(item.label) })} onClick={() => onChange(item.key, "")} type="button"><X aria-hidden="true" /></button>
-            </span>
-          );
-        })}
-      </div>
-      <div className="fs-filter-popover-wrap" ref={rootRef}>
+    <div className="fs-active-filters" ref={rootRef}>
+      {applied.map(({ item, labels }) => {
+        const fullLabel = labels.join(", ");
+        const label = labels.length >= 3 ? t("react.shared.selected_count", "{count} selected", { count: labels.length }) : fullLabel;
+        const expanded = anchor?.fieldKey === item.key;
+        return (
+          <span className="fs-applied-filter" key={item.key}>
+            <button
+              {...(!anchor ? tipEvents(`pill-${item.key}`, fullLabel, labels.length < 3) : {})}
+              aria-controls={expanded ? menuId : undefined}
+              aria-expanded={expanded}
+              aria-haspopup="menu"
+              className="fs-applied-filter-label"
+              disabled={disabled}
+              onClick={(event) => toggleMenu(event.currentTarget, item.key)}
+              type="button"
+            >
+              <span className="fs-filter-menu-label">{item.label} · {label}</span>
+            </button>
+            <button
+              aria-label={t("react.shared.remove_value1_filter", "Remove {value1} filter", { value1: item.label })}
+              onClick={() => {
+                closeMenu();
+                onChange(item.key, "");
+                triggerRef.current?.focus();
+              }}
+              type="button"
+            ><X aria-hidden="true" /></button>
+          </span>
+        );
+      })}
+      <div className="fs-filter-popover-wrap">
         <button
-          aria-controls={menuId}
-          aria-expanded={open}
+          aria-controls={anchor && !anchor.fieldKey ? menuId : undefined}
+          aria-expanded={Boolean(anchor && !anchor.fieldKey)}
+          aria-haspopup="menu"
           className="fs-filter-chip add"
           disabled={disabled}
-          onClick={() => {
-            const nextOpen = !open;
-            setOpen(nextOpen);
-            showField(null);
-            if (nextOpen) focusFirst("[data-filter-field]");
-          }}
+          onClick={(event) => toggleMenu(event.currentTarget, null)}
           ref={triggerRef}
           type="button"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-          {t("react.shared.add_filter", "Add filter")} </button>
-        {open ? createPortal(
-          <div aria-label={t("react.shared.choose_a_filter", "Choose a filter")} className="fs-filter-menu" id={menuId} onKeyDown={handleMenuKeyDown} ref={menuRef} role="menu" style={position} tabIndex={-1}>
-            {!field ? (
-              <div role="none">
-                <h2>{t("react.shared.filter_by_field", "Filter by field")}</h2>
-                {fields.map((item) => (
-                  /* No glyph: the field stage carried two hardcoded icons keyed
-                     on the field name, so every field but "role" got a person.
-                     The value stage has never had icons either. */
-                  <button className="fs-filter-menu-item" data-filter-field={item.key} data-filter-nav="" key={item.key} onClick={() => { showField(item.key); focusFirst("[data-filter-search], [data-filter-value]"); }} role="menuitem" title={item.label} type="button">
-                    <FilterMenuText option={item} />
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div role="none">
-                <button className="fs-filter-menu-item fs-filter-menu-back" data-filter-nav="" onClick={() => { showField(null); focusFirst("[data-filter-field]"); }} role="menuitem" type="button"><ChevronLeft aria-hidden="true" />{t("react.shared.all_fields", "All fields")}</button>
-                <h2>{t("react.shared.filter_by", "Filter by")} {field.label.toLowerCase()}</h2>
-                {field.input ? (
-                  <FilterInputStage
-                    field={field}
-                    key={field.key}
-                    onApply={(value) => {
-                      onChange(field.key, value);
-                      closeAndReturnFocus();
-                    }}
-                    value={values[field.key] || ""}
-                  />
-                ) : null}
-                {/* A long list gets the Combobox search field; a short one is
-                    read at a glance and would only lose a row to it. */}
-                {!field.input && searchable ? (
-                  <div className="fs-combo-field fs-filter-menu-search">
-                    <Search className="fs-multi-search" aria-hidden="true" />
-                    <input
-                      aria-label={t("react.shared.search_value1", "Search {value1}", { value1: field.label.toLowerCase() })}
-                      autoComplete="off"
-                      data-filter-nav=""
-                      data-filter-search=""
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder={t("react.shared.search_options", "Search options")}
-                      type="search"
-                      value={query}
-                    />
-                  </div>
-                ) : null}
-                <div className="fs-filter-menu-options" hidden={Boolean(field.input)} role="none">
-                  {visibleOptions.length === 0 && !field.input ?<span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span> : null}
-                  {field.multiple
-                    ? visibleOptions.map((option) => {
-                      // Several values: each item toggles, and the menu stays open.
-                      const chosen = filterFieldValues(values[field.key]);
-                      const checked = chosen.includes(option.value);
-                      const next = checked ? chosen.filter((value) => value !== option.value) : [...chosen, option.value];
-                      return <button aria-checked={checked} className="fs-filter-menu-item" data-filter-nav="" data-filter-value={option.value} key={option.value} onClick={() => onChange(field.key, next.join(","))} role="menuitemcheckbox" title={filterMenuTitle(option)} type="button"><FilterMenuText option={option} />{checked ? <Check aria-hidden="true" /> : null}</button>;
-                    })
-                    : visibleOptions.map((option) => <button className="fs-filter-menu-item" data-filter-nav="" data-filter-value={option.value} key={option.value} onClick={() => { onChange(field.key, option.value); closeAndReturnFocus(); }} role="menuitem" title={filterMenuTitle(option)} type="button"><FilterMenuText option={option} /></button>)}
-                </div>
-              </div>
-            )}
-          </div>,
-          document.body,
-        ) : null}
+          <Plus aria-hidden="true" />
+          {t("react.shared.add_filter", "Add filter")}
+        </button>
       </div>
-      {activeFields.length ? <button className="fs-clear-filters" onClick={onClear} type="button">{t("react.shared.clear_all", "Clear all")}</button> : null}
-    </>
+      {anchor ? createPortal(
+        <div
+          aria-label={t("react.shared.choose_a_filter", "Choose a filter")}
+          className="fs-filter-menu"
+          id={menuId}
+          onKeyDown={handleMenuKeyDown}
+          onPointerMove={focusPointerRow}
+          ref={menuRef}
+          role="menu"
+          style={position}
+          tabIndex={-1}
+        >
+          {!field ? (
+            <div role="none">
+              <h2>{t("react.shared.filter_by_field", "Filter by field")}</h2>
+              {fields.map((item) => {
+                const count = applied.find((entry) => entry.item.key === item.key)?.labels.length;
+                const countId = `${menuId}-field-${encodeURIComponent(item.key)}-count`;
+                return (
+                  <button
+                    {...tipEvents(`field-${item.key}`, item.label, true)}
+                    aria-describedby={count ? countId : undefined}
+                    aria-label={item.label}
+                    className="fs-filter-menu-item"
+                    data-filter-field={item.key}
+                    data-filter-nav=""
+                    key={item.key}
+                    onClick={() => showField(item.key)}
+                    role="menuitem"
+                    tabIndex={-1}
+                    type="button"
+                  >
+                    <FilterMenuText option={item} />
+                    {count ? <span className="fs-filter-field-count" id={countId}>{count}</span> : null}
+                    <ChevronRight className="fs-filter-chevron" aria-hidden="true" />
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div role="none">
+              <button
+                aria-label={`${t("react.shared.all_fields", "All fields")} · ${field.label}`}
+                className="fs-filter-menu-item fs-filter-menu-back"
+                data-filter-nav=""
+                onClick={backToFields}
+                role="menuitem"
+                tabIndex={-1}
+                type="button"
+              >
+                <ChevronLeft aria-hidden="true" />
+                {field.label}
+              </button>
+              {field.input ? (
+                <FilterInputStage
+                  field={field}
+                  key={field.key}
+                  onApply={(value) => {
+                    onChange(field.key, value);
+                    closeMenu(true);
+                  }}
+                  value={values[field.key] || ""}
+                />
+              ) : null}
+              {searchable ? (
+                <div className="fs-combo-field fs-filter-menu-search">
+                  <Search className="fs-multi-search" aria-hidden="true" />
+                  <input
+                    aria-label={searchLabel}
+                    autoComplete="off"
+                    data-filter-nav=""
+                    data-filter-search=""
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={searchLabel}
+                    tabIndex={-1}
+                    type="search"
+                    value={query}
+                  />
+                </div>
+              ) : null}
+              {!field.input ? (
+                <div className="fs-filter-menu-options" role="none">
+                  {visibleOptions.length === 0 ? <span className="fs-combo-empty">{t("react.shared.no_matching_values", "No matching values")}</span> : null}
+                  {visibleOptions.map((option) => {
+                    const checked = chosen.includes(option.value);
+                    const descriptionId = `${menuId}-option-${encodeURIComponent(option.value)}-description`;
+                    return (
+                      <button
+                        {...tipEvents(`option-${field.key}-${option.value}`, filterMenuTitle(option), true)}
+                        aria-checked={field.multiple ? checked : undefined}
+                        aria-current={!field.multiple && checked ? true : undefined}
+                        aria-describedby={option.description ? descriptionId : undefined}
+                        aria-label={option.label}
+                        className="fs-filter-menu-item"
+                        data-filter-nav=""
+                        data-filter-value={option.value}
+                        disabled={option.disabled}
+                        key={option.value}
+                        onClick={() => choose(option)}
+                        role={field.multiple ? "menuitemcheckbox" : "menuitem"}
+                        tabIndex={-1}
+                        type="button"
+                      >
+                        <FilterMenuText descriptionId={descriptionId} option={option} />
+                        {checked ? <Check className="fs-filter-check" aria-hidden="true" /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>,
+        document.body,
+      ) : null}
+      {tip ? createPortal(
+        <span className="fs-filter-tooltip" id={tipId} role="tooltip" style={tip.position}>{tip.text}</span>,
+        document.body,
+      ) : null}
+      {applied.length ? (
+        <button
+          className="fs-clear-filters"
+          onClick={() => {
+            closeMenu();
+            onClear();
+            triggerRef.current?.focus();
+          }}
+          type="button"
+        >{t("react.shared.clear_all", "Clear all")}</button>
+      ) : null}
+    </div>
   );
 }
 

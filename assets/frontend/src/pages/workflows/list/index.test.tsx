@@ -411,7 +411,7 @@ describe("WorkflowsListPage", () => {
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("keeps the search and enabled-only controls on the published roles", async () => {
+  it("restores the Enabled filter from an older URL", async () => {
     renderPage("/registry/workflows?search=nightly&enabled=1");
     await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
 
@@ -423,7 +423,7 @@ describe("WorkflowsListPage", () => {
 
     // The status narrowing is an applied filter chip, not a checkbox parked next
     // to a heading, and it is readable straight from the URL.
-    expect(screen.getByText("Status · Enabled only")).toBeInTheDocument();
+    expect(screen.getByText("Status · Enabled")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Remove Status filter" }),
     ).toBeInTheDocument();
@@ -431,21 +431,39 @@ describe("WorkflowsListPage", () => {
     expect(screen.getByRole("button", { name: "Clear all" })).toBeInTheDocument();
   });
 
+  it("combines Enabled and Unavailable before paginating and leaves the chooser open", async () => {
+    mockedFetchWorkflows.mockResolvedValue([
+      { workflow_id: "ready", display_name: "Ready workflow", enabled: true },
+      { workflow_id: "stopped", display_name: "Stopped workflow", enabled: false },
+      { workflow_id: "blocked", display_name: "Blocked workflow", enabled: true, availability_status: "unavailable" },
+    ]);
+    renderPageWithLocation();
+    await screen.findByText("Stopped workflow");
+    fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Status" }));
+    const menu = screen.getByRole("menu", { name: "Choose a filter" });
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Enabled" }));
+    await waitFor(() => expect(screen.queryByText("Blocked workflow")).not.toBeInTheDocument());
+
+    fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "Unavailable" }));
+    await waitFor(() => expect(screen.getByText("Blocked workflow")).toBeInTheDocument());
+    expect(screen.getByText("Ready workflow")).toBeInTheDocument();
+    expect(screen.queryByText("Stopped workflow")).not.toBeInTheDocument();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Enabled" })).toBeChecked();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Unavailable" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Status · Enabled, Unavailable" })).toBeInTheDocument();
+  });
+
   it("drops the enabled parameter when the filter is cleared", async () => {
-    renderPage("/registry/workflows?enabled=1");
+    renderPageWithLocation("/registry/workflows?enabled=1");
     await waitFor(() => expect(screen.getByText("Nightly reconciliation")).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole("button", { name: "Remove Status filter" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("Status · Enabled only")).not.toBeInTheDocument();
+      expect(screen.queryByText("Status · Enabled")).not.toBeInTheDocument();
     });
-    // The query follows the URL, so the unfiltered catalog is fetched again.
-    await waitFor(() => {
-      expect(mockedFetchWorkflows).toHaveBeenLastCalledWith(
-        expect.objectContaining({ enabledOnly: false }),
-      );
-    });
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/registry\/workflows$/);
   });
 
   it("tells a viewer the catalog is restricted instead of firing the request", async () => {

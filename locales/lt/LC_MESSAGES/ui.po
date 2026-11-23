@@ -13915,6 +13915,9 @@ msgstr "(identifikatorius nerastas)"
 msgid "react.shared.no_matching_results"
 msgstr "Atitinkančių rezultatų nėra"
 
+msgid "react.shared.no_matching_values"
+msgstr "Atitinkančių reikšmių nėra"
+
 msgid "react.shared.no_options_available"
 msgstr "Galimų parinkčių nėra"
 

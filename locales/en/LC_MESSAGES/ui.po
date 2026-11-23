@@ -13706,6 +13706,9 @@ msgstr "(no identifier found)"
 msgid "react.shared.no_matching_results"
 msgstr "No matching results"
 
+msgid "react.shared.no_matching_values"
+msgstr "No matching values"
+
 msgid "react.shared.no_options_available"
 msgstr "No options available"
 
