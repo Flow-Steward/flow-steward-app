@@ -20,7 +20,8 @@ import {
   type FormValues,
 } from "./form-field";
 import { prepareCameraPhoto } from "./camera-photo";
-import { FileDropzone, sameFile, useUploadLimitsHint } from "./file-dropzone";
+import { FileDropzone } from "./file-dropzone";
+import { sameFile, useUploadLimitsHint } from "./file-dropzone-support";
 import "./workflow-input-fields.css";
 
 export type InputValues = FormValues;

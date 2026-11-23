@@ -3,7 +3,8 @@ import type { WorkflowNormalRunController } from "./detail-normal-run-controller
 import { useEffect, useId, useRef, type ChangeEvent, type ReactNode } from "react";
 import { DsAlert, DsCheckbox, DsDialog, RequiredLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
-import { FileDropzone, useUploadLimitsHint } from "@/components/workflow-inputs/file-dropzone";
+import { FileDropzone } from "@/components/workflow-inputs/file-dropzone";
+import { useUploadLimitsHint } from "@/components/workflow-inputs/file-dropzone-support";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { WorkflowChangeSetController } from "./detail-change-set";

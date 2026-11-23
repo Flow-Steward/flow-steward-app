@@ -3,7 +3,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { vi } from "vitest";
 
-import { FileDropzone, useUploadLimitsHint } from "./file-dropzone";
+import { FileDropzone } from "./file-dropzone";
+import { useUploadLimitsHint } from "./file-dropzone-support";
 import dropzoneStyles from "./file-dropzone.css?raw";
 
 const limits = vi.hoisted(() => ({ value: undefined as undefined | { max_file_bytes: number; max_total_bytes: number; max_files: number } }));
@@ -16,7 +17,7 @@ function file(name: string, size: number, type = "application/pdf"): File {
 function Harness({ multiple = true, initial = [] as File[] }: Readonly<{ multiple?: boolean; initial?: File[] }>) {
   const [files, setFiles] = useState<File[]>(initial);
   const hint = useUploadLimitsHint(multiple);
-  return <FileDropzone ariaLabel="Invoices" files={files} hint={hint} listLabel="Chosen invoices" multiple={multiple} onFiles={setFiles} />;
+  return <FileDropzone ariaLabel="Invoices" files={files} testId="invoices" hint={hint} listLabel="Chosen invoices" multiple={multiple} onFiles={setFiles} />;
 }
 
 function input(): HTMLInputElement {
@@ -58,8 +59,8 @@ describe("FileDropzone", () => {
   });
 
   it("takes dropped files and lights up while they hover", () => {
-    const { container } = render(<Harness />);
-    const zone = container.querySelector(".fs-dropzone") as HTMLElement;
+    render(<Harness />);
+    const zone = screen.getByTestId("invoices-zone");
     const dataTransfer = { types: ["Files"], files: [file("scan.pdf", 512)] };
 
     fireEvent.dragOver(zone, { dataTransfer });
