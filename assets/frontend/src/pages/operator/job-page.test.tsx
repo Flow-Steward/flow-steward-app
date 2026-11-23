@@ -254,7 +254,7 @@ describe("OperatorJobPage review", () => {
       url: "/api/approvals/thread-j3",
       body: { approval_id: "approval-j3", approved: true, comment: "", values: { total: 318.5 } },
     });
-    expect(await screen.findByText("Approved with these values")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Approved with these values")).toBeInTheDocument());
     expect(screen.getByText(/Run status: in_progress · Decided by olga/)).toBeInTheDocument();
   });
 
@@ -272,14 +272,14 @@ describe("OperatorJobPage review", () => {
     // Text that is not a number is named at its field and nothing is sent.
     fireEvent.change(totalInput(), { target: { value: "318,5О" } });
     fireEvent.click(screen.getByTestId("review-approve-next"));
-    expect(await within(frame(container, "total")).findByText("Enter a number.")).toBeInTheDocument();
+    await waitFor(() => expect(within(frame(container, "total")).getByText("Enter a number.")).toBeInTheDocument());
     expect(decisions()).toHaveLength(0);
 
     // A number the server still refuses is shown at its field from the server's answer.
     fireEvent.change(totalInput(), { target: { value: "318,50" } });
     fireEvent.click(screen.getByTestId("review-approve-next"));
 
-    expect(await within(frame(container, "total")).findByText("Total must be a number")).toBeInTheDocument();
+    await waitFor(() => expect(within(frame(container, "total")).getByText("Total must be a number")).toBeInTheDocument());
     expect(decisions()[0].body.values).toEqual({ total: 318.5 });
     expect(screen.getByTestId("location")).toHaveTextContent("/work/jobs/j3?");
   });
@@ -324,7 +324,7 @@ describe("OperatorJobPage review", () => {
     await screen.findByTestId("operator-review");
 
     fireEvent.click(screen.getByRole("button", { name: "Recognize again" }));
-    expect(await screen.findByText("A rejection comment is required for this review gate.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("A rejection comment is required for this review gate.")).toBeInTheDocument());
     fireEvent.change(screen.getByTestId("review-comment"), { target: { value: "Wrong supplier" } });
     fireEvent.click(screen.getByRole("button", { name: "Recognize again" }));
 
@@ -349,7 +349,7 @@ describe("OperatorJobPage review", () => {
     reviews.j3 = review("j3", "none", { review_job_id: null, gate: null });
     renderPage();
 
-    expect(await screen.findByText("This job waits for a decision by people who have access to it.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This job waits for a decision by people who have access to it.")).toBeInTheDocument());
     expect(screen.queryByTestId("operator-review")).not.toBeInTheDocument();
     expect(screen.getByTestId("operator-job")).toBeInTheDocument();
     expect(screen.queryByTestId("job-detail")).not.toBeInTheDocument();
@@ -359,7 +359,7 @@ describe("OperatorJobPage review", () => {
     reviews.j3 = review("j3", "decide", { status: "completed", waiting: false, review_job_id: null, access: null, gate: null });
     renderPage();
 
-    expect(await screen.findByTestId("operator-job")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("operator-job")).toBeInTheDocument());
     expect(screen.queryByTestId("job-detail")).not.toBeInTheDocument();
     const back = screen.getByRole("link", { name: "Back to Contracts" });
     expect(back).toHaveAttribute("href", `/projects/p1/workflows/wf.contracts/work?${LIST}`);
@@ -566,8 +566,8 @@ describe("OperatorJobPage finished job", () => {
     // The table scrolls inside its own frame, so a narrow screen never scrolls the page.
     expect(table.parentElement).toHaveClass("fs-workflow-repeater-scroll");
     // Read-only: no row actions.
-    expect(within(lines).queryByRole("button", { name: /add row/i })).toBeNull();
-    expect(within(lines).queryByRole("button", { name: /remove row/i })).toBeNull();
+    expect(within(lines).queryByRole("button", { name: /add row/i })).not.toBeInTheDocument();
+    expect(within(lines).queryByRole("button", { name: /remove row/i })).not.toBeInTheDocument();
 
     const decided = within(screen.getByTestId("operator-job-review")).getByTestId("operator-structured-lines");
     expect(within(decided).getByRole("table")).toBeInTheDocument();
@@ -600,8 +600,9 @@ describe("OperatorJobPage finished job", () => {
     });
     renderPage();
 
-    const original = await screen.findByTestId("operator-page-original");
-    expect(await within(original).findByTestId("file-preview")).toHaveAttribute("data-kind", "pdf");
+    await waitFor(() =>
+      expect(within(screen.getByTestId("operator-page-original")).getByTestId("file-preview")).toHaveAttribute("data-kind", "pdf"),
+    );
     // Files only: no Submitted card saying nothing was sent.
     expect(screen.queryByTestId("operator-job-submitted")).not.toBeInTheDocument();
 
@@ -633,7 +634,7 @@ describe("OperatorJobPage finished job", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Send again" })).toBeInTheDocument();
     // The file was taken from the job: nothing to choose again.
-    expect(await within(dialog).findByText("contract.pdf")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("contract.pdf")).toBeInTheDocument());
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(runBuilderWorkflow).toHaveBeenCalledTimes(1));
@@ -681,7 +682,7 @@ describe("OperatorJobPage finished job", () => {
     await waitFor(() => expect(next).toBeEnabled());
     fireEvent.click(next);
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/work/jobs/j4?"));
-    expect(await screen.findByRole("heading", { level: 1, name: "j4.pdf" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { level: 1, name: "j4.pdf" })).toBeInTheDocument());
 
     // The first job's load is aborted, and its late answer opens nothing on the second job.
     expect(signal?.aborted).toBe(true);
@@ -722,7 +723,7 @@ describe("OperatorJobPage finished job", () => {
     // The missing file is named inside the form, not under it on the page.
     expect(within(dialog).getByTestId("resend-missing-files")).toHaveTextContent("Pages: p2.pdf");
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
-    expect(await within(dialog).findByText("Add the missing files again, or confirm sending without them.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Add the missing files again, or confirm sending without them.")).toBeInTheDocument());
     expect(runBuilderWorkflow).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole("checkbox", { name: "Send without these files" }));
@@ -776,7 +777,7 @@ describe("OperatorJobPage finished job", () => {
     });
     renderPage();
 
-    expect(await screen.findByTestId("operator-formatted-text")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("operator-formatted-text")).toBeInTheDocument());
     // No files: the panel alone, the whole width.
     expect(screen.getByTestId("operator-job")).toHaveAttribute("data-original", "none");
     expect(screen.queryByTestId("operator-page-original")).not.toBeInTheDocument();
@@ -786,7 +787,7 @@ describe("OperatorJobPage finished job", () => {
     serveFinished(finished({ status: "running", job_values: { status: "running", inputs: { doc_type: "invoice" }, outputs: null }, decision: { access: "none" } }));
     renderPage();
 
-    expect(await screen.findByText("This job was reviewed by people who have access to it.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("This job was reviewed by people who have access to it.")).toBeInTheDocument());
     expect(screen.queryByTestId("operator-job-result")).not.toBeInTheDocument();
     // The panel keeps the result's place and says where it will be.
     expect(screen.getByTestId("operator-job-result-pending")).toHaveTextContent(
@@ -830,7 +831,7 @@ describe("OperatorJobPage decisions the gate allows", () => {
     reviews.j3 = withActions(["approve", "override", "abort"]);
     renderPage();
 
-    expect(await screen.findByTestId("job-detail")).toHaveTextContent("j3-child");
+    await waitFor(() => expect(screen.getByTestId("job-detail")).toHaveTextContent("j3-child"));
     expect(screen.queryByTestId("operator-review")).not.toBeInTheDocument();
     expect(screen.getByTestId("operator-queue")).toBeInTheDocument();
   });

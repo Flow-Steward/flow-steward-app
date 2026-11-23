@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -12,7 +12,8 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDate, formatDateTime } from "@/lib/time/date-time-format";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { fetchProjectsList } from "@/pages/projects/list/api";
-import { AGENT_CONNECTIONS_QUERY_KEY, AgentConnectionsList } from "@/pages/settings/account/ai-agents-connections";
+import { AGENT_CONNECTIONS_QUERY_KEY } from "@/pages/settings/account/agent-connections-query";
+import { AgentConnectionsList } from "@/pages/settings/account/ai-agents-connections";
 import { AgentCodeBlock } from "@/pages/settings/account/ai-agents-copy";
 import { AgentRequestCheck, AgentSetupSteps, AgentStep, AgentTokenStep, type AgentStepStatus } from "@/pages/settings/account/ai-agents-setup";
 import {
@@ -235,15 +236,20 @@ export function AiAgentsSection() {
     setRenewing(!choosesAccess);
   }
 
-  useEffect(() => {
-    if (!renewing || !client) return;
-    setRenewing(false);
+  // Reads the latest package choice and the token request without re-running the effect.
+  const finishRenewal = useEffectEvent(() => {
     if (!choice || choice.auth !== "personal_token") {
       setOpenStep(2);
       return;
     }
     createToken();
   });
+
+  useEffect(() => {
+    if (!renewing || !client) return;
+    setRenewing(false);
+    finishRenewal();
+  }, [renewing, client]);
 
   if (setupQuery.isError) {
     return <DsAlert title={t("react.agent_access.setup_unavailable", "The AI agent setup could not be loaded")} tone="danger">{t("react.settings.check_the_connection_and_try_again", "Check the connection and try again.")}</DsAlert>;

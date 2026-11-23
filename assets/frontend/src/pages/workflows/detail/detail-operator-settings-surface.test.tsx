@@ -109,8 +109,7 @@ function renderSurface({ channels = ["ui", "api"], saveIssues = [], stored = nul
 }
 
 function fieldTrigger(name: string): HTMLElement {
-  const header = screen.getByTestId(`operator-field-row-${name}`);
-  const trigger = header.closest("button");
+  const trigger = screen.getAllByRole("button").find((button) => within(button).queryByTestId(`operator-field-row-${name}`));
   if (!trigger) throw new Error(`no trigger for ${name}`);
   return trigger;
 }
@@ -188,6 +187,7 @@ it("reorders the form with the up and down buttons", async () => {
   // Two small icon buttons in a slot sized for them, the end one disabled.
   expect(firstUp).toBeDisabled();
   expect(firstUp).toHaveClass("fs-icon-button");
+  // eslint-disable-next-line testing-library/no-node-access -- the accessory slot is a layout attribute of the accordion header row, which has no role.
   expect(firstUp.closest(".fs-accordion-header")).toHaveAttribute("data-accessory-slot", "icon-pair");
   await user.click(screen.getByRole("button", { name: "Move amount up" }));
   expect((payload().form as { order: string[] }).order).toEqual(["doc_type", "files", "signed_on", "urgent", "amount", "urgent_reason"]);
@@ -219,15 +219,17 @@ it("publishes, names the projects it appears in and acknowledges the real effect
   await waitFor(() => expect(screen.getByText("Accounting, Legal")).toBeInTheDocument());
   expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Not confirmed");
   // Every block of the tab opens with a heading, the menu block included.
+  // eslint-disable-next-line testing-library/no-node-access -- the claim is the tab's block structure: its sections have no role or name.
   const blocks = [...screen.getByTestId("operator-publication").querySelectorAll(":scope > section")];
+  // eslint-disable-next-line testing-library/no-node-access -- a block's heading is its first paragraph, a visual heading without a heading role.
   expect(blocks.map((block) => block.querySelector("p")?.textContent)).toEqual(["Menu", "Submission", "Real effects", "Issues"]);
   // The submission modes are one group, one option per line.
   expect(within(screen.getByRole("radiogroup", { name: "Submission" })).getAllByRole("radio")).toHaveLength(2);
   // A checkbox, so the confirmation can be taken back before the save.
   const confirm = screen.getByRole("checkbox", { name: "Confirm real effects" });
   expect(confirm).not.toBeChecked();
-  const confirmLabel = confirm.closest("label");
-  if (!confirmLabel) throw new Error("no label for the confirmation");
+  // The checkbox's own label text, so a click on the label toggles it.
+  const confirmLabel = within(screen.getByTestId("operator-publication")).getByText("Confirm real effects");
   await user.click(confirmLabel);
   expect(confirm).toBeChecked();
   expect(screen.getByTestId("operator-ack-status")).toHaveTextContent("Confirmed with the next save.");
@@ -300,5 +302,6 @@ it("sets its tabs on a panel with the accent strip, like the drawer's own tabs",
   renderSurface();
   const panel = screen.getByRole("tabpanel");
   expect(panel).toHaveClass("fs-tabs-panel");
+  // eslint-disable-next-line testing-library/no-node-access -- the accent strip is a layout fact of the tabs' scroll frame and its wrapper, neither of which has a role.
   expect(screen.getByRole("tablist", { name: "For operators" }).closest(".fs-tabs-scroll")?.parentElement).toContainElement(panel);
 });

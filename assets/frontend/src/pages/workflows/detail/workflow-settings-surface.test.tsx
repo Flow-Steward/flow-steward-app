@@ -886,7 +886,7 @@ const operatorBlock = {
 
 async function openOperatorField(user: ReturnType<typeof userEvent.setup>, name: string) {
   await waitFor(() => expect(screen.getByTestId(`operator-field-row-${name}`)).toBeInTheDocument());
-  const trigger = screen.getByTestId(`operator-field-row-${name}`).closest("button");
+  const trigger = screen.getAllByRole("button").find((button) => within(button).queryByTestId(`operator-field-row-${name}`));
   if (!trigger) throw new Error(`no row for ${name}`);
   await user.click(trigger);
 }

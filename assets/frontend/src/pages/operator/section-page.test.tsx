@@ -1,10 +1,11 @@
-/* eslint-disable testing-library/no-node-access, testing-library/no-container -- form fields are addressed by their data-field frame. */
+/* eslint-disable testing-library/no-node-access -- form fields are addressed by their data-field frame. */
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import type { FormFieldView } from "@/components/workflow-inputs/form-field";
 import type { RunUploadLimits } from "@/lib/auth/AuthProvider";
+import type * as RunUploadLimitsModule from "@/lib/auth/run-upload-limits";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
@@ -19,7 +20,7 @@ let uploadLimits: RunUploadLimits | undefined;
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: () => ({ session: { user: { roles: ["operator"], permissions: permissionsForRoles(["operator"]) } } }) }));
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 vi.mock("@/lib/auth/run-upload-limits", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/auth/run-upload-limits")>()),
+  ...(await importOriginal<typeof RunUploadLimitsModule>()),
   useRunUploadLimits: () => uploadLimits,
 }));
 vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn() }));
@@ -157,9 +158,9 @@ describe("OperatorSectionPage", () => {
     serve(section("bulk"));
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Contracts" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Contracts" })).toBeInTheDocument());
     expect(screen.getByText("Acme")).toBeInTheDocument();
-    expect(await screen.findByText("ACME Ltd")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("ACME Ltd")).toBeInTheDocument());
     expect(screen.getByRole("columnheader", { name: "Files" })).toBeInTheDocument();
     expect(screen.getByText("318.50")).toBeInTheDocument();
     // Files are names with download links; past two they fold into "+N".
@@ -192,11 +193,11 @@ describe("OperatorSectionPage", () => {
     renderPage("/projects/p1/workflows/wf.contracts/work?status=awaiting_review");
 
     // A row waiting on its Invoke child stays: the server read the chain.
-    expect(await screen.findByText("ACME Ltd")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("ACME Ltd")).toBeInTheDocument());
     expect(jobRequests().at(-1)?.searchParams.getAll("status")).toEqual(["awaiting_review"]);
     expect(jobRequests().at(-1)?.searchParams.has("filters")).toBe(false);
     // The panel shows it as a built-in status option.
-    expect(await screen.findByText("Status · Awaiting review")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Status · Awaiting review")).toBeInTheDocument());
   });
 
   it("filters by how runs started, from the address", async () => {
@@ -317,7 +318,7 @@ describe("OperatorSectionPage", () => {
 
     // A new submission resets the form and starts a new id.
     fireEvent.click(within(dialog).getByRole("button", { name: "New submission" }));
-    expect(await within(dialog).findByRole("button", { name: "Send" })).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByRole("button", { name: "Send" })).toBeInTheDocument());
     expect(within(dialog).queryByText(/accepted/)).not.toBeInTheDocument();
     mockedRun.mockResolvedValueOnce({ job_id: "d" });
     fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
@@ -338,7 +339,7 @@ describe("OperatorSectionPage", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
 
-    expect(await within(dialog).findByText(/the input it sends one by one is not shown/)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(/the input it sends one by one is not shown/)).toBeInTheDocument());
     expect(mockedRun).not.toHaveBeenCalled();
   });
 
@@ -351,7 +352,7 @@ describe("OperatorSectionPage", () => {
     choosePages(dialog, ["p1.jpg", "p2.jpg", "p3.jpg"]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
 
-    expect(await within(dialog).findByText(/more or larger than this installation accepts/)).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText(/more or larger than this installation accepts/)).toBeInTheDocument());
     expect(mockedRun).not.toHaveBeenCalled();
   });
 
@@ -363,14 +364,15 @@ describe("OperatorSectionPage", () => {
     renderPage();
     const dialog = await openForm();
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
-    expect(await within(dialog).findByText("Fill in Document type.")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getByText("Fill in Document type.")).toBeInTheDocument());
     expect(mockedRun).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "invoice" }));
     choosePages(dialog, ["p1.jpg"]);
     fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
-    const frame = dialog.querySelector('[data-field="doc_type"]') as HTMLElement;
-    expect(await within(frame).findByText(/Workflow input 'doc_type' has invalid type/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(dialog.querySelector('[data-field="doc_type"]') as HTMLElement).getByText(/Workflow input 'doc_type' has invalid type/)).toBeInTheDocument(),
+    );
   });
 
   it("shows a viewer the list without the New button", async () => {
@@ -389,8 +391,8 @@ describe("OperatorSectionPage", () => {
       }),
     );
     renderPage();
-    expect(await screen.findByText("Real effects are not acknowledged")).toBeInTheDocument();
-    expect(await screen.findByText("ACME Ltd")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Real effects are not acknowledged")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("ACME Ltd")).toBeInTheDocument());
     expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
   });
 });

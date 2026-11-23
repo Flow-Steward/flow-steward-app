@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
@@ -159,6 +159,6 @@ describe("declared field shapes in the workflow interface", () => {
     await user.click(screen.getByRole("button", { name: "Add output" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "array");
     const elementTypes = screen.getByRole("combobox", { name: "Element type" });
-    expect([...elementTypes.querySelectorAll("option")].map((option) => option.value)).not.toContain("file");
+    expect(within(elementTypes).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).not.toContain("file");
   });
 });

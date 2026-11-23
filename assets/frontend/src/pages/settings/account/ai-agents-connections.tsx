@@ -7,8 +7,7 @@ import { formatDate } from "@/lib/time/date-time-format";
 import { fetchAgentConnections } from "@/pages/settings/shared/api";
 import type { AgentConnection } from "@/pages/settings/shared/types";
 
-/** One query for the AI agents page and the app shell notice. */
-export const AGENT_CONNECTIONS_QUERY_KEY = ["settings", "account", "agent-connections"] as const;
+import { AGENT_CONNECTIONS_QUERY_KEY } from "./agent-connections-query";
 
 /**
  * ADR 0076 §5: every AI agent connection of the person with the day it stops working.

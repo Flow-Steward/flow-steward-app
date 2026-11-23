@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DsAlert } from "@/components/shared/design-system-primitives";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDate } from "@/lib/time/date-time-format";
-import { AGENT_CONNECTIONS_QUERY_KEY } from "@/pages/settings/account/ai-agents-connections";
+import { AGENT_CONNECTIONS_QUERY_KEY } from "@/pages/settings/account/agent-connections-query";
 import { fetchAgentConnections } from "@/pages/settings/shared/api";
 import type { AgentConnection } from "@/pages/settings/shared/types";
 

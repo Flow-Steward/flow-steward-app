@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
 import { DsAlert, DsBadge, DsCheckbox, DsRadio, DsSelect, DsTable, DsTabs } from "@/components/shared/design-system";
 import { DsSwitch } from "@/components/shared/ds-switch";
@@ -459,13 +459,14 @@ export function OperatorSettingsSurface({ ctx }: Readonly<{ ctx: Ctx }>) {
       });
     }
   };
-  // A refused save opens the first field it names.
-  const firstSaveIssue = saveIssues.find((issue) => issue.severity !== "warning")?.path ?? "";
-  useEffect(() => {
+  // A refused save opens the first field it names, once for each answer of the server.
+  // jump sets this component's own state only, so it is adjusted during the render.
+  const [jumpedFor, setJumpedFor] = useState<readonly OperatorIssue[]>(NO_ISSUES);
+  if (saveIssues !== jumpedFor) {
+    setJumpedFor(saveIssues);
+    const firstSaveIssue = saveIssues.find((issue) => issue.severity !== "warning")?.path ?? "";
     if (firstSaveIssue) jump(firstSaveIssue);
-    // jump only reads state setters.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firstSaveIssue, saveIssues]);
+  }
   if (!view || !draft) {
     return <DsAlert title={t("react.workflows.operator.unavailable", "The operator form is not available")} tone="warning">
       {t("react.workflows.operator.unavailable_help", "The workflow contract could not be read for the operator form.")}
