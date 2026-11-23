@@ -550,6 +550,33 @@ def sweep_pending_provider_event_dispatches(
     return outcomes
 
 
+def build_provider_event_dispatch_sweep(
+    configured_dsn: str,
+    *,
+    enqueue_task_factory: Callable[[Any], Any],
+) -> Callable[[], list[dict[str, Any]]] | None:
+    """The worker's periodic sweep on its own connection, or None without a database.
+
+    ``enqueue_task_factory`` builds the enqueue handler for the sweep's store.
+    """
+    from core.infrastructure.db.platform_stores import (
+        PlatformInboundPollingStore,
+        resolve_observability_dsn,
+    )
+
+    dsn = resolve_observability_dsn(configured_dsn)
+    if not dsn:
+        return None
+
+    def sweep() -> list[dict[str, Any]]:
+        with PlatformInboundPollingStore.dedicated(dsn) as bl:
+            return sweep_pending_provider_event_dispatches(
+                bl, enqueue_task_fn=enqueue_task_factory(bl)
+            )
+
+    return sweep
+
+
 __all__ = [
     "FAULT_POINTS",
     "MAX_DISPATCH_ATTEMPTS",
@@ -557,6 +584,7 @@ __all__ = [
     "DispatchRejected",
     "RecordedEvent",
     "accept_dispatch_in_job_transaction",
+    "build_provider_event_dispatch_sweep",
     "dispatch_provider_event",
     "dispatch_recorded_event",
     "fault_point",

@@ -18,7 +18,7 @@ describe("operator job view at narrow width", () => {
     // ...and the value column may shrink below the table's width.
     expect(operatorStyles).toMatch(/\.fs-operator-value-row\s*\{[^}]*grid-template-columns:\s*minmax\(8rem, 14rem\) minmax\(0, 1fr\);/);
     expect(operatorStyles).toMatch(/\.fs-operator-value-row dd\s*\{[^}]*min-width:\s*0;/);
-    expect(operatorStyles).toMatch(/@media \(max-width: 640px\)\s*\{\s*\.fs-operator-value-row\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(operatorStyles).toMatch(/@media \(width <= 640px\)\s*\{\s*\.fs-operator-value-row\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\);/);
     expect(operatorStyles).toMatch(/\.fs-operator-readonly-form\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;/);
   });
 });

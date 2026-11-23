@@ -133,26 +133,13 @@ def build_background_poll_ports() -> Any:
 def build_provider_event_dispatch_sweep() -> Callable[[], Any] | None:
     """The worker's periodic sweep of pending provider-event dispatch records."""
     from core.application.workflows.provider_event_delivery import (
-        sweep_pending_provider_event_dispatches,
-    )
-    from core.infrastructure.db.platform_stores import (
-        PlatformInboundPollingStore,
-        resolve_observability_dsn,
+        build_provider_event_dispatch_sweep as build_sweep,
     )
 
-    dsn = resolve_observability_dsn(
-        str(CONFIG.get("fs_observability_dsn") or CONFIG.get("fs_db_dsn") or "")
+    return build_sweep(
+        str(CONFIG.get("fs_observability_dsn") or CONFIG.get("fs_db_dsn") or ""),
+        enqueue_task_factory=lambda bl: create_enqueue_task_handler(get_logger=lambda: bl),
     )
-    if not dsn:
-        return None
-
-    def sweep() -> list[dict[str, Any]]:
-        with PlatformInboundPollingStore.dedicated(dsn) as bl:
-            return sweep_pending_provider_event_dispatches(
-                bl, enqueue_task_fn=create_enqueue_task_handler(get_logger=lambda: bl)
-            )
-
-    return sweep
 
 
 __all__ = [
