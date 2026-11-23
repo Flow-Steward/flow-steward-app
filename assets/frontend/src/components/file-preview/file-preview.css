@@ -81,6 +81,7 @@
 
 .fs-file-preview-sheet-table {
   --fs-table-min-width: 0;
+
   width: auto;
 }
 

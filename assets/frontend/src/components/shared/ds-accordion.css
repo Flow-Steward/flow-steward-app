@@ -13,10 +13,13 @@
   border-top: 3px solid var(--fs-accordion-open-accent);
   background: var(--fs-accordion-open-bg);
 }
+
 .fs-accordion-header {
   --fs-accordion-accessory-width: var(--fs-switch-track-width);
+
   position: relative;
 }
+
 .fs-accordion-header[data-accessory-slot="icon-pair"] {
   --fs-accordion-accessory-width: calc(var(--fs-icon-button-size-sm) * 2 + 4px);
 }

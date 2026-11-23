@@ -3,6 +3,7 @@
    the dialog, so nothing here fixes a height. */
 .fs-workflow-form {
   --fs-workflow-form-gap: var(--fs-space-150);
+
   display: flex;
   flex-wrap: wrap;
   gap: var(--fs-workflow-form-gap);
@@ -19,7 +20,7 @@
 }
 
 /* On a phone every field takes the row: a 30% date box is unusable there. */
-@media (max-width: 640px) {
+@media (width <= 640px) {
   .fs-workflow-field[data-width] {
     flex-basis: 100%;
   }

@@ -529,21 +529,29 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     .filter((section): section is NavSection => section !== null)
     .filter((section) => section.items.length > 0);
   // An operator also replaces secret values (a changed mailbox password); a viewer only reads.
-  const operatorSettingsSection: NavSection | null = hasCapability(permissions, "manage_secret_values")
-    ? {
-        key: "operator_settings",
-        label: t("shell.nav.settings", "Settings"),
-        items: [{ key: "secrets", to: "/secrets", label: t("shell.nav.secrets", "Secrets"), icon: KeyRound }],
-      }
-    : null;
-  const sidebarSections = sectionsView
-    ? [
-        ...buildProjectSectionNavigation(sectionNavigationQuery.data ?? [], {
-          singleLabel: t("react.operator.menu", "Sections"),
-        }),
-        ...(operatorSettingsSection ? [operatorSettingsSection] : []),
-      ]
-    : adminSidebarSections;
+  const operatorSettingsSection = useMemo<NavSection | null>(
+    () =>
+      hasCapability(permissions, "manage_secret_values")
+        ? {
+            key: "operator_settings",
+            label: t("shell.nav.settings", "Settings"),
+            items: [{ key: "secrets", to: "/secrets", label: t("shell.nav.secrets", "Secrets"), icon: KeyRound }],
+          }
+        : null,
+    [permissions, t],
+  );
+  const sidebarSections = useMemo(
+    () =>
+      sectionsView
+        ? [
+            ...buildProjectSectionNavigation(sectionNavigationQuery.data ?? [], {
+              singleLabel: t("react.operator.menu", "Sections"),
+            }),
+            ...(operatorSettingsSection ? [operatorSettingsSection] : []),
+          ]
+        : adminSidebarSections,
+    [sectionsView, sectionNavigationQuery.data, t, operatorSettingsSection, adminSidebarSections],
+  );
   const routeLabels = useMemo(
     () => {
       const sidebarRouteLabels = sidebarSections.flatMap((section) =>

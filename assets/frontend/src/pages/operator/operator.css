@@ -17,8 +17,12 @@
 }
 
 .fs-operator-file-more {
+  border: 0;
+  background: none;
+  padding: 0;
   color: var(--fs-text-tertiary);
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .fs-operator-column-picker {
@@ -300,18 +304,11 @@
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 640px) {
+@media (width <= 640px) {
   .fs-operator-value-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0;
   }
-}
-
-.fs-operator-file-more {
-  border: 0;
-  background: none;
-  padding: 0;
-  cursor: pointer;
 }
 
 .fs-operator-file-list {

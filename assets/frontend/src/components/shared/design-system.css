@@ -833,13 +833,17 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 
 .fs-role-grid,
 .fs-control-grid { display: grid; gap: var(--fs-space-100) var(--fs-dashboard-grid-gap); }
+
 /* One system role per user (ADR 0076): one choice per row, each with what it can do. */
 .fs-role-grid { grid-template-columns: minmax(0, 1fr); }
 .fs-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
 .fs-control-grid .fs-checkbox-label span:last-child,
 .fs-role-grid .fs-radio-label > span:last-child:not(.fs-radio-mark) { display: grid; gap: var(--fs-field-gap); }
+
 .fs-role-grid strong,
 .fs-control-grid strong { display: inline-flex; align-items: center; min-height: var(--fs-space-250); color: var(--fs-text-primary); line-height: var(--fs-space-250); }
+
 .fs-role-grid small,
 .fs-control-grid small { color: var(--fs-field-helper-color); font-size: var(--fs-field-helper-size); line-height: var(--fs-field-helper-line-height); }
 
@@ -909,6 +913,7 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
    each other. The row's `title` carries the full text. */
 .fs-filter-menu-options { display: grid; gap: var(--fs-space-025); max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
 .fs-filter-menu-search { margin-bottom: var(--fs-space-075); }
+
 /* A typed filter (text or a from/to range) in the value stage: the boxes stack, Apply closes. */
 .fs-filter-menu-input { display: grid; gap: var(--fs-space-075); }
 .fs-filter-menu-input .fs-button { justify-self: end; }
@@ -1176,10 +1181,12 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-dialog { position: relative; display: flex; flex-direction: column; width: min(var(--fs-form-dialog-width), var(--fs-modal-max-width)); height: var(--fs-form-dialog-height); max-height: var(--fs-modal-max-height); margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--fs-form-dialog-border); border-radius: var(--fs-form-dialog-radius); background: var(--fs-form-dialog-bg); color: inherit; box-shadow: var(--fs-form-dialog-shadow); animation: fs-settings-dialog-enter var(--fs-motion-dialog-enter); }
 .fs-dialog.add-user { width: min(var(--fs-add-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-add-user-dialog-height); }
 .fs-dialog.edit-user { width: min(var(--fs-edit-user-dialog-width), var(--fs-modal-max-width)); height: var(--fs-edit-user-dialog-height); }
+
 /* A confirmation keeps the canon's width as its floor and grows to fit its
    actions, so a verb-plus-object label is never cut off; only the footer widens
    it, the text above wraps to whatever width that gives. */
 .fs-dialog.confirm { width: fit-content; min-width: min(var(--fs-confirmation-dialog-width), var(--fs-modal-max-width)); max-width: var(--fs-modal-max-width); height: var(--fs-confirmation-dialog-height); }
+
 .fs-dialog.confirm > .fs-dialog-header,
 .fs-dialog.confirm > .fs-dialog-body { width: 0; min-width: 100%; }
 .fs-dialog.confirm > .fs-dialog-footer .fs-button { white-space: nowrap; }
@@ -1323,6 +1330,7 @@ body:has(.fs-dialog-layer) .fs-filter-menu { z-index: var(--fs-z-modal-popup); }
   .fs-card-footer { padding: var(--fs-card-padding-compact); }
   .fs-button { min-width: 0; }
   .fs-dialog-footer .fs-button { flex: 1; }
+
   /* Two long actions that do not fit side by side stack instead of clipping. */
   .fs-dialog.confirm > .fs-dialog-footer { flex-wrap: wrap; }
   .fs-secret-row { grid-template-columns: minmax(0, 1fr); }
