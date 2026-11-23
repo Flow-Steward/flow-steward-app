@@ -1648,6 +1648,7 @@
     "core/infrastructure/lifecycle/configuration_gateway.py",
     "core/infrastructure/lifecycle/configuration_store.py",
     "core/infrastructure/lifecycle/development_extras.py",
+    "core/infrastructure/lifecycle/docker_cli_errors.py",
     "core/infrastructure/lifecycle/docker_completion_prerequisites.py",
     "core/infrastructure/lifecycle/docker_gateway.py",
     "core/infrastructure/lifecycle/docker_gateway_contracts.py",
