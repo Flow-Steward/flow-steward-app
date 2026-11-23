@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useRef, useState } from "react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import catalogStyles from "@/components/shared/catalog-browse.css?raw";
 import designSystemStyles from "@/components/shared/design-system.css?raw";
@@ -10,6 +11,7 @@ import {
   CatalogIcon,
   CatalogItemCard,
   CatalogPager,
+  CatalogResultsHead,
 } from "@/components/shared/catalog-browse";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
@@ -75,6 +77,53 @@ describe("catalog facet locale rendering", () => {
     expect(screen.getByRole("checkbox", { name: /^One.*1 template$/ })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /^Two.*2 templates$/ })).toBeInTheDocument();
   });
+});
+
+function FilterResults({ compact }: Readonly<{ compact: boolean }>) {
+  const [category, setCategory] = useState(["one", "two"]);
+  const countRef = useRef<HTMLHeadingElement>(null);
+  const facets = [{ ...facet, values: [...facet.values, { value: "comma,part", label: "With comma", count: 1 }] }];
+  return (
+    <CatalogResultsHead
+      compact={compact}
+      count={3}
+      countLabel={(count) => count === 1 ? "1 template" : `${count} templates`}
+      countRef={countRef}
+      facets={facets}
+      filters={{ q: "", category }}
+      onClearAll={() => setCategory([])}
+      onFacetChange={(_, values) => setCategory(values)}
+      onSort={() => undefined}
+      onView={() => undefined}
+      sort="name"
+      sortChoices={[]}
+      view="grid"
+    />
+  );
+}
+
+it("changes multiple catalog values in the shared phone menu without reopening it", () => {
+  render(<FilterResults compact />);
+  fireEvent.click(screen.getByRole("button", { name: "Categories · One, Two" }));
+
+  const menu = screen.getByRole("menu", { name: "Choose a filter" });
+  expect(within(menu).getByRole("menuitemcheckbox", { name: "One", description: "1 template" })).toBeChecked();
+  expect(within(menu).getByRole("menuitemcheckbox", { name: "Empty" })).toBeDisabled();
+  fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "With comma" }));
+
+  expect(screen.getByRole("button", { name: "Categories · 3 selected" })).toBeInTheDocument();
+  expect(within(menu).getByRole("menuitemcheckbox", { name: "With comma" })).toBeChecked();
+  fireEvent.click(within(menu).getByRole("menuitemcheckbox", { name: "One" }));
+  expect(screen.getByRole("button", { name: "Categories · Two, With comma" })).toBeInTheDocument();
+});
+
+it("reopens a desktop catalog filter from its pill with the chosen values checked", () => {
+  render(<FilterResults compact={false} />);
+  fireEvent.click(screen.getByRole("button", { name: "Categories · One, Two" }));
+  expect(screen.getByRole("menuitemcheckbox", { name: "Two" })).toBeChecked();
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Categories filter" }));
+  expect(screen.getByRole("heading", { name: "3 templates" })).toHaveFocus();
 });
 
 describe("CatalogIcon, the logo tile of an extension or MCP server", () => {

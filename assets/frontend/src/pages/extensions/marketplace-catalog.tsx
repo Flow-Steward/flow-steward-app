@@ -196,7 +196,7 @@ export function ExtensionMarketplaceCatalog({
     writeUrl((latest) => ({ filters: update(latest.filters), page: 1 }));
   const toggle = (key: MarketplaceFacetKey, value: string) =>
     onFilters((current) => toggleFacetValue(current, key, value));
-  const clearFacet = (key: MarketplaceFacetKey) => onFilters((current) => ({ ...current, [key]: [] }));
+  const changeFacet = (key: MarketplaceFacetKey, values: string[]) => onFilters((current) => ({ ...current, [key]: values }));
   const clearAll = () => onFilters((current) => clearFacetValues(current, MARKETPLACE_FACET_KEYS));
 
   // `?find=<id>` of a listed extension opens its page on the whole catalog.
@@ -447,7 +447,8 @@ export function ExtensionMarketplaceCatalog({
           <CatalogResultsHead
             announceDelayMs={ANNOUNCE_DELAY_MS}
             compact={compact}
-            countLabel={countLabel(visible.length)}
+            count={visible.length}
+            countLabel={countLabel}
             countRef={countRef}
             facets={facets}
             filters={filters}
@@ -468,9 +469,8 @@ export function ExtensionMarketplaceCatalog({
               ) : null
             }
             onClearAll={clearAll}
-            onClearFacet={clearFacet}
+            onFacetChange={changeFacet}
             onSort={(sort) => writeUrl(() => ({ sort, page: 1 }))}
-            onToggle={toggle}
             onView={(view) => writeUrl(() => ({ view, page: 1 }))}
             sort={urlState.sort}
             sortChoices={sortChoices}

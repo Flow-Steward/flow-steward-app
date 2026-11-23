@@ -460,12 +460,16 @@ export function AdvancedTableFilters({
   onChange,
   onClear,
   disabled = false,
+  showAddFilter = true,
+  fallbackFocusRef,
 }: Readonly<{
   fields: DsFilterField[];
   values: Record<string, string>;
   onChange: (key: string, value: string) => void;
   onClear: () => void;
   disabled?: boolean;
+  showAddFilter?: boolean;
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
 }>) {
   const { t } = useI18n();
   const [anchor, setAnchor] = useState<{ button: HTMLButtonElement; fieldKey: string | null } | null>(null);
@@ -613,15 +617,17 @@ export function AdvancedTableFilters({
     focusFirst("[data-filter-field]", fieldKey ?? undefined);
   }
 
-  function closeMenu(returnFocus = false) {
+  function returnFocus(button?: HTMLButtonElement) {
+    (button?.isConnected ? button : triggerRef.current ?? fallbackFocusRef?.current)?.focus();
+  }
+
+  function closeMenu(restoreFocus = false) {
     const button = anchor?.button;
     hideTip();
     setAnchor(null);
     setFieldKey(null);
     setQuery("");
-    if (returnFocus) {
-      window.requestAnimationFrame(() => (button?.isConnected ? button : triggerRef.current)?.focus());
-    }
+    if (restoreFocus) window.requestAnimationFrame(() => returnFocus(button));
   }
 
   function toggleMenu(button: HTMLButtonElement, key: string | null) {
@@ -655,7 +661,7 @@ export function AdvancedTableFilters({
     const target = event.target as HTMLElement;
     const input = target instanceof HTMLInputElement ? target : null;
     if (event.key === "Tab") {
-      (anchor?.button.isConnected ? anchor.button : triggerRef.current)?.focus();
+      returnFocus(anchor?.button);
       closeMenu();
     } else if (event.key === "Escape") {
       event.preventDefault();
@@ -727,14 +733,14 @@ export function AdvancedTableFilters({
               onClick={() => {
                 closeMenu();
                 onChange(item.key, "");
-                triggerRef.current?.focus();
+                returnFocus();
               }}
               type="button"
             ><X aria-hidden="true" /></button>
           </span>
         );
       })}
-      <div className="fs-filter-popover-wrap">
+      {showAddFilter ? <div className="fs-filter-popover-wrap">
         <button
           aria-controls={anchor && !anchor.fieldKey ? menuId : undefined}
           aria-expanded={Boolean(anchor && !anchor.fieldKey)}
@@ -748,7 +754,7 @@ export function AdvancedTableFilters({
           <Plus aria-hidden="true" />
           {t("react.shared.add_filter", "Add filter")}
         </button>
-      </div>
+      </div> : null}
       {anchor ? createPortal(
         <div
           aria-label={t("react.shared.choose_a_filter", "Choose a filter")}
@@ -874,7 +880,7 @@ export function AdvancedTableFilters({
           onClick={() => {
             closeMenu();
             onClear();
-            triggerRef.current?.focus();
+            returnFocus();
           }}
           type="button"
         >{t("react.shared.clear_all", "Clear all")}</button>

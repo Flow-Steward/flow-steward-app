@@ -707,7 +707,8 @@ export function McpCatalogPanel({
         {items.length ? (
           <CatalogResultsHead
             compact={compact}
-            countLabel={countLabel(visible.length)}
+            count={visible.length}
+            countLabel={countLabel}
             countRef={countRef}
             facets={facets}
             filters={filters}
@@ -720,16 +721,12 @@ export function McpCatalogPanel({
               setFilters((current) => clearFacetValues(current, FACET_KEYS));
               setPage(1);
             }}
-            onClearFacet={(key) => {
-              setFilters((current) => clearFacetValues(current, [key]));
+            onFacetChange={(key, values) => {
+              setFilters((current) => ({ ...current, [key]: values }));
               setPage(1);
             }}
             onSort={(next) => {
               setSort(next);
-              setPage(1);
-            }}
-            onToggle={(key, value) => {
-              setFilters((current) => toggleFacetValue(current, key, value));
               setPage(1);
             }}
             onView={(next) => {
