@@ -22,6 +22,7 @@ import { WorkflowInputSecretBinding } from "@/pages/workflows/detail/detail-work
 import { sizeLabel } from "@/pages/extensions/marketplace-model";
 import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { trimRepeatedEdges } from "@/lib/utils/string-normalization";
+import { FileDropzone } from "@/components/workflow-inputs/file-dropzone";
 
 type WorkflowInterfaceRenderContext = Record<string, any>;
 
@@ -158,19 +159,24 @@ function SampleFileControl({ controlId, controlName, row, updateRow }: Readonly<
         <span>{t("react.workflows.test_file", "Test file")}</span>
         <span className={picked || (stored && !clearing) ? "text-[var(--fs-status-success)]" : "text-[var(--fs-text-tertiary)]"}>{state}</span>
       </p>
-      <div className="mt-1 flex flex-wrap items-center gap-2">
-        <input
-          className="max-w-full text-[11px] text-[var(--fs-text-primary)] file:mr-2 file:rounded file:border file:border-[var(--fs-border-default)] file:bg-transparent file:px-2 file:py-1 file:text-[11px] file:text-[var(--fs-text-primary)]"
-          id={controlId}
-          name={controlName}
-          onChange={(event) => {
-            const file = event.target.files?.[0] ?? null;
-            updateRow({ sampleFileDraft: file, sampleFileAction: file ? "set" : "" });
-          }}
-          type="file"
-        />
-        <button className="rounded border border-[var(--fs-border-default)] px-2 py-1 text-[11px] text-[var(--fs-text-primary)] disabled:opacity-40" disabled={!stored && !picked} onClick={() => updateRow({ sampleFileAction: stored ? "clear" : "", sampleFileDraft: null })} type="button">
-          {t("extensions.repeater.remove", "Remove")}</button>
+      <div className="mt-1 grid gap-2">
+        <div className="min-w-0">
+          <FileDropzone
+            ariaLabel={t("react.workflows.test_file", "Test file")}
+            files={picked ? [picked] : []}
+            inputId={controlId}
+            multiple={false}
+            name={controlName}
+            onFiles={(next) => updateRow({ sampleFileDraft: next[0] ?? null, sampleFileAction: next[0] ? "set" : "" })}
+            testId={`sample-file-${controlName}`}
+          />
+        </div>
+        {/* The stored test file has no row in the list above: this clears it. */}
+        {stored && !picked && !clearing ? (
+          <button className="justify-self-start rounded border border-[var(--fs-border-default)] px-2 py-1 text-[11px] text-[var(--fs-text-primary)]" onClick={() => updateRow({ sampleFileAction: "clear", sampleFileDraft: null })} type="button">
+            {t("extensions.repeater.remove", "Remove")}
+          </button>
+        ) : null}
       </div>
       <p className="mt-1 text-[11px] text-[var(--fs-text-tertiary)]">{t("react.workflows.test_runs_that_pass_no_file_use_this_one_real_runs_always_pass_their_own", "Test runs that pass no file use this one. Real runs always pass their own.")}</p>
     </div>

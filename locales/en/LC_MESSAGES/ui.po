@@ -31240,6 +31240,42 @@ msgstr "Chosen files for {label}"
 msgid "react.operator_form.remove_file"
 msgstr "Remove {name}"
 
+msgid "react.file_dropzone.drag_many"
+msgstr "Drag files here or"
+
+msgid "react.file_dropzone.drag_one"
+msgstr "Drag a file here or"
+
+msgid "react.file_dropzone.add_more"
+msgstr "Add more: drag files or"
+
+msgid "react.file_dropzone.replace"
+msgstr "Replace it: drag a file or"
+
+msgid "react.file_dropzone.drop"
+msgstr "Drop to add the files"
+
+msgid "react.file_dropzone.browse"
+msgstr "browse"
+
+msgid "react.file_dropzone.summary"
+msgstr "{count} · {size}"
+
+msgid "react.file_dropzone.one_file"
+msgstr "1 file"
+
+msgid "react.file_dropzone.files"
+msgstr "{count} files"
+
+msgid "react.file_dropzone.remove_all"
+msgstr "Remove all"
+
+msgid "react.file_dropzone.limit_size"
+msgstr "Up to {size} MB per file"
+
+msgid "react.file_dropzone.limit_count"
+msgstr "up to {count} files"
+
 msgid "react.operator.send_failed"
 msgstr "Could not send"
 

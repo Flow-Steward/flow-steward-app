@@ -31668,6 +31668,42 @@ msgstr "Pasirinkti failai: {label}"
 msgid "react.operator_form.remove_file"
 msgstr "Pašalinti {name}"
 
+msgid "react.file_dropzone.drag_many"
+msgstr "Nutempkite failus čia arba"
+
+msgid "react.file_dropzone.drag_one"
+msgstr "Nutempkite failą čia arba"
+
+msgid "react.file_dropzone.add_more"
+msgstr "Pridėkite daugiau: nutempkite failus arba"
+
+msgid "react.file_dropzone.replace"
+msgstr "Pakeiskite: nutempkite failą arba"
+
+msgid "react.file_dropzone.drop"
+msgstr "Paleiskite, kad pridėtumėte failus"
+
+msgid "react.file_dropzone.browse"
+msgstr "pasirinkite kompiuteryje"
+
+msgid "react.file_dropzone.summary"
+msgstr "{count} · {size}"
+
+msgid "react.file_dropzone.one_file"
+msgstr "1 failas"
+
+msgid "react.file_dropzone.files"
+msgstr "Failų: {count}"
+
+msgid "react.file_dropzone.remove_all"
+msgstr "Pašalinti visus"
+
+msgid "react.file_dropzone.limit_size"
+msgstr "Iki {size} MB vienam failui"
+
+msgid "react.file_dropzone.limit_count"
+msgstr "iki {count} failų"
+
 msgid "react.operator.send_failed"
 msgstr "Nepavyko išsiųsti"
 
