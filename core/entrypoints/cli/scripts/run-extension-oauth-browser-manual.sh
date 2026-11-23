@@ -122,6 +122,7 @@ seed_exit_code="$(printf '%s\n' "${seed_wait_output}" | tail -n 1)"
 
 trap - EXIT INT TERM
 printf 'Ready URL: https://flow-steward.localhost:%s/app/extensions/fixture.extension-oauth\n' "${MANUAL_PORT}"
+printf 'Admin (configures OAuth): oauth-admin@example.test / OAuthAcceptanceAdmin_123!\n' # pragma: allowlist secret -- disposable acceptance account
 printf 'Operator: oauth-operator@example.test / OAuthAcceptanceOperator_123!\n'
 printf 'Viewer: oauth-viewer@example.test / OAuthAcceptanceViewer_123!\n'
 printf 'Export CA: FS_COMPOSE_PROJECT_NAME=%q FS_OAUTH_MANUAL_PORT=%q FS_OAUTH_MANUAL_PROVIDER_PORT=%q %q ca\n' "${PROJECT_NAME}" "${MANUAL_PORT}" "${PROVIDER_PORT}" "$0"
