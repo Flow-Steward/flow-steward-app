@@ -11,6 +11,13 @@ from fastapi.responses import JSONResponse
 from core.application.auth import user_profile_repository
 from core.application.settings.ui_i18n import normalize_ui_locale
 
+_TIMEZONE_INVALID = "Timezone is not valid; use an IANA region name such as Europe/Vilnius."
+_TIMEZONE_ERRORS = {
+    "timezone_required": "Timezone identifier is required.",
+    "unknown_timezone": "Unknown IANA timezone; use a region name such as Europe/Vilnius.",
+    "abbreviated_timezone": "Timezone abbreviations are ambiguous; use an IANA region name.",
+}
+
 
 async def store_timezone(
     request: Request,
@@ -33,7 +40,11 @@ async def store_timezone(
     try:
         clean_tz = _validate_tz(raw_tz)
     except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=422)
+        # A fixed message per known reason; exception text never reaches the client.
+        reason = getattr(exc, "code", "")
+        return JSONResponse(
+            {"error": _TIMEZONE_ERRORS.get(reason, _TIMEZONE_INVALID)}, status_code=422
+        )
 
     bl = get_logger_only()
     if not bl:

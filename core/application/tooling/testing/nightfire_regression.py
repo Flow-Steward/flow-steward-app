@@ -590,7 +590,7 @@ def _run_nightfire_regression_args(
         password=effective_password,
     )
 
-    stages: list[tuple[str, list[str], Path | None, str | None]] = [
+    stages: list[tuple[str, list[str], Path | None, bool]] = [
         (
             "Fuzz API contracts",
             [
@@ -610,7 +610,7 @@ def _run_nightfire_regression_args(
                 "--confirm",
             ],
             fuzz_artifacts["api"],
-            auth_input,
+            True,
         ),
         (
             "Fuzz UI routes and accessibility",
@@ -631,7 +631,7 @@ def _run_nightfire_regression_args(
                 "--confirm",
             ],
             fuzz_artifacts["ui"],
-            auth_input,
+            True,
         ),
         (
             "Fuzz MCP contracts",
@@ -654,7 +654,7 @@ def _run_nightfire_regression_args(
                 "--confirm",
             ],
             fuzz_artifacts["mcp"],
-            auth_input,
+            True,
         ),
         (
             "Playwright UI smoke: projects page",
@@ -664,7 +664,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_projects_page.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: task submission",
@@ -674,7 +674,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_task_submission.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: registry dashboard",
@@ -684,7 +684,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_registry_dashboard.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: registry agents",
@@ -694,7 +694,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_registry_agents.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: registry skills",
@@ -704,7 +704,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_registry_skills.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: registry tools",
@@ -714,7 +714,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_registry_tools.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: registry workflows",
@@ -724,7 +724,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_registry_workflows.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: job detail",
@@ -734,7 +734,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_job_detail_page.py",
             ],
             None,
-            None,
+            False,
         ),
         (
             "Playwright UI smoke: custom nightfire roundtrips",
@@ -744,7 +744,7 @@ def _run_nightfire_regression_args(
                 "tests/ui/test_nightfire_regression.py",
             ],
             None,
-            None,
+            False,
         ),
     ]
     if not run_ui_pytest:
@@ -767,7 +767,7 @@ def _run_nightfire_regression_args(
                         str(args.base_url),
                     ],
                     None,
-                    None,
+                    False,
                 ),
                 (
                     "Cutover smoke",
@@ -784,7 +784,7 @@ def _run_nightfire_regression_args(
                         "--confirm",
                     ],
                     None,
-                    None,
+                    False,
                 ),
             ]
         )
@@ -849,7 +849,7 @@ def _run_nightfire_regression_args(
                         "tests/ui/test_sidebar_navigation.py",
                     ],
                     None,
-                    None,
+                    False,
                 ),
                 (
                     "Playwright UI deep: admin grid wiring",
@@ -859,7 +859,7 @@ def _run_nightfire_regression_args(
                         "tests/ui/test_admin_grid_wiring.py",
                     ],
                     None,
-                    None,
+                    False,
                 ),
                 (
                     "Playwright UI deep: nightfire CRUD surfaces",
@@ -869,7 +869,7 @@ def _run_nightfire_regression_args(
                         "tests/ui/test_nightfire_full_crud.py",
                     ],
                     None,
-                    None,
+                    False,
                 ),
             ]
         )
@@ -885,7 +885,7 @@ def _run_nightfire_regression_args(
                         expression,
                     ],
                     None,
-                    None,
+                    False,
                 )
             )
 
@@ -953,8 +953,10 @@ def _run_nightfire_regression_args(
             return 1
 
     stage_env = _stage_environment(env)
-    for label, cmd, artifact_path, input_text in stages:
-        code, output = _stage(label, cmd, stage_env, input_text=input_text)
+    for label, cmd, artifact_path, sends_auth_input in stages:
+        code, output = _stage(
+            label, cmd, stage_env, input_text=auth_input if sends_auth_input else None
+        )
         _append_stage_report(
             report_rows,
             label=label,

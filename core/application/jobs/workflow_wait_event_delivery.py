@@ -183,12 +183,17 @@ def deliver_wait_events(
         invocation["detail"] = WAIT_EVENT_DELIVERY_FAILED
         invocation["errors"] = [*list(invocation.get("errors") or []), error]
         return outcome
+    duplicate_count = 0
     for (index, _delivery), was_stored in zip(deliveries, stored, strict=True):
         if was_stored:
             outcome["stored"] += 1
             continue
         outcome["duplicates"].append(index)
-        logger.info("duplicate event at resume_waits index %d ignored", index)
+        duplicate_count += 1
+    if duplicate_count:
+        # The count only: item positions come from the extension's response, which
+        # is never logged; the outcome names them for the caller.
+        logger.info("%d duplicate resume_waits event(s) ignored", duplicate_count)
     return outcome
 
 

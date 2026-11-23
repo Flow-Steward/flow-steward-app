@@ -571,6 +571,9 @@ def test_auth_users_router_error_paths() -> None:
     assert bad_json.status_code == 400
     invalid_tz = auth_client.patch("/api/users/me/timezone", json={"timezone": "Bad/Timezone"})
     assert invalid_tz.status_code == 422
+    assert invalid_tz.json() == {
+        "error": "Unknown IANA timezone; use a region name such as Europe/Vilnius."
+    }
     column_missing = auth_client.patch("/api/users/me/timezone", json={"timezone": "UTC"})
     assert column_missing.status_code == 503
     bad_locale = auth_client.patch("/api/users/me/locale", json={"locale": "zz"})
