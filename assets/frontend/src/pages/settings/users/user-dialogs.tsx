@@ -1,18 +1,44 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
-import { DsAlert, DsCheckbox, DsDialog, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
+import { DsAlert, DsCheckbox, DsDialog, DsRadio, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
 import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { Button } from "@/components/ui/button";
 import type { UserRecord } from "@/pages/settings/shared/types";
-import { ROLE_OPTIONS, userLabel, type EditorState, type EditorMode, type ConfirmActionKind } from "./user-form-model";
+import {
+  ROLE_OPTIONS,
+  isUserAuthenticatorAction,
+  userAuthenticatorActionLabel,
+  userLabel,
+  type ConfirmAction,
+  type ConfirmActionKind,
+  type EditorMode,
+  type EditorState,
+} from "./user-form-model";
 
 function userEditorSubmitLabel(addingUser: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return addingUser ? t("react.settings.add_user", "Add user") : t("react.settings.save_changes", "Save changes");
 }
 
+/** The role's name in the user form. */
+function roleLabel(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (role === "admin") return t("react.settings.role_admin", "Admin");
+  if (role === "operator") return t("react.settings.role_operator", "Operator");
+  if (role === "viewer") return t("react.settings.role_viewer", "Viewer");
+  return role;
+}
+
+/** What a role can do, in one line: a higher role includes everything below it. */
+function roleDescription(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
+  if (role === "admin") return t("react.settings.role_admin_description", "Sets everything up: users, extensions, projects, workflows and secrets.");
+  if (role === "operator") return t("react.settings.role_operator_description", "Does the work: starts workflows, decides approvals and updates passwords in secrets.");
+  if (role === "viewer") return t("react.settings.role_viewer_description", "Sees history, results and files, and changes nothing.");
+  return "";
+}
+
 function confirmUserActionLabel(kind: ConfirmActionKind, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (kind === "reset") return t("react.settings.require_reset", "Require reset");
+  if (isUserAuthenticatorAction(kind)) return userAuthenticatorActionLabel(kind, t);
+  if (kind === "reset-password") return t("react.settings.require_reset", "Require reset");
   return kind === "delete" ? t("react.settings.delete_user", "Delete user") : t("react.settings.deactivate_user", "Deactivate user");
 }
 
@@ -104,7 +130,6 @@ export function UserEditorDialog({
   onSubmit,
   saving,
   setEditor,
-  toggleRole,
 }: Readonly<{
   authUserId?: string;
   editingUser: UserRecord | null;
@@ -115,7 +140,6 @@ export function UserEditorDialog({
   onSubmit: (event: React.SubmitEvent<HTMLFormElement>) => void;
   saving: boolean;
   setEditor: Dispatch<SetStateAction<EditorState>>;
-  toggleRole: (role: string, checked: boolean) => void;
 }>) {
   const { t } = useI18n();
   const addingUser = editorMode === "add";
@@ -173,17 +197,20 @@ export function UserEditorDialog({
         />
         <fieldset className="fs-field">
           <legend className="fs-field-label fs-required-label">
-            {t("account.profile.roles", "Roles")}<span aria-hidden="true" className="fs-required">*</span>
+            {t("react.settings.role", "Role")}<span aria-hidden="true" className="fs-required">*</span>
           </legend>
           <div className="fs-role-grid">
             {ROLE_OPTIONS.map((role) => (
-              <DsCheckbox
-                checked={editor.roles.includes(role)}
+              <DsRadio
+                checked={editor.role === role}
                 key={role}
-                onChange={(checked) => toggleRole(role, checked)}
+                name="user-role"
+                onChange={() => setEditor((value) => ({ ...value, role }))}
+                value={role}
               >
-                {role[0]?.toUpperCase() + role.slice(1)}
-              </DsCheckbox>
+                <strong>{roleLabel(role, t)}</strong>
+                <small>{roleDescription(role, t)}</small>
+              </DsRadio>
             ))}
           </div>
           {editingUser?.id === authUserId ? (
@@ -312,40 +339,66 @@ export function TemporaryPasswordDialog({
   );
 }
 
+function authenticatorConfirmation(kind: ConfirmActionKind, value1: string, t: I18nContextValue["t"]) {
+  switch (kind) {
+    case "require":
+      return {
+        title: t("react.settings.require_authenticator_for_value1", "Require an authenticator for {value1}?", { value1 }),
+        description: t("react.settings.value1_will_need_an_authenticator", "{value1} will need an authenticator app to sign in and will be prompted to set one up if needed.", { value1 }),
+      };
+    case "unrequire":
+      return {
+        title: t("react.settings.remove_individual_authenticator_requirement_for_value1", "Remove the individual authenticator requirement for {value1}?", { value1 }),
+        description: t("react.settings.installation_or_enrollment_can_require_authenticator", "An installation-wide requirement or an existing setup can still require an authenticator code."),
+      };
+    case "reset":
+      return {
+        title: t("react.settings.reset_authenticator_for_value1", "Reset the authenticator for {value1}?", { value1 }),
+        description: t("react.settings.value1_must_reenroll_authenticator", "{value1} must set up an authenticator app at their next sign-in.", { value1 }),
+      };
+    default:
+      return null;
+  }
+}
+
 export function ConfirmUserActionDialog({
   confirmAction,
   onClose,
   onConfirm,
   saving,
 }: Readonly<{
-  confirmAction: { kind: ConfirmActionKind; user: UserRecord } | null;
+  confirmAction: ConfirmAction | null;
   onClose: () => void;
   onConfirm: () => void;
   saving: boolean;
 }>) {
   const { t } = useI18n();
-  const reset = confirmAction?.kind === "reset";
+  const reset = confirmAction?.kind === "reset-password";
   const deleting = confirmAction?.kind === "delete";
   const label = confirmAction ? userLabel(confirmAction.user) : "user";
   const firstName = confirmAction ? label.split(" ")[0] : "The user";
+  const authenticator = confirmAction ? authenticatorConfirmation(confirmAction.kind, label, t) : null;
+  const resetAuthenticator = confirmAction?.kind === "reset";
   return (
     <DsDialog
       busy={saving}
       closeLabel={
-        reset
-          ? t("react.settings.close_password_reset_confirmation", "Close password reset confirmation")
-          : deleting
-            ? t("react.settings.close_delete_user_confirmation", "Close delete user confirmation")
-            : t("react.settings.close_deactivate_user_confirmation", "Close deactivate user confirmation")
+        authenticator
+          ? t("react.settings.close_confirmation", "Close confirmation")
+          : reset
+            ? t("react.settings.close_password_reset_confirmation", "Close password reset confirmation")
+            : deleting
+              ? t("react.settings.close_delete_user_confirmation", "Close delete user confirmation")
+              : t("react.settings.close_deactivate_user_confirmation", "Close deactivate user confirmation")
       }
       description={
-        reset
+        authenticator?.description ?? (reset
           ? t("react.settings.value1_must_choose_a_new_password_at_next_sign_in_other_active_sessions_will_be_revoked", "{value1} must choose a new password at next sign-in. Other active sessions will be revoked.", { value1: String(firstName) })
           : deleting
             ? t("react.settings.value1_will_be_removed_from_the_user_inventory_historical_workflow_job_and_audit_records_are_retained", "{value1} will be removed from the user inventory. Historical workflow, job, and audit records are retained.", { value1: String(firstName) })
-            : t("react.settings.value1_will_no_longer_be_able_to_sign_in_existing_roles_are_retained", "{value1} will no longer be able to sign in. Existing roles are retained.", { value1: String(firstName) })
+            : t("react.settings.value1_will_no_longer_be_able_to_sign_in_existing_roles_are_retained", "{value1} will no longer be able to sign in. Existing roles are retained.", { value1: String(firstName) }))
       }
-      eyebrow={reset ? t("react.settings.sign_in", "Sign-in") : deleting ? t("react.settings.delete_user", "Delete user") : t("react.settings.user_status", "User status")}
+      eyebrow={authenticator || reset ? t("react.settings.sign_in", "Sign-in") : deleting ? t("react.settings.delete_user", "Delete user") : t("react.settings.user_status", "User status")}
       footer={
         <>
           <button
@@ -360,7 +413,7 @@ export function ConfirmUserActionDialog({
             busyLabel={t("react.settings.updating", "Updating…")}
             onClick={onConfirm}
             type="button"
-            variant={reset ? "primary" : "danger"}
+            variant={reset || (authenticator && !resetAuthenticator) ? "primary" : "danger"}
           >
             {confirmUserActionLabel(confirmAction?.kind || "deactivate", t)}
           </Button>
@@ -368,25 +421,35 @@ export function ConfirmUserActionDialog({
       }
       onClose={onClose}
       open={Boolean(confirmAction)}
-      title={reset ? t("react.settings.require_a_password_reset_for_value1", "Require a password reset for {value1}?", { value1: String(label) }) : deleting ? t("react.settings.delete_value1", "Delete {value1}?", { value1: String(label) }) : t("react.settings.deactivate_value1", "Deactivate {value1}?", { value1: String(label) })}
+      title={authenticator?.title ?? (reset ? t("react.settings.require_a_password_reset_for_value1", "Require a password reset for {value1}?", { value1: String(label) }) : deleting ? t("react.settings.delete_value1", "Delete {value1}?", { value1: String(label) }) : t("react.settings.deactivate_value1", "Deactivate {value1}?", { value1: String(label) }))}
       variant="confirm"
     >
-      <DsAlert
-        tone={reset ? "warning" : "danger"}
-        title={
-          reset
-            ? t("react.settings.all_other_sessions_will_end", "All other sessions will end.")
+      {resetAuthenticator ? (
+        <DsAlert tone="warning" title={t("react.settings.authenticator_reset_effects", "The existing authenticator and recovery codes will stop working. All active sessions will end.")} />
+      ) : null}
+      {authenticator ? null : (
+        <DsAlert
+          tone={reset ? "warning" : "danger"}
+          title={
+            reset
+              ? t("react.settings.all_other_sessions_will_end", "All other sessions will end.")
+              : deleting
+                ? t("react.settings.active_sessions_and_personal_access_tokens_will_be_revoked", "Active sessions and personal access tokens will be revoked.")
+                : t("react.settings.sign_in_access_stops_immediately", "Sign-in access stops immediately.")
+          }
+        >
+          {reset
+            ? t("react.settings.keep_this_user_informed_before_requiring_the_reset", "Keep this user informed before requiring the reset.")
             : deleting
-              ? t("react.settings.active_sessions_and_personal_access_tokens_will_be_revoked", "Active sessions and personal access tokens will be revoked.")
-              : t("react.settings.sign_in_access_stops_immediately", "Sign-in access stops immediately.")
-        }
-      >
-        {reset
-          ? t("react.settings.keep_this_user_informed_before_requiring_the_reset", "Keep this user informed before requiring the reset.")
-          : deleting
-            ? t("react.settings.this_action_cannot_be_reversed_from_the_user_inventory", "This action cannot be reversed from the user inventory.")
-            : t("react.settings.if_this_is_your_own_account_you_may_lose_access_to_this_page", "If this is your own account, you may lose access to this page.")}
-      </DsAlert>
+              ? t("react.settings.this_action_cannot_be_reversed_from_the_user_inventory", "This action cannot be reversed from the user inventory.")
+              : t("react.settings.if_this_is_your_own_account_you_may_lose_access_to_this_page", "If this is your own account, you may lose access to this page.")}
+        </DsAlert>
+      )}
+      {confirmAction?.error ? (
+        <DsAlert tone="danger" title={t("react.settings.authenticator_error", "Authenticator update failed")}>
+          {confirmAction.error}
+        </DsAlert>
+      ) : null}
     </DsDialog>
   );
 }

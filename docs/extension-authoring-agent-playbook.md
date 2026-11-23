@@ -694,6 +694,12 @@ Live provider calls must be explicit and safe:
 - Keep credentials in headers, not URLs.
 - Redact tokens from responses, exceptions, logs, and assertions.
 - Prefer deterministic tests with mocked openers.
+- Key every write of an action that declares an external effect by
+  `runtime_context.idempotency_key`. The host sets it for a workflow step and for
+  a direct call (a page action or `POST /api/extensions/{id}/action/{action_id}`
+  with an `Idempotency-Key` header): a retry of the same request carries the same
+  key, another request another one. The caller's raw header never reaches you.
+  Refuse the write when the key is missing.
 
 In the reference extension, study the action handler that performs its
 outbound request (typically in `handlers/actions.py`).
@@ -741,6 +747,14 @@ For OAuth-backed connections:
 - Store client credentials as platform secrets.
 - Put access tokens in runtime secrets.
 - Do not expose refresh tokens to extension handlers.
+- Releasing an update: when a provider signs in exactly as before and no
+  required scope is added, existing OAuth configurations and connections move
+  to the new release on activation and keep working. Changing how a provider
+  signs in, or adding a required scope that a connection was not granted, keeps
+  those connections blocked until they are set up or reconnected; they report
+  `oauth_release_reapproval_required`, with the reason
+  (`provider_sign_in_changed`, `provider_removed`, `required_scope_added`) on the
+  configuration and the connection.
 
 When the provider issues the refresh token in its own console (no redirect the
 platform can take part in), declare the provider with
@@ -1156,6 +1170,389 @@ Rules the host enforces:
 
 Document the event types and the key your extension uses on its workflow page or
 README, so workflow authors can fill `event_types` and `correlation_key`.
+
+## Background Connection Polls
+
+An extension can watch an external system and start workflows from what it finds
+there, without webhooks: the worker calls one of its actions in the background,
+once per interval and once per project connection. Any extension kind may do
+this, `tool_provider` included. The example below polls "items" from a service
+through two connection types: `items_user` (OAuth) and `items_app` (its own
+secret).
+
+### Declare the poll
+
+```yaml
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: items_user
+    auth: {type: oauth2, provider_id: items_oauth, scopes: {required: [items.read]}}
+    ingress_schema: &item_ingress
+      type: object
+      properties:
+        sync_mode: {type: string, enum: ["off", polling], default: "off"}
+        sync_scope: {type: string}
+        poll_interval_seconds: {type: integer, minimum: 30, default: 60}
+  - connection_type_id: items_app
+    config_schema: {type: object, required: [account_ref], properties: {account_ref: {type: string}}}
+    secret_schema: {type: object, required: [client_secret], properties: {client_secret: {type: string}}}
+    ingress_schema: *item_ingress
+
+# ui/actions/actions.yaml (excerpt)
+- action_id: poll_items
+  workflow_visible: false
+  connection_type_ids: [items_user, items_app]   # never called for other types
+  handler:
+    mode: extension
+    config:
+      runtime_resources: {project_connection: true, provider_key: acme.items}
+      host_mutations: [project_connection_upsert]
+  contract:
+    serialization: {resource: item_sync}          # one poll per connection at a time
+    background:
+      kind: connection_poll
+      interval_field: poll_interval_seconds
+      mode_field: sync_mode
+      transport_policy: webhook_preferred
+```
+
+- **Types.** With `connection_type_ids`, the worker calls the action only for
+  connections of those types. Without it the action runs for every connection of
+  the install and keeps the older `required_provider_secrets` check.
+- **Credentials per type.** Each call receives its connection resolved the way
+  operations receive it, in `target.connection`. An OAuth type gets a valid,
+  refreshed access token in `secrets`. Any other type gets its own connection
+  secrets, and must have every key its `secret_schema` lists as `required`.
+  - A connection that cannot be resolved is skipped before the call. A missing
+    secret is shown as `ingress_config.background_poll_status`; a revoked grant
+    stops polling until the connection is reconnected.
+  - A temporary token-refresh failure skips that one interval.
+- **Off by default.** A `default` in the type's `ingress_schema` is written into
+  `ingress_config` when the connection is created. A missing mode also counts as
+  that default. Declare `default: "off"` for the mode field, so a new connection
+  polls only after someone switches it on. The values `polling` and `auto` mean
+  on; anything else means off.
+
+### What the action receives
+
+`target.connection` has `connection_id`, `connection_type`, `config`, `secrets`,
+`ingress_config` (with declared defaults filled in), `state_version` and
+`config_generation`.
+
+- `state_version` moves on every saved poll state.
+- `config_generation` moves when what is polled changes:
+  - the connection is disabled, enabled, reconnected, or its settings change;
+  - a field written through `project_connection_ingress_patch` changes,
+    except the background `interval_field`;
+  - a `project_connection_upsert` outside a poll changes the `mode_field`.
+
+Store your sync state in `ingress_config` and keep the generation it belongs to
+inside it. When the generation you receive differs, start a new sync instead of
+continuing the old one.
+
+### What the action returns
+
+```json
+{
+  "ok": true,
+  "result": {"processed_updates": 2},
+  "events": [
+    {"event_type": "acme.item.created", "source_id": "acme:conn_1:item-17",
+     "payload": {"connection_id": "conn_1", "item_id": "item-17"}}
+  ],
+  "host_mutations": [
+    {"kind": "project_connection_upsert",
+     "payload": {"connection_id": "conn_1",
+                 "ingress_config": {"sync_mode": "polling", "item_sync": {"cursor": "c-42"}},
+                 "expected_state_version": 7,
+                 "expected_config_generation": 3}}
+  ]
+}
+```
+
+- `event_type` must be listed in the manifest's `supported_events`.
+- `source_id` is the event's stable identity. Make it unique per connection and
+  never reuse it, for example `<prefix>:<connection_id>:<immutable item id>`. An
+  event whose `source_id` was already stored is ignored: it starts nothing and
+  notifies nobody.
+- Echo the `state_version` and `config_generation` you received as
+  `expected_state_version` / `expected_config_generation`. The host never takes
+  them from you as truth. It compares them with what the poll started from and
+  refuses a state write that does not match.
+
+### What the host guarantees
+
+The result is committed in one transaction that locks the connection row: the
+events, one dispatch record per matching workflow trigger, and the cursor, all
+together.
+
+- **Exactly once.** One job per event and matching workflow, through crashes of
+  the worker or the host, repeated pages and two workers polling at once.
+  - A crash before the commit loses the whole result, so the next poll reads the
+    same page again.
+  - Each job is created in one transaction with its delivery record. Unfinished
+    records are retried by a sweep every 60 s.
+- **Stale results.** A result is judged against the connection as it is now.
+  - Another worker saved state meanwhile: the events are kept and the cursor is
+    dropped.
+  - The configuration changed, the connection was disabled or the mode switched
+    off: the events and the cursor are both dropped.
+- **Switch-off.** Once switching the poll off (or disabling the workflow trigger)
+  has committed, no new job starts for events that were still pending. A job
+  queued before it runs normally.
+
+### Settings form
+
+Let the user switch the poll on and off with the platform operation
+`project_connection_ingress_patch`. Send the selected connection as
+`target.connection_id`:
+
+```yaml
+- action_id: save_sync_settings
+  workflow_visible: false
+  connection_type_ids: [items_user, items_app]
+  handler:
+    mode: platform
+    operation: project_connection_ingress_patch
+    config:
+      connection_type_ids: [items_user, items_app]   # other types: invalid_connection
+      fields: [sync_mode, poll_interval_seconds, sync_scope]
+```
+
+The patch locks that connection, writes only the declared fields, validates them
+against the connection type's `ingress_schema`, and moves `config_generation`
+when a field other than the poll interval changes.
+
+## Notification Providers
+
+A `notification_provider` extension delivers the platform's notifications:
+workflow events and approvals sent through a project's notification routes, and
+optionally the platform's own system email. It reserves one action,
+`deliver_notification(event, route)`, and declares it as one
+`message_delivery` external effect (`idempotency: required`,
+`test_mode_behavior: suppress`). The example below is a provider `example` that
+emails people through `example_mail` and posts to a chat through
+`example_chat` and `example_chat_bound`.
+
+### Single-kind and mixed providers
+
+The delivery effect's `channel` and `observability.target_kind` are the defaults
+for every connection. A connection type may override them for deliveries through
+that type with its own `notification` block:
+
+```yaml
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: example_mail
+    notification: {target_kind: recipient, ledger_channel: email}
+  - connection_type_id: example_chat
+    notification: {target_kind: channel, ledger_channel: chat}
+  - connection_type_id: example_chat_bound
+    config_schema:
+      type: object
+      properties: {channel_label: {type: string}}   # display only
+    notification:
+      target_kind: channel
+      ledger_channel: chat
+      channel_source: connection                    # bound to one channel
+  - connection_type_id: example_files               # no block: carries no routes
+```
+
+- `target_kind` is `recipient` or `channel`. It fixes the route's address fields:
+  a `recipient` route has `to` (required), `cc`, `bcc` and `subject`; a `channel`
+  route has `channel_id` (required; `channel` is accepted as an alias).
+- `ledger_channel` is the external-effect ledger channel and rate-limit bucket for
+  deliveries through the type (default: the effect's `channel`).
+- `channel_source: connection` (channel types only; default `route`) means the
+  connection itself is bound to one channel, for example a URL that posts to one
+  place. Its routes carry no `channel_id`; the connection config's display-only
+  `channel_label` is shown instead of a channel picker. A route that sends a
+  channel to such a connection is refused.
+- Once one type declares a block, only types that declare one can carry routes
+  or send system email.
+- A provider is *mixed* when its declared types address more than one target
+  kind. Every route of a mixed provider, and of a provider with a
+  `channel_source: connection` type, must name its connection
+  (`route_config.connection_id`); the platform never falls back to the project's
+  runtime connection for it.
+- The build refuses an unknown `target_kind`, `channel_source: connection` on a
+  recipient type, and a `notification` block in an extension that is not a
+  `notification_provider`.
+- A provider that declares no block behaves as it always did.
+
+When a route is saved, and again before each delivery, the platform checks that
+the route's connection exists, is enabled, belongs to the route's project and to
+the provider's install, is of a type with a `notification` block, and that the
+route's fields fit that type. A refusal is `notification_connection_required` or
+`notification_connection_incompatible`: a validation error on save, and a failed
+delivery that is not retried.
+
+### The delivery request
+
+Each delivery runs your action once with this request (a local provider: the
+host runs your extension process and writes the request to its stdin):
+
+```json
+{
+  "action": "deliver_notification",
+  "idempotency_key": "<the claimed effect's key>",
+  "external_effect_id": "<the claimed effect's id>",
+  "action_payload": {
+    "action_id": "deliver_notification",
+    "target": {
+      "connection": {
+        "connection_id": "conn_1",
+        "connection_type": "example_chat_bound",
+        "display_name": "Operations chat",
+        "config": {"channel_label": "Operations"},
+        "secrets": {"<name>": "<value>"}
+      }
+    }
+  },
+  "event": {
+    "event_id": "evt_1",
+    "event_type": "job.failed",
+    "severity": "error",
+    "summary": "Invoice sync failed",
+    "job_id": "job_7",
+    "run_url": "https://flowsteward.example.com/jobs/job_7",
+    "payload": {"summary": "Invoice sync failed", "error": "Timeout"}
+  },
+  "route": {
+    "route_id": "route_1",
+    "route_key": "ops",
+    "provider_key": "example",
+    "event_type": "*",
+    "severity": "any",
+    "route_config": {"connection_id": "conn_1"}
+  },
+  "provider": {"provider_key": "example", "integration_key": "example"},
+  "contract_version": "extension_host_v2",
+  "runtime_context": {"external_effect_id": "<the claimed effect's id>", "...": "..."}
+}
+```
+
+- `idempotency_key` and `external_effect_id` are top-level. Key your own write
+  with `idempotency_key`: a retry of the same delivery carries the same pair,
+  and another event, route or connection carries another key. If it is missing,
+  fail before any write.
+- `route.route_config` holds `connection_id`, plus `to`/`cc`/`bcc`/`subject` for
+  a recipient route, `channel_id` for a channel route, and neither for a
+  `channel_source: connection` route. For a recipient route the platform fills `subject` and
+  `event.payload.message` with its standard email text, unless the route set a
+  subject; a channel route gets the event as it is and formats its own message.
+- `event.run_url` is the platform page of the run the event is about (for an
+  approval, the approval's own run). It is present only when the platform knows
+  its public address and the event has a run, and it never carries a token. Link
+  to it instead of building the address yourself.
+- A repeat of a delivery that already succeeded is answered by the platform from
+  its ledger (`provider_message_id` included); your extension is not called again.
+  A failure that you mark `definitely_no_external_effect: true` and
+  `retryable: true` is retried with the same key.
+- Remote notification providers are not supported yet. A future remote branch
+  will carry the same key in the remote action envelope's `idempotency_key`.
+
+### Credentials on delivery
+
+`target.connection` is resolved the way workflow operations resolve it:
+
+- an OAuth connection type gets a valid `access_token` in `secrets`, refreshed if
+  needed. A revoked grant fails the delivery with `authorization_required` before
+  your extension is called, and it is not retried;
+- any other type gets its own connection secrets (and any project provider
+  secrets attached to the connection).
+
+### Sensitive events
+
+An event may carry `payload_sensitive: true` (absent means false). The
+platform's own messages always do, because their body holds a single-use link.
+For such an event the subject and body reach only your delivery request; every
+copy the platform keeps (invocation log, extension audit, external-effect ledger,
+runtime journal, delivery rows, error text) holds a placeholder with the value's
+length and hash. Your extension must not log the subject, the body or any link
+in them either, at any log level, and must not echo them in its response or
+errors.
+
+### System email sender
+
+A platform administrator chooses one connection in Settings -> Email to send the
+platform's own email (password reset, welcome, email change confirmation). A
+connection is a candidate when it is enabled, its install is an enabled
+`notification_provider`, and its type resolves to `target_kind: recipient`.
+
+- The choice is confirmed against the connection's `sender_revision` and its
+  OAuth configuration's `configuration_revision`. Disabling or re-enabling the
+  connection, changing its settings, secrets, type, install or the account it is
+  connected as, or editing the OAuth configuration, revokes the confirmation
+  until an administrator confirms again. A token refresh does not.
+- While a connection is the system sender, only a platform administrator may
+  change those fields or delete it (`system_sender_locked` otherwise).
+- Right before your extension is called the platform checks the setting and both
+  revisions again; a change fails the send with `system_sender_changed` and no
+  call. There is never a fallback to another connection.
+- A system email arrives as a `system.*` event with `payload_sensitive: true`,
+  `route_config.to`, `subject`, and the plain-text body in `event.payload.message`.
+
+## Credentials From An OAuth Configuration
+
+A connection type that authenticates as an application (your extension runs the
+client-credentials exchange itself) does not have to repeat the same client
+values on every connection. It can borrow them from one OAuth configuration of
+the same install and project:
+
+```yaml
+# contracts/oauth_providers.yaml (excerpt)
+oauth_providers:
+  - provider_id: example_oauth
+    credential_fields:
+      - {field_id: client_id, value_type: text, required: true, secret: false, ...}
+      - {field_id: client_secret, value_type: secret, required: true, secret: true, ...}
+      - field_id: tenant_id
+        value_type: text
+        required: true
+        secret: false
+        usage: runtime        # stored and shown, never sent during sign-in
+        ...
+
+# contracts/connection_types.yaml (excerpt)
+connection_types:
+  - connection_type_id: example_app
+    config_schema:
+      type: object
+      properties: {account_ref: {type: string}}   # the type's own fields only
+    credentials_from:
+      oauth_provider_id: example_oauth
+      fields:                      # credential field id -> place in target.connection
+        client_id: {into: config, as: client_id}
+        client_secret: {into: secrets, as: client_secret}
+        tenant_id: {into: config, as: tenant_id}
+```
+
+- `usage: runtime` marks a credential field the platform's own sign-in never sends
+  to the authorization or token endpoint (default `exchange`). It does not block a
+  configuration from being authorized. `client_id` and `client_secret` cannot be
+  runtime-only.
+- The build refuses an unknown provider, an unknown field, a secret field going
+  `into: config`, a mapped name that is also one of the type's own config or
+  secret fields, and `credentials_from` on an `auth.type: oauth2` type (which
+  holds its own grant).
+- The connection stores the chosen configuration. The connection form offers the
+  install's configurations for that provider in the project and preselects the
+  only one; it shows only the type's own fields. The configuration must be
+  complete; whether it has been authorized does not matter.
+- Every call receives the mapped values from the configuration's current revision
+  in `target.connection.config` and `target.connection.secrets`: operations,
+  resource queries, setup and test actions, background polls, connector steps and
+  notification deliveries. A rotated secret reaches every linked connection on its
+  next call, with no connection edit. Secret values never reach the browser or
+  logs.
+- Deleting the configuration lists its linked connections in the delete impact
+  (`link: credentials`). They are kept, and until they are linked to another
+  configuration they report `credentials_unavailable` and are not ready; calls
+  through them fail with `credentials_unavailable`.
+- For the system email sender, a change of the borrowed configuration (a secret
+  rotation included) revokes the sender's confirmation until a platform
+  administrator confirms again.
 
 ## Testing And Verification
 

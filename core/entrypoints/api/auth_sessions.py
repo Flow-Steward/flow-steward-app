@@ -14,12 +14,15 @@ from core.application.auth.account_memberships import resolve_login_account_memb
 from core.application.auth.email import normalize_email_address, normalize_login_identifier
 from core.application.auth.first_admin import FirstAdminAlreadyExists, FirstAdminService
 from core.application.auth.local_credentials import (
+    UserAuthenticatorPolicy,
+    authenticator_policy_available,
     authenticator_storage_available,
     installation_requires_mfa,
     lock_local_user,
     password_age_available,
+    read_authenticator_policy,
 )
-from core.application.auth.mfa_service import mfa_enabled, verify_mfa
+from core.application.auth.mfa_service import LoginAuthenticatorCheck, check_login_authenticator
 from core.application.auth.password_history import PasswordReuseError, require_unused_password
 from core.application.auth.password_policy import (
     PASSWORD_WARNING_DAYS,
@@ -35,14 +38,7 @@ _DUMMY_LOGIN_PASSWORD_HASH = (
     "pbkdf2_sha256$100000$00000000000000000000000000000000$"
     "0000000000000000000000000000000000000000000000000000000000000000"
 )
-
-
-def _check_login_factor(cur: Any, *, user_id: str, code: str, required: bool) -> str:
-    if not mfa_enabled(cur, user_id):
-        return "mfa_enrollment_required" if required else ""
-    if not code.strip():
-        return "mfa_required"
-    return "" if verify_mfa(cur, user_id, code) else "mfa_invalid_code"
+_NO_STORE = {"Cache-Control": "no-store"}
 
 
 def create_auth_sessions_router(
@@ -213,14 +209,21 @@ def create_auth_sessions_router(
         }
 
     def _factor_error_response(
-        bl: Any, *, factor_error: str, email: str, client_ip: str
+        bl: Any, *, factor: LoginAuthenticatorCheck, email: str, client_ip: str
     ) -> JSONResponse:
-        if factor_error == "mfa_enrollment_required":
+        if factor.failure == "mfa_enrollment_required":
+            payload: dict[str, Any] = {
+                "error": "Multi-factor authentication setup is required",
+                "mfa_enrollment_required": True,
+            }
+            if factor.enrollment is not None:
+                payload["authenticator_enrollment"] = factor.enrollment
             return JSONResponse(
-                {"error": "Multi-factor authentication setup is required", factor_error: True},
+                payload,
                 status_code=403,
+                headers=_NO_STORE,
             )
-        if factor_error == "mfa_invalid_code":
+        if factor.failure == "mfa_invalid_code":
             throttled, retry_after = _auth_login_record_failure(email, client_ip)
             _log_auth_audit_event(
                 bl,
@@ -233,12 +236,13 @@ def create_auth_sessions_router(
             if throttled:
                 return JSONResponse(
                     {"error": ERR_TOO_MANY_LOGIN_ATTEMPTS, "retry_after_seconds": retry_after},
-                    headers={"Retry-After": str(retry_after)},
+                    headers={**_NO_STORE, "Retry-After": str(retry_after)},
                     status_code=429,
                 )
         return JSONResponse(
             {"error": "An authenticator or recovery code is required", "mfa_required": True},
             status_code=403,
+            headers=_NO_STORE,
         )
 
     @router.post("/api/auth/login")
@@ -448,6 +452,7 @@ def create_auth_sessions_router(
             return guard_response
 
         storage_available = authenticator_storage_available(bl)
+        policy_available = authenticator_policy_available(bl)
         require_factor = installation_requires_mfa()
         if require_factor and not storage_available:
             return JSONResponse({"error": ERR_AUTH_TABLES_NOT_AVAILABLE}, status_code=503)
@@ -458,11 +463,14 @@ def create_auth_sessions_router(
             _AUTH_REMEMBER_SESSION_TTL_HOURS if bool(body.remember_me) else _AUTH_SESSION_TTL_HOURS
         )
         revoked_sessions = 0
+        factor = LoginAuthenticatorCheck()
         try:
             with transaction_connection(bl) as conn, conn.cursor() as cur:
                 user_id = str(user["id"])
-                needs_lock = storage_available or (
-                    must_change_password and password_age_available(bl)
+                needs_lock = (
+                    storage_available
+                    or policy_available
+                    or (must_change_password and password_age_available(bl))
                 )
                 if needs_lock and not lock_local_user(
                     cur,
@@ -472,8 +480,17 @@ def create_auth_sessions_router(
                 ):
                     return JSONResponse({"error": "Invalid credentials"}, status_code=401)
 
+                policy = (
+                    read_authenticator_policy(cur, user_id)
+                    if policy_available
+                    else UserAuthenticatorPolicy()
+                )
+                if not storage_available and (
+                    policy.enforced or body.authenticator_enrollment_token
+                ):
+                    return JSONResponse({"error": ERR_AUTH_TABLES_NOT_AVAILABLE}, status_code=503)
                 if storage_available:
-                    if body.mfa_code:
+                    if body.mfa_code or body.authenticator_enrollment_token:
                         locked, retry_after = _auth_login_lock_state(email, client_ip)
                         if locked:
                             return JSONResponse(
@@ -481,18 +498,21 @@ def create_auth_sessions_router(
                                     "error": ERR_TOO_MANY_LOGIN_ATTEMPTS,
                                     "retry_after_seconds": retry_after,
                                 },
-                                headers={"Retry-After": str(retry_after)},
+                                headers={**_NO_STORE, "Retry-After": str(retry_after)},
                                 status_code=429,
                             )
-                    factor_error = _check_login_factor(
-                        cur, user_id=user_id, code=body.mfa_code, required=require_factor
+                    factor = check_login_authenticator(
+                        cur,
+                        user_id=user_id,
+                        username=str(user.get("username") or email),
+                        account_id=selected_account_id,
+                        code=body.mfa_code,
+                        enrollment_token=body.authenticator_enrollment_token,
+                        installation_required=require_factor,
+                        policy=policy,
                     )
-                    if factor_error:
-                        return _factor_error_response(
-                            bl, factor_error=factor_error, email=email, client_ip=client_ip
-                        )
 
-                if must_change_password:
+                if must_change_password and (not factor.failure or factor.enrollment is not None):
                     require_unused_password(
                         cur,
                         user_id=user_id,
@@ -500,6 +520,11 @@ def create_auth_sessions_router(
                         current_hash=password_hash_value,
                         verify=_verify_password,
                     )
+                if factor.failure:
+                    return _factor_error_response(
+                        bl, factor=factor, email=email, client_ip=client_ip
+                    )
+                if must_change_password:
                     revoked_sessions = _replace_temporary_password(
                         bl, cur, user_id=user_id, new_password=new_password
                     )
@@ -578,7 +603,11 @@ def create_auth_sessions_router(
             payload["password_expires_in_days"] = days_until_expiry
         csrf_token = secrets.token_urlsafe(32)
         payload["csrf_token"] = csrf_token
-        response = JSONResponse(payload)
+        if factor.recovery_codes is not None:
+            payload["recovery_codes"] = factor.recovery_codes
+        response = JSONResponse(
+            payload, headers=_NO_STORE if factor.recovery_codes is not None else None
+        )
         response.set_cookie(
             key=_AUTH_COOKIE_NAME,
             value=session_token,

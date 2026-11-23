@@ -153,7 +153,7 @@ def test_a_missing_backup_key_is_named_even_when_the_listing_cannot_run() -> Non
     finding = _diagnose("backup_freshness", probe)
 
     assert finding.status == "fail"
-    assert "FS_BACKUP_ENCRYPTION_KEY is not in .env.prod" in finding.cause
+    assert "FS_BACKUP_ENCRYPTION_KEY is not in the installation's env file" in finding.cause
 
 
 def test_no_verified_backup_is_a_warning_naming_the_unverified_ones() -> None:

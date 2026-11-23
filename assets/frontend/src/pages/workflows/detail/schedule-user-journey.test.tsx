@@ -12,10 +12,11 @@ import type { WorkflowContractField } from "@/pages/projects/detail/api";
 // Authentication and transport are boundaries; pages, context discovery,
 // bindings selectors, schedule editor and navigation remain real.
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { permissionsForRoles } from "@/test/role-permissions";
 const auth = vi.hoisted(() => ({ admin: true }));
 vi.mock("@/lib/auth/use-is-admin", () => ({ useIsAdmin: () => auth.admin, useCanReadWorkflowRegistry: () => true }));
 vi.mock("@/lib/auth/useAuth", () => ({
-  useAuth: () => ({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], timezone: "UTC" } } }),
+  useAuth: () => ({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]), timezone: "UTC" } } }),
 }));
 
 const workflowId = "schedule-fixture";
@@ -157,7 +158,7 @@ function renderJourney(path = builderPath, client = new QueryClient({ defaultOpt
     <Route path="/registry/workflows/:workflowId" element={<WorkflowsOverviewPage />} />
     <Route path="/registry/workflows/:workflowId/settings" element={<WorkflowsDetailPage />} />
   </Routes></> }], { initialEntries: [path] });
-  const view = render(<AuthContext.Provider value={{ session: { authenticated: true, user: { roles: ["admin"], timezone: "UTC" } } } as unknown as AuthContextValue}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>);
+  const view = render(<AuthContext.Provider value={{ session: { authenticated: true, user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]), timezone: "UTC" } } } as unknown as AuthContextValue}><QueryClientProvider client={client}><RouterProvider router={router} /></QueryClientProvider></AuthContext.Provider>);
   ownedJourneyRenders.add(() => {
     try {
       view.unmount();

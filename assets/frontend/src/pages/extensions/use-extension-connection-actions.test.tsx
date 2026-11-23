@@ -9,6 +9,7 @@ import { useExtensionConnectionActions } from "./use-extension-connection-action
 import type { useExtensionsHubState } from "./use-extensions-hub-state";
 import type { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
 import type { ComponentError } from "./extension-manifest-utils";
+import { HttpError } from "@/lib/http/errors";
 import {
   fetchConnectionSecretApproval,
   createProjectConnection,
@@ -94,6 +95,7 @@ function renderActions(options: {
   connections?: Record<string, unknown>[];
   oauthTypes?: string[];
   errors?: Record<string, ComponentError>;
+  manifest?: Record<string, unknown>;
 } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   const refetchConnections = vi.fn().mockResolvedValue({});
@@ -112,6 +114,7 @@ function renderActions(options: {
       projectConnectionsQuery: { data: options.connections ?? [connection], refetch: refetchConnections },
       projectStateQuery: { refetch: refetchState },
       oauthConnectionTypes: options.oauthTypes ?? ["oauth-mail"],
+      manifestQuery: { data: options.manifest },
       archiveLifecycleQuery: { isPending: false },
       archiveLifecycleVerificationFailed: false,
       archiveLifecycleUnavailable: false,
@@ -551,5 +554,79 @@ describe("extension connection actions", () => {
     });
     expect(result.current.actions.confirmation).toBeNull();
     expect(deleteExtensionProjectState).not.toHaveBeenCalled();
+  });
+
+  describe("a connection that takes its credentials from an OAuth configuration", () => {
+    const appComponent = {
+      component_id: "app_connection",
+      data: { connection_type: "example_app", config_fields: ["site"] },
+      fields: [{ path: "site" }],
+    };
+    const appManifest = {
+      connection_types: [{
+        connection_type_id: "example_app",
+        credentials_from: { oauth_provider_id: "example_oauth", fields: { client_secret: { into: "secrets", as: "client_secret" } } },
+      }],
+    };
+    function refusal(code: string) {
+      return new HttpError({
+        status: 400,
+        url: "/api/projects/project-1/connections",
+        payload: { status: "error", code, error: code, message: code, oauth_provider_id: "example_oauth" },
+      });
+    }
+
+    it("creates it with the chosen configuration and keeps the choice selected", async () => {
+      const { result } = renderActions({ manifest: appManifest, connections: [] });
+      await act(async () => result.current.actions.handleConnectionSave(appComponent, {
+        site: "main", credentials_configuration_id: "cfg-1",
+      }));
+
+      expect(createProjectConnection).toHaveBeenCalledWith("project-1", expect.objectContaining({
+        connection_type: "example_app",
+        credentials_configuration_id: "cfg-1",
+        connection_config: { site: "main" },
+      }));
+      expect(result.current.formValues.app_connection).toEqual(expect.objectContaining({
+        connection_id: "created-1", credentials_configuration_id: "cfg-1",
+      }));
+    });
+
+    it("refuses to save before a configuration is chosen", async () => {
+      const { result } = renderActions({ manifest: appManifest, connections: [] });
+      await act(async () => result.current.actions.handleConnectionSave(appComponent, { site: "main" }));
+
+      expect(createProjectConnection).not.toHaveBeenCalled();
+      expect(result.current.errors.app_connection).toEqual({
+        message: "Choose the sign-in configuration this connection takes its credentials from.",
+        fieldPath: "credentials_configuration_id",
+      });
+    });
+
+    it.each([
+      ["credentials_configuration_required", "Choose the sign-in configuration this connection takes its credentials from."],
+      ["credentials_unavailable", "The chosen sign-in configuration cannot provide this connection's credentials. It was removed, belongs to another provider, or is missing a required value. Choose another configuration or complete it."],
+    ])("shows the server's %s beside the configuration select", async (code, message) => {
+      vi.mocked(createProjectConnection).mockRejectedValue(refusal(code));
+      // Without the declaration the form cannot tell it needs a configuration; the server can.
+      const { result } = renderActions({ connections: [] });
+      await act(async () => result.current.actions.handleConnectionSave(appComponent, { site: "main" }));
+
+      expect(result.current.errors.app_connection).toEqual({ message, fieldPath: "credentials_configuration_id" });
+    });
+
+    it("hydrates the configuration a saved connection uses", () => {
+      const { result } = renderActions({ manifest: appManifest });
+      act(() => result.current.actions.handleConnectionSelect(appComponent, {
+        ...connection,
+        connection_type: "example_app",
+        connection_config: { site: "main" },
+        credentials_configuration_id: "cfg-1",
+      }));
+
+      expect(result.current.formValues.app_connection).toEqual(expect.objectContaining({
+        site: "main", credentials_configuration_id: "cfg-1",
+      }));
+    });
   });
 });

@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 
 import { useAuth } from "@/lib/auth/useAuth";
+import { permissionsForRoles } from "@/test/role-permissions";
 import { SettingsUsersPage } from "@/pages/settings/users";
+import type { UserRecord } from "@/pages/settings/shared/types";
 import {
   createUser,
   deleteUser,
@@ -14,6 +16,7 @@ import {
   fetchUsersCollection,
   unlockUser,
   updateUser,
+  updateUserAuthenticator,
 } from "@/pages/settings/shared/api";
 
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
@@ -26,6 +29,7 @@ vi.mock("@/pages/settings/shared/api", () => ({
   setTemporaryUserPassword: vi.fn(),
   unlockUser: vi.fn(),
   updateUser: vi.fn(),
+  updateUserAuthenticator: vi.fn(),
 }));
 
 const mockedUseAuth = vi.mocked(useAuth);
@@ -35,6 +39,13 @@ const mockedFetchAccountsCollection = vi.mocked(fetchAccountsCollection);
 const mockedFetchUsersCollection = vi.mocked(fetchUsersCollection);
 const mockedUnlockUser = vi.mocked(unlockUser);
 const mockedUpdateUser = vi.mocked(updateUser);
+const mockedUpdateUserAuthenticator = vi.mocked(updateUserAuthenticator);
+
+const mayaRecord = { id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] };
+
+function userPage(users: UserRecord[] = [mayaRecord]) {
+  return { users, total: users.length, page: 1, per_page: 5, total_pages: 1 };
+}
 
 function authValue(roles = ["admin"]) {
   return {
@@ -50,6 +61,7 @@ function authValue(roles = ["admin"]) {
         username: "admin@example.com",
         display_name: "Admin",
         roles,
+        permissions: permissionsForRoles(roles),
         account_id: "acc-1",
         account_ids: ["acc-1"],
         account_memberships: [],
@@ -72,10 +84,8 @@ describe("SettingsUsersPage", () => {
     vi.clearAllMocks();
     mockedUseAuth.mockReturnValue(authValue());
     mockedFetchAccountsCollection.mockResolvedValue([{ id: "acc-1", name: "Flow Steward" }]);
-    mockedFetchUsersCollection.mockResolvedValue({
-      users: [{ id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] }],
-      total: 1, page: 1, per_page: 5, total_pages: 1,
-    });
+    mockedFetchUsersCollection.mockResolvedValue(userPage());
+    mockedUpdateUserAuthenticator.mockReset();
   });
 
   it("localizes the settled user count without changing owner profile values", async () => {
@@ -86,8 +96,8 @@ describe("SettingsUsersPage", () => {
     expect(screen.getByText("maya@example.com")).toBeInTheDocument();
   });
 
-  it("does not request users or accounts for a non-admin", async () => {
-    mockedUseAuth.mockReturnValue(authValue(["viewer"]));
+  it.each([["viewer"], ["operator"]])("does not request users or accounts for a %s", async (role) => {
+    mockedUseAuth.mockReturnValue(authValue([role]));
     renderUsersPage();
     await waitFor(() => expect(screen.getByText("Administrator access required")).toBeInTheDocument());
     expect(mockedFetchUsersCollection).not.toHaveBeenCalled();
@@ -162,7 +172,7 @@ describe("SettingsUsersPage", () => {
       display_name: "Mail warning user",
       email: "mail-warning@example.com",
       password: "temporary-pass", // pragma: allowlist secret - disposable user fixture
-      roles: ["viewer"],
+      role: "viewer",
       is_active: true,
       must_change_password: true,
     }));
@@ -219,6 +229,88 @@ describe("SettingsUsersPage", () => {
 
     await waitFor(() => expect(mockedDeleteUser).toHaveBeenCalledWith("u1"));
     await waitFor(() => expect(screen.getByText("Maya Chen was deleted.")).toBeInTheDocument());
+  });
+
+  it("requires an authenticator and reads the updated individual requirement from the user list", async () => {
+    const user = userEvent.setup();
+    mockedUpdateUserAuthenticator.mockResolvedValue({});
+    mockedFetchUsersCollection.mockResolvedValueOnce(userPage()).mockResolvedValue(
+      userPage([{ ...mayaRecord, authenticator_required: true }]),
+    );
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Require authenticator" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Require an authenticator for Maya Chen?" });
+    expect(mockedUpdateUserAuthenticator).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Require authenticator" }));
+
+    await waitFor(() => expect(mockedUpdateUserAuthenticator).toHaveBeenCalledWith("u1", "require"));
+    await waitFor(() => expect(mockedFetchUsersCollection).toHaveBeenCalledTimes(2));
+    await user.click(screen.getByRole("button", { name: "Actions for Maya Chen" }));
+    await waitFor(() => expect(screen.getByRole("menuitem", { name: "Remove individual authenticator requirement" })).toBeVisible());
+  });
+
+  it("removes only the individual requirement and explains when an authenticator still applies", async () => {
+    const user = userEvent.setup();
+    mockedFetchUsersCollection.mockResolvedValue(userPage([{ ...mayaRecord, authenticator_required: true }]));
+    mockedUpdateUserAuthenticator.mockResolvedValue({});
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove individual authenticator requirement" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Remove the individual authenticator requirement for Maya Chen?" });
+    expect(within(dialog).getByText(/An installation-wide requirement or an existing setup can still require an authenticator code/)).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Remove individual authenticator requirement" }));
+
+    await waitFor(() => expect(mockedUpdateUserAuthenticator).toHaveBeenCalledWith("u1", "unrequire"));
+  });
+
+  it("explains the authenticator reset and submits only after confirmation", async () => {
+    const user = userEvent.setup();
+    mockedUpdateUserAuthenticator.mockResolvedValue({});
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reset authenticator" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Reset the authenticator for Maya Chen?" });
+    expect(within(dialog).getByText("Maya Chen must set up an authenticator app at their next sign-in.")).toBeVisible();
+    expect(within(dialog).getByText("The existing authenticator and recovery codes will stop working. All active sessions will end.")).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mockedUpdateUserAuthenticator).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reset authenticator" }));
+    await user.click(screen.getByRole("button", { name: "Reset authenticator" }));
+    await waitFor(() => expect(mockedUpdateUserAuthenticator).toHaveBeenCalledWith("u1", "reset"));
+    await waitFor(() => expect(screen.getByText("Authenticator reset for Maya Chen. Active sessions were revoked.")).toBeVisible());
+  });
+
+  it("keeps the authenticator reset confirmation open and shows a request error", async () => {
+    const user = userEvent.setup();
+    mockedUpdateUserAuthenticator.mockRejectedValue(new Error("Authenticator update unavailable"));
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reset authenticator" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Reset the authenticator for Maya Chen?" });
+    await user.click(within(dialog).getByRole("button", { name: "Reset authenticator" }));
+
+    await waitFor(() => expect(within(dialog).getByText("Authenticator update unavailable")).toBeVisible());
+    expect(mockedFetchUsersCollection).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { ...mayaRecord, id: "admin-self" },
+    { ...mayaRecord, deleted_at: "2026-11-20T00:00:00Z" },
+  ])("hides authenticator actions for protected user row $id", async (record) => {
+    const user = userEvent.setup();
+    mockedFetchUsersCollection.mockResolvedValue(userPage([record]));
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+
+    expect(screen.queryByRole("menuitem", { name: /authenticator/i })).not.toBeInTheDocument();
   });
 
   it("does not offer self-delete", async () => {
@@ -319,5 +411,54 @@ describe("SettingsUsersPage", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
     await waitFor(() => expect(mockedUpdateUser).toHaveBeenCalledWith("u1", { display_name: "Maya Updated" }));
     await waitFor(() => expect(screen.getByText("Access for Maya Chen was updated.")).toBeInTheDocument());
+  });
+  // ADR 0076 §7: a user holds one system role; the form offers one of three.
+  it("offers one role out of three, each with what it can do", async () => {
+    const user = userEvent.setup();
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Add user" }));
+    const dialog = screen.getByRole("dialog", { name: "Add user" });
+    const roles = within(dialog).getByRole("group", { name: /Role/ });
+
+    expect(within(roles).getAllByRole("radio")).toHaveLength(3);
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).toBeChecked();
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).toHaveAccessibleName(/changes nothing/);
+    expect(within(roles).getByRole("radio", { name: /Operator/ })).toHaveAccessibleName(/starts workflows, decides approvals/);
+    expect(within(roles).getByRole("radio", { name: /Admin/ })).toHaveAccessibleName(/Sets everything up/);
+    expect(within(dialog).queryByRole("checkbox", { name: /Admin|Operator|Viewer/ })).not.toBeInTheDocument();
+
+    await user.click(within(roles).getByText("Operator"));
+    expect(within(roles).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    expect(within(roles).getByRole("radio", { name: /Viewer/ })).not.toBeChecked();
+  });
+
+  it("changes a user's role by sending the one chosen role", async () => {
+    const user = userEvent.setup();
+    mockedUpdateUser.mockResolvedValue({ user: { display_name: "Maya Chen" } });
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit access" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit access for Maya Chen" });
+
+    expect(within(dialog).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    await user.click(within(dialog).getByText("Admin"));
+    await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => expect(mockedUpdateUser).toHaveBeenCalledWith("u1", { role: "admin" }));
+  });
+
+  it("shows a user who still holds several roles with the highest one chosen", async () => {
+    const user = userEvent.setup();
+    mockedFetchUsersCollection.mockResolvedValue({
+      users: [{ id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["viewer", "operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] }],
+      total: 1, page: 1, per_page: 5, total_pages: 1,
+    });
+    renderUsersPage();
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Edit access" }));
+    const dialog = screen.getByRole("dialog", { name: "Edit access for Maya Chen" });
+
+    expect(within(dialog).getByRole("radio", { name: /Operator/ })).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: /Viewer/ })).not.toBeChecked();
   });
 });

@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from core.application.auth import auth_http_runtime
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.request_principal_runtime import roles_intersect
 from core.application.auth.resolve import normalize_principal
@@ -125,7 +126,6 @@ def _run(
             local_auth_bootstrap_required_fn=lambda _bl=None: False,
             auth_account_tables_available_fn=lambda _bl: False,
             roles_intersect_fn=roles_intersect,
-            is_admin_only_route_fn=lambda _path: False,
             is_registry_read_route_fn=lambda _path: False,
             is_self_service_auth_write_route_fn=lambda _path: _path == "/api/auth/tokens",
             csrf_request_valid_fn=lambda _request: True,
@@ -141,6 +141,7 @@ def _run(
             err_operator_role_required="Operator role required",
             path_bootstrap="/bootstrap",
             path_login="/login",
+            load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
         )
     )
     return response, lookups.calls, seen
@@ -308,9 +309,13 @@ def test_principal_model_carries_only_the_three_oauth_fields() -> None:
 
 def test_consent_and_own_grant_revocation_are_self_service_writes() -> None:
     """A viewer may answer its own consent and revoke its own grants (role gate skipped)."""
-    from core.application.auth.serve_auth_runtime import is_self_service_auth_write_route
+    from core.application.auth.route_permissions import route_permission
 
-    assert is_self_service_auth_write_route("/api/oauth/authorizations/abc/decision")
-    assert is_self_service_auth_write_route("/api/auth/oauth-grants/abc/revoke")
-    assert not is_self_service_auth_write_route("/api/settings/mcp-oauth")
-    assert not is_self_service_auth_write_route("/api/oauth/authorizations/abc")
+    def own_account_write(path: str) -> bool:
+        match = route_permission("POST", path)
+        return match is not None and match.permission == "account.self"
+
+    assert own_account_write("/api/oauth/authorizations/abc/decision")
+    assert own_account_write("/api/auth/oauth-grants/abc/revoke")
+    assert not own_account_write("/api/settings/mcp-oauth")
+    assert not own_account_write("/api/oauth/authorizations/abc")

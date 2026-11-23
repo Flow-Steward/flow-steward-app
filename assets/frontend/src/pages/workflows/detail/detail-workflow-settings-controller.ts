@@ -21,6 +21,14 @@ import {
 } from "@/pages/workflows/detail/detail-helpers";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { HttpError } from "@/lib/http/errors";
+import type { OperatorIssue } from "@/pages/operator/types";
+import {
+  operatorDraftFromStored,
+  operatorIssuesFromError,
+  operatorSettingsPayload,
+  schemaProperties,
+  type OperatorSettingsDraft,
+} from "@/pages/workflows/detail/detail-operator-settings-model";
 import {
   bindWorkflowInputSecret,
   saveWorkflowInputSecretValue,
@@ -269,6 +277,22 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
   // Read only: each returned file is a step result ticked "Return from workflow".
   const [workflowInterfaceReturnedFiles, setWorkflowInterfaceReturnedFiles] =
     useState<Array<Record<string, unknown>>>([]);
+  // settings.operator (ADR 0075): sent with a save only once edited, and then whole.
+  const [operatorSettingsDraft, setOperatorSettingsDraftState] = useState<OperatorSettingsDraft | null>(null);
+  const [operatorSettingsDirty, setOperatorSettingsDirty] = useState(false);
+  const [operatorContractOrder, setOperatorContractOrder] = useState<{ inputs: string[]; outputs: string[] }>({ inputs: [], outputs: [] });
+  // The issues of the last refused save, shown at the fields they name.
+  const [operatorSaveIssues, setOperatorSaveIssues] = useState<OperatorIssue[]>([]);
+  const setOperatorSettingsDraft = (value: SetStateAction<OperatorSettingsDraft | null>) => {
+    setWorkflowFormDirty(true);
+    setOperatorSettingsDirty(true);
+    setOperatorSettingsDraftState(value);
+  };
+  const hydrateOperatorSettings = (draft: OperatorSettingsDraft | null, order: { inputs: string[]; outputs: string[] }) => {
+    setOperatorSettingsDraftState(draft);
+    setOperatorContractOrder(order);
+    setOperatorSettingsDirty(false);
+  };
   const [workflowBuilderPurposeDraft, setWorkflowBuilderPurposeDraft] =
     useState("");
   const [workflowBuilderUseCasesDraft, setWorkflowBuilderUseCasesDraft] =
@@ -399,6 +423,9 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
               // Settings merge on save, so clearing a stored title sends it empty.
               ...(workflowRunTitleDraft.trim() || Object.hasOwn(existingSettings, "run_title")
                 ? { run_title: workflowRunTitleDraft.trim() } : {}),
+              // The operator form replaces the stored one whole (ADR 0075).
+              ...(operatorSettingsDirty && operatorSettingsDraft
+                ? { operator: operatorSettingsPayload(operatorSettingsDraft, operatorContractOrder) } : {}),
             },
           }),
         },
@@ -441,6 +468,7 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
           return next;
         }),
       );
+      setOperatorSaveIssues([]);
       changeSet?.rebase(sampleFileResult.revision, Number(workflowRecord.revision));
       await refetchWorkflowSurfaces();
       const notApplied = [
@@ -465,6 +493,14 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
       );
     } catch (error) {
       setWorkflowFormSaveFailed(true);
+      // A refused operator form: its issues go to the fields they name.
+      const operatorIssues = operatorIssuesFromError(error);
+      if (operatorIssues) {
+        setOperatorSaveIssues(operatorIssues);
+        if (drawerMode === "workflow-settings") setDrawerTab("operator");
+        setSaveError(t("react.workflows.operator.save_refused", "The operator form was not saved. Fix the issues shown at its fields."));
+        return;
+      }
       // A taken name: the surface lists the matches and offers the suggested name.
       if (typeof setSaveConflict === "function") setSaveConflict(registryConflictFromError(error));
       const rawMessage = error instanceof Error ? error.message : "";
@@ -481,6 +517,11 @@ export function useWorkflowSettingsController(ctx: Record<string, any>) {
 
   return {
     handleSaveWorkflowSettings,
+    hydrateOperatorSettings,
+    operatorSaveIssues,
+    operatorSettingsDirty,
+    operatorSettingsDraft,
+    setOperatorSettingsDraft,
     setWorkflowFormDirty,
     workflowFormDirty,
     workflowFormSaveFailed,
@@ -557,6 +598,7 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
     setWorkflowInterfaceReturnedFiles,
     setWorkflowInterfaceStrictInputsDraft,
     setWorkflowInterfaceTriggerChannelsDraft,
+    hydrateOperatorSettings,
     workflow,
     workflowContractQuery,
     workflowId,
@@ -625,6 +667,16 @@ export function useWorkflowSettingsHydration(ctx: Record<string, any>) {
     setWorkflowBuilderCompositionRoleDraft(builderMetadata.compositionRole);
     setWorkflowBuilderDeterminismLevelDraft(builderMetadata.determinismLevel);
     setWorkflowBuilderSafeForAutoUseDraft(builderMetadata.safeForAutoUse);
+    const operatorView = objectOrEmpty(workflowContractQuery.data?.operator);
+    if (Object.keys(operatorView).length) {
+      const formNames = (Array.isArray(operatorView.form_fields) ? operatorView.form_fields : [])
+        .map((field: unknown) => textOrEmpty(objectOrEmpty(field).name)).filter(Boolean);
+      const inputs = Object.keys(schemaProperties(operatorView.input_schema)).filter((name) => formNames.includes(name));
+      const outputs = Object.keys(schemaProperties(operatorView.output_schema));
+      hydrateOperatorSettings?.(operatorDraftFromStored(operatorView.settings, { inputs: formNames, outputs }), { inputs, outputs });
+    } else {
+      hydrateOperatorSettings?.(null, { inputs: [], outputs: [] });
+    }
     setWorkflowFormDirty(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workflow, workflowContractQuery.data, workflowId]);

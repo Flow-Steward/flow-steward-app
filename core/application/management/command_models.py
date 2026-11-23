@@ -19,6 +19,12 @@ from .command_models_api_envelopes import (
     ApiV2JobsEnvelopeView as ApiV2JobsEnvelopeView,
 )
 from .command_models_api_envelopes import (
+    ApiV2OperatorSectionEnvelopeView as ApiV2OperatorSectionEnvelopeView,
+)
+from .command_models_api_envelopes import (
+    ApiV2OperatorSectionsEnvelopeView as ApiV2OperatorSectionsEnvelopeView,
+)
+from .command_models_api_envelopes import (
     ApiV2ProjectJobsBulkDeleteEnvelopeView as ApiV2ProjectJobsBulkDeleteEnvelopeView,
 )
 from .command_models_api_envelopes import (

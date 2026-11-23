@@ -21,6 +21,9 @@ import {
 } from "@/pages/extensions/extension-oauth-types";
 
 import { ConnectionComposer } from "./extension-oauth-connection-composer";
+import { translatedExtensionActionErrorGuidance } from "./extension-action-error-guidance";
+import { isSystemEmailSenderLocked } from "./system-email-sender";
+import { SystemEmailSenderNotice } from "./system-email-sender-notice";
 
 import {
   authorizationStartGuidance,
@@ -65,6 +68,13 @@ type OAuthConnectionRowView = {
   reconnectable: boolean;
   retryablePostConnect: boolean;
 };
+
+/** The server refused a change to the system email sender's connection (`system_sender_locked`). */
+function lockedSenderMessage(error: unknown, t: I18nContextValue["t"]): string {
+  if (!isHttpError(error)) return "";
+  const code = text(record(error.payload).code) || error.message;
+  return code === "system_sender_locked" ? translatedExtensionActionErrorGuidance(t, code) : "";
+}
 
 function isImportEditLifecycle(lifecycle: string): boolean {
   return ["connected", "needs_attention", "post_connect_pending"].includes(lifecycle);
@@ -182,6 +192,7 @@ function OAuthConnectionActions({
   pending,
   canManage,
   imported,
+  locked,
   onDisconnect,
   onReconnect,
   onRetry,
@@ -193,6 +204,8 @@ function OAuthConnectionActions({
   canManage: boolean;
   /** Reconnecting an imported grant means pasting a new refresh token. */
   imported: boolean;
+  /** The system email sender, read-only to this viewer: its controls stay visible but disabled. */
+  locked: boolean;
   onDisconnect: (row: Record<string, unknown>, recovery?: boolean) => void;
   onReconnect: (row: Record<string, unknown>) => void;
   onRetry: (row: Record<string, unknown>) => void;
@@ -208,6 +221,7 @@ function OAuthConnectionActions({
         aria-label={t("react.extensions.resume_disconnect_value0", "Resume disconnect {value0}", { value0: view.displayName })}
         busy={pending === "disconnect"}
         busyLabel={t("react.extensions.resuming", "Resuming…")}
+        disabled={locked}
         onClick={() => { if (!pending) onDisconnect(row, true); }}
         size="sm"
         type="button"
@@ -259,6 +273,7 @@ function OAuthConnectionActions({
           aria-label={repairAriaLabel}
           busy={pending === "reconnect"}
           busyLabel={t("react.extensions.oauth_import_connecting", "Connecting…")}
+          disabled={locked}
           onClick={() => { if (!pending) onReconnect(row); }}
           size="sm"
           type="button"
@@ -271,6 +286,7 @@ function OAuthConnectionActions({
         <Button
           busy={pending === "disconnect"}
           busyLabel={t("react.extensions.disconnecting", "Disconnecting…")}
+          disabled={locked}
           onClick={() => { if (!pending) onDisconnect(row); }}
           size="sm"
           type="button"
@@ -382,11 +398,13 @@ function OAuthConnectionRow({
           >
             {t("react.extensions.open_troubleshooting_help", "Open troubleshooting help")}</button>
         ) : null}
+        <SystemEmailSenderNotice row={row} />
       </div>
       <OAuthConnectionActions
         pending={busy ? busyAction : null}
         canManage={canManage}
         imported={isRefreshTokenImportProvider(provider)}
+        locked={isSystemEmailSenderLocked(row)}
         onDisconnect={onDisconnect}
         onReconnect={onReconnect}
         onRetry={onRetry}
@@ -553,7 +571,10 @@ export function ConnectionList({
       // Gone already: retrying can only fail again, so refresh the list instead.
       const alreadyGone = isHttpError(error_) && error_.status === 404;
       let message = t("react.extensions.manual_connection_could_not_be_disconnected_try_again", "Connection could not be disconnected. Try again.");
-      if (recoveryConflict) {
+      const lockedMessage = lockedSenderMessage(error_, t);
+      if (lockedMessage) {
+        message = lockedMessage;
+      } else if (recoveryConflict) {
         message = t("react.extensions.manual_disconnect_is_still_in_progress_try_again_after_the_recovery_lease_expires", "Disconnect is still in progress. Try again after the recovery lease expires.");
       } else if (alreadyGone) {
         message = t("react.extensions.manual_this_connection_no_longer_exists_the_list_was_refreshed", "This connection no longer exists. The list was refreshed.");
@@ -659,7 +680,7 @@ export function ConnectionList({
       }
       (onAuthorization || ((url: string) => globalThis.window.location.assign(url)))(result.authorization_url);
     } catch (error_) {
-      setError(authorizationStartGuidance(
+      setError(lockedSenderMessage(error_, t) || authorizationStartGuidance(
         error_,
         t("react.extensions.oauth_final_restart_authorization", "Reauthorization could not be started. Check the configuration and try again."), t
       ));

@@ -27,6 +27,7 @@ def harness(monkeypatch):
     logger = MagicMock()
     state = SimpleNamespace(
         required=False,
+        per_user_required=False,
         enabled=False,
         csrf_valid=True,
         session_id=_SESSION_ID,
@@ -63,9 +64,11 @@ def harness(monkeypatch):
     cookie_session = MagicMock(side_effect=lambda *_args, **_kwargs: state.session_id)
     monkeypatch.setattr(auth_mfa, "authenticator_storage_available", lambda _logger: True)
     monkeypatch.setattr(mfa_service, "installation_requires_mfa", lambda: state.required)
+    monkeypatch.setattr(mfa_service, "authenticator_policy_available", lambda _logger: True)
+    cursor.fetchone.side_effect = lambda: (state.per_user_required, False)
     monkeypatch.setattr(mfa_service, "lock_local_user", lock_user)
     monkeypatch.setattr(mfa_repository, "active_cookie_session_id", cookie_session)
-    monkeypatch.setattr(mfa_repository, "revoke_other_sessions", revoke)
+    monkeypatch.setattr(mfa_repository, "revoke_sessions", revoke)
     monkeypatch.setattr(mfa_service, "mfa_enabled", lambda *_: state.enabled)
     monkeypatch.setattr(mfa_service, "verify_mfa", check_factor)
     monkeypatch.setattr(mfa_service, "begin_mfa_enrollment", begin)
@@ -191,13 +194,15 @@ def test_confirmation_returns_recovery_codes_and_revokes_only_other_sessions(har
     assert response.headers["Cache-Control"] == "no-store"
     assert response.json() == {"recovery_codes": ["example-recovery-code"]}
     assert harness.confirm.call_args.kwargs["session_id"] == _SESSION_ID
-    harness.revoke.assert_called_once_with(harness.cursor, _USER_ID, _SESSION_ID)
+    harness.revoke.assert_called_once_with(harness.cursor, _USER_ID, keep_session_id=_SESSION_ID)
     assert "example-recovery-code" not in str(harness.audit.call_args_list)
 
 
-def test_disable_enforces_installation_policy(harness):
-    harness.state.required = True
+@pytest.mark.parametrize("policy", ["required", "per_user_required"])
+def test_disable_enforces_authenticator_policy(harness, policy):
+    setattr(harness.state, policy, True)
     harness.state.enabled = True
+    assert harness.client.get(f"{_BASE}/status").json() == {"enabled": True, "required": True}
     response = harness.client.post(
         f"{_BASE}/disable",
         # pragma: allowlist nextline secret
@@ -222,7 +227,7 @@ def test_optional_disable_consumes_proof_and_revokes_other_sessions(harness):
     assert response.json() == {"enabled": False}
     harness.check_factor.assert_called_once_with(harness.cursor, _USER_ID, "123456")
     harness.disable.assert_called_once_with(harness.cursor, _USER_ID)
-    harness.revoke.assert_called_once_with(harness.cursor, _USER_ID, _SESSION_ID)
+    harness.revoke.assert_called_once_with(harness.cursor, _USER_ID, keep_session_id=_SESSION_ID)
 
 
 def test_throttling_stops_before_verifying_and_uses_separate_keys(harness):

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from core.application.tooling.quality import frontend_licenses as licenses
 from core.application.tooling.quality.check_registry import load_check_registry
 
@@ -74,6 +76,43 @@ def test_a_production_package_outside_the_allowlist_fails(tmp_path: Path) -> Non
     root = _workspace(tmp_path, packages, ["chart"])
     problems = licenses.license_problems(licenses._load_lock(root))
     assert problems == ["copyleft@1.0.0: license GPL-3.0 is not on the allowlist"]
+
+
+@pytest.mark.parametrize(
+    ("expression", "allowed"),
+    [
+        ("MIT", True),
+        ("(MIT OR GPL-3.0-or-later)", True),
+        ("GPL-3.0-or-later OR Apache-2.0", True),
+        ("(MIT AND Zlib)", True),
+        ("MIT AND GPL-3.0", False),
+        ("(GPL-2.0 OR LGPL-3.0)", False),
+        ("MIT OR (GPL-3.0 AND Zlib)", True),
+        ("GPL-2.0 WITH Classpath-exception-2.0", False),
+        ("(MIT", False),
+        ("MIT)", False),
+        ("MIT OR", False),
+        ("", False),
+    ],
+)
+def test_an_spdx_expression_passes_only_with_allowlisted_terms(
+    expression: str, allowed: bool
+) -> None:
+    assert licenses.license_allowed(expression) is allowed
+
+
+def test_a_dual_licensed_production_package_is_used_under_its_allowed_choice(
+    tmp_path: Path,
+) -> None:
+    packages = {
+        **PACKAGES,
+        "node_modules/zip": {"version": "3.10.2", "license": "(MIT OR GPL-3.0-or-later)"},
+        "node_modules/inflate": {"version": "1.0.11", "license": "(MIT AND Zlib)"},
+        "node_modules/mixed": {"version": "1.0.0", "license": "(MIT AND GPL-3.0)"},
+    }
+    root = _workspace(tmp_path, packages, ["chart"])
+    problems = licenses.license_problems(licenses._load_lock(root))
+    assert problems == ["mixed@1.0.0: license (MIT AND GPL-3.0) is not on the allowlist"]
 
 
 def _modules(root: Path) -> Path:

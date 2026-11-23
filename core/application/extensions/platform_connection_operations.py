@@ -59,6 +59,8 @@ def run_platform_connection_operation(
     connection_config: dict[str, Any] | None = None,
     ingress_schema: dict[str, Any] | None = None,
     secret_schema: dict[str, Any] | None = None,
+    connection_id: str = "",
+    generation_exempt_fields: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, Any]:
     """Execute a bounded application use case for the infrastructure adapter."""
 
@@ -94,6 +96,8 @@ def run_platform_connection_operation(
                 connection_type=_text(connection_type),
                 account_id=_text(account_id),
                 ingress_schema=_as_dict(ingress_schema),
+                connection_id=_text(connection_id),
+                generation_exempt_fields=frozenset(generation_exempt_fields or ()),
             )
             return {"ok": True, "outcome": outcome}
         if operation == "secrets_save":

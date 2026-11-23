@@ -176,7 +176,7 @@ def create_auth_mfa_router(
         if change.outcome == "inactive_session":
             return _error(_AUTH_REQUIRED, 401)
         if change.outcome == "required":
-            return _error("Multi-factor authentication is required for this installation.", 403)
+            return _error("Multi-factor authentication is required.", 403)
         if change.outcome == "throttled":
             retry_after = max(1, change.retry_after_seconds)
             return JSONResponse(

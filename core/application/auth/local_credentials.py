@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from core.application.auth.config import env_flag
@@ -22,6 +23,41 @@ def authenticator_storage_available(bl: Any) -> bool:
         return False
 
 
+def authenticator_policy_available(bl: Any) -> bool:
+    try:
+        return (
+            bl._column_exists("users", "authenticator_required") is True
+            and bl._column_exists("users", "authenticator_reset_pending") is True
+        )
+    except AttributeError:
+        return False
+
+
+@dataclass(frozen=True)
+class UserAuthenticatorPolicy:
+    required: bool = False
+    reset_pending: bool = False
+
+    @property
+    def enforced(self) -> bool:
+        return self.required or self.reset_pending
+
+
+def read_authenticator_policy(cur: Any, user_id: str) -> UserAuthenticatorPolicy:
+    cur.execute(
+        "SELECT authenticator_required, authenticator_reset_pending FROM users WHERE id = %s",
+        (user_id,),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return UserAuthenticatorPolicy()
+    if isinstance(row, dict):
+        return UserAuthenticatorPolicy(
+            row["authenticator_required"], row["authenticator_reset_pending"]
+        )
+    return UserAuthenticatorPolicy(*row)
+
+
 def password_age_available(bl: Any) -> bool:
     try:
         return bl._column_exists("users", "password_changed_at") is True
@@ -35,12 +71,21 @@ def local_session_credential_filter(bl: Any) -> str:
         conditions.append(
             f" AND u.password_changed_at > now() - make_interval(hours => {PASSWORD_MAX_AGE_DAYS * 24})"
         )
-    if installation_requires_mfa():
-        conditions.append(
-            " AND EXISTS (SELECT 1 FROM auth_totp_factors f"
+    individual_policy = authenticator_policy_available(bl)
+    if individual_policy:
+        conditions.append(" AND NOT u.authenticator_reset_pending")
+    installation_policy = installation_requires_mfa()
+    if installation_policy or individual_policy:
+        verified_factor = (
+            "EXISTS (SELECT 1 FROM auth_totp_factors f"
             " WHERE f.user_id = u.id AND f.secret_enc IS NOT NULL)"
             if authenticator_storage_available(bl)
-            else " AND false"
+            else "false"
+        )
+        conditions.append(
+            f" AND {verified_factor}"
+            if installation_policy
+            else f" AND (NOT u.authenticator_required OR {verified_factor})"
         )
     return "".join(conditions)
 

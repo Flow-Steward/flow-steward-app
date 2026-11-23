@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.24 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -661,10 +661,14 @@ to `workflow_trigger`; keep file fields out of `payload`. The example carries
 actual CSV bytes (`sku,quantity` and `A1,7`), not a server path or an artifact ID.
 The transport accepts up to 10 files and 1 MiB of decoded bytes in total;
 configured attachment type/size limits also apply. Base64 must be strict, with
-no whitespace, and each declared file input has exactly one upload. The server
+no whitespace. A `file` input takes exactly one upload; a list-of-files input
+(`type: array` with `items.type: file`) takes one entry per file with the same
+`input_name`, in order, within its `min_items`/`max_items`. The server
 validates every required input before creating a job and persists attachments
-before dispatch. The workflow receives server-created artifact descriptors in
-its named inputs and `files`; raw base64 is not retained in job metadata.
+before dispatch, each file as its own artifact. The workflow receives
+server-created artifact descriptors in its named inputs (a list of them, in
+upload order, for a list-of-files input) and `files`; raw base64 is not
+retained in job metadata.
 Filenames, URLs, local paths and fabricated artifact objects in `payload` do
 not satisfy a file input and are rejected before enqueue.
 
@@ -956,6 +960,72 @@ The REST equivalent is `POST /api/approvals/{thread_id}` with this body:
 For a child workflow's approval, use the child job's `thread_id` and
 `approval_id` (`approval_job_id` and `approval_id` in a propagated
 `job.approval_waiting` event), never the parent's.
+
+### Review fields: check and correct values
+
+An Approval step can show the person typed fields to check against an
+original, correct, and pass on — for example recognize an invoice, check it,
+then export it with `invoke_workflow`. The fields live in
+`override.approval.review`:
+
+```json
+{
+  "message": "Compare the recognized document with the original",
+  "approve_label": "Export to accounting",
+  "reject_label": "Recognize again",
+  "review": {
+    "original": "state.inputs.files",
+    "fields_from_workflow": "accounting_export",
+    "fields": [
+      {"name": "supplier", "type": "string", "required": true, "editable": true,
+       "from": "message.step.recognize.artifacts.supplier"},
+      {"name": "total", "type": "number", "required": true, "editable": true,
+       "from": "message.step.recognize.artifacts.total"},
+      {"name": "confidence", "type": "number", "editable": false,
+       "from": "message.step.recognize.artifacts.confidence"}
+    ]
+  }
+}
+```
+
+- A field is a workflow contract field (type, required, options, `items`,
+  `properties`, `min_items`/`max_items`, `format`) plus `editable` and `from`.
+  `from` uses the selector syntax of an `invoke_workflow` input mapping. A field
+  without a type is a `paragraph`. Secret fields are refused, and a required
+  field that is not editable needs a `from`.
+- `original` names a file or a list of files shown beside the fields.
+  `fields_from_workflow` only tells the editor which workflow's inputs the
+  fields were taken from; import rebinds it like an Invoke target or drops it.
+- When the gate opens, the field schema, the editable fields and the initial
+  values are captured whole with the approval. Editing the workflow while the
+  review is open does not change it. An initial value that does not fit its
+  type is shown as found, marked in `invalid`, for the person to correct.
+- `GET /api/jobs/{job_id}/approval` (MCP `job_approval`) returns `review`:
+  `fields` (`name`, `label`, `type`, `required`, `editable`, `options`,
+  `items`, `properties`, `min_items`, `max_items`, `format`, `description`),
+  `values`, `invalid` and `original` (file summaries of this job).
+- A decision sends corrections of editable fields only, as typed JSON values:
+
+  ```json
+  {"approval_id": "{approval_id}", "approved": true, "values": {"total": 318.5}}
+  ```
+
+  The server lays them over the captured values and checks the result by type,
+  requiredness, item counts and format. A refusal is `422` with `code` and the
+  `field`; a number typed with a decimal comma (`"318,50"`) is not a number to
+  the API, so clients send JSON numbers. `values` on an approval without review
+  fields, or from a machine token, is refused with `422`; a person's own token
+  may send them. The same idempotency key with other values is a conflict.
+- On approve the checked values become the step's outputs:
+  `message.step.check_before_accounting.artifacts.total` maps to the next
+  step like any other output. `artifacts.comment` carries the comment — on the
+  `rejected` branch the feedback — and `artifacts.decision` is `approved` or
+  `rejected`. The decision history records each change (`field`, `before`,
+  `after`) with the actor.
+- A catalog template or an extension bundle that uses review fields declares
+  the first Core version that has them with the existing compatibility bound:
+  the catalog entry's `compatible.min`, or the bundle's
+  `runtime.compatibility.platform_min`.
 
 ### When an external operation's outcome is unknown
 

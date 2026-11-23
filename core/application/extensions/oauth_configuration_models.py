@@ -84,6 +84,10 @@ class OAuthConfigurationConnectionImpact(BaseModel):
     connection_id: str
     display_name: str = ""
     connection_type: str = ""
+    #: ``oauth``: the connection holds a grant of this configuration and is
+    #: deleted with it. ``credentials``: it takes its credentials from this
+    #: configuration and is kept, reporting ``credentials_unavailable``.
+    link: str = "oauth"
 
 
 class OAuthBoundWorkflowStep(BaseModel):

@@ -129,7 +129,6 @@ def test_status_permission_denial_defers_to_authoritative_api_guards(
     from fastapi.testclient import TestClient
 
     import core.entrypoints.mcp.server_maintenance as maintenance_adapter
-    from core.application.auth import is_admin_only_route
     from core.application.auth.principal import ResolvedPrincipal
     from core.entrypoints.mcp.server_api_client import AppApiClient, AppApiError
     from core.infrastructure.runtime.maintenance_http import build_maintenance_http_middleware
@@ -165,7 +164,6 @@ def test_status_permission_denial_defers_to_authoritative_api_guards(
             path=request.url.path,
             method=request.method,
             principal=principal,
-            admin_only=is_admin_only_route(request.url.path),
         )
         if auth_response.status_code != 204:
             return httpx.Response(auth_response.status_code, content=auth_response.body)

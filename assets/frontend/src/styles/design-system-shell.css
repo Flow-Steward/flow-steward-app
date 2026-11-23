@@ -25,23 +25,86 @@
   padding: 24px;
 }
 
+/* Below md the sidebar is a full-width drawer opened from the header's menu
+   button, so the page never carries the navigation under its content. */
 @media (width < theme(--breakpoint-md)) {
-  .fs-shell-layout {
-    display: flex;
-    flex-direction: column;
+  .fs-shell-sidebar-frame {
+    display: none;
   }
 
-  .fs-shell-sidebar-frame {
-    position: static;
-    order: 2;
-    width: auto;
-    overflow: visible;
+  .fs-shell-layout[data-mobile-nav="open"] .fs-shell-sidebar-frame {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: block;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--fs-sidebar-rail-bg);
+    animation: fs-shell-drawer-in var(--fs-sidebar-motion-rail) var(--fs-sidebar-ease-enter);
+  }
+
+  .fs-shell-layout[data-mobile-nav="open"] .fs-app-sidebar {
+    min-height: 100dvh;
+  }
+
+  :root:has(.fs-shell-layout[data-mobile-nav="open"]) {
+    overflow: hidden;
+  }
+
+  /* Above the sidebar's brand row, which is itself raised to the local sticky layer. */
+  .fs-shell-sidebar-close {
+    position: absolute;
+    top: 0;
+    right: var(--fs-sidebar-logo-horizontal-padding);
+    z-index: calc(var(--fs-z-local-sticky) + 1);
+    display: flex;
+    align-items: center;
+    height: var(--fs-sidebar-brand-height);
+  }
+
+  /* Finger-sized: the menu button and the drawer's close button. */
+  .fs-shell-sidebar-close .fs-icon-button.fs-app-header__trigger,
+  .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile {
+    width: var(--fs-hit-target-touch);
+    height: var(--fs-hit-target-touch);
+    color: var(--fs-text-primary);
+  }
+
+  /* A 24px glyph with a heavier line, so the two buttons read at a glance. The
+     size is set here: `.fs-icon-button[data-size="small"] svg` sizes the glyph in
+     CSS and would override the icon's own size attribute. */
+  .fs-shell-sidebar-close .fs-icon-button.fs-app-header__trigger svg,
+  .fs-app-header .fs-icon-button.fs-app-header__trigger--mobile svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 2.5;
   }
 
   .fs-shell-inset {
-    order: 1;
     min-width: 0;
     margin-left: 0;
+  }
+
+  /* The wrapper, not the button: `.fs-icon-button` sets its own display later in this file. */
+  .fs-icon-button-wrap:has(> .fs-app-header__trigger--rail) {
+    display: none;
+  }
+}
+
+@media (width >= theme(--breakpoint-md)) {
+  .fs-shell-sidebar-close,
+  .fs-icon-button-wrap:has(> .fs-app-header__trigger--mobile) {
+    display: none;
+  }
+}
+
+@keyframes fs-shell-drawer-in {
+  from { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-shell-layout[data-mobile-nav="open"] .fs-shell-sidebar-frame {
+    animation: none;
   }
 }
 
@@ -292,6 +355,34 @@
   color: var(--fs-sidebar-text-tertiary);
   font-size: var(--fs-sidebar-group-label-size);
   font-weight: var(--fs-type-weight-medium);
+}
+
+/* A collapsible group's label is its toggle: same type, a chevron before it. */
+.fs-app-sidebar__group-toggle {
+  width: 100%;
+  gap: var(--fs-space-050);
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fs-app-sidebar__group-toggle > svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  transition: transform var(--fs-motion-background-hover);
+}
+
+.fs-app-sidebar__group-toggle[aria-expanded="false"] > svg {
+  transform: rotate(-90deg);
+}
+
+.fs-app-sidebar__group-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-focus-ring);
 }
 
 .fs-app-sidebar__item {

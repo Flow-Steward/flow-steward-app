@@ -527,3 +527,20 @@ def test_a_damaged_policy_keeps_the_payload_out_of_the_audit_record(
     persisted = json.dumps(bl.log_extension_invocation.call_args.kwargs, default=str)
     assert "DAMAGED_RESPONSE_SENTINEL" not in persisted
     assert "DAMAGED_REQUEST_SENTINEL" not in persisted
+
+
+def test_a_connection_poll_action_keeps_its_connection_types(tmp_path: Path) -> None:
+    """The worker calls a background poll only for these types; dropping them would
+    call it with no connection at all."""
+    bundle = _synthetic_bundle(
+        tmp_path,
+        audit=...,
+        action_connection_policy={
+            "connection_type_ids": ["example_account", "example_app"],
+            "contract": {"background": {"kind": "connection_poll", "mode_field": "poll_mode"}},
+        },
+    )
+    compiled, actions = _compiled_actions(bundle)
+
+    assert compiled.get("compile_errors") == []
+    assert actions[0]["connection_type_ids"] == ["example_account", "example_app"]

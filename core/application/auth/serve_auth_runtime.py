@@ -16,6 +16,7 @@ import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.local_credentials import (
+    authenticator_policy_available,
     local_session_credential_filter,
     password_age_available,
 )
@@ -178,13 +179,13 @@ def seed_default_roles(bl: Any) -> None:
     with bl.conn.cursor() as cur:
         cur.execute(
             """
-            INSERT INTO roles (key, label)
+            INSERT INTO roles (key, label, is_system)
             VALUES
-                ('admin', 'Admin'),
-                ('operator', 'Operator'),
-                ('viewer', 'Viewer')
+                ('admin', 'Admin', true),
+                ('operator', 'Operator', true),
+                ('viewer', 'Viewer', true)
             ON CONFLICT (key) DO UPDATE
-            SET label = EXCLUDED.label
+            SET label = EXCLUDED.label, is_system = true
             """
         )
 
@@ -200,6 +201,7 @@ def get_user_roles(bl: Any, user_id: Any) -> list[str]:
             FROM user_roles ur
             JOIN roles r ON r.id = ur.role_id
             WHERE ur.user_id = %s
+              AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
             ORDER BY r.key
             """,
             (normalized_user_id,),
@@ -258,6 +260,7 @@ def get_user_by_username(
             ", ",
             auth_user_account_id_select_fn(bl, alias="u"),
             ", u.password_changed_at" if password_age_available(bl) else "",
+            ", u.authenticator_required" if authenticator_policy_available(bl) else "",
             sql_from_users,
             "WHERE lower(u.username) = lower(%s)",
             auth_user_deleted_condition_fn(bl, alias="u"),
@@ -295,6 +298,7 @@ def get_user_by_id(
             auth_user_locale_select_fn(bl, alias="u"),
             ", ",
             auth_user_account_id_select_fn(bl, alias="u"),
+            ", u.authenticator_required" if authenticator_policy_available(bl) else "",
             sql_from_users,
             "WHERE u.id = %s",
             auth_user_deleted_condition_fn(bl, alias="u"),
@@ -792,32 +796,6 @@ def is_public_auth_path(
     return path_text.startswith(("/static/", "/static-v/"))
 
 
-def is_self_service_auth_write_route(path: str) -> bool:
-    path_text = str(path or "").strip()
-    if not path_text:
-        return False
-    if path_text in {
-        "/api/auth/change-password",
-        "/api/auth/multi-factor/enroll",
-        "/api/auth/multi-factor/verify",
-        "/api/auth/multi-factor/disable",
-        "/api/auth/logout",
-        "/api/auth/tokens",
-        "/api/users/me/email-change/request",
-    }:
-        return True
-    if re.fullmatch(r"/api/auth/tokens/[^/]+/revoke", path_text):
-        return True
-    # ADR 0047: a user answers their own OAuth consent and revokes their own grants
-    # whatever their role; the service caps the access at the user's authority.
-    return bool(
-        re.fullmatch(r"/api/oauth/authorizations/[^/]+/decision", path_text)
-        or re.fullmatch(r"/api/auth/oauth-grants/[^/]+/revoke", path_text)
-        # Task 4: the wizard mints the caller's own token; the service caps its access.
-        or path_text == "/api/auth/agent-access/tokens"
-    )
-
-
 def optional_route_path_allowed(
     path: str,
     *,
@@ -870,7 +848,6 @@ __all__ = [
     "get_user_by_username",
     "get_user_roles",
     "is_public_auth_path",
-    "is_self_service_auth_write_route",
     "optional_route_path_allowed",
     "real_dict_cursor_kwargs",
     "request_client_ip",

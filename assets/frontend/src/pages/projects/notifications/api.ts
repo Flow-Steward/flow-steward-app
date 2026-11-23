@@ -19,7 +19,28 @@ export type ProjectNotificationProvider = {
   notification_target_kind: string;
   /** Format declared on normalized subscription recipient items; no implicit email. */
   notification_recipient_format?: string | null;
+  /**
+   * Routes of this provider must name their connection: the provider's
+   * connection types address different kinds of target, or one of them is bound
+   * to a single channel.
+   */
+  requires_connection?: boolean;
+  /** The provider's connections in this project that can carry routes. */
+  connections?: NotificationConnection[];
   [key: string]: unknown;
+};
+/** One project connection of a notification provider, and what it addresses. */
+export type NotificationConnection = {
+  connection_id: string;
+  display_name: string;
+  connection_type: string;
+  /** `recipient` or `channel`. */
+  target_kind: string;
+  /** For a channel connection: `route` (the route picks it) or `connection` (fixed). */
+  channel_source: string;
+  /** Display-only name of the channel a `connection`-sourced connection is bound to. */
+  channel_label: string;
+  enabled: boolean;
 };
 export type ProviderChannel = {
   channel_id: string;
@@ -91,6 +112,23 @@ function booleanOr(value: unknown, fallback = false): boolean {
   return value === undefined ? fallback : Boolean(value);
 }
 
+function normalizeConnection(value: unknown): NotificationConnection | null {
+  const row = objectOrEmpty(value);
+  const connectionId = textOrEmpty(row.connection_id);
+  if (!connectionId) {
+    return null;
+  }
+  return {
+    connection_id: connectionId,
+    display_name: textOrEmpty(row.display_name),
+    connection_type: textOrEmpty(row.connection_type),
+    target_kind: textOrEmpty(row.target_kind),
+    channel_source: textOrEmpty(row.channel_source),
+    channel_label: textOrEmpty(row.channel_label),
+    enabled: booleanOr(row.enabled, true),
+  };
+}
+
 function normalizeProvider(value: unknown): ProjectNotificationProvider | null {
   const row = objectOrEmpty(value);
   const providerKey = textOrEmpty(row.provider_key || row.integration_key || row.extension_id);
@@ -110,7 +148,27 @@ function normalizeProvider(value: unknown): ProjectNotificationProvider | null {
     // A provider that declares nothing addresses a channel.
     notification_target_kind: textOrEmpty(row.notification_target_kind) || "channel",
     notification_recipient_format: textOrEmpty(row.notification_recipient_format) || null,
+    requires_connection: row.requires_connection === true,
+    connections: Array.isArray(row.connections)
+      ? row.connections.map((connection) => normalizeConnection(connection)).filter(isTruthy)
+      : undefined,
   };
+}
+
+/**
+ * The listing has one entry per project connection; the editors pick a
+ * provider, then (when it needs one) a connection from its `connections`.
+ * The first entry whose connection can carry routes stands for the provider.
+ */
+function oneEntryPerProvider(rows: ProjectNotificationProvider[]): ProjectNotificationProvider[] {
+  const byKey = new Map<string, ProjectNotificationProvider>();
+  for (const row of rows) {
+    const current = byKey.get(row.provider_key);
+    if (!current || (current.notification_eligible === false && row.notification_eligible !== false)) {
+      byKey.set(row.provider_key, row);
+    }
+  }
+  return [...byKey.values()];
 }
 
 function normalizeChannel(value: unknown): ProviderChannel | null {
@@ -193,24 +251,33 @@ export async function fetchProjectNotificationProviders(
   const payload = await fetchJson<unknown>(
     `/api/projects/${encodeURIComponent(projectId)}/providers?enabled_only=true`,
   );
-  return listFromPayload(payload, "project_providers")
-    .map((row) => normalizeProvider(row))
-    .filter(isTruthy)
-    .filter((row) => row.provider_type_key === "notification_provider");
+  return oneEntryPerProvider(
+    listFromPayload(payload, "project_providers")
+      .map((row) => normalizeProvider(row))
+      .filter(isTruthy)
+      .filter((row) => row.provider_type_key === "notification_provider"),
+  );
 }
 
+/**
+ * The channels a provider offers in a project. With `connectionId` the query
+ * runs against that connection, so each connection lists its own channels.
+ */
 export async function fetchProjectProviderChannels(
   projectId: string,
   providerKey: string,
+  connectionId?: string,
 ): Promise<ProviderChannel[]> {
   const normalizedProjectId = textOrEmpty(projectId);
   const normalizedProviderKey = textOrEmpty(providerKey);
+  const normalizedConnectionId = textOrEmpty(connectionId);
   if (!normalizedProjectId || !normalizedProviderKey) {
     return [];
   }
   const payload = await executeExtensionQuery(normalizedProviderKey, "list_channels", {
     context: { project_id: normalizedProjectId },
     params: {},
+    ...(normalizedConnectionId ? { target: { connection_id: normalizedConnectionId } } : {}),
   });
   return parseExtensionQueryRows(payload)
     .map((row) => normalizeChannel(row))

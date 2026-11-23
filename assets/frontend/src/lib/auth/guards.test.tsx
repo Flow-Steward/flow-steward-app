@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router";
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { RequireCapability } from "@/lib/auth/guards";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
   return {
@@ -15,7 +16,7 @@ function authValue(role: "admin" | "operator" | "viewer"): AuthContextValue {
     session: {
       authenticated: true,
       roles: [role],
-      user: { roles: [role] },
+      user: { roles: [role], permissions: permissionsForRoles([role]) },
     } as AuthContextValue["session"],
     status: "authenticated",
   };
@@ -51,9 +52,15 @@ describe("RequireCapability", () => {
     expect(screen.queryByText("Sensitive inventory fetched")).not.toBeInTheDocument();
   });
 
-  it("allows an operator to render registry read surfaces", () => {
+  // ADR 0066 amendment (ADR 0075): the registry is configuration, the admin's.
+  // Operators and viewers work in their sections instead.
+  it.each([
+    ["admin", true],
+    ["operator", false],
+    ["viewer", false],
+  ] as const)("renders registry read surfaces for %s: %s", (role, allowed) => {
     render(
-      <AuthContext.Provider value={authValue("operator")}>
+      <AuthContext.Provider value={authValue(role)}>
         <MemoryRouter>
           <RequireCapability capability="read_registry">
             <div>Registry inventory</div>
@@ -62,6 +69,11 @@ describe("RequireCapability", () => {
       </AuthContext.Provider>,
     );
 
-    expect(screen.getByText("Registry inventory")).toBeInTheDocument();
+    if (allowed) {
+      expect(screen.getByText("Registry inventory")).toBeInTheDocument();
+    } else {
+      expect(screen.getByRole("heading", { name: "Access denied" })).toBeInTheDocument();
+      expect(screen.queryByText("Registry inventory")).not.toBeInTheDocument();
+    }
   });
 });

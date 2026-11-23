@@ -2,31 +2,66 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import date, datetime
-from typing import Protocol, cast
+from dataclasses import asdict
+from datetime import date
+from typing import cast
 
 from core.application.jobs.query_scope import job_row_in_scope
 from core.application.jobs.workflow_identity import resolve_job_workflow_id
-from core.application.jobs.workflow_result_links import with_artifact_downloads
-from core.application.jobs.workflow_run_models import PublicWorkflowResultV1
-from core.application.jobs.workflow_run_projection import (
-    ArtifactResolverUnavailable,
-    build_public_result,
-)
 from core.application.management.errors import ACCESS_DENIED_MESSAGE
 from core.application.management.query_services_approval import ApprovalQueryService
 from core.application.observability_vocabulary import job_status_filter_statuses
-from core.application.reports.job_trigger import job_trigger
 from core.application.security.credential_redaction import redact
 from core.application.settings.timezone_service import day_boundaries_utc, resolve_effective_user_tz
-from core.application.workflows.workflow_action_contract import action_run_label
-from core.application.workflows.workflow_hook_contract import hook_run_label
+from core.application.workflows.approval_waiting_propagation import (
+    STATUS_AWAITING_APPROVAL,
+    STATUS_AWAITING_CHILD,
+    STATUS_AWAITING_REVIEW,
+    awaiting_review_targets,
+    invoke_chain_max_depth,
+)
 
-from .query_models import JobDetailContractView
 from .query_services_common import *  # NOSONAR
+from .query_services_job_status_mixin import JobQueryServiceStatusMixin
 
 #: Page-size ceiling of grouped attention.
 _ATTENTION_PAGE_MAX = 2000
+#: History filters by how a run started: Test Run, the UI form or the API/MCP.
+SUPPORTED_JOB_TASK_SOURCES = frozenset({"workflow_test_run", "manual_ui", "mcp_workflow"})
+
+
+#: Statuses of a job that may wait for a person's review (ADR 0075 queue).
+_REVIEW_WAIT_STATUSES = frozenset({STATUS_AWAITING_APPROVAL, STATUS_AWAITING_CHILD})
+
+
+def _store_value_filters(items: Sequence[Any]) -> list[dict[str, Any]]:
+    """Checked operator filters as the store reads them; the status filter with the
+    Invoke depth its "awaiting review" value follows down a chain."""
+    specs: list[dict[str, Any]] = []
+    for item in items:
+        spec = asdict(item)
+        if spec.get("source") == "job" and STATUS_AWAITING_REVIEW in (spec.get("value") or ()):
+            spec["review_chain_depth"] = max(1, invoke_chain_max_depth())
+        specs.append(spec)
+    return specs
+
+
+def _review_status_filter(statuses: Sequence[str] | None) -> dict[str, Any] | None:
+    """The list's status filter as one store predicate when it holds "awaiting review".
+
+    The statuses stay alternatives (any match); "awaiting review" matches a job
+    waiting for approval itself or anywhere down its Invoke chain.
+    """
+    if not statuses or STATUS_AWAITING_REVIEW not in statuses:
+        return None
+    return {
+        "id": "status",
+        "source": "job",
+        "key": "status",
+        "type": "choice_multi",
+        "value": tuple(statuses),
+        "review_chain_depth": max(1, invoke_chain_max_depth()),
+    }
 
 
 def job_status_filter_values(status: str | Sequence[str] | None) -> tuple[str, ...]:
@@ -50,23 +85,7 @@ def job_page_window(*, page: int, per_page: int, offset: int, cap: int) -> tuple
     return normalized_page, normalized_per_page, (normalized_page - 1) * normalized_per_page
 
 
-class _JobDiagnosticQueries(Protocol):
-    """Sibling-mixin surface required by diagnostic report assembly."""
-
-    def list_errors(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def get_job_definition(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def list_decision_overrides(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def get_runtime_journal(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def get_causal_chain(self, *args: Any, **kwargs: Any) -> Any: ...
-
-    def get_usage_breakdown(self, *args: Any, **kwargs: Any) -> Any: ...
-
-
-class JobQueryServiceCoreMixin:
+class JobQueryServiceCoreMixin(JobQueryServiceStatusMixin):
     def __init__(
         self,
         *,
@@ -321,6 +340,119 @@ class JobQueryServiceCoreMixin:
             if isinstance(row, dict)
         ]
 
+    def _operator_list(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        *,
+        project_id: Any,
+        workflow_id: str | None,
+        task_source: str | None,
+        group_by: str,
+        filters: Any,
+    ) -> Any:
+        """The operator list of one workflow in one project (ADR 0075), checked against the scope.
+
+        Its columns and filters come from the workflow's ``settings.operator``; a
+        filter the workflow does not configure is refused, never applied as a path.
+        """
+        from core.application.projects.operator_sections import load_operator_workflow
+        from core.application.registry.workflow_operator_list import (
+            OperatorFilterError,
+            operator_filters,
+            parse_filters_param,
+        )
+
+        if not project_id or not workflow_id:
+            raise ServiceValidationError(
+                "operator_view needs project_id and workflow_id", status_code=422
+            )
+        if str(group_by or "").strip():
+            raise ServiceValidationError("operator_view cannot be grouped", status_code=422)
+        if task_source == "workflow_test_run":
+            raise ServiceValidationError(
+                "The operator list does not show Test Runs", status_code=422
+            )
+        project = bl.get_project(str(project_id)) if hasattr(bl, "get_project") else None
+        if not project:
+            raise ServiceNotFoundError(PROJECT_NOT_FOUND_MESSAGE)
+        require_project_access(resolved, dict(project))
+        require_workflow_access(resolved, workflow_id)
+        loaded = load_operator_workflow(workflow_id)
+        if loaded is None:
+            raise ServiceNotFoundError("Workflow not found")
+        if loaded.row.get("account_id") or loaded.row.get("scope_kind") != "system":
+            require_account_access(resolved, loaded.row)
+        settings, _view = loaded.runtime()
+        try:
+            value_filters = operator_filters(
+                parse_filters_param(filters), settings, loaded.contract
+            )
+        except OperatorFilterError as exc:
+            raise ServiceValidationError(
+                str(exc),
+                status_code=422,
+                payload={"error": str(exc), "code": exc.code, "filter_id": exc.filter_id},
+            ) from exc
+        return settings, value_filters
+
+    def _list_rows_with_operator_values(
+        self,
+        bl: Any,
+        resolved: ScopeContext,
+        rows: list[dict[str, Any]],
+        operator: Any,
+    ) -> list[AttentionJobView]:
+        """The page's rows; in the operator list, with its column values from one batch read."""
+        views = [
+            AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
+            for row in rows
+            if isinstance(row, dict)
+        ]
+        if operator is None:
+            return views
+        from core.application.registry.workflow_operator_list import operator_row_values
+
+        settings = operator[0]
+        columns = list(settings.list.columns) if settings is not None else []
+        job_ids = [str(row.get("id") or row.get("job_id") or "") for row in rows]
+        reader = getattr(bl, "read_job_operator_payloads", None)
+        payloads = (
+            reader(job_ids=job_ids, account_id=resolved.account_id)
+            if callable(reader) and job_ids
+            else {}
+        )
+        targets = self._review_targets(bl, resolved, rows)
+        for view, row in zip(views, rows, strict=False):
+            job_id = str(row.get("id") or row.get("job_id") or "")
+            payload = payloads.get(job_id)
+            values = operator_row_values(columns, row, payload)
+            view.operator_values = cast(dict[str, Any], redact(values))
+            view.submitted_by = (payload or {}).get("submitted_by")
+            view.review_job_id = targets.get(job_id)
+        return views
+
+    @staticmethod
+    def _review_targets(
+        bl: Any, resolved: ScopeContext, rows: list[dict[str, Any]]
+    ) -> dict[str, str]:
+        """Job id -> the job holding the approval it waits for, read for the page at once.
+
+        A target the caller may not read is left out: the row still says it
+        waits, but not where.
+        """
+        waiting = [
+            str(row.get("id") or row.get("job_id") or "")
+            for row in rows
+            if str(row.get("status") or "").strip().lower() in _REVIEW_WAIT_STATUSES
+        ]
+        found = awaiting_review_targets(bl, waiting) if waiting else {}
+        return {
+            job_id: str(target.get("review_job_id"))
+            for job_id, target in found.items()
+            if target.get("review_job_id") and job_row_in_scope(resolved, dict(target))
+        }
+
     def list_jobs(
         self,
         *,
@@ -339,13 +471,24 @@ class JobQueryServiceCoreMixin:
         hide_acknowledged: bool = False,
         from_date: str = "",
         to_date: str = "",
-    ) -> JobsListView | JobsAttentionGroupsView:
+        operator_view: bool = False,
+        filters: Any = None,
+        around: str = "",
+    ) -> JobsListView | JobsAttentionGroupsView | JobsQueuePositionView:
         """List jobs; ``status`` takes one status, several, or comma lists of them (any match).
 
         ``hide_acknowledged`` leaves out runs an operator has acknowledged.
-        ``task_source`` optionally restricts history to whole-workflow Test Runs.
+        ``task_source`` optionally restricts history to Test Runs, UI or API runs.
+        ``operator_view`` (with ``project_id`` and ``workflow_id``) lists the operator
+        list of that workflow in that project (ADR 0075): no Test Runs, each row with
+        ``operator_values`` for the configured columns; ``filters`` (a JSON object of
+        configured filter id -> value) narrows it on full input and output values.
         ``from_date`` and ``to_date`` include whole local calendar days, using
         the start time or queued time for a run that has not started.
+        ``around`` (a job id) answers, instead of a page, where that job is in
+        this same list and which jobs come before and after it (the operator
+        queue): found by its sort key, so a job that has just left the filter
+        still has the right neighbours.
         """
         resolved = self._scope(scope)
         try:
@@ -378,12 +521,12 @@ class JobQueryServiceCoreMixin:
         ):
             if exact and selected and str(selected) != str(exact):
                 raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
-        if task_source is not None and task_source != "workflow_test_run":
+        if task_source is not None and task_source not in SUPPORTED_JOB_TASK_SOURCES:
             raise ServiceValidationError(
                 "Unsupported task_source value",
                 payload={
                     "error": "Unsupported task_source value",
-                    "supported": ["workflow_test_run"],
+                    "supported": sorted(SUPPORTED_JOB_TASK_SOURCES),
                 },
             )
         bl = self._get_logger()
@@ -398,6 +541,11 @@ class JobQueryServiceCoreMixin:
         # the store pages or counts, so `stuck` also lists `orphaned` runs.
         normalized_status = job_status_filter_statuses(normalized_statuses) or None
         echoed_status = ",".join(normalized_statuses) or None
+        # "Awaiting review" (ADR 0075, the operator queue) is no stored status: with
+        # it the status filter becomes one predicate that reads the Invoke chain.
+        review_status_filter = _review_status_filter(normalized_status)
+        if review_status_filter is not None:
+            normalized_status = None
         normalized_workflow_id = str(workflow_id or "").strip() or None
         normalized_search = " ".join(str(search or "").split()) or None
         if (
@@ -406,6 +554,19 @@ class JobQueryServiceCoreMixin:
             and normalized_project_id not in resolved.allowed_project_ids
         ):
             raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
+        operator = None
+        if operator_view:
+            operator = self._operator_list(
+                bl,
+                resolved,
+                project_id=normalized_project_id,
+                workflow_id=normalized_workflow_id,
+                task_source=task_source,
+                group_by=group_by,
+                filters=filters,
+            )
+        elif filters not in (None, "", {}):
+            raise ServiceValidationError("filters need operator_view", status_code=422)
         if normalized_workflow_id:
             require_workflow_access(resolved, normalized_workflow_id)
             if resolved.workflow_id and normalized_workflow_id != resolved.workflow_id:
@@ -427,6 +588,12 @@ class JobQueryServiceCoreMixin:
                 filters["workflow_id"] = normalized_workflow_id
             if task_source is not None:
                 filters["task_source"] = task_source
+            if operator is not None:
+                filters["exclude_task_source"] = "workflow_test_run"
+                if operator[1]:
+                    filters["value_filters"] = _store_value_filters(operator[1])
+            if review_status_filter is not None:
+                filters["value_filters"] = [*filters.get("value_filters", []), review_status_filter]
             if normalized_search:
                 filters["search"] = normalized_search
             if hide_acknowledged:
@@ -436,6 +603,40 @@ class JobQueryServiceCoreMixin:
             if started_before is not None:
                 filters["started_before"] = started_before
             return filters
+
+        around_id = str(around or "").strip()
+        if around_id:
+            if normalized_group:
+                raise ServiceValidationError("around cannot be grouped", status_code=422)
+            if operator is not None:
+                # A section's queue steps only through its own jobs: a job of
+                # another project or workflow is not found, not positioned.
+                from core.application.management.query_services_approval import job_in_section
+
+                around_job = bl.get_job(around_id) if hasattr(bl, "get_job") else None
+                if not isinstance(around_job, dict) or not job_in_section(
+                    around_job,
+                    project_id=str(normalized_project_id or ""),
+                    workflow_id=str(normalized_workflow_id or ""),
+                ):
+                    raise ServiceNotFoundError("Job not found")
+            restricted = bool(resolved.allowed_project_ids and normalized_project_id is None)
+            neighbours = (
+                bl.list_job_neighbours(
+                    job_id=around_id,
+                    project_id=None if restricted else normalized_project_id,
+                    project_ids=sorted(resolved.allowed_project_ids) if restricted else None,
+                    status=normalized_status,
+                    account_id=acct,
+                    **_list_filter_kwargs(),
+                    **_workspace_filter_kwargs(),
+                )
+                if workspace_allowed and hasattr(bl, "list_job_neighbours")
+                else None
+            )
+            if not neighbours:
+                raise ServiceNotFoundError("Job not found")
+            return JobsQueuePositionView.model_validate(neighbours)
 
         if not normalized_group:
             if not workspace_allowed:
@@ -543,11 +744,7 @@ class JobQueryServiceCoreMixin:
                         else len(rows)
                     )
             return JobsListView(
-                jobs=[
-                    AttentionJobView.model_validate(self._serialize_attention_job_row(dict(row)))
-                    for row in rows
-                    if isinstance(row, dict)
-                ],
+                jobs=self._list_rows_with_operator_values(bl, resolved, rows, operator),
                 total=int(total or 0),
                 page=normalized_page,
                 per_page=normalized_per_page,
@@ -630,351 +827,6 @@ class JobQueryServiceCoreMixin:
             total_pages=max(1, -(-total // attention_per_page)),
             has_more=attention_offset + len(fetched) < total,
         )
-
-    async def get_job_status(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-        include_workflow_result: bool = False,
-    ) -> JobStatusView:
-        bl, job, resolved_scope = self._job_context(job_id, scope=scope)
-        workflow_result = None
-        if include_workflow_result:
-            workflow_id = self._job_workflow_metadata(job, {}).get("selected_workflow") or ""
-            if workflow_id:
-                require_workflow_access(resolved_scope, workflow_id)
-            try:
-                public_result = build_public_result(
-                    job, str(job.get("status") or ""), resolve_artifact=self._resolve_artifact
-                )
-            except ArtifactResolverUnavailable as exc:
-                raise ServiceUnavailableError("Public workflow result is unavailable") from exc
-            workflow_result = (
-                PublicWorkflowResultV1.model_validate(
-                    with_artifact_downloads(
-                        cast(dict[str, object], redact(public_result.model_dump(mode="json"))),
-                        job_id,
-                    )
-                )
-                if public_result is not None
-                else None
-            )
-        usage = bl.get_job_usage_summary(job_id)
-        runtime = await self._build_runtime_payload_for_api(job, bl)
-        terminal_job = str(job.get("status") or "").strip().lower() in _TERMINAL_JOB_STATUSES
-        persisted_step = str(job.get("current_step_id") or "").strip()
-        persisted_group = str(job.get("current_group_id") or "").strip()
-        if terminal_job and isinstance(runtime, dict):
-            runtime = {
-                **runtime,
-                "current_step_id": persisted_step or None,
-                "current_group_id": persisted_group or None,
-                "active_steps": [],
-                "active_agent": "",
-            }
-        # The step and its group are one scope: take both from the same source.
-        # A running job's scope is the checkpoint cursor (in a parallel group the
-        # step is empty); a finished job keeps the last persisted step.
-        if terminal_job:
-            current_step_id, current_group_id = persisted_step, persisted_group
-        else:
-            current_step_id = str((runtime or {}).get("current_step_id") or "").strip()
-            current_group_id = str((runtime or {}).get("current_group_id") or "").strip()
-        current_agent = (
-            ""
-            if terminal_job
-            else str(job.get("current_agent") or (runtime or {}).get("active_agent") or "").strip()
-        )
-        workflow_metadata = self._job_workflow_metadata(job, runtime or {})
-        selected_workflow = workflow_metadata["selected_workflow"]
-        selected_workflow_display_name = (
-            hook_run_label(job)
-            or action_run_label(job)
-            or str(job.get("selected_workflow_display_name") or "").strip()
-            or self._job_workflow_display_name(
-                bl,
-                job.get("project_id"),
-                selected_workflow,
-            )
-        )
-        meta = self._json_obj(job.get("meta"))
-        if not isinstance(meta, dict):
-            meta = {}
-        invocation = self._json_obj(meta.get("invocation"))
-        if not isinstance(invocation, dict):
-            invocation = {}
-        from core.application.workflows.workflow_start_runtime import (
-            _sanitize_invocation_value,
-        )
-
-        sanitized_invocation, _ = _sanitize_invocation_value(invocation)
-        invocation = sanitized_invocation if isinstance(sanitized_invocation, dict) else {}
-        acknowledged_at = job.get("acknowledged_at")
-        return JobStatusView(
-            id=str(job["id"]),
-            status=str(job["status"]),
-            project_id=str(job.get("project_id") or "").strip() or None,
-            thread_id=job.get("thread_id"),
-            task_summary=str(job["task_summary"]),
-            mode=str(job.get("mode") or "").strip() or None,
-            selected_workflow=selected_workflow or None,
-            selected_workflow_display_name=selected_workflow_display_name or None,
-            selected_workflow_source=workflow_metadata["selected_workflow_source"] or None,
-            workflow_selection_reason=workflow_metadata["workflow_selection_reason"] or None,
-            started_at=job["started_at"].isoformat() if job.get("started_at") else None,
-            finished_at=job["finished_at"].isoformat() if job.get("finished_at") else None,
-            duration_ms=job.get("duration_ms"),
-            acknowledged_at=(
-                acknowledged_at.isoformat()
-                if isinstance(acknowledged_at, datetime)
-                else str(acknowledged_at or "").strip() or None
-            ),
-            acknowledged_by=str(job.get("acknowledged_by") or "").strip() or None,
-            current_step_id=current_step_id or None,
-            current_group_id=current_group_id or None,
-            active_steps=[] if terminal_job else list((runtime or {}).get("active_steps") or []),
-            current_agent=current_agent or None,
-            invocation=invocation,
-            workflow_result=workflow_result,
-            trigger=job_trigger({**job, "meta": meta, "invocation": invocation}),
-            runtime=runtime or {},
-            usage=JobUsageSummaryView(
-                tokens_prompt=int((usage or {}).get("tokens_prompt") or 0),
-                tokens_completion=int((usage or {}).get("tokens_completion") or 0),
-                tokens_total=int((usage or {}).get("tokens_total") or 0),
-                llm_calls=int((usage or {}).get("llm_calls") or 0),
-            ),
-            failure_summary=build_job_failure_summary(job=job, runtime=runtime or {}),
-        )
-
-    def extension_display_names(
-        self, extension_ids: list[str], *, scope: ScopeContext | None = None
-    ) -> dict[str, str]:
-        """The names a run's extension steps are shown by; ``{}`` when they cannot be read."""
-        from core.application.extensions.display_labels import installed_extension_names
-
-        try:
-            connection = getattr(self._logger_or_raise(), "conn", None)
-            return installed_extension_names(
-                connection,
-                account_id=self._scope(scope).account_id,
-                extension_ids=extension_ids,
-            )
-        except Exception as exc:
-            # A name is a courtesy: the run page still shows the extension's id.
-            logger.debug("Extension display names unavailable: %s", exc)
-            return {}
-
-    async def get_job_detail_contract(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-        user_role: str = "operator",
-    ) -> JobDetailContractView:
-        """Build the canonical job detail contract from shared query-service methods."""
-        from core.application.reports.job_detail_contract import build_job_detail_contract
-
-        payload = await build_job_detail_contract(
-            job_id=str(job_id),
-            scope=scope,
-            job_query_service=self,
-            approval_query_service=self._approval_query_service,
-            get_thread_state_values=None,
-            user_role=str(user_role or "operator").strip() or "operator",
-            resolve_artifact=self._resolve_artifact,
-        )
-        return JobDetailContractView.model_validate(payload)
-
-    def get_job_artifact_download(
-        self,
-        job_id: str,
-        artifact_id: str,
-        *,
-        scope: ScopeContext | None = None,
-    ):
-        """Authorize one job-owned artifact without reading its body."""
-        from core.application.jobs.job_artifact_access import resolve_job_artifact_download
-
-        _, job, _ = self._job_context(job_id, scope=scope)
-        return resolve_job_artifact_download(
-            job=job,
-            artifact_id=artifact_id,
-            resolve_artifact=self._resolve_artifact,
-        )
-
-    @staticmethod
-    def _diagnostic_report_rows(
-        fetch_rows: Callable[..., Any],
-        serialize_row: Callable[[dict[str, Any]], dict[str, Any]],
-        *,
-        job_id: str,
-        page_size: int = 2000,
-        max_pages: int = 1000,
-    ) -> list[dict[str, Any]]:
-        """Read an authorized job stream forward without an unbounded query."""
-        collected: list[dict[str, Any]] = []
-        cursor = ""
-        for _ in range(max_pages):
-            rows = fetch_rows(str(job_id), since_id=cursor, limit=page_size) or []
-            normalized = [dict(row) for row in rows if isinstance(row, dict)]
-            if not normalized:
-                return collected
-            collected.extend(serialize_row(row) for row in normalized)
-            next_cursor = str(normalized[-1].get("id") or "").strip()
-            if not next_cursor or next_cursor == cursor:
-                raise ServiceUnavailableError("Diagnostic report pagination did not advance")
-            cursor = next_cursor
-            if len(normalized) < page_size:
-                return collected
-        raise ServiceUnavailableError("Diagnostic report exceeds the supported page count")
-
-    def validate_job_diagnostic_report_access(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-    ) -> None:
-        """Authorize a report download before its response headers are sent."""
-        _, job, _ = self._job_context(job_id, scope=scope)
-        resolved = self._scope(scope)
-        scoped_job = {
-            **job,
-            "selected_workflow": self._job_workflow_metadata(job, {}).get("selected_workflow")
-            or "",
-        }
-        if not job_row_in_scope(resolved, scoped_job):
-            raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
-
-    async def get_job_diagnostic_report(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-    ) -> dict[str, Any]:
-        """Build a complete redacted persisted report without artifact bodies."""
-        from core.application.reports.job_detail_contract import build_job_detail_contract
-        from core.application.reports.job_diagnostic_report import build_job_diagnostic_report
-
-        bl, job, _ = self._job_context(job_id, scope=scope)
-        detail = await build_job_detail_contract(
-            job_id=str(job_id),
-            scope=scope,
-            job_query_service=self,
-            approval_query_service=None,
-            get_thread_state_values=None,
-            user_role="operator",
-            resolve_artifact=self._resolve_artifact,
-        )
-        messages = self._diagnostic_report_rows(
-            lambda selected_job_id, **kwargs: bl.get_agent_messages(
-                selected_job_id,
-                newest=False,
-                before_id=None,
-                **kwargs,
-            ),
-            lambda row: self._serialize_agent_message_row(row),
-            job_id=str(job_id),
-        )
-        logs = self._diagnostic_report_rows(
-            lambda selected_job_id, **kwargs: bl.get_logs(
-                selected_job_id,
-                newest=False,
-                before_id=None,
-                **kwargs,
-            ),
-            lambda row: self._serialize_log_row(row, str(job_id)),
-            job_id=str(job_id),
-        )
-        events = self._diagnostic_report_rows(
-            bl.get_events,
-            lambda row: self._serialize_event_row(row),
-            job_id=str(job_id),
-        )
-
-        diagnostic_queries = cast(_JobDiagnosticQueries, self)
-        errors_view = diagnostic_queries.list_errors(str(job_id), limit=1000, scope=scope)
-        decisions_view = diagnostic_queries.list_decision_overrides(
-            str(job_id), limit=1000, scope=scope
-        )
-        journal_view = diagnostic_queries.get_runtime_journal(str(job_id), limit=500, scope=scope)
-        causal_view = diagnostic_queries.get_causal_chain(str(job_id), scope=scope)
-        usage_view = diagnostic_queries.get_usage_breakdown(str(job_id), scope=scope)
-
-        def _dump(value: Any) -> dict[str, Any]:
-            if hasattr(value, "dump"):
-                dumped = value.dump()
-                return dict(dumped) if isinstance(dumped, dict) else {}
-            if hasattr(value, "model_dump"):
-                dumped = value.model_dump(mode="json")
-                return dict(dumped) if isinstance(dumped, dict) else {}
-            return dict(value) if isinstance(value, dict) else {}
-
-        errors_payload = _dump(errors_view)
-        decisions_payload = _dump(decisions_view)
-        journal_payload = _dump(journal_view)
-        return build_job_diagnostic_report(
-            job_id=str(job_id),
-            project_id=str(job.get("project_id") or "").strip(),
-            job=self._project_job_row_payload(job),
-            detail_contract=detail,
-            messages=messages,
-            logs=logs,
-            events=events,
-            errors=errors_payload.get("errors") or [],
-            runtime_journal=journal_payload.get("runtime_journal") or [],
-            causal_chain=_dump(causal_view),
-            decisions=decisions_payload.get("overrides") or [],
-            usage_breakdown=_dump(usage_view),
-        )
-
-    def get_workflow_run(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-        approval_gate: dict[str, Any] | None = None,
-        job_errors: list[dict[str, Any]] | None = None,
-    ):
-        """Return the stable durable integration projection for one authorized job."""
-        from core.application.jobs.public_workflow_snapshot_query import (
-            PublicWorkflowSnapshotQuery,
-        )
-
-        bl, job, resolved_scope = self._job_context(job_id, scope=scope)
-        workflow_id = self._job_workflow_metadata(job, {}).get("selected_workflow") or ""
-        if workflow_id:
-            require_workflow_access(resolved_scope, workflow_id)
-        return PublicWorkflowSnapshotQuery(
-            bl,
-            get_thread_state_snapshot=self._get_thread_state_snapshot,
-            to_json_obj=self._json_obj,
-            resolve_artifact=self._resolve_artifact,
-            get_committed_checkpoint_values=self._get_committed_checkpoint_values,
-        ).get(job, approval_gate=approval_gate, job_errors=job_errors)
-
-    def get_trace(
-        self,
-        job_id: str,
-        *,
-        scope: ScopeContext | None = None,
-        limit: int = 500,
-    ) -> JobTraceView:
-        _, job, resolved_scope = self._job_context(job_id, scope=scope)
-        trace_store = self._get_trace_store() if self._get_trace_store else self._get_logger()
-        build_trace = getattr(trace_store, "build_job_trace", None)
-        if not callable(build_trace):
-            raise ServiceUnavailableError("Trace projection is not available")
-        payload = build_trace(
-            str(job_id),
-            account_id=resolved_scope.account_id,
-            limit=max(1, min(int(limit or 500), 2000)),
-            job=job,
-        )
-        if not payload:
-            raise ServiceNotFoundError("Trace not found")
-        return JobTraceView.model_validate(payload)
 
 
 __all__ = [

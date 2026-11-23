@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from core.application.notifications import sensitive_payload
 from core.application.notifications.contracts import (
     _as_dict,
     _as_str,
@@ -16,10 +17,8 @@ from core.application.notifications.contracts import (
     _trace_id_for_job,
     _uuid_text_or_none,
 )
-from core.application.notifications.delivery import (
-    _deliver_via_provider_runtime,
-    _dispatch_status_from_delivery,
-)
+from core.application.notifications.delivery import _deliver_via_provider_runtime
+from core.application.notifications.delivery_support import _dispatch_status_from_delivery
 from core.application.orchestration.models import build_event_envelope_v1
 from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 
@@ -41,6 +40,7 @@ def dispatch_project_notification_event(
     route_ids: list[str] | None = None,
     direct_routes: list[dict[str, Any]] | None = None,
     ignore_filters: bool = False,
+    payload_sensitive: bool = False,
 ) -> list[dict]:
     """
     Deliver one normalized event through DB-configured notification routes.
@@ -93,6 +93,9 @@ def dispatch_project_notification_event(
             "trace_id": _trace_id_for_job(job_id),
         },
     )
+    if payload_sensitive:
+        # The body and subject reach only the extension (sensitive_payload).
+        event[sensitive_payload.SENSITIVE_FLAG] = True
 
     test_mode_dispatch = _is_test_mode_dispatch(bl, event)
     if test_mode_dispatch:
@@ -128,17 +131,18 @@ def dispatch_project_notification_event(
     normalized_event_id = _as_str(event.get("event_id")) or None
     can_track_dispatch = bool(normalized_event_id and hasattr(bl, "record_event_dispatch"))
     if can_track_dispatch and hasattr(bl, "record_domain_event"):
+        ledger_event = sensitive_payload.redact_event(event)
         try:
             bl.record_domain_event(
                 event_id=str(normalized_event_id),
                 event_type=normalized_event_type,
                 account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
                 severity=normalized_severity,
-                summary=_as_str(event.get("summary")) or normalized_event_type,
-                payload=_as_dict(event.get("payload")),
+                summary=_as_str(ledger_event.get("summary")) or normalized_event_type,
+                payload=_as_dict(ledger_event.get("payload")),
                 actor=_as_dict(event.get("actor")),
                 urls=_as_dict(event.get("urls")),
-                envelope=event,
+                envelope=ledger_event,
                 occurred_at=_as_str(event.get("occurred_at")) or None,
                 project_id=normalized_project_id,
                 workflow_id=normalized_workflow_id,
@@ -268,6 +272,7 @@ def dispatch_project_notification_event(
         provider_message_id = ""
         response_payload: dict[str, Any] = {}
         external_effect_id: str | None = None
+        retryable = True
 
         try:
             result = _deliver_via_provider_runtime(
@@ -284,12 +289,22 @@ def dispatch_project_notification_event(
             provider_message_id = _as_str(result.get("provider_message_id"))
             response_payload = _as_dict(result.get("response"))
             external_effect_id = _as_str(result.get("external_effect_id")) or None
+            retryable = result.get("retryable") is not False
         except Exception as exc:
             status = "failed"
             error_text = str(exc)
             response_payload = {}
             external_effect_id = None
 
+        # A flagged event's text is kept only as placeholders (payload_sensitive).
+        error_text = sensitive_payload.scrub(error_text, event)
+        response_payload = sensitive_payload.scrub(response_payload, event)
+        logged_event = sensitive_payload.redact_event(event)
+        logged_route_config = _as_dict(
+            sensitive_payload.redact_route(
+                {"route_config": _as_dict(route.get("route_config"))}, event
+            ).get("route_config")
+        )
         saved = None
         persisted_route_id = _uuid_text_or_none(route.get("route_id"))
         if hasattr(bl, "log_notification_delivery"):
@@ -306,13 +321,13 @@ def dispatch_project_notification_event(
                     if status in {"pending", "delivered", "failed", "skipped"}
                     else "failed",
                     request={
-                        "event": event,
+                        "event": logged_event,
                         "route": {
                             "route_key": _as_str(route.get("route_key")),
                             "event_type": _as_str(route.get("event_type")),
                             "severity": _as_str(route.get("severity")),
                             "provider_key": provider_key,
-                            "route_config": _as_dict(route.get("route_config")),
+                            "route_config": logged_route_config,
                         },
                     },
                     response=response_payload,
@@ -341,8 +356,8 @@ def dispatch_project_notification_event(
                 "error_text": error_text or None,
                 "external_effect_id": external_effect_id,
                 "request": {
-                    "event": event,
-                    "route": _as_dict(route),
+                    "event": logged_event,
+                    "route": {**_as_dict(route), "route_config": logged_route_config},
                 },
                 "response": response_payload,
             }
@@ -351,6 +366,10 @@ def dispatch_project_notification_event(
             dispatch_id = _as_str(dispatch.get("dispatch_id")) or None
             if dispatch_id:
                 dispatch_status, reason_code = _dispatch_status_from_delivery(status, error_text)
+                if dispatch_status == "failed" and not retryable:
+                    # Core refused the route itself; a retry cannot change that.
+                    dispatch_status = "dead_lettered"
+                    reason_code = _as_str(error_text).split(":", 1)[0] or reason_code
                 if hasattr(bl, "record_event_delivery_attempt"):
                     attempt_kwargs: dict[str, Any] = {}
                     if reason_code:
@@ -360,6 +379,8 @@ def dispatch_project_notification_event(
                         attempt_status = "succeeded"
                     elif dispatch_status == "skipped":
                         attempt_status = "skipped"
+                    elif dispatch_status == "dead_lettered":
+                        attempt_status = "dead_lettered"
                     else:
                         attempt_status = "failed"
                     try:

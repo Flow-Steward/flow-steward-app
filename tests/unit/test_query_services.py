@@ -1227,6 +1227,99 @@ class TestQueryServices:
 
         assert [row.id for row in rows] == ["1"]
 
+    def test_awaiting_approvals_name_the_top_of_their_invoke_chain(self):
+        """The approval bell opens a section's job from the root of its chain (ADR 0075)."""
+        bl = MagicMock()
+        bl.get_awaiting_approval_jobs.return_value = [
+            {
+                "id": "child-1",
+                "project_id": "10",
+                "account_id": "acc_alpha",
+                "tenant_id": "00000000-0000-0000-0000-000000000001",
+                "selected_workflow": "wf.check",
+            },
+            {
+                "id": "own-1",
+                "project_id": "10",
+                "account_id": "acc_alpha",
+                "tenant_id": "00000000-0000-0000-0000-000000000001",
+                "selected_workflow": "wf.contracts",
+            },
+            {
+                "id": "elsewhere-1",
+                "project_id": "10",
+                "account_id": "acc_alpha",
+                "tenant_id": "00000000-0000-0000-0000-000000000001",
+                "selected_workflow": "wf.check",
+            },
+        ]
+        bl.read_review_roots.return_value = {
+            "child-1": {
+                "root_job_id": "root-1",
+                "root_workflow": "wf.contracts",
+                "root_project_id": "10",
+            },
+            # A root in another project is never followed.
+            "elsewhere-1": {
+                "root_job_id": "root-x",
+                "root_workflow": "wf.other",
+                "root_project_id": "99",
+            },
+        }
+        service = JobQueryService(
+            get_logger=lambda: bl,
+            serialize_attention_job_row=lambda row: row,
+            serialize_awaiting_approval_job_row=lambda row: row,
+            job_attention_group=lambda status, acknowledged_at=None: "running",
+            build_runtime_payload_for_api=AsyncMock(return_value={}),
+        )
+
+        rows = {
+            row.id: row
+            for row in service.list_awaiting_approval_jobs(
+                scope=ScopeContext(account_id="acc_alpha")
+            )
+        }
+
+        assert (rows["child-1"].root_job_id, rows["child-1"].root_workflow) == (
+            "root-1",
+            "wf.contracts",
+        )
+        assert (rows["own-1"].root_job_id, rows["own-1"].root_workflow) == ("own-1", "wf.contracts")
+        assert (rows["elsewhere-1"].root_job_id, rows["elsewhere-1"].root_workflow) == (
+            "elsewhere-1",
+            "wf.check",
+        )
+        assert bl.read_review_roots.call_args.kwargs["job_ids"] == [
+            "child-1",
+            "own-1",
+            "elsewhere-1",
+        ]
+
+    def test_awaiting_approvals_still_list_when_the_chain_cannot_be_read(self):
+        bl = MagicMock()
+        bl.get_awaiting_approval_jobs.return_value = [
+            {
+                "id": "child-1",
+                "project_id": "10",
+                "account_id": "acc_alpha",
+                "tenant_id": "00000000-0000-0000-0000-000000000001",
+                "selected_workflow": "wf.check",
+            }
+        ]
+        bl.read_review_roots.side_effect = RuntimeError("chain unavailable")
+        service = JobQueryService(
+            get_logger=lambda: bl,
+            serialize_attention_job_row=lambda row: row,
+            serialize_awaiting_approval_job_row=lambda row: row,
+            job_attention_group=lambda status, acknowledged_at=None: "running",
+            build_runtime_payload_for_api=AsyncMock(return_value={}),
+        )
+
+        [row] = service.list_awaiting_approval_jobs(scope=ScopeContext(account_id="acc_alpha"))
+
+        assert (row.root_job_id, row.root_workflow) == ("child-1", "wf.check")
+
     def test_job_query_service_list_reactions_returns_rows(self):
         job_store = MagicMock()
         event_store = MagicMock()

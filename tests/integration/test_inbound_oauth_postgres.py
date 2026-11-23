@@ -114,12 +114,10 @@ def _decide(browser, request_id: str, body: dict, *, csrf: bool = True):
 
 
 def _approve_over_http(http, who="operator", **body):
+    """Approve: "as my role" for an operator or a viewer, the operational preset for an admin."""
     browser, request_id, verifier = _browser_flow(http, who)
-    response = _decide(
-        browser,
-        request_id,
-        {"decision": "approve", "preset": "operational", "expiry_days": 30, **body},
-    )
+    advanced = {"preset": "operational", "expiry_days": 30} if who == "admin" else {}
+    response = _decide(browser, request_id, {"decision": "approve", **advanced, **body})
     assert response.status_code == 200, response.text
     return query_of(response.json()["redirect_to"])["code"], verifier
 
@@ -220,8 +218,19 @@ def test_consent_view_lists_presets_and_client(http) -> None:
     payload = view.json()
     assert payload["client"]["client_host"] == "claude.ai"
     assert payload["client"]["redirect_uri_loopback"] is True
-    assert [preset["id"] for preset in payload["presets"]] == ["operational", "full_authoring"]
-    assert payload["presets"][0]["scopes"] == [
+    # An admin keeps the presets, "as my role" first and preselected (ADR 0076 §5).
+    assert payload["advanced_options"] is True
+    assert [preset["id"] for preset in payload["presets"]] == [
+        "my_role",
+        "operational",
+        "full_authoring",
+    ]
+    assert payload["default_preset"] == "my_role"
+    assert payload["presets"][0]["scopes"] == ["admin:all"]
+    assert payload["role_access"]["role"] == "admin"
+    assert payload["role_access"]["narrower"] is False
+    assert payload["role_access"]["expiry_days"] == 90
+    assert payload["presets"][1]["scopes"] == [
         "projects.read",
         "jobs.read",
         "jobs.write",
@@ -237,7 +246,7 @@ def test_decision_requires_this_browser(http, world) -> None:
     """Z6."""
     _browser, request_id, _verifier = _browser_flow(http)
     other = http("operator")  # same user, another browser: no fs_oauth_ar cookie
-    body = {"decision": "approve", "preset": "operational", "expiry_days": 30}
+    body = {"decision": "approve"}
     assert _decide(other, request_id, body).status_code == 403
     other.cookies.set("fs_oauth_ar", "another-browser-binding")
     assert _decide(other, request_id, body).status_code == 403
@@ -249,7 +258,7 @@ def test_decision_requires_this_browser(http, world) -> None:
 def test_decision_refuses_bearers_and_missing_csrf(http, world) -> None:
     """Z7."""
     browser, request_id, _verifier = _browser_flow(http)
-    body = {"decision": "approve", "preset": "operational", "expiry_days": 30}
+    body = {"decision": "approve"}
     assert _decide(browser, request_id, body, csrf=False).status_code == 403
     pat = world.store.create_pat(
         user_id=world.users["operator"]["id"],
@@ -345,17 +354,19 @@ def test_deny_redirects_with_access_denied(http, world) -> None:
 
 
 def test_consent_never_exceeds_the_users_authority(http, world) -> None:
-    """Z12, Z13, Z15."""
+    """Z12, Z13, Z15; ADR 0076 §5: only an admin chooses a preset, an expiry or projects."""
     browser, request_id, _verifier = _browser_flow(http, "viewer")
     view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
-    operational = view["presets"][0]
-    assert operational["available"] is False
-    assert operational["reason"] == "exceeds_authority"
-    forced = _decide(
-        browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 30}
-    )
-    assert forced.status_code == 403
-    assert forced.json()["error"] == "exceeds_authority"
+    assert view["presets"] == []
+    assert view["advanced_options"] is False
+    for body in (
+        {"decision": "approve", "preset": "operational"},
+        {"decision": "approve", "expiry_days": 30},
+        {"decision": "approve", "project_ids": [world.projects[0]]},
+    ):
+        forced = _decide(browser, request_id, body)
+        assert forced.status_code == 403
+        assert forced.json()["error"] == "advanced_options_admin_only"
 
     browser, request_id, _verifier = _browser_flow(
         http, "operator", scope="admin:all projects.read"
@@ -364,8 +375,19 @@ def test_consent_never_exceeds_the_users_authority(http, world) -> None:
         browser, request_id, {"decision": "approve", "preset": "full_authoring", "expiry_days": 30}
     )
     assert authoring.status_code == 403
+    assert authoring.json()["error"] == "advanced_options_admin_only"
 
-    browser, request_id, _verifier = _browser_flow(http, "operator")
+    # Nothing the app asked for is within a viewer's role: only Deny is left.
+    browser, request_id, _verifier = _browser_flow(http, "viewer", scope="jobs.write")
+    view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
+    assert view["role_access"]["available"] is False
+    assert view["role_access"]["scopes"] == []
+    assert view["default_preset"] is None
+    nothing = _decide(browser, request_id, {"decision": "approve"})
+    assert nothing.status_code == 403
+    assert nothing.json()["error"] == "exceeds_authority"
+
+    browser, request_id, _verifier = _browser_flow(http, "admin")
     foreign = _decide(
         browser,
         request_id,
@@ -377,6 +399,7 @@ def test_consent_never_exceeds_the_users_authority(http, world) -> None:
         },
     )
     assert foreign.status_code == 403
+    assert foreign.json()["error"] == "project_not_accessible"
     assert world.grant_rows() == []
 
 
@@ -384,11 +407,10 @@ def test_a_viewer_can_grant_a_read_subset_and_revoke_it(http, world) -> None:
     """Consent and revocation are the user's own actions, not role-gated writes."""
     browser, request_id, _verifier = _browser_flow(http, "viewer", scope="jobs.read")
     view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
-    assert view["presets"][0]["available"] is True
-    assert view["presets"][0]["subset_of_preset"] is True
-    approved = _decide(
-        browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 7}
-    )
+    assert view["role_access"]["available"] is True
+    assert view["role_access"]["narrower"] is True
+    assert view["role_access"]["scopes"] == ["jobs.read"]
+    approved = _decide(browser, request_id, {"decision": "approve"})
     assert approved.status_code == 200, approved.text
     code = query_of(approved.json()["redirect_to"])["code"]
     assert code.startswith("fs_oac_")
@@ -398,23 +420,118 @@ def test_a_viewer_can_grant_a_read_subset_and_revoke_it(http, world) -> None:
     rows = world.grant_rows()
     assert rows == []
     browser, request_id, verifier = _browser_flow(http, "viewer", scope="jobs.read")
-    code = query_of(
-        _decide(
-            browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 7}
-        ).json()["redirect_to"]
-    )["code"]
+    code = query_of(_decide(browser, request_id, {"decision": "approve"}).json()["redirect_to"])[
+        "code"
+    ]
     assert exchange(service, code, verifier)["scope"] == "jobs.read"
     [grant] = browser.get("/api/auth/oauth-grants").json()["grants"]
+    assert grant["preset"] == "my_role"
     revoked = browser.post(
         f"/api/auth/oauth-grants/{grant['id']}/revoke", headers={"x-csrf-token": CSRF}
     )
     assert revoked.status_code == 200, revoked.text
 
 
+def test_a_client_that_names_no_scope_gets_the_persons_role(http, world) -> None:
+    """ADR 0076 §5: no scope means nothing in particular, so the role is the answer."""
+    for who, scope in (("operator", None), ("viewer", None), ("operator", "")):
+        browser = http(who)
+        verifier, challenge = pkce_pair()
+        response = browser.get(
+            "/oauth/authorize", params=authorize_params(challenge, scope=scope, state="st-open")
+        )
+        assert response.status_code == 302, response.text
+        request_id = query_of(response.headers["location"])["request"]
+        view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
+        access = view["role_access"]
+        assert access["available"] is True
+        # Never "the app asked for less than your role" for a client that asked nothing.
+        assert access["narrower"] is False, (who, scope)
+        decision = _decide(browser, request_id, {"decision": "approve"})
+        assert decision.status_code == 200, decision.text
+        code = query_of(decision.json()["redirect_to"])["code"]
+        token = _token(
+            http,
+            grant_type="authorization_code",
+            code=code,
+            redirect_uri=REDIRECT,
+            code_verifier=verifier,
+        )
+        assert token.status_code == 200, token.text
+        assert token.json()["scope"].split(" ") == list(access["scopes"]), (who, scope)
+
+
+def test_an_operator_allows_their_role_for_the_servers_expiry(http, world) -> None:
+    """ADR 0076 §5: who they are, what the app gets in plain words, the server's expiry."""
+    browser, request_id, _verifier = _browser_flow(http, "operator")
+    view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
+    assert view["user"]["username"] == world.users["operator"]["username"]
+    assert view["user"]["role"] == "operator"
+    access = view["role_access"]
+    assert access["preset"] == "my_role"
+    assert access["available"] is True
+    # The app asked for the operational scopes, less than an operator's role.
+    assert access["narrower"] is True
+    assert {item["key"] for item in access["permissions"]} == {
+        "jobs.read",
+        "projects.read",
+        "workflows.read",
+        "reports.read",
+        "workflows.run",
+        "approvals.decide",
+        "jobs.write",
+        "reports.write",
+    }
+    assert all(item["description"] for item in access["permissions"])
+    assert access["expiry_days"] == 90
+    ends = datetime.fromisoformat(access["expires_at"])
+    assert timedelta(days=89) < ends - datetime.now(UTC) <= timedelta(days=90)
+    assert view["expiry_days_options"] == []
+    approved = _decide(browser, request_id, {"decision": "approve"})
+    assert approved.status_code == 200, approved.text
+    [(preset, scopes, lifetime)] = world.sql(
+        "SELECT preset, scopes_jsonb, grant_expires_at - decided_at FROM oauth_authorizations "
+        "WHERE id = %s",
+        (request_id,),
+    )
+    assert preset == "my_role"
+    assert scopes == [
+        "projects.read",
+        "jobs.read",
+        "jobs.write",
+        "reports.read",
+        "reports.write",
+        "workflows.read",
+        "workflows.write",
+    ]
+    assert lifetime == timedelta(days=90)
+
+
+def test_an_app_asking_for_everything_gets_the_role_and_no_more(http, world) -> None:
+    """The role preset ∩ the request: admin:all from an operator is the operator's role."""
+    browser, request_id, verifier = _browser_flow(http, "operator", scope="admin:all")
+    view = browser.get(f"/api/oauth/authorizations/{request_id}").json()
+    assert view["role_access"]["scopes"] == ["read:*", "registry.read", "command:*"]
+    assert view["role_access"]["narrower"] is False
+    approved = _decide(browser, request_id, {"decision": "approve"})
+    assert approved.status_code == 200, approved.text
+    code = query_of(approved.json()["redirect_to"])["code"]
+    tokens = _token(
+        http,
+        grant_type="authorization_code",
+        code=code,
+        redirect_uri=REDIRECT,
+        code_verifier=verifier,
+    ).json()
+    assert tokens["scope"] == "read:* registry.read command:*"
+    assert _api(http, tokens["access_token"], "/api/projects").status_code == 200
+    assert _api(http, tokens["access_token"], "/api/auth/users").status_code == 403
+
+
 def test_grant_lifetime_is_a_choice_of_at_most_90_days(http, world) -> None:
     """Z14."""
     for expiry in (91, None):
-        browser, request_id, _verifier = _browser_flow(http)
+        browser, request_id, _verifier = _browser_flow(http, "admin")
         body = {"decision": "approve", "preset": "operational"}
         if expiry is not None:
             body["expiry_days"] = expiry
@@ -447,7 +564,8 @@ def test_grant_lifetime_is_a_choice_of_at_most_90_days(http, world) -> None:
 def test_code_exchange_happy_path_without_secrets_at_rest_or_in_logs(http, world, caplog) -> None:
     """T1, S1, S2."""
     caplog.set_level(logging.DEBUG)
-    browser, request_id, verifier = _browser_flow(http, state="secret-state-value")
+    # The operational preset's exact scopes are checked below: an admin chooses it.
+    browser, request_id, verifier = _browser_flow(http, "admin", state="secret-state-value")
     binding = browser.cookies.get("fs_oauth_ar")
     decision = _decide(
         browser, request_id, {"decision": "approve", "preset": "operational", "expiry_days": 30}
@@ -712,7 +830,7 @@ def test_refresh_never_extends_the_grant(world) -> None:
     """R6, R7."""
     start = datetime.now(UTC)
     service = world.service(clock=lambda: start)
-    first = _tokens(world, service, expiry_days=7)
+    first = _tokens(world, service, who="admin", preset="operational", expiry_days=7)
     [(_id, _revoked, _reason, grant_expires_at, _scopes)] = world.grant_rows()
     near = world.service(clock=lambda: grant_expires_at - timedelta(minutes=10))
     second = _refresh(near, first["refresh_token"])
@@ -944,7 +1062,7 @@ def test_direct_and_forwarded_api_use(http, world) -> None:
 def test_project_restricted_grant_sees_only_its_project(http, world) -> None:
     """F8."""
     allowed, hidden = world.projects
-    code, verifier = _approve_over_http(http, project_ids=[allowed])
+    code, verifier = _approve_over_http(http, "admin", project_ids=[allowed])
     access = _token(
         http,
         grant_type="authorization_code",

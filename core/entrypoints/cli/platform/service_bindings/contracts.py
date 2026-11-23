@@ -41,6 +41,7 @@ from core.application.management.query_models import (
     JobMessagesView,
     JobsAttentionGroupsView,
     JobsListView,
+    JobsQueuePositionView,
     JobStatusView,
     ProjectDetailPageView,
     ProjectNotificationDeliveriesView,
@@ -196,7 +197,7 @@ class JobQueryServiceProtocol(Protocol):
         status: str = "",
         workspace_id: str | None = None,
         scope: ScopeContext | None = None,
-    ) -> JobsListView | JobsAttentionGroupsView: ...
+    ) -> JobsListView | JobsAttentionGroupsView | JobsQueuePositionView: ...
 
     async def get_job_detail_contract(
         self,

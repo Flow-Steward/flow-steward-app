@@ -5,6 +5,7 @@ import { useQueryClient, useQuery, useQueries } from "@tanstack/react-query";
 import { useParams, useLocation, useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { useHasPermission } from "@/lib/auth/permissions";
 import { useLatestSearchParams } from "@/lib/routing/use-latest-search-params";
 import { useRef, useState, useEffect, useMemo } from "react";
 import {
@@ -126,6 +127,9 @@ export function useExtensionsHubState() {
   }, [updateSearchParams]);
   const canAdministerPlatform = useHasCapability("administer_platform");
   const canManageProject = useHasCapability("mutate_projects");
+  // ADR 0076: running a page's actions and recording an external effect's outcome
+  // are extensions.use (operators hold it), not project configuration.
+  const canUseExtensions = useHasPermission("extensions.use");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const pendingManifestActionIntentRef = useRef<PendingManifestActionIntent | null>(null);
   const [activeTab, setActiveTab] = useState<"installed" | "marketplace">(
@@ -493,7 +497,9 @@ export function useExtensionsHubState() {
     connectionsPending: projectConnectionsQuery.isPending,
     installId: extensionInstallId,
     projectId: activePageProjectId,
-    canManageProject,
+    // A page reads through a connection with its queries: extensions.use, which an
+    // operator holds (ADR 0076), not project configuration.
+    canManageProject: canUseExtensions,
     search: location.search,
     updateSearchParams,
   });
@@ -860,6 +866,7 @@ export function useExtensionsHubState() {
     externalEffectsQuery,
     selectedProjectId,
     canManageProject,
+    canUseExtensions,
     setComponentQueryRevision,
     activePageProjectId,
     detailExtension,

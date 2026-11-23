@@ -216,8 +216,10 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
     try:
         from core.application.auth.config import AUTH_SESSION_TTL_HOURS, DEFAULT_ACCOUNT_ID
         from core.application.auth.local_credentials import (
+            authenticator_policy_available,
             authenticator_storage_available,
             lock_local_user,
+            read_authenticator_policy,
         )
         from core.application.auth.mfa_service import mfa_enabled
         from core.application.auth.password import session_token_hash, verify_password
@@ -253,14 +255,17 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
         with suppress(Exception):
             session_has_account_id = bool(bl._column_exists("auth_sessions", "account_id"))
         has_authenticator_storage = authenticator_storage_available(bl)
+        has_authenticator_policy = authenticator_policy_available(bl)
         with transaction_connection(bl) as conn, conn.cursor() as cur:
-            if has_authenticator_storage and (
-                not lock_local_user(
+            if has_authenticator_storage or has_authenticator_policy:
+                if not lock_local_user(
                     cur, user_id=user_id, password_hash=password_hash, must_change_password=False
-                )
-                or mfa_enabled(cur, user_id)
-            ):
-                return ""
+                ):
+                    return ""
+                if has_authenticator_policy and read_authenticator_policy(cur, user_id).enforced:
+                    return ""
+                if has_authenticator_storage and mfa_enabled(cur, user_id):
+                    return ""
             if session_has_account_id:
                 cur.execute(
                     """

@@ -586,20 +586,22 @@ class TestServeHelpers:
                 e, context="api_runtime import for admin-only route test"
             )
 
+        from core.application.auth.route_permissions import route_admin_only
+
         # Control-plane registry routes are admin-only; provider/extension catalogs remain
         # operator-readable through the registry-read helper, with unsafe methods gated later.
-        assert api_runtime._is_admin_only_route("/api/agents") is True
-        assert api_runtime._is_admin_only_route("/api/providers") is False
-        assert api_runtime._is_admin_only_route("/api/extensions/demo/enable") is False
-        assert api_runtime._is_admin_only_route("/api/workspaces") is True
-        assert api_runtime._is_admin_only_route("/api/model-providers") is True
-        assert api_runtime._is_admin_only_route("/api/model-providers/provider-1") is True
-        assert api_runtime._is_admin_only_route("/api/processes/123/kill") is True
-        assert api_runtime._is_admin_only_route("/api/processes/proc-alpha/kill") is True
-        assert api_runtime._is_admin_only_route("/api/preview") is True
-        assert api_runtime._is_admin_only_route("/api/guardrails") is True
-        assert api_runtime._is_admin_only_route("/admin/settings") is True
-        assert api_runtime._is_admin_only_route("/api/jobs/1") is False
+        assert route_admin_only("GET", "/api/agents") is True
+        assert route_admin_only("GET", "/api/providers") is False
+        assert route_admin_only("POST", "/api/extensions/demo/enable") is False
+        assert route_admin_only("GET", "/api/workspaces") is True
+        assert route_admin_only("GET", "/api/model-providers") is True
+        assert route_admin_only("GET", "/api/model-providers/provider-1") is True
+        assert route_admin_only("POST", "/api/processes/123/kill") is True
+        assert route_admin_only("POST", "/api/processes/proc-alpha/kill") is True
+        assert route_admin_only("GET", "/api/preview") is True
+        assert route_admin_only("GET", "/api/guardrails") is True
+        assert route_admin_only("GET", "/admin/settings") is True
+        assert route_admin_only("GET", "/api/jobs/1") is False
         # Registry-read helper
         assert api_runtime._is_registry_read_route("/api/agents") is True
         assert api_runtime._is_registry_read_route("/api/providers") is True
@@ -7963,7 +7965,9 @@ class TestJobEndpoints:
             "id": 1,
             "username": "alice",
             "display_name": "Alice",
-            "roles": ["operator"],
+            # Step replay re-executes captured inputs for diagnosis: the admin's
+            # (ADR 0066 amendment).
+            "roles": ["admin"],
             "is_active": True,
         }
 

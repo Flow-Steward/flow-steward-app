@@ -39,6 +39,7 @@ from core.application.orchestration.approval_payload import (
 )
 from core.application.orchestration.step_templating import set_state_path
 from core.application.orchestration.task_envelope import TEST_RUN_SOURCES
+from core.application.workflows.approval_review import captured_review
 from core.application.workflows.workflow_step_kinds import STEP_KIND_APPROVAL
 
 if TYPE_CHECKING:
@@ -90,18 +91,49 @@ def _journal(
     )
 
 
+def _review_outputs(gate: _Gate, review_values: Any) -> dict[str, Any]:
+    """The typed outputs of an approved review: the checked values of the decision.
+
+    The server checked them against the captured review and put them in the
+    resume value, so a restarted worker resumes with the corrected values. A
+    resume without them (an approval without edits recorded by a client that
+    sends none) falls back to the values captured when the gate opened.
+    """
+    if isinstance(review_values, Mapping):
+        return {str(name): value for name, value in review_values.items()}
+    review = captured_review(gate.payload)
+    if review is None:
+        return {}
+    raw_captured = review.get("values")
+    captured = raw_captured if isinstance(raw_captured, Mapping) else {}
+    raw_invalid = review.get("invalid")
+    invalid = raw_invalid if isinstance(raw_invalid, Mapping) else {}
+    return {
+        str(field.get("name")): captured.get(str(field.get("name")))
+        for field in review.get("fields") or []
+        if isinstance(field, Mapping)
+        and str(field.get("name") or "")
+        and str(field.get("name")) not in invalid
+    }
+
+
 def _decision_message(
     state: Mapping[str, Any],
     gate: _Gate,
     *,
     approved: bool,
     feedback: str,
+    comment: str,
     state_updates: dict[str, Any],
+    review_values: Any = None,
 ) -> dict[str, Any]:
     """The authored Approval step's result: one message of this execution.
 
     The result is kept whether or not the step maps it; an authored
     ``output_mapping`` copies its outputs to state with the step output mapper.
+    Its artifacts are the step's outputs: ``decision``, ``comment`` (the
+    rejection feedback on the ``rejected`` branch) and, for an approved review,
+    one output per review field (``message.step.<step>.artifacts.<field>``).
     """
     from core.application.orchestration.agent_messages import build_agent_message
     from core.application.orchestration.agents.common import publish_agent_message
@@ -115,9 +147,13 @@ def _decision_message(
         "decision": decision,
         "approved": approved,
         "feedback": feedback,
+        "comment": comment,
         "approval_id": gate.approval_id,
         "_outcome": {"name": decision},
     }
+    if approved:
+        for name, value in _review_outputs(gate, review_values).items():
+            artifacts.setdefault(name, value)
     output_mapping = (
         _approval_config(gate.current).get("output_mapping") if gate.current is not None else None
     )
@@ -158,6 +194,7 @@ def _decide(
     route: str,
     prefer_state_notes: bool = False,
     resolution_ref: Any = None,
+    review_values: Any = None,
 ):
     from langgraph.types import Command
 
@@ -219,7 +256,9 @@ def _decide(
             gate,
             approved=approved,
             feedback=approved_feedback if approved else feedback,
+            comment=comment.strip() if approved else feedback,
             state_updates=mapped_state,
+            review_values=review_values,
         )
         update.update(mapped_state)
         update["user_approved"] = None
@@ -236,6 +275,8 @@ def _decide(
                 )
     else:
         update["user_approved"] = approved
+    # Used once, by this decision only: never left for a later gate.
+    update["approval_review_values"] = None
     return Command(update=update, goto=HUB_NODE)
 
 
@@ -270,6 +311,22 @@ def _pause_test_run(gate: _Gate):
     )
 
 
+def _state_review_values(state: Mapping[str, Any], gate: _Gate) -> dict[str, Any] | None:
+    """The checked review values a state-based resume left for exactly this gate.
+
+    The Test Run path reads the decision from state; values bound to another
+    step execution (an earlier gate) are not this decision's and are ignored.
+    """
+    raw = state.get("approval_review_values")
+    if not isinstance(raw, Mapping) or gate.current is None:
+        return None
+    bound = str(raw.get("step_execution_id") or "")
+    values = raw.get("values")
+    if not bound or bound != gate.current.step_execution_id or not isinstance(values, Mapping):
+        return None
+    return dict(values)
+
+
 def _registry_approval_gate_node(state: OrchestratorState):
     """Pause the active step execution for a human decision, then return to the hub."""
     from langgraph.types import interrupt
@@ -291,6 +348,7 @@ def _registry_approval_gate_node(state: OrchestratorState):
             route="workflow test run state",
             prefer_state_notes=True,
             resolution_ref=state.get("external_effect_resolution_ref"),
+            review_values=_state_review_values(state, gate),
         )
 
     while True:
@@ -318,6 +376,7 @@ def _registry_approval_gate_node(state: OrchestratorState):
         override_content=str(response_dict.get("override_content") or "").strip(),
         route="interrupt resume",
         resolution_ref=response_dict.get("external_effect_resolution_ref"),
+        review_values=response_dict.get("review_values"),
     )
 
 

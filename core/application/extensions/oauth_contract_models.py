@@ -54,6 +54,14 @@ class OAuthCredentialField:
     autocomplete: str
     validation: dict[str, Any]
     browser_exposable: bool = False
+    #: ``exchange`` (sent by the platform's own authorization flow as its role
+    #: requires) or ``runtime``: stored and shown, never sent to the
+    #: authorization or token endpoint, for connections that borrow it.
+    usage: str = "exchange"
+
+    @property
+    def runtime_only(self) -> bool:
+        return self.usage == "runtime"
 
     def to_dict(self) -> dict[str, Any]:
         result: dict[str, Any] = {
@@ -71,10 +79,13 @@ class OAuthCredentialField:
             result["placeholder"] = self.placeholder
         if self.autocomplete:
             result["autocomplete"] = self.autocomplete
+        if self.runtime_only:
+            # Only when set, so existing providers keep their published shape.
+            result["usage"] = self.usage
         return result
 
     def security_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "field_id": self.field_id,
             "value_type": self.value_type,
             "required": self.required,
@@ -83,6 +94,10 @@ class OAuthCredentialField:
             "change_policy": self.change_policy,
             "validation": dict(self.validation),
         }
+        if self.runtime_only:
+            # Only when set, so existing providers keep their fingerprint.
+            result["usage"] = self.usage
+        return result
 
 
 @dataclass(frozen=True)

@@ -734,7 +734,10 @@ def build_rerun_workflow_selection(
         JobReplaySnapshotError,
         _normalize_replay_snapshot,
     )
-    from core.application.workflows.workflow_start_runtime import build_invocation_snapshot
+    from core.application.workflows.workflow_start_runtime import (
+        build_filter_values,
+        build_invocation_snapshot,
+    )
 
     if replay_snapshot is None:
         raise JobReplaySnapshotError("job.replay_snapshot_absent")
@@ -811,6 +814,8 @@ def build_rerun_workflow_selection(
             else {},
         }
     )
+    # A restart filters like the run it repeats (ADR 0075).
+    rerun_meta["filter_values"] = build_filter_values(inputs)
     rerun_meta["invocation"] = build_invocation_snapshot(
         task_source="job_restart",
         entry_path="job_restart",

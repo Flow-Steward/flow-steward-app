@@ -19,6 +19,14 @@ import {
   type ProviderChannel,
 } from "@/pages/projects/notifications/api";
 import {
+  channelLookupKey,
+  defaultRouteConnectionId,
+  providerRequiresConnection,
+  resolveRouteTarget,
+  routeConnections,
+  type RouteTarget,
+} from "@/pages/projects/notifications/notification-route-target";
+import {
   fetchWorkflowReactions,
   updateWorkflowReactions,
 } from "@/pages/workflows/shared/reactions-api";
@@ -52,6 +60,7 @@ import {
   withNotificationRouteKeys,
   type AutomationRuleTemplate,
   type AutomationScopeKind,
+  type NotificationTargetKind,
   type ReactionDraftProblems,
   type WorkflowReactionDraft,
   localizedAUTOMATION_ACTION_DEFINITIONS,
@@ -74,6 +83,7 @@ function actionExtraForTarget(
   if (nextTarget === NOTIFY_TARGET_ROUTE_KEYS) {
     return withNotificationChannelSelection(draft.actionExtra, {
       providerKey: "",
+      connectionId: "",
       channelId: "",
     });
   }
@@ -82,7 +92,7 @@ function actionExtraForTarget(
   }
   return withNotificationChannelSelection(
     withNotificationRouteKeys(draft.actionExtra, ""),
-    { providerKey: "", channelId: "" },
+    { providerKey: "", connectionId: "", channelId: "" },
   );
 }
 
@@ -150,6 +160,11 @@ function ruleId(draft: WorkflowReactionDraft, index: number): string {
 
 function withEnabled(list: WorkflowReactionDraft[], reactionKey: string, enabled: boolean): WorkflowReactionDraft[] {
   return list.map((draft) => (draft.reactionKey === reactionKey ? { ...draft, enabled } : draft));
+}
+
+/** The connection a provider-change preselects: only for a provider whose notifications name one. */
+function initialConnectionId(provider: ProjectNotificationProvider | undefined): string {
+  return providerRequiresConnection(provider) ? defaultRouteConnectionId(provider) : "";
 }
 
 const FIELD_LABEL = "block text-xs fs-ink-secondary";
@@ -308,45 +323,72 @@ export function AutomationRuleEditor({
       ),
     [providerOptions],
   );
-  const providerKeysForChannels = useMemo(() => {
-    const keys = new Set<string>();
+  const providersByKey = useMemo(
+    () => new Map(providerOptions.map((provider) => [provider.provider_key, provider])),
+    [providerOptions],
+  );
+  /** What a notification addresses through the provider and connection it names. */
+  const targetFor = useCallback(
+    (providerKey: string, connectionId: string): RouteTarget =>
+      resolveRouteTarget(providersByKey.get(providerKey), connectionId),
+    [providersByKey],
+  );
+  const channelKeyFor = useCallback(
+    (providerKey: string, connectionId: string) =>
+      channelLookupKey(providersByKey.get(providerKey), providerKey, connectionId),
+    [providersByKey],
+  );
+  // Channels are listed once per app, or once per connection for an app whose
+  // notifications name their connection.
+  const channelLookups = useMemo(() => {
+    const lookups = new Map<string, { providerKey: string; connectionId: string }>();
     for (const draft of currentDrafts) {
       const providerKey =
         draft.actionTarget === NOTIFY_TARGET_EXTENSION_CHANNEL
           ? textOrEmpty(draft.actionExtra.provider_key)
           : "";
-      // An email provider addresses people; it has no channels to list.
-      if (providerKey && !recipientProviderKeys.has(providerKey)) {
-        keys.add(providerKey);
-      }
+      if (!providerKey) continue;
+      const connectionId = textOrEmpty(draft.actionExtra.connection_id);
+      const target = targetFor(providerKey, connectionId);
+      // A recipient addresses people, and a bound connection has its channel: nothing to list.
+      if (target.kind !== "channel" && target.kind !== "unknown") continue;
+      const lookup = channelKeyFor(providerKey, connectionId);
+      lookups.set(lookup.key, { providerKey, connectionId: lookup.connectionId });
     }
-    return [...keys];
-  }, [currentDrafts, recipientProviderKeys]);
+    return [...lookups.entries()].map(([key, lookup]) => ({ key, ...lookup }));
+  }, [channelKeyFor, currentDrafts, targetFor]);
   const providerChannelQueries = useQueries({
-    queries: providerKeysForChannels.map((providerKey) => ({
-      queryKey: ["projects", "workflow-notification-channels", projectId, providerKey],
-      queryFn: () => fetchProjectProviderChannels(projectId, providerKey),
+    queries: channelLookups.map(({ providerKey, connectionId }) => ({
+      queryKey: ["projects", "workflow-notification-channels", projectId, providerKey, connectionId],
+      queryFn: () => (connectionId
+        ? fetchProjectProviderChannels(projectId, providerKey, connectionId)
+        : fetchProjectProviderChannels(projectId, providerKey)),
       enabled: Boolean(projectId && providerKey),
       retry: false,
     })),
   });
   const channelsByProvider = useMemo(() => {
     const next = new Map<string, ProviderChannel[]>();
-    providerKeysForChannels.forEach((providerKey, index) => {
+    channelLookups.forEach(({ key }, index) => {
       const rows = providerChannelQueries[index]?.data;
       if (Array.isArray(rows)) {
-        next.set(providerKey, rows);
+        next.set(key, rows);
       }
     });
     return next;
-  }, [providerChannelQueries, providerKeysForChannels]);
+  }, [providerChannelQueries, channelLookups]);
+  function channelsFor(draft: WorkflowReactionDraft): ProviderChannel[] | undefined {
+    const providerKey = textOrEmpty(draft.actionExtra.provider_key);
+    return channelsByProvider.get(channelKeyFor(providerKey, textOrEmpty(draft.actionExtra.connection_id)).key);
+  }
 
   function problemsFor(draft: WorkflowReactionDraft): ReactionDraftProblems {
     return reactionDraftProblems(draft, {
       recipientProviderKeys,
       recipientFormatFor: (providerKey) => providerOptions.find((provider) => provider.provider_key === providerKey)?.notification_recipient_format || null,
-      channelIdsFor: (providerKey) => {
-        const channels = channelsByProvider.get(providerKey);
+      targetKindFor: (providerKey, connectionId): NotificationTargetKind => targetFor(providerKey, connectionId).kind,
+      channelIdsFor: () => {
+        const channels = channelsFor(draft);
         if (!channels) return null;
         const capability = notificationChannelCapabilityFromAction(draft.actionExtra);
         return channels.filter((channel) => channelSupportsCapability(channel, capability)).map((channel) => channel.channel_id);
@@ -495,16 +537,23 @@ export function AutomationRuleEditor({
       const provider = providerOptions.find((item) => item.provider_key === providerKey);
       if (!providerKey) return t("react.workflows.automation_no_app_yet", "No app yet");
       const providerName = provider?.display_name || providerKey;
-      if (recipientProviderKeys.has(providerKey)) {
+      const target = targetFor(providerKey, textOrEmpty(draft.actionExtra.connection_id));
+      if (target.kind === "connection_required") {
+        return `${providerName} · ${t("react.workflows.automation_no_connection_yet", "no connection yet")}`;
+      }
+      if (target.kind === "recipient") {
         const recipients = notificationRecipientsFromAction(draft.actionExtra);
         return `${providerName} · ${recipients.length ? recipients.join(", ") : t("react.workflows.automation_no_recipients_yet", "no recipients yet")}`;
       }
       const channelId = textOrEmpty(draft.actionExtra.channel_id);
-      const channel = (channelsByProvider.get(providerKey) || []).find((item) => item.channel_id === channelId);
+      const channel = (channelsFor(draft) || []).find((item) => item.channel_id === channelId);
       const useCase = notificationChannelCapabilityFromAction(draft.actionExtra) === NOTIFY_CHANNEL_CAPABILITY_HUMAN_DECISION
         ? t("react.workflows.human_decision", "Human decision")
         : t("registry.workflow_detail.automation.action.notify", "Notify");
-      return `${providerName} · ${channel?.display_name || channelId || t("react.workflows.automation_no_channel_yet", "no channel yet")} · ${useCase}`;
+      const channelName = target.kind === "fixed_channel"
+        ? target.label
+        : channel?.display_name || channelId || t("react.workflows.automation_no_channel_yet", "no channel yet");
+      return `${providerName} · ${channelName} · ${useCase}`;
     }
     return `${t("react.workflows.automation_matching_channels", "Matching channels")} · ${severityLabel(draft)}`;
   }
@@ -554,11 +603,18 @@ export function AutomationRuleEditor({
   function renderNotifyFields(draft: WorkflowReactionDraft, index: number, problems: ReactionDraftProblems) {
     const showError = (key: keyof ReactionDraftProblems) => (tried ? problems[key] || "" : "");
     const selectedProviderKey = textOrEmpty(draft.actionExtra.provider_key);
+    const selectedProvider = providersByKey.get(selectedProviderKey);
+    const selectedConnectionId = textOrEmpty(draft.actionExtra.connection_id);
+    const target = targetFor(selectedProviderKey, selectedConnectionId);
     const channelCapability = notificationChannelCapabilityFromAction(draft.actionExtra);
-    const providerChannels = channelsByProvider.get(selectedProviderKey) || [];
+    const providerChannels = channelsFor(draft) || [];
     const filteredChannels = providerChannels.filter((channel) => channelSupportsCapability(channel, channelCapability));
-    const recipientProvider = recipientProviderKeys.has(selectedProviderKey);
-    const emailProvider = providerOptions.find((provider) => provider.provider_key === selectedProviderKey)?.notification_recipient_format === "email";
+    const recipientProvider = target.kind === "recipient";
+    const fixedChannel = target.kind === "fixed_channel" ? target.label : "";
+    const connectionNeeded = target.kind === "connection_required";
+    const emailProvider = selectedProvider?.notification_recipient_format === "email";
+    const connectionOptions = providerRequiresConnection(selectedProvider) ? routeConnections(selectedProvider) : [];
+    const connectionError = showError("connection");
     const destinationName = `${formId}-destination-${index}`;
     const routeKeysError = showError("routeKeys");
     const providerError = showError("provider");
@@ -622,6 +678,7 @@ export function AutomationRuleEditor({
                   updateDraft(index, {
                     actionExtra: withNotificationChannelSelection(draft.actionExtra, {
                       providerKey: event.target.value,
+                      connectionId: initialConnectionId(providersByKey.get(event.target.value)),
                       channelId: "",
                     }),
                   })
@@ -637,6 +694,45 @@ export function AutomationRuleEditor({
               </select>
               {providerError ? <span className={FIELD_ERROR}>{providerError}</span> : null}
             </label>
+            {renderWhen(providerRequiresConnection(selectedProvider), (
+              <label className={FIELD_LABEL} htmlFor={indexedId(index, "rxn-notify-connection")}>
+                <span>{t("react.workflows.automation_connection", "Connection")}</span>
+                <select
+                  aria-invalid={connectionError ? true : undefined}
+                  className="fs-input mt-1 w-full"
+                  id={indexedId(index, "rxn-notify-connection")}
+                  onChange={(event) =>
+                    updateDraft(index, {
+                      actionExtra: withNotificationChannelSelection(draft.actionExtra, {
+                        connectionId: event.target.value,
+                        channelId: "",
+                        recipients: "",
+                      }),
+                    })
+                  }
+                  value={selectedConnectionId}
+                >
+                  <option value="">{t("react.workflows.automation_select_connection", "Select connection")}</option>
+                  {selectedConnectionId && !connectionOptions.some((connection) => connection.connection_id === selectedConnectionId) ? (
+                    <option value={selectedConnectionId}>
+                      {t("react.workflows.automation_connection_unavailable", "{connection} (unavailable)", { connection: selectedConnectionId })}
+                    </option>
+                  ) : null}
+                  {connectionOptions.map((connection) => (
+                    <option key={connection.connection_id} value={connection.connection_id}>
+                      {connection.target_kind === "recipient"
+                        ? t("react.workflows.automation_connection_option_recipients", "{connection} (recipients)", { connection: connection.display_name || connection.connection_id })
+                        : t("react.workflows.automation_connection_option_channel", "{connection} (channel)", { connection: connection.display_name || connection.connection_id })}
+                    </option>
+                  ))}
+                </select>
+                {connectionError ? <span className={FIELD_ERROR}>{connectionError}</span> : null}
+              </label>
+            ))}
+            {renderWhen(connectionNeeded, (
+              <p className="text-xs fs-ink-tertiary sm:col-span-2">
+                {t("react.workflows.automation_choose_connection_first", "Choose a connection first: it decides whether this notification goes to recipients or a channel.")}</p>
+            ))}
             {renderWhen(recipientProvider, (
               <label className={`${FIELD_LABEL} sm:col-span-2`} htmlFor={indexedId(index, "rxn-notify-recipients")}>
                 <span>{emailProvider ? t("react.workflows.automation_email_addresses", "Email addresses") : t("react.workflows.automation_generic_recipients", "Recipients")}</span>
@@ -657,7 +753,7 @@ export function AutomationRuleEditor({
                 {recipientsError ? <span className={FIELD_ERROR} id={indexedId(index, "rxn-notify-recipients-error")}>{recipientsError}</span> : null}
               </label>
             ))}
-            {renderWhen(!recipientProvider, (<>
+            {renderWhen(!recipientProvider && !connectionNeeded, (<>
               <label className={FIELD_LABEL} htmlFor={indexedId(index, "rxn-notify-capability")}>
                 <span>{t("react.workflows.use_case", "Use case")}</span>
                 <select
@@ -677,6 +773,18 @@ export function AutomationRuleEditor({
                   <option value={NOTIFY_CHANNEL_CAPABILITY_HUMAN_DECISION}>{t("react.workflows.human_decision", "Human decision")}</option>
                 </select>
               </label>
+              {renderWhen(Boolean(fixedChannel), (
+                <label className={`${FIELD_LABEL} sm:col-span-2`} htmlFor={indexedId(index, "rxn-notify-fixed-channel")}>
+                  <span>{t("react.workflows.automation_channel_set_by_connection", "Channel (set by the connection)")}</span>
+                  <input
+                    className="fs-input mt-1 w-full"
+                    id={indexedId(index, "rxn-notify-fixed-channel")}
+                    readOnly
+                    value={fixedChannel}
+                  />
+                </label>
+              ))}
+              {renderWhen(!fixedChannel, (
               <label className={`${FIELD_LABEL} sm:col-span-2`} htmlFor={indexedId(index, "rxn-notify-channel")}>
                 <span>{t("settings.notifications.columns.channel", "Channel")}</span>
                 <select
@@ -699,11 +807,12 @@ export function AutomationRuleEditor({
                 </select>
                 {channelError ? <span className={FIELD_ERROR}>{channelError}</span> : null}
               </label>
+              ))}
               {renderWhen(!projectId, (
                 <p className="text-xs fs-ink-attention sm:col-span-2">
                   {t("react.workflows.select_a_project_to_target_a_specific_extension_channel", "Select a project to target a specific extension channel.")}</p>
               ))}
-              {renderWhen(Boolean(selectedProviderKey && !filteredChannels.length), (
+              {renderWhen(Boolean(selectedProviderKey && !fixedChannel && !filteredChannels.length), (
                 <p className="text-xs fs-ink-attention sm:col-span-2">
                   {t("react.workflows.automation_no_compatible_channels", "No compatible channels are configured for this app and use case.")}</p>
               ))}

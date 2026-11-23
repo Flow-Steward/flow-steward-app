@@ -72,6 +72,14 @@ class AttentionJobView(ViewModel):
     heartbeat_at: datetime | None = None
     acknowledged_at: str | None = None
     acknowledged_by: str | None = None
+    #: ADR 0075: only on a workflow's operator list (``operator_view``). Column id ->
+    #: value the job stored; a value the job does not have is absent.
+    operator_values: dict[str, Any] | None = None
+    #: Who started the run, recorded from the authenticated scope at launch.
+    submitted_by: dict[str, Any] | None = None
+    #: ADR 0075, operator list: the job holding the approval this job waits for
+    #: (itself, or a child down its Invoke chain), when the caller may read it.
+    review_job_id: str | None = None
 
 
 class AwaitingApprovalJobView(ViewModel):
@@ -85,6 +93,10 @@ class AwaitingApprovalJobView(ViewModel):
     started_at: str | None = None
     thread_id: str | None = None
     status: str | None = None
+    #: The job at the top of its Invoke chain and that job's workflow: what an
+    #: operator opened in a section (ADR 0075). The job itself when it has no parent.
+    root_job_id: str | None = None
+    root_workflow: str | None = None
 
 
 class AwaitingApprovalJobsPageView(ViewModel):
@@ -99,6 +111,19 @@ class AwaitingApprovalJobsPageView(ViewModel):
         default=False,
         description="True when later pages hold more approvals than this page lists.",
     )
+
+
+class JobsQueuePositionView(ViewModel):
+    """Where one job is in a jobs list and its neighbours there (ADR 0075 queue)."""
+
+    job_id: str
+    #: False when the job has left the list's filter (for example: just decided).
+    in_list: bool = False
+    #: 1-based position, or null when the job is no longer in the list.
+    position: int | None = None
+    total: int = 0
+    previous_job_id: str | None = None
+    next_job_id: str | None = None
 
 
 class JobsListView(ViewModel):

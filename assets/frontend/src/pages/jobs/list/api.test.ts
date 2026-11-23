@@ -1,5 +1,5 @@
 import { fetchJson } from "@/lib/http/client";
-import { fetchJobsList } from "./api";
+import { fetchJobsList, fetchJobsQueuePosition } from "./api";
 
 vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn() }));
 const mockedFetchJson = vi.mocked(fetchJson);
@@ -36,4 +36,30 @@ it("sends date bounds alongside workflow and status filters", async () => {
   expect(requested.searchParams.get("to_date")).toBe("2026-03-01");
   expect(requested.searchParams.get("workflow_id")).toBe("wf");
   expect(requested.searchParams.getAll("status")).toEqual(["failed"]);
+});
+
+it("asks for a section's operator view with the configured filters as one JSON value (ADR 0075)", async () => {
+  mockedFetchJson.mockResolvedValue({ jobs: [] });
+  await fetchJobsList({ page: 1, perPage: 25, status: "", projectId: "p1", workflowId: "wf", operatorView: true, operatorFilters: { "output.total": { min: 10 } } });
+  const requested = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(requested.searchParams.get("operator_view")).toBe("1");
+  expect(requested.searchParams.get("filters")).toBe('{"output.total":{"min":10}}');
+  mockedFetchJson.mockClear();
+  await fetchJobsList({ page: 1, perPage: 25, status: "", projectId: "p1", workflowId: "wf", operatorView: true, operatorFilters: null });
+  const unfiltered = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(unfiltered.searchParams.has("filters")).toBe(false);
+});
+
+it("asks for a job's queue position with the same filters as the list, without a page", async () => {
+  mockedFetchJson.mockResolvedValue({ job_id: "j2", in_list: true, position: 3, total: 47, previous_job_id: "j1", next_job_id: "j3" });
+  const position = await fetchJobsQueuePosition({ status: "awaiting_approval", projectId: "p1", workflowId: "wf", operatorView: true, operatorFilters: { state: ["awaiting_review"] }, search: "acme" }, "j2");
+  const requested = new URL(String(mockedFetchJson.mock.calls[0][0]), "https://example.test");
+  expect(requested.pathname).toBe("/api/v2/jobs");
+  expect(requested.searchParams.get("around")).toBe("j2");
+  expect(requested.searchParams.get("operator_view")).toBe("1");
+  expect(requested.searchParams.get("filters")).toBe('{"state":["awaiting_review"]}');
+  expect(requested.searchParams.get("search")).toBe("acme");
+  expect(requested.searchParams.getAll("status")).toEqual(["awaiting_approval"]);
+  expect(requested.searchParams.has("page")).toBe(false);
+  expect(position.position).toBe(3);
 });

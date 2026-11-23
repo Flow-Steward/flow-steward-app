@@ -7,6 +7,7 @@ import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { queryKeys } from "@/lib/query/keys";
 import { formatUserDateTime, useUserTimezone } from "@/lib/time/user-timezone";
@@ -16,7 +17,7 @@ import {
   restoreProjectHistoryRevision,
 } from "@/pages/projects/history/api";
 import { DsDialog } from "@/components/shared/design-system";
-import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { firstStringFromUnknownValue, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 type Entity = Record<string, unknown>;
@@ -195,10 +196,8 @@ export function ProjectHistoryPanel({ projectId }: Readonly<{ projectId: string 
   const [restoreBusy, setRestoreBusy] = useState(false);
   const selectedRevisionId = firstStringFromUnknownValue([searchParams.get("selected_revision_id"), ""]).trim();
   const flashMessage = firstStringFromUnknownValue([searchParams.get("flash"), ""]).trim();
-  const roles = new Set((auth.session?.user?.roles || auth.session?.roles || [])
-    .map((role) => firstStringFromUnknownValue([role, ""]).trim().toLowerCase())
-    .filter(isTruthy));
-  const canRestoreRevision = roles.has("admin") || roles.has("operator");
+  // Restoring a revision is POST /api/projects/{id}/history/{revision}/restore: projects.write.
+  const canRestoreRevision = sessionPermissions(auth.session).has("projects.write");
   const historyQuery = useQuery({
     queryKey: ["projects", "history", projectId],
     queryFn: () => fetchProjectHistory(projectId),
@@ -314,7 +313,7 @@ export function ProjectHistoryPanel({ projectId }: Readonly<{ projectId: string 
               >
                 {t("react.projects.restore_this_revision", "Restore this revision")} </Button>
             ) : (
-              <span className="fs-field-helper">{t("react.projects.viewer_mode_is_read_only_on_project_history", "Viewer mode is read-only on project history.")}</span>
+              <span className="fs-field-helper">{t("react.projects.history_restore_admin_only", "Only an admin restores a revision.")}</span>
             )}
             <button className="fs-button" onClick={closeRevisionModal} type="button">{t("registry.common.close", "Close")}</button>
           </>

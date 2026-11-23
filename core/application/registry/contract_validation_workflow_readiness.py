@@ -20,7 +20,6 @@ from core.application.workflows.extension_connection_validation import (
 )
 from core.application.workflows.workflow_connection_slots import undeclared_slot_issues
 from core.application.registry.active_workflow_dependencies import workflow_registry_tool_issues
-from core.application.orchestration.state_path_guards import is_reserved_state_target
 from core.application.orchestration.workflow_state_selector_contract import (
     validate_workflow_state_selectors,
     discover_step_state_selectors,
@@ -32,9 +31,25 @@ from core.application.registry.data_connection_binding import (
 )
 
 from .contract_validation_entities import *  # noqa: F403,F401  # NOSONAR
+from .contract_validation_readiness_checks import (
+    _approval_response_mapping_issues,
+    _boundary_contract_issues,
+    _coerce_bool_flag,
+    _for_each_name_issues,
+    _output_names,
+    _unique_issues,
+    _workflow_input_rows,
+    _workflow_issue_path,
+)
 from .state_selector_shape import StateSelectorShape
 from .workflow_lookup import get_registry_artifact_row, get_workflow_row
 from core.application.workflows.workflow_step_kinds import STEP_KIND_APPROVAL, STEP_KIND_WAIT
+from core.application.workflows.approval_review import (
+    review_config,
+    review_config_issues,
+    review_source_issues,
+)
+from core.application.registry.workflow_contract import WorkflowContractField
 
 
 def _workflow_project_scopes(db, workflow_id: str) -> list[dict[str, str]]:
@@ -130,112 +145,74 @@ def _dataset_query_connection_binding_issue(db, workflow_id: str, template: dict
     )
 
 
-def _for_each_name_issues(item: dict, for_each_id: str, path: str) -> list[dict]:
-    """Item and index names must not shadow a reserved runtime state field.
+def _approval_review_issues(
+    step: dict,
+    step_path: str,
+    *,
+    workflow: dict,
+    workflow_id: str,
+    resolver,
+) -> list[dict]:
+    """Definition issues of an Approval step's typed review fields (ADR 0075).
 
-    The definition validator checks their shape; the reserved roots are a
-    runtime contract, so readiness refuses them before a run publishes into one.
+    A source is resolved the way an Invoke input mapping is; when its type is
+    not known (a free agent answer) the field stays as declared.
     """
-    issues: list[dict] = []
-    for field in ("item_name", "index_name"):
-        name = str(item.get(field) or "").strip()
-        if name and is_reserved_state_target(name):
-            issues.append(
-                _issue(
-                    code="workflow.for_each_name_reserved",
-                    message=(
-                        f"For each '{for_each_id}' {field} '{name}' is a reserved runtime "
-                        "state field and cannot hold the current item"
-                    ),
-                    path=f"{path}.{field}",
-                )
-            )
-    return issues
-
-
-def _approval_response_mapping_issues(step: dict, step_path: str) -> list[dict]:
-    """Reject approval response mappings that target host-owned runtime state."""
+    if _step_kind(step) != STEP_KIND_APPROVAL:
+        return []
     override = step.get("override")
-    config = override.get("approval") if isinstance(override, dict) else None
-    response_mapping = config.get("response_mapping") if isinstance(config, dict) else None
-    if not isinstance(response_mapping, dict):
+    config = override.get(STEP_KIND_APPROVAL) if isinstance(override, dict) else None
+    review = review_config(config)
+    if review is None:
         return []
-    raw_targets = (
-        response_mapping.get("override_content_targets")
-        or response_mapping.get("override_content")
-        or response_mapping.get("writeback")
-    )
-    if isinstance(raw_targets, str):
-        targets = [raw_targets]
-    elif isinstance(raw_targets, list):
-        targets = raw_targets
-    else:
-        return []
-    return [
-        _issue(
-            code="workflow.approval_response_target_reserved",
-            message="approval response mapping cannot write security-sensitive runtime state",
-            path=(
-                f"{step_path}.override.approval.response_mapping.override_content_targets[{index}]"
-            ),
+    review_path = f"{step_path}.override.{STEP_KIND_APPROVAL}.review"
+    issues = review_config_issues(review, path=review_path)
+    try:
+        type_map = resolver.get_available_type_map_for_step(
+            workflow_id, str(step.get("step_id") or "").strip()
         )
-        for index, target in enumerate(targets)
-        if is_reserved_state_target(target)
-    ]
-
-
-def _output_names(outputs) -> set[str]:
-    return {
-        str(item.get("name") or "").strip()
-        for item in outputs or []
-        if isinstance(item, dict) and str(item.get("name") or "").strip()
+    except Exception:
+        return issues
+    inputs = {
+        str(row.get("name") or "").strip(): row
+        for row in _workflow_input_rows(workflow)
+        if str(row.get("name") or "").strip()
     }
 
-
-def _boundary_contract_issues(
-    contract, *, owner_label: str, owner_path: str, produced: set[str]
-) -> list[dict]:
-    """Entry rows keep the expected-input format; exit keys must be produced.
-
-    This is the check a phase's expected_inputs/required_outputs used to carry,
-    now attached to the step or real group where the boundary actually is.
-    """
-    if not isinstance(contract, dict):
-        return []
-    issues: list[dict] = []
-    _, entry_issues = validate_contract_items(
-        contract.get("entry"),
-        path_prefix=f"{owner_path}.boundary_contract.entry",
-        default_required=False,
-        allow_source=True,
-    )
-    issues.extend(entry_issues)
-    exit_outputs = [
-        _normalize_name(item) for item in (contract.get("exit") or []) if _normalize_name(item)
-    ]
-    if len(exit_outputs) != len(set(exit_outputs)):
-        issues.append(
-            _issue(
-                code="workflow.boundary_exit_duplicates",
-                message=f"{owner_label} has duplicate boundary exit outputs",
-                path=f"{owner_path}.boundary_contract.exit",
-            )
+    def _source_type(selector: str, field_name: str) -> tuple[str | None, str]:
+        # As at the Invoke boundary, a bare dotted path is not a state selector.
+        if "." in selector and not selector.startswith(("state.", "message.", LITERAL_PREFIX)):
+            return None, "source_not_available"
+        found, error = _resolve_invoke_mapping_source_type(
+            source_selector=selector,
+            child_input_name=field_name,
+            available_type_map=type_map,
         )
-    for name in exit_outputs:
-        if name not in produced:
-            issues.append(
-                _issue(
-                    code="workflow.boundary_exit_not_produced",
-                    message=f"{owner_label} requires output '{name}' that no step produces",
-                    path=f"{owner_path}.boundary_contract.exit",
-                )
-            )
+        if error == "dynamic_message_selector":
+            return None, ""
+        return found, error
+
+    def _original_is_file(selector: str, found_type: str | None) -> bool:
+        name = selector.removeprefix("state.").removeprefix("inputs.")
+        row = inputs.get(name) if selector.startswith(("inputs.", "state.inputs.")) else None
+        if row is None or found_type not in {"array", "list"}:
+            return True
+        try:
+            field = WorkflowContractField.model_validate(row)
+        except Exception:
+            return True
+        return field.type == "file" or field.is_file_list
+
+    issues.extend(
+        review_source_issues(
+            review,
+            path=review_path,
+            source_type=_source_type,
+            compatible=IOResolver._check_type_compat,
+            original_is_file=_original_is_file,
+        )
+    )
     return issues
-
-
-def _workflow_issue_path(path) -> str:
-    text = str(path or "").strip()
-    return f"workflow.{text}" if text else "workflow"
 
 
 def _child_definition_loader(db):
@@ -252,15 +229,6 @@ def _child_definition_loader(db):
         )
 
     return load
-
-
-def _coerce_bool_flag(value) -> bool:
-    """Truthy coercion tolerant of JSON booleans and stringified flags from settings."""
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return bool(value)
 
 
 def validate_workflow_readiness(db, workflow_id: str) -> dict:
@@ -504,6 +472,15 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
             )
         )
         errors.extend(_approval_response_mapping_issues(step, step_path))
+        errors.extend(
+            _approval_review_issues(
+                step,
+                step_path,
+                workflow=wf,
+                workflow_id=workflow_id,
+                resolver=resolver,
+            )
+        )
         if step_kind in {"template", "transform"}:
             for reference in discover_step_state_selectors(step, step_path=step_path):
                 problem = selector_shape.problem(step_id, reference.selector)
@@ -911,28 +888,6 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
     errors = _unique_issues(errors)
     warnings = _unique_issues(warnings)
     return {"valid": not errors, "errors": errors, "warnings": warnings}
-
-
-def _unique_issues(issues: list[dict]) -> list[dict]:
-    """One issue per code, path and message.
-
-    The definition validator and the per-step config check both judge the
-    graph-owned configs (if, switch, Approval, Wait), so the same issue can
-    arrive from each; the author needs to see it once.
-    """
-    seen: set[tuple[str, str, str]] = set()
-    unique: list[dict] = []
-    for issue in issues:
-        key = (
-            str(issue.get("code") or ""),
-            str(issue.get("path") or ""),
-            str(issue.get("message") or ""),
-        )
-        if key in seen:
-            continue
-        seen.add(key)
-        unique.append(issue)
-    return unique
 
 
 def format_validation_error_detail(

@@ -6,7 +6,7 @@ import { HttpError } from "@/lib/http/errors";
 import { useAuth } from "@/lib/auth/useAuth";
 import { OAuthConsentPage } from "@/pages/oauth/consent";
 import { decideOAuthConsent, fetchOAuthConsent } from "@/pages/settings/shared/api";
-import type { OAuthConsentView } from "@/pages/settings/shared/types";
+import type { OAuthConsentRoleAccess, OAuthConsentView } from "@/pages/settings/shared/types";
 
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/pages/projects/list/api", () => ({
@@ -33,6 +33,21 @@ function authState(isAuthenticated: boolean) {
   } as unknown as ReturnType<typeof useAuth>;
 }
 
+const OPERATOR_ACCESS: OAuthConsentRoleAccess = {
+  preset: "my_role",
+  role: "operator",
+  scopes: ["read:*", "registry.read", "command:*"],
+  permissions: [
+    { key: "jobs.read", description: "Read jobs, their results, files, logs and approvals" },
+    { key: "workflows.run", description: "Start a workflow and preview which workflow a submission would start" },
+  ],
+  narrower: false,
+  available: true,
+  expiry_days: 90,
+  expires_at: "2027-01-29T12:00:00Z",
+};
+
+/** An operator's request: "as my role", nothing to choose (ADR 0076 §5). */
 function view(overrides: Partial<OAuthConsentView> = {}): OAuthConsentView {
   return {
     request_id: "req-1",
@@ -45,16 +60,33 @@ function view(overrides: Partial<OAuthConsentView> = {}): OAuthConsentView {
       redirect_uri_host: "claude.ai",
       redirect_uri_loopback: false,
     },
-    requested_scopes: ["projects.read", "jobs.read", "admin:all"],
-    presets: [
-      { id: "operational", scopes: ["projects.read", "jobs.read"], available: true, reason: "", subset_of_preset: true },
-      { id: "full_authoring", scopes: ["admin:all"], available: false, reason: "exceeds_authority", subset_of_preset: false },
-    ],
-    default_preset: "operational",
-    expiry_days_options: [7, 30, 90],
+    user: { username: "olga@example.test", display_name: "Olga", role: "operator" },
+    requested_scopes: ["admin:all"],
+    role_access: OPERATOR_ACCESS,
+    advanced_options: false,
+    presets: [],
+    default_preset: "my_role",
+    expiry_days_options: [],
     default_expiry_days: 30,
     ...overrides,
   };
+}
+
+/** An admin keeps the presets, the expiry and the projects, folded away. */
+function adminView(overrides: Partial<OAuthConsentView> = {}): OAuthConsentView {
+  return view({
+    user: { username: "ada@example.test", display_name: "Ada", role: "admin" },
+    requested_scopes: ["projects.read", "jobs.read", "admin:all"],
+    role_access: { ...OPERATOR_ACCESS, role: "admin", scopes: ["admin:all"] },
+    advanced_options: true,
+    presets: [
+      { id: "my_role", scopes: ["admin:all"], available: true, reason: "", subset_of_preset: false },
+      { id: "operational", scopes: ["projects.read", "jobs.read"], available: true, reason: "", subset_of_preset: true },
+      { id: "full_authoring", scopes: ["admin:all"], available: false, reason: "exceeds_authority", subset_of_preset: false },
+    ],
+    expiry_days_options: [7, 30, 90],
+    ...overrides,
+  });
 }
 
 function LoginProbe() {
@@ -109,17 +141,54 @@ describe("OAuthConsentPage", () => {
     expect(mockedFetchConsent).not.toHaveBeenCalled();
   });
 
-  it("offers the requested subset and disables a preset above the user's authority", async () => {
+  it("tells an operator who they are, what the app can do and for how long, with Allow and Deny only", async () => {
     mockedFetchConsent.mockResolvedValue(view());
-    mountConsent("/oauth/consent?request=req-1");
+    mockedDecide.mockResolvedValue({ redirect_to: "https://claude.ai/api/mcp/auth_callback?code=x" });
+    const onRedirect = mountConsent("/oauth/consent?request=req-1");
     await waitFor(() => expect(screen.getByText("Allow Claude to access Flow Steward?")).toBeInTheDocument());
-    expect(screen.getByRole("radio", { name: "Monitor and run workflows" })).toBeChecked();
+    expect(screen.getByText("Signed in as Olga · Operator")).toBeInTheDocument();
+    expect(screen.getByText(/Claude will be able to see what you see and do the work you do/)).toBeInTheDocument();
+    expect(screen.getByText("Start a workflow and preview which workflow a submission would start")).toBeInTheDocument();
+    expect(screen.getByText(/^Works for 90 days, until /)).toHaveTextContent(/2027/);
+    // No preset, scope, project or expiry choice.
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Advanced options" })).not.toBeInTheDocument();
+    expect(screen.queryByText("read:*")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Hide advanced options" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    await waitFor(() => expect(onRedirect).toHaveBeenCalledWith("https://claude.ai/api/mcp/auth_callback?code=x"));
+    expect(mockedDecide).toHaveBeenCalledWith("req-1", { decision: "approve" });
+  });
+
+  it("says in plain words when the app gets less than the person's role", async () => {
+    mockedFetchConsent.mockResolvedValue(view({
+      user: { username: "vik@example.test", display_name: "", role: "viewer" },
+      role_access: { ...OPERATOR_ACCESS, role: "viewer", narrower: true, scopes: ["jobs.read"], permissions: [{ key: "jobs.read", description: "Read jobs, their results, files, logs and approvals" }] },
+    }));
+    mountConsent("/oauth/consent?request=req-1");
+    await waitFor(() => expect(screen.getByText("Claude asked for less than your role allows, so it gets only this part of your access.")).toBeInTheDocument());
+    expect(screen.getByText("Signed in as vik@example.test · Viewer")).toBeInTheDocument();
+    expect(screen.getByText("Read jobs, their results, files, logs and approvals")).toBeVisible();
+  });
+
+  it("gives an admin their role preselected and the presets under Advanced options", async () => {
+    mockedFetchConsent.mockResolvedValue(adminView());
+    mockedDecide.mockResolvedValue({ redirect_to: "https://claude.ai/cb?code=x" });
+    const onRedirect = mountConsent("/oauth/consent?request=req-1");
+    await waitFor(() => expect(screen.getByText("Claude will be able to do what you can do in Flow Steward.")).toBeInTheDocument());
+    expect(screen.getByText("Same access as you · 90 days · All projects")).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Advanced options" }));
+    expect(screen.getByRole("radio", { name: "Same access as you" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Full authoring" })).toBeDisabled();
-    expect(screen.getByText("Only the access this app requested:")).toBeInTheDocument();
     expect(screen.getByText("Not available: this access is more than your own role allows.")).toBeInTheDocument();
-    expect(screen.getByText(/It is not a narrow permission/)).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "30 days" })).toBeChecked();
-    expect(screen.queryByText("The app returns to this computer")).not.toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "90 days" })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: "Monitor and run workflows" }));
+    fireEvent.click(screen.getByRole("radio", { name: "30 days" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    await waitFor(() => expect(onRedirect).toHaveBeenCalledWith("https://claude.ai/cb?code=x"));
+    expect(mockedDecide).toHaveBeenCalledWith("req-1", { decision: "approve", preset: "operational", expiry_days: 30, project_ids: [] });
   });
 
   it("names an administrator, not a published identity, for a platform client", async () => {
@@ -152,24 +221,13 @@ describe("OAuthConsentPage", () => {
 
   it("offers only Deny when nothing can be granted", async () => {
     mockedFetchConsent.mockResolvedValue(view({
-      presets: [{ id: "full_authoring", scopes: ["admin:all"], available: false, reason: "exceeds_authority", subset_of_preset: false }],
+      role_access: { ...OPERATOR_ACCESS, scopes: [], permissions: [], available: false },
       default_preset: null,
     }));
     mountConsent("/oauth/consent?request=req-1");
     await waitFor(() => expect(screen.getByText("Nothing can be granted")).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: "Allow access" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deny" })).toBeEnabled();
-  });
-
-  it("approves with the chosen preset, duration and no project limit, then redirects", async () => {
-    mockedFetchConsent.mockResolvedValue(view());
-    mockedDecide.mockResolvedValue({ redirect_to: "https://claude.ai/api/mcp/auth_callback?code=x&state=s&iss=https%3A%2F%2Ffs.example" });
-    const onRedirect = mountConsent("/oauth/consent?request=req-1");
-    fireEvent.click(await screen.findByRole("radio", { name: "90 days" }));
-    fireEvent.click(screen.getByRole("button", { name: "Allow access" }));
-    await waitFor(() => expect(onRedirect).toHaveBeenCalledWith("https://claude.ai/api/mcp/auth_callback?code=x&state=s&iss=https%3A%2F%2Ffs.example"));
-    expect(mockedDecide).toHaveBeenCalledTimes(1);
-    expect(mockedDecide).toHaveBeenCalledWith("req-1", { decision: "approve", preset: "operational", expiry_days: 90, project_ids: [] });
   });
 
   it("denies and redirects", async () => {
@@ -185,7 +243,7 @@ describe("OAuthConsentPage", () => {
     mockedFetchConsent.mockResolvedValue(view());
     mockedDecide.mockReturnValue(new Promise(() => undefined));
     mountConsent("/oauth/consent?request=req-1");
-    const allow = await screen.findByRole("button", { name: "Allow access" });
+    const allow = await screen.findByRole("button", { name: "Allow" });
     fireEvent.click(allow);
     fireEvent.click(allow);
     fireEvent.click(screen.getByRole("button", { name: "Deny" }));
@@ -198,12 +256,12 @@ describe("OAuthConsentPage", () => {
 
   it("shows the server's refusal of a decision", async () => {
     mockedFetchConsent.mockResolvedValue(view());
-    mockedDecide.mockRejectedValue(new HttpError({ status: 403, url: "/x", payload: { error: "Requested scopes exceed the caller's role authority" } }));
+    mockedDecide.mockRejectedValue(new HttpError({ status: 403, url: "/x", payload: { error: "advanced_options_admin_only" } }));
     const onRedirect = mountConsent("/oauth/consent?request=req-1");
-    fireEvent.click(await screen.findByRole("button", { name: "Allow access" }));
-    await waitFor(() => expect(screen.getByText("Requested scopes exceed the caller's role authority")).toBeInTheDocument());
+    fireEvent.click(await screen.findByRole("button", { name: "Allow" }));
+    await waitFor(() => expect(screen.getByText("Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects.")).toBeInTheDocument());
     expect(onRedirect).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Allow access" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Allow" })).toBeEnabled();
   });
 
   it.each([

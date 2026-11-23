@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { useI18n } from "@/lib/i18n/useI18n";
 import { DsDialog } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ export function ConfirmActionDialog({
   confirmTone = "danger",
   onCancel,
   onConfirm,
+  children,
 }: Readonly<{
   open: boolean;
   eyebrow: string;
@@ -57,6 +60,8 @@ export function ConfirmActionDialog({
   confirmTone?: "danger" | "primary";
   onCancel: () => void;
   onConfirm: () => void;
+  /** Further detail below the affected objects, such as what the action keeps. */
+  children?: ReactNode;
 }>) {
   const { t } = useI18n();
   const listed = objects.length > 1 ? objects.slice(0, LISTED_OBJECTS) : [];
@@ -89,6 +94,7 @@ export function ConfirmActionDialog({
           {more ? <li className="fs-confirm-objects-more">{t("react.shared.additional_objects_count", "and {count} more", { count: more })}</li> : null}
         </ul>
       ) : null}
+      {children}
       {irreversible ? <p className="fs-confirm-irreversible">{t("react.shared.this_cannot_be_undone", "This cannot be undone.")}</p> : null}
       {error ? (
         <p className="fs-confirm-error" role="alert">

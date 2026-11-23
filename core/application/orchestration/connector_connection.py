@@ -203,13 +203,10 @@ def _build_runtime_connection_target(
                 and str(connection.get("oauth_provider_id") or "").strip()
             ):
                 from core.application.extensions.operation_targets import (
-                    _resolve_extension_owned_oauth_runtime,
+                    resolve_connection_oauth_secrets,
                 )
 
-                oauth_secrets = _resolve_extension_owned_oauth_runtime(
-                    bl,
-                    connection=connection,
-                )
+                oauth_secrets = resolve_connection_oauth_secrets(bl, connection=connection)
             else:
                 from core.application.auth.oauth_client import (
                     resolve_oauth_secrets_for_runtime,
@@ -249,10 +246,20 @@ def _build_runtime_connection_target(
         "secrets": secrets,
         "session": session or {},
     }
+    if hasattr(bl, "cursor"):
+        from core.application.extensions.connection_credentials import (
+            CredentialsUnavailable,
+            apply_borrowed_credentials,
+        )
+
+        try:
+            runtime_payload = apply_borrowed_credentials(bl, connection, runtime_payload)
+        except CredentialsUnavailable:
+            raise ConnectionResolutionError(f"credentials_unavailable:{connection_id}") from None
     logged_payload = {
         key: value for key, value in runtime_payload.items() if key not in {"secrets", "session"}
     }
-    logged_payload["secrets"] = dict.fromkeys(secrets, "<redacted>")
+    logged_payload["secrets"] = dict.fromkeys(runtime_payload.get("secrets") or {}, "<redacted>")
     logged_payload["session"] = {
         "present": bool(session and session.get("payload")),
         "expires_at": (session or {}).get("expires_at"),

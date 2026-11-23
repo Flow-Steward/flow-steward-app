@@ -7,6 +7,7 @@ import type { AuthSession } from "@/lib/auth/AuthProvider";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AppRouter, HomeGate } from "@/app/router";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
+import { sessionUser, type SystemRole } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -44,6 +45,10 @@ vi.mock("@/app/extensions", async () => {
 
 vi.mock("@/pages/projects/detail", () => ({
   ProjectsDetailPage: () => <div>Project detail rendered</div>,
+}));
+
+vi.mock("@/pages/operator/section-page", () => ({
+  OperatorSectionPage: () => <div>Operator section rendered</div>,
 }));
 
 vi.mock("@/pages/settings/hub", () => ({
@@ -121,14 +126,19 @@ describe("HomeGate", () => {
     }
   });
 
-  it("lands a signed-in user on the Dashboard", () => {
+  it.each([
+    ["admin", "Dashboard rendered"],
+    // ADR 0075: operators and viewers land on their sections.
+    ["operator", "Sections rendered"],
+    ["viewer", "Sections rendered"],
+  ])("lands a signed-in %s on the right page", (role, expected) => {
     mockedUseAuth.mockReturnValue({
       error: null,
       isAuthenticated: true,
       logout: vi.fn(async () => undefined),
       refresh: vi.fn(async () => undefined),
       switchAccount: vi.fn(async () => undefined),
-      session: createSession({ authenticated: true }),
+      session: createSession({ authenticated: true, roles: [role], user: sessionUser(role as SystemRole) }),
       status: "authenticated",
     });
 
@@ -137,11 +147,12 @@ describe("HomeGate", () => {
         <Routes>
           <Route element={<HomeGate />} index />
           <Route element={<div>Dashboard rendered</div>} path="/dashboard" />
+          <Route element={<div>Sections rendered</div>} path="/sections" />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Dashboard rendered")).toBeInTheDocument();
+    expect(screen.getByText(expected)).toBeInTheDocument();
   });
 });
 
@@ -257,6 +268,24 @@ describe("AppRouter", () => {
       expect(screen.queryByText("Project detail rendered")).not.toBeInTheDocument();
     },
   );
+
+  it("opens a published workflow's section at /projects/:id/workflows/:id/work (ADR 0075)", async () => {
+    globalThis.history.pushState({}, "", "/projects/project-123/workflows/wf.receipts/work");
+    mockedUseAuth.mockReturnValue({
+      error: null,
+      isAuthenticated: true,
+      logout: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined),
+      switchAccount: vi.fn(async () => undefined),
+      session: createSession({ authenticated: true, roles: ["viewer"] }),
+      status: "authenticated",
+    });
+
+    render(createElement(AppRouter));
+
+    await waitFor(() => expect(screen.getByText("Operator section rendered")).toBeInTheDocument());
+    expect(screen.queryByText("Project detail rendered")).not.toBeInTheDocument();
+  });
 
   it("opens the project page for a role that cannot change projects", async () => {
     globalThis.history.pushState({}, "", "/projects/project-123?tab=policy");

@@ -16,6 +16,7 @@ import {
   fetchJobApprovalHistory,
   fetchJobIncident,
 } from "@/pages/jobs/detail/api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -196,7 +197,7 @@ beforeEach(() => {
       authenticated: true,
       roles: ["admin"],
       timezone: "Europe/Vilnius",
-      user: { roles: ["admin"], timezone: "Europe/Vilnius" },
+      user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]), timezone: "Europe/Vilnius" },
     },
   } as never);
 });

@@ -27,7 +27,9 @@ _NO_STORE = {"Cache-Control": "no-store"}
 
 
 class OAuthConsentDecisionRequest(BaseModel):
-    """Approve with the chosen access, or deny."""
+    """Approve or deny. An operator or a viewer sends the decision only: their role's
+    access for the server's expiry (ADR 0076 §5); an admin may name a preset, an expiry
+    and projects."""
 
     model_config = ConfigDict(extra="forbid")
 

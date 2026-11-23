@@ -224,17 +224,23 @@ def query_of(location: str) -> dict[str, str]:
 
 
 def code_from(world: OAuthWorld, service: InboundOAuthService, who: str = "operator", **decision):
-    """authorize -> approve through the service; returns (code, verifier, request_id)."""
+    """authorize -> approve through the service; returns (code, verifier, request_id).
+
+    Without a preset the decision is "as my role" with the server's expiry, the only
+    one an operator or a viewer may make (ADR 0076 §5); an admin may name a preset,
+    which then defaults to 30 days.
+    """
     verifier, challenge = pkce_pair()
     outcome = service.start_authorization(authorize_params(challenge, **decision.pop("params", {})))
     request_id = query_of(outcome.location)["request"]
+    preset = decision.pop("preset", None)
     redirect = service.decide(
         request_id,
         user=world.principal(who),
         browser_binding=outcome.browser_binding,
         decision="approve",
-        preset_id=decision.pop("preset", "operational"),
-        expiry_days=decision.pop("expiry_days", 30),
+        preset_id=preset,
+        expiry_days=decision.pop("expiry_days", 30 if preset not in (None, "my_role") else None),
         project_ids=decision.pop("project_ids", []),
     )
     return query_of(redirect)["code"], verifier, request_id

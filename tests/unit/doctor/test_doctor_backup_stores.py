@@ -56,7 +56,7 @@ def _probe(root: Path, *, rows=(), stopped: bool = False, error: bool = False):
         root=root,
         gateway=Runtime(),
         state=InstallerStateStore(root / ".flow-steward"),
-        config=SimpleNamespace(deployment_profile="compact"),
+        config=SimpleNamespace(deployment_profile="compact", environment="production"),
         log=SimpleNamespace(write=lambda _message: None),
     )
 

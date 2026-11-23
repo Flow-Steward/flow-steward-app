@@ -6,6 +6,8 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from core.application.jobs import queue_delivery_queries as queue_delivery_runtime_queries
 from core.infrastructure.runtime import readiness_runtime
 
@@ -641,9 +643,42 @@ def test_compute_readiness_fails_closed_on_stale_lifecycle_recovery() -> None:
         "ok": False,
         "unfinished_count": 1,
         "recovery_required_count": 1,
+        "recovery_required_scope": "other",
         "state": "recovery_required",
         "error": "",
     }
+
+
+@pytest.mark.parametrize(
+    ("journals", "scope"),
+    [
+        ((), "none"),
+        ((SimpleNamespace(kind="stack_rebuild", status="running"),), "none"),
+        ((SimpleNamespace(kind="release_upgrade", status="recovery_required"),), "release_upgrade"),
+        (
+            (
+                SimpleNamespace(kind="release_upgrade", status="recovery_required"),
+                SimpleNamespace(kind="config_apply", status="running"),
+            ),
+            "release_upgrade",
+        ),
+        (
+            (
+                SimpleNamespace(kind="release_upgrade", status="recovery_required"),
+                SimpleNamespace(kind="stack_rebuild", status="recovery_required"),
+            ),
+            "other",
+        ),
+    ],
+)
+def test_lifecycle_recovery_names_a_release_upgrade_awaiting_its_own_resume(
+    journals: tuple[object, ...], scope: str
+) -> None:
+    """0.9.23 dev E2E: the upgrade's own projection must be told apart from others."""
+    check = readiness_runtime._lifecycle_recovery_check(lambda: journals)
+
+    assert check["recovery_required_scope"] == scope
+    assert check["ok"] is (not journals)
 
 
 def test_a_dead_security_capability_makes_the_platform_not_ready() -> None:

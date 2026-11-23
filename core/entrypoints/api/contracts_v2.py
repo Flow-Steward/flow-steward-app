@@ -18,11 +18,13 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from core.application.management import ServiceError
+from core.application.management import ServiceError, ServiceUnavailableError
 from core.application.management.command_models import (
     ApiV2DashboardSummaryEnvelopeView,
     ApiV2JobDetailEnvelopeView,
     ApiV2JobsEnvelopeView,
+    ApiV2OperatorSectionEnvelopeView,
+    ApiV2OperatorSectionsEnvelopeView,
     ApiV2ProjectJobsBulkDeleteEnvelopeView,
     ApiV2ProjectJobsEnvelopeView,
     ApiV2ProjectsEnvelopeView,
@@ -207,7 +209,12 @@ def create_api_contracts_v2_router(
         per_page: Annotated[int, Query()] = 0,
         status: Annotated[list[str] | None, Query()] = None,
         workflow_id: Annotated[str, Query()] = "",
-        task_source: Annotated[Literal["workflow_test_run"] | None, Query()] = None,
+        task_source: Annotated[
+            Literal["workflow_test_run", "manual_ui", "mcp_workflow"] | None, Query()
+        ] = None,
+        operator_view: Annotated[bool, Query()] = False,
+        filters: Annotated[str, Query(max_length=8192)] = "",
+        around: Annotated[str, Query(max_length=64)] = "",
         search: Annotated[str, Query()] = "",
         hide_acknowledged: Annotated[bool, Query()] = False,
         from_date: Annotated[str, Query()] = "",
@@ -228,6 +235,9 @@ def create_api_contracts_v2_router(
                 hide_acknowledged=hide_acknowledged,
                 from_date=from_date,
                 to_date=to_date,
+                operator_view=operator_view,
+                filters=filters,
+                around=around,
                 scope=request_scope(
                     request,
                     project_id=project_id or None,
@@ -264,6 +274,43 @@ def create_api_contracts_v2_router(
                 resolve_artifact=api_dependencies.get_artifact_resolver(),
                 execution_step_limit=step_limit if compact else None,
                 include_workflow_run=not compact,
+            )
+            data = _payload_or_dump(payload)
+        except ServiceError as exc:
+            return _service_error(exc, kind="detail", resource="jobs")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="detail", resource="jobs")
+        return JSONResponse(_success_envelope(kind="detail", resource="jobs", data=data))
+
+    @router.get(
+        "/api/v2/jobs/{job_id}/review",
+        response_description="The review this job waits for, with the caller's access to it.",
+    )
+    def api_v2_job_review(
+        request: Request,
+        job_id: str,
+        project_id: Annotated[str, Query(max_length=128)] = "",
+        workflow_id: Annotated[str, Query(max_length=255)] = "",
+    ):
+        """ADR 0075: the approval a job waits for, here or down its Invoke chain.
+
+        The fields, values and original come only with ``decide`` or ``read``
+        access to the job that holds the approval, checked on that job. A
+        section page names its project and workflow: a job outside them is 404.
+        """
+        if approval_query_service is None:
+            return _service_error(
+                ServiceUnavailableError("Approvals are not available"),
+                kind="detail",
+                resource="jobs",
+            )
+        try:
+            payload = approval_query_service().get_review(
+                job_id,
+                scope=request_scope(request),
+                can_decide=resolve_user_role(request) in {"admin", "operator"},
+                project_id=project_id.strip() or None,
+                workflow_id=workflow_id.strip() or None,
             )
             data = _payload_or_dump(payload)
         except ServiceError as exc:
@@ -330,6 +377,46 @@ def create_api_contracts_v2_router(
         except Exception as exc:
             return _unexpected_error(exc, kind="list", resource="projects")
         return JSONResponse(_success_envelope(kind="list", resource="projects", data=data))
+
+    @router.get(
+        "/api/v2/projects/sections",
+        response_model=ApiV2OperatorSectionsEnvelopeView,
+        response_description="The operator and viewer menu of (project, workflow) sections.",
+    )
+    def api_v2_operator_sections(request: Request):
+        """ADR 0075: published workflows in each project the caller can see."""
+        try:
+            sections = project_query_service().list_operator_sections(scope=request_scope(request))
+        except ServiceError as exc:
+            return _service_error(exc, kind="list", resource="operator-sections")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="list", resource="operator-sections")
+        return JSONResponse(
+            _success_envelope(
+                kind="list", resource="operator-sections", data={"sections": sections}
+            )
+        )
+
+    @router.get(
+        "/api/v2/projects/{project_id}/workflows/{workflow_id}/section",
+        response_model=ApiV2OperatorSectionEnvelopeView,
+        response_description="One operator section with its resolved operator settings.",
+    )
+    def api_v2_operator_section(request: Request, project_id: str, workflow_id: str):
+        """ADR 0075: the form, list and result settings of one section, with issues."""
+        try:
+            data = project_query_service().get_operator_section(
+                project_id,
+                workflow_id,
+                scope=request_scope(request, project_id=project_id),
+            )
+        except ServiceError as exc:
+            return _service_error(exc, kind="detail", resource="operator-sections")
+        except Exception as exc:
+            return _unexpected_error(exc, kind="detail", resource="operator-sections")
+        return JSONResponse(
+            _success_envelope(kind="detail", resource="operator-sections", data=data)
+        )
 
     @router.get(
         "/api/v2/projects/{project_id}/jobs",

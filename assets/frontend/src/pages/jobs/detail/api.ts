@@ -265,6 +265,8 @@ export type ApprovalDecisionPayload = {
   comment?: string;
   action?: string;
   override_content?: string;
+  /** Edits of a typed review's editable fields, as JSON values (ADR 0075). */
+  values?: Record<string, unknown>;
 };
 
 export async function fetchJobDetail(jobId: string) {

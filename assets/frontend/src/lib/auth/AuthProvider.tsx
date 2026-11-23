@@ -23,6 +23,11 @@ export type AuthUser = {
   username: string;
   display_name: string;
   roles: string[];
+  /**
+   * ADR 0076: the permission keys the server computed for this person; the interface
+   * shows menus and buttons from these. `null` for a principal that is not role-based.
+   */
+  permissions?: string[] | null;
   account_id: string;
   account_ids: string[];
   account_memberships: Array<Record<string, unknown>>;
@@ -49,6 +54,13 @@ export type I18nBootstrap = {
 export type AppEnvironmentBootstrap = {
   edition: string;
   mode?: "development" | "production";
+};
+
+/** Files of a real browser run, under the deployment's attachment policy. 0 = no limit. */
+export type RunUploadLimits = {
+  max_file_bytes: number;
+  max_total_bytes: number;
+  max_files: number;
 };
 
 export type SettingsPageRecord = {
@@ -114,6 +126,9 @@ export type AuthSession = {
   settings_pages: SettingsPageRecord[];
   registered_pages: RegisteredPageRecord[];
   shell_navigation: Record<string, ShellNavigationItem[]>;
+  run_upload_limits?: RunUploadLimits;
+  /** Largest file the browser previews (FS_FILE_PREVIEW_MAX_BYTES); larger ones are download-only. */
+  file_preview_max_bytes?: number;
 };
 
 type AppBootstrapResponse = {
@@ -133,10 +148,29 @@ type AppBootstrapResponse = {
   i18n?: I18nBootstrap;
   feature_flags?: Record<string, boolean>;
   environment?: AppEnvironmentBootstrap;
+  limits?: { run_upload?: unknown; file_preview?: unknown };
   settings_pages?: unknown;
   registered_pages?: unknown;
   shell_navigation?: unknown;
 };
+
+function normalizeRunUploadLimits(payload: unknown): RunUploadLimits | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const record = payload as Record<string, unknown>;
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
+  return {
+    max_file_bytes: count(record.max_file_bytes),
+    max_total_bytes: count(record.max_total_bytes),
+    max_files: count(record.max_files),
+  };
+}
+
+function normalizeFilePreviewMaxBytes(payload: unknown): number | undefined {
+  if (!payload || typeof payload !== "object") return undefined;
+  const value = (payload as Record<string, unknown>).max_bytes;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+}
 
 const fallbackI18n: I18nBootstrap = {
   locale: "en",
@@ -361,6 +395,8 @@ function toAuthSession(payload: AppBootstrapResponse): AuthSession {
     settings_pages: normalizeSettingsPages(payload.settings_pages),
     registered_pages: normalizeRegisteredPages(payload.registered_pages),
     shell_navigation: normalizeShellNavigation(payload.shell_navigation),
+    run_upload_limits: normalizeRunUploadLimits(payload.limits?.run_upload),
+    file_preview_max_bytes: normalizeFilePreviewMaxBytes(payload.limits?.file_preview),
   };
 }
 

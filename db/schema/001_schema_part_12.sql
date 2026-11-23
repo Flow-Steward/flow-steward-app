@@ -404,3 +404,233 @@ CREATE TRIGGER trg_users_archive_previous_password
     FOR EACH ROW
     WHEN (old.password_hash IS DISTINCT FROM new.password_hash)
     EXECUTE FUNCTION public.archive_previous_password_hash();
+
+-- A connection_poll result is judged against its connection as it is now. The
+-- poll transaction locks the connection row, compares the state_version and
+-- config_generation the poll started from, and writes the events, their
+-- dispatch records and the cursor together. config_generation moves whenever
+-- the polled configuration changes: the connection is enabled or disabled,
+-- changes type, gets other settings (the oauth lifecycle block excluded, which
+-- every token refresh rewrites) or is reauthorized. Every such UPDATE holds the
+-- same row lock as the poll transaction.
+CREATE FUNCTION public.project_connection_bump_config_generation() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+    AS $$
+BEGIN
+    IF NEW.config_generation = OLD.config_generation AND (
+        NEW.enabled IS DISTINCT FROM OLD.enabled
+        OR NEW.connection_type IS DISTINCT FROM OLD.connection_type
+        OR (NEW.connection_config - 'oauth') IS DISTINCT FROM (OLD.connection_config - 'oauth')
+        OR NEW.oauth_authorization_revision IS DISTINCT FROM OLD.oauth_authorization_revision
+    ) THEN
+        NEW.config_generation := OLD.config_generation + 1;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_project_connections_config_generation
+    BEFORE UPDATE ON public.project_connections
+    FOR EACH ROW
+    EXECUTE FUNCTION public.project_connection_bump_config_generation();
+
+-- One row per provider event, unique on its provider-given source_id. A replayed
+-- poll page writes no second row and no new dispatch records.
+CREATE TABLE public.provider_event_inbox (
+    event_row_id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    provider_key text NOT NULL CHECK (btrim(provider_key) <> ''::text),
+    source_id text NOT NULL CHECK (char_length(source_id) BETWEEN 1 AND 512),
+    event_type text NOT NULL CHECK (btrim(event_type) <> ''::text),
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL CHECK (jsonb_typeof(payload) = 'object'::text),
+    connection_id text,
+    config_generation bigint,
+    received_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT provider_event_inbox_source_key UNIQUE (project_id, provider_key, source_id)
+);
+
+CREATE INDEX idx_provider_event_inbox_received ON public.provider_event_inbox USING btree (received_at);
+
+-- One row per workflow a provider event starts, keyed like its delivery
+-- (project|workflow|task). A job is created, the delivery recorded and the row
+-- marked accepted in one transaction; a periodic sweep retries pending rows.
+CREATE TABLE public.provider_event_dispatches (
+    delivery_key text PRIMARY KEY CHECK (char_length(delivery_key) BETWEEN 1 AND 1024),
+    event_row_id uuid NOT NULL REFERENCES public.provider_event_inbox(event_row_id) ON DELETE CASCADE,
+    project_id uuid NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
+    provider_key text NOT NULL,
+    workflow_id text NOT NULL,
+    trigger_id text NOT NULL,
+    connection_id text,
+    config_generation bigint,
+    status text DEFAULT 'pending'::text NOT NULL,
+    job_id uuid,
+    reason text DEFAULT ''::text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT provider_event_dispatches_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'failed'::text])))
+);
+
+CREATE INDEX idx_provider_event_dispatches_pending ON public.provider_event_dispatches USING btree (updated_at) WHERE (status = 'pending'::text);
+CREATE INDEX idx_provider_event_dispatches_event ON public.provider_event_dispatches USING btree (event_row_id);
+
+-- The system email sender is confirmed against counters that only grow, never
+-- against a hash of current values that an undone change would match again.
+-- sender_revision moves on every change that can alter who a connection sends
+-- as: it is enabled or disabled (either direction), retyped, moved to another
+-- install, project or OAuth configuration, given other settings (the oauth
+-- lifecycle block excluded) or other static secrets, or reconnected to another
+-- account. A token refresh rewrites only the oauth lifecycle block, the
+-- _oauth_* token refs and credential_revision of an OAuth connection, so it does
+-- not move. For a connection without OAuth every credential_revision bump does
+-- (a catalog secret rotated under the same ref is one).
+CREATE FUNCTION public.project_connection_bump_sender_revision() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+    AS $$
+DECLARE
+    old_static_refs jsonb;
+    new_static_refs jsonb;
+BEGIN
+    IF NEW.sender_revision <> OLD.sender_revision THEN
+        RETURN NEW;
+    END IF;
+    SELECT COALESCE(jsonb_object_agg(item.key, item.value), '{}'::jsonb)
+      INTO old_static_refs
+      FROM jsonb_each(COALESCE(OLD.secret_refs -> 'refs', '{}'::jsonb)) AS item
+     WHERE item.key NOT LIKE '\_oauth\_%';
+    SELECT COALESCE(jsonb_object_agg(item.key, item.value), '{}'::jsonb)
+      INTO new_static_refs
+      FROM jsonb_each(COALESCE(NEW.secret_refs -> 'refs', '{}'::jsonb)) AS item
+     WHERE item.key NOT LIKE '\_oauth\_%';
+    IF NEW.enabled IS DISTINCT FROM OLD.enabled
+        OR NEW.connection_type IS DISTINCT FROM OLD.connection_type
+        OR NEW.extension_install_id IS DISTINCT FROM OLD.extension_install_id
+        OR NEW.extension_id IS DISTINCT FROM OLD.extension_id
+        OR NEW.project_id IS DISTINCT FROM OLD.project_id
+        OR NEW.oauth_configuration_id IS DISTINCT FROM OLD.oauth_configuration_id
+        OR NEW.credentials_configuration_id IS DISTINCT FROM OLD.credentials_configuration_id
+        OR NEW.oauth_provider_id IS DISTINCT FROM OLD.oauth_provider_id
+        OR NEW.oauth_authorization_revision IS DISTINCT FROM OLD.oauth_authorization_revision
+        OR (NEW.connection_config - 'oauth') IS DISTINCT FROM (OLD.connection_config - 'oauth')
+        OR (NEW.connection_config -> 'oauth' -> 'subject')
+            IS DISTINCT FROM (OLD.connection_config -> 'oauth' -> 'subject')
+        OR (NEW.connection_config -> 'oauth' -> 'authorization_intent_id')
+            IS DISTINCT FROM (OLD.connection_config -> 'oauth' -> 'authorization_intent_id')
+        OR (COALESCE(NEW.secret_refs, '{}'::jsonb) - 'refs')
+            IS DISTINCT FROM (COALESCE(OLD.secret_refs, '{}'::jsonb) - 'refs')
+        OR new_static_refs IS DISTINCT FROM old_static_refs
+        OR (NEW.oauth_configuration_id IS NULL
+            AND NEW.credential_revision IS DISTINCT FROM OLD.credential_revision)
+    THEN
+        NEW.sender_revision := OLD.sender_revision + 1;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_project_connections_sender_revision
+    BEFORE UPDATE ON public.project_connections
+    FOR EACH ROW
+    EXECUTE FUNCTION public.project_connection_bump_sender_revision();
+
+-- An OAuth configuration keeps its id across edits, so the system email
+-- sender's confirmation records its configuration_revision. Every change to
+-- what signs in (client settings, client secrets, provider, provider security)
+-- moves the revision, even through a write path that forgot to.
+CREATE FUNCTION public.oauth_configuration_bump_revision() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path = pg_catalog
+    AS $$
+BEGIN
+    IF NEW.configuration_revision <= OLD.configuration_revision AND (
+        NEW.non_secret_config IS DISTINCT FROM OLD.non_secret_config
+        OR NEW.secret_refs IS DISTINCT FROM OLD.secret_refs
+        OR NEW.provider_id IS DISTINCT FROM OLD.provider_id
+        OR NEW.provider_security_fingerprint IS DISTINCT FROM OLD.provider_security_fingerprint
+    ) THEN
+        NEW.configuration_revision := OLD.configuration_revision + 1;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_extension_oauth_configurations_revision
+    BEFORE UPDATE ON public.extension_oauth_configurations
+    FOR EACH ROW
+    EXECUTE FUNCTION public.oauth_configuration_bump_revision();
+
+-- A connection type that authenticates as an application may take its client
+-- values from one OAuth configuration of its install (credentials_from). The
+-- link is its own column: oauth_configuration_id marks a connection that holds
+-- its own OAuth grant. No foreign key: a deleted configuration leaves the link
+-- in place, and the connection then reports credentials_unavailable.
+CREATE INDEX idx_project_connections_credentials_configuration
+    ON public.project_connections USING btree (credentials_configuration_id)
+    WHERE (credentials_configuration_id IS NOT NULL);
+
+-- Role permissions and the scope of a role assignment (ADR 0076). The permission
+-- catalogue is code (core/application/auth/permissions.py); role_permissions records
+-- which keys a role holds. Migration 20261120090000_role_permissions.sql writes the
+-- system roles: admin holds every permission implicitly and has no rows, operator and
+-- viewer hold explicit lists. An assignment may be limited to a workspace, a project or
+-- one workflow of a project; this edition refuses such assignments and reads only the
+-- global ones. user_roles.role_is_system copies roles.is_system (the trigger fills it,
+-- the composite foreign key follows a change of the role) so that one partial unique
+-- index allows at most one system role per user and scope.
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_id_is_system_key UNIQUE (id, is_system);
+
+CREATE TABLE public.role_permissions (
+    role_id uuid NOT NULL REFERENCES public.roles(id) ON DELETE CASCADE,
+    permission_key text NOT NULL
+        CHECK (permission_key ~ '^[a-z][a-z_]*(\.[a-z][a-z_]*){1,2}$'::text),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT role_permissions_pkey PRIMARY KEY (role_id, permission_key)
+);
+
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workspace_id_fkey FOREIGN KEY (workspace_id)
+        REFERENCES public.workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_project_id_fkey FOREIGN KEY (project_id)
+        REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_id)
+        REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_role_is_system_fkey FOREIGN KEY (role_id, role_is_system)
+        REFERENCES public.roles(id, is_system) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workflow_scope_check
+        CHECK (workflow_id IS NULL OR project_id IS NOT NULL);
+
+CREATE FUNCTION public.user_roles_copy_role_is_system() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    SELECT r.is_system INTO NEW.role_is_system FROM public.roles AS r WHERE r.id = NEW.role_id;
+    NEW.role_is_system := COALESCE(NEW.role_is_system, false);
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_user_roles_role_is_system
+    BEFORE INSERT OR UPDATE OF role_id ON public.user_roles
+    FOR EACH ROW EXECUTE FUNCTION public.user_roles_copy_role_is_system();
+
+CREATE UNIQUE INDEX ux_user_roles_one_system_role_per_scope
+    ON public.user_roles (user_id, workspace_id, project_id, workflow_id) NULLS NOT DISTINCT
+    WHERE role_is_system;
+
+-- When the owner was reminded that an AI agent connection is about to stop working
+-- (ADR 0076 §5): one email per personal agent token or OAuth grant, seven days before
+-- its end. Set before the email is sent, so a restart never sends a second one.
+-- Migration 20261120140000_agent_expiry_reminders.sql adds the same columns.
+ALTER TABLE ONLY public.personal_access_tokens
+    ADD COLUMN expiry_reminder_sent_at timestamp with time zone;
+ALTER TABLE ONLY public.oauth_grants
+    ADD COLUMN expiry_reminder_sent_at timestamp with time zone;

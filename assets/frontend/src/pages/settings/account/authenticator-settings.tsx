@@ -1,6 +1,7 @@
 import { useState, type SubmitEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { AuthenticatorQr } from "@/components/shared/authenticator-qr";
 import { DsAlert, DsBadge, DsCard, RequiredLabel, SensitiveInput } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ export function AuthenticatorSettings({ userId }: Readonly<{ userId: string }>) 
   const [code, setCode] = useState("");
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const enrollmentUri = enrollment?.uri.startsWith("otpauth://") ? enrollment.uri : undefined;
 
   function clearStep() {
     setAction(null);
@@ -114,7 +116,7 @@ export function AuthenticatorSettings({ userId }: Readonly<{ userId: string }>) 
           <DsBadge tone={status.enabled ? "green" : "neutral"}>
             {status.enabled ? t("react.settings.enabled", "Enabled") : t("react.settings.disabled", "Disabled")}
           </DsBadge>
-          {status.required ? <span>{t("react.settings.authenticator_policy_required", "Multi-factor authentication is required for this installation.")}</span> : null}
+          {status.required ? <span>{t("react.settings.authenticator_policy_required", "An authenticator is required for your account.")}</span> : null}
         </div>
       ) : null}
 
@@ -161,7 +163,7 @@ export function AuthenticatorSettings({ userId }: Readonly<{ userId: string }>) 
               />
             </div>
           ) : null}
-          <div className="full flex flex-wrap gap-2">
+          <div className="full flex flex-wrap gap-2 self-end">
             <Button busy={saving} type="submit" variant={action === "disable" ? "danger" : "primary"}>
               {action === "disable"
                 ? t("react.settings.authenticator_disable", "Disable authenticator")
@@ -174,11 +176,17 @@ export function AuthenticatorSettings({ userId }: Readonly<{ userId: string }>) 
 
       {enrollment ? (
         <form className="fs-form-grid" onSubmit={(event) => ignoreAsyncResult(finishEnrollment(event))}>
+          {enrollmentUri ? (
+            <div className="fs-field full">
+              <span>{t("react.settings.authenticator_scan_instructions", "Scan the QR code with your authenticator app or use the setup key below.")}</span>
+              <AuthenticatorQr uri={enrollmentUri} />
+            </div>
+          ) : null}
           <div className="fs-field full">
             <span>{t("react.settings.authenticator_setup_instructions", "Add a time-based account in your authenticator app using this setup key, then enter the six-digit code.")}</span>
             <code className="break-all">{enrollment.secret}</code>
-            {enrollment.uri.startsWith("otpauth://") ? (
-              <a className="fs-link" href={enrollment.uri}>{t("react.settings.authenticator_open", "Open in an authenticator app")}</a>
+            {enrollmentUri ? (
+              <a className="fs-link" href={enrollmentUri}>{t("react.settings.authenticator_open", "Open in an authenticator app")}</a>
             ) : null}
           </div>
           <label className="fs-field" htmlFor="authenticator-verification-code">
@@ -195,7 +203,7 @@ export function AuthenticatorSettings({ userId }: Readonly<{ userId: string }>) 
               value={code}
             />
           </label>
-          <div className="full flex flex-wrap gap-2">
+          <div className="full flex flex-wrap gap-2 self-end">
             <Button busy={saving} type="submit" variant="primary">{t("react.settings.authenticator_verify", "Verify and enable")}</Button>
             <Button disabled={saving} onClick={clearStep} type="button" variant="ghost">{t("common.cancel", "Cancel")}</Button>
           </div>

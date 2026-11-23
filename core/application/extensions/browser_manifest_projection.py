@@ -97,6 +97,7 @@ def _public_oauth_providers(raw_providers: Any) -> list[dict[str, Any]]:
                     "placeholder",
                     "autocomplete",
                     "validation",
+                    "usage",
                 )
                 if key in raw_field
             }

@@ -188,7 +188,7 @@ def apply_lookup_seed(*, dsn: str | None = None) -> dict[str, int]:
                 conn,
                 table="roles",
                 rows=list(payload.get("roles") or []),
-                columns=["key", "label"],
+                columns=["key", "label", "is_system", "description"],
                 conflict_columns=["key"],
             ),
             "provider_types": _upsert_rows(

@@ -18,6 +18,7 @@ import {
 } from "@/pages/extensions/api";
 import { fetchExtensionProjectState, fetchProjectConnectionsList } from "@/pages/projects/connections/api";
 import { fetchProjectsList } from "@/pages/projects/list/api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/api", () => ({
   executeExtensionAction: vi.fn(),
@@ -96,7 +97,7 @@ function auth(role: "admin" | "operator" | "viewer"): AuthContextValue {
     logout: vi.fn(async () => undefined),
     refresh: vi.fn(async () => undefined),
     switchAccount: vi.fn(async () => undefined),
-    session: { authenticated: true, roles: [role], user: { roles: [role] } } as AuthContextValue["session"],
+    session: { authenticated: true, roles: [role], user: { roles: [role], permissions: permissionsForRoles([role]) } } as AuthContextValue["session"],
     status: "authenticated",
   };
 }

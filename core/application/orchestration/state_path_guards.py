@@ -28,6 +28,9 @@ RESERVED_STATE_ROOTS: frozenset[str] = frozenset(
         # IMAP search did) fails the run on its first non-empty value.
         "agent_messages",
         "messages",
+        # The checked values of a typed review on the state-based resume path
+        # (ADR 0075): written by the resume only, read by the Approval it decided.
+        "approval_review_values",
         # Hook outputs (state.hooks.<hook_id>) are published by the Invoke
         # runtime only; no author step writes them.
         "hooks",

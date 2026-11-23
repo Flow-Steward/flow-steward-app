@@ -54,6 +54,12 @@ class _Cursor:
         if "SELECT u.id::text AS id, u.is_active" in normalized:
             self._next_fetchone = {"id": _USER_77, "is_active": True, "is_admin": False}
             return
+        if "SELECT username, account_id::text, authenticator_required" in normalized:
+            self._next_fetchone = ("newuser@example.com", "acc-default", False, False)
+            return
+        if "SELECT account_id::text FROM user_account_memberships" in normalized:
+            self._next_fetchall = [("acc-default",)]
+            return
         if "GROUP BY u.id" in normalized:
             self._next_fetchall = [
                 {
@@ -76,6 +82,10 @@ class _Cursor:
             return
         if "INSERT INTO users" in normalized and "RETURNING id" in normalized:
             self._next_fetchone = (_USER_77,)
+            return
+        if "SELECT EXISTS (SELECT 1 FROM users)" in normalized:
+            # The admin creating users through this router already exists.
+            self._next_fetchone = (True,)
             return
         if "UPDATE auth_sessions" in normalized:
             self.rowcount = 2
@@ -268,7 +278,17 @@ def test_auth_introspection_of_an_oauth_token_names_its_grant_and_never_synthesi
 
 def test_auth_users_router_success_paths() -> None:
     cursor = _Cursor()
-    bl = SimpleNamespace(conn=_Conn(cursor))
+    bl = SimpleNamespace(
+        conn=_Conn(cursor),
+        _table_exists=lambda _table: True,
+        _column_exists=lambda _table, column: (
+            column
+            in {
+                "authenticator_required",
+                "authenticator_reset_pending",
+            }
+        ),
+    )
     auth_user = {
         "id": 1,
         "username": "admin",
@@ -384,10 +404,12 @@ def test_auth_users_router_success_paths() -> None:
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["users"][0]["email"] == "admin"
+    assert listed.json()["users"][0]["authenticator_required"] is False
     list_queries = [query for query in cursor.executed_queries if "GROUP BY u.id" in query]
     assert list_queries
     assert ", ," not in list_queries[-1]
     assert "must_change_password" in list_queries[-1]
+    assert "u.authenticator_required" in list_queries[-1]
     assert "u.created_at" in list_queries[-1]
     assert "u.account_id = ANY" in list_queries[-1]
 
@@ -397,7 +419,7 @@ def test_auth_users_router_success_paths() -> None:
             "email": "newuser@example.com",
             "password": "Password123!",
             "display_name": "New User",
-            "roles": ["viewer"],
+            "role": "viewer",
             "is_active": True,
             "must_change_password": False,
         },
@@ -411,7 +433,7 @@ def test_auth_users_router_success_paths() -> None:
         json={
             "display_name": "Updated Name",
             "password": "Password999!",
-            "roles": ["admin", "viewer"],
+            "role": "admin",
             "is_active": True,
             "must_change_password": True,
         },
@@ -434,6 +456,28 @@ def test_auth_users_router_success_paths() -> None:
     force_reset = client.post(f"/api/auth/users/{_USER_77}/force-password-reset")
     assert force_reset.status_code == 200
     assert force_reset.json()["revoked_sessions"] == 2
+
+    authenticator_url = f"/api/auth/users/{_USER_77}/authenticator"
+    same_origin = {"Origin": "http://testserver"}
+    local_admin = _client_with_state(router, auth_user=auth_user, auth_source="local")
+    assert local_admin.post(authenticator_url, json={"action": "reset"}).status_code == 403
+    token_admin = _client_with_state(router, auth_user=auth_user, auth_source="pat")
+    assert (
+        token_admin.post(
+            authenticator_url, json={"action": "reset"}, headers=same_origin
+        ).status_code
+        == 403
+    )
+    external_admin = _client_with_state(router, auth_user=auth_user, auth_source="external")
+    reset_authenticator = external_admin.post(
+        authenticator_url, json={"action": "reset"}, headers=same_origin
+    )
+    assert reset_authenticator.status_code == 200, reset_authenticator.text
+    assert reset_authenticator.json() == {
+        "status": "authenticator_reset",
+        "authenticator_required": False,
+        "revoked_sessions": 2,
+    }
 
     deleted = client.delete(f"/api/auth/users/{_USER_77}")
     assert deleted.status_code == 200
@@ -527,6 +571,9 @@ def test_auth_users_router_error_paths() -> None:
     assert bad_json.status_code == 400
     invalid_tz = auth_client.patch("/api/users/me/timezone", json={"timezone": "Bad/Timezone"})
     assert invalid_tz.status_code == 422
+    assert invalid_tz.json() == {
+        "error": "Unknown IANA timezone; use a region name such as Europe/Vilnius."
+    }
     column_missing = auth_client.patch("/api/users/me/timezone", json={"timezone": "UTC"})
     assert column_missing.status_code == 503
     bad_locale = auth_client.patch("/api/users/me/locale", json={"locale": "zz"})

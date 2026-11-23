@@ -180,7 +180,12 @@ def _route_problems(route: Mapping[str, Any], availability: _ExtensionAvailabili
     problems = availability.problems(
         _route_extension_id(route), _as_str(config.get("connection_id"))
     )
-    if not _as_str(config.get("channel_id")) and not _recipients(config.get("to")):
+    # A connection bound to one channel is the route's destination by itself.
+    if (
+        not _as_str(config.get("channel_id"))
+        and not _recipients(config.get("to"))
+        and not _as_str(config.get("connection_id"))
+    ):
         problems.append(PROBLEM_DESTINATION_MISSING)
     return problems
 

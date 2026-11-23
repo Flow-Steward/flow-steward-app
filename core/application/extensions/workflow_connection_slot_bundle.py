@@ -190,6 +190,7 @@ def connection_slot_descriptor_issues(descriptor: Mapping[str, Any]) -> list[dic
             workflow, extension_id=extension_id, required_dependencies=dependencies
         ):
             issues.append({**row, "path": f"{prefix}.{row['path']}"})
+    issues.extend(_typed_contract_minimum_issues(source))
     if declares_slots and not _declares_host_minimum(source):
         # An older host ignores the declaration and its slot steps fail at run time;
         # the minimum makes it refuse the bundle instead.
@@ -204,6 +205,37 @@ def connection_slot_descriptor_issues(descriptor: Mapping[str, Any]) -> list[dic
             }
         )
     return issues
+
+
+def _typed_contract_minimum_issues(descriptor: Mapping[str, Any]) -> list[dict[str, str]]:
+    """A bundle whose workflows use typed contracts or review fields declares the host for them.
+
+    An older host would run them without the shape checks and the review
+    fields; the minimum makes it refuse the bundle instead (ADR 0075).
+    """
+    from core.application.workflows.workflow_feature_versions import (
+        TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN,
+        any_workflow_uses_typed_contract,
+        declares_at_least,
+    )
+
+    if not any_workflow_uses_typed_contract(_published_workflows(descriptor).values()):
+        return []
+    runtime = _mapping(descriptor.get("runtime"))
+    minimum = _text(_mapping(runtime.get("compatibility")).get("platform_min"))
+    if declares_at_least(minimum, TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN):
+        return []
+    return [
+        {
+            "code": "workflow.typed_contract.host_minimum",
+            "message": (
+                "Workflows with typed contract fields (items, properties, min_items, "
+                "max_items, format) or Approval review fields require host contract "
+                f"{TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN} or later"
+            ),
+            "path": "runtime.compatibility.platform_min",
+        }
+    ]
 
 
 def _declares_host_minimum(descriptor: Mapping[str, Any]) -> bool:

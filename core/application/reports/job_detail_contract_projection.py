@@ -190,6 +190,11 @@ def _build_contract_payload(
             if key == "allowed_actions" and isinstance(field_value, list):
                 gate[key] = [_bounded(item) for item in field_value]
                 continue
+            if key == "review" and isinstance(field_value, dict):
+                # Already the public, masked review (ADR 0075); a preview bound
+                # would cut the values the person is asked to check.
+                gate[key] = field_value
+                continue
             if key in {"actions", "gate_meta", "response_mapping"}:
                 # These fields define what decision the UI is allowed to send.
                 # Preserve their complete shape; generic list truncation here

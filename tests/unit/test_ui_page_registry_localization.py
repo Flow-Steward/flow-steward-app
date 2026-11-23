@@ -28,6 +28,7 @@ def test_settings_metadata_uses_lithuanian_profile_without_mutating_registration
     assert {page["page_key"]: page["title"] for page in pages} == {
         "general": "Bendra",
         "security": "Saugumas",
+        "email": "El. paštas",
         "retention": "Saugojimas",
         "notifications": "Pranešimai",
         "service_accounts": "Tarnybinės paskyros",

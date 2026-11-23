@@ -818,6 +818,7 @@ def _lifecycle_recovery_check(
             "ok": True,
             "unfinished_count": 0,
             "recovery_required_count": 0,
+            "recovery_required_scope": "none",
             "state": "not_configured",
             "error": "",
         }
@@ -831,10 +832,23 @@ def _lifecycle_recovery_check(
         state = "clear"
         if journals:
             state = "recovery_required" if recovery_required_count else "mutation_in_progress"
+        recovery_kinds = {
+            str(getattr(getattr(journal, "kind", ""), "value", getattr(journal, "kind", "")))
+            for journal, status in zip(journals, statuses, strict=True)
+            if status == "recovery_required"
+        }
+        # An unfinished release upgrade projects itself as recovery_required so other
+        # lifecycle commands wait for it (installer state_store.save_release_upgrade).
+        # Telling it apart lets that upgrade's own readiness wait accept it: a
+        # development installation's app reads the same checkout directory.
+        recovery_scope = "none"
+        if recovery_kinds:
+            recovery_scope = "release_upgrade" if recovery_kinds == {"release_upgrade"} else "other"
         return {
             "ok": not journals,
             "unfinished_count": len(journals),
             "recovery_required_count": recovery_required_count,
+            "recovery_required_scope": recovery_scope,
             "state": state,
             "error": "",
         }
@@ -843,6 +857,7 @@ def _lifecycle_recovery_check(
             "ok": False,
             "unfinished_count": 0,
             "recovery_required_count": 0,
+            "recovery_required_scope": "none",
             "state": "unknown",
             "error": "Lifecycle recovery state is unreadable.",
         }

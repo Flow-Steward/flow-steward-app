@@ -50,9 +50,26 @@ export type WorkflowInterfaceFieldDraft = {
   sampleFileDraft?: File | null;
   /** What to do with the test file when the workflow is saved. */
   sampleFileAction?: "set" | "clear" | "";
+  /** For string/paragraph: date, date-time, time, email or uri; empty for any text. */
+  format?: string;
+  /** For array: the element type; empty when elements are not described. */
+  itemType?: string;
+  /** For an array of select: the element options, comma separated. */
+  itemOptions?: string;
+  /** For array: the item count bounds, as typed. */
+  minItems?: string;
+  maxItems?: string;
+  /** For object, or an array of objects: the sub-fields as a JSON list. */
+  propertiesText?: string;
   /** Stored author metadata; public computed/secret/file authority is not replayed. */
   originalAuthoredRow?: Record<string, unknown>;
 };
+
+/** String formats a text field may declare (ADR 0075). */
+export const WORKFLOW_FIELD_FORMATS = ["date", "date-time", "time", "email", "uri"] as const;
+/** Element types of an array: no array of arrays, no list of secrets. */
+export const WORKFLOW_ARRAY_ITEM_TYPES = ["string", "paragraph", "number", "boolean", "select", "object", "file"] as const;
+const FIELD_SHAPE_KEYS = ["items", "properties", "min_items", "max_items", "format"] as const;
 
 export type WorkflowSampleFile = {
   filename?: string;
@@ -85,6 +102,12 @@ export function createWorkflowInterfaceFieldDraft(
     sampleFile: null,
     sampleFileDraft: null,
     sampleFileAction: "",
+    format: "",
+    itemType: "",
+    itemOptions: "",
+    minItems: "",
+    maxItems: "",
+    propertiesText: "",
     ...patch,
   };
 }
@@ -159,6 +182,32 @@ export function contractDefaultValue(
   return normalized || undefined;
 }
 
+function propertiesEditorText(value: unknown): string {
+  if (!Array.isArray(value) || !value.length) return "";
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return "";
+  }
+}
+
+function itemBoundText(value: unknown): string {
+  return typeof value === "number" || typeof value === "string" ? stringFromUnknownValue(value) : "";
+}
+
+/** The declared shape of a contract row in the editor's working form. */
+function shapeDraftFromContract(row: Record<string, unknown>, type: string): Partial<WorkflowInterfaceFieldDraft> {
+  const items = objectOrEmpty(row.items);
+  return {
+    format: textOrEmpty(stringFromUnknownValue(row.format)),
+    itemType: type === "array" ? textOrEmpty(stringFromUnknownValue(items.type)) : "",
+    itemOptions: Array.isArray(items.options) ? items.options.map((option) => stringFromUnknownValue(option)).join(", ") : "",
+    minItems: itemBoundText(row.min_items),
+    maxItems: itemBoundText(row.max_items),
+    propertiesText: propertiesEditorText(type === "array" ? items.properties : row.properties),
+  };
+}
+
 /** Read one contract row back into the editor's working shape. */
 export function fieldDraftFromContract(
   row: Record<string, unknown>,
@@ -188,6 +237,7 @@ export function fieldDraftFromContract(
     default: draftDefault,
     defaultConfigured: configured,
     sampleFile: isFileFieldType(type) ? sampleFileFromContract(row.sample_file) : null,
+    ...shapeDraftFromContract(row, type),
     originalAuthoredRow,
   });
 }
@@ -382,6 +432,65 @@ function configuredDefaultRequirement(type: string, t: I18nContextValue["t"]): s
   }
 }
 
+function propertiesFromDraft(text: string | undefined, name: string, t: I18nContextValue["t"]): Array<Record<string, unknown>> | undefined {
+  const normalized = textOrEmpty(text);
+  if (!normalized) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    parsed = undefined;
+  }
+  if (!Array.isArray(parsed) || !parsed.every((item) => item !== null && typeof item === "object" && !Array.isArray(item))) {
+    throw new Error(t("react.workflows.contract_properties_invalid", "Properties of '{value0}' must be a JSON list of fields.", { value0: name }));
+  }
+  return parsed.length ? (parsed as Array<Record<string, unknown>>) : undefined;
+}
+
+function itemBoundFromDraft(text: string | undefined, name: string, t: I18nContextValue["t"]): number | undefined {
+  const normalized = textOrEmpty(text);
+  if (!normalized) return undefined;
+  if (!/^\d+$/u.test(normalized)) {
+    throw new Error(t("react.workflows.contract_item_bound_invalid", "Item counts of '{value0}' must be whole numbers of zero or more.", { value0: name }));
+  }
+  return Number(normalized);
+}
+
+function arrayItemsPayload(row: WorkflowInterfaceFieldDraft, name: string, t: I18nContextValue["t"]): Record<string, unknown> | undefined {
+  const itemType = textOrEmpty(row.itemType);
+  if (!itemType) return undefined;
+  // Keys the editor does not show (an element format, a label) survive a save.
+  const items: Record<string, unknown> = { ...objectOrEmpty(objectOrEmpty(row.originalAuthoredRow).items), type: itemType };
+  delete items.options;
+  delete items.properties;
+  if (itemType !== "string" && itemType !== "paragraph") delete items.format;
+  const options = commaList(row.itemOptions ?? "");
+  if (itemType === "select" && options.length) items.options = options;
+  const properties = itemType === "object" ? propertiesFromDraft(row.propertiesText, name, t) : undefined;
+  if (properties) items.properties = properties;
+  return items;
+}
+
+/** The shape keys the row declares for its type; none that the type does not take. */
+function fieldShapePayload(row: WorkflowInterfaceFieldDraft, type: string, name: string, t: I18nContextValue["t"]): Record<string, unknown> {
+  const shape: Record<string, unknown> = {};
+  const format = textOrEmpty(row.format);
+  if ((type === "string" || type === "paragraph") && format) shape.format = format;
+  if (type === "object") {
+    const properties = propertiesFromDraft(row.propertiesText, name, t);
+    if (properties) shape.properties = properties;
+  }
+  if (type === "array") {
+    const items = arrayItemsPayload(row, name, t);
+    if (items) shape.items = items;
+    const minItems = itemBoundFromDraft(row.minItems, name, t);
+    const maxItems = itemBoundFromDraft(row.maxItems, name, t);
+    if (minItems !== undefined) shape.min_items = minItems;
+    if (maxItems !== undefined) shape.max_items = maxItems;
+  }
+  return shape;
+}
+
 /** Definition keys the server reserves for catalog secret bindings (ADR 0057). */
 const CATALOG_BINDING_KEYS = ["catalog_secret", "catalog_secret_id", "secret_binding", "secret_approval"] as const;
 
@@ -414,6 +523,10 @@ function workflowFieldPayloadRow(row: WorkflowInterfaceFieldDraft, t: I18nContex
   if (type === "select" && options.length) {
     payload.options = options;
   }
+  for (const key of FIELD_SHAPE_KEYS) {
+    delete payload[key];
+  }
+  Object.assign(payload, fieldShapePayload(row, type, name, t));
   // A secret's value never travels with the contract: it is set through its
   // own write-only endpoint, and this update must not be a second way in. A
   // file input has no default: its test file is uploaded on its own endpoint.

@@ -23,6 +23,7 @@ from core.application.installer import (
 )
 from core.application.installer.errors import InstallerFailure
 from core.application.lifecycle.contracts import DeploymentConfig
+from core.application.release.environment import release_runtime_environment
 from core.application.release.images import all_release_roles, required_product_roles
 from core.infrastructure.config.env_registry import registry_default_value
 from core.infrastructure.installer import gateway as gateway_module
@@ -2028,6 +2029,71 @@ def test_official_development_prepare_postcondition_requires_current_extras(
     monkeypatch.setattr(gateway, "_production_provenance_postcondition_holds", lambda _c: True)
 
     assert gateway.postcondition_holds("prepare", config) is holds
+
+
+_RELEASE_ROLE_ENV_KEYS = {
+    "app": "FS_APP_IMAGE",
+    "worker": "FS_WORKER_IMAGE",
+    "control": "FS_CONTROL_IMAGE",
+    "mcp": "MCP_IMAGE",
+    "cli": "FS_CLI_IMAGE",
+}
+
+
+@pytest.mark.parametrize(
+    "frontend",
+    [None, "flow-steward-frontend:0.9.23"],
+    ids=("fresh-install", "source-transition-tag"),
+)
+def test_official_development_preflight_accepts_the_release_before_the_frontend_is_built(
+    tmp_path: Path, frontend: str | None
+) -> None:
+    """0.9.23 live E2E: every official development install failed here.
+
+    The release publishes no frontend; prepare builds it from the release checkout and
+    pins it afterwards. Preflight saw five digest-pinned Core roles and no immutable
+    frontend (or the tag a source install left) and refused the selection as partial.
+    """
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process)
+    release = _stage_official_release(gateway, "scalable")
+    # What ./install.sh injects for an official install (installer.py).
+    environment = release_runtime_environment(release)
+    assert set(_RELEASE_ROLE_ENV_KEYS.values()) <= set(environment)
+    if frontend is not None:
+        environment["FS_FRONTEND_IMAGE"] = frontend
+    gateway._environment = {**environment, "FS_INSTALL_MODE": "official"}
+    config = InstallConfig(environment="development")
+
+    assert gateway._install_mode(config) == "official"
+    assert gateway._exact_prebuilt_image_refs(
+        config, environment, development_extras_pending=True
+    ) == {role: environment[key] for role, key in _RELEASE_ROLE_ENV_KEYS.items()}
+    log = gateway.state_store.open_log("official-development-preflight")
+    try:
+        gateway.preflight(config, log=log)
+    except InstallerFailure as failure:
+        assert failure.code != "invalid_exact_image_selection"
+    finally:
+        log.close()
+
+
+def test_source_development_still_requires_an_immutable_frontend_in_an_exact_selection(
+    tmp_path: Path,
+) -> None:
+    """The relaxation is for official development only: an operator's exact source
+    selection for development must still name the frontend."""
+    process = FakeProcessExecutor()
+    gateway = _gateway(tmp_path, process, environment=_exact_prebuilt_values())
+    config = InstallConfig(environment="development")
+    log = gateway.state_store.open_log("source-development-exact")
+
+    assert gateway._install_mode(config) == "source"
+    with pytest.raises(InstallerFailure) as raised:
+        gateway.preflight(config, log=log)
+
+    log.close()
+    assert raised.value.code == "invalid_exact_image_selection"
 
 
 def test_source_development_prepare_postcondition_does_not_ask_for_official_extras(

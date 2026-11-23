@@ -8,6 +8,7 @@ import { AiAgentsSection } from "@/pages/settings/account/ai-agents";
 import {
   fetchAgentAccessSetup,
   fetchAgentAccessToken,
+  fetchAgentConnections,
   fetchPersonalTokensCollection,
   issueAgentAccessToken,
   revokePersonalToken,
@@ -16,12 +17,14 @@ import type {
   AgentAccessIssueResult,
   AgentAccessSetup,
   AgentClientPackage,
+  AgentConnection,
   AgentSetupStep,
 } from "@/pages/settings/shared/types";
 
 vi.mock("@/pages/settings/shared/api", () => ({
   fetchAgentAccessSetup: vi.fn(),
   fetchAgentAccessToken: vi.fn(),
+  fetchAgentConnections: vi.fn(),
   fetchPersonalTokensCollection: vi.fn(),
   issueAgentAccessToken: vi.fn(),
   revokePersonalToken: vi.fn(),
@@ -29,6 +32,7 @@ vi.mock("@/pages/settings/shared/api", () => ({
 vi.mock("@/pages/projects/list/api", () => ({ fetchProjectsList: vi.fn() }));
 
 const mockedSetup = vi.mocked(fetchAgentAccessSetup);
+const mockedConnections = vi.mocked(fetchAgentConnections);
 const mockedIssue = vi.mocked(issueAgentAccessToken);
 const mockedToken = vi.mocked(fetchAgentAccessToken);
 const mockedTokens = vi.mocked(fetchPersonalTokensCollection);
@@ -106,7 +110,10 @@ function setupPayload(overrides: Partial<AgentAccessSetup> = {}, mcpUrl = MCP): 
       { id: "full_authoring", scopes: ["admin:all"], available: false, reason: "exceeds_authority", subset_of_preset: false },
     ],
     expiry_days_options: [7, 30, 90],
+    expiry_dates: { "7": "2026-11-07T12:00:00Z", "30": "2026-11-30T12:00:00Z", "90": "2027-01-29T12:00:00Z" },
     default_expiry_days: 30,
+    // The admin's view: the advanced options exist, folded away.
+    role_access: { preset: "my_role", scopes: ["admin:all"], expiry_days: 90, advanced_options: true },
     first_request: step({ id: "first_request", title: "Make the first request", content: "List my Flow Steward projects and their enabled workflows." }),
     clients: [
       { id: "claude_code", label: "Local agent", connection: "local", description_key: "react.agent_access.client_claude_code_description", description: "Terminal", mcp_blockers: [], packages: [operator({}, mcpUrl), developer] },
@@ -150,11 +157,18 @@ async function chooseClient(name: RegExp) {
   await screen.findByRole("radio", { name: /Flow Steward Operator/ });
 }
 
+/** An admin on the access step, with the advanced options opened. */
 async function chooseLocalOperator() {
   renderSection();
   await chooseClient(/Local agent/);
   clickContinue();
   await screen.findByRole("button", { name: "Create token" });
+  fireEvent.click(screen.getByRole("button", { name: "Advanced options" }));
+}
+
+/** An operator's or a viewer's setup: the server says they choose nothing. */
+function roleSetup(): AgentAccessSetup {
+  return setupPayload({ role_access: { preset: "my_role", scopes: ["read:*", "registry.read", "command:*"], expiry_days: 90, advanced_options: false } });
 }
 
 async function createLocalToken() {
@@ -172,6 +186,7 @@ describe("AiAgentsSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSetup.mockResolvedValue(setupPayload());
+    mockedConnections.mockResolvedValue({ connections: [], reminder_days: 7 });
     mockedProjects.mockResolvedValue({ projects: [{ id: "p-1", name: "Shop" }] } as never);
     mockedToken.mockResolvedValue({ token: { id: "tok-1", label: "AI agent · Local agent", scopes: ["projects.read"], last_used_at: null, expires_at: "2026-11-30T12:00:00Z", allowed_project_ids: [] } });
     mockedTokens.mockResolvedValue({ tokens: [], total: 0, page: 1, per_page: 25, total_pages: 1 } as never);
@@ -420,5 +435,126 @@ describe("AiAgentsSection", () => {
     expect(within(currentStep()).getByText("This package does not connect to this installation, so no token is needed.")).toBeInTheDocument();
     expect(within(currentStep()).getByRole("link", { name: "Open the release" })).toBeInTheDocument();
     expect(mockedIssue).not.toHaveBeenCalled();
+  });
+  describe("ADR 0076: an operator or a viewer connects as their role", () => {
+    it("offers one button and no access, scope, project or expiry choice", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      await waitFor(() => expect(screen.getByText("Local agent gets the same access as you. It can never do more than you can.")).toBeInTheDocument());
+      expect(screen.getByText("Works for 90 days; you can connect again anytime.")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeEnabled();
+      expect(screen.queryByRole("radio", { name: /Monitor and run workflows/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Advanced options" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Expiration")).not.toBeInTheDocument();
+      expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+      expect(screen.queryByText("read:*")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Create token" })).not.toBeInTheDocument();
+      expect(mockedProjects).not.toHaveBeenCalled();
+    });
+
+    it("sends only the client and the package, then shows the address, Copy and one instruction", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedIssue.mockResolvedValue(created());
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+      const address = await screen.findByRole("group", { name: "Address" });
+      expect(mockedIssue).toHaveBeenCalledTimes(1);
+      expect(mockedIssue.mock.calls[0][1]).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator" });
+      expect(address).toHaveTextContent(MCP);
+      expect(within(address).getByRole("button", { name: "Copy" })).toBeInTheDocument();
+      expect(screen.getByText("Add Flow Steward in Local agent with the steps below; the address and your key are already filled in.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText(/^Same access as you · All projects · Expires /)).toBeInTheDocument());
+      expect(screen.getByRole("button", { name: "Connect again" })).toBeInTheDocument();
+    });
+
+    it("says what an operator can do when the server refuses an admin-only option", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedIssue.mockRejectedValueOnce(new HttpError({ status: 403, url: "/api/auth/agent-access/tokens", payload: { error: "advanced_options_admin_only" } }));
+      renderSection();
+      await chooseClient(/Local agent/);
+      clickContinue();
+      fireEvent.click(await screen.findByRole("button", { name: "Connect" }));
+      await waitFor(() => expect(screen.getByText("Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects.")).toBeInTheDocument());
+    });
+  });
+
+  describe("ADR 0076: each connection says when it ends", () => {
+    function connection(overrides: Partial<AgentConnection> = {}): AgentConnection {
+      return {
+        id: "tok-9",
+        kind: "personal_token",
+        client_id: "claude_code",
+        client_label: "Local agent",
+        created_at: "2026-08-27T12:00:00Z",
+        ends_at: "2026-11-25T12:00:00Z",
+        last_used_at: null,
+        days_left: 5,
+        ending_soon: true,
+        renew: "connect_again",
+        ...overrides,
+      };
+    }
+
+    it("lists the connections with their end date and warns about one ending soon", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedConnections.mockResolvedValue({
+        reminder_days: 7,
+        connections: [
+          connection(),
+          connection({ id: "grant-1", kind: "oauth_grant", client_id: "", client_label: "ChatGPT", ends_at: "2027-01-20T12:00:00Z", days_left: 61, ending_soon: false, renew: "reconnect_from_client" }),
+        ],
+      });
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      expect(within(list).getByText("ChatGPT")).toBeInTheDocument();
+      expect(within(list).getByText(/^In the cloud · Works until /)).toHaveTextContent("2027");
+      expect(within(list).getByText(/^Local agent stops working in 5 days, on /)).toBeInTheDocument();
+      // Only the connection ending soon has a warning and an action.
+      expect(within(list).getAllByRole("button", { name: "Connect again" })).toHaveLength(1);
+    });
+
+    it("tells a cloud client's owner to connect again from the client", async () => {
+      mockedConnections.mockResolvedValue({
+        reminder_days: 7,
+        connections: [connection({ id: "grant-1", kind: "oauth_grant", client_id: "", client_label: "ChatGPT", renew: "reconnect_from_client" })],
+      });
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      expect(within(list).getByText("To keep it working, connect Flow Steward again from ChatGPT. Flow Steward asks you to allow it once more.")).toBeInTheDocument();
+      expect(within(list).queryByRole("button", { name: "Connect again" })).not.toBeInTheDocument();
+    });
+
+    it("Connect again issues a fresh token for the same client as the person's role", async () => {
+      mockedSetup.mockResolvedValue(roleSetup());
+      mockedConnections.mockResolvedValue({ reminder_days: 7, connections: [connection()] });
+      mockedIssue.mockResolvedValue(created());
+      renderSection();
+      const list = await screen.findByRole("region", { name: "Your connections" });
+      await screen.findByRole("radio", { name: /Local agent/ });
+      fireEvent.click(within(list).getByRole("button", { name: "Connect again" }));
+      await waitFor(() => expect(mockedIssue).toHaveBeenCalledTimes(1));
+      expect(mockedIssue.mock.calls[0][1]).toEqual({ client_id: "claude_code", package_id: "flow-steward-operator" });
+      await waitFor(() => expect(screen.getByLabelText(TOKEN_TITLE)).toBeInTheDocument());
+      await waitFor(() => expect(mockedConnections.mock.calls.length).toBeGreaterThan(1));
+    });
+  });
+
+  it("folds an admin's access, expiry and projects away by default", async () => {
+    renderSection();
+    await chooseClient(/Local agent/);
+    clickContinue();
+    const toggle = await screen.findByRole("button", { name: "Advanced options" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Monitor and run workflows · 30 days · All projects")).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /Monitor and run workflows/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Expiration")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Hide advanced options" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("radio", { name: /Monitor and run workflows/ })).toBeChecked();
+    expect(screen.getByText("Expiration")).toBeInTheDocument();
   });
 });

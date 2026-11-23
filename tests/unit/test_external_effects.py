@@ -993,9 +993,10 @@ def test_claim_external_effect_reads_manifest_declared_observability_metadata(mo
 
 
 def test_external_effect_target_hashes_are_account_scoped_hmacs(monkeypatch):
-    from core.application.extensions import external_effect_contracts, external_effects
+    from core.application.extensions import external_effects
+    from core.infrastructure.security import config as security_config
 
-    monkeypatch.setattr(external_effect_contracts, "SECURITY_PII_SALT", "test-pii-salt")
+    monkeypatch.setattr(security_config, "SECURITY_PII_SALT", "test-pii-salt")
 
     first = external_effects._target_hashes(
         account_id="acc_a",

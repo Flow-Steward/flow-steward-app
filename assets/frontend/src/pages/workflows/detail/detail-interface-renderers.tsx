@@ -1,8 +1,8 @@
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { RequiredLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { ContractBlock } from "./detail-contract-block";
+import { ContractFieldControls } from "./detail-contract-field-controls";
 /* eslint-disable @typescript-eslint/no-explicit-any, react-refresh/only-export-components */
 import type { Dispatch, SetStateAction } from "react";
 
@@ -342,7 +342,6 @@ export function createWorkflowInterfaceRenderers(ctx: WorkflowInterfaceRenderCon
         rows={rows.map((row, index) => {
           const rowKey = row.draftId || stringFromUnknownValue(index);
           const nameId = `${workflowInterfaceControlIdPrefix}-${direction}-${rowKey}-name`;
-          const nameErrorId = `${nameId}-error`;
           const nameMissing = !textOrEmpty(row.name) && Boolean(row.nameTouched || nameValidationAttempted);
           const name = textOrEmpty(row.name).trim();
           return {
@@ -361,120 +360,28 @@ export function createWorkflowInterfaceRenderers(ctx: WorkflowInterfaceRenderCon
                   {t("react.workflows.output_source_guidance", "Write this value to {path}, or use an Agent whose selected contract declares this output.", { path: `state.outputs.${name}` })}
                 </p>
               ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs text-[var(--fs-text-primary)]">
-                    <RequiredLabel>{t("settings.mcp.fields.name", "Name")}</RequiredLabel>
-                    <input
-                      aria-label={t("settings.mcp.fields.name", "Name")}
-                      aria-describedby={nameMissing ? nameErrorId : undefined}
-                      aria-invalid={nameMissing ? true : undefined}
-                      aria-required="true"
-                      className="fs-input mt-1 w-full font-mono"
-                      id={nameId}
-                      name={`workflow_interface_${editorKey}_${index}_name`}
-                      onChange={(event) =>
-                        updateRow(index, { name: event.target.value })
-                      }
-                      onBlur={() => { if (!textOrEmpty(row.name)) updateRow(index, { nameTouched: true }); }}
-                      placeholder="weather_summary"
-                      required
-                      value={row.name}
-                    />
-                  </label>
-                  {nameMissing ? <span className="mt-1 block text-xs text-[var(--fs-status-danger)]" id={nameErrorId}>{t("react.registry.name_is_required", "Name is required.")}</span> : null}
-                </div>
-                <label className="block text-xs text-[var(--fs-text-primary)]">
-                  <span>{t("trash.columns.type", "Type")}</span>
-                  <select
-                    className="fs-input mt-1 w-full"
-                    id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-type`}
-                    name={`workflow_interface_${editorKey}_${index}_type`}
-                    onChange={(event) =>
-                      updateRow(index, { type: event.target.value })
-                    }
-                    value={row.type}
-                  >
-                    {localizedWORKFLOW_INTERFACE_FIELD_TYPES(t).filter(
-                      (option) =>
-                        direction === "input" || !["secret", "file"].includes(option.value),
-                    ).map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="grid items-end gap-2 sm:grid-cols-2">
-                <label className="block text-xs text-[var(--fs-text-primary)]">
-                  <span>{t("react.workflows.label", "Label")}</span>
-                  <input
-                    className="fs-input mt-1 w-full"
-                    id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-label`}
-                    name={`workflow_interface_${editorKey}_${index}_label`}
-                    onChange={(event) =>
-                      updateRow(index, { label: event.target.value })
-                    }
-                    placeholder={t("react.workflows.weather_summary", "Weather summary")}
-                    value={row.label}
-                  />
-                </label>
-                <label className="flex min-h-8 items-center gap-2 text-xs text-[var(--fs-text-primary)]">
-                  <input
-                    checked={row.required}
-                    className="h-4 w-4 accent-[var(--fs-action-primary)]"
-                    id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-required`}
-                    name={`workflow_interface_${editorKey}_${index}_required`}
-                    onChange={(event) =>
-                      updateRow(index, { required: event.target.checked })
-                    }
-                    type="checkbox"
-                  />
-                  <span>{t("project_edit.fields.required", "Required")}</span>
-                </label>
-              </div>
-              {row.type === "select" ? (
-                <div>
-                  <label className="block text-xs text-[var(--fs-text-primary)]">
-                    <span>{t("react.workflows.options", "Options")}</span>
-                    <input
-                      aria-describedby={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-options-help`}
-                      className="fs-input mt-1 w-full"
-                      id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-options`}
-                      name={`workflow_interface_${editorKey}_${index}_options`}
-                      onChange={(event) =>
-                        updateRow(index, { options: event.target.value })
-                      }
-                      placeholder="high, normal, low"
-                      value={row.options}
-                    />
-                  </label>
-                  <p className="fs-field-helper mt-1" id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-options-help`}>{t("react.workflows.contract_options_help", "Separate the choices with commas.")}</p>
-                </div>
-              ) : null}
-              {direction === "input"
-                ? renderWorkflowFieldDefault(
-                    row,
-                    (patch) => updateRow(index, patch),
-                    `${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-default`,
-                    `workflow_interface_${editorKey}_${index}_default`,
-                    secretCatalog,
-                  )
-                : null}
-              <label className="block text-xs text-[var(--fs-text-primary)]">
-                <span>{t("react.workflows.field_description", "Field description")}</span>
-                <input
-                  className="fs-input mt-1 w-full"
-                  id={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-description`}
-                  name={`workflow_interface_${editorKey}_${index}_description`}
-                  onChange={(event) =>
-                    updateRow(index, { description: event.target.value })
-                  }
-                  placeholder={t("react.workflows.shown_to_workflow_authors_and_launchers", "Shown to workflow authors and launchers")}
-                  value={row.description}
-                />
-              </label>
+              <ContractFieldControls
+                controlId={`${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}`}
+                controlName={`workflow_interface_${editorKey}_${index}`}
+                direction={direction}
+                nameId={nameId}
+                nameMissing={nameMissing}
+                row={row}
+                typeOptions={localizedWORKFLOW_INTERFACE_FIELD_TYPES(t).filter(
+                  (option) => direction === "input" || !["secret", "file"].includes(option.value),
+                )}
+                updateRow={(patch) => updateRow(index, patch)}
+              >
+                {direction === "input"
+                  ? renderWorkflowFieldDefault(
+                      row,
+                      (patch) => updateRow(index, patch),
+                      `${workflowInterfaceControlIdPrefix}-${editorKey}-${rowKey}-default`,
+                      `workflow_interface_${editorKey}_${index}_default`,
+                      secretCatalog,
+                    )
+                  : null}
+              </ContractFieldControls>
               <div>
                 <Button onClick={() => removeRow(index)} size="sm" type="button" variant="ghost-danger">
                   {direction === "input"

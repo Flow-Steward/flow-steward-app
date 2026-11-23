@@ -1,5 +1,6 @@
 import { fetchJson } from "@/lib/http/client";
 import type { TranslateParams } from "@/lib/i18n/context";
+import type { OperatorEditorView } from "@/pages/workflows/detail/detail-operator-settings-model";
 
 export {
   clearWorkflowInputSampleFile,
@@ -390,6 +391,8 @@ export type WorkflowContractResponse = {
     returned_files?: Array<Record<string, unknown>>;
   };
   definition_issues?: Array<Record<string, unknown>>;
+  /** settings.operator resolved against this contract, with the compatibility tables (ADR 0075). */
+  operator?: OperatorEditorView;
 };
 
 /**

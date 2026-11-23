@@ -14,8 +14,8 @@ from pydantic import ValidationError
 from core.application.auth import user_profile_repository
 from core.application.auth.account_memberships import normalize_membership_account_ids
 from core.application.auth.config import AUTH_PASSWORD_RESET_TTL_MINUTES, DEFAULT_ACCOUNT_ID
+from core.application.auth.csrf import csrf_request_valid as default_csrf_request_valid
 from core.application.auth.email import normalize_email_address
-from core.application.auth.inbound_oauth_policy import oauth_introspection_fields
 from core.application.auth.password import password_reset_token_hash
 from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.application.auth.rate_limit import ClearUserLoginFailures
@@ -23,6 +23,7 @@ from core.application.auth.serve_auth_runtime import public_base_url
 from core.application.auth.user_admin.command_service import UserAdminCommandService
 from core.application.auth.user_admin.contracts import (
     UserAuditContext,
+    UserAuthenticatorResult,
     UserCreateInput,
     UserDeleteInput,
     UserSelectorInput,
@@ -43,16 +44,18 @@ from core.application.management.errors import (
 )
 from core.application.management.requests import (
     AuthEmailChangeRequest,
+    AuthUserAuthenticatorRequest,
     AuthUserCreateRequest,
     AuthUserProfileUpdateRequest,
     AuthUserUpdateRequest,
 )
 from core.application.settings.ui_i18n import (
-    normalize_ui_locale,
     resolve_ui_locale,
 )
 from core.entrypoints.api import auth_users_email_change as _email_change_helpers
+from core.entrypoints.api import auth_users_introspection as _introspection
 from core.entrypoints.api import auth_users_preferences as _preferences
+from core.entrypoints.api import auth_users_timezone_locale as _timezone_locale
 
 _ERR_EMAIL_NOT_SET_UP = (
     "Email is not set up, so the new address cannot be verified. "
@@ -90,6 +93,7 @@ def create_auth_users_router(
     err_local_auth_disabled: str,
     err_invalid_json_body: str,
     auth_csrf_cookie_name: str,
+    csrf_request_valid: Callable[[Request], bool] = default_csrf_request_valid,
     user_query_service: UserAdminQueryService | None = None,
     user_command_service: UserAdminCommandService | None = None,
 ) -> APIRouter:
@@ -174,48 +178,7 @@ def create_auth_users_router(
         principal = getattr(request.state, "auth_user", None)
         if not isinstance(principal, dict):
             return JSONResponse({"error": err_authentication_required}, status_code=401)
-
-        expires_at = principal.get("expires_at")
-        expires_at_isoformat = getattr(expires_at, "isoformat", None)
-        if callable(expires_at_isoformat):
-            expires_at = expires_at_isoformat()
-        elif expires_at is not None and not isinstance(expires_at, (int, float, str)):
-            expires_at = str(expires_at)
-
-        auth_source = str(
-            getattr(request.state, "auth_source", "") or principal.get("auth_source") or ""
-        ).strip()
-        principal_type = str(principal.get("principal_type") or "user").strip()
-        scopes = [str(item) for item in principal.get("scopes") or [] if str(item).strip()]
-        token_scoped = is_token_scoped_principal(
-            {"auth_source": auth_source, "principal_type": principal_type}
-        )
-        if not scopes and not token_scoped:
-            roles = {str(item).strip().lower() for item in principal.get("roles") or []}
-            if "admin" in roles:
-                scopes = ["admin:all"]
-            elif "operator" in roles:
-                scopes = ["read:*", "command:*"]
-            else:
-                scopes = ["read:*"]
-
-        return {
-            "active": bool(principal.get("is_active", True)),
-            "principal": {
-                "id": str(principal.get("id") or "").strip(),
-                "username": str(principal.get("username") or "").strip(),
-                "principal_type": principal_type,
-                "service_account_key": str(principal.get("service_account_key") or "").strip(),
-                "auth_source": auth_source,
-                "account_id": str(principal.get("account_id") or "").strip(),
-                "roles": list(principal.get("roles") or []),
-                "scopes": scopes,
-                "allowed_project_ids": list(principal.get("allowed_project_ids") or []),
-                "allowed_workflow_ids": list(principal.get("allowed_workflow_ids") or []),
-                "expires_at": expires_at,
-                **oauth_introspection_fields(principal, auth_source),
-            },
-        }
+        return _introspection.introspection_payload(request, principal)
 
     @router.get("/api/auth/me")
     def api_auth_me(request: Request):
@@ -571,8 +534,6 @@ def create_auth_users_router(
     @router.patch("/api/users/me/timezone")
     async def api_user_update_timezone(request: Request):
         """Update the authenticated user's timezone preference."""
-        from core.application.settings.timezone_service import validate_timezone as _validate_tz
-
         user = request_auth_user_payload(request)
         if not isinstance(user, dict):
             return JSONResponse({"error": err_authentication_required}, status_code=401)
@@ -580,34 +541,15 @@ def create_auth_users_router(
         if not user_id:
             return JSONResponse({"error": err_authentication_required}, status_code=401)
 
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"error": err_invalid_json_body}, status_code=400)
-        raw_tz = body.get("timezone") if isinstance(body, dict) else None
-
-        try:
-            clean_tz = _validate_tz(raw_tz)
-        except ValueError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=422)
-
-        bl = get_logger_only()
-        if not bl:
-            return JSONResponse({"error": err_database_not_configured}, status_code=503)
-        try:
-            user_profile_repository.update_user_timezone(
-                bl,
-                user_id=user_id,
-                timezone=clean_tz,
-            )
-        except Exception as exc:
-            message = str(exc or "").lower()
-            if "timezone" in message and "users" in message and "column" in message:
-                return JSONResponse(
-                    {"error": "Timezone schema is not applied. Run migrations and retry."},
-                    status_code=503,
-                )
-            return JSONResponse({"error": "Failed to update timezone"}, status_code=500)
+        clean_tz = await _timezone_locale.store_timezone(
+            request,
+            user_id,
+            get_logger_only=get_logger_only,
+            err_invalid_json_body=err_invalid_json_body,
+            err_database_not_configured=err_database_not_configured,
+        )
+        if isinstance(clean_tz, JSONResponse):
+            return clean_tz
 
         auth_user = getattr(request.state, "auth_user", None)
         if isinstance(auth_user, dict):
@@ -628,32 +570,15 @@ def create_auth_users_router(
         if not user_id:
             return JSONResponse({"error": err_authentication_required}, status_code=401)
 
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"error": err_invalid_json_body}, status_code=400)
-        raw_locale = body.get("locale") if isinstance(body, dict) else None
-        clean_locale = normalize_ui_locale(raw_locale)
-        if not clean_locale:
-            return JSONResponse({"error": "Unsupported interface locale"}, status_code=422)
-
-        bl = get_logger_only()
-        if not bl:
-            return JSONResponse({"error": err_database_not_configured}, status_code=503)
-        try:
-            user_profile_repository.update_user_locale(
-                bl,
-                user_id=user_id,
-                locale=clean_locale,
-            )
-        except Exception as exc:
-            message = str(exc or "").lower()
-            if "locale" in message and "users" in message and "column" in message:
-                return JSONResponse(
-                    {"error": "Locale schema is not applied. Run migrations and retry."},
-                    status_code=503,
-                )
-            return JSONResponse({"error": "Failed to update interface locale"}, status_code=500)
+        clean_locale = await _timezone_locale.store_locale(
+            request,
+            user_id,
+            get_logger_only=get_logger_only,
+            err_invalid_json_body=err_invalid_json_body,
+            err_database_not_configured=err_database_not_configured,
+        )
+        if isinstance(clean_locale, JSONResponse):
+            return clean_locale
 
         auth_user = getattr(request.state, "auth_user", None)
         if isinstance(auth_user, dict):
@@ -667,8 +592,6 @@ def create_auth_users_router(
     @router.post("/api/users/me/detect-timezone")
     async def api_user_detect_timezone(request: Request):
         """Accept browser-detected timezone on first login / onboarding."""
-        from core.application.settings.timezone_service import validate_timezone as _validate_tz
-
         user = request_auth_user_payload(request)
         if not isinstance(user, dict):
             return JSONResponse({"error": err_authentication_required}, status_code=401)
@@ -680,35 +603,16 @@ def create_auth_users_router(
         if existing_tz:
             return {"status": "already_set", "timezone": existing_tz}
 
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"error": err_invalid_json_body}, status_code=400)
-        raw_tz = body.get("timezone") if isinstance(body, dict) else None
-
-        try:
-            clean_tz = _validate_tz(raw_tz)
-        except ValueError as exc:
-            return JSONResponse({"error": str(exc)}, status_code=422)
-
-        bl = get_logger_only()
-        if not bl:
-            return JSONResponse({"error": err_database_not_configured}, status_code=503)
-        try:
-            user_profile_repository.update_user_timezone(
-                bl,
-                user_id=user_id,
-                timezone=clean_tz,
-                only_if_empty=True,
-            )
-        except Exception as exc:
-            message = str(exc or "").lower()
-            if "timezone" in message and "users" in message and "column" in message:
-                return JSONResponse(
-                    {"error": "Timezone schema is not applied. Run migrations and retry."},
-                    status_code=503,
-                )
-            return JSONResponse({"error": "Failed to update timezone"}, status_code=500)
+        clean_tz = await _timezone_locale.store_timezone(
+            request,
+            user_id,
+            get_logger_only=get_logger_only,
+            err_invalid_json_body=err_invalid_json_body,
+            err_database_not_configured=err_database_not_configured,
+            only_if_empty=True,
+        )
+        if isinstance(clean_tz, JSONResponse):
+            return clean_tz
 
         return {"status": "ok", "timezone": clean_tz}
 
@@ -801,7 +705,8 @@ def create_auth_users_router(
                 email=body.email,
                 password=body.password,
                 display_name=body.display_name,
-                roles=body.roles or ["viewer"],
+                # Without a role the server's default applies: viewer once users exist.
+                role=body.requested_role() or "",
                 is_active=bool(body.is_active),
                 must_change_password=bool(body.must_change_password),
                 account_id=primary_account_id,
@@ -850,7 +755,7 @@ def create_auth_users_router(
                 is_active=body.is_active,
                 password=body.password,
                 must_change_password=body.must_change_password,
-                roles=body.roles,
+                role=body.requested_role(),
                 account_ids=body.account_ids,
                 account_id=body.primary_account_id,
                 actor=str(admin_user.get("username") or "admin"),
@@ -987,5 +892,35 @@ def create_auth_users_router(
             "username": str(result.user.username or ""),
             "revoked_sessions": result.revoked_sessions,
         }
+
+    @router.post("/api/auth/users/{user_id}/authenticator", response_model=UserAuthenticatorResult)
+    def api_auth_users_authenticator(
+        user_id: UUID, body: AuthUserAuthenticatorRequest, request: Request
+    ):
+        if not local_auth_enabled():
+            return JSONResponse({"error": err_local_auth_disabled}, status_code=400)
+        try:
+            admin_user = require_authenticated_user(request, required_roles=auth_admin_roles)
+        except PermissionError:
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        if (
+            getattr(request.state, "auth_source", None) not in {"local", "external"}
+            or is_token_scoped_principal(admin_user)
+            or "authorization" in request.headers
+        ):
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        if not csrf_request_valid(request):
+            return JSONResponse({"error": "CSRF validation failed"}, status_code=403)
+
+        try:
+            return user_command_service.update_authenticator(
+                user_id=str(user_id),
+                actor_user_id=str(admin_user.get("id") or ""),
+                actor=str(admin_user.get("username") or "admin"),
+                action=body.action,
+                allowed_account_ids=_admin_managed_account_ids(admin_user),
+            )
+        except Exception as exc:
+            return _user_service_error(exc)
 
     return router

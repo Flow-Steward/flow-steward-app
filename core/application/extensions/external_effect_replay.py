@@ -193,7 +193,9 @@ def _bounded_json_bytes(value: Any, *, max_plaintext_bytes: int) -> bytes:
 
 
 def _safe_output_summaries(host_outputs: Mapping[str, Any], key: str) -> list[dict[str, Any]]:
-    from core.application.extensions.external_effects import _produced_output_summary
+    from core.application.extensions.external_effect_invocation_summary import (
+        _produced_output_summary,
+    )
 
     kind = "dataset" if key == "produced_datasets" else "artifact"
     return _produced_output_summary(host_outputs.get(key), kind=kind)

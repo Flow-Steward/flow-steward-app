@@ -174,16 +174,31 @@ def _run_compose_live_probe(
     return checks
 
 
+def _expected_lifecycle_state(lifecycle: Any) -> bool:
+    """Whether `lifecycle_recovery` shows only what a running mutation itself leaves.
+
+    That is a mutation in progress, or the recovery_required projection an unfinished
+    release upgrade writes for itself (installer state_store.save_release_upgrade). A
+    development installation's app reads that projection from the bind-mounted
+    checkout, so the upgrade's own readiness wait saw it and could never finish
+    (0.9.23). Any other recovery_required journal still blocks.
+    """
+    if not isinstance(lifecycle, dict) or lifecycle.get("ok") is not False:
+        return False
+    state = lifecycle.get("state")
+    if state == "mutation_in_progress":
+        return True
+    return (
+        state == "recovery_required"
+        and lifecycle.get("recovery_required_scope") == "release_upgrade"
+    )
+
+
 def _expected_lifecycle_mutation_only(payload: Any) -> bool:
     checks_raw = payload.get("checks") if isinstance(payload, dict) else None
     if not isinstance(checks_raw, dict) or not checks_raw:
         return False
-    lifecycle = checks_raw.get("lifecycle_recovery")
-    if (
-        not isinstance(lifecycle, dict)
-        or lifecycle.get("ok") is not False
-        or lifecycle.get("state") != "mutation_in_progress"
-    ):
+    if not _expected_lifecycle_state(checks_raw.get("lifecycle_recovery")):
         return False
     return all(
         isinstance(check, dict) and (check.get("ok") is True or check_id == "lifecycle_recovery")
@@ -200,12 +215,7 @@ def _expected_release_transition_only(payload: Any) -> bool:
     checks_raw = payload.get("checks") if isinstance(payload, dict) else None
     if not isinstance(checks_raw, dict) or not checks_raw:
         return False
-    lifecycle = checks_raw.get("lifecycle_recovery")
-    if (
-        not isinstance(lifecycle, dict)
-        or lifecycle.get("ok") is not False
-        or lifecycle.get("state") != "mutation_in_progress"
-    ):
+    if not _expected_lifecycle_state(checks_raw.get("lifecycle_recovery")):
         return False
     memory = checks_raw.get("memory_backends")
     if not isinstance(memory, dict) or bool(memory.get("ok")):
@@ -249,7 +259,7 @@ def _expected_release_transition_only(payload: Any) -> bool:
             return False
         if check.get("ok") is True or check_id == "memory_backends":
             continue
-        if check_id == "lifecycle_recovery" and check.get("state") == "mutation_in_progress":
+        if check_id == "lifecycle_recovery" and _expected_lifecycle_state(check):
             continue
         if check_id == "workflow_knowledge_sync":
             continue

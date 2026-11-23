@@ -146,6 +146,11 @@ def test_built_frontend_shell_favicon_serves_svg_instead_of_html(path: str) -> N
         "/jobs/42",
         "/projects",
         "/projects/42",
+        # ADR 0075: a published workflow's section and the operators' landing.
+        "/projects/42/workflows/wf.receipts/work",
+        "/projects/42/workflows/wf.receipts/work/jobs/00000000-0000-0000-0000-000000000009",
+        "/sections",
+        "/secrets",
         "/extensions",
         "/extensions/demo-connector",
         "/security",
@@ -193,6 +198,8 @@ def test_frontend_shell_serves_canonical_public_routes(tmp_path: Path, path: str
         "/projects/42/history",
         "/projects/42/scheduled-jobs",
         "/projects/42/queue",
+        # ADR 0075: sections are workflows bound to a project, not stored on it.
+        "/projects/42/sections/receipts",
     ],
 )
 def test_frontend_shell_does_not_serve_retired_project_routes(tmp_path: Path, path: str) -> None:

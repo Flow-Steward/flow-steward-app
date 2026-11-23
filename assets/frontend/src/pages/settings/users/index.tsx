@@ -1,5 +1,13 @@
 import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
-import { ROLE_OPTIONS, userLabel, type EditorState, type ConfirmActionKind } from "./user-form-model";
+import {
+  ROLE_OPTIONS,
+  isUserAuthenticatorAction,
+  userAuthenticatorActionLabel,
+  userLabel,
+  type ConfirmAction,
+  type ConfirmActionKind,
+  type EditorState,
+} from "./user-form-model";
 import { UserEditorDialog, TemporaryPasswordDialog, ConfirmUserActionDialog } from "./user-dialogs";
 import { useI18n } from "@/lib/i18n/useI18n";
 import {
@@ -11,6 +19,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
+import { hasCapability } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import {
@@ -20,6 +30,7 @@ import {
   setTemporaryUserPassword,
   unlockUser,
   updateUser,
+  updateUserAuthenticator,
 } from "@/pages/settings/shared/api";
 import {
   AdvancedTableFilters,
@@ -112,6 +123,8 @@ function UserInventoryRow({
 }>) {
   const { t } = useI18n();
   const statusLabel = userStatusLabel(user, busyUserId, t);
+  const requirementAction = user.authenticator_required ? "unrequire" : "require";
+  const canManageAuthenticator = Boolean(authUserId && user.id !== authUserId && !user.deleted_at);
   return (
     <tr>
       <td>
@@ -159,7 +172,7 @@ function UserInventoryRow({
             >
               {t("react.settings.set_temporary_password", "Set temporary password")} </button>
             <button
-              onClick={() => onConfirmAction("reset", user)}
+              onClick={() => onConfirmAction("reset-password", user)}
               role="menuitem"
               type="button"
             >
@@ -170,6 +183,16 @@ function UserInventoryRow({
               type="button"
             >
               {t("react.settings.clear_sign_in_lockout", "Clear sign-in lockout")} </button>
+            {canManageAuthenticator ? (
+              <>
+                <button onClick={() => onConfirmAction(requirementAction, user)} role="menuitem" type="button">
+                  {userAuthenticatorActionLabel(requirementAction, t)}
+                </button>
+                <button className="danger" onClick={() => onConfirmAction("reset", user)} role="menuitem" type="button">
+                  {userAuthenticatorActionLabel("reset", t)}
+                </button>
+              </>
+            ) : null}
           </div>
           <div className="fs-row-menu-separator" />
           <div className="fs-row-menu-group">
@@ -350,7 +373,7 @@ function UsersInventory({
         >
           <thead>
             <tr>
-              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("account.profile.roles", "Roles")}</th>
+              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.role", "Role")}</th>
               <th>{t("auth.common.password", "Password")}</th><th aria-label={t("monitoring.table.actions", "Actions")} />
             </tr>
           </thead>
@@ -395,7 +418,8 @@ export function SettingsUsersPage() {
   const auth = useAuth();
   const queryClient = useQueryClient();
   const [params, setParams] = useFilterSearchParams("users", ["search", "role", "status"]);
-  const isAdmin = auth.session?.roles.includes("admin") || false;
+  // Users & access needs users.manage (ADR 0076), the permission of /api/auth/users.
+  const isAdmin = hasCapability(sessionPermissions(auth.session), "manage_users");
   const filters: UserFilters = {
     search: params.get("search") || "",
     role: params.get("role") || "",
@@ -422,14 +446,13 @@ export function SettingsUsersPage() {
   const [passwordUser, setPasswordUser] = useState<UserRecord | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [temporaryRequireChange, setTemporaryRequireChange] = useState(true);
-  const [confirmAction, setConfirmAction] = useState<{ kind: ConfirmActionKind; user: UserRecord } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState("");
 
   function openAdd() { setEditorMode("add"); setEditingUser(null); setEditor({ ...EMPTY_EDITOR }); setEditorError(""); setFeedback(null); }
   function openEdit(user: UserRecord) { setEditorMode("edit"); setEditingUser(user); setEditor(editorForUser(user)); setEditorError(""); setFeedback(null); setRowMenu(null); }
   function closeEditor() { if (!saving) { setEditorMode("closed"); setEditingUser(null); setEditorError(""); } }
-  function toggleRole(role: string, checked: boolean) { setEditor((value) => ({ ...value, roles: checked ? [...value.roles, role] : value.roles.filter((item) => item !== role) })); }
 
   async function refreshUsers() { await queryClient.invalidateQueries({ queryKey: ["settings", "users"] }); }
 
@@ -473,21 +496,47 @@ export function SettingsUsersPage() {
   }
 
   async function confirmUserAction() {
-    if (!confirmAction) return;
+    if (!confirmAction || saving) return;
+    const { kind, user } = confirmAction;
+    const authenticatorAction = isUserAuthenticatorAction(kind);
+    const value1 = userLabel(user);
     setSaving(true);
+    if (confirmAction.error) setConfirmAction({ kind, user });
     try {
-      if (confirmAction.kind === "reset") await forceResetUser(confirmAction.user.id);
-      else if (confirmAction.kind === "delete") await deleteUser(confirmAction.user.id);
-      else await updateUser(confirmAction.user.id, { is_active: false });
-      const message = confirmAction.kind === "reset"
-        ? t("react.settings.value1_must_reset_their_password_other_sessions_were_revoked", "{value1} must reset their password. Other sessions were revoked.", { value1: String(userLabel(confirmAction.user)) })
-        : confirmAction.kind === "delete"
-          ? t("react.settings.value1_was_deleted", "{value1} was deleted.", { value1: String(userLabel(confirmAction.user)) })
-          : t("react.settings.value1_was_deactivated", "{value1} was deactivated.", { value1: String(userLabel(confirmAction.user)) });
+      let message: string;
+      if (authenticatorAction) {
+        await updateUserAuthenticator(user.id, kind);
+        switch (kind) {
+          case "require":
+            message = t("react.settings.authenticator_required_for_value1", "An authenticator is now required for {value1}.", { value1 });
+            break;
+          case "unrequire":
+            message = t("react.settings.individual_authenticator_requirement_removed_for_value1", "The individual authenticator requirement was removed for {value1}.", { value1 });
+            break;
+          case "reset":
+            message = t("react.settings.authenticator_reset_for_value1", "Authenticator reset for {value1}. Active sessions were revoked.", { value1 });
+            break;
+        }
+      } else if (kind === "reset-password") {
+        await forceResetUser(user.id);
+        message = t("react.settings.value1_must_reset_their_password_other_sessions_were_revoked", "{value1} must reset their password. Other sessions were revoked.", { value1 });
+      } else if (kind === "delete") {
+        await deleteUser(user.id);
+        message = t("react.settings.value1_was_deleted", "{value1} was deleted.", { value1 });
+      } else {
+        await updateUser(user.id, { is_active: false });
+        message = t("react.settings.value1_was_deactivated", "{value1} was deactivated.", { value1 });
+      }
       setFeedback({ tone: "success", message });
-      setConfirmAction(null); await refreshUsers();
-    } catch (error) { setFeedback({ tone: "danger", message: error instanceof Error ? error.message : t("react.settings.the_action_could_not_be_completed", "The action could not be completed.") }); }
-    finally { setSaving(false); }
+      setConfirmAction(null);
+      await refreshUsers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t("react.settings.the_action_could_not_be_completed", "The action could not be completed.");
+      if (authenticatorAction) setConfirmAction({ kind, user, error: message });
+      else setFeedback({ tone: "danger", message });
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!isAdmin) {
@@ -506,6 +555,7 @@ export function SettingsUsersPage() {
     kind: ConfirmActionKind,
     user: UserRecord,
   ) => {
+    if (isUserAuthenticatorAction(kind)) setFeedback(null);
     setConfirmAction({ kind, user });
     setRowMenu(null);
   };
@@ -552,7 +602,6 @@ export function SettingsUsersPage() {
         onSubmit={(event) => ignoreAsyncResult(saveEditor(event))}
         saving={saving}
         setEditor={setEditor}
-        toggleRole={toggleRole}
       />
       <TemporaryPasswordDialog
         onClose={() => setPasswordUser(null)}

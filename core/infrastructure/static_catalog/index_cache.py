@@ -168,16 +168,17 @@ class CatalogIndexCache(Generic[IndexT]):
         """``fetched_at``, ``age_seconds``, ``stale`` and ``last_refresh_error``.
 
         ``fetched_at`` is when the host last confirmed the index (a ``200`` or a
-        ``304``); a failed read since then makes it ``stale``.
+        ``304``); a failed read since then makes it ``stale``. The public error
+        message omits transport and parser diagnostics.
         """
         with self._cond:
             fetched_at = self._fetched_at
-            last_error = self._last_error
+            stale = bool(self._last_error)
         return {
             "fetched_at": _iso_from_epoch(fetched_at),
             "age_seconds": max(0, int(self._clock() - fetched_at)) if fetched_at else 0,
-            "stale": bool(last_error),
-            "last_refresh_error": last_error,
+            "stale": stale,
+            "last_refresh_error": "Catalog refresh failed." if stale else "",
         }
 
     def _finish(

@@ -53,6 +53,7 @@ def _control_process_metrics_lines(
             "workflow_timer": True,
             "workflow_child": True,
             "invoke_child_cancel": True,
+            "agent_expiry_reminders": True,
             "external_effect_maintenance": bool(cfg.external_effect_maintenance_enabled),
             "watchdog": bool(cfg.watchdog_enabled),
             "scheduled_jobs": bool(cfg.scheduled_jobs_enabled),
@@ -176,6 +177,7 @@ def main() -> None:
         artifact_plane=artifact_plane,
     )
 
+    from core.application.auth.agent_connection_reminders import REMINDER_SCAN_INTERVAL_SECONDS
     from core.application.jobs.workflow_timer_dispatcher import (
         WORKFLOW_TIMER_SCAN_INTERVAL_SECONDS,
     )
@@ -187,6 +189,7 @@ def main() -> None:
         scan_intervals={
             "workflow_timer": WORKFLOW_TIMER_SCAN_INTERVAL_SECONDS,
             "workflow_child": WORKFLOW_TIMER_SCAN_INTERVAL_SECONDS,
+            "agent_expiry_reminders": REMINDER_SCAN_INTERVAL_SECONDS,
         },
     )
     from core.application.monitoring.runtime_composition import start_optional_process_reporting
@@ -275,7 +278,14 @@ def _build_control_scan_fns(*, stores, cfg, artifact_plane):
             stores["projects"], stores["events"], cfg
         ),
         "retention": _run_retention_pass,
+        "agent_expiry_reminders": lambda: _run_agent_expiry_reminders(stores["connection"]),
     }
+
+
+def _run_agent_expiry_reminders(bl) -> dict[str, int]:
+    from core.application.auth.agent_connection_reminders import run_agent_expiry_reminders
+
+    return run_agent_expiry_reminders(bl)
 
 
 def _run_retention_pass() -> dict[str, int]:

@@ -84,12 +84,29 @@ def render_event_email(event: Mapping[str, Any], *, base_url: str = "") -> tuple
         ("Error", _text(payload.get("error"))),
     ]
     lines += [f"{label}: {value}" for label, value in details if value]
-    # A propagated approval is decided on the job of the actual Approval.
-    job_id = _text(payload.get("approval_job_id")) or _text(event.get("job_id"))
-    if job_id and base_url:
-        lines += ["", f"Open the run: {base_url.rstrip('/')}/jobs/{job_id}"]
+    run_url = event_run_url(event, base_url=base_url)
+    if run_url:
+        lines += ["", f"Open the run: {run_url}"]
     lines += ["", "Sent by Flow Steward."]
     return subject, "\n".join(lines).strip() + "\n"
 
 
-__all__ = ["event_heading", "render_event_email"]
+def event_run_url(event: Mapping[str, Any], *, base_url: str = "") -> str:
+    """The platform page of the run an event is about, or ``""``.
+
+    Present only when the platform knows its public base URL and the event has a
+    job. A propagated approval is decided on the job of the actual Approval, so
+    its ``approval_job_id`` wins. The value is the platform's own page and never
+    carries a token.
+    """
+    from urllib.parse import quote
+
+    payload = _as_dict(event.get("payload"))
+    job_id = _text(payload.get("approval_job_id")) or _text(event.get("job_id"))
+    base = _text(base_url).rstrip("/")
+    if not job_id or not base:
+        return ""
+    return f"{base}/jobs/{quote(job_id, safe='')}"
+
+
+__all__ = ["event_heading", "event_run_url", "render_event_email"]

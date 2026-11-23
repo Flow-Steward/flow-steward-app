@@ -279,11 +279,6 @@ def _roles_intersect(actual: list[str], required: set[str]) -> bool:
     return _request_principal_runtime.roles_intersect(actual, required)
 
 
-_is_admin_only_route = _serve_request_runtime.build_path_pattern_matcher(
-    patterns=_AUTH_ADMIN_ONLY_PATTERNS,
-)
-
-
 _is_registry_read_route = _serve_request_runtime.build_path_pattern_matcher(
     patterns=_AUTH_REGISTRY_READ_PATTERNS,
 )

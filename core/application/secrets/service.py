@@ -27,6 +27,7 @@ from core.application.secrets.authority import (
     actor_identity,
     require_approval_authority,
     require_secret_bind,
+    require_secret_delete,
     require_secret_read_metadata,
     require_secret_write,
 )
@@ -347,7 +348,7 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
     ) -> dict[str, Any]:
         """Delete a secret. A used one is deleted only with the revision of the plan the
         person confirmed: its bindings are removed first, in the same transaction."""
-        require_secret_write(scope)
+        require_secret_delete(scope)
         _require_unrestricted(scope)
         confirmed = _text(plan_revision)
         if confirmed:

@@ -3,6 +3,7 @@
 from core.application.orchestration.state_paths import StatePathError, parse_state_path
 from core.application.registry.state_selector_shape import StateSelectorShape
 from core.application.registry.workflow_contract import normalize_field_type
+from core.application.workflows.approval_review import review_fields
 from core.application.workflows.workflow_step_config_contracts import (
     TABULAR_FEED_PICKER_OUTPUT_FIELDS_BY_OPERATION,
 )
@@ -621,6 +622,40 @@ class IOResolverOutputMixin:
                         output_type=member_type,
                         assignment=False,
                     )
+        elif step_kind == "approval" and not state_only:
+            # The decision message's artifacts (ADR 0075): later steps read
+            # message.step.<step>.artifacts.<name>, like other steps' outputs.
+            spec = override.get("approval") if isinstance(override, dict) else {}
+            spec = spec if isinstance(spec, dict) else {}
+            for name, output_type, description in (
+                ("decision", "string", "approved or rejected"),
+                ("comment", "paragraph", "The reviewer's comment; the feedback when rejected"),
+            ):
+                _add_output(
+                    {
+                        "name": name,
+                        "type": output_type,
+                        "description": description,
+                        "source": "approval",
+                        "source_id": step_id,
+                        **origin,
+                        "required": False,
+                    }
+                )
+            for field in review_fields(spec.get("review")):
+                _add_output(
+                    {
+                        "name": field.name,
+                        "type": field.type,
+                        "label": field.label,
+                        "description": field.description
+                        or f"Checked review value '{field.public_label()}'",
+                        "source": "approval",
+                        "source_id": step_id,
+                        **origin,
+                        "required": bool(field.required),
+                    }
+                )
         return state_writes if exact_state_writes else list(by_name.values())
 
     def _get_callable_output_types(self, workflow_id: str) -> dict[str, str]:

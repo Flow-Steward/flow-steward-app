@@ -33,6 +33,7 @@ from core.infrastructure.lifecycle.state_store import LifecycleStateStore
 # Under the state directory everything is the owner's alone, except what holds nothing
 # secret: the release store (published extension archives) and Docker's cid file.
 _PRODUCTION_ENV = ".env.prod"
+_DEVELOPMENT_ENV = ".env"
 _COMPACT_OPERATIONS = "/data/state/.flow-steward/operations"
 _COMPACT_MAINTENANCE = "/data/state/.flow-steward/runtime/maintenance-state.json"
 _SCALABLE_MAINTENANCE = ".flow-steward/runtime/maintenance-state.json"
@@ -141,6 +142,14 @@ class InstallationDoctorProbe:
         self.profile = config.deployment_profile
         self.log = log
         self.holding = False  # doctor --fix holds the installation itself
+
+    @property
+    def _env_file(self) -> Path:
+        """The env file this installation runs from: .env for development (0.9.23
+        doctor read .env.prod there and reported the backup key missing)."""
+        if self.config.environment == "development":
+            return self.root / _DEVELOPMENT_ENV
+        return self.root / _PRODUCTION_ENV
 
     # -- what is running --------------------------------------------------------------
 
@@ -344,9 +353,9 @@ class InstallationDoctorProbe:
         entries = []
         for root in dict.fromkeys((self.state.root, self.root / ".flow-steward")):
             entries.extend(wide_entries(Path(root), exempt=STATE_NOT_SECRET))
-        for name in (_PRODUCTION_ENV, ".env"):
+        for name in (_PRODUCTION_ENV, _DEVELOPMENT_ENV):
             entries.extend(wide_entries(self.root / name))
-        key = _env_value(self.root / _PRODUCTION_ENV, "FS_TLS_PRIVATE_KEY_PATH")
+        key = _env_value(self._env_file, "FS_TLS_PRIVATE_KEY_PATH")
         if key and Path(key).is_relative_to(self.root):
             entries.extend(wide_entries(Path(key)))
         return list({entry.path: entry for entry in entries}.values())
@@ -387,7 +396,7 @@ class InstallationDoctorProbe:
         )
 
     def backup_key_present(self) -> bool:
-        return bool(_env_value(self.root / _PRODUCTION_ENV, "FS_BACKUP_ENCRYPTION_KEY"))
+        return bool(_env_value(self._env_file, "FS_BACKUP_ENCRYPTION_KEY"))
 
     def backups(self) -> BackupFacts:
         key_present = self.backup_key_present()
@@ -440,7 +449,7 @@ class InstallationDoctorProbe:
         mode = str(self.config.tls_mode)
         if mode in _INGRESS_OWNED_TLS:
             return None
-        recorded = _env_value(self.root / _PRODUCTION_ENV, "FS_TLS_CERTIFICATE_PATH")
+        recorded = _env_value(self._env_file, "FS_TLS_CERTIFICATE_PATH")
         input_path = Path(recorded) if recorded else self.root / self.config.certificate_path
         if not input_path.is_absolute():
             input_path = self.root / input_path
@@ -493,7 +502,7 @@ class InstallationDoctorProbe:
 
     def worker_counts(self) -> WorkerFacts:
         self._not_during_an_operation()
-        env = self.root / _PRODUCTION_ENV
+        env = self._env_file
         if self.profile == "compact":
             self._require_running("compact-runtime")
             expected = _env_value(env, "FS_WORKER_PROCESSES") or str(self.config.worker_processes)

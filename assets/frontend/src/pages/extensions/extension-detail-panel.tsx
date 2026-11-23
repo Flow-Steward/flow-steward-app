@@ -65,6 +65,12 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { localizeExtensionManifest, pageIdentity } from "@/pages/extensions/extension-locale";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ExtensionOAuthSetup } from "@/pages/extensions/extension-oauth-setup";
+import {
+  connectionCredentialsFromByType,
+  useCredentialsConfigurations,
+  type ConnectionCredentialsFrom,
+  type CredentialsConfigurationOptions,
+} from "@/pages/extensions/connection-credentials-from";
 import type { ExtensionOAuthSetupMode } from "@/pages/extensions/extension-oauth-setup-model";
 import {
   oauthConnectionTypesFromManifest,
@@ -619,21 +625,59 @@ function ActiveOAuthProviderSet({
   });
 }
 
-function ManifestComponentSections({
-  activePageId,
-  canManageProject,
-  extensionDescriptorSha256,
-  extensionReleaseId,
-  pageOAuthConnectionProviderIds,
-  panel,
-}: Readonly<{
+type ManifestComponentSectionsProps = Readonly<{
   activePageId: string;
   canManageProject: boolean;
   extensionDescriptorSha256: string;
   extensionReleaseId: string;
   pageOAuthConnectionProviderIds: string[];
   panel: ExtensionDetailPanelProps;
-}>) {
+}>;
+
+type ManifestConnectionCredentials = Readonly<{
+  credentialsFromByType: Record<string, ConnectionCredentialsFrom>;
+  configurationsByProvider: Record<string, CredentialsConfigurationOptions>;
+}>;
+
+const NO_CONNECTION_CREDENTIALS: ManifestConnectionCredentials = {
+  credentialsFromByType: {},
+  configurationsByProvider: {},
+};
+
+/**
+ * Only an extension with a connection type that borrows its credentials loads
+ * the OAuth configurations it may borrow them from.
+ */
+function ManifestComponentSections(props: ManifestComponentSectionsProps) {
+  const manifest = props.panel.manifestQuery.data;
+  const credentialsFromByType = useMemo(() => connectionCredentialsFromByType(manifest), [manifest]);
+  return Object.keys(credentialsFromByType).length
+    ? <ManifestComponentSectionsWithCredentials {...props} credentialsFromByType={credentialsFromByType} />
+    : <ManifestComponentSectionList {...props} credentials={NO_CONNECTION_CREDENTIALS} />;
+}
+
+function ManifestComponentSectionsWithCredentials({
+  credentialsFromByType,
+  ...props
+}: ManifestComponentSectionsProps & Readonly<{ credentialsFromByType: Record<string, ConnectionCredentialsFrom> }>) {
+  const configurationsByProvider = useCredentialsConfigurations({
+    credentialsFromByType,
+    installId: props.panel.extensionInstallId,
+    manifest: props.panel.manifestQuery.data,
+    projectId: props.panel.selectedProjectId,
+  });
+  return <ManifestComponentSectionList {...props} credentials={{ credentialsFromByType, configurationsByProvider }} />;
+}
+
+function ManifestComponentSectionList({
+  activePageId,
+  canManageProject,
+  credentials,
+  extensionDescriptorSha256,
+  extensionReleaseId,
+  pageOAuthConnectionProviderIds,
+  panel,
+}: ManifestComponentSectionsProps & Readonly<{ credentials: ManifestConnectionCredentials }>) {
   const { t } = useI18n();
   // Connection and manifest actions run under the "other" busy kind; the
   // pressed control's key tells which of them shows busy.
@@ -677,6 +721,8 @@ function ManifestComponentSections({
           formValuesByComponent: panel.formValuesByComponent,
           oauthConnectionTypes: panel.oauthConnectionTypes,
           oauthConnectionProviderIds: pageOAuthConnectionProviderIds,
+          connectionCredentialsFrom: credentials.credentialsFromByType,
+          credentialsConfigurations: credentials.configurationsByProvider,
           projectConnections: panel.projectConnections,
           projectState: panel.projectState,
           projectId: panel.selectedProjectId,

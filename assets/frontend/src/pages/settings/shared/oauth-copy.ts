@@ -78,12 +78,29 @@ export function oauthNotice(code: string, t: Translate = fallbackContext.t): OAu
 export function oauthPresetLabel(preset: string, t: Translate = fallbackContext.t): string {
   if (preset === "full_authoring") return t("react.oauth.preset_full_authoring", "Full authoring");
   if (preset === "operational") return t("react.oauth.preset_operational", "Monitor and run workflows");
+  if (preset === "my_role") return t("react.oauth.preset_my_role", "Same access as you");
   return preset;
 }
 
 export function oauthPresetDescription(preset: string, t: Translate = fallbackContext.t): string {
+  if (preset === "my_role") {
+    return t("react.oauth.preset_my_role_description", "What your role lets you do, limited to what the app asked for.");
+  }
   if (preset === "full_authoring") {
     return t("react.oauth.preset_full_authoring_description", "admin:all is full access: everything you can do in Flow Steward, including creating and changing workflows, agents and skills. It is not a narrow permission.");
   }
   return t("react.oauth.preset_operational_description", "Find projects, read statuses, errors, reports and approvals, and start or cancel runs.");
+}
+
+/** A system role's name, as the user form shows it. */
+export function roleLabel(role: string, t: Translate = fallbackContext.t): string {
+  if (role === "admin") return t("react.settings.role_admin", "Admin");
+  if (role === "operator") return t("react.settings.role_operator", "Operator");
+  if (role === "viewer") return t("react.settings.role_viewer", "Viewer");
+  return role;
+}
+
+/** One permission of the catalogue in plain words; the server's text is the fallback. */
+export function permissionText(key: string, description: string, t: Translate = fallbackContext.t): string {
+  return t(`react.permissions.${key.replaceAll(".", "_")}`, description);
 }

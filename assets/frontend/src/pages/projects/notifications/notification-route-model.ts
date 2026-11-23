@@ -10,8 +10,11 @@ export type RouteDraft = {
   provider_key: string;
   route_key: string;
   severity: string;
-  /** The shape this route is stored in, kept so a save cannot silently change it. */
-  stored_target_kind: "recipient" | "channel" | "";
+  /**
+   * The shape this route is stored in, kept so a save cannot silently change it:
+   * `fixed_channel` is a route that names only its connection (bound to one channel).
+   */
+  stored_target_kind: "recipient" | "channel" | "fixed_channel" | "";
   workflow_id: string;
 };
 

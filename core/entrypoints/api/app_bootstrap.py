@@ -12,6 +12,10 @@ from core.application.auth.effective_permissions import resolve_effective_permis
 from core.application.extensions.system_email import system_email_available
 from core.application.settings.date_time_format import stored_date_format, stored_time_format
 from core.infrastructure.config.installation_mode import installation_mode
+from core.infrastructure.config.workflow_file_limits import (
+    browser_run_upload_limits,
+    file_preview_max_bytes,
+)
 
 
 def _normalized_roles(auth_user: Mapping[str, Any] | None) -> list[str]:
@@ -42,11 +46,19 @@ def _request_effective_permissions(request: Request) -> dict[str, Any]:
         auth_perms = auth_user.get("effective_permissions")
         if isinstance(auth_perms, Mapping):
             merged.update(dict(auth_perms))
-
-    state_perms = getattr(request.state, "effective_permissions", None)
-    if isinstance(state_perms, Mapping):
-        merged.update(dict(state_perms))
     return merged
+
+
+def _permission_keys(auth_user: Mapping[str, Any]) -> list[str] | None:
+    """The ADR 0076 permissions the middleware computed for this person, sorted.
+
+    ``None`` for a principal that is not role-based (a service account, a system
+    actor): its own rules apply and it holds no role permissions.
+    """
+    raw = auth_user.get("permissions")
+    if not isinstance(raw, (list, tuple, set, frozenset)):
+        return None
+    return sorted({str(item).strip() for item in raw if str(item).strip()})
 
 
 def _principal_type(principal: Any, auth_user: Mapping[str, Any] | None) -> str:
@@ -76,6 +88,9 @@ def _user_summary(
         "email": str(auth_user.get("email") or auth_user.get("username") or ""),
         "display_name": str(auth_user.get("display_name") or ""),
         "roles": _normalized_roles(auth_user),
+        # ADR 0076: what the person may do; the interface derives menus and buttons
+        # from these keys. ``roles`` stays until the interface reads only these.
+        "permissions": _permission_keys(auth_user),
         "account_id": str(auth_user.get("account_id") or ""),
         "account_ids": list(auth_user.get("account_ids") or []),
         "account_memberships": list(auth_user.get("account_memberships") or []),
@@ -246,6 +261,17 @@ def create_api_app_bootstrap_router(
                 "environment": {
                     "edition": client_edition,
                     "mode": installation_mode(),
+                },
+                # ADR 0075: the browser checks a real run's files against the same
+                # policy the server enforces, instead of a fixed size. ADR 0080: a
+                # file over the preview limit is offered as a download only.
+                "limits": {
+                    "run_upload": browser_run_upload_limits()
+                    if include_authenticated_metadata
+                    else {},
+                    "file_preview": {"max_bytes": file_preview_max_bytes()}
+                    if include_authenticated_metadata
+                    else {},
                 },
                 "i18n": i18n,
                 "settings_pages": _normalize_settings_pages(settings_pages),

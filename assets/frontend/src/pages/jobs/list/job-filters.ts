@@ -1,15 +1,37 @@
 import type { SetURLSearchParams } from "react-router";
 
+import { expandPeriod, type PeriodValue } from "@/lib/time/period";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { jobStatusParams } from "@/pages/jobs/list/api";
-import { jobStatusGroupsFromValues } from "@/pages/jobs/status-groups";
+import { jobStatusesOfGroups, jobStatusGroupsFromValues } from "@/pages/jobs/status-groups";
 
 /**
- * The status filter is a comma list of status group keys; the URL repeats
- * `status` once per group. A stored status from an older link means its group.
+ * The operator queue (ADR 0075): no stored status and no group. The server
+ * matches a job waiting for approval itself or anywhere down its Invoke chain.
+ */
+export const AWAITING_REVIEW_STATUS = "awaiting_review";
+
+/** Statuses of a row the server may have matched as "awaiting review". */
+export const AWAITING_REVIEW_ROW_STATUSES: ReadonlySet<string> = new Set(["awaiting_approval", "awaiting_child"]);
+
+function asksForReview(values: readonly string[]): boolean {
+  return values.flatMap((value) => value.split(",")).some((value) => value.trim().toLowerCase() === AWAITING_REVIEW_STATUS);
+}
+
+/**
+ * The status filter is a comma list of status group keys, "awaiting review"
+ * first when chosen; the URL repeats `status` once per value. A stored status
+ * from an older link means its group.
  */
 export function normalizeStatusList(values: readonly string[]): string {
-  return jobStatusGroupsFromValues(values).join(",");
+  const groups: string[] = jobStatusGroupsFromValues(values);
+  return (asksForReview(values) ? [AWAITING_REVIEW_STATUS, ...groups] : groups).join(",");
+}
+
+/** The `status` values a filter sends: the stored statuses of its groups, and "awaiting review". */
+export function jobStatusRequest(statusFilter: string): string[] {
+  const values = jobStatusParams(statusFilter);
+  return [...(asksForReview(values) ? [AWAITING_REVIEW_STATUS] : []), ...jobStatusesOfGroups(values)];
 }
 
 /** `hide_acknowledged=1` (or `true`) in the URL turns the toggle on. */
@@ -46,4 +68,45 @@ export function jobFiltersFromUrl(searchParams: URLSearchParams, setSearchParams
     workflowFilter: urlWorkflowFilter,
     setWorkflowFilter: (value: string) => setJobFilter("workflow_id", value),
   };
+}
+
+/** The list's period in the URL: a preset, a custom pair of days, or all runs. */
+export function periodFromUrl(params: URLSearchParams): PeriodValue {
+  const preset = params.get("period");
+  if (preset === "today" || preset === "last7" || preset === "last30") return { kind: "preset", preset };
+  const from = params.get("from_date") || "";
+  const to = params.get("to_date") || "";
+  const validDay = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day)
+    && !Number.isNaN(Date.parse(day)) && new Date(day).toISOString().slice(0, 10) === day;
+  return validDay(from) && validDay(to) && from <= to ? { kind: "custom", from, to } : { kind: "all" };
+}
+
+/**
+ * What the list asks the server for a URL selection, as the list itself does:
+ * the status groups as stored statuses, hidden acknowledged runs, the search and
+ * the period as whole local days (`today` in the person's time zone).
+ */
+export function jobsListRequestFromUrl(params: URLSearchParams, today: string) {
+  const { fromDate, toDate } = expandPeriod(periodFromUrl(params), today);
+  return {
+    status: jobStatusRequest(normalizeStatusList(params.getAll("status"))).join(","),
+    hideAcknowledged: hideAcknowledgedFromUrl(params.get("hide_acknowledged")),
+    search: (params.get("search") || "").trim(),
+    fromDate,
+    toDate,
+    taskSource: runSourceFromUrl(params),
+  };
+}
+
+/** The URL key of the run source filter of a section's list (how a run started). */
+export const RUN_SOURCE_PARAM = "source";
+
+/** Run sources a section's list filters by: the operator form or the API and MCP. */
+export const RUN_SOURCES = ["manual_ui", "mcp_workflow"] as const;
+export type RunSource = (typeof RUN_SOURCES)[number];
+
+/** The run source chosen in the URL; anything else (or nothing) is every source. */
+export function runSourceFromUrl(params: URLSearchParams): RunSource | undefined {
+  const value = (params.get(RUN_SOURCE_PARAM) || "").trim();
+  return RUN_SOURCES.find((source) => source === value);
 }

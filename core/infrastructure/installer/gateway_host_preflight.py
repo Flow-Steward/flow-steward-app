@@ -61,7 +61,15 @@ class HostPreflightOperations:
     ) -> None:
         self._require_compact_image_input(config)
         known_images = {**_read_env(self._env_path(config)), **self._environment}
-        self._exact_prebuilt_image_refs(config, known_images)
+        # An official development installation builds and pins its frontend only in
+        # the prepare step, after this check (0.9.23 refused every such install here).
+        self._exact_prebuilt_image_refs(
+            config,
+            known_images,
+            development_extras_pending=(
+                config.environment == "development" and self._install_mode(config) == "official"
+            ),
+        )
         pending_release = self._official_pending_release(config)
         docker_host = str(self._environment.get("DOCKER_HOST") or "").strip().lower()
         docker_context = str(self._environment.get("DOCKER_CONTEXT") or "").strip().lower()

@@ -414,6 +414,8 @@ services:
       PLAYWRIGHT_BASE_URL: https://traefik:8099
       FS_OAUTH_EXPECTED_PUBLIC_BASE_URL: https://traefik:8099
       FS_OAUTH_ACCEPTANCE_STATE: /state/acceptance.json
+      E2E_ADMIN_USERNAME: oauth-admin@example.test
+      E2E_ADMIN_PASSWORD: OAuthAcceptanceAdmin_123!  # pragma: allowlist secret -- disposable acceptance account
       E2E_OPERATOR_USERNAME: oauth-operator@example.test
       E2E_OPERATOR_PASSWORD: OAuthAcceptanceOperator_123!
       E2E_VIEWER_USERNAME: oauth-viewer@example.test

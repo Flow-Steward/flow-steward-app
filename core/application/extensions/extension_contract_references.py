@@ -96,6 +96,12 @@ def _validate_ids_and_references(
             errors=errors,
             import_oauth_provider_ids=import_oauth_provider_ids,
         )
+        _validate_connection_type_credentials_from(
+            connection_type,
+            providers=contract["oauth_providers"],
+            idx=idx,
+            errors=errors,
+        )
         for field_name in ("config_schema", "secret_schema", "ingress_schema"):
             schema = connection_type.get(field_name)
             if schema is None:
@@ -540,3 +546,121 @@ def _validate_ids_and_references(
                 code="unknown_operation_id",
             )
         _validate_artifact_policy_grants(policy=policy, policy_index=idx, errors=errors)
+
+
+def _validate_connection_type_credentials_from(
+    connection_type: dict[str, Any],
+    *,
+    providers: list[dict[str, Any]],
+    idx: int,
+    errors: list[dict[str, str]],
+) -> None:
+    """``credentials_from``: client values borrowed from an OAuth configuration.
+
+    The provider must be this extension's, every mapped field one of its
+    credential fields, a secret field may go only into ``secrets``, and a mapped
+    name may not also be one of the type's own config or secret fields.
+    """
+    if "credentials_from" not in connection_type:
+        return
+    path = f"extension_contract_v2.connection_types[{idx}].credentials_from"
+    block = connection_type.get("credentials_from")
+    if not isinstance(block, dict):
+        _error(
+            errors,
+            path=path,
+            message="credentials_from must be an object",
+            code="invalid_credentials_from",
+        )
+        return
+    auth = connection_type.get("auth")
+    if isinstance(auth, dict) and _normalize_lower(auth.get("type")) == "oauth2":
+        _error(
+            errors,
+            path=path,
+            message="An OAuth connection type holds its own grant; credentials_from is for other types",
+            code="invalid_credentials_from",
+        )
+    unknown = sorted(str(key) for key in block if str(key) not in {"oauth_provider_id", "fields"})
+    if unknown:
+        _error(
+            errors,
+            path=path,
+            message=f"credentials_from accepts only oauth_provider_id and fields (got {', '.join(unknown)})",
+            code="invalid_credentials_from",
+        )
+    provider_id = _as_text(block.get("oauth_provider_id"))
+    provider = next(
+        (row for row in providers if _as_text(row.get("provider_id")) == provider_id), None
+    )
+    if provider is None:
+        _error(
+            errors,
+            path=f"{path}.oauth_provider_id",
+            message=f"OAuth provider '{provider_id}' is not declared by this extension",
+            code="unknown_credentials_from_provider",
+        )
+        return
+    declared = {
+        _as_text(row.get("field_id")): row
+        for row in (provider.get("credential_fields") or [])
+        if isinstance(row, dict) and _as_text(row.get("field_id"))
+    }
+    fields = block.get("fields")
+    if not isinstance(fields, dict) or not fields:
+        _error(
+            errors,
+            path=f"{path}.fields",
+            message="credentials_from.fields must map at least one credential field",
+            code="invalid_credentials_from",
+        )
+        return
+    own_names: dict[str, set[str]] = {}
+    for into, schema_key in (("config", "config_schema"), ("secrets", "secret_schema")):
+        schema = connection_type.get(schema_key)
+        properties = schema.get("properties") if isinstance(schema, dict) else None
+        own_names[into] = set(properties) if isinstance(properties, dict) else set()
+    taken: set[tuple[str, str]] = set()
+    for field_id, target in fields.items():
+        field_path = f"{path}.fields.{field_id}"
+        if field_id not in declared:
+            _error(
+                errors,
+                path=field_path,
+                message=f"OAuth provider '{provider_id}' declares no credential field '{field_id}'",
+                code="unknown_credentials_from_field",
+            )
+            continue
+        target_map = target if isinstance(target, dict) else {}
+        into = _as_text(target_map.get("into"))
+        name = _as_text(target_map.get("as")) or _as_text(field_id)
+        if into not in {"config", "secrets"}:
+            _error(
+                errors,
+                path=f"{field_path}.into",
+                message="credentials_from fields go into config or secrets",
+                code="invalid_credentials_from",
+            )
+            continue
+        if declared[field_id].get("secret") is True and into != "secrets":
+            _error(
+                errors,
+                path=f"{field_path}.into",
+                message=f"Secret credential field '{field_id}' may go only into secrets",
+                code="credentials_from_secret_into_config",
+            )
+        if name in own_names["config"] or name in own_names["secrets"]:
+            _error(
+                errors,
+                path=f"{field_path}.as",
+                message=f"'{name}' is also one of the connection type's own fields",
+                code="credentials_from_name_collision",
+            )
+        if (into, name) in taken:
+            _error(
+                errors,
+                path=f"{field_path}.as",
+                message=f"Two credentials_from fields write {into}.{name}",
+                code="credentials_from_name_collision",
+            )
+        taken.add((into, name))

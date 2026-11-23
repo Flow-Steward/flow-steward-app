@@ -3351,6 +3351,18 @@ msgstr ""
 msgid "react.auth.at_least_10_characters"
 msgstr ""
 
+msgid "react.auth.authenticator_setup_back"
+msgstr ""
+
+msgid "react.auth.authenticator_setup_code_required"
+msgstr ""
+
+msgid "react.auth.authenticator_setup_sign_in_title"
+msgstr ""
+
+msgid "react.auth.authenticator_setup_submit"
+msgstr ""
+
 msgid "react.auth.authorization"
 msgstr ""
 
@@ -11535,10 +11547,25 @@ msgstr ""
 msgid "react.settings.authenticator_request_failed"
 msgstr ""
 
+msgid "react.settings.authenticator_required_for_value1"
+msgstr ""
+
+msgid "react.settings.authenticator_reset_effects"
+msgstr ""
+
+msgid "react.settings.authenticator_reset_for_value1"
+msgstr ""
+
+msgid "react.settings.authenticator_scan_instructions"
+msgstr ""
+
 msgid "react.settings.authenticator_setup"
 msgstr ""
 
 msgid "react.settings.authenticator_setup_instructions"
+msgstr ""
+
+msgid "react.settings.authenticator_setup_qr_code"
 msgstr ""
 
 msgid "react.settings.authenticator_status_error"
@@ -12027,6 +12054,9 @@ msgstr ""
 msgid "react.settings.inbound_input"
 msgstr ""
 
+msgid "react.settings.individual_authenticator_requirement_removed_for_value1"
+msgstr ""
+
 msgid "react.settings.inherit"
 msgstr ""
 
@@ -12037,6 +12067,9 @@ msgid "react.settings.initial_controls"
 msgstr ""
 
 msgid "react.settings.inspect"
+msgstr ""
+
+msgid "react.settings.installation_or_enrollment_can_require_authenticator"
 msgstr ""
 
 msgid "react.settings.interface_language"
@@ -12432,7 +12465,19 @@ msgstr ""
 msgid "react.settings.regular_expression"
 msgstr ""
 
+msgid "react.settings.remove_individual_authenticator_requirement"
+msgstr ""
+
+msgid "react.settings.remove_individual_authenticator_requirement_for_value1"
+msgstr ""
+
 msgid "react.settings.require_a_password_reset_for_value1"
+msgstr ""
+
+msgid "react.settings.require_authenticator"
+msgstr ""
+
+msgid "react.settings.require_authenticator_for_value1"
 msgstr ""
 
 msgid "react.settings.require_password_change"
@@ -12445,6 +12490,12 @@ msgid "react.settings.require_password_reset"
 msgstr ""
 
 msgid "react.settings.require_reset"
+msgstr ""
+
+msgid "react.settings.reset_authenticator"
+msgstr ""
+
+msgid "react.settings.reset_authenticator_for_value1"
 msgstr ""
 
 msgid "react.settings.resource_field_required"
@@ -13038,6 +13089,9 @@ msgstr ""
 msgid "react.settings.value1_must_choose_a_new_password_at_next_sign_in_other_active_sessions_will_be_revoked"
 msgstr ""
 
+msgid "react.settings.value1_must_reenroll_authenticator"
+msgstr ""
+
 msgid "react.settings.value1_must_reset_their_password_other_sessions_were_revoked"
 msgstr ""
 
@@ -13057,6 +13111,9 @@ msgid "react.settings.value1_was_deleted"
 msgstr ""
 
 msgid "react.settings.value1_will_be_removed_from_the_user_inventory_historical_workflow_job_and_audit_records_are_retained"
+msgstr ""
+
+msgid "react.settings.value1_will_need_an_authenticator"
 msgstr ""
 
 msgid "react.settings.value1_will_no_longer_be_able_to_sign_in_existing_roles_are_retained"
@@ -13867,6 +13924,12 @@ msgid "react.shared.toggle_selected"
 msgstr ""
 
 msgid "react.shared.toggle_sidebar"
+msgstr ""
+
+msgid "react.shared.open_menu"
+msgstr ""
+
+msgid "react.shared.close_menu"
 msgstr ""
 
 msgid "react.shared.toggled_successfully"
@@ -29746,4 +29809,1622 @@ msgstr ""
 
 #: assets/frontend/src/pages/jobs/detail/job-usage-label.ts
 msgid "react.jobs.model_usage_agent"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-action-error-guidance.ts
+msgid "react.extensions.system_email_sender_locked"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_required"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.route_connection_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_missing"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_cannot_carry_routes"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_recipients"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/index.tsx
+msgid "react.projects.connection_option_channel"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.choose_a_connection_first"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection_cannot_carry_routes_choose_another"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.channel_set_by_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.connection"
+msgstr ""
+
+#: assets/frontend/src/pages/projects/notifications/notification-route-dialog.tsx
+msgid "react.projects.select_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/hub/index.tsx
+msgid "settings.tab.email"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-core.ts
+msgid "react.workflows.automation_connection_required"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_no_connection_yet"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_select_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_recipients"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_connection_option_channel"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_choose_connection_first"
+msgstr ""
+
+#: assets/frontend/src/pages/workflows/detail/detail-automation-editor.tsx
+msgid "react.workflows.automation_channel_set_by_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_notice"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/system-email-sender-notice.tsx
+msgid "react.extensions.system_email_sender_settings_link"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_selected"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_missing"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_connection_disabled"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_install_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_not_recipient"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_reconfirm"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_reason_unknown"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_candidate_label"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_admin_required"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_save_failed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_saved"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_cleared"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_current_unavailable"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_project"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_connection"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_extension"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirmed_at"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_carried_over"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_load_failed"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_description"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_loading"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_sending"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_not_sending"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirming"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_confirm_again"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_no_candidates"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_select_sender"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_choose_help"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stopping"
+msgstr ""
+
+#: assets/frontend/src/pages/settings/email/index.tsx
+msgid "react.settings.system_email_stop_question"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts assets/frontend/src/pages/extensions/extension-action-error-guidance.ts assets/frontend/src/pages/workflows/detail/detail-extension-connection.ts
+msgid "react.extensions.credentials_unavailable_configuration_removed_or_incomplete"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.choose_the_sign_in_configuration_this_connection_takes_its_credentials_from"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/connection-credentials-from.ts
+msgid "react.extensions.the_chosen_sign_in_configuration_cannot_provide_this_connection_s_credentials"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.sign_in_configuration"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.no_sign_in_configuration_yet"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.this_connection_takes_its_credentials_from_a_sign_in_configuration_set_one_up_first"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.value0_incomplete"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.choose_a_sign_in_configuration"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-manifest-renderer.tsx
+msgid "react.extensions.the_connection_signs_in_as_the_application_with_this_configuration_s_values"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-configuration-form.tsx
+msgid "react.extensions.oauth_runtime_credential_field_hint"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.oauth_delete_kept_credentials_connections"
+msgstr ""
+
+#: assets/frontend/src/pages/extensions/extension-oauth-setup.tsx
+msgid "react.extensions.connections_kept"
+msgstr ""
+
+msgid "react.workflows.contract_format"
+msgstr ""
+
+msgid "react.workflows.contract_format_any"
+msgstr ""
+
+msgid "react.workflows.contract_format_date"
+msgstr ""
+
+msgid "react.workflows.contract_format_date_time"
+msgstr ""
+
+msgid "react.workflows.contract_format_time"
+msgstr ""
+
+msgid "react.workflows.contract_format_email"
+msgstr ""
+
+msgid "react.workflows.contract_format_uri"
+msgstr ""
+
+msgid "react.workflows.contract_item_type"
+msgstr ""
+
+msgid "react.workflows.contract_item_type_any"
+msgstr ""
+
+msgid "react.workflows.contract_min_items"
+msgstr ""
+
+msgid "react.workflows.contract_max_items"
+msgstr ""
+
+msgid "react.workflows.contract_item_options"
+msgstr ""
+
+msgid "react.workflows.contract_item_properties"
+msgstr ""
+
+msgid "react.workflows.contract_properties"
+msgstr ""
+
+msgid "react.workflows.contract_properties_help"
+msgstr ""
+
+msgid "react.workflows.contract_properties_invalid"
+msgstr ""
+
+msgid "react.workflows.contract_item_bound_invalid"
+msgstr ""
+
+msgid "react.operator_form.wysiwyg_mode"
+msgstr ""
+
+msgid "react.operator_form.wysiwyg_write"
+msgstr ""
+
+msgid "react.operator_form.wysiwyg_preview"
+msgstr ""
+
+msgid "react.operator_form.wysiwyg_placeholder"
+msgstr ""
+
+msgid "react.operator_form.choose"
+msgstr ""
+
+msgid "react.operator_form.choose_several"
+msgstr ""
+
+msgid "react.operator_form.row_number"
+msgstr ""
+
+msgid "react.operator_form.remove_row"
+msgstr ""
+
+msgid "react.operator_form.row"
+msgstr ""
+
+msgid "react.operator_form.row_actions"
+msgstr ""
+
+msgid "react.operator_form.row_heading"
+msgstr ""
+
+msgid "react.operator_form.add_row"
+msgstr ""
+
+msgid "react.operator_form.chosen_files"
+msgstr ""
+
+msgid "react.operator_form.remove_file"
+msgstr ""
+
+msgid "react.operator.send_failed"
+msgstr ""
+
+msgid "react.operator.field_required"
+msgstr ""
+
+msgid "react.operator.field_min_items"
+msgstr ""
+
+msgid "react.operator.field_max_items"
+msgstr ""
+
+msgid "react.operator.row_field_required"
+msgstr ""
+
+msgid "react.operator.nothing_to_send"
+msgstr ""
+
+msgid "react.operator.check_the_form"
+msgstr ""
+
+msgid "react.operator.files_too_large"
+msgstr ""
+
+msgid "react.operator.upload_limits"
+msgstr ""
+
+msgid "react.operator.close_form"
+msgstr ""
+
+msgid "react.operator.foreach_hint"
+msgstr ""
+
+msgid "react.operator.bulk_hint"
+msgstr ""
+
+msgid "react.operator.submission_progress"
+msgstr ""
+
+msgid "react.operator.retry_failed"
+msgstr ""
+
+msgid "react.operator.sending_now"
+msgstr ""
+
+msgid "react.operator.send"
+msgstr ""
+
+msgid "react.operator.new_submission"
+msgstr ""
+
+msgid "react.operator.failed_items"
+msgstr ""
+
+msgid "react.operator.columns"
+msgstr ""
+
+msgid "react.operator.shown_columns"
+msgstr ""
+
+msgid "react.operator.new"
+msgstr ""
+
+msgid "react.operator.blocked"
+msgstr ""
+
+msgid "react.operator.not_runnable"
+msgstr ""
+
+msgid "react.operator.loading"
+msgstr ""
+
+msgid "react.operator.not_found"
+msgstr ""
+
+msgid "react.operator.author_api"
+msgstr ""
+
+msgid "react.operator.value_yes"
+msgstr ""
+
+msgid "react.operator.value_no"
+msgstr ""
+
+msgid "react.operator.filter_yes"
+msgstr ""
+
+msgid "react.operator.filter_no"
+msgstr ""
+
+msgid "react.operator.loading_menu"
+msgstr ""
+
+msgid "react.operator.none_yet"
+msgstr ""
+
+msgid "react.operator.none_yet_detail"
+msgstr ""
+
+msgid "react.shared.filter_from"
+msgstr ""
+
+msgid "react.shared.filter_to"
+msgstr ""
+
+msgid "react.shared.apply_filter"
+msgstr ""
+
+msgid "react.operator.menu"
+msgstr ""
+
+msgid "react.operator_queue.back"
+msgstr ""
+
+msgid "react.operator_queue.label"
+msgstr ""
+
+msgid "react.operator_queue.left_list"
+msgstr ""
+
+msgid "react.operator_queue.loading"
+msgstr ""
+
+msgid "react.operator_queue.next"
+msgstr ""
+
+msgid "react.operator_queue.position"
+msgstr ""
+
+msgid "react.operator_queue.previous"
+msgstr ""
+
+msgid "react.operator_review.already_decided"
+msgstr ""
+
+msgid "react.operator_review.approve_and_next"
+msgstr ""
+
+msgid "react.operator_review.approved"
+msgstr ""
+
+msgid "react.operator_review.corrected"
+msgstr ""
+
+msgid "react.operator_review.decided_by"
+msgstr ""
+
+msgid "react.operator_review.decided_status"
+msgstr ""
+
+msgid "react.operator_review.description"
+msgstr ""
+
+msgid "react.operator_review.empty_value"
+msgstr ""
+
+msgid "react.operator_review.fields"
+msgstr ""
+
+msgid "react.operator_review.file_position"
+msgstr ""
+
+msgid "react.operator_review.next_file"
+msgstr ""
+
+msgid "react.operator_review.no_original"
+msgstr ""
+
+msgid "react.operator_review.original"
+msgstr ""
+
+msgid "react.operator_review.previous_file"
+msgstr ""
+
+msgid "react.operator_review.rejected"
+msgstr ""
+
+msgid "react.operator_review.skip"
+msgstr ""
+
+msgid "react.operator_review.title"
+msgstr ""
+
+msgid "react.operator_review.waiting_elsewhere"
+msgstr ""
+
+msgid "react.operator_review.was"
+msgstr ""
+
+msgid "react.operator.status_awaiting_review"
+msgstr ""
+
+msgid "react.workflows.operator.widget_text"
+msgstr ""
+
+msgid "react.workflows.operator.widget_textarea"
+msgstr ""
+
+msgid "react.workflows.operator.widget_wysiwyg"
+msgstr ""
+
+msgid "react.workflows.operator.widget_email"
+msgstr ""
+
+msgid "react.workflows.operator.widget_url"
+msgstr ""
+
+msgid "react.workflows.operator.widget_date"
+msgstr ""
+
+msgid "react.workflows.operator.widget_date_time"
+msgstr ""
+
+msgid "react.workflows.operator.widget_time"
+msgstr ""
+
+msgid "react.workflows.operator.widget_select"
+msgstr ""
+
+msgid "react.workflows.operator.widget_radio"
+msgstr ""
+
+msgid "react.workflows.operator.widget_button_group"
+msgstr ""
+
+msgid "react.workflows.operator.widget_checkbox"
+msgstr ""
+
+msgid "react.workflows.operator.widget_multiselect"
+msgstr ""
+
+msgid "react.workflows.operator.widget_number"
+msgstr ""
+
+msgid "react.workflows.operator.widget_true_false"
+msgstr ""
+
+msgid "react.workflows.operator.widget_file"
+msgstr ""
+
+msgid "react.workflows.operator.widget_files"
+msgstr ""
+
+msgid "react.workflows.operator.widget_group"
+msgstr ""
+
+msgid "react.workflows.operator.widget_repeater"
+msgstr ""
+
+msgid "react.workflows.operator.widget_text_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_textarea_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_wysiwyg_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_email_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_url_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_date_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_date_time_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_time_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_select_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_radio_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_button_group_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_checkbox_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_multiselect_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_number_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_true_false_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_file_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_files_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_group_help"
+msgstr ""
+
+msgid "react.workflows.operator.widget_repeater_help"
+msgstr ""
+
+msgid "react.workflows.operator.kind_string"
+msgstr ""
+
+msgid "react.workflows.operator.kind_select"
+msgstr ""
+
+msgid "react.workflows.operator.kind_select_list"
+msgstr ""
+
+msgid "react.workflows.operator.kind_number"
+msgstr ""
+
+msgid "react.workflows.operator.kind_boolean"
+msgstr ""
+
+msgid "react.workflows.operator.kind_file"
+msgstr ""
+
+msgid "react.workflows.operator.kind_file_list"
+msgstr ""
+
+msgid "react.workflows.operator.kind_object"
+msgstr ""
+
+msgid "react.workflows.operator.kind_object_list"
+msgstr ""
+
+msgid "react.workflows.operator.kind_unsupported"
+msgstr ""
+
+msgid "react.workflows.operator.condition_equals"
+msgstr ""
+
+msgid "react.workflows.operator.condition_not_equals"
+msgstr ""
+
+msgid "react.workflows.operator.condition_greater"
+msgstr ""
+
+msgid "react.workflows.operator.condition_less"
+msgstr ""
+
+msgid "react.workflows.operator.condition_contains"
+msgstr ""
+
+msgid "react.workflows.operator.condition_not_contains"
+msgstr ""
+
+msgid "react.workflows.operator.condition_pattern"
+msgstr ""
+
+msgid "react.workflows.operator.condition_empty"
+msgstr ""
+
+msgid "react.workflows.operator.condition_not_empty"
+msgstr ""
+
+msgid "react.workflows.operator.widget_dialog_help"
+msgstr ""
+
+msgid "react.workflows.operator.use_widget"
+msgstr ""
+
+msgid "react.workflows.operator.choose_widget"
+msgstr ""
+
+msgid "react.workflows.operator.widget_default"
+msgstr ""
+
+msgid "react.workflows.operator.condition_no_other_fields"
+msgstr ""
+
+msgid "react.workflows.operator.condition_required_note"
+msgstr ""
+
+msgid "react.workflows.operator.condition_always"
+msgstr ""
+
+msgid "react.workflows.operator.condition_or"
+msgstr ""
+
+msgid "react.workflows.operator.condition_show_if"
+msgstr ""
+
+msgid "react.workflows.operator.condition_field"
+msgstr ""
+
+msgid "react.workflows.operator.condition_operator"
+msgstr ""
+
+msgid "react.workflows.operator.condition_value"
+msgstr ""
+
+msgid "react.workflows.operator.condition_remove"
+msgstr ""
+
+msgid "react.workflows.operator.condition_and"
+msgstr ""
+
+msgid "react.workflows.operator.condition_add_group"
+msgstr ""
+
+msgid "react.workflows.operator.field_tab_general"
+msgstr ""
+
+msgid "react.workflows.operator.field_tab_presentation"
+msgstr ""
+
+msgid "react.workflows.operator.field_tab_conditions"
+msgstr ""
+
+msgid "react.workflows.operator.instructions"
+msgstr ""
+
+msgid "react.workflows.operator.placeholder"
+msgstr ""
+
+msgid "react.workflows.operator.prepend"
+msgstr ""
+
+msgid "react.workflows.operator.append"
+msgstr ""
+
+msgid "react.workflows.operator.width"
+msgstr ""
+
+msgid "react.workflows.operator.option_labels"
+msgstr ""
+
+msgid "react.workflows.operator.option_labels_help"
+msgstr ""
+
+msgid "react.workflows.operator.option_label_for"
+msgstr ""
+
+msgid "react.workflows.operator.layout"
+msgstr ""
+
+msgid "react.workflows.operator.layout_table"
+msgstr ""
+
+msgid "react.workflows.operator.layout_block"
+msgstr ""
+
+msgid "react.workflows.operator.layout_row"
+msgstr ""
+
+msgid "react.workflows.operator.button_label"
+msgstr ""
+
+msgid "react.workflows.operator.button_label_default"
+msgstr ""
+
+msgid "react.workflows.operator.sub_fields"
+msgstr ""
+
+msgid "react.workflows.operator.field_key"
+msgstr ""
+
+msgid "react.workflows.operator.field_type"
+msgstr ""
+
+msgid "react.workflows.operator.field_required"
+msgstr ""
+
+msgid "react.workflows.operator.yes"
+msgstr ""
+
+msgid "react.workflows.operator.no"
+msgstr ""
+
+msgid "react.workflows.operator.contract_owns_fields"
+msgstr ""
+
+msgid "react.workflows.operator.widget"
+msgstr ""
+
+msgid "react.workflows.operator.widget_none"
+msgstr ""
+
+msgid "react.workflows.operator.hidden"
+msgstr ""
+
+msgid "react.workflows.operator.fixed_note"
+msgstr ""
+
+msgid "react.workflows.operator.hidden_help"
+msgstr ""
+
+msgid "react.workflows.operator.hidden_required_warning"
+msgstr ""
+
+msgid "react.workflows.operator.used_as_column"
+msgstr ""
+
+msgid "react.workflows.operator.used_as_filter"
+msgstr ""
+
+msgid "react.workflows.operator.field_settings"
+msgstr ""
+
+msgid "react.workflows.operator.required_badge"
+msgstr ""
+
+msgid "react.workflows.operator.fixed_badge"
+msgstr ""
+
+msgid "react.workflows.operator.hidden_badge"
+msgstr ""
+
+msgid "react.workflows.operator.conditional_badge"
+msgstr ""
+
+msgid "react.workflows.operator.issue_count"
+msgstr ""
+
+msgid "react.workflows.operator.no_fields"
+msgstr ""
+
+msgid "react.workflows.operator.display_auto"
+msgstr ""
+
+msgid "react.workflows.operator.display_text"
+msgstr ""
+
+msgid "react.workflows.operator.display_number"
+msgstr ""
+
+msgid "react.workflows.operator.display_date"
+msgstr ""
+
+msgid "react.workflows.operator.display_datetime"
+msgstr ""
+
+msgid "react.workflows.operator.display_time"
+msgstr ""
+
+msgid "react.workflows.operator.display_wysiwyg"
+msgstr ""
+
+msgid "react.workflows.operator.display_boolean"
+msgstr ""
+
+msgid "react.workflows.operator.display_file_links"
+msgstr ""
+
+msgid "react.workflows.operator.display_table"
+msgstr ""
+
+msgid "react.workflows.operator.display_list"
+msgstr ""
+
+msgid "react.workflows.operator.display_json"
+msgstr ""
+
+msgid "react.workflows.operator.display_currency"
+msgstr ""
+
+msgid "react.workflows.operator.display_status"
+msgstr ""
+
+msgid "react.workflows.operator.display_user"
+msgstr ""
+
+msgid "react.workflows.operator.display_count"
+msgstr ""
+
+msgid "react.workflows.operator.job_id"
+msgstr ""
+
+msgid "react.workflows.operator.job_status"
+msgstr ""
+
+msgid "react.workflows.operator.job_created_at"
+msgstr ""
+
+msgid "react.workflows.operator.job_started_at"
+msgstr ""
+
+msgid "react.workflows.operator.job_finished_at"
+msgstr ""
+
+msgid "react.workflows.operator.job_duration"
+msgstr ""
+
+msgid "react.workflows.operator.job_submitted_by"
+msgstr ""
+
+msgid "react.workflows.operator.filter_search"
+msgstr ""
+
+msgid "react.workflows.operator.filter_number_range"
+msgstr ""
+
+msgid "react.workflows.operator.filter_date_range"
+msgstr ""
+
+msgid "react.workflows.operator.filter_boolean"
+msgstr ""
+
+msgid "react.workflows.operator.filter_choice"
+msgstr ""
+
+msgid "react.workflows.operator.filter_choice_multi"
+msgstr ""
+
+msgid "react.workflows.operator.source_job"
+msgstr ""
+
+msgid "react.workflows.operator.source_output"
+msgstr ""
+
+msgid "react.workflows.operator.source_input"
+msgstr ""
+
+msgid "react.workflows.operator.preview"
+msgstr ""
+
+msgid "react.workflows.operator.preview_help"
+msgstr ""
+
+msgid "react.workflows.operator.no_outputs"
+msgstr ""
+
+msgid "react.workflows.operator.result_help"
+msgstr ""
+
+msgid "react.workflows.operator.display"
+msgstr ""
+
+msgid "react.workflows.operator.display_of"
+msgstr ""
+
+msgid "react.workflows.operator.decimals"
+msgstr ""
+
+msgid "react.workflows.operator.result_hidden"
+msgstr ""
+
+msgid "react.workflows.operator.hidden_short"
+msgstr ""
+
+msgid "react.workflows.operator.columns"
+msgstr ""
+
+msgid "react.workflows.operator.columns_help"
+msgstr ""
+
+msgid "react.workflows.operator.no_columns"
+msgstr ""
+
+msgid "react.workflows.operator.source"
+msgstr ""
+
+msgid "react.workflows.operator.column_source"
+msgstr ""
+
+msgid "react.workflows.operator.value"
+msgstr ""
+
+msgid "react.workflows.operator.column_value"
+msgstr ""
+
+msgid "react.workflows.operator.heading"
+msgstr ""
+
+msgid "react.workflows.operator.column_heading"
+msgstr ""
+
+msgid "react.workflows.operator.column_issue"
+msgstr ""
+
+msgid "react.workflows.operator.format"
+msgstr ""
+
+msgid "react.workflows.operator.column_format"
+msgstr ""
+
+msgid "react.workflows.operator.remove_column"
+msgstr ""
+
+msgid "react.workflows.operator.add_column"
+msgstr ""
+
+msgid "react.workflows.operator.filters"
+msgstr ""
+
+msgid "react.workflows.operator.filters_help"
+msgstr ""
+
+msgid "react.workflows.operator.filter_value"
+msgstr ""
+
+msgid "react.workflows.operator.filter_type"
+msgstr ""
+
+msgid "react.workflows.operator.filter_type_of"
+msgstr ""
+
+msgid "react.workflows.operator.filter_label"
+msgstr ""
+
+msgid "react.workflows.operator.filter_source"
+msgstr ""
+
+msgid "react.workflows.operator.filter_issue"
+msgstr ""
+
+msgid "react.workflows.operator.remove_filter"
+msgstr ""
+
+msgid "react.workflows.operator.add_filter"
+msgstr ""
+
+msgid "react.workflows.operator.ack_pending"
+msgstr ""
+
+msgid "react.workflows.operator.ack_done"
+msgstr ""
+
+msgid "react.workflows.operator.ack_stale"
+msgstr ""
+
+msgid "react.workflows.operator.ack_missing"
+msgstr ""
+
+msgid "react.workflows.operator.publish"
+msgstr ""
+
+msgid "react.workflows.operator.publish_help"
+msgstr ""
+
+msgid "react.workflows.operator.publish_needs_ui"
+msgstr ""
+
+msgid "react.workflows.operator.open_smart_setup"
+msgstr ""
+
+msgid "react.workflows.operator.menu_title"
+msgstr ""
+
+msgid "react.workflows.operator.menu_section"
+msgstr ""
+
+msgid "react.workflows.operator.appears_in"
+msgstr ""
+
+msgid "react.workflows.operator.no_linked_projects"
+msgstr ""
+
+msgid "react.workflows.operator.submission"
+msgstr ""
+
+msgid "react.workflows.operator.mode_bulk"
+msgstr ""
+
+msgid "react.workflows.operator.mode_foreach"
+msgstr ""
+
+msgid "react.workflows.operator.foreach_target"
+msgstr ""
+
+msgid "react.workflows.operator.effects"
+msgstr ""
+
+msgid "react.workflows.operator.acknowledge"
+msgstr ""
+
+msgid "react.workflows.operator.ack_help"
+msgstr ""
+
+msgid "react.workflows.operator.issues"
+msgstr ""
+
+msgid "react.workflows.operator.warning"
+msgstr ""
+
+msgid "react.workflows.operator.error"
+msgstr ""
+
+msgid "react.workflows.operator.show_issue"
+msgstr ""
+
+msgid "react.workflows.operator.no_issues"
+msgstr ""
+
+msgid "react.workflows.operator.unavailable"
+msgstr ""
+
+msgid "react.workflows.operator.unavailable_help"
+msgstr ""
+
+msgid "react.workflows.operator.sub_form"
+msgstr ""
+
+msgid "react.workflows.operator.sub_result"
+msgstr ""
+
+msgid "react.workflows.operator.sub_list"
+msgstr ""
+
+msgid "react.workflows.operator.sub_publication"
+msgstr ""
+
+msgid "react.workflows.operator.form_help"
+msgstr ""
+
+msgid "react.workflows.operator.tab"
+msgstr ""
+
+msgid "react.workflows.review.from_workflow_help"
+msgstr ""
+
+msgid "react.workflows.review.fields"
+msgstr ""
+
+msgid "react.workflows.review.take_fields"
+msgstr ""
+
+msgid "react.workflows.review.from_workflow"
+msgstr ""
+
+msgid "react.workflows.review.workflows_unavailable"
+msgstr ""
+
+msgid "react.workflows.review.workflow_no_inputs"
+msgstr ""
+
+msgid "react.workflows.review.help"
+msgstr ""
+
+msgid "react.workflows.review.from_workflow_hint"
+msgstr ""
+
+msgid "react.workflows.review.add_field"
+msgstr ""
+
+msgid "react.workflows.review.no_fields"
+msgstr ""
+
+msgid "react.workflows.review.unnamed_field"
+msgstr ""
+
+msgid "react.workflows.review.editable"
+msgstr ""
+
+msgid "react.workflows.review.read_only"
+msgstr ""
+
+msgid "react.workflows.review.label_placeholder"
+msgstr ""
+
+msgid "react.workflows.review.description_placeholder"
+msgstr ""
+
+msgid "react.workflows.review.editable_label"
+msgstr ""
+
+msgid "react.workflows.review.source"
+msgstr ""
+
+msgid "react.workflows.review.source_of"
+msgstr ""
+
+msgid "react.workflows.review.source_placeholder"
+msgstr ""
+
+msgid "react.workflows.review.suggested"
+msgstr ""
+
+msgid "react.workflows.review.type_unknown"
+msgstr ""
+
+msgid "react.workflows.review.remove_field"
+msgstr ""
+
+msgid "react.workflows.review.original"
+msgstr ""
+
+msgid "react.workflows.review.no_original"
+msgstr ""
+
+msgid "react.workflows.review.original_help"
+msgstr ""
+
+msgid "react.workflows.review.approve_label"
+msgstr ""
+
+msgid "react.workflows.review.reject_label"
+msgstr ""
+
+msgid "react.workflows.operator.save_refused"
+msgstr ""
+
+msgid "react.operator.foreach_target_unavailable"
+msgstr ""
+
+msgid "react.operator.batch_locked"
+msgstr ""
+
+msgid "react.operator.field_invalid_number"
+msgstr ""
+
+msgid "react.operator.row_field_invalid_number"
+msgstr ""
+
+msgid "react.operator_job.title"
+msgstr ""
+
+msgid "react.operator_job.full_details"
+msgstr ""
+
+msgid "react.operator_job.submitted_by"
+msgstr ""
+
+msgid "react.operator_job.submitted"
+msgstr ""
+
+msgid "react.operator_job.nothing_submitted"
+msgstr ""
+
+msgid "react.operator_job.result"
+msgstr ""
+
+msgid "react.operator_job.no_result"
+msgstr ""
+
+msgid "react.operator_job.review"
+msgstr ""
+
+msgid "react.operator_job.review_hidden"
+msgstr ""
+
+msgid "react.operator_job.review_approved_by"
+msgstr ""
+
+msgid "react.operator_job.review_rejected_by"
+msgstr ""
+
+msgid "react.operator_job.review_changes"
+msgstr ""
+
+msgid "react.operator.all_files"
+msgstr ""
+
+msgid "react.operator.filter_source"
+msgstr ""
+
+msgid "react.operator.source_form"
+msgstr ""
+
+msgid "react.operator.source_api"
+msgstr ""
+
+msgid "react.jobs.file_preview_password"
+msgstr ""
+
+msgid "react.jobs.file_preview_unreadable"
+msgstr ""
+
+msgid "react.jobs.file_preview_previous_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_next_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_page_position"
+msgstr ""
+
+msgid "react.jobs.file_preview_zoom_out"
+msgstr ""
+
+msgid "react.jobs.file_preview_zoom_in"
+msgstr ""
+
+msgid "react.jobs.file_preview_fit_width"
+msgstr ""
+
+msgid "react.jobs.file_preview_pdf_page"
+msgstr ""
+
+msgid "react.jobs.file_preview_rows_shown"
+msgstr ""
+
+msgid "react.jobs.file_preview_columns_shown"
+msgstr ""
+
+msgid "react.jobs.file_preview_sheets"
+msgstr ""
+
+msgid "react.jobs.file_preview_empty_sheet"
+msgstr ""
+
+msgid "react.operator_job.result_pending"
+msgstr ""
+
+msgid "react.operator_job.title_more"
+msgstr ""
+
+msgid "react.operator_job.send_again"
+msgstr ""
+
+msgid "react.operator_job.loading_files"
+msgstr ""
+
+msgid "react.operator_job.files_not_loaded"
+msgstr ""
+
+msgid "react.operator_job.reject_reason"
+msgstr ""
+
+msgid "react.operator_job.resend_missing"
+msgstr ""
+
+msgid "react.operator_job.resend_without_missing"
+msgstr ""
+
+msgid "react.operator_job.resend_missing_block"
+msgstr ""
+
+msgid "react.operator_form.take_photo"
+msgstr ""
+
+msgid "react.operator_form.preparing_photo"
+msgstr ""
+
+msgid "react.settings.choose_a_role"
+msgstr ""
+
+msgid "react.settings.role_admin"
+msgstr ""
+
+msgid "react.settings.role_operator"
+msgstr ""
+
+msgid "react.settings.role_viewer"
+msgstr ""
+
+msgid "react.settings.role_admin_description"
+msgstr ""
+
+msgid "react.settings.role_operator_description"
+msgstr ""
+
+msgid "react.settings.role_viewer_description"
+msgstr ""
+
+msgid "react.projects.history_restore_admin_only"
+msgstr ""
+
+msgid "react.oauth.preset_my_role"
+msgstr ""
+
+msgid "react.agent_access.advanced_options_admin_only"
+msgstr ""
+
+msgid "react.agent_access.advanced_options"
+msgstr ""
+
+msgid "react.agent_access.hide_advanced_options"
+msgstr ""
+
+msgid "react.agent_access.role_access_summary"
+msgstr ""
+
+msgid "react.agent_access.role_access_expiry"
+msgstr ""
+
+msgid "react.agent_access.connect"
+msgstr ""
+
+msgid "react.agent_access.connect_again"
+msgstr ""
+
+msgid "react.agent_access.address_title"
+msgstr ""
+
+msgid "react.agent_access.role_connected_instruction"
+msgstr ""
+
+msgid "react.oauth.role_access_narrower"
+msgstr ""
+
+msgid "react.oauth.role_access_admin"
+msgstr ""
+
+msgid "react.oauth.role_access_operator"
+msgstr ""
+
+msgid "react.oauth.role_access_viewer"
+msgstr ""
+
+msgid "react.oauth.role_access_details"
+msgstr ""
+
+msgid "react.oauth.role_access_expiry"
+msgstr ""
+
+msgid "react.oauth.role_access_description"
+msgstr ""
+
+msgid "react.oauth.signed_in_as_role"
+msgstr ""
+
+msgid "react.oauth.signed_in_as"
+msgstr ""
+
+msgid "react.oauth.allow_short"
+msgstr ""
+
+msgid "react.oauth.preset_my_role_description"
+msgstr ""
+
+msgid "react.agent_access.connections_title"
+msgstr ""
+
+msgid "react.agent_access.connection_ends_on"
+msgstr ""
+
+msgid "react.agent_access.connection_no_end"
+msgstr ""
+
+msgid "react.agent_access.connection_ending_title"
+msgstr ""
+
+msgid "react.agent_access.connection_reconnect_from_client"
+msgstr ""
+
+msgid "react.agent_access.connection_connect_again_copy"
+msgstr ""
+
+msgid "react.agent_access.oauth_role_access_summary"
+msgstr ""
+
+msgid "react.agent_access.oauth_role_access_body"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_one"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_many"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_link"
+msgstr ""
+
+msgid "react.agent_access.expiry_notice_dismiss"
+msgstr ""
+
+msgid "react.permissions.account_self"
+msgstr ""
+
+msgid "react.permissions.account_profile_write"
+msgstr ""
+
+msgid "react.permissions.jobs_read"
+msgstr ""
+
+msgid "react.permissions.projects_read"
+msgstr ""
+
+msgid "react.permissions.workflows_read"
+msgstr ""
+
+msgid "react.permissions.reports_read"
+msgstr ""
+
+msgid "react.permissions.notify_read"
+msgstr ""
+
+msgid "react.permissions.secrets_read"
+msgstr ""
+
+msgid "react.permissions.extensions_read"
+msgstr ""
+
+msgid "react.permissions.platform_read"
+msgstr ""
+
+msgid "react.permissions.registry_read"
+msgstr ""
+
+msgid "react.permissions.workflows_run"
+msgstr ""
+
+msgid "react.permissions.approvals_decide"
+msgstr ""
+
+msgid "react.permissions.jobs_write"
+msgstr ""
+
+msgid "react.permissions.reports_write"
+msgstr ""
+
+msgid "react.permissions.notify_dispatch"
+msgstr ""
+
+msgid "react.permissions.extensions_use"
+msgstr ""
+
+msgid "react.permissions.secrets_value_write"
+msgstr ""
+
+msgid "react.permissions.projects_write"
+msgstr ""
+
+msgid "react.permissions.workspaces_manage"
+msgstr ""
+
+msgid "react.permissions.workflows_manage"
+msgstr ""
+
+msgid "react.permissions.registry_manage"
+msgstr ""
+
+msgid "react.permissions.extensions_manage"
+msgstr ""
+
+msgid "react.permissions.jobs_manage"
+msgstr ""
+
+msgid "react.permissions.secrets_bind"
+msgstr ""
+
+msgid "react.permissions.secrets_delete"
+msgstr ""
+
+msgid "react.permissions.secrets_approve"
+msgstr ""
+
+msgid "react.permissions.users_manage"
+msgstr ""
+
+msgid "react.permissions.settings_manage"
+msgstr ""
+
+msgid "react.permissions.platform_manage"
 msgstr ""

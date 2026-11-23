@@ -28,38 +28,51 @@ import {
   type ProviderChannel,
 } from "@/pages/projects/notifications/api";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { isHttpError } from "@/lib/http/errors";
+import {
+  CHANNEL_TARGET_KIND,
+  RECIPIENT_TARGET_KIND,
+  ROUTE_CONNECTION_ERROR_CODES,
+  channelLookupKey,
+  providerRequiresConnection,
+  resolveRouteTarget,
+  routeConnections,
+  type RouteTarget,
+} from "./notification-route-target";
 
-// Common first-party events, not an exhaustive catalog of extension/custom events.
-
-
-const RECIPIENT_TARGET_KIND = "recipient";
-const CHANNEL_TARGET_KIND = "channel";
-
-function storedTargetKind(hasRecipients: boolean, hasChannel: boolean): RouteDraft["stored_target_kind"] {
+function storedTargetKind(hasRecipients: boolean, hasChannel: boolean, hasConnection: boolean): RouteDraft["stored_target_kind"] {
   if (hasRecipients) return RECIPIENT_TARGET_KIND;
-  return hasChannel ? CHANNEL_TARGET_KIND : "";
+  if (hasChannel) return CHANNEL_TARGET_KIND;
+  // A route that names only its connection is bound to that connection's channel.
+  return hasConnection ? "fixed_channel" : "";
 }
 
-type RouteTargetKind = typeof RECIPIENT_TARGET_KIND | typeof CHANNEL_TARGET_KIND | "unknown";
-
-function routeTargetKind(
-  providerKey: string,
+/** What a draft addresses, from its provider and the connection it names. */
+function draftTarget(
+  draft: Pick<RouteDraft, "provider_key" | "connection_id">,
   providers: Map<string, ProjectNotificationProvider>,
-): RouteTargetKind {
-  const provider = providers.get(providerKey.trim());
-  if (!provider) {
-    return "unknown";
+): RouteTarget {
+  return resolveRouteTarget(providers.get(draft.provider_key.trim()), draft.connection_id);
+}
+
+function decidedTargetKind(target: RouteTarget): RouteDraft["stored_target_kind"] {
+  if (target.kind === RECIPIENT_TARGET_KIND || target.kind === CHANNEL_TARGET_KIND || target.kind === "fixed_channel") {
+    return target.kind;
   }
-  return provider.notification_target_kind === RECIPIENT_TARGET_KIND
-    ? RECIPIENT_TARGET_KIND
-    : CHANNEL_TARGET_KIND;
+  return "";
 }
 
-function usesEmailRecipient(
-  providerKey: string,
+/** Whether a draft picks from a channel list (an unknown provider is checked as before). */
+function draftListsChannels(target: RouteTarget): boolean {
+  return target.kind === CHANNEL_TARGET_KIND || target.kind === "unknown";
+}
+
+function draftChannelKey(
+  draft: Pick<RouteDraft, "provider_key" | "connection_id">,
   providers: Map<string, ProjectNotificationProvider>,
-): boolean {
-  return routeTargetKind(providerKey, providers) === RECIPIENT_TARGET_KIND;
+) {
+  const providerKey = draft.provider_key.trim();
+  return channelLookupKey(providers.get(providerKey), providerKey, draft.connection_id);
 }
 
 function objectOrEmpty(value: unknown): NotificationEntity {
@@ -74,7 +87,11 @@ function routeToDraft(route: NotificationEntity, index: number): RouteDraft {
   return {
     // What the route is stored as, so a save can preserve it when the provider
     // that would otherwise say is unavailable.
-    stored_target_kind: storedTargetKind(Boolean(recipients.length), Boolean(routeConfig.channel_id)),
+    stored_target_kind: storedTargetKind(
+      Boolean(recipients.length),
+      Boolean(routeConfig.channel_id),
+      Boolean(textOrEmpty(routeConfig.connection_id)),
+    ),
     channel_id: textOrEmpty(routeConfig.channel_id || recipients[0]),
     clientId: textOrEmpty(route.route_id) || textOrEmpty(route.route_key) || `route-${index + 1}`,
     connection_id: textOrEmpty(routeConfig.connection_id),
@@ -126,32 +143,57 @@ function draftToRoute(
   if (!eventType) {
     throw new RouteFieldError("event_type", t("react.projects.route_event_required", "Event type is required for route {route}.", { route: routeKey }));
   }
-  const kind = routeTargetKind(providerKey, providers);
-  // An unknown provider cannot decide the shape. A route that already has one
-  // keeps it; a new one has nothing to fall back on and must be refused rather
-  // than written in whichever shape happens to be the default.
-  const resolved = kind === "unknown" ? draft.stored_target_kind : kind;
-  if (!resolved) {
+  const provider = providers.get(providerKey);
+  const connectionId = draft.connection_id.trim();
+  const target = resolveRouteTarget(provider, connectionId);
+  if (target.kind === "connection_required" && target.missing) {
     throw new RouteFieldError(
-      "provider_key",
-      t("react.projects.route_provider_unavailable", "Provider {provider} is not available in this project, so route {route} cannot be saved. Enable the provider's extension, or choose an available provider.", { provider: providerKey, route: routeKey }),
+      "connection_id",
+      t("react.projects.route_connection_required", "Choose the connection route {route} delivers through: it decides whether the route addresses recipients or a channel.", { route: routeKey }),
     );
   }
+  // An unknown provider, or a connection that no longer carries routes, cannot
+  // decide the shape. A route that already has one keeps it; a new one has
+  // nothing to fall back on and must be refused rather than written in
+  // whichever shape happens to be the default.
+  const decided = target.kind === RECIPIENT_TARGET_KIND || target.kind === CHANNEL_TARGET_KIND || target.kind === "fixed_channel";
+  const resolved: RouteDraft["stored_target_kind"] = decided ? decidedTargetKind(target) : draft.stored_target_kind;
+  if (!resolved) {
+    throw target.kind === "connection_required"
+      ? new RouteFieldError(
+        "connection_id",
+        t("react.projects.route_connection_unavailable", "Connection {connection} cannot carry route {route}. Choose another connection.", { connection: connectionId, route: routeKey }),
+      )
+      : new RouteFieldError(
+        "provider_key",
+        t("react.projects.route_provider_unavailable", "Provider {provider} is not available in this project, so route {route} cannot be saved. Enable the provider's extension, or choose an available provider.", { provider: providerKey, route: routeKey }),
+      );
+  }
   const outgoingEmail = resolved === RECIPIENT_TARGET_KIND;
-  if (!channelId) {
+  if (resolved !== "fixed_channel" && !channelId) {
     throw new RouteFieldError(
       "channel_id",
       outgoingEmail ? t("react.projects.route_recipient_required", "Recipient email is required for route {route}.", { route: routeKey }) : t("react.projects.route_channel_required", "Channel is required for route {route}.", { route: routeKey }),
     );
+  }
+  // A channel route names its connection when the provider needs one, or when
+  // the provider cannot say right now (the stored connection is kept).
+  const channelKeepsConnection = Boolean(connectionId) && (providerRequiresConnection(provider) || !decided);
+  let routeConfig: Record<string, unknown>;
+  if (resolved === "fixed_channel") {
+    // Bound to its connection's channel: no channel and no recipients on the route.
+    routeConfig = { connection_id: connectionId };
+  } else if (outgoingEmail) {
+    routeConfig = { connection_id: connectionId, to: [channelId] };
+  } else {
+    routeConfig = channelKeepsConnection ? { connection_id: connectionId, channel_id: channelId } : { channel_id: channelId };
   }
   return {
     display_name: draft.display_name.trim(),
     enabled: draft.enabled,
     event_type: eventType,
     provider_key: providerKey,
-    route_config: outgoingEmail
-      ? { connection_id: draft.connection_id.trim(), to: [channelId] }
-      : { channel_id: channelId },
+    route_config: routeConfig,
     route_key: routeKey,
     severity: SEVERITY_OPTIONS.includes(draft.severity) ? draft.severity : "any",
     workflow_id: draft.workflow_id.trim() || null,
@@ -180,12 +222,21 @@ function routeAvailabilityMessage(
   if (!draft.provider_key) {
     return t("react.projects.provider_missing", "Provider missing");
   }
+  const target = draftTarget(draft, providers);
+  if (target.kind === "connection_required") {
+    return target.missing
+      ? t("react.projects.connection_missing", "Connection missing")
+      : t("react.projects.connection_cannot_carry_routes", "Connection cannot carry routes");
+  }
+  if (target.kind === "fixed_channel") {
+    return "";
+  }
   if (!draft.channel_id) {
-    return usesEmailRecipient(draft.provider_key, providers)
+    return target.kind === RECIPIENT_TARGET_KIND
       ? t("react.projects.recipient_missing", "Recipient missing")
       : t("react.projects.channel_missing", "Channel missing");
   }
-  if (usesEmailRecipient(draft.provider_key, providers)) {
+  if (target.kind === RECIPIENT_TARGET_KIND) {
     return "";
   }
   if (!channels) {
@@ -202,6 +253,26 @@ function routeAvailabilityMessage(
     return t("react.projects.referenced_channel_is_disabled", "Referenced channel is disabled");
   }
   return "";
+}
+
+/**
+ * The server refuses a route whose connection does not fit its provider
+ * (`notification_connection_required` / `_incompatible`). When the refused route
+ * is the one in the dialog and the dialog offers a connection, the connection
+ * field is marked; the server's own message is shown either way.
+ */
+function routeConnectionErrorField(
+  error: unknown,
+  draft: RouteDraft,
+  connectionOffered: boolean,
+): RouteFieldId | null {
+  if (!connectionOffered || !isHttpError(error)) return null;
+  const payload = objectOrEmpty(error.payload);
+  const details = objectOrEmpty(objectOrEmpty(payload.details).context);
+  const code = textOrEmpty(payload.code);
+  const routeKey = textOrEmpty(payload.route_key || details.route_key);
+  if (!ROUTE_CONNECTION_ERROR_CODES.has(code)) return null;
+  return !routeKey || routeKey === draft.route_key.trim() ? "connection_id" : null;
 }
 
 type ProjectNotificationRoutesEditorProps = {
@@ -236,6 +307,9 @@ function NotificationRouteRow({
     providers, t,
   );
   const capabilitySummary = channelCapabilitySummary(selectedChannel, t);
+  const target = draftTarget(draft, providers);
+  const targetText = draft.channel_id
+    || (target.kind === "fixed_channel" ? target.label : t("react.projects.channel_not_set", "channel not set"));
   return (
     <div
       className="fs-surface-radius border border-subtle fs-surface-inset p-3"
@@ -264,7 +338,7 @@ function NotificationRouteRow({
           </p>
           <div className="mt-1 flex flex-wrap gap-2 text-xs fs-ink-tertiary">
             <span>{draft.provider_key || t("react.projects.provider_not_set", "provider not set")}</span>
-            <span>{draft.channel_id || t("react.projects.channel_not_set", "channel not set")}</span>
+            <span>{targetText}</span>
             <span>{draft.event_type || t("react.projects.event_not_set", "event not set")}</span>
             <span>{draft.severity || "any"}</span>
             {draft.workflow_id ? <span>{draft.workflow_id}</span> : null}
@@ -395,7 +469,7 @@ function NotificationRoutesCard({
           <div className="space-y-3">
             {drafts.map((draft, index) => (
               <NotificationRouteRow
-                channels={channelsByProvider.get(draft.provider_key)}
+                channels={channelsByProvider.get(draftChannelKey(draft, providers).key)}
                 deleting={deletingIndex === index}
                 draft={draft}
                 index={index}
@@ -484,38 +558,44 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
   const createInventoryReady = providersQuery.isSuccess && !providersQuery.isFetching
     && routesQuery.isSuccess && !routesQuery.isFetching
     && providersByKey.size > 0 && (!selectedProviderKey || providersByKey.has(selectedProviderKey));
-  const providerKeysForChannelLookup = useMemo(() => {
-    const keys = new Set<string>();
-    for (const draft of serverDrafts) {
+  // Channels are listed once per provider, or once per connection for a
+  // provider whose routes name their connection.
+  const modalProviderKeyForLookup = textOrEmpty(modalDraft?.provider_key);
+  const modalConnectionIdForLookup = textOrEmpty(modalDraft?.connection_id);
+  const channelLookups = useMemo(() => {
+    const lookups = new Map<string, { providerKey: string; connectionId: string }>();
+    const drafts = [
+      ...serverDrafts,
+      ...(modalProviderKeyForLookup ? [{ provider_key: modalProviderKeyForLookup, connection_id: modalConnectionIdForLookup }] : []),
+    ];
+    for (const draft of drafts) {
       const providerKey = textOrEmpty(draft.provider_key);
-      if (providerKey && !usesEmailRecipient(providerKey, providersByKey)) {
-        keys.add(providerKey);
-      }
+      if (!providerKey || !draftListsChannels(draftTarget(draft, providersByKey))) continue;
+      const { key, connectionId } = draftChannelKey(draft, providersByKey);
+      lookups.set(key, { providerKey, connectionId });
     }
-    const modalProviderKey = textOrEmpty(modalDraft?.provider_key);
-    if (modalProviderKey && !usesEmailRecipient(modalProviderKey, providersByKey)) {
-      keys.add(modalProviderKey);
-    }
-    return [...keys];
-  }, [modalDraft?.provider_key, providersByKey, serverDrafts]);
+    return [...lookups.entries()].map(([key, lookup]) => ({ key, ...lookup }));
+  }, [modalConnectionIdForLookup, modalProviderKeyForLookup, providersByKey, serverDrafts]);
   const channelQueries = useQueries({
-    queries: providerKeysForChannelLookup.map((providerKey) => ({
-      queryKey: ["projects", "notification-provider-channels", projectId, providerKey],
-      queryFn: () => fetchProjectProviderChannels(projectId, providerKey),
+    queries: channelLookups.map(({ providerKey, connectionId }) => ({
+      queryKey: ["projects", "notification-provider-channels", projectId, providerKey, connectionId],
+      queryFn: () => (connectionId
+        ? fetchProjectProviderChannels(projectId, providerKey, connectionId)
+        : fetchProjectProviderChannels(projectId, providerKey)),
       enabled: Boolean(projectId && providerKey),
       retry: false,
     })),
   });
   const channelsByProvider = useMemo(() => {
     const next = new Map<string, ProviderChannel[]>();
-    providerKeysForChannelLookup.forEach((providerKey, index) => {
+    channelLookups.forEach(({ key }, index) => {
       const rows = channelQueries[index]?.data;
       if (Array.isArray(rows)) {
-        next.set(providerKey, rows);
+        next.set(key, rows);
       }
     });
     return next;
-  }, [channelQueries, providerKeysForChannelLookup]);
+  }, [channelQueries, channelLookups]);
   const modalProvider = useMemo(
     () =>
       providerOptions.find((provider) => provider.provider_key === textOrEmpty(modalDraft?.provider_key)) ||
@@ -537,14 +617,33 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
     return options;
   }, [modalDraft?.provider_key, providerOptions, t]);
 
-  const modalUsesEmailRecipient = usesEmailRecipient(
-    textOrEmpty(modalDraft?.provider_key),
+  const modalTarget = draftTarget(
+    { provider_key: modalProviderKeyForLookup, connection_id: modalConnectionIdForLookup },
     providersByKey,
   );
-  const modalChannels = channelsByProvider.get(textOrEmpty(modalDraft?.provider_key)) || [];
+  const modalChannelKey = draftChannelKey(
+    { provider_key: modalProviderKeyForLookup, connection_id: modalConnectionIdForLookup },
+    providersByKey,
+  ).key;
+  const modalChannels = channelsByProvider.get(modalChannelKey) || [];
   const modalChannelsQuery = channelQueries.find(
-    (_, index) => providerKeysForChannelLookup[index] === textOrEmpty(modalDraft?.provider_key),
+    (_, index) => channelLookups[index]?.key === modalChannelKey,
   );
+  // Only a provider whose routes must name their connection offers a choice;
+  // a route keeps showing the connection it names even when it can no longer be used.
+  const modalConnectionChoices = useMemo(() => {
+    if (!providerRequiresConnection(modalProvider)) return [];
+    const options = routeConnections(modalProvider).map((connection) => ({
+      value: connection.connection_id,
+      label: connection.target_kind === RECIPIENT_TARGET_KIND
+        ? t("react.projects.connection_option_recipients", "{connection} (recipients)", { connection: connection.display_name || connection.connection_id })
+        : t("react.projects.connection_option_channel", "{connection} (channel)", { connection: connection.display_name || connection.connection_id }),
+    }));
+    if (modalConnectionIdForLookup && !options.some((option) => option.value === modalConnectionIdForLookup)) {
+      options.unshift({ value: modalConnectionIdForLookup, label: t("react.projects.value1_unavailable", "{value1} (unavailable)", { value1: modalConnectionIdForLookup }) });
+    }
+    return options;
+  }, [modalConnectionIdForLookup, modalProvider, t]);
 
   function updateModalDraft(patch: Partial<RouteDraft>) {
     setModalDraft((current) => (current ? { ...current, ...patch } : current));
@@ -601,6 +700,16 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
       focusRouteField("provider_key");
       return;
     }
+    if (modalTarget.kind === "connection_required") {
+      setModalError({
+        field: "connection_id",
+        message: modalTarget.missing
+          ? t("react.projects.route_connection_required", "Choose the connection route {route} delivers through: it decides whether the route addresses recipients or a channel.", { route: modalDraft.route_key })
+          : t("react.projects.route_connection_unavailable", "Connection {connection} cannot carry route {route}. Choose another connection.", { connection: modalDraft.connection_id, route: modalDraft.route_key }),
+      });
+      focusRouteField("connection_id");
+      return;
+    }
     setMessage("");
     setModalError(null);
     setSaving(true);
@@ -618,7 +727,7 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
       // Both a rejected field and a backend refusal belong in front of the
       // operator, not behind the overlay.
       const text = error instanceof Error ? error.message : t("react.projects.save_notification_routes_failed", "Failed to save notification routes.");
-      const field = error instanceof RouteFieldError ? error.field : null;
+      const field = error instanceof RouteFieldError ? error.field : routeConnectionErrorField(error, modalDraft, modalConnectionChoices.length > 0);
       setModalError({ field, message: text });
       if (field) {
         focusRouteField(field);
@@ -698,7 +807,8 @@ export function ProjectNotificationRoutesEditor({ projectId }: Readonly<ProjectN
           onRetryWorkflows={() => ignoreAsyncResult(workflowsQuery.refetch())}
           createInventoryReady={createInventoryReady}
           onRetryNotificationData={retryNotificationData}
-          usesEmailRecipientTarget={modalUsesEmailRecipient}
+          connectionChoices={modalConnectionChoices}
+          target={modalTarget}
         />
       ) : null}
     </div>

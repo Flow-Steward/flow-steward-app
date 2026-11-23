@@ -5,6 +5,7 @@ import {
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import type { CallbackSetupCredentials } from "./callback-setup-scope";
+import type { ConnectionCredentialsFrom, CredentialsConfigurationOptions } from "./connection-credentials-from";
 import type { ExtensionCallbackRegistration } from "@/pages/extensions/api";
 import {
   matchesVisibleIf,
@@ -82,6 +83,10 @@ export type ManifestRenderContext = {
   ) => ExternalResourcePickerBridge;
   oauthConnectionTypes: string[];
   oauthConnectionProviderIds?: string[];
+  /** Connection types that take their credentials from an OAuth configuration, by type id. */
+  connectionCredentialsFrom?: Record<string, ConnectionCredentialsFrom>;
+  /** This install's OAuth configurations in the project, by provider id. */
+  credentialsConfigurations?: Record<string, CredentialsConfigurationOptions>;
   projectId: string;
   projectConnections: Array<Record<string, unknown>>;
   projectState: Array<Record<string, unknown>>;

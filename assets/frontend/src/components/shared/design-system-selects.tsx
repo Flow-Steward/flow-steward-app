@@ -4,6 +4,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSP
 import { createPortal } from "react-dom";
 
 import { DsLoader } from "@/components/shared/ds-loader";
+import { filterRangeParts, filterRangeValue } from "@/components/shared/filter-range";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 
 /** `icon` is a small mark drawn before the label (an extension's logo tile). */
@@ -12,13 +13,25 @@ export type DsOption = { value: string; label: string; description?: string; dis
  * `multiple` lets one field hold several values: its value in
  * `AdvancedTableFilters` is then a comma-separated list of option values.
  */
-export type DsFilterField = { key: string; label: string; options: DsOption[]; multiple?: boolean };
+export type DsFilterField = {
+  key: string;
+  label: string;
+  options: DsOption[];
+  multiple?: boolean;
+  /**
+   * A typed value instead of a choice: `text` holds the text, and a range holds
+   * `from..to` (either side may be empty). `options` is then unused.
+   */
+  input?: "text" | "number_range" | "date_range";
+};
 
 /** A filter field with more options than this gets a search box above its list. */
 const FILTER_SEARCH_THRESHOLD = 10;
 
 /** The arrow keys walk the back row, the search box and the options, in order. */
 const FILTER_NAV_KEYS = new Set(["ArrowDown", "ArrowUp", "Home", "End"]);
+/** Inputs whose arrow keys change their value natively (date segments, number steps). */
+const NATIVE_STEP_INPUT_TYPES = new Set(["date", "datetime-local", "time", "month", "week", "number"]);
 
 /** One line per label: a long one ends in an ellipsis, and `title` keeps it whole. */
 function FilterMenuText({ option }: Readonly<{ option: Pick<DsOption, "label" | "description"> }>) {
@@ -27,6 +40,67 @@ function FilterMenuText({ option }: Readonly<{ option: Pick<DsOption, "label" | 
       <span className="fs-filter-menu-label" title={option.label}>{option.label}</span>
       {option.description ? <span className="fs-filter-menu-description" title={option.description}>{option.description}</span> : null}
     </span>
+  );
+}
+
+/** How an applied typed filter reads in its chip: the text, `a – b`, `≥ a` or `≤ b`. */
+function typedFilterLabel(field: DsFilterField, value: string): string {
+  if (field.input === "text") return value;
+  const [from, to] = filterRangeParts(value);
+  if (from && to) return `${from} – ${to}`;
+  return from ? `≥ ${from}` : `≤ ${to}`;
+}
+
+/**
+ * The value stage of a typed filter: a text box, or a from/to pair of number or
+ * date boxes, applied with one button (Enter applies too).
+ */
+function FilterInputStage({
+  field,
+  value,
+  onApply,
+}: Readonly<{ field: DsFilterField; value: string; onApply: (value: string) => void }>) {
+  const { t } = useI18n();
+  const [initialFrom, initialTo] = field.input === "text" ? [value, ""] : filterRangeParts(value);
+  const [from, setFrom] = useState(initialFrom);
+  const [to, setTo] = useState(initialTo);
+  const inputType = field.input === "date_range" ? "date" : field.input === "number_range" ? "number" : "search";
+  const apply = () => onApply(field.input === "text" ? from.trim() : filterRangeValue(from, to));
+  return (
+    <form
+      className="fs-filter-menu-input"
+      onSubmit={(event) => {
+        event.preventDefault();
+        apply();
+      }}
+    >
+      {field.input === "text" ? (
+        <input
+          aria-label={field.label}
+          autoComplete="off"
+          className="fs-input"
+          data-filter-nav=""
+          data-filter-value=""
+          onChange={(event) => setFrom(event.target.value)}
+          type="search"
+          value={from}
+        />
+      ) : (
+        <>
+          <label className="fs-field">
+            <span className="fs-field-label">{t("react.shared.filter_from", "From")}</span>
+            <input className="fs-input" data-filter-nav="" data-filter-value="" inputMode={inputType === "number" ? "decimal" : undefined} onChange={(event) => setFrom(event.target.value)} type={inputType} value={from} />
+          </label>
+          <label className="fs-field">
+            <span className="fs-field-label">{t("react.shared.filter_to", "To")}</span>
+            <input className="fs-input" data-filter-nav="" inputMode={inputType === "number" ? "decimal" : undefined} onChange={(event) => setTo(event.target.value)} type={inputType} value={to} />
+          </label>
+        </>
+      )}
+      <button className="fs-button primary" data-filter-nav="" type="submit">
+        {t("react.shared.apply_filter", "Apply")}
+      </button>
+    </form>
   );
 }
 
@@ -494,6 +568,9 @@ export function AdvancedTableFilters({
     if (FILTER_NAV_KEYS.has(event.key)) {
       // Home and End belong to the caret while the search box has focus.
       if ((event.key === "Home" || event.key === "End") && event.target instanceof HTMLInputElement) return;
+      // A date, time or number field steps its own value with the arrows; only
+      // Escape and moving between items stay with the menu.
+      if (event.target instanceof HTMLInputElement && NATIVE_STEP_INPUT_TYPES.has(event.target.type)) return;
       event.preventDefault();
       moveFocus(event.key);
       return;
@@ -513,7 +590,9 @@ export function AdvancedTableFilters({
       <div className="fs-active-filters">
         {activeFields.map((item) => {
           const chosen = item.multiple ? filterFieldValues(values[item.key]) : [values[item.key]];
-          const chosenLabels = chosen.map((value) => item.options.find((option) => option.value === value)?.label || value);
+          const chosenLabels = item.input
+            ? [typedFilterLabel(item, values[item.key])]
+            : chosen.map((value) => item.options.find((option) => option.value === value)?.label || value);
           return (
             <span className="fs-applied-filter" key={item.key}>
               <span>{item.label} · {chosenLabels.join(", ")}</span>
@@ -557,9 +636,20 @@ export function AdvancedTableFilters({
               <div role="none">
                 <button className="fs-filter-menu-item fs-filter-menu-back" data-filter-nav="" onClick={() => { showField(null); focusFirst("[data-filter-field]"); }} role="menuitem" type="button"><ChevronLeft aria-hidden="true" />{t("react.shared.all_fields", "All fields")}</button>
                 <h2>{t("react.shared.filter_by", "Filter by")} {field.label.toLowerCase()}</h2>
+                {field.input ? (
+                  <FilterInputStage
+                    field={field}
+                    key={field.key}
+                    onApply={(value) => {
+                      onChange(field.key, value);
+                      closeAndReturnFocus();
+                    }}
+                    value={values[field.key] || ""}
+                  />
+                ) : null}
                 {/* A long list gets the Combobox search field; a short one is
                     read at a glance and would only lose a row to it. */}
-                {searchable ? (
+                {!field.input && searchable ? (
                   <div className="fs-combo-field fs-filter-menu-search">
                     <Search className="fs-multi-search" aria-hidden="true" />
                     <input
@@ -574,8 +664,8 @@ export function AdvancedTableFilters({
                     />
                   </div>
                 ) : null}
-                <div className="fs-filter-menu-options" role="none">
-                  {visibleOptions.length === 0 ? <span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span> : null}
+                <div className="fs-filter-menu-options" hidden={Boolean(field.input)} role="none">
+                  {visibleOptions.length === 0 && !field.input ?<span className="fs-combo-empty">{t("react.shared.no_results", "No results")}</span> : null}
                   {field.multiple
                     ? visibleOptions.map((option) => {
                       // Several values: each item toggles, and the menu stays open.

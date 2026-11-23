@@ -569,6 +569,38 @@ class PlatformLoggerPolicyProjectsMixin:
             )
             return cur.fetchall()
 
+    def list_active_project_workflow_bindings(self, *, account_id: str) -> list[dict]:
+        """Every active project-workflow binding of an account, with its project (ADR 0075).
+
+        The operator menu is built from these: one row per live binding of a live
+        workflow in a live project. Access, publication and channel are decided by
+        the caller.
+        """
+        if not self._table_exists("project_workflows"):
+            return []
+        with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    pw.project_id::text AS project_id,
+                    p.name AS project_name,
+                    p.account_id::text AS account_id,
+                    p.workspace_id::text AS workspace_id,
+                    pw.workflow_id
+                FROM project_workflows pw
+                JOIN projects p ON p.id = pw.project_id
+                JOIN registry_workflows rw ON rw.workflow_id = pw.workflow_id
+                WHERE p.account_id = %s
+                  AND pw.enabled = true
+                  AND pw.deleted_at IS NULL
+                  AND p.deleted_at IS NULL
+                  AND rw.deleted_at IS NULL
+                ORDER BY p.name, pw.project_id, pw.workflow_id
+                """,
+                (str(account_id),),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
     @staticmethod
     def _sync_project_workflows_cur(
         cur,

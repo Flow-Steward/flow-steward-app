@@ -10,6 +10,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "db/migrations/20261120160000_local_auth_credentials.sql"
+AUTHENTICATOR_POLICY_MIGRATION = ROOT / "db/migrations/20261122120000_user_authenticator_policy.sql"
 LEGACY_CREATED_AT = datetime(2024, 1, 1, tzinfo=UTC)
 LEGACY_UPDATED_AT = datetime(2024, 2, 1, tzinfo=UTC)
 
@@ -94,6 +95,34 @@ def test_fresh_user_has_password_age(disposable_db_conn):
             (user_id, f"{user_id}@example.invalid", uuid4().hex),
         ).fetchone()
         assert changed_with_creation == (True,)
+
+
+def test_authenticator_policy_migration_defaults_and_preserves_independent_flags(
+    disposable_db_conn,
+):
+    conn = disposable_db_conn
+    migration = AUTHENTICATOR_POLICY_MIGRATION.read_text(encoding="utf-8")
+    user_id = uuid4()
+    with conn.transaction(force_rollback=True):
+        conn.execute(
+            "ALTER TABLE public.users DROP COLUMN authenticator_required, "
+            "DROP COLUMN authenticator_reset_pending"
+        )
+        conn.execute(
+            "INSERT INTO public.users (id, username, password_hash) VALUES (%s, %s, %s)",
+            (user_id, f"{user_id}@example.invalid", uuid4().hex),
+        )
+
+        conn.execute(migration)
+        read_policy = "SELECT authenticator_required, authenticator_reset_pending FROM public.users WHERE id = %s"
+        assert conn.execute(read_policy, (user_id,)).fetchone() == (False, False)
+
+        conn.execute(
+            "UPDATE public.users SET authenticator_reset_pending = true WHERE id = %s",
+            (user_id,),
+        )
+        conn.execute(migration)
+        assert conn.execute(read_policy, (user_id,)).fetchone() == (False, True)
 
 
 @pytest.mark.parametrize("password_expired", [False, True])

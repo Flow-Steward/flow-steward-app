@@ -1,6 +1,8 @@
 import { useI18n } from "@/lib/i18n/useI18n";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import {
+  lazy,
+  Suspense,
   type FocusEvent,
   type RefObject,
   useEffect,
@@ -35,6 +37,7 @@ import { ignoreAsyncResult } from "@/lib/utils/async";
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { z } from "@/lib/validation/zod";
 import { normalizeFlashMessage } from "@/pages/auth/login/flash";
+import type { AuthenticatorEnrollment } from "@/pages/auth/login/authenticator-enrollment";
 import { LoginMfaField } from "@/pages/auth/login/verification-code-field";
 import { PasswordVisibilityToggle } from "@/pages/auth/password-visibility-toggle";
 import { ConfirmPasswordField, NewPasswordField } from "@/pages/auth/reset-password";
@@ -51,6 +54,8 @@ import {
 } from "@/pages/auth/public-auth-motion-config";
 
 import "@/pages/auth/login/public-auth-sign-in.css";
+
+const LoginAuthenticatorEnrollment = lazy(() => import("@/pages/auth/login/authenticator-enrollment"));
 
 function getLoginschema(t: I18nContextValue["t"] = fallbackContext.t) {
   return z.object({
@@ -74,10 +79,14 @@ type AccountOption = {
 
 type LoginResponse = {
   password_expires_in_days?: number;
+  recovery_codes?: string[];
   user: {
     username: string;
   };
 };
+
+type LoginCompletion = { showPasswordLengthNotice: boolean; passwordExpiresInDays?: number };
+type Recovery = { codes: string[]; completion: LoginCompletion };
 
 type ExternalSignInProvider = {
   provider_key: string;
@@ -108,8 +117,13 @@ function appendNextParam(path: string, nextPath: string) {
   return `${path}${separator}next=${encodeURIComponent(nextPath)}`;
 }
 
+/**
+ * Where a successful sign-in goes: a safe explicit `next`, else the index, whose
+ * HomeGate sends each role to its own landing (admins to the Dashboard,
+ * operators and viewers to their sections, ADR 0075).
+ */
 function normalizeNextPath(raw: string | null) {
-  return raw && isSafeLocalPath(raw) ? raw : "/dashboard";
+  return raw && isSafeLocalPath(raw) ? raw : "/";
 }
 
 function payloadRecord(error: HttpError) {
@@ -117,6 +131,14 @@ function payloadRecord(error: HttpError) {
     return {} as Record<string, unknown>;
   }
   return error.payload as Record<string, unknown>;
+}
+
+function readAuthenticatorEnrollment(value: unknown): AuthenticatorEnrollment | null {
+  if (!value || typeof value !== "object") return null;
+  const { token, secret, uri } = value as Record<string, unknown>;
+  return typeof token === "string" && typeof secret === "string" && typeof uri === "string" && uri.startsWith("otpauth://") // pragma: allowlist secret -- type checks of an enrollment payload, not a credential
+    ? { token, secret, uri }
+    : null;
 }
 
 function loginErrorNotice(error: unknown, t: I18nContextValue["t"] = fallbackContext.t): AuthNotice {
@@ -392,10 +414,12 @@ function LocalLoginForm({
   accountSelectRef,
   activeNotice,
   enabled,
+  enrollment,
   forgotPasswordAvailable,
   form,
   mfaRequired,
   onCredentialsChanged,
+  onRestartEnrollment,
   onSubmit,
   passwordChange,
   passwordVisible,
@@ -407,10 +431,12 @@ function LocalLoginForm({
   accountSelectRef: RefObject<HTMLSelectElement | null>;
   activeNotice: AuthNotice | null;
   enabled: boolean;
+  enrollment: AuthenticatorEnrollment | null;
   forgotPasswordAvailable: boolean;
   form: UseFormReturn<LoginFormValues>;
   mfaRequired: boolean;
   onCredentialsChanged: () => void;
+  onRestartEnrollment: () => void;
   onSubmit: (values: LoginFormValues) => Promise<void>;
   passwordChange: PasswordChange | null;
   passwordVisible: boolean;
@@ -438,8 +464,12 @@ function LocalLoginForm({
           <ConfirmPasswordField confirmationVisible={confirmationVisible} form={form} name="confirmPassword" setConfirmationVisible={setConfirmationVisible} />
         </>
       ) : null}
-      <LoginAccountField accountOptions={accountOptions} accountRegistration={accountRegistration} accountSelectRef={accountSelectRef} form={form} />
-      {mfaRequired ? <LoginMfaField error={form.formState.errors.mfaCode?.message} registration={form.register("mfaCode")} /> : null}
+      {enrollment ? (
+        <Suspense fallback={<DsLoader label={t("react.settings.authenticator_loading", "Loading authenticator settings…")} variant="orbit-inline" />}>
+          <LoginAuthenticatorEnrollment enrollment={enrollment} />
+        </Suspense>
+      ) : <LoginAccountField accountOptions={accountOptions} accountRegistration={accountRegistration} accountSelectRef={accountSelectRef} form={form} />}
+      {mfaRequired ? <LoginMfaField enrolling={Boolean(enrollment)} error={form.formState.errors.mfaCode?.message} registration={form.register("mfaCode")} /> : null}
       <label className="fs-public-auth__checkbox-label">
         <input {...form.register("rememberMe")} type="checkbox" />
         <motion.span animate={{ transform: rememberMe ? "scale(1)" : "scale(0.94)" }} aria-hidden="true" className="fs-public-auth__checkbox-mark" transition={{ bounce: 0, type: "spring", visualDuration: 0.16 }}>
@@ -447,7 +477,16 @@ function LocalLoginForm({
         </motion.span>
         <span>{t("react.auth.keep_me_signed_in", "Keep me signed in")}</span>
       </label>
-      <LoginSubmitArea activeNotice={activeNotice} label={passwordChange ? t("react.auth.set_password_and_sign_in", "Set password and sign in") : t("auth.login.heading", "Sign in")} submitting={form.formState.isSubmitting} />
+      <LoginSubmitArea
+        activeNotice={activeNotice}
+        label={enrollment ? t("react.auth.authenticator_setup_submit", "Verify and sign in") : passwordChange ? t("react.auth.set_password_and_sign_in", "Set password and sign in") : t("auth.login.heading", "Sign in")}
+        submitting={form.formState.isSubmitting}
+      />
+      {enrollment ? (
+        <button className="fs-public-auth__quiet-link justify-self-start" disabled={form.formState.isSubmitting} onClick={onRestartEnrollment} type="button">
+          {t("react.auth.authenticator_setup_back", "Back to sign-in")}
+        </button>
+      ) : null}
     </form>
   );
 }
@@ -473,6 +512,9 @@ export function LoginPage() {
   const [notice, setNotice] = useState<AuthNotice | null>(null);
   const [passwordChange, setPasswordChange] = useState<PasswordChange | null>(null);
   const [mfaRequired, setMfaRequired] = useState(false);
+  const [enrollment, setEnrollment] = useState<AuthenticatorEnrollment | null>(null);
+  const [recovery, setRecovery] = useState<Recovery | null>(null);
+  const [continuing, setContinuing] = useState(false);
   const [flashDismissed, setFlashDismissed] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [externalSignIn, setExternalSignIn] = useState<ExternalSignInState>({
@@ -554,7 +596,7 @@ export function LoginPage() {
     };
   }, [externalSignInProvidersPath, shouldLoadExternalSignIn]);
 
-  if (auth.isAuthenticated && !form.formState.isSubmitting) {
+  if (auth.isAuthenticated && !recovery && !form.formState.isSubmitting) {
     return <Navigate replace to={nextPath} />;
   }
 
@@ -567,11 +609,38 @@ export function LoginPage() {
     setAccountOptions([]);
     setPasswordChange(null);
     setMfaRequired(false);
+    setEnrollment(null);
     setNotice(null);
     form.resetField("accountId");
     form.resetField("newPassword");
     form.resetField("confirmPassword");
     form.resetField("mfaCode");
+  }
+
+  function restartEnrollment() {
+    setEnrollment(null);
+    setMfaRequired(false);
+    setNotice(null);
+    form.resetField("mfaCode");
+    form.setFocus("password");
+  }
+
+  async function finishLogin(state: LoginCompletion) {
+    await auth.refresh();
+    await navigate(nextPath, { replace: true, state });
+  }
+
+  async function continueFromRecovery() {
+    if (!recovery || continuing) return;
+    setContinuing(true);
+    setNotice(null);
+    try {
+      await finishLogin(recovery.completion);
+    } catch (error) {
+      setNotice(loginErrorNotice(error, t));
+    } finally {
+      setContinuing(false);
+    }
   }
 
   function newPasswordReady(values: LoginFormValues, change: PasswordChange): boolean {
@@ -620,9 +689,11 @@ export function LoginPage() {
     }
     if (passwordChange && !newPasswordReady(values, passwordChange)) return;
     const mfaCode = values.mfaCode.trim();
-    if (mfaRequired && !mfaCode) {
+    if (mfaRequired && (enrollment ? !/^[0-9]{6}$/.test(mfaCode) : !mfaCode)) {
       form.setError("mfaCode", {
-        message: t("react.auth.mfa_code_required", "Enter a code from your authenticator app or a recovery code."),
+        message: enrollment
+          ? t("react.auth.authenticator_setup_code_required", "Enter the six-digit code from your authenticator app.")
+          : t("react.auth.mfa_code_required", "Enter a code from your authenticator app or a recovery code."),
         type: "required",
       }, { shouldFocus: true });
       return;
@@ -638,18 +709,22 @@ export function LoginPage() {
           account_id: values.accountId || undefined,
           new_password: passwordChange ? values.newPassword : undefined,
           mfa_code: mfaRequired ? mfaCode : undefined,
+          authenticator_enrollment_token: enrollment?.token,
         }),
       });
-      await auth.refresh();
       const activePassword = passwordChange ? values.newPassword : values.password;
-      const showPasswordLengthNotice = Array.from(activePassword).length < PASSWORD_MIN_LENGTH;
-      await navigate(nextPath, {
-        replace: true,
-        state: {
-          showPasswordLengthNotice,
-          passwordExpiresInDays: result.password_expires_in_days,
-        },
-      });
+      const completion = {
+        showPasswordLengthNotice: Array.from(activePassword).length < PASSWORD_MIN_LENGTH,
+        passwordExpiresInDays: result.password_expires_in_days,
+      };
+      if (result.recovery_codes?.length) {
+        setRecovery({ codes: result.recovery_codes, completion });
+        setEnrollment(null);
+        setMfaRequired(false);
+        form.reset();
+        return;
+      }
+      await finishLogin(completion);
     } catch (error) {
       const accountSelection = accountSelectionFromLoginError(error);
       if (accountSelection.required) {
@@ -674,6 +749,14 @@ export function LoginPage() {
       if (error instanceof HttpError && error.status === 403) {
         const payload = payloadRecord(error);
         if (payload.mfa_enrollment_required === true) {
+          const pending = readAuthenticatorEnrollment(payload.authenticator_enrollment);
+          if (pending) {
+            setEnrollment(pending);
+            setMfaRequired(true);
+            form.setValue("mfaCode", "");
+            requestAnimationFrame(() => form.setFocus("mfaCode"));
+            return;
+          }
           setNotice({
             copy: t("react.auth.mfa_contact_admin", "Contact your workspace administrator to set up multi-factor authentication."),
             title: t("react.auth.mfa_enrollment_required", "Multi-factor authentication is required"),
@@ -754,10 +837,21 @@ export function LoginPage() {
               className="fs-public-auth__sign-in-content"
               stateKey="form"
             >
-              <>
+              {recovery ? (
+                <form className="fs-public-auth__form" onSubmit={(event) => { event.preventDefault(); ignoreAsyncResult(continueFromRecovery()); }}>
+                  <header className="fs-public-auth__sign-in-header">
+                    <h2 id="public-auth-sign-in-title">{t("react.settings.authenticator_recovery_codes", "Save your recovery codes")}</h2>
+                    <p>{t("react.settings.authenticator_recovery_instructions", "Keep these codes somewhere safe. Each code works once, and you can only see them now.")}</p>
+                  </header>
+                  <ul className="grid gap-1">
+                    {recovery.codes.map((code) => <li key={code}><code className="break-all">{code}</code></li>)}
+                  </ul>
+                  <LoginSubmitArea activeNotice={activeNotice} label={t("react.settings.authenticator_continue_setup", "Continue")} submitting={continuing} />
+                </form>
+              ) : <>
                 <header className="fs-public-auth__sign-in-header">
                   <h2 id="public-auth-sign-in-title">
-                    {passwordChange
+                    {enrollment ? t("react.auth.authenticator_setup_sign_in_title", "Set up your authenticator") : passwordChange
                       ? t("react.auth.set_a_new_password", "Set a new password")
                       : mfaRequired
                         ? t("react.auth.mfa_required", "Verify your sign-in")
@@ -786,10 +880,12 @@ export function LoginPage() {
                   accountSelectRef={accountSelectRef}
                   activeNotice={activeNotice}
                   enabled={localAuthEnabled}
+                  enrollment={enrollment}
                   forgotPasswordAvailable={Boolean(auth.session?.system_email_available)}
                   form={form}
                   mfaRequired={mfaRequired}
                   onCredentialsChanged={resetLoginContinuation}
+                  onRestartEnrollment={restartEnrollment}
                   onSubmit={onSubmit}
                   passwordChange={passwordChange}
                   passwordVisible={passwordVisible}
@@ -801,7 +897,7 @@ export function LoginPage() {
                   localAuthEnabled={localAuthEnabled}
                   providersVisible={providersVisible}
                 />
-              </>
+              </>}
             </AuthContentPresence>
           </motion.div>
         </section>

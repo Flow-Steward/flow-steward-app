@@ -250,12 +250,12 @@ class TestEnforceFunctions:
         assert is_public_auth_path("/app/assets/main.js") is True
         assert is_public_auth_path("/api/projects") is False
 
-    def test_is_admin_only_route(self):
-        from core.application.auth.enforce import is_admin_only_route
+    def test_the_route_table_marks_the_admin_only_routes(self):
+        from core.application.auth.route_permissions import route_admin_only
 
-        assert is_admin_only_route("/admin/settings") is True
-        assert is_admin_only_route("/api/agents/1") is True
-        assert is_admin_only_route("/api/projects") is False
+        assert route_admin_only("GET", "/admin/settings") is True
+        assert route_admin_only("GET", "/api/agents/1") is True
+        assert route_admin_only("GET", "/api/projects") is False
 
     def test_require_authenticated_none(self):
         from core.application.auth.enforce import require_authenticated

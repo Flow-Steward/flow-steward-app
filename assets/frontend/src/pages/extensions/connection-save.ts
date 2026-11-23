@@ -38,6 +38,12 @@ import {
 } from "./connection-form-support";
 import { allTrue, choose, anyTrue, catalogLabel } from "./hub-support";
 import {
+  CREDENTIALS_CONFIGURATION_FIELD,
+  borrowedConnectionPaths,
+  credentialsConfigurationRequiredMessage,
+  type ConnectionCredentialsFrom,
+} from "./connection-credentials-from";
+import {
   RequiredFieldError,
   PreSaveActionError,
   extensionActionFailureDetail,
@@ -59,6 +65,10 @@ type ConnectionSavePreparation = {
   selectedId: string;
   /** Credential field → stored secret the person chose; "" stops using one. */
   storedSecretChoices: Record<string, string>;
+  /** Set when the type takes its credentials from an OAuth configuration. */
+  credentialsFrom: ConnectionCredentialsFrom | null;
+  /** The OAuth configuration a `credentialsFrom` connection uses. */
+  credentialsConfigurationId: string;
 };
 
 /** The stored secrets chosen in the form for the visible credential fields. */
@@ -205,22 +215,28 @@ function validateRequiredConnectionFields({
 export function prepareConnectionSave({
   component,
   connectionMatchesCurrentInstall,
+  credentialsFromByType = {},
   oauthConnectionTypes,
   projectConnections,
   values,
 }: {
   component: Record<string, unknown>;
   connectionMatchesCurrentInstall: (row: Record<string, unknown>) => boolean;
+  /** Connection types that take their credentials from an OAuth configuration. */
+  credentialsFromByType?: Record<string, ConnectionCredentialsFrom>;
   oauthConnectionTypes: string[];
   projectConnections: unknown;
   values: Record<string, unknown>;
 }, t: I18nContextValue["t"] = fallbackContext.t): ConnectionSavePreparation {
   const data = connectionDataForValues(component, values);
   const fieldValues = { ...connectionDefaultsForValues(component, values), ...values };
+  const credentialsFrom = credentialsFromByType[stringFrom(data.connection_type)] ?? null;
+  // Borrowed values come from the configuration: the form neither shows nor requires them.
+  const borrowed = borrowedConnectionPaths(credentialsFrom);
   const declaredFields = listFromUnknown(component.fields);
   const declaredPaths = new Set(declaredFields.map(manifestFieldPath).filter(Boolean));
   const fields = declaredFields.filter((field) =>
-    manifestFieldVisibleForValues(field, fieldValues));
+    manifestFieldVisibleForValues(field, fieldValues) && !borrowed.has(manifestFieldPath(field)));
   const selectedId = stringFrom(fieldValues.connection_id);
   const rows = Array.isArray(projectConnections) ? projectConnections : [];
   const existing = rows.find((row) => allTrue([
@@ -230,9 +246,17 @@ export function prepareConnectionSave({
   if (selectedId && !existing) {
     throw new Error(t("react.extensions.this_connection_is_not_available_in_the_current_installed_release", "This connection is not available in the current installed release."));
   }
-  const configFields = stringListFromUnknown(data.config_fields);
-  const requiredSecretFields = new Set(stringListFromUnknown(data.required_secret_fields));
+  const configFields = stringListFromUnknown(data.config_fields).filter((path) => !borrowed.has(path));
+  const requiredSecretFields = new Set(
+    stringListFromUnknown(data.required_secret_fields).filter((path) => !borrowed.has(path)),
+  );
   const secretFields = new Set([...stringListFromUnknown(data.secret_fields), ...requiredSecretFields]);
+  const credentialsConfigurationId = credentialsFrom
+    ? stringFrom(fieldValues[CREDENTIALS_CONFIGURATION_FIELD])
+    : "";
+  if (credentialsFrom && !credentialsConfigurationId) {
+    throw new RequiredFieldError(credentialsConfigurationRequiredMessage(t), CREDENTIALS_CONFIGURATION_FIELD);
+  }
   const config = choose(
     Boolean(existing),
     { ...objectOrEmpty(existing?.connection_config) },
@@ -268,6 +292,8 @@ export function prepareConnectionSave({
     secretFields,
     selectedId,
     storedSecretChoices: choices,
+    credentialsFrom,
+    credentialsConfigurationId,
   };
 }
 
@@ -453,7 +479,21 @@ export function connectionPayloadForSave({
     connection_config: preparation.config,
     secret_refs: connectionSecretRefsForSave(preparation),
     tags: stringListFromUnknown(preparation.data.tags),
+    ...credentialsConfigurationForSave(preparation),
   };
+}
+
+/**
+ * A new connection names the OAuth configuration it borrows its credentials
+ * from; an existing one only when the form switched to another.
+ */
+function credentialsConfigurationForSave(preparation: ConnectionSavePreparation): Record<string, string> {
+  const configurationId = preparation.credentialsConfigurationId;
+  if (!preparation.credentialsFrom || !configurationId) return {};
+  const linked = stringFrom(preparation.existing?.credentials_configuration_id);
+  return preparation.existing && linked === configurationId
+    ? {}
+    : { [CREDENTIALS_CONFIGURATION_FIELD]: configurationId };
 }
 
 /**

@@ -117,6 +117,7 @@ def _build_client(
     local_auth_enabled=False,
     auth_user=None,
     auth_principal=None,
+    approval_query_service=None,
 ):
     import core.entrypoints.api.contracts_v2 as contracts_v2
 
@@ -150,6 +151,9 @@ def _build_client(
             ),
             job_query_service=lambda: jobs_query_service or _JobQueryService(),
             job_command_service=lambda: _JobCommandService(),
+            approval_query_service=(lambda: approval_query_service)
+            if approval_query_service is not None
+            else None,
             project_query_service=lambda: project_query_service or _ProjectQueryService(),
             require_authenticated_user=require_authenticated_user
             or (
@@ -635,3 +639,173 @@ def test_v2_job_date_validation_returns_bad_request_without_querying(
     assert response.status_code == 400
     assert response.json()["ok"] is False
     store.list_jobs_for_attention.assert_not_called()
+
+
+@pytest.mark.parametrize("source", ["manual_ui", "mcp_workflow"])
+def test_v2_jobs_filters_ui_and_api_runs(monkeypatch, source):
+    """ADR 0075: the history filters by how a run started."""
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get("/api/v2/jobs", params={"task_source": source})
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["task_source"] == source
+
+
+def test_v2_jobs_forwards_an_operator_list_request(monkeypatch):
+    """ADR 0075: the operator list of one workflow in one project, with its filters."""
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get(
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf.receipts",
+            "operator_view": "1",
+            "filters": '{"total": {"min": 10}}',
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["operator_view"] is True
+    assert service.last_list_kwargs["filters"] == '{"total": {"min": 10}}'
+    assert service.last_list_kwargs["workflow_id"] == "wf.receipts"
+    assert service.last_list_kwargs["project_id"] == PROJECT_ID
+
+
+def test_v2_jobs_returns_422_for_an_unknown_operator_filter(monkeypatch):
+    from core.application.management.errors import ServiceValidationError
+
+    class _Refusing(_JobQueryService):
+        def list_jobs(self, **kwargs):
+            raise ServiceValidationError(
+                "'ghost' is not a filter of this list",
+                status_code=422,
+                payload={"error": "'ghost' is not a filter of this list", "code": "unknown_filter"},
+            )
+
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=_Refusing())
+
+    response = client.get(
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf",
+            "operator_view": "1",
+            "filters": '{"ghost": 1}',
+        },
+    )
+
+    assert response.status_code == 422
+    assert response.json()["ok"] is False
+
+
+class _SectionsQueryService:
+    def __init__(self):
+        self.calls: list[tuple] = []
+
+    def list_operator_sections(self, *, scope):
+        self.calls.append(("list", scope.account_id))
+        return [{"project_id": "p1", "workflow_id": "wf", "title": "Contracts"}]
+
+    def get_operator_section(self, project_id, workflow_id, *, scope):
+        from core.application.management.errors import ServiceNotFoundError
+
+        self.calls.append(("detail", project_id, workflow_id, scope.project_id))
+        if workflow_id == "missing":
+            raise ServiceNotFoundError("Section not found")
+        return {"project_id": project_id, "workflow_id": workflow_id, "operator": {}}
+
+
+def test_v2_operator_sections_menu_and_detail(monkeypatch):
+    """ADR 0075: the menu of (project, workflow) pairs and one section's settings."""
+    service = _SectionsQueryService()
+    client = _build_client(monkeypatch=monkeypatch, project_query_service=service)
+
+    menu = client.get("/api/v2/projects/sections")
+    detail = client.get("/api/v2/projects/p1/workflows/wf/section")
+    missing = client.get("/api/v2/projects/p1/workflows/missing/section")
+
+    assert menu.status_code == 200
+    assert menu.json()["data"] == {
+        "sections": [{"project_id": "p1", "workflow_id": "wf", "title": "Contracts"}]
+    }
+    assert menu.json()["meta"]["resource"] == "operator-sections"
+    assert detail.status_code == 200
+    assert detail.json()["data"]["workflow_id"] == "wf"
+    assert missing.status_code == 404
+    assert service.calls[1] == ("detail", "p1", "wf", "p1")
+
+
+def test_v2_jobs_around_passes_the_job_whose_neighbours_are_asked(monkeypatch):
+    service = _JobQueryService()
+    client = _build_client(monkeypatch=monkeypatch, jobs_query_service=service)
+
+    response = client.get(
+        "/api/v2/jobs",
+        params={
+            "project_id": PROJECT_ID,
+            "workflow_id": "wf",
+            "operator_view": "1",
+            "around": "j7",
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.last_list_kwargs["around"] == "j7"
+    assert service.last_list_kwargs["operator_view"] is True
+
+
+class _ReviewQuery:
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def get_review(self, job_id, *, scope, can_decide, project_id=None, workflow_id=None):
+        self.calls.append(
+            {
+                "job_id": job_id,
+                "scope": scope,
+                "can_decide": can_decide,
+                "project_id": project_id,
+                "workflow_id": workflow_id,
+            }
+        )
+        return _Payload({"job_id": job_id, "waiting": True, "access": "none", "gate": None})
+
+
+@pytest.mark.parametrize(
+    ("roles", "can_decide"),
+    [(["operator"], True), (["admin"], True), (["viewer"], False)],
+)
+def test_v2_job_review_decides_only_for_operators_and_admins(monkeypatch, roles, can_decide):
+    review = _ReviewQuery()
+    client = _build_client(
+        monkeypatch=monkeypatch,
+        approval_query_service=review,
+        auth_user={"username": "person", "roles": roles},
+    )
+
+    response = client.get("/api/v2/jobs/job-a/review")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["access"] == "none"
+    assert review.calls[0]["job_id"] == "job-a"
+    assert review.calls[0]["can_decide"] is can_decide
+    assert review.calls[0]["project_id"] is None
+
+
+def test_v2_job_review_passes_the_section_pair_to_the_service(monkeypatch):
+    review = _ReviewQuery()
+    client = _build_client(
+        monkeypatch=monkeypatch,
+        approval_query_service=review,
+        auth_user={"username": "person", "roles": ["operator"]},
+    )
+
+    response = client.get("/api/v2/jobs/job-a/review?project_id=p1&workflow_id=wf.contracts")
+
+    assert response.status_code == 200
+    assert review.calls[0]["project_id"] == "p1"
+    assert review.calls[0]["workflow_id"] == "wf.contracts"

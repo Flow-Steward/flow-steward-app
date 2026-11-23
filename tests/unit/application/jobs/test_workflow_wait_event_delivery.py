@@ -102,7 +102,7 @@ def test_a_second_delivery_of_the_same_key_and_type_is_a_logged_duplicate(caplog
 
     assert outcome == {"stored": 1, "duplicates": [0], "rejected": []}
     assert store.calls[1]["items"][0].correlation_key == correlator
-    assert "duplicate event at resume_waits index 0 ignored" in caplog.text
+    assert "1 duplicate resume_waits event(s) ignored" in caplog.text
     for field in (correlator, item["event_type"], SCOPE["extension_id"]):
         assert field not in caplog.text
         assert all(field not in repr(record.args) for record in caplog.records)

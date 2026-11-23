@@ -10,7 +10,7 @@ export type WorkflowPageTab = { key: string; label: string };
 export type WorkflowChannelState = { enabled: boolean; channels: string[] };
 
 /** Tabs that edit the workflow's settings: administrators and authors only. */
-export const WORKFLOW_SETTINGS_TAB_KEYS = ["smart-setup", "webhook", "schedules", "automation", "history"] as const;
+export const WORKFLOW_SETTINGS_TAB_KEYS = ["smart-setup", "operator", "webhook", "schedules", "automation", "history"] as const;
 
 const SETTINGS_TAB_SET = new Set<string>(WORKFLOW_SETTINGS_TAB_KEYS);
 
@@ -54,8 +54,9 @@ export function savedWorkflowChannelState(detail: unknown): WorkflowChannelState
 
 /**
  * The tabs after Overview and Projects, in order: Hooks (only when the workflow
- * declares hooks), then, for administrators and authors, Smart setup, Webhook
- * (Incoming Webhook is on), Schedules (Schedule is on), Automation and History.
+ * declares hooks), then, for administrators, Smart setup, For operators (the
+ * operator form, ADR 0075), Webhook (Incoming Webhook is on), Schedules
+ * (Schedule is on), Automation and History.
  */
 export function workflowPageTabs({
   canAuthor,
@@ -73,6 +74,7 @@ export function workflowPageTabs({
   if (!canAuthor) return tabs;
   const settingsTabs: WorkflowPageTab[] = [
     { key: "smart-setup", label: t("react.workflows.smart_setup", "Smart setup") },
+    { key: "operator", label: t("react.workflows.operator.tab", "For operators") },
     { key: "webhook", label: t("react.workflows.webhook_tab", "Webhook") },
     { key: "schedules", label: t("react.workflows.schedules", "Schedules") },
     { key: "automation", label: t("project_detail.tab.automation", "Automation") },

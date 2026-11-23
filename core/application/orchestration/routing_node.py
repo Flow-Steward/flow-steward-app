@@ -16,7 +16,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Selection sources where the caller named the workflow instead of leaving the
-# choice to the classifier. Nothing about routing was inferred for these runs.
+# choice to the classifier. Nothing about routing was inferred for these runs,
+# so they ask no model (ADR 0079). A provider event trigger is bound to one
+# workflow and a rerun repeats its job's workflow: both named it.
 EXPLICIT_WORKFLOW_SELECTION_SOURCES = frozenset(
     {
         "parent_call",
@@ -24,6 +26,8 @@ EXPLICIT_WORKFLOW_SELECTION_SOURCES = frozenset(
         "entry_binding",
         "schedule_binding",
         "webhook_binding",
+        "provider_trigger",
+        "rerun",
         "resume",
     }
 )

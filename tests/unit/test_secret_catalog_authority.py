@@ -45,10 +45,26 @@ def _scope(**fields) -> ScopeContext:
     return ScopeContext(account_id="acct", **fields)
 
 
-def test_an_interactive_operator_writes_binds_and_approves() -> None:
-    person = _scope(principal_type="operator", auth_source="local")
+@pytest.mark.parametrize("auth_source", ["local", "external"])
+def test_an_interactive_operator_writes_values_but_does_not_configure(auth_source) -> None:
+    """ADR 0066 amendment: values are the operator's; bindings, approval and delete
+    are configuration and the admin's."""
+    person = _scope(principal_type="operator", auth_source=auth_source)
+    authority.require_secret_write(person)
+    for check in (
+        authority.require_secret_bind,
+        authority.require_secret_delete,
+        authority.require_approval_authority,
+    ):
+        with pytest.raises(ServiceForbiddenError, match="Admin role required"):
+            check(person)
+
+
+def test_an_interactive_admin_writes_binds_deletes_and_approves() -> None:
+    person = _scope(principal_type="admin", auth_source="local")
     authority.require_secret_write(person)
     authority.require_secret_bind(person)
+    authority.require_secret_delete(person)
     authority.require_approval_authority(person)
 
 
@@ -57,10 +73,21 @@ def test_a_viewer_does_none_of_it() -> None:
     for check in (
         authority.require_secret_write,
         authority.require_secret_bind,
+        authority.require_secret_delete,
         authority.require_approval_authority,
     ):
         with pytest.raises(ServiceForbiddenError):
             check(viewer)
+
+
+def test_a_service_account_deletes_with_the_exact_write_scope() -> None:
+    """Machine authority is unchanged: `secrets:write` still deletes."""
+    machine = _scope(
+        principal_type="service_account",
+        auth_source="machine",
+        token_scopes=frozenset({"secrets:write"}),
+    )
+    authority.require_secret_delete(machine)
 
 
 @pytest.mark.parametrize("source", ["pat", "machine", "token", "oauth"])
@@ -165,10 +192,13 @@ def test_connection_approval_read_and_write_apply_owning_workspace(monkeypatch) 
     record = Mock()
     monkeypatch.setattr(repository, "record_connection_approval", record)
     monkeypatch.setattr(service, "_audit", Mock())
+    # Approval is the admin's by default (ADR 0066 amendment); a role that was given
+    # secrets.approve in role_permissions (ADR 0076) is still held to its workspaces.
     external = _scope(
         principal_type="operator",
         auth_source="external",
         allowed_workspace_ids=frozenset({"other"}),
+        permissions=frozenset({"secrets.read", "secrets.approve"}),
     )
     approvals = {"connection": projection_fingerprint(current)}
 
@@ -200,3 +230,27 @@ def test_connection_approval_read_and_write_apply_owning_workspace(monkeypatch) 
         "connection", project_only, project_id=PROJECT_ID
     ) == {"status": "approved"}
     project_scope.assert_not_called()
+
+
+def test_a_person_is_decided_by_the_stored_permissions_on_the_scope() -> None:
+    """ADR 0076: the request's permissions, read from ``role_permissions``, decide."""
+    operator = _scope(
+        principal_type="operator",
+        auth_source="local",
+        permissions=frozenset({"secrets.bind"}),
+    )
+    authority.require_secret_bind(operator)
+    with pytest.raises(ServiceForbiddenError, match="Operator role required"):
+        authority.require_secret_write(operator)
+
+
+def test_the_secret_checks_use_the_catalogue_keys() -> None:
+    from core.application.auth.permissions import PERMISSIONS
+
+    for key in (
+        authority.SECRET_VALUE_WRITE_PERMISSION,
+        authority.SECRET_DELETE_PERMISSION,
+        authority.SECRET_BIND_PERMISSION,
+        authority.SECRET_APPROVE_PERMISSION,
+    ):
+        assert PERMISSIONS[key].exact_match

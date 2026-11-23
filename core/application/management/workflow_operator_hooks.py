@@ -55,7 +55,7 @@ class WorkflowOperatorHooksMixin:
         """A binding change needs write authority.
 
         HTTP and MCP reach these writes only through admin-gated routes
-        (``AUTH_ADMIN_ONLY_PATTERNS``, ``admin:all`` tokens); the CLI uses its
+        (``workflows.manage`` in the route table, ``admin:all`` tokens); the CLI uses its
         deployment-admin scope. The read-only operator scope never writes.
         """
         principal = str(getattr(scope, "principal_type", "") or "")

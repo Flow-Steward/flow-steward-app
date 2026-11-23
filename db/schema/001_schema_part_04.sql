@@ -715,7 +715,9 @@ CREATE TABLE public.roles (
     key text NOT NULL,
     label text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    is_system boolean DEFAULT false NOT NULL,
+    description text DEFAULT ''::text NOT NULL
 );
 
 
@@ -1001,7 +1003,11 @@ CREATE TABLE public.user_roles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
     role_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    workspace_id uuid,
+    project_id uuid,
+    workflow_id text,
+    role_is_system boolean DEFAULT false NOT NULL
 );
 
 
@@ -1031,7 +1037,9 @@ CREATE TABLE public.users (
     account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     date_format character varying(16),
     time_format character varying(8),
-    password_changed_at timestamp with time zone DEFAULT now() NOT NULL
+    password_changed_at timestamp with time zone DEFAULT now() NOT NULL,
+    authenticator_required boolean DEFAULT false NOT NULL,
+    authenticator_reset_pending boolean DEFAULT false NOT NULL
 );
 
 

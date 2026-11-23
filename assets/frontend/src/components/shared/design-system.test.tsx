@@ -173,6 +173,49 @@ describe("shared design-system adapters", () => {
     expect(document.body.contains(menu)).toBe(true);
   });
 
+  describe("typed filter fields keep their arrow keys", () => {
+    function TypedHarness() {
+      const [values, setValues] = useState<Record<string, string>>({});
+      return (
+        <AdvancedTableFilters
+          fields={[
+            { key: "document_date", label: "Document date", options: [], input: "date_range" },
+            { key: "total", label: "Total", options: [], input: "number_range" },
+          ]}
+          onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+          onClear={() => setValues({})}
+          values={values}
+        />
+      );
+    }
+
+    it.each([
+      ["Document date", "date"],
+      ["Total", "number"],
+    ])("leaves ArrowUp and ArrowDown to the %s field and keeps Escape for the menu", async (label, type) => {
+      const user = userEvent.setup();
+      render(<TypedHarness />);
+      await user.click(screen.getByRole("button", { name: "Add filter" }));
+      await user.click(await screen.findByRole("menuitem", { name: label }));
+      const menu = await screen.findByRole("menu", { name: "Choose a filter" });
+      const from = within(menu).getAllByLabelText("From")[0] as HTMLInputElement;
+      expect(from.type).toBe(type);
+      from.focus();
+
+      const arrowUp = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+      from.dispatchEvent(arrowUp);
+      const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+      from.dispatchEvent(arrowDown);
+
+      expect(arrowUp.defaultPrevented).toBe(false);
+      expect(arrowDown.defaultPrevented).toBe(false);
+      expect(from).toHaveFocus();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: label })).toBeInTheDocument());
+    });
+  });
+
   describe("filter menu with many options", () => {
     const manyOptions = (count: number) => Array.from({ length: count }, (_, index) => ({
       value: `wf-${index + 1}`,

@@ -32,8 +32,11 @@ MIGRATION = "20261101153533_inbound_oauth_tables.sql"
 AGENT_MIGRATION = "20261103090000_retired_agent_type.sql"
 CATALOG_MIGRATION = "20261103090000_secret_catalog.sql"
 WIDE_CATALOG_MIGRATION = "20261104120000_secret_catalog_installation_wide.sql"
-#: Every migration this tree ships, in apply order; the secret catalog is pending too.
-MIGRATIONS = [MIGRATION, AGENT_MIGRATION, CATALOG_MIGRATION, WIDE_CATALOG_MIGRATION]
+#: Every migration this tree ships, in apply order: a 0.9.6 database has none of them,
+#: so each later change to these tables (an agent's reminder mark, ADR 0076) is checked
+#: against a fresh install too. Read from disk so a new migration cannot be left out.
+MIGRATIONS = sorted(path.name for path in (ROOT / "db" / "migrations").glob("*.sql"))
+assert MIGRATIONS[:4] == [MIGRATION, AGENT_MIGRATION, CATALOG_MIGRATION, WIDE_CATALOG_MIGRATION]
 OAUTH_TABLES = (
     "oauth_clients",
     "oauth_grants",

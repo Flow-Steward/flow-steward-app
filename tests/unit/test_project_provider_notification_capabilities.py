@@ -824,3 +824,54 @@ def _compiled_recipient_extension(tmp_path, *, compiled_descriptor):
     else:
         descriptor.pop("compiled_manifest")
     return descriptor
+
+
+def test_a_mixed_provider_that_declares_per_type_targets_is_not_ambiguous() -> None:
+    """Connection types that state their own notification target make the provider mixed.
+
+    The route form then follows the selected connection, so effects that address
+    people and effects that address channels are both correct.
+    """
+    from core.application.extensions.compiled_manifest_policies import (
+        _validate_single_notification_target_kind,
+    )
+
+    rows = [
+        {"operation_id": "send_mail", "observability": {"target_kind": "recipient"}},
+        {"operation_id": "post_update", "observability": {"target_kind": "channel"}},
+    ]
+    declared: list[dict] = []
+    _validate_single_notification_target_kind(
+        rows,
+        issues=declared,
+        manifest_path="extension.yaml",
+        manifest_kind="notification_provider",
+        declares_connection_notification=True,
+    )
+    undeclared: list[dict] = []
+    _validate_single_notification_target_kind(
+        rows,
+        issues=undeclared,
+        manifest_path="extension.yaml",
+        manifest_kind="notification_provider",
+    )
+
+    assert declared == []
+    assert [issue["code"] for issue in undeclared] == ["ambiguous_external_effect_target_kind"]
+
+
+def test_per_type_notification_blocks_are_found_in_the_compiled_manifest() -> None:
+    from core.application.extensions.compiled_manifest_validation import (
+        _declares_connection_notification,
+    )
+
+    with_block = {
+        "connection_types": [
+            {"connection_type_id": "example_mail", "notification": {"target_kind": "recipient"}},
+            {"connection_type_id": "example_store"},
+        ]
+    }
+    without_block = {"connection_types": [{"connection_type_id": "example_store"}]}
+
+    assert _declares_connection_notification(with_block) is True
+    assert _declares_connection_notification(without_block) is False

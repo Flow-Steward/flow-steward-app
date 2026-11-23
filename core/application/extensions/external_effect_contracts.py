@@ -8,8 +8,6 @@ import json
 import unicodedata
 from typing import Any
 
-from core.infrastructure.security.config import SECURITY_PII_SALT
-
 EXTERNAL_EFFECT_DECLARATION_INVALID = "external_effect_declaration_invalid"
 
 
@@ -107,6 +105,7 @@ def external_effect_identity_hmac(*, purpose: str, value: Any) -> str:
         "notification-intent",
         "command-intent",
         "rate-limit-bucket",
+        "direct-action-runtime-key",
     }:
         raise ValueError("unsupported external-effect identity purpose")
     encoded = json.dumps(
@@ -299,6 +298,10 @@ def _target_hashes(
     payload: dict[str, Any],
     observability: dict[str, Any],
 ) -> list[dict[str, str]]:
+    # Imported here: manifest validation reads this module where no application
+    # settings exist (the dependency installer), and the salt resolves at import.
+    from core.infrastructure.security.config import SECURITY_PII_SALT
+
     account_key = hmac.new(
         SECURITY_PII_SALT.encode("utf-8"),
         _text(account_id).encode("utf-8"),

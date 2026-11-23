@@ -226,12 +226,12 @@ def main() -> int:
             )
             for extension_id, _extension_root in _consumer_extensions(args.consumer_extensions_root)
         }
-    with _login(args.base_url, OPERATOR_EMAIL, OPERATOR_PASSWORD) as operator:
+        # Administrators configure OAuth applications (ADR 0076).
         alpha_id = str(projects[0].get("id") or projects[0].get("project_id") or "")
         beta_id = str(projects[1].get("id") or projects[1].get("project_id") or "")
         configurations = [
             _create_configuration(
-                operator,
+                admin,
                 project_id=alpha_id,
                 install_id=install_id,
                 display_name=name,
@@ -239,7 +239,7 @@ def main() -> int:
             for name in ("Primary application", "Backup application")
         ]
         _create_configuration(
-            operator,
+            admin,
             project_id=beta_id,
             install_id=install_id,
             display_name="Isolated application",

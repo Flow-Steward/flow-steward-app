@@ -230,11 +230,12 @@ def test_a_changed_index_shows_on_the_very_next_read(
     assert subject.load().catalog_revision == "r2"
 
 
-def test_a_failure_after_a_good_read_serves_the_last_index_marked_stale(
+def test_a_failed_refresh_serves_the_stale_index_with_a_public_error(
     subject: _Catalog, clock: _Clock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     payload = _revised(subject.index(), "r1")
-    _host(monkeypatch, subject, _reply(payload), CatalogFetchError("HTTP 503 from the host"))
+    detail = "Internal catalog transport diagnostic"
+    _host(monkeypatch, subject, _reply(payload), CatalogFetchError(detail))
 
     first = subject.load()
     clock.advance(1)
@@ -244,7 +245,8 @@ def test_a_failure_after_a_good_read_serves_the_last_index_marked_stale(
     assert availability["available"] is True
     assert availability["catalog_revision"] == "r1"
     assert availability["stale"] is True
-    assert "HTTP 503 from the host" in availability["last_refresh_error"]
+    assert availability["last_refresh_error"] == "Catalog refresh failed."
+    assert detail not in repr(availability)
     assert "ttl_seconds" not in availability
 
 

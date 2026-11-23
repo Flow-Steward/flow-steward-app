@@ -231,12 +231,43 @@ def _claim_action_external_effect(
     )
 
 
+def direct_action_runtime_idempotency_key(context: _ActionExecutionContext) -> str:
+    """The key an effectful direct action's extension writes under.
+
+    Derived from the claimed effect's key (itself a hash of the caller's
+    ``Idempotency-Key``) with the actor, project, action and connection, so the
+    same request retried gets the same key and anything else another. The raw
+    header value never reaches the extension or a log.
+    """
+    from core.application.extensions import external_effects
+
+    effect_key = str(context.external_effect.get("idempotency_key") or "").strip()
+    if not effect_key:
+        return ""
+    return external_effects.external_effect_identity_hmac(
+        purpose="direct-action-runtime-key",
+        value={
+            "effect_key": effect_key,
+            "account_id": str(context.audit.get("account_id") or "").strip(),
+            "actor_id": str(context.audit.get("actor_id") or "").strip(),
+            "project_id": str(context.audit.get("project_id") or "").strip(),
+            "extension_id": context.extension_id,
+            "action_id": context.action_id,
+            "connection_id": str(context.target.get("connection_id") or "").strip(),
+        },
+    )
+
+
 def _mark_action_external_effect_running(
     context: _ActionExecutionContext,
 ) -> None:
     if not context.external_effect_id:
         return
     context.runtime_ctx["external_effect_id"] = context.external_effect_id
+    # The same field workflow operations carry: the extension keys its write by it.
+    runtime_key = direct_action_runtime_idempotency_key(context)
+    if runtime_key:
+        context.runtime_ctx["idempotency_key"] = runtime_key
     try:
         from core.application.extensions.external_effects import (
             mark_external_effect_running,

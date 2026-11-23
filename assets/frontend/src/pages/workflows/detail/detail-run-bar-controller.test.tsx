@@ -7,6 +7,7 @@ import { useJobExecutionSnapshot } from "@/pages/jobs/detail/job-execution-snaps
 import { queryKeys } from "@/lib/query/keys";
 import { useSelectedWorkflowTestRun, type TestRunOwner } from "./detail-selected-test-run";
 import { useWorkflowRunBarController } from "./detail-run-bar-controller";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/jobs/detail/api", async (original) => ({ ...(await original<Record<string, unknown>>()), cancelJob: vi.fn(), fetchJobDetail: vi.fn() }));
 vi.mock("@/pages/jobs/list/api", async (original) => ({ ...(await original<Record<string, unknown>>()), fetchJobsList: vi.fn() }));
@@ -26,9 +27,10 @@ function setup(confirmStop = vi.fn(async () => true), actions: Pick<Parameters<t
   const view = renderHook(({ currentOwner, roles }) => {
     const selected = useSelectedWorkflowTestRun({ owner: currentOwner, resultsOwnsObservation: false, confirmReadOnlyNavigation: async () => true });
     const bar = useWorkflowRunBarController({ selectedRun: selected, selectionKind: "empty", navigationBusy: false, historyDisabled: false,
-      navigate: async (action) => action(), roles, timezone: "UTC", confirmStop, ...actions });
+      // ADR 0076: Stop follows the role's permissions (jobs.write), from the catalogue matrix.
+      navigate: async (action) => action(), permissions: new Set(permissionsForRoles(roles)), timezone: "UTC", confirmStop, ...actions });
     return { selected, bar };
-  }, { wrapper: Wrapper, initialProps: { currentOwner: owner, roles: ["operator"] as unknown[] } });
+  }, { wrapper: Wrapper, initialProps: { currentOwner: owner, roles: ["operator"] as string[] } });
   return { ...view, client, confirmStop };
 }
 async function selectHistoryForBarSetup(result: ReturnType<typeof setup>["result"], id = "latest") {

@@ -11,7 +11,14 @@ import json
 import math
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 WorkflowInputMode = Literal["fields", "json_schema", "passthrough"]
 #: Derived from the contract: what a run of this workflow returns.
@@ -164,7 +171,7 @@ def normalize_sample_file(value: Any) -> dict[str, Any] | None:
     return {key: item for key, item in sample.items() if item not in ("", None)}
 
 
-def _configured_default_is_valid(field: WorkflowContractField) -> bool:
+def _configured_default_matches_type(field: WorkflowContractField) -> bool:
     value = field.default
     if field.type in {"string", "paragraph"}:
         return not isinstance(value, (dict, list, tuple, set))
@@ -214,6 +221,55 @@ def _configured_default_is_valid(field: WorkflowContractField) -> bool:
     return False
 
 
+def _configured_default_is_valid(field: WorkflowContractField) -> bool:
+    if not _configured_default_matches_type(field):
+        return False
+    if not field.declares_shape:
+        return True
+    # A declared shape is checked the way a run checks the default.
+    from core.application.registry.workflow_contract_shape import coerce_contract_value
+
+    return coerce_contract_value(field.default, field)[0]
+
+
+#: Keys of an ``items`` description; anything else in it is kept but not read.
+_ITEM_SPEC_KEYS = ("type", "options", "format", "properties", "label", "description")
+
+
+def _normalized_format(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _normalize_property_rows(value: Any) -> Any:
+    """Normalized sub-field rows, or the value as written when it is not a list of rows.
+
+    A malformed value is kept so the definition issue can point at it instead
+    of the contract silently losing what the author wrote.
+    """
+    if not isinstance(value, list) or not all(isinstance(row, dict) for row in value):
+        return value
+    try:
+        return [WorkflowContractField.model_validate(row).dump() for row in value]
+    except ValidationError:
+        return value
+
+
+def _normalize_item_spec(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    spec = {key: item for key, item in value.items() if item is not None}
+    spec["type"] = normalize_field_type(spec.get("type"))
+    options = _string_list(spec.pop("options", None))
+    if options:
+        spec["options"] = options
+    item_format = _normalized_format(spec.pop("format", None))
+    if item_format:
+        spec["format"] = item_format
+    if "properties" in spec:
+        spec["properties"] = _normalize_property_rows(spec["properties"])
+    return spec
+
+
 class WorkflowContractIssue(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -248,6 +304,18 @@ class WorkflowContractField(BaseModel):
     #: For `type: file`: a file attached for test runs. A test run that does
     #: not pass this input gets a copy of it; real runs always pass their own.
     sample_file: dict[str, Any] | None = None
+    #: The declared shape (``workflow_contract_shape``). Each key is optional and
+    #: checked only when present; a malformed value is kept as written and
+    #: reported as a definition issue.
+    #: For ``array``: the element, ``{type, options?, format?, properties?}``.
+    items: Any = None
+    #: For ``object``: sub-fields in this same model.
+    properties: Any = None
+    #: For ``array``: bounds on the number of elements.
+    min_items: Any = None
+    max_items: Any = None
+    #: For ``string`` / ``paragraph``: date, date-time, time, email or uri.
+    format: str = ""
 
     @field_validator("name", mode="before")
     @classmethod
@@ -290,6 +358,71 @@ class WorkflowContractField(BaseModel):
     def _normalize_options(cls, value: Any) -> list[str]:
         return _string_list(value)
 
+    @field_validator("items", mode="before")
+    @classmethod
+    def _normalize_items(cls, value: Any) -> Any:
+        return _normalize_item_spec(value)
+
+    @field_validator("properties", mode="before")
+    @classmethod
+    def _normalize_properties(cls, value: Any) -> Any:
+        return _normalize_property_rows(value)
+
+    @field_validator("min_items", "max_items", mode="before")
+    @classmethod
+    def _normalize_item_bound(cls, value: Any) -> Any:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, str) and value.strip().isdigit():
+            return int(value.strip())
+        return value
+
+    @field_validator("format", mode="before")
+    @classmethod
+    def _normalize_format(cls, value: Any) -> str:
+        return _normalized_format(value)
+
+    @property
+    def declares_shape(self) -> bool:
+        """Whether any shape key is declared; without one the field checks as before."""
+        return bool(self.format) or any(
+            value is not None
+            for value in (self.items, self.properties, self.min_items, self.max_items)
+        )
+
+    def item_field(self) -> WorkflowContractField | None:
+        """The ``array`` element as a field, or ``None`` without a usable ``items``."""
+        if not isinstance(self.items, dict):
+            return None
+        spec = {key: self.items[key] for key in _ITEM_SPEC_KEYS if key in self.items}
+        try:
+            return WorkflowContractField.model_validate({**spec, "name": f"{self.name}[]"})
+        except ValidationError:
+            return None
+
+    @property
+    def is_file_list(self) -> bool:
+        """Several uploaded files in one input: ``type: array`` with ``items.type: file``."""
+        if self.type != "array":
+            return False
+        item = self.item_field()
+        return item is not None and item.type == "file"
+
+    def property_fields(self) -> list[WorkflowContractField] | None:
+        """The ``object`` sub-fields; ``None`` when ``properties`` is malformed."""
+        if self.properties is None:
+            return []
+        if not isinstance(self.properties, list) or not all(
+            isinstance(row, dict) for row in self.properties
+        ):
+            return None
+        try:
+            return [WorkflowContractField.model_validate(row) for row in self.properties]
+        except ValidationError:
+            return None
+
     def public_label(self) -> str:
         return self.label or self.name.replace("_", " ").replace("-", " ").title()
 
@@ -310,6 +443,10 @@ class WorkflowContractField(BaseModel):
             payload.pop("default_secret_ref", None)
         if self.type != "file" or not payload.get("sample_file"):
             payload.pop("sample_file", None)
+        if not payload.get("format"):
+            payload.pop("format", None)
+        if payload.get("properties") == []:
+            payload.pop("properties", None)
         # A secret's value is never carried here, and a rejected plaintext must
         # not survive into the stored definition either.
         if self.is_secret:
@@ -607,6 +744,8 @@ class WorkflowInterface(BaseModel):
         return bool(self.returned_files)
 
     def definition_issues(self, *, path_prefix: str = "workflow.callable") -> list[dict[str, Any]]:
+        from core.application.registry.workflow_contract_shape import field_shape_issues
+
         issues: list[WorkflowContractIssue] = list(self.settings_issues)
         if not self.enabled:
             # Checked before the early return: a selection on a disabled
@@ -706,6 +845,10 @@ class WorkflowInterface(BaseModel):
                                 path=f"{row_path}.default",
                             )
                         )
+                    issues.extend(
+                        WorkflowContractIssue.model_validate(item)
+                        for item in field_shape_issues(row, path=row_path)
+                    )
                     if (
                         collection == "expected_inputs"
                         and row.has_default

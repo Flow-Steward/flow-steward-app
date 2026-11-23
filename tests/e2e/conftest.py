@@ -399,7 +399,8 @@ def _seed_user_via_db(creds: dict[str, str]) -> bool:
                         """
                         INSERT INTO user_roles (user_id, role_id)
                         VALUES (%s, %s)
-                        ON CONFLICT (user_id, role_id) DO NOTHING
+                        ON CONFLICT (user_id, role_id, workspace_id, project_id, workflow_id)
+                        DO NOTHING
                         """,
                         (user_id, role_id),
                     )

@@ -8,6 +8,8 @@ Start here:
 1. [Feature Catalog](feature-catalog.md) - product capability inventory and documentation scope.
 2. [Workflows](workflows.md) - workflow builder, steps, groups, the execution graph, Approval and Wait steps, change sets, contracts, test runs, the run inspector, webhooks, artifacts, and notifications.
 3. [Configuration Reference](configuration-reference.md) - user/operator settings by feature area.
+4. [Multi-factor authentication](local-account-authenticator.md) - set up an
+   authenticator app, recover access, and require a second factor for local accounts.
 
 Supporting references:
 

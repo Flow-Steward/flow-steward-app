@@ -209,6 +209,19 @@ describe("common rules and checks before Save rules", () => {
     expect(reactionDraftProblems({ ...base, actionTarget: "extension_channel", actionExtra: { provider_key: "slack", channel_id: "ops" } }, context)).toEqual({});
     expect(reactionDraftProblems({ ...base, actionType: "cancel_job", actionTarget: "current_job" }, context)).toEqual({});
   });
+
+  it("asks a provider that needs a connection for one before anything else", () => {
+    const kinds: Record<string, "recipient" | "fixed_channel"> = { "conn-mail": "recipient", "conn-hook": "fixed_channel" };
+    const context = {
+      recipientProviderKeys: new Set<string>(),
+      channelIdsFor: () => null,
+      targetKindFor: (_provider: string, connectionId: string) => kinds[connectionId] ?? ("connection_required" as const),
+    };
+    const base = { ...blankReactionDraft("workflow", []), actionTarget: "extension_channel" };
+    expect(reactionDraftProblems({ ...base, actionExtra: { provider_key: "suite" } }, context)).toEqual({ connection: "Choose a connection." });
+    expect(reactionDraftProblems({ ...base, actionExtra: { provider_key: "suite", connection_id: "conn-hook" } }, context)).toEqual({});
+    expect(reactionDraftProblems({ ...base, actionExtra: { provider_key: "suite", connection_id: "conn-mail" } }, context)).toHaveProperty("recipients");
+  });
 });
 
 

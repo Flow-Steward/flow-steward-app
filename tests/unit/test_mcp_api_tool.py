@@ -189,6 +189,27 @@ def test_approval_omits_optional_selected_stories_when_absent() -> None:
     assert "selected_stories" not in _RecordingClient.requests[0]["json_body"]
 
 
+def test_approval_decision_forwards_review_values_only_when_given() -> None:
+    _queue_responses({"status": "accepted"}, {"status": "accepted"})
+    decision = {
+        "thread_id": "thread-1",
+        "approval_id": "approval-1",
+        "approved": True,
+        "idempotency_key": "idem-1",
+        "comment": "",
+        "action": "",
+    }
+
+    server_api_tool.api_tool_response(
+        "job_approval_decide", {**decision, "values": {"total": 318.5}}
+    )
+    server_api_tool.api_tool_response("job_approval_decide", {**decision, "values": None})
+
+    assert _RecordingClient.requests[0]["path"] == "/api/approvals/thread-1"
+    assert _RecordingClient.requests[0]["json_body"]["values"] == {"total": 318.5}
+    assert "values" not in _RecordingClient.requests[1]["json_body"]
+
+
 def test_app_api_authorization_error_remains_fail_closed() -> None:
     _queue_responses(AppApiError(403, {"detail": "scope denied"}))
 

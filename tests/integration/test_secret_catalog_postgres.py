@@ -187,7 +187,9 @@ def _row(conn, connection_id: str) -> dict:
         return dict(cur.fetchone())
 
 
-def _human(role: str = "operator") -> ScopeContext:
+def _human(role: str = "admin") -> ScopeContext:
+    # Configuring secrets (binding, typed values, deletion) is the admin's under
+    # ADR 0076; the operator-only and viewer cases name their role explicitly.
     return ScopeContext(
         account_id=ACCOUNT, principal_type=role, auth_source="local", actor_id="person"
     )
@@ -681,12 +683,15 @@ def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_datab
                 "INSERT INTO workspace_data_connections (connection_id, tenant_id, account_id,"
                 " workspace_id, display_name, secret_refs_jsonb)"
                 " VALUES ('dc_orders', %s, %s, %s, 'Orders DB',"
-                " '{\"refs\": {\"password\": \"project_connection:dc_orders:password\"}}')",
+                ' \'{"refs": {"password": "project_connection:dc_orders:password"}}\')',  # pragma: allowlist secret
                 (tenant, ACCOUNT, WORKSPACE),
             )
         secret = service.create_secret(_human(), name="Orders DB password", value="pw")
         apply_secret_choices(
-            conn, scope=_human(), connection_id="dc_orders", choices={"password": secret["id"]},
+            conn,
+            scope=_human(),
+            connection_id="dc_orders",
+            choices={"password": secret["id"]},
             typed=set(),
         )
         with conn.cursor() as cur:
@@ -700,12 +705,17 @@ def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_datab
             ) == {"dc_orders": {"password": secret["id"]}}
 
         plan = service.delete_plan(secret["id"], _human())
-        assert [(u["consumer_kind"], u["consumer_id"], u["consumer_name"], u["field"])
-                for u in plan["usages"]] == [("data_connection", "dc_orders", "Orders DB", "password")]
+        assert [
+            (u["consumer_kind"], u["consumer_id"], u["consumer_name"], u["field"])
+            for u in plan["usages"]
+        ] == [("data_connection", "dc_orders", "Orders DB", "password")]
         with pytest.raises(ServiceForbiddenError):
             apply_secret_choices(
-                conn, scope=_token("secrets:write"), connection_id="dc_orders",
-                choices={"password": secret["id"]}, typed=set(),
+                conn,
+                scope=_token("secrets:write"),
+                connection_id="dc_orders",
+                choices={"password": secret["id"]},
+                typed=set(),
             )
 
         service.delete_secret(secret["id"], _human(), plan_revision=plan["revision"])
