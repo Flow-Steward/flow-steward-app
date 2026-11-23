@@ -139,8 +139,8 @@
   color: var(--fs-text-tertiary);
 }
 
-/* The head shrinks with an ellipsis; the tail with the extension always shows. */
-/* pre, not nowrap: a space where the name is cut must not collapse. */
+/* The head shrinks with an ellipsis; the tail with the extension always shows.
+   pre, not nowrap: a space where the name is cut must not collapse. */
 .fs-dropzone-file-name {
   display: flex;
   min-width: 0;

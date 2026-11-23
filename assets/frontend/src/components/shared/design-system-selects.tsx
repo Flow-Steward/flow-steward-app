@@ -573,10 +573,10 @@ export function AdvancedTableFilters({
       const show = () => {
         if (!button.isConnected) return;
         const rect = button.getBoundingClientRect();
-        const position = {
+        const position: CSSProperties & { "--filter-tooltip-left": string } = {
           "--filter-tooltip-left": `${rect.left}px`,
           ...(rect.top > 64 ? { bottom: window.innerHeight - rect.top } : { top: rect.bottom }),
-        } as CSSProperties;
+        };
         setTip({ key, text, position });
       };
       if (immediate) show();

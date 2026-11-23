@@ -922,8 +922,7 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-filter-menu-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-filter-menu-description { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); line-height: var(--fs-type-caption-line-height); }
 .fs-active-filters { display: contents; }
-.fs-applied-filter { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-badge-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); font-size: 12px; font-weight: var(--fs-type-weight-medium); }
-.fs-applied-filter { max-width: 100%; }
+.fs-applied-filter { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-badge-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); font-size: 12px; font-weight: var(--fs-type-weight-medium); max-width: 100%; }
 .fs-applied-filter > span { padding: 0 9px 0 11px; }
 .fs-applied-filter button { height: 100%; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .fs-applied-filter .fs-applied-filter-label { display: flex; align-items: center; min-width: 0; padding: 0 9px 0 11px; }
@@ -932,6 +931,7 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-applied-filter button:hover { background: color-mix(in srgb, var(--fs-action-primary) 14%, transparent); }
 .fs-applied-filter button:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
 .fs-applied-filter svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
 .fs-filter-tooltip {
   position: fixed;
   z-index: var(--fs-z-popup);
