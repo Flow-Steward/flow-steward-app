@@ -52,6 +52,13 @@ async function login(page: Page, credentials: { email: string; password: string 
   return { "x-csrf-token": payload.csrf_token };
 }
 
+// What the person sees. textContent would also read the collapsed compiled
+// manifest an administrator gets under Advanced, which names error codes as
+// help-anchor keys.
+async function visibleText(page: Page) {
+  return await page.locator("body").innerText();
+}
+
 async function configurations(page: Page, projectId: string) {
   const response = await page.request.get(`${oauthPrefix(projectId)}/configurations`);
   expect(response.status()).toBe(200);
@@ -516,7 +523,7 @@ test("real provider success, denial, reconnect failure, and closed redirect stay
   await page.goto(unavailable.authorization_url);
   await expect(page).toHaveURL(/oauth=error&reason=provider_unavailable/u);
   await expect(page.getByText(/temporarily unavailable/u)).toBeVisible();
-  expect(await page.textContent("body")).not.toContain("temporarily_unavailable");
+  expect(await visibleText(page)).not.toContain("temporarily_unavailable");
 });
 
 test("invalid client targets only the selected configuration with safe guidance", async ({ page }) => {
@@ -534,7 +541,7 @@ test("invalid client targets only the selected configuration with safe guidance"
   const rows = await configurations(page, acceptance.alpha_project_id);
   expect(rows.find((row) => row.configuration_id === selected)?.status).toBe("needs_attention");
   expect(rows.find((row) => row.configuration_id !== selected)?.status).toBe("verified");
-  expect(await page.textContent("body")).not.toContain("invalid_client");
+  expect(await visibleText(page)).not.toContain("invalid_client");
 });
 
 test("viewer navigates isolated projects without OAuth mutation controls", async ({ page }) => {
