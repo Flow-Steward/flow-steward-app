@@ -4,7 +4,6 @@ http:
       entryPoints: [web, websecure]
       rule: PathPrefix(`/`)
       service: compact-runtime
-      tls: {}
   services:
     compact-runtime:
       loadBalancer:

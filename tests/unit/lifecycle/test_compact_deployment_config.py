@@ -349,6 +349,37 @@ def test_bundled_traefik_selects_distinct_file_and_acme_tls_state() -> None:
     )
 
 
+@pytest.mark.parametrize(
+    ("profile", "router_file"),
+    (
+        ("compact", "infra/docker/compact/public-router.yaml.tmpl"),
+        ("scalable", "infra/traefik/fs.dynamic.yaml"),
+    ),
+)
+def test_bundled_acme_routers_inherit_public_certificate_domain(
+    profile: str, router_file: str
+) -> None:
+    import yaml
+
+    overlay = yaml.safe_load(
+        Path(f"infra/docker/{profile}/tls-bundled-acme.yaml").read_text(encoding="utf-8")
+    )
+    command = overlay["services"]["traefik"]["command"]
+    assert any(
+        flag.startswith("--entrypoints.websecure.http.tls.certresolver=") for flag in command
+    )
+    assert (
+        "--entrypoints.websecure.http.tls.domains[0].main=${FS_PUBLIC_HOST:?FS_PUBLIC_HOST is required}"
+        in command
+    )
+
+    routers = yaml.safe_load(Path(router_file).read_text(encoding="utf-8"))["http"]["routers"]
+    for router in routers.values():
+        assert "websecure" in router["entryPoints"]
+        # Even an empty router TLS mapping overrides the entry point defaults.
+        assert "tls" not in router
+
+
 def test_compact_file_tls_ships_certificate_through_the_copied_volume() -> None:
     import yaml
 

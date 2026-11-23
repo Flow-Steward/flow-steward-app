@@ -84,7 +84,10 @@ def _provided_tls_issues(
             expected_ip = ip_address(public_host)
         except ValueError:
             dns_names = {name.casefold() for name in san.get_values_for_type(x509.DNSName)}
-            if public_host.casefold() not in dns_names:
+            hostname = public_host.casefold()
+            _, dot, suffix = hostname.partition(".")
+            # RFC 9525 permits a wildcard for exactly one complete leftmost label.
+            if hostname not in dns_names and not (dot and f"*.{suffix}" in dns_names):
                 issues.append("provided TLS certificate SAN does not include the public host")
         else:
             if expected_ip not in set(san.get_values_for_type(x509.IPAddress)):

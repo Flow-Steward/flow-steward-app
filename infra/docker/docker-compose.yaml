@@ -133,6 +133,7 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --entrypoints.web.http.redirections.entrypoint.permanent=true
       - --entrypoints.websecure.address=:${APP_PORT:-8099}
+      - --entrypoints.websecure.http.tls=true
       - --entrypoints.websecure.http3=true
       - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
     ports:
