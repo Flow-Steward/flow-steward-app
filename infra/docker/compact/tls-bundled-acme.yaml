@@ -11,6 +11,7 @@ services:
       - --entrypoints.websecure.http.tls=true
       - --api.dashboard=false
       - --entrypoints.websecure.http.tls.certresolver=compact-acme
+      - --entrypoints.websecure.http.tls.domains[0].main=${FS_PUBLIC_HOST:?FS_PUBLIC_HOST is required}
       - --certificatesresolvers.compact-acme.acme.email=${FS_ACME_CONTACT:?FS_ACME_CONTACT is required}
       - --certificatesresolvers.compact-acme.acme.caserver=${FS_ACME_DIRECTORY_URL:?FS_ACME_DIRECTORY_URL is required}
       - --certificatesresolvers.compact-acme.acme.storage=/letsencrypt/acme.json

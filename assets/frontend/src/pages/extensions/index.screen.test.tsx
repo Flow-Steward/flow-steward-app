@@ -2545,8 +2545,8 @@ describe("ExtensionsHubPage", () => {
     expect(
       within(categoryMenu)
         .getAllByRole("menuitem")
-        .map((option) => option.textContent)
-        .filter((label) => label !== "All fields"),
+        .slice(1)
+        .map((option) => option.textContent),
     ).toEqual(["Messaging Notifications", "Security Automation", "Uncategorized"]);
 
     await user.click(within(categoryMenu).getByRole("menuitem", { name: "Messaging Notifications" }));

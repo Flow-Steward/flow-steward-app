@@ -16,6 +16,7 @@ services:
       - --certificatesresolvers.flow-steward-acme.acme.httpchallenge=true
       - --certificatesresolvers.flow-steward-acme.acme.httpchallenge.entrypoint=web
       - --entrypoints.websecure.http.tls.certresolver=flow-steward-acme
+      - --entrypoints.websecure.http.tls.domains[0].main=${FS_PUBLIC_HOST:?FS_PUBLIC_HOST is required}
     volumes:
       - fs-scalable-acme:/letsencrypt
 

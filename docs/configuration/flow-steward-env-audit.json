@@ -9043,8 +9043,10 @@
     "code_read_locations": [
       "infra/docker/compact/ingress-external_traefik-http-redirect.yaml",
       "infra/docker/compact/ingress-external_traefik.yaml",
+      "infra/docker/compact/tls-bundled-acme.yaml",
       "infra/docker/scalable/ingress-external_traefik-http-redirect.yaml",
-      "infra/docker/scalable/ingress-external_traefik.yaml"
+      "infra/docker/scalable/ingress-external_traefik.yaml",
+      "infra/docker/scalable/tls-bundled-acme.yaml"
     ],
     "conditional_groups": [
       "core_runtime"

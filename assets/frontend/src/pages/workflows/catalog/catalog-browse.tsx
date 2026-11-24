@@ -302,7 +302,7 @@ export function CatalogBrowse(props: BrowseProps) {
     ? t("react.workflows.catalog_template_count_one", "{count} template", { count })
     : t("react.workflows.catalog_template_count_many", "{count} templates", { count });
   const toggle = (key: FacetKey, value: string) => onFilters((current) => toggleFacetValue(current, key, value));
-  const clearFacet = (key: FacetKey) => onFilters((current) => ({ ...current, [key]: [] }));
+  const changeFacet = (key: FacetKey, values: string[]) => onFilters((current) => ({ ...current, [key]: values }));
   const clearAll = () => onFilters((current) => clearFacetValues(current, FACET_KEYS));
   const railShown = !compact && state === "ready" && facets.length > 0;
   return (
@@ -322,7 +322,8 @@ export function CatalogBrowse(props: BrowseProps) {
         {state === "ready" ? (
           <CatalogResultsHead
             compact={compact}
-            countLabel={countLabel(props.visible.length)}
+            count={props.visible.length}
+            countLabel={countLabel}
             countRef={props.countRef}
             facets={facets}
             filters={filters}
@@ -340,9 +341,8 @@ export function CatalogBrowse(props: BrowseProps) {
               ) : null
             }
             onClearAll={clearAll}
-            onClearFacet={clearFacet}
+            onFacetChange={changeFacet}
             onSort={props.onSort}
-            onToggle={toggle}
             onView={props.onView}
             sort={props.sort}
             sortChoices={props.sortChoices}

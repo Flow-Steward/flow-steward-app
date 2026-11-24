@@ -12,26 +12,3 @@
   border-color: var(--fs-status-warning-border);
   background: var(--fs-status-warning-bg);
 }
-
-.workflow-run-file {
-  width: 100%;
-  max-width: 100%;
-  padding: var(--fs-space-150);
-  border: 1px dashed var(--fs-border-default);
-  border-radius: var(--fs-radius-control);
-  background: var(--fs-bg-surface);
-  color: var(--fs-text-primary);
-  font: inherit;
-  cursor: pointer;
-}
-
-.workflow-run-file::file-selector-button {
-  margin-inline-end: var(--fs-space-150);
-  padding: var(--fs-space-075) var(--fs-space-150);
-  border: 1px solid var(--fs-border-default);
-  border-radius: var(--fs-radius-control);
-  background: var(--fs-bg-surface);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}

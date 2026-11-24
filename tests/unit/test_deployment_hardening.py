@@ -28,13 +28,17 @@ def test_only_host_lifecycle_and_on_demand_test_runner_mount_docker_socket() -> 
 
 
 def test_traefik_config_has_tls_only_router_and_http_redirect() -> None:
-    dynamic = (ROOT / "infra/traefik/fs.dynamic.yaml").read_text(encoding="utf-8")
-    compose = (ROOT / "infra/docker/docker-compose.prod.yaml").read_text(encoding="utf-8")
+    dynamic = yaml.safe_load((ROOT / "infra/traefik/fs.dynamic.yaml").read_text())
+    routers = dynamic["http"]["routers"]
+    assert "fs-insecure" not in routers
+    assert all(router["entryPoints"] == ["websecure"] for router in routers.values())
 
-    assert "fs-insecure" not in dynamic
-    assert "tls: {}" in dynamic
-    assert "--entrypoints.web.http.redirections.entrypoint.to=websecure" in compose
-    assert "--entrypoints.web.http.redirections.entrypoint.scheme=https" in compose
+    for compose_file in ("docker-compose.yaml", "docker-compose.prod.yaml"):
+        compose = yaml.safe_load((ROOT / "infra/docker" / compose_file).read_text())
+        command = compose["services"]["traefik"]["command"]
+        assert "--entrypoints.websecure.http.tls=true" in command
+        assert "--entrypoints.web.http.redirections.entrypoint.to=websecure" in command
+        assert "--entrypoints.web.http.redirections.entrypoint.scheme=https" in command
 
 
 def test_traefik_publishes_exact_authenticated_mcp_path_over_tls() -> None:
@@ -53,7 +57,6 @@ def test_traefik_publishes_exact_authenticated_mcp_path_over_tls() -> None:
         "entryPoints": ["websecure"],
         "service": "fs-mcp",
         "middlewares": ["fs-strip-mcp-forward"],
-        "tls": {},
     }
     assert services["fs-mcp"]["loadBalancer"]["servers"] == [{"url": "http://fs-mcp:8100"}]
     assert compose["services"]["fs-mcp"]["environment"]["FS_MCP_AUTH_DISABLED"] == "0"

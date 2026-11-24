@@ -896,23 +896,22 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 /* Rendered in the viewport layer, like the row menu: the toolbar lives inside
    `.fs-table-card`, which is `overflow: hidden`, and an absolutely positioned
    popup is clipped there. `top` / `left` come from the measured trigger. */
-.fs-filter-menu { position: fixed; z-index: var(--fs-z-popup); top: 0; left: 0; width: min(340px, calc(100vw - (2 * var(--fs-space-200)))); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-form-dialog-select-menu-radius); background: var(--fs-bg-surface); box-shadow: var(--fs-form-dialog-select-menu-shadow); padding: var(--fs-form-dialog-select-menu-padding); animation: fs-settings-popup-enter var(--fs-motion-popup-enter); }
+.fs-filter-menu { position: fixed; z-index: var(--fs-z-popup); top: 0; left: 0; width: min(208px, calc(100vw - (2 * var(--fs-space-200)))); border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-form-dialog-select-menu-radius); background: var(--fs-bg-surface); box-shadow: var(--fs-form-dialog-select-menu-shadow); padding: var(--fs-form-dialog-select-menu-padding); animation: fs-settings-popup-enter var(--fs-motion-popup-enter); }
 .fs-filter-menu h2 { margin: 0 0 7px; padding: 5px 10px 0; color: var(--fs-text-tertiary); font-family: var(--ff-data); font-size: var(--fs-type-micro-size); font-weight: var(--fs-type-weight-medium); letter-spacing: var(--fs-type-micro-tracking); line-height: var(--fs-type-micro-line-height); text-transform: uppercase; }
 .fs-filter-menu-item { display: flex; align-items: center; gap: var(--fs-space-100); width: 100%; min-height: var(--fs-form-dialog-select-option-height); border: 0; border-radius: var(--fs-popup-row-radius); background: transparent; color: var(--fs-text-primary); padding: var(--fs-form-dialog-select-option-padding); font-size: var(--fs-input-font-size); text-align: left; cursor: pointer; }
 
-.fs-filter-menu-item:hover,
-.fs-filter-menu-item:focus-visible { background: var(--fs-form-dialog-select-option-hover-bg); outline: 0; }
+.fs-filter-menu-item:focus { background: var(--fs-dropdown-item-hover-bg); outline: 0; }
+.fs-filter-menu-item:disabled { color: var(--fs-text-tertiary); cursor: default; }
 .fs-filter-menu-item svg { width: var(--fs-icon-size-default); height: var(--fs-icon-size-default); flex: none; fill: none; stroke: var(--fs-text-tertiary); stroke-width: var(--fs-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
 .fs-filter-menu-item.fs-filter-menu-back { margin-bottom: 3px; border-bottom: 1px solid var(--fs-border-subtle); border-radius: 0; color: var(--fs-text-secondary); }
 .fs-filter-menu-item.fs-filter-menu-back svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); }
-.fs-filter-menu-item[aria-checked="true"] { color: var(--fs-text-brand); }
-.fs-filter-menu-item[aria-checked="true"] svg { margin-left: auto; stroke: currentcolor; }
+.fs-filter-field-count { color: var(--fs-text-tertiary); font-family: var(--ff-data); font-size: var(--fs-type-caption-size); }
+.fs-filter-menu-item .fs-filter-chevron { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); }
+.fs-filter-menu-item .fs-filter-check { width: var(--fs-select-option-check-size); height: var(--fs-select-option-check-size); stroke: var(--fs-dropdown-item-selected-mark); stroke-width: var(--fs-select-icon-stroke); }
 
-/* A long option list scrolls inside the menu instead of growing past the
-   viewport, and every label keeps to one line: wrapped labels ran rows into
-   each other. The row's `title` carries the full text. */
-.fs-filter-menu-options { display: grid; gap: var(--fs-space-025); max-height: min(320px, 50vh); overflow-y: auto; overscroll-behavior: contain; }
-.fs-filter-menu-search { margin-bottom: var(--fs-space-075); }
+/* Eight compact options fit before the list scrolls. */
+.fs-filter-menu-options { display: grid; max-height: min(calc(8 * var(--fs-form-dialog-select-option-height)), 50vh); overflow-y: auto; overscroll-behavior: contain; }
+.fs-filter-menu .fs-filter-menu-search { height: 28px; margin: 2px 2px var(--fs-space-050); }
 
 /* A typed filter (text or a from/to range) in the value stage: the boxes stack, Apply closes. */
 .fs-filter-menu-input { display: grid; gap: var(--fs-space-075); }
@@ -923,12 +922,34 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-filter-menu-description { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-filter-menu-description { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); line-height: var(--fs-type-caption-line-height); }
 .fs-active-filters { display: contents; }
-.fs-applied-filter { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-badge-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); font-size: 12px; font-weight: var(--fs-type-weight-medium); }
+.fs-applied-filter { display: inline-flex; align-items: center; height: 30px; overflow: hidden; border: 1px solid var(--fs-border-selected); border-radius: var(--fs-badge-radius); background: var(--fs-action-primary-wash); color: var(--fs-text-brand); font-size: 12px; font-weight: var(--fs-type-weight-medium); max-width: 100%; }
 .fs-applied-filter > span { padding: 0 9px 0 11px; }
-.fs-applied-filter button { display: grid; place-items: center; width: 24px; height: 100%; border: 0; border-left: 1px solid color-mix(in srgb, var(--fs-action-primary) 22%, transparent); background: transparent; color: inherit; cursor: pointer; }
+.fs-applied-filter button { height: 100%; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.fs-applied-filter .fs-applied-filter-label { display: flex; align-items: center; min-width: 0; padding: 0 9px 0 11px; }
+.fs-applied-filter button:not(.fs-applied-filter-label) { display: grid; place-items: center; flex: 0 0 24px; border-left: 1px solid color-mix(in srgb, var(--fs-action-primary) 22%, transparent); }
+.fs-applied-filter-label:disabled { cursor: default; }
 .fs-applied-filter button:hover { background: color-mix(in srgb, var(--fs-action-primary) 14%, transparent); }
 .fs-applied-filter button:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
 .fs-applied-filter svg { width: var(--fs-select-utility-icon-size); height: var(--fs-select-utility-icon-size); fill: none; stroke: currentcolor; stroke-width: var(--fs-select-icon-stroke); stroke-linecap: round; stroke-linejoin: round; }
+
+.fs-filter-tooltip {
+  position: fixed;
+  z-index: var(--fs-z-popup);
+  left: clamp(8px, var(--filter-tooltip-left), calc(100vw - var(--fs-tooltip-max-width) - 8px));
+  margin-block: var(--fs-tooltip-offset);
+  width: max-content;
+  max-width: min(var(--fs-tooltip-max-width), calc(100vw - 16px));
+  padding: var(--fs-tooltip-padding);
+  border: 1px solid var(--fs-tooltip-border);
+  border-radius: var(--fs-tooltip-radius);
+  background: var(--fs-tooltip-bg);
+  box-shadow: var(--fs-tooltip-shadow);
+  color: var(--fs-tooltip-text);
+  font-size: var(--fs-tooltip-font-size);
+  line-height: var(--fs-tooltip-line-height);
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
 .fs-clear-filters { min-width: var(--fs-button-min-width-md); height: 30px; border: 0; background: transparent; color: var(--fs-text-secondary); padding: 0 var(--fs-space-100); font-size: 12px; font-weight: var(--fs-type-weight-medium); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .fs-clear-filters:focus-visible { outline: 0; box-shadow: var(--fs-button-focus-ring); }
 
@@ -1201,7 +1222,7 @@ code.fs-code-value { font-family: var(--ff-code); font-size: var(--fs-type-code-
 .fs-dialog.catalog > .fs-dialog-footer { align-items: center; }
 
 /* A filter menu opened from inside a dialog sits above the dialog layer. */
-body:has(.fs-dialog-layer) .fs-filter-menu { z-index: var(--fs-z-modal-popup); }
+body:has(.fs-dialog-layer) :is(.fs-filter-menu, .fs-filter-tooltip) { z-index: var(--fs-z-modal-popup); }
 
 @media (width >= theme(--breakpoint-md)) {
   .fs-dialog-layer:has(> .fs-dialog.catalog) { left: calc(var(--fs-shell-sidebar-width) + 1px); }

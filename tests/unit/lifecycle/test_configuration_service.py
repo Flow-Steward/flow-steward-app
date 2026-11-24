@@ -2777,6 +2777,33 @@ def test_provided_tls_validation_rejects_unrelated_fullchain_issuer(tmp_path: Pa
     assert any("chain" in issue for issue in result.issues)
 
 
+@pytest.mark.parametrize(
+    ("host", "expected_valid"),
+    (
+        ("Flow.vm.example.test", True),
+        ("deep.flow.vm.example.test", False),
+        ("vm.example.test", False),
+    ),
+)
+def test_provided_tls_validation_matches_one_wildcard_dns_label(
+    tmp_path: Path, host: str, expected_valid: bool
+) -> None:
+    cert_path = tmp_path / "operator/site.crt"
+    key_path = tmp_path / "operator/site.key"
+    _write_certificate_pair(cert_path, key_path, host="*.vm.example.test")
+
+    result = _service(tmp_path).validate_config(
+        DeploymentConfig(
+            tls_mode="provided",
+            public_host=host,
+            certificate_path="operator/site.crt",
+            private_key_path="operator/site.key",
+        )
+    )
+
+    assert result.valid is expected_valid
+
+
 class _ArtifactDocker:
     def __init__(self, project_root: Path) -> None:
         self.project_root = project_root

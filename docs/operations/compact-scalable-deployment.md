@@ -30,7 +30,26 @@ The application public origin is a scheme and hostname with an optional port and
 
 For Nginx or Apache, run `flow-steward proxy-fragment` (add `--json` for the machine-readable form): it renders the fragment from the proxy kind, public host and backend ports this installation already recorded, and prints the backends it assumes. The renderer behind it is `ProxyRenderConfig` in `core.application.lifecycle.proxy_renderer`. Caddy is not a supported `proxy_kind`; an installation that selected it before is read as `nginx`, and its own Caddy keeps running untouched, but the fragment offered will be an Nginx one. The Apache fragment needs `mod_proxy`, `mod_proxy_http` and `mod_proxy_wstunnel`; the last carries the application's WebSocket routes under `/ws/`. Host placement uses `127.0.0.1:<port>` backends. Docker placement uses the selected external network and installation-specific aliases; `localhost` inside a proxy container is never an application backend.
 
-Bundled ACME uses HTTP-01 and requires `public_host`, `FS_ACME_CONTACT`, `FS_ACME_DIRECTORY_URL`, reachable port 80, and DNS pointing at the host. Its account/certificate store is installation-owned and persistent. Use a staging or controlled CA for tests. For `provided`, replace the fullchain and key together only after `config validate` passes. External Traefik, proxy, and platform TLS remain owned by that external system; Flow Steward never imports their keys or overwrites their certificate stores.
+Bundled ACME uses HTTP-01 and requires `public_host`, `FS_ACME_CONTACT`,
+`FS_ACME_DIRECTORY_URL`, reachable port 80, and DNS pointing at the host. Before
+selecting it, check that any [applicable CAA policy](https://letsencrypt.org/docs/caa/)
+allows the selected CA and HTTP-01, including CAA records inherited from a
+parent domain. Preserve the installation's ACME volume across restarts and
+updates. Use a staging or controlled CA for tests.
+
+For a provider-owned hostname, use the provider's TLS endpoint if available.
+Choose `external_proxy` with `reverse_proxy` for a proxy on the Docker host, or
+`platform` with `platform_managed` when the platform forwards HTTP traffic to
+Compact. The external system renews and serves its own certificate.
+
+If the provider supplies a certificate and key as files, choose bundled
+Traefik with `provided`. When the provider rotates the certificate, deliver the
+renewed fullchain and matching key to the installation, validate the pair with
+`flow-steward config validate`, and reload Traefik. On Compact, rerun the
+`traefik-files` preparation service to copy the new pair before restarting
+Traefik. Check the public HTTPS endpoint from outside the host after applying
+the configuration or doing maintenance. An external monitor should check TLS
+trust, hostname, expiration, and the HTTP response.
 
 ## Immutable image input
 

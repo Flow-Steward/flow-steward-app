@@ -1,4 +1,4 @@
-import { Camera, Plus, Trash2, X } from "lucide-react";
+import { Camera, Plus, Trash2 } from "lucide-react";
 import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { DsCheckbox, DsRadio, DsSelect, MultiCombobox } from "@/components/shared/design-system";
@@ -20,6 +20,8 @@ import {
   type FormValues,
 } from "./form-field";
 import { prepareCameraPhoto } from "./camera-photo";
+import { FileDropzone } from "./file-dropzone";
+import { sameFile, useUploadLimitsHint } from "./file-dropzone-support";
 import "./workflow-input-fields.css";
 
 export type InputValues = FormValues;
@@ -60,16 +62,6 @@ function draftMeans(draft: string, value: unknown): boolean {
   if (value === "" || value === null || value === undefined) return !draft.trim();
   if (typeof value === "number") return parseLocaleNumber(draft) === value;
   return draft === value;
-}
-
-function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function sameFile(left: File, right: File): boolean {
-  return left.name === right.name && left.size === right.size && left.lastModified === right.lastModified;
 }
 
 /** Prepend/append text around a single-line input, inside one input frame. */
@@ -417,23 +409,23 @@ function FileControl({
   const touch = useTouchDevice();
   const camera = useRef<HTMLInputElement>(null);
   const [shooting, setShooting] = useState(false);
+  const hint = useUploadLimitsHint(multiple);
   const add = (picked: File[]) => {
     // Several files add up across picks (a phone camera takes one at a time).
     onFiles(multiple ? [...files, ...picked.filter((file) => !files.some((known) => sameFile(known, file)))] : picked.slice(0, 1));
   };
   return (
     <div className="grid gap-2">
-      <input
-        aria-describedby={describedBy}
-        aria-labelledby={labelId}
-        className="fs-input"
+      <FileDropzone
+        describedBy={describedBy}
         disabled={disabled}
+        files={files}
+        hint={hint}
+        labelId={labelId}
+        listLabel={t("react.operator_form.chosen_files", "Chosen files for {label}", { label: field.label })}
         multiple={multiple}
-        onChange={(event) => {
-          add(Array.from(event.target.files ?? []));
-          event.target.value = "";
-        }}
-        type="file"
+        onFiles={onFiles}
+        testId={`file-dropzone-${field.name}`}
       />
       {touch ? (
         // On a phone or tablet the camera opens at once: no gallery, no menu.
@@ -470,25 +462,6 @@ function FileControl({
             type="file"
           />
         </>
-      ) : null}
-      {files.length ? (
-        <ul aria-label={t("react.operator_form.chosen_files", "Chosen files for {label}", { label: field.label })} className="fs-workflow-file-list">
-          {files.map((file, index) => (
-            <li key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
-              <span title={file.name}>{file.name}</span>
-              <span className="text-sm text-muted">{fileSize(file.size)}</span>
-              <button
-                aria-label={t("react.operator_form.remove_file", "Remove {name}", { name: file.name })}
-                className="fs-icon-button"
-                disabled={disabled}
-                onClick={() => onFiles(files.filter((_, at) => at !== index))}
-                type="button"
-              >
-                <X aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
       ) : null}
     </div>
   );

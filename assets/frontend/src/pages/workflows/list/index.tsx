@@ -52,7 +52,9 @@ import { workflowSourceExtension } from "@/pages/workflows/shared/source-extensi
 import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
-function statusLabel(workflow: WorkflowListItem, unavailableReason: string): string {
+type WorkflowStatus = "enabled" | "disabled" | "unavailable";
+
+function statusLabel(workflow: WorkflowListItem, unavailableReason: string): WorkflowStatus {
   if (unavailableReason) return "unavailable";
   return workflow.enabled ? "enabled" : "disabled";
 }
@@ -69,11 +71,6 @@ function workflowUnavailableReason(workflow: WorkflowListItem, t: I18nContextVal
   return reason || t("react.workflows.this_workflow_is_currently_unavailable", "This workflow is currently unavailable.");
 }
 
-/* The catalog endpoint answers one status narrowing — `enabled_only` — so the
-   field publishes exactly that option. A "Disabled" option would be client-side
-   filtering the backend does not support. */
-const ENABLED_FILTER_VALUE = "enabled";
-
 /** `projects` is null for a reader who cannot see the registry: no project field then. */
 function localizedWORKFLOW_FILTER_FIELDS(
   projects: ReadonlyArray<{ id: string; name: string }> | null,
@@ -89,7 +86,12 @@ function localizedWORKFLOW_FILTER_FIELDS(
     {
       key: "status",
       label: t("extensions.runtime.status", "Status"),
-      options: [{ value: ENABLED_FILTER_VALUE, label: t("react.workflows.enabled_only", "Enabled only") }],
+      multiple: true,
+      options: [
+        { value: "enabled", label: t("registry.common.enabled", "Enabled") },
+        { value: "disabled", label: t("registry.common.disabled", "Disabled") },
+        { value: "unavailable", label: t("react.workflows.catalog_unavailable", "Unavailable") },
+      ],
     },
     {
       key: "extension",
@@ -311,7 +313,7 @@ export function WorkflowsListPage() {
   const location = useLocation();
   const routeParams = new URLSearchParams(location.search);
   const showingCatalog = routeParams.get("tab") === "catalog" || routeParams.get("create") === "template";
-  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "project_id", "extension"], !showingCatalog);
+  const [searchParams, updateSearchParams] = useLatestFilterSearchParams("workflows", ["search", "enabled", "status", "project_id", "extension"], !showingCatalog);
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneSource, setCloneSource] = useState<string | null>(null);
   // A form dialog opens on its first field, not on the close button.
@@ -325,7 +327,14 @@ export function WorkflowsListPage() {
   // The page's tabs: the workflows themselves, and the template catalog. An
   // old link to the catalog dialog (?create=template) opens the Catalog tab.
   const activeTab = searchParams.get("tab") === "catalog" || createParam === "template" ? "catalog" : "workflows";
-  const enabledOnly = searchParams.get("enabled") === "1";
+  const statusParam = searchParams.get("status");
+  const enabledOnly = statusParam === null && searchParams.get("enabled") === "1";
+  const statusFilter = (statusParam ?? (enabledOnly ? "enabled" : ""))
+    .split(",")
+    .filter((status) => status === "enabled" || status === "disabled" || status === "unavailable")
+    .filter((status, index, list) => list.indexOf(status) === index)
+    .join(",");
+  const selectedStatuses = useMemo(() => new Set(statusFilter.split(",").filter(Boolean)), [statusFilter]);
   const extensionFilter = searchParams.get("extension") || "";
   const selectedExtensionIds = useMemo(
     () => new Set(extensionFilter.split(",").map((id) => id.trim()).filter(Boolean)),
@@ -407,8 +416,8 @@ export function WorkflowsListPage() {
           structure_change_allowed: Boolean(portability.structure_change_allowed),
           updated_display: formatUserDateTime(workflow.updated_at, userTimezone),
         };
-      }),
-    [projectFilter.projectsByWorkflow, userTimezone, workflows, t],
+      }).filter((row) => selectedStatuses.size === 0 || selectedStatuses.has(row.enabled_label)),
+    [projectFilter.projectsByWorkflow, selectedStatuses, userTimezone, workflows, t],
   );
   const refetchWorkflows = workflowsQuery.refetch;
   const requestedPerPage = Number(searchParams.get("per_page"));
@@ -501,7 +510,7 @@ export function WorkflowsListPage() {
   );
 
 
-  function updateParams(next: { search?: string; enabledOnly?: boolean; projectId?: string; extensionFilter?: string }) {
+  function updateParams(next: { search?: string; statusFilter?: string; projectId?: string; extensionFilter?: string }) {
     startTransition(() => {
       updateSearchParams((params) => {
         params.delete("page");
@@ -510,9 +519,10 @@ export function WorkflowsListPage() {
           if (value) params.set("search", value);
           else params.delete("search");
         }
-        if (next.enabledOnly !== undefined) {
-          if (next.enabledOnly) params.set("enabled", "1");
-          else params.delete("enabled");
+        if (next.statusFilter !== undefined) {
+          params.delete("enabled");
+          if (next.statusFilter) params.set("status", next.statusFilter);
+          else params.delete("status");
         }
         if (next.extensionFilter !== undefined) {
           if (next.extensionFilter) params.set("extension", next.extensionFilter);
@@ -668,11 +678,11 @@ export function WorkflowsListPage() {
               fields={localizedWORKFLOW_FILTER_FIELDS(canReadRegistry ? projectFilter.projects : null, extensionOptions, t)}
               onChange={(key, value) => {
                 if (key === "project") updateParams({ projectId: value });
-                if (key === "status") updateParams({ enabledOnly: value === ENABLED_FILTER_VALUE });
+                if (key === "status") updateParams({ statusFilter: value });
                 if (key === "extension") updateParams({ extensionFilter: value });
               }}
-              onClear={() => updateParams({ enabledOnly: false, projectId: "", extensionFilter: "" })}
-              values={{ project: pageProjectId, status: enabledOnly ? ENABLED_FILTER_VALUE : "", extension: extensionFilter }}
+              onClear={() => updateParams({ statusFilter: "", projectId: "", extensionFilter: "" })}
+              values={{ project: pageProjectId, status: statusFilter, extension: extensionFilter }}
             />
             <label className="fs-search">
               <Search aria-hidden="true" />

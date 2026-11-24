@@ -13662,6 +13662,9 @@ msgstr ""
 msgid "react.shared.no_matching_results"
 msgstr ""
 
+msgid "react.shared.no_matching_values"
+msgstr ""
+
 msgid "react.shared.no_options_available"
 msgstr ""
 
@@ -30182,6 +30185,42 @@ msgid "react.operator_form.chosen_files"
 msgstr ""
 
 msgid "react.operator_form.remove_file"
+msgstr ""
+
+msgid "react.file_dropzone.drag_many"
+msgstr ""
+
+msgid "react.file_dropzone.drag_one"
+msgstr ""
+
+msgid "react.file_dropzone.add_more"
+msgstr ""
+
+msgid "react.file_dropzone.replace"
+msgstr ""
+
+msgid "react.file_dropzone.drop"
+msgstr ""
+
+msgid "react.file_dropzone.browse"
+msgstr ""
+
+msgid "react.file_dropzone.summary"
+msgstr ""
+
+msgid "react.file_dropzone.one_file"
+msgstr ""
+
+msgid "react.file_dropzone.files"
+msgstr ""
+
+msgid "react.file_dropzone.remove_all"
+msgstr ""
+
+msgid "react.file_dropzone.limit_size"
+msgstr ""
+
+msgid "react.file_dropzone.limit_count"
 msgstr ""
 
 msgid "react.operator.send_failed"

@@ -1020,7 +1020,7 @@ test("on a phone the list is rows and the facets are one Add filter control", as
     expect(screen.queryByRole("button", { name: "List view" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Trigger" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Webhook (3)" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Webhook", description: "3 templates" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "3 templates" })).toBeInTheDocument());
     expect(screen.getByText("Trigger · Webhook")).toBeInTheDocument();
   } finally {

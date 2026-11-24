@@ -19,7 +19,7 @@ import {
   useState,
 } from "react";
 
-import { ArrowLeft, BadgeCheck, Check, ExternalLink, LayoutGrid, List, Package, Search, TriangleAlert, Workflow, X } from "lucide-react";
+import { ArrowLeft, BadgeCheck, Check, ExternalLink, LayoutGrid, List, Package, Search, TriangleAlert, Workflow } from "lucide-react";
 
 import {
   AdvancedTableFilters,
@@ -551,46 +551,6 @@ export function CatalogFacetRail<Key extends string>({
   );
 }
 
-function appliedText(facet: CatalogFacetView, values: readonly string[]) {
-  const labels = values.map((value) => facet.values.find((entry) => entry.value === value)?.label ?? facet.label(value));
-  return labels.length > 2 ? `${labels.slice(0, 2).join(", ")} +${labels.length - 2}` : labels.join(", ");
-}
-
-/** The applied-filter chips, the same anatomy the Advanced data table filters use. */
-export function CatalogAppliedFilters<Key extends string>({
-  facets,
-  filters,
-  onClearFacet,
-  onClearAll,
-}: Readonly<{
-  facets: ReadonlyArray<CatalogFacetView<Key>>;
-  filters: CatalogFilterState<Key>;
-  onClearFacet: (key: Key) => void;
-  onClearAll: () => void;
-}>) {
-  const { t } = useI18n();
-  const active = facets.filter((facet) => selectedValues(filters, facet.key).length);
-  if (!active.length) return null;
-  return (
-    <div aria-label={t("react.shared.applied_filters", "Applied filters")} className="fs-catalog-applied" role="group">
-      <div className="fs-active-filters">
-        {active.map((facet) => (
-          <span className="fs-applied-filter" key={facet.key}>
-            <span>
-              {facet.title} · {appliedText(facet, selectedValues(filters, facet.key))}
-            </span>
-            <button aria-label={t("react.shared.remove_value1_filter", "Remove {value1} filter", { value1: String(facet.title) })} onClick={() => onClearFacet(facet.key)} type="button">
-              <X aria-hidden="true" />
-            </button>
-          </span>
-        ))}
-      </div>
-      <button className="fs-clear-filters" onClick={onClearAll} type="button">
-        {t("react.shared.clear_all", "Clear all")} </button>
-    </div>
-  );
-}
-
 /** The live count, said `delayMs` after the last change rather than on every keystroke. */
 function CountAnnouncement({ text, delayMs }: Readonly<{ text: string; delayMs: number }>) {
   const [said, setSaid] = useState(delayMs ? "" : text);
@@ -607,8 +567,9 @@ function CountAnnouncement({ text, delayMs }: Readonly<{ text: string; delayMs: 
 }
 
 export type CatalogResultsHeadProps<Key extends string, Sort extends string> = Readonly<{
-  /** "22 extensions": the heading the pager returns focus to. */
-  countLabel: string;
+  count: number;
+  /** Localized result and facet counts, such as "22 extensions". */
+  countLabel: (count: number) => string;
   /** The live region repeats the count this long after the last change; 0 says it at once. */
   announceDelayMs?: number;
   facets: ReadonlyArray<CatalogFacetView<Key>>;
@@ -622,13 +583,13 @@ export type CatalogResultsHeadProps<Key extends string, Sort extends string> = R
   notice?: ReactNode;
   onSort: (sort: Sort) => void;
   onView: (view: CatalogView) => void;
-  onToggle: (key: Key, value: string) => void;
-  onClearFacet: (key: Key) => void;
+  onFacetChange: (key: Key, values: string[]) => void;
   onClearAll: () => void;
 }>;
 
 /** Count, the phone's Add filter, Sort, the grid/list toggle, then the applied filters. */
 export function CatalogResultsHead<Key extends string, Sort extends string>({
+  count,
   countLabel,
   announceDelayMs = 0,
   facets,
@@ -641,36 +602,55 @@ export function CatalogResultsHead<Key extends string, Sort extends string>({
   notice,
   onSort,
   onView,
-  onToggle,
-  onClearFacet,
+  onFacetChange,
   onClearAll,
 }: CatalogResultsHeadProps<Key, Sort>) {
   const { t } = useI18n();
-  // The phone's one "Add filter" control: a field, then one of its values. A
-  // value already applied, or one that would show nothing, is not offered.
-  const filterFields = facets.map((facet) => ({
-    key: facet.key,
-    label: facet.title,
-    options: facet.values
-      .filter((value) => value.count > 0 && !selectedValues(filters, facet.key).includes(value.value))
-      .map((value) => ({ value: value.value, label: `${value.label} (${value.count})` })),
-  }));
+  const headingLabel = countLabel(count);
+  const values = Object.fromEntries(facets.map((facet) => [
+    facet.key, selectedValues(filters, facet.key).map(encodeURIComponent).join(","),
+  ]));
+  const filterFields = facets.map((facet) => {
+    const chosen = new Set(selectedValues(filters, facet.key));
+    const available = new Set(facet.values.map((option) => option.value));
+    const options = [
+      ...facet.values,
+      ...[...chosen].filter((value) => !available.has(value)).map((value) => ({
+        value, label: facet.label(value), count: 0,
+      })),
+    ];
+    return {
+      key: facet.key,
+      label: facet.title,
+      multiple: true,
+      options: options.map((option) => ({
+        value: encodeURIComponent(option.value),
+        label: option.label,
+        description: countLabel(option.count),
+        disabled: option.count === 0 && !chosen.has(option.value),
+      })),
+    };
+  });
+  const controls = (
+    <AdvancedTableFilters
+      fallbackFocusRef={countRef}
+      fields={filterFields}
+      onChange={(key, selection) => {
+        const field = facets.find((facet) => facet.key === key);
+        if (field) onFacetChange(field.key, selection ? selection.split(",").map(decodeURIComponent) : []);
+      }}
+      onClear={onClearAll}
+      showAddFilter={compact}
+      values={values}
+    />
+  );
   return (
     <>
       <div className="fs-catalog-results-head">
         <h3 className="fs-catalog-result-count" ref={countRef} tabIndex={-1}>
-          {countLabel}
+          {headingLabel}
         </h3>
-        {compact && facets.length ? (
-          <AdvancedTableFilters
-            fields={filterFields}
-            onChange={(key, value) => {
-              if (value) onToggle(key as Key, value);
-            }}
-            onClear={onClearAll}
-            values={{}}
-          />
-        ) : null}
+        {compact && facets.length ? controls : null}
         {sortChoices.length ? (
           <span className="fs-catalog-sort">
             {compact ? null : <span aria-hidden="true">{t("react.shared.sort", "Sort")}</span>}
@@ -705,9 +685,13 @@ export function CatalogResultsHead<Key extends string, Sort extends string>({
           </span>
         )}
       </div>
-      <CountAnnouncement delayMs={announceDelayMs} text={countLabel} />
+      <CountAnnouncement delayMs={announceDelayMs} text={headingLabel} />
       {notice}
-      <CatalogAppliedFilters facets={facets} filters={filters} onClearAll={onClearAll} onClearFacet={onClearFacet} />
+      {!compact && Object.values(values).some(Boolean) ? (
+        <div aria-label={t("react.shared.applied_filters", "Applied filters")} className="fs-catalog-applied" role="group">
+          {controls}
+        </div>
+      ) : null}
     </>
   );
 }
