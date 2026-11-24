@@ -215,7 +215,7 @@ describe("ProjectsListPage", () => {
     const dialog = await screen.findByRole("dialog", { name: "Create project" });
     await within(dialog).findByText("Test");
     fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Archived project" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Create", exact: true }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create" }));
 
     await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "If you don’t see it in the list, check whether it’s in Trash.",
