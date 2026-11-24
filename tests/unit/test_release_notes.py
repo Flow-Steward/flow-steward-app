@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -184,3 +185,20 @@ def test_notes_cli_refuses_a_different_version(tmp_path: Path) -> None:
     )
     assert result.returncode == 1
     assert "VERSION" in result.stderr
+
+
+def test_the_current_release_notes_pass_the_release_automation() -> None:
+    """0.9.25: the tag's release run stopped on notes this suite never validated.
+
+    The release automation validates docs/releases/<VERSION>.md when the tag is
+    pushed; a section without bulleted items ("Upgrading") failed it after merge.
+    """
+    root = Path(__file__).resolve().parents[2]
+    version = (root / "VERSION").read_text(encoding="utf-8").strip()
+    notes = (root / "docs" / "releases" / f"{version}.md").read_text(encoding="utf-8")
+    link = re.search(rf"/compare/(v[0-9.]+)\.\.\.v{re.escape(version)}\)", notes)
+    assert link, "the notes must link the full changelog from the previous tag"
+
+    result = prepare_release_notes(root, f"v{version}", link.group(1))
+
+    assert result.text.startswith(f"## Flow Steward {version}")
