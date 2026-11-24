@@ -44,6 +44,20 @@ class TestScanInput:
         assert any(f.scanner == "pii" for f in decision.findings)
         assert "john@example.com" not in (decision.redacted_text or "")
 
+    def test_pii_pseudonyms_distinguish_addresses_in_the_final_text(self, policy):
+        decision = SecurityOrchestrator(policy, project_id=42).scan_input(
+            "To: alpha@example.com; cc: beta@example.net; reply to alpha@example.com.",
+            "inbound",
+        )
+        first, second, repeated = [
+            finding.redacted_preview
+            for finding in decision.findings
+            if finding.rule_id == "pii:email"
+        ]
+        assert first != second
+        assert first == repeated
+        assert decision.redacted_text == f"To: {first}; cc: {second}; reply to {first}."
+
 
 class TestScanOutput:
     def test_clean_output(self, policy):

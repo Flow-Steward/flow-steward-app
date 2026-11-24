@@ -13,6 +13,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from pydantic import PrivateAttr
+
 from core.infrastructure.security.config import SECURITY_PII_SALT
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import PIIConfig
@@ -299,6 +301,11 @@ _DETECTOR_POLICY_KEY = {
 }
 
 
+class _PIIFinding(ScanFinding):
+    _span: tuple[int, int] = PrivateAttr()
+    _hard_redact: bool = PrivateAttr()
+
+
 class PIIGuard:
     """PII detection engine with pseudonymization and hard-redaction modes."""
 
@@ -315,8 +322,9 @@ class PIIGuard:
         token = hmac.new(self._hmac_key, value.encode(), hashlib.sha256).hexdigest()[:12]
         return f"[PII:{pii_type}:{token}]"
 
-    def _hard_redact(self, pii_type: str) -> str:
-        return f"[PII:{pii_type}:REDACTED]"
+    def _hard_redact(self, pii_type: str, number: int | None = None) -> str:
+        suffix = f"_{number}" if number is not None else ""
+        return f"[PII:{pii_type}:REDACTED{suffix}]"
 
     def scan(
         self,
@@ -324,11 +332,11 @@ class PIIGuard:
         surface: str,
         config: PIIConfig,
         **kwargs,
-    ) -> list[ScanFinding]:
+    ) -> list[_PIIFinding]:
         if not config.enabled or not text:
             return []
 
-        findings: list[ScanFinding] = []
+        findings: list[_PIIFinding] = []
 
         for detector in _DETECTORS:
             if not self._detector_enabled(config, detector.pii_type):
@@ -358,57 +366,59 @@ class PIIGuard:
                 if normalized_severity not in {"low", "medium", "high", "critical"}:
                     normalized_severity = "medium"
 
-                findings.append(
-                    ScanFinding(
-                        surface=surface,
-                        severity=cast(
-                            Literal["low", "medium", "high", "critical"],
-                            normalized_severity,
-                        ),
-                        rule_id=f"pii:{detector.pii_type}",
-                        action=cast(
-                            Literal["allow", "warn", "redact", "block"],
-                            action,
-                        ),
-                        redacted_preview=preview,
-                        scanner="pii",
-                        confidence=0.85,
-                        context={
-                            "pii_type": detector.pii_type,
-                            "description": detector.description,
-                        },
-                    )
+                finding = _PIIFinding(
+                    surface=surface,
+                    severity=cast(
+                        Literal["low", "medium", "high", "critical"],
+                        normalized_severity,
+                    ),
+                    rule_id=f"pii:{detector.pii_type}",
+                    action=cast(
+                        Literal["allow", "warn", "redact", "block"],
+                        action,
+                    ),
+                    redacted_preview=preview,
+                    scanner="pii",
+                    confidence=0.85,
+                    context={
+                        "pii_type": detector.pii_type,
+                        "description": detector.description,
+                    },
                 )
+                finding._span = (start, end)
+                finding._hard_redact = config.mode == "hard_redact"
+                findings.append(finding)
 
         return findings
 
-    def redact(self, text: str, findings: list[ScanFinding]) -> str:
+    def redact(self, text: str, findings: list[_PIIFinding]) -> str:
         """Apply redaction/pseudonymization to text based on findings."""
-        previews: dict[str, str] = {}
-        for finding in findings:
-            previews.setdefault(finding.rule_id, finding.redacted_preview)
-
-        replacements: list[tuple[int, int, str]] = []
-        for detector in _DETECTORS:
-            preview = previews.get(f"pii:{detector.pii_type}")
-            if preview is None:
+        ordered = sorted(
+            (finding for finding in findings if finding.action == "redact"),
+            key=lambda finding: (finding._span[0], -finding._span[1]),
+        )
+        replacements: list[tuple[_PIIFinding, int, int | None]] = []
+        numbers_by_rule: dict[str, dict[str, int]] = {}
+        for finding in ordered:
+            start, end = finding._span
+            if replacements and start < replacements[-1][1]:
+                # The first span represents the union. Equal starts prefer the longest span.
+                first, previous_end, number = replacements[-1]
+                replacements[-1] = (first, max(previous_end, end), number)
                 continue
+            number = None
+            if finding._hard_redact:
+                numbers = numbers_by_rule.setdefault(finding.rule_id, {})
+                number = numbers.setdefault(text[start:end], len(numbers) + 1)
+            replacements.append((finding, end, number))
 
-            validator = _VALIDATORS.get(detector.validator) if detector.validator else None
-            for start, end in detector.spans(text):
-                if validator and not validator(text[start:end]):
-                    continue
-                replacements.append((start, end, preview))
-
-        # Merge overlaps against the original offsets. The first span's preview
-        # represents the union, with the longer span winning equal starts.
         parts: list[str] = []
         cursor = 0
-        for start, end, preview in sorted(replacements, key=lambda span: (span[0], -span[1])):
-            if start < cursor:
-                cursor = max(cursor, end)
-                continue
-            parts.extend((text[cursor:start], preview))
+        for finding, end, number in replacements:
+            preview = finding.redacted_preview
+            if number is not None and len(numbers_by_rule[finding.rule_id]) > 1:
+                preview = self._hard_redact(finding.context["pii_type"], number)
+            parts.extend((text[cursor : finding._span[0]], preview))
             cursor = end
         parts.append(text[cursor:])
         return "".join(parts)
