@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
 import type { ReactNode } from "react";
@@ -51,7 +52,7 @@ import {
   resolveExtensionDetailPath,
   extensionHasUi,
 } from "@/pages/extensions/extension-manifest-utils";
-import { Activity, ExternalLink, Power, Search, Trash2, Upload } from "lucide-react";
+import { Activity, ExternalLink, Power, Trash2, Upload } from "lucide-react";
 import { ExtensionMarketplaceCatalog } from "@/pages/extensions/marketplace-catalog";
 import { ExtensionUninstallPlanModal } from "@/components/shared/extension-uninstall-plan-modal";
 import {
@@ -297,12 +298,14 @@ function createExtensionColumns({
               data-ext-action-index={extId}
               disabled={Boolean(extension.broken && !extension.active)}
               icon={Power}
+              tooltipInViewport
               label={toggleLabel}
               onClick={() => { if (!pending) ignoreAsyncResult(handleToggle(extension)); }}
             />
             <IconButton
               aria-busy={pending === "health" || undefined}
               icon={Activity}
+              tooltipInViewport
               label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
               onClick={() => { if (!pending) ignoreAsyncResult(handleHealthCheck(extension)); }}
             />
@@ -311,6 +314,7 @@ function createExtensionColumns({
               className="fs-extensions-uninstall"
               disabled={!archiveLifecycleAvailable}
               icon={Trash2}
+              tooltipInViewport
               label={t("react.extensions.uninstall", "Uninstall")}
               onClick={() => { if (!pending) ignoreAsyncResult(handleUninstall(extension)); }}
             />
@@ -806,16 +810,12 @@ export function ExtensionsHubPage() {
                   category: choose(categoryFilter === "all", "", categoryFilter),
                 }}
               />
-              <label className="fs-search">
-                <Search aria-hidden="true" />
-                <input
-                  aria-label={t("react.extensions.search_extensions", "Search extensions")}
-                  onChange={(event) => setExtensionSearch(event.target.value)}
-                  placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
-                  type="search"
-                  value={extensionSearch}
-                />
-              </label>
+              <DsSearchInput
+                aria-label={t("react.extensions.search_extensions", "Search extensions")}
+                onValueChange={(value) => setExtensionSearch(value)}
+                placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
+                value={extensionSearch}
+              />
               <span aria-live="polite" className="fs-extensions-count">
                 {choose(
                   extensionsQuery.isLoading,

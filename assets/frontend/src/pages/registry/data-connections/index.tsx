@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ChevronRight, Database, RefreshCw } from "lucide-react";
 
@@ -10,7 +11,6 @@ import {
   DsTable,
   PageContainer,
   RequiredLabel,
-  Search,
 } from "@/components/shared/design-system";
 
 import { schemaFields } from "./data-connection-helpers";
@@ -114,16 +114,12 @@ export function RegistryDataConnectionsPage() {
               enabled: enabledFilter,
             }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.search_connections", "Search connections")}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("react.registry.name_source_tag", "name, source, tag")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.search_connections", "Search connections")}
+            onValueChange={(value) => setSearch(value)}
+            placeholder={t("react.registry.name_source_tag", "name, source, tag")}
+            value={search}
+          />
           <span aria-live="polite" className="fs-management-result-announcement">
             {rows.length} {" "}{t("react.registry.of", "of")}{" "}{allRows.length}
           </span>

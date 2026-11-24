@@ -205,6 +205,24 @@ describe("ProjectsListPage", () => {
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveValue(""));
   });
 
+  it("points to Trash when a project with the same name blocks creation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(
+      { detail: "Project already exists in this workspace." }, { status: 409 },
+    ));
+    renderProjectsListPage();
+    await screen.findByText("Audit Project");
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    const dialog = await screen.findByRole("dialog", { name: "Create project" });
+    await within(dialog).findByText("Test");
+    fireEvent.change(within(dialog).getByRole("textbox", { name: "Name" }), { target: { value: "Archived project" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create", exact: true }));
+
+    await waitFor(() => expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "If you don’t see it in the list, check whether it’s in Trash.",
+    ));
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Archived project");
+  });
+
   it("ignores the admin workspace response after role loss without clearing persisted project scope", async () => {
     localStorage.setItem("platform:selected-workspace-id", "ws-1");
     let resolveWorkspaces!: (rows: Awaited<ReturnType<typeof fetchWorkspaces>>) => void;

@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { Plus, RefreshCw } from "lucide-react";
 
@@ -21,7 +22,6 @@ import {
   DsValueChip,
   PageContainer,
   RequiredLabel,
-  Search,
 } from "@/components/shared/design-system";
 
 import {
@@ -138,16 +138,12 @@ export function RegistryDatasetsPage() {
           />
           {/* `.fs-search` carries `margin-left: auto`, so the filters first and
               the search second is all the alignment this needs. */}
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.search_datasets", "Search datasets")}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("react.registry.filter_datasets_variant_6402a336", "Filter datasets…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.search_datasets", "Search datasets")}
+            onValueChange={(value) => setSearch(value)}
+            placeholder={t("react.registry.filter_datasets_variant_6402a336", "Filter datasets…")}
+            value={search}
+          />
           <span aria-live="polite" className="fs-management-result-announcement">
             {visibleRows.length} {" "}{t("react.registry.of", "of")}{" "}{rows.length}
           </span>

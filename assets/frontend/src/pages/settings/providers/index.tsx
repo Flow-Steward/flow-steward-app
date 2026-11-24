@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -25,7 +26,7 @@ import {
   stringFromUnknownValue,
 } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
-import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu, Search } from "@/components/shared/design-system";
+import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
@@ -697,16 +698,12 @@ export function SettingsProvidersPage() {
         </div>
         <article className="fs-card fs-table-card">
           <div className="fs-table-toolbar">
-            <label className="fs-search">
-              <Search aria-hidden="true" />
-              <input
-                aria-label={t("react.settings.filter_providers", "Filter providers")}
-                onChange={(event) => setFilter(event.target.value)}
-                placeholder={t("react.settings.filter_providers", "Filter providers")}
-                type="search"
-                value={filter}
-              />
-            </label>
+            <DsSearchInput
+              aria-label={t("react.settings.filter_providers", "Filter providers")}
+              onValueChange={(value) => setFilter(value)}
+              placeholder={t("react.settings.filter_providers", "Filter providers")}
+              value={filter}
+            />
           </div>
           <DsTable
             ariaLabel={t("react.settings.provider_settings", "Provider settings")}

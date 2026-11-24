@@ -1100,6 +1100,23 @@ describe("foundation control feedback", () => {
     expect(control).toBeEnabled();
   });
 
+  it("renders a viewport tooltip outside the scrollable table and keeps its accessible description", async () => {
+    const user = userEvent.setup();
+    render(
+      <div className="fs-table-scroll" role="region" aria-label="Scrollable table">
+        <IconButton icon={Search} label="Extension runtime health" tooltipInViewport />
+      </div>,
+    );
+    const button = screen.getByRole("button", { name: "Extension runtime health" });
+    await user.tab();
+    const tooltip = screen.getByRole("tooltip");
+    expect(button).toHaveAccessibleDescription("Extension runtime health");
+    expect(within(screen.getByRole("region", { name: "Scrollable table" })).queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await user.tab();
+    expect(tooltip).not.toBeInTheDocument();
+  });
+
   it("guards the busy IconButton immediately and preserves its name before the glyph delay", async () => {
     const action = vi.fn();
     render(<IconButton aria-busy icon={Search} label="Run workflow" onClick={action} />);
