@@ -1,3 +1,4 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useState } from "react";
 
@@ -65,7 +66,7 @@ export function useCreateWorkflowForm(projectId: string) {
       return firstStringFromUnknownValue([response.workflow_id, trimmedId]).trim();
     } catch (error) {
       setConflict(registryConflictFromError(error));
-      setNotice(error instanceof Error ? error.message : t("react.workflows.failed_to_create_workflow", "Failed to create workflow."));
+      setNotice(entityCreateErrorMessage(error, t("react.workflows.failed_to_create_workflow", "Failed to create workflow."), t));
       return "";
     } finally {
       setCreating(false);

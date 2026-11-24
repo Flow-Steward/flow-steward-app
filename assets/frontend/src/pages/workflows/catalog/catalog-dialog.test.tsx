@@ -1000,7 +1000,7 @@ test("no results offers to remove the last filter and to suggest a template", as
     "href",
     "https://github.com/Flow-Steward/workflows",
   );
-  fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+  fireEvent.click(screen.getByText("Clear search", { selector: "button" }));
   await waitFor(() => expect(screen.getByRole("heading", { name: "3 templates" })).toBeInTheDocument());
 });
 

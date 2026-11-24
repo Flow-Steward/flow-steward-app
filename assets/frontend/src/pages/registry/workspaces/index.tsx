@@ -1,3 +1,5 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
+import { DsSearchInput } from "@/components/ui/search-input";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
@@ -17,7 +19,6 @@ import {
   PageContainer,
   RequiredLabel,
   RowActionMenu,
-  Search,
   type DsTableColumn,
 } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -241,7 +242,7 @@ export function RegistryWorkspacesPage() {
       await refresh();
     },
     onError: (error) =>
-      setCreateError(error instanceof Error ? error.message : t("react.registry.failed_to_create_workspace", "Failed to create workspace.")),
+      setCreateError(entityCreateErrorMessage(error, t("react.registry.failed_to_create_workspace", "Failed to create workspace."), t)),
   });
 
   function submit(event: FormSubmitEvent) {
@@ -332,16 +333,12 @@ export function RegistryWorkspacesPage() {
               registry. */}
           <span aria-live="polite" className="fs-management-result-announcement">
             {workspaces.length} {" "}{t("react.registry.workspaces", "workspaces")}</span>
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.search_workspaces_variant_c0cd6bdf", "Search workspaces")}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("react.registry.search_workspaces", "Search workspaces…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.search_workspaces_variant_c0cd6bdf", "Search workspaces")}
+            onValueChange={(value) => setSearch(value)}
+            placeholder={t("react.registry.search_workspaces", "Search workspaces…")}
+            value={search}
+          />
         </div>
         <DsTable
           ariaLabel={t("react.registry.workspace_registry", "Workspace registry")}

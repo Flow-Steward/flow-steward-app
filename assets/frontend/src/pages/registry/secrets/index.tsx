@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useHasCapability } from "@/lib/auth/capabilities";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useFilterState } from "@/lib/filters/use-filter-state";
@@ -18,7 +19,6 @@ import {
   PageContainer,
   Pagination,
   RowActionMenu,
-  Search,
 } from "@/components/shared/design-system";
 import {
   type CatalogSecret,
@@ -244,16 +244,12 @@ export function RegistrySecretsPage() {
             onClear={() => updateFilters({ usage: "" })}
             values={{ usage: filters.usage }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.secrets.search", "Search secrets")}
-              onChange={(event) => updateFilters({ search: event.target.value })}
-              placeholder={t("react.registry.secrets.search_placeholder", "Search secrets…")}
-              type="search"
-              value={filters.search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.secrets.search", "Search secrets")}
+            onValueChange={(value) => updateFilters({ search: value })}
+            placeholder={t("react.registry.secrets.search_placeholder", "Search secrets…")}
+            value={filters.search}
+          />
           <span aria-live="polite" className="fs-management-result-announcement">
             {t("react.registry.secrets.count", "Secrets: {value0}", { value0: String(rows.length) })}
           </span>

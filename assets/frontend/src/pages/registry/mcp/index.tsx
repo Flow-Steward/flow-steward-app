@@ -1,5 +1,6 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 
 import {
   AdvancedTableFilters,
@@ -166,21 +167,17 @@ export function RegistryMcpPage() {
             onClear={clearFilters}
             values={{ project_id: projectId, health: healthFilter, credentials: credentialsFilter }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.search_mcp_connectors_variant_cf424e65", "Search MCP connectors")}
-              id="mcp-connector-search"
-              name="mcp_connector_search"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder={t("react.registry.search_mcp_connectors", "Search MCP connectors…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.search_mcp_connectors_variant_cf424e65", "Search MCP connectors")}
+            id="mcp-connector-search"
+            name="mcp_connector_search"
+            onValueChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder={t("react.registry.search_mcp_connectors", "Search MCP connectors…")}
+            value={search}
+          />
           {/* The count is announced, not printed: `fs-mcp-count` had no rule
               behind it and the toolbar reads the same way on every other list. */}
           <span aria-live="polite" className="fs-management-result-announcement">

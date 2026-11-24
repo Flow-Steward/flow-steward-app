@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useLatestFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -29,7 +30,6 @@ import {
   PageContainer,
   Pagination,
   RowActionMenu,
-  Search,
   type DsFilterField,
 } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -684,17 +684,13 @@ export function WorkflowsListPage() {
               onClear={() => updateParams({ statusFilter: "", projectId: "", extensionFilter: "" })}
               values={{ project: pageProjectId, status: statusFilter, extension: extensionFilter }}
             />
-            <label className="fs-search">
-              <Search aria-hidden="true" />
-              <input
-                aria-label={t("react.workflows.search_workflows_variant_e827cf3e", "Search workflows")}
-                id="search"
-                onChange={(event) => updateParams({ search: event.target.value })}
-                placeholder={t("react.workflows.search_workflows", "Search workflows…")}
-                type="search"
-                value={search}
-              />
-            </label>
+            <DsSearchInput
+              aria-label={t("react.workflows.search_workflows_variant_e827cf3e", "Search workflows")}
+              id="search"
+              onValueChange={(value) => updateParams({ search: value })}
+              placeholder={t("react.workflows.search_workflows", "Search workflows…")}
+              value={search}
+            />
             <span aria-live="polite" className="fs-management-result-announcement">
               {workflows.length} {" "}{t("react.workflows.workflows", "workflows")}</span>
           </div>

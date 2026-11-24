@@ -1,10 +1,11 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import { useI18n } from "@/lib/i18n/useI18n";
 /* eslint-disable react-hooks/exhaustive-deps */
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router";
 import { appHref } from "@/lib/routing/app-href";
 
@@ -872,20 +873,16 @@ export function JobsListPage({ scope }: Readonly<{ scope?: JobsListScope }> = {}
           >
             {t("react.jobs.hide_acknowledged", "Hide acknowledged")}
           </DsCheckbox>
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.jobs.search_jobs", "Search jobs")}
-              id="search"
-              onChange={(event) => {
-                setPage(1);
-                setSearch(event.target.value);
-              }}
-              placeholder={t("react.jobs.search_jobs_2", "Search jobs…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.jobs.search_jobs", "Search jobs")}
+            id="search"
+            onValueChange={(value) => {
+              setPage(1);
+              setSearch(value);
+            }}
+            placeholder={t("react.jobs.search_jobs_2", "Search jobs…")}
+            value={search}
+          />
           {scope?.toolbar}
         </div>
         <DsTable

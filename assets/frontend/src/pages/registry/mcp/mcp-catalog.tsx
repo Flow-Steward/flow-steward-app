@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { z } from "@/lib/validation/zod";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { McpCatalogIcon, ExternalAnchor } from "./mcp-catalog-presentation";
@@ -8,7 +9,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, PlugZap, RefreshCw, Search, SearchX, TriangleAlert } from "lucide-react";
+import { ArrowLeft, PlugZap, RefreshCw, SearchX, TriangleAlert } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 
 import {
@@ -690,20 +691,17 @@ export function McpCatalogPanel({
         />
       ) : null}
       <div aria-busy={catalogQuery.isFetching} className="fs-catalog-results">
-        <label className="fs-search fs-marketplace-search">
-          <Search aria-hidden="true" />
-          <input
-            aria-label={t("react.registry.mcp_catalog.search", "Search the MCP catalog")}
-            onChange={(event) => {
-              const q = event.target.value;
-              setFilters((current) => ({ ...current, q }));
-              setPage(1);
-            }}
-            placeholder={t("react.registry.mcp_catalog.search_placeholder", "Search services…")}
-            type="search"
-            value={filters.q}
-          />
-        </label>
+        <DsSearchInput
+          className="fs-marketplace-search"
+          aria-label={t("react.registry.mcp_catalog.search", "Search the MCP catalog")}
+          onValueChange={(value) => {
+            const q = value;
+            setFilters((current) => ({ ...current, q }));
+            setPage(1);
+          }}
+          placeholder={t("react.registry.mcp_catalog.search_placeholder", "Search services…")}
+          value={filters.q}
+        />
         {items.length ? (
           <CatalogResultsHead
             compact={compact}

@@ -1,0 +1,54 @@
+.fs-search-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  align-self: stretch;
+  gap: inherit;
+  min-width: 0;
+}
+
+.fs-search-input {
+  appearance: none;
+}
+
+.fs-search-input::-webkit-search-decoration,
+.fs-search-input::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
+
+.fs-search-clear {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-radius-micro, 4px);
+  background: transparent;
+  color: var(--fs-search-clear-text, var(--fs-text-tertiary));
+  cursor: pointer;
+  transition: var(--fs-search-clear-transition, var(--fs-motion-background-hover));
+}
+
+.fs-search-clear:hover {
+  background: var(--fs-search-clear-hover-bg, var(--fs-dropdown-item-hover-bg));
+  color: var(--fs-search-clear-hover-text, var(--fs-text-primary));
+}
+
+.fs-search-clear:focus-visible {
+  outline: none;
+  box-shadow: var(--fs-search-clear-focus-ring, var(--fs-button-focus-ring));
+}
+
+.fs-search > .fs-search-clear {
+  margin-inline-end: -7px;
+}
+
+.fs-search > .fs-search-clear svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentcolor;
+  stroke-width: 2;
+}

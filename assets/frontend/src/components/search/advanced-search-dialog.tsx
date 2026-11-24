@@ -3,7 +3,8 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { Search, X } from "lucide-react";
+import { Search } from "lucide-react";
+import { SearchClearButton } from "@/components/ui/search-input";
 
 import type { GlobalSearchItem } from "@/components/layout/app-shell-helpers";
 import { AdvancedSearchFilters } from "@/components/search/advanced-search-filters";
@@ -229,17 +230,10 @@ export function AdvancedSearchDialog({
             value={draft}
           />
           {draft ? (
-            <button
-              aria-label={t("react.shared.clear_search", "Clear search")}
-              className="fs-advanced-search__clear"
-              onClick={() => {
-                setDraft("");
-                inputRef.current?.focus();
-              }}
-              type="button"
-            >
-              <X aria-hidden="true" />
-            </button>
+            <SearchClearButton onClear={() => {
+              setDraft("");
+              inputRef.current?.focus();
+            }} />
           ) : null}
           <button
             aria-label={t("react.shared.close_advanced_search", "Close advanced search")}
