@@ -32,7 +32,7 @@ _ROUTE_IDENTIFIERS = {
 
 
 def test_scope_and_route_tables_cover_exact_public_inventory() -> None:
-    assert len(MCP_TOOL_SCOPES) == 76
+    assert len(MCP_TOOL_SCOPES) == 78
     assert set(MCP_TOOL_SCOPES) == set(MCP_TOOL_ROUTES)
     assert {
         "kb_search",
@@ -84,6 +84,12 @@ def test_discovery_is_request_local_presentation_not_authorization() -> None:
     assert "project_list" not in write_tools
     assert visible_mcp_tool_names([], auth_enabled=True) == set()
     assert visible_mcp_tool_names([], auth_enabled=False) == set(MCP_TOOL_SCOPES)
+
+
+def test_project_write_tools_are_visible_only_with_project_write_authority() -> None:
+    tools = {"project_create", "project_update"}
+    assert tools <= visible_mcp_tool_names(["projects.write"], auth_enabled=True)
+    assert tools.isdisjoint(visible_mcp_tool_names(["projects.read", "read:*"], auth_enabled=True))
 
 
 def test_discovery_filters_the_official_typed_tools_list_result(monkeypatch) -> None:

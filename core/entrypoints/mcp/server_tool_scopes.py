@@ -41,6 +41,7 @@ ADMIN = (_TOKEN_ADMIN_ALL,)
 _JOBS_READ = ("jobs.read", "jobs:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
 _JOBS_WRITE = ("jobs.write", "jobs:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
 _PROJECTS_READ = ("projects.read", "projects:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
+_PROJECTS_WRITE = ("projects.write", "projects:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
 _WORKFLOWS_READ = (
     "workflows.read",
     _TOKEN_WORKFLOWS_ALL,
@@ -102,6 +103,8 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     # --- projects ----------------------------------------------------------
     "project_list": _PROJECTS_READ,
     "project_connections": _PROJECTS_READ,
+    "project_create": _PROJECTS_WRITE,
+    "project_update": _PROJECTS_WRITE,
     # --- workflow authoring: registry creation differs from launch ----------
     "capability_search": _WORKFLOWS_READ,
     "capability_describe": _WORKFLOWS_READ,
@@ -197,6 +200,8 @@ MCP_TOOL_PERMISSIONS: dict[str, str] = {
     # --- projects --------------------------------------------------------------
     "project_list": "projects.read",
     "project_connections": "projects.read",
+    "project_create": "projects.write",
+    "project_update": "projects.write",
     # --- workflow authoring ------------------------------------------------------
     "capability_search": "workflows.read",
     "capability_describe": "workflows.read",
