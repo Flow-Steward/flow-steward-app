@@ -118,7 +118,7 @@ jobs:
             await publishAssets({github, context, release, directory: `${process.env.RUNNER_TEMP}/api-reference`});
       - name: Mint documentation dispatch token
         id: app
-        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0 (Node 24)
+        uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.3.0 (Node 24)
         with:
           client-id: ${{ vars.DOCS_SYNC_APP_ID }}
           private-key: ${{ secrets.DOCS_SYNC_APP_PRIVATE_KEY }}
