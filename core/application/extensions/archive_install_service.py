@@ -277,7 +277,9 @@ class ExtensionArchiveInstallService:
         resolved_scope: ScopeContext,
         approved_impact_hash: str,
     ) -> PreparedBrowserAuthorityApproval | None:
-        descriptor_sha256 = browser_authority_manifest_sha256(bundle.compiled)
+        # The scan checksum includes the fresh extraction path. The compiled
+        # manifest supplies the descriptor and the tree digest binds the files.
+        descriptor_sha256 = browser_authority_manifest_sha256(bundle.compiled["compiled_manifest"])
         impact = browser_authority_impact(
             account_id=resolved_scope.account_id or "acc_default",
             project_id=str(resolved_scope.project_id or "").strip(),

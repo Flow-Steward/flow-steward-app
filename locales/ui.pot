@@ -13443,6 +13443,9 @@ msgstr ""
 msgid "react.shared.connection_linked_datasets_block"
 msgstr ""
 
+msgid "react.shared.create_conflict_trash_hint"
+msgstr ""
+
 msgid "react.shared.create_failed"
 msgstr ""
 

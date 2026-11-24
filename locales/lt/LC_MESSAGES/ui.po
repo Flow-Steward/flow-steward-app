@@ -13694,6 +13694,9 @@ msgstr ""
 msgid "react.shared.connection_linked_datasets_block"
 msgstr "{label} vis dar turi susietų duomenų rinkinių."
 
+msgid "react.shared.create_conflict_trash_hint"
+msgstr "Jei įrašo sąraše nematote, patikrinkite šiukšlinę."
+
 msgid "react.shared.create_failed"
 msgstr "Nepavyko sukurti."
 

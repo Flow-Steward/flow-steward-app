@@ -1,3 +1,4 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -422,9 +423,7 @@ export function useDataConnectionsState() {
     },
     onError: (error) => {
       showMessage(
-        error instanceof Error
-          ? error.message
-          : t("react.registry.display_failed_create_data_connection", "Failed to create data connection."),
+        entityCreateErrorMessage(error, t("react.registry.display_failed_create_data_connection", "Failed to create data connection."), t),
         "error",
       );
     },

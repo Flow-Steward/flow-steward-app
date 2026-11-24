@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.25 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.26 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -1597,6 +1597,8 @@ External webhook invocation belongs to CRM/ERP, forms, and other event providers
 | Area | Tool signature | Use |
 |---|---|---|
 | Projects | `project_list()` | List project names, IDs, and job counts. |
+| Projects | `project_create(project)` | Create a project with `name` and `workspace_id` and return its ID. The Projects API validates optional settings and the caller's access. |
+| Projects | `project_update(project_id, changes)` | Edit a project by UUID. Supply only the project fields to change, such as `name` or `description`. The Projects API applies its usual access rules. |
 | Projects | `project_jobs(project_name, limit=10, page=1, status="")` | List one project's jobs the caller may see (its workflow restrictions apply), newest first, `limit` (at most 50) per page; `total`/`total_pages` tell whether more pages exist. `status` accepts statuses or group keys. |
 | Projects | `project_connections(project_name)` | List the project's connections (secret values are never included) with `connection_id`, display name, extension, connection type and health. A connector step names its connection by this id in `connection_binding_jsonb.connection_id`; a connection deleted and created again has a new id. |
 | Workflows | `workflow_list(project_name, enabled_only=true, include_validation=false)` | List workflows linked to a project. |

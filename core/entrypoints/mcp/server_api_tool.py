@@ -73,7 +73,9 @@ _REGISTRY_TOOLS = frozenset(
     }
 )
 #: The tool argument that is the whole request body, sent as given.
-_REGISTRY_BODY_ARGUMENTS = {
+_BODY_ARGUMENTS = {
+    "project_create": "project",
+    "project_update": "changes",
     "agent_create": "agent",
     "agent_update": "changes",
     "skill_create": "skill",
@@ -131,16 +133,6 @@ def _project_id_from_name(client: AppApiClient, *, bearer: str, project_name: st
     raise AppApiError(404, {"error": "Project was not found or is not available"})
 
 
-def _registry_body(tool: str, arguments: dict[str, Any]) -> object | None:
-    """The body of a registry write: only what the caller passed, nothing defaulted."""
-    body_argument = _REGISTRY_BODY_ARGUMENTS.get(tool)
-    if body_argument is not None:
-        return arguments.get(body_argument)
-    if tool == "agent_skill_unassign":
-        return None
-    return {key: value for key, value in arguments.items() if value is not None}
-
-
 def _delegation_parts(
     tool: str,
     *,
@@ -158,8 +150,12 @@ def _delegation_parts(
     if (tool in _AUTHORING_TOOLS or tool in _REGISTRY_TOOLS) and params is not None:
         # httpx encodes None as an empty query value, not an absent optional field.
         params = {key: value for key, value in params.items() if value is not None}
-    if tool in _REGISTRY_TOOLS and body is not None:
-        body = _registry_body(tool, arguments)
+    if body is not None and (body_argument := _BODY_ARGUMENTS.get(tool)) is not None:
+        body = arguments.get(body_argument)
+    elif tool == "agent_skill_unassign":
+        body = None
+    elif tool in _REGISTRY_TOOLS and body is not None:
+        body = {key: value for key, value in arguments.items() if value is not None}
     elif tool == "project_list":
         params = {"page": 1, "per_page": 200}
     elif tool == "project_jobs":

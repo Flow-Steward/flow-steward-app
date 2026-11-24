@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
@@ -10,6 +12,29 @@ from core.entrypoints.mcp.server_runtime import mcp
 def project_list() -> McpToolResult:
     """List projects visible to the caller."""
     return api_tool_response("project_list", locals())
+
+
+@mcp.tool()
+def project_create(project: dict[str, object]) -> McpToolResult:
+    """Create a project in a workspace the caller can manage.
+
+    Provide `name` and `workspace_id` in `project`. Optional project settings
+    include `description`, `project_rules`, `default_provider`, `default_model`,
+    `workflow_ids`, `operator_default_workflow_id` and `data_connection_ids`.
+    Returns the new project ID. Report a name conflict to the user.
+    """
+    return api_tool_response("project_create", locals())
+
+
+@mcp.tool()
+def project_update(project_id: UUID, changes: dict[str, object]) -> McpToolResult:
+    """Edit an existing project by its ID from project_list or project_create.
+
+    In `changes`, send only the project fields you want to edit, such as `name`
+    or `description`. An empty `description` clears it. The project API applies
+    its usual field permissions and validation.
+    """
+    return api_tool_response("project_update", locals())
 
 
 @mcp.tool()
@@ -103,8 +128,10 @@ def workflow_trigger(
 
 __all__ = [
     "project_connections",
+    "project_create",
     "project_jobs",
     "project_list",
+    "project_update",
     "workflow_contract",
     "workflow_list",
     "workflow_suggestions",

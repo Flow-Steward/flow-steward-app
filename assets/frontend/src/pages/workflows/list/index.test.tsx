@@ -431,6 +431,19 @@ describe("WorkflowsListPage", () => {
     expect(screen.getByRole("button", { name: "Clear all" })).toBeInTheDocument();
   });
 
+  it("clears the table search with the app button and returns focus to the field", async () => {
+    renderPageWithLocation("/registry/workflows?search=nightly");
+    const search = screen.getByRole("searchbox", { name: "Search workflows" });
+    expect(search).toHaveValue("nightly");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+
+    await waitFor(() => expect(search).toHaveValue(""));
+    expect(search).toHaveFocus();
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/registry\/workflows$/);
+  });
+
   it("combines Enabled and Unavailable before paginating and leaves the chooser open", async () => {
     mockedFetchWorkflows.mockResolvedValue([
       { workflow_id: "ready", display_name: "Ready workflow", enabled: true },

@@ -44,7 +44,7 @@ class TestDetection:
             (
                 "Email a@example.com or news@example.org.",
                 ["a@example.com", "news@example.org"],
-                "Email [PII:email:REDACTED] or [PII:email:REDACTED].",
+                "Email [PII:email:REDACTED_1] or [PII:email:REDACTED_2].",
             ),
             (
                 "Alias alice@example.com-archive",
@@ -264,6 +264,15 @@ class TestHardRedact:
         findings = guard.scan("john@example.com", "inbound", config)
         assert findings[0].redacted_preview == "[PII:email:REDACTED]"
 
+    def test_numbers_distinct_values_in_text_order_and_reuses_numbers(self, guard):
+        text = "To: alpha@example.com; cc: beta@example.net; reply to alpha@example.com."
+        findings = guard.scan(text, "inbound", PIIConfig(mode="hard_redact"))
+
+        assert guard.redact(text, findings) == (
+            "To: [PII:email:REDACTED_1]; cc: [PII:email:REDACTED_2]; "
+            "reply to [PII:email:REDACTED_1]."
+        )
+
 
 class TestAllowMode:
     def test_allow_mode_logs_but_no_redact(self, guard):
@@ -272,6 +281,12 @@ class TestAllowMode:
         assert len(findings) > 0
         assert findings[0].action == "allow"
         assert findings[0].redacted_preview == "john@example.com"
+
+    def test_allow_mode_keeps_each_original_value(self, guard):
+        text = "From: alpha@example.com; to: beta@example.net."
+        findings = guard.scan(text, "inbound", PIIConfig(mode="allow"))
+
+        assert guard.redact(text, findings) == text
 
 
 class TestRedaction:

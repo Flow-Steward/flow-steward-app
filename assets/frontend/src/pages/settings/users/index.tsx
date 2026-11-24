@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import {
   ROLE_OPTIONS,
@@ -38,7 +39,6 @@ import {
   PageContainer,
   Pagination,
   RowActionMenu,
-  Search,
   DsPageHeader,
 } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -346,18 +346,14 @@ function UsersInventory({
           onClear={() => updateFilters({ role: "", status: "" }, true)}
           values={{ role: filters.role, status: filters.status }}
         />
-        <label className="fs-search">
-          <Search aria-hidden="true" />
-          <input
-            aria-label={t("react.settings.search_users", "Search users")}
-            onChange={(event) =>
-              updateFilters({ search: event.target.value }, true)
-            }
-            placeholder={t("react.settings.search_users_2", "Search users…")}
-            type="search"
-            value={filters.search}
-          />
-        </label>
+        <DsSearchInput
+          aria-label={t("react.settings.search_users", "Search users")}
+          onValueChange={(value) =>
+            updateFilters({ search: value }, true)
+          }
+          placeholder={t("react.settings.search_users_2", "Search users…")}
+          value={filters.search}
+        />
         <span
           aria-live="polite"
           className="fs-management-result-announcement"

@@ -846,10 +846,8 @@
   opacity: var(--fs-icon-button-disabled-opacity);
 }
 
-.fs-icon-button-wrap > .fs-shell-tooltip {
-  top: calc(100% + var(--fs-tooltip-offset));
-  left: 50%;
-  z-index: 70;
+.fs-icon-button-wrap > .fs-shell-tooltip,
+.fs-shell-tooltip.fs-icon-button-viewport-tooltip {
   max-width: var(--fs-tooltip-max-width);
   padding: var(--fs-tooltip-padding);
   border: 1px solid var(--fs-tooltip-border);
@@ -860,7 +858,20 @@
   font-size: var(--fs-tooltip-font-size);
   line-height: var(--fs-tooltip-line-height);
   opacity: 1;
+}
+
+.fs-icon-button-wrap > .fs-shell-tooltip {
+  top: calc(100% + var(--fs-tooltip-offset));
+  left: 50%;
   transform: translateX(-50%);
+}
+
+.fs-shell-tooltip.fs-icon-button-viewport-tooltip {
+  position: fixed;
+  z-index: var(--fs-z-popup);
+  max-width: min(var(--fs-tooltip-max-width), calc(100vw - 16px));
+  overflow-wrap: anywhere;
+  transform: none;
 }
 
 /* Height is the band minus the frame's own border-bottom (below), so the

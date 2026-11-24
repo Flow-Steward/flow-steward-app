@@ -1,8 +1,9 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Package, RefreshCw, Search, SearchX, TriangleAlert } from "lucide-react";
+import { Package, RefreshCw, SearchX, TriangleAlert } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import {
@@ -428,21 +429,18 @@ export function ExtensionMarketplaceCatalog({
               {t("react.extensions.show_all", "Show all")}</button>
           </DsAlert>
         ) : null}
-        <label className="fs-search fs-marketplace-search">
-          <Search aria-hidden="true" />
-          <input
-            aria-label={t("react.extensions.search_extension_catalog", "Search extension catalog")}
-            disabled={loading}
-            maxLength={200}
-            onChange={(event) => {
-              const q = event.target.value;
-              writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
-            }}
-            placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
-            type="search"
-            value={filters.q}
-          />
-        </label>
+        <DsSearchInput
+          className="fs-marketplace-search"
+          aria-label={t("react.extensions.search_extension_catalog", "Search extension catalog")}
+          disabled={loading}
+          maxLength={200}
+          onValueChange={(value) => {
+            const q = value;
+            writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
+          }}
+          placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
+          value={filters.q}
+        />
         {loading || !items.length ? null : (
           <CatalogResultsHead
             announceDelayMs={ANNOUNCE_DELAY_MS}

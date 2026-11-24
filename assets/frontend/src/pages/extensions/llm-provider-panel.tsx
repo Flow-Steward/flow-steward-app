@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { booleanFilterSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
@@ -9,7 +10,6 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "re
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Search } from "lucide-react";
 
 import {
   DsBadge,
@@ -649,10 +649,13 @@ export function LlmProviderPanel({
         <Button aria-describedby={!installEnabled ? enableGuidanceId : undefined} busy={mutationPending && mutationAction === "discover"} busyLabel={t("react.extensions.manual_discovering_models", "Discovering models…")} disabled={!installEnabled || requiredConfigMissing || secretInputBlocked} onClick={() => ignoreAsyncResult(refresh())} size="sm" type="button" variant="secondary">{t("react.extensions.discover_models", "Discover models")}</Button>
       </div>
       {status ? <p aria-live="polite" className="fs-manifest-description" role="status">{status}</p> : null}
-      <label className="fs-search fs-llm-search">
-        <Search aria-hidden="true" />
-        <input aria-label={t("react.extensions.search_provider_models", "Search provider models")} onChange={(event) => setFilter(event.target.value)} placeholder={t("react.extensions.search_discovered_models", "Search discovered models")} type="search" value={filter}/>
-      </label>
+      <DsSearchInput
+        className="fs-llm-search"
+        aria-label={t("react.extensions.search_provider_models", "Search provider models")}
+        onValueChange={setFilter}
+        placeholder={t("react.extensions.search_discovered_models", "Search discovered models")}
+        value={filter}
+      />
       {unsupportedCount ? (
         <label className="fs-checkbox-label">
           <input checked={showAllModels} onChange={(event) => setShowAllModels(event.target.checked)} type="checkbox"/>

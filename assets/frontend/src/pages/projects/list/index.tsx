@@ -1,3 +1,5 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
+import { DsSearchInput } from "@/components/ui/search-input";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -35,7 +37,6 @@ import {
   Pagination,
   PageContainer,
   RowActionMenu,
-  Search,
   type DsTableColumn,
   type DsTableSort,
 } from "@/components/shared/design-system";
@@ -405,7 +406,7 @@ export function ProjectsListPage() {
         ignoreAsyncResult(navigate(`/projects/${createdProjectId}`));
       }
     } catch (error) {
-      setCreateMessage(error instanceof Error ? error.message : t("react.projects.failed_to_create_project", "Failed to create project."));
+      setCreateMessage(entityCreateErrorMessage(error, t("react.projects.failed_to_create_project", "Failed to create project."), t));
     } finally {
       setCreating(false);
     }
@@ -478,19 +479,15 @@ export function ProjectsListPage() {
             }}
             values={{ has_jobs: jobsFilter }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.projects.search_projects", "Search projects")}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder={t("react.projects.search_projects_2", "Search projects…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.projects.search_projects", "Search projects")}
+            onValueChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder={t("react.projects.search_projects_2", "Search projects…")}
+            value={search}
+          />
           <span aria-live="polite" className="fs-management-result-announcement">{t("monitoring.badge.projects", "{count} projects", { count: total })}</span>
         </div>
         <DsTable
@@ -637,7 +634,7 @@ export function ProjectsListPage() {
           </div>
         </form>
             {createMessage ? (
-              <div className="fs-alert">
+              <div className="fs-alert" role="alert">
                 {createMessage}
               </div>
             ) : null}

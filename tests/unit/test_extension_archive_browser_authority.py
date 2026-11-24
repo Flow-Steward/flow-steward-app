@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -18,8 +19,10 @@ def _bundle(tmp_path: Path) -> ValidatedExtensionBundle:
     root = tmp_path / "candidate"
     (root / "assets").mkdir(parents=True)
     (root / "assets/picker.js").write_text("window.Acme = {};", encoding="utf-8")
-    compiled = {
+    (root / "main.py").write_text("print('ready')\n", encoding="utf-8")
+    manifest = {
         "bundle_root": str(root),
+        "manifest_path": str(root / "extension.yaml"),
         "extension_key": "acme.browser-picker",
         "version": "2.0.0",
         "action_definitions": [
@@ -58,7 +61,12 @@ def _bundle(tmp_path: Path) -> ValidatedExtensionBundle:
     return ValidatedExtensionBundle(
         bundle_dir=root,
         descriptor_path=None,
-        compiled=compiled,
+        compiled={
+            **manifest,
+            "compiled_manifest": manifest,
+            # The scan checksum incorporates the absolute manifest path.
+            "checksum": hashlib.sha256(str(root / "extension.yaml").encode()).hexdigest(),
+        },
         extension_id="acme.browser-picker",
         version="2.0.0",
     )
@@ -98,7 +106,7 @@ def _scope() -> ScopeContext:
 
 def test_archive_install_gates_before_publication_and_reuses_exact_approval(tmp_path: Path):
     service = _service()
-    bundle = _bundle(tmp_path)
+    bundle = _bundle(tmp_path / "first-extraction")
 
     _raises_input_103_1 = MagicMock()
     _raises_input_103_2 = _scope()
@@ -118,7 +126,7 @@ def test_archive_install_gates_before_publication_and_reuses_exact_approval(tmp_
     service._new_install.install_simple_extension_bundle.return_value = expected
     result = service._install_validated_bundle(
         bl=MagicMock(),
-        bundle=bundle,
+        bundle=_bundle(tmp_path / "second-extraction"),
         extensions_root=tmp_path / "extensions",
         metadata_filename=".flow-steward-install.yaml",
         resolved_scope=_scope(),
@@ -133,6 +141,30 @@ def test_archive_install_gates_before_publication_and_reuses_exact_approval(tmp_
         kwargs["browser_authority_handoff"].approval["approved_impact_hash"]
         == (preview.value.payload["impact_hash"])
     )
+
+
+def test_archive_approval_rejects_a_change_outside_the_browser_surface(tmp_path: Path):
+    service = _service()
+    scope = _scope()
+    bundle = _bundle(tmp_path / "first-extraction")
+    with pytest.raises(ServicePreconditionError) as preview:
+        service._prepare_browser_authority_handoff(
+            bundle=bundle,
+            current_install=None,
+            resolved_scope=scope,
+            approved_impact_hash="",
+        )
+
+    (bundle.bundle_dir / "main.py").write_text("print('changed')\n", encoding="utf-8")
+    with pytest.raises(ServicePreconditionError) as rejected:
+        service._prepare_browser_authority_handoff(
+            bundle=bundle,
+            current_install=None,
+            resolved_scope=scope,
+            approved_impact_hash=preview.value.payload["impact_hash"],
+        )
+
+    assert rejected.value.payload["impact_hash"] != preview.value.payload["impact_hash"]
 
 
 def test_archive_update_rejection_leaves_old_release_active(tmp_path: Path):

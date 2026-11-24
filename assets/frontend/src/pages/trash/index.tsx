@@ -1,3 +1,4 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
@@ -5,7 +6,7 @@ import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { ConfirmActionDialog } from "@/components/shared/confirm-action-dialog";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -697,20 +698,16 @@ export function TrashPage() {
             }}
             values={{ type: typeFilter, category: categoryFilter }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.trash.search_deleted_items", "Search deleted items")}
-              id="trash-search"
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder={t("react.trash.search_trash", "Search trash…")}
-              type="search"
-              value={search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.trash.search_deleted_items", "Search deleted items")}
+            id="trash-search"
+            onValueChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder={t("react.trash.search_trash", "Search trash…")}
+            value={search}
+          />
           <span aria-live="polite" className="fs-trash-count">
             {initialLoadPending ? "" : t("react.trash.showing_value1_of_value2", "Showing {value1} of {value2}", { value1: String(filteredRows.length), value2: String(rows.length) })}
           </span>

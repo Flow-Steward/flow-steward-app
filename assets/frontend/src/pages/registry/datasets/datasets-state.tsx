@@ -1,3 +1,4 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
 import { stringFiltersSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { isInstallOwned } from "./dataset-ownership";
@@ -223,7 +224,7 @@ export function useDatasetsState() {
     },
     onError: (error, variables) => {
       if (variables.session !== editorSessionRef.current) return;
-      const text = error instanceof Error ? error.message : t("react.registry.display_failed_create_dataset", "Failed to create dataset.");
+      const text = entityCreateErrorMessage(error, t("react.registry.display_failed_create_dataset", "Failed to create dataset."), t);
       setCreateError(text);
       setMessage(text);
     },

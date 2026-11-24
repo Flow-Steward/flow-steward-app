@@ -13486,6 +13486,9 @@ msgstr "Choose a destination workspace for every reassigned Data Connection."
 msgid "react.shared.connection_linked_datasets_block"
 msgstr "{label} still has linked datasets."
 
+msgid "react.shared.create_conflict_trash_hint"
+msgstr "If you don’t see it in the list, check whether it’s in Trash."
+
 msgid "react.shared.create_failed"
 msgstr "Create failed."
 
