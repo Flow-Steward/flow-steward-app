@@ -19,6 +19,7 @@ from .binding_context import (
     ExtensionRuntimeStoreType,
 )
 from .browser_authority_approval import PreparedBrowserAuthorityApproval
+from .catalog_secret_update import CatalogSecretUpdate
 from .extension_state_service import ExtensionStateService
 from .lifecycle_ports import ExtensionCommandServicePort
 from .managed_release_service import ManagedReleaseService
@@ -65,6 +66,7 @@ class UpdateRequest:
     descriptor_name: str = ""
     browser_authority_handoff: PreparedBrowserAuthorityApproval | None = None
     approved_browser_authority_impact_hash: str = ""
+    catalog_secret_update: CatalogSecretUpdate | None = None
 
 
 @dataclass

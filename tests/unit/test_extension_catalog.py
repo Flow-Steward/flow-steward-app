@@ -31,7 +31,8 @@ from core.application.extensions.extension_catalog_install import (
     ExtensionCatalogInstallService,
     catalog_display_state,
 )
-from core.application.management.scope import normalize_scope
+from core.application.management.errors import ServiceForbiddenError
+from core.application.management.scope import ScopeContext, normalize_scope
 from core.infrastructure.static_catalog import settings as catalog_settings
 from core.infrastructure.static_catalog.http_fetch import (
     CatalogArtifactMismatchError,
@@ -509,6 +510,97 @@ def test_the_browser_authority_approval_hash_reaches_the_installer(
     )
 
     assert binding.calls[0]["approved_browser_authority_impact_hash"] == "a" * 64
+
+
+def test_catalog_update_passes_only_the_repository_of_the_verified_archive(monkeypatch) -> None:
+    extension_id = "synthetic_extension_000"
+    repository = "https://github.com/flow-steward/example"
+    installed = _Install(extension_id, "1.0.0", "inst_a")
+    binding = _BindingService()
+    service, fetched = _service(monkeypatch, store=_InstallStore(installed), binding=binding)
+    index = _index(3)
+    index["items"][0].update(
+        repository_url="https://github.com/Flow-Steward/Example/tree/v2.0.0",
+        release_zip_url=f"{repository}/releases/download/v2.0.0/extension.zip",
+    )
+    _install_host(monkeypatch, _reply(index))
+    scope = ScopeContext(account_id="acc_7", principal_type="admin", auth_source="local")
+    with pytest.raises(ServiceForbiddenError, match="signed in interactively"):
+        service.install_from_catalog(
+            extension_id,
+            version="2.0.0",
+            release_sha256=_DIGEST_2_0_0,
+            scope=scope.model_copy(update={"auth_source": "api_token"}),
+            secret_update_repository=repository,
+        )
+    assert not fetched
+
+    service.install_from_catalog(
+        extension_id,
+        version="2.0.0",
+        release_sha256=_DIGEST_2_0_0,
+        scope=scope,
+        secret_update_repository=repository,
+    )
+
+    assert len(fetched) == 1
+    update = binding.calls[0]["_catalog_secret_update"]
+    assert update.repository == repository
+    assert update.requested_repository == repository
+    assert update.install_id == "inst_a"
+
+    index["items"][0]["release_zip_url"] = (
+        "https://github.com/flow-steward/other/releases/download/v2.0.0/extension.zip"
+    )
+    reset_extension_catalog_cache()
+    _install_host(monkeypatch, _reply(index))
+    with pytest.raises(ExtensionCatalogError) as exc:
+        service.install_from_catalog(
+            extension_id,
+            version="2.0.0",
+            release_sha256=_DIGEST_2_0_0,
+            scope=scope,
+            secret_update_repository=repository,
+        )
+    assert exc.value.code == "extension_catalog_secret_repository_changed"
+    assert len(fetched) == 1
+
+
+def test_catalog_update_trust_is_bound_to_the_previous_install_and_release() -> None:
+    from core.application.extensions.catalog_secret_update import CatalogSecretUpdate
+    from core.application.extensions.install import ExtensionInstallRecord
+
+    repository = "https://github.com/flow-steward/example"
+    release = {"release_id": "old-id", "descriptor_sha256": "a" * 64}
+    install = ExtensionInstallRecord(
+        extension_id="example",
+        version="1.0.0",
+        account_id="acc_7",
+        install_id="inst_a",
+        release_id=release["release_id"],
+        provenance={
+            "catalog_secret_update_trust": {
+                "repository": repository,
+                "install_id": "inst_a",
+                **release,
+            }
+        },
+    )
+    update = CatalogSecretUpdate("inst_a", repository, requested_repository=None)
+    assert update.trusted_repository(install, release) == repository
+    assert not update.trusted_repository(install, {**release, "descriptor_sha256": "b" * 64})
+    assert not update.trusted_repository(
+        install.model_copy(update={"release_id": "manual"}), release
+    )
+    assert not update.trusted_repository(
+        install.model_copy(update={"install_id": "inst_b"}), release
+    )
+    assert not CatalogSecretUpdate(
+        "inst_a", "https://github.com/other/example", requested_repository=None
+    ).trusted_repository(install, release)
+    assert not CatalogSecretUpdate(
+        "inst_a", repository, requested_repository=""
+    ).trusted_repository(install, release)
 
 
 @pytest.mark.parametrize(

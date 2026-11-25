@@ -37,6 +37,7 @@ from .binding_context import (
     ExtensionRuntimeStoreProvider,
 )
 from .binding_projection_service import ExtensionBindingProjectionService
+from .catalog_secret_update import CatalogSecretUpdate
 from .direct_effect_recovery import DirectEffectRecoveryService
 from .direct_effect_recovery_models import (
     DirectEffectDecisionRequest,
@@ -239,6 +240,7 @@ class ExtensionBindingService:
         content: bytes,
         scope: ScopeContext | None = None,
         approved_browser_authority_impact_hash: str = "",
+        _catalog_secret_update: CatalogSecretUpdate | None = None,
     ) -> ExtensionArchiveInstallResultView:
         self.require_archive_lifecycle_available(operation="install_update")
         try:
@@ -247,6 +249,7 @@ class ExtensionBindingService:
                 content=content,
                 scope=scope,
                 approved_browser_authority_impact_hash=approved_browser_authority_impact_hash,
+                _catalog_secret_update=_catalog_secret_update,
             )
         except OSError as exc:
             self._archive_lifecycle_capability.translate_managed_root_error(

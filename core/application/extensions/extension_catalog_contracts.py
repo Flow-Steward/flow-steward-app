@@ -22,6 +22,7 @@ class ExtensionCatalogInstallRequest(BaseModel):
     approved_browser_authority_impact_hash: str = Field(
         default="", max_length=64, pattern=r"^(?:|[a-f0-9]{64})$"
     )
+    secret_update_repository: str | None = Field(default=None, max_length=250)
 
 
 class ExtensionCatalogError(RuntimeError):

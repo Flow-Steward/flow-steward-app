@@ -1,7 +1,7 @@
 import { DsSearchInput } from "@/components/ui/search-input";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -9,6 +9,7 @@ import {
   AdvancedTableFilters,
   DsAlert,
   DsBadge,
+  DsCheckbox,
   DsPageHeader,
   DsTable,
   DsTabs,
@@ -91,7 +92,7 @@ type ExtensionUpdates = {
   canAdminister: boolean;
   installBlockedReason: string;
   permissionLabels: Record<string, string>;
-  onUpdate: (entry: ExtensionCatalogEntry) => void;
+  onUpdate: (entry: ExtensionCatalogEntry, secretUpdateRepository?: string) => void;
 };
 
 function releaseNotesAnchor(entry: ExtensionCatalogEntry, t: I18nContextValue["t"]): ReactNode {
@@ -110,7 +111,13 @@ function updateActionFor(entry: ExtensionCatalogEntry, updates: ExtensionUpdates
   }, t);
 }
 
-function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t: I18nContextValue["t"], primary: boolean): ReactNode {
+function updateButton(
+  entry: ExtensionCatalogEntry,
+  updates: ExtensionUpdates,
+  t: I18nContextValue["t"],
+  primary: boolean,
+  secretUpdateRepository?: string,
+): ReactNode {
   const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
   return (
     <Button
@@ -118,7 +125,7 @@ function updateButton(entry: ExtensionCatalogEntry, updates: ExtensionUpdates, t
       busyLabel={updateLabel("installing", entry.version, t)}
       data-extension-update-action={entry.extension_id}
       disabled={phase === "awaiting_approval" || phase === "queued"}
-      onClick={() => updates.onUpdate(entry)}
+      onClick={() => updates.onUpdate(entry, secretUpdateRepository)}
       size="sm"
       type="button"
       variant={primary ? "primary" : "secondary"}
@@ -151,6 +158,39 @@ function extensionUpdateRowNotice(extensionId: string, updates: ExtensionUpdates
   );
 }
 
+function ExtensionUpdatePageActions({
+  entry,
+  updates,
+}: Readonly<{ entry: ExtensionCatalogEntry; updates: ExtensionUpdates }>) {
+  const { t } = useI18n();
+  const [requestedRepository, setRequestedRepository] = useState<string>();
+  const repository = entry.secret_update_repository;
+  const alreadyTrusted = Boolean(entry.secret_update_repository_trusted);
+  const checked = requestedRepository === undefined ? alreadyTrusted : requestedRepository === repository;
+  const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
+  return (
+    <>
+      {repository ? (
+        <DsCheckbox
+          checked={checked}
+          disabled={phase !== "idle"}
+          onChange={(enabled) => setRequestedRepository(enabled ? repository : "")}
+        >
+          {t(
+            "react.extensions.trust_secret_updates_from_repository",
+            "Trust future updates from {repository} to use already approved secrets",
+            { repository },
+          )}
+        </DsCheckbox>
+      ) : null}
+      <div className="fs-extensions-update-actions">
+        {updateButton(entry, updates, t, true, requestedRepository)}
+        {releaseNotesAnchor(entry, t)}
+      </div>
+    </>
+  );
+}
+
 /** The same notice on the extension's own page, with the Catalog page's trust note. */
 function extensionUpdatePageNotice(extensionId: string, updates: ExtensionUpdates, t: I18nContextValue["t"]): ReactNode {
   const install = updates.installStateById[extensionId];
@@ -173,10 +213,13 @@ function extensionUpdatePageNotice(extensionId: string, updates: ExtensionUpdate
               {addedPermissions.map((id) => updates.permissionLabels[id] || id).join(", ")}.
             </p>
           ) : null}
-          <div className="fs-extensions-update-actions">
-            {action.kind === "update" && !action.disabled ? updateButton(entry, updates, t, true) : null}
-            {releaseNotesAnchor(entry, t)}
-          </div>
+          {action.kind === "update" && !action.disabled ? (
+            <ExtensionUpdatePageActions
+              key={`${entry.release_zip_sha256}:${entry.secret_update_repository ?? ""}`}
+              entry={entry}
+              updates={updates}
+            />
+          ) : <div className="fs-extensions-update-actions">{releaseNotesAnchor(entry, t)}</div>}
         </DsAlert>
       </div>
       {failed ? (

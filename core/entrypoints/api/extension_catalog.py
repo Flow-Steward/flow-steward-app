@@ -111,6 +111,7 @@ def create_extension_catalog_router(
                 approved_browser_authority_impact_hash=(
                     body.approved_browser_authority_impact_hash
                 ),
+                secret_update_repository=body.secret_update_repository,
             )
             if reload_extension_registries is not None:
                 reload_extension_registries()

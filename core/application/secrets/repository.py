@@ -425,6 +425,39 @@ def record_connection_approval(
     )
 
 
+def lock_connections_with_approvals(cur: Any, *, account_id: str, install_id: str) -> list[str]:
+    cur.execute(
+        """
+        SELECT pc.connection_id
+          FROM project_connections AS pc
+          JOIN catalog_secret_approvals AS a ON a.project_connection_id = pc.connection_id
+         WHERE pc.account_id::text = %s AND a.account_id = pc.account_id
+           AND pc.extension_install_id = %s
+         ORDER BY pc.connection_id
+         FOR UPDATE OF pc
+        """,
+        (account_id, install_id),
+    )
+    return [row["connection_id"] for row in _rows(cur, ("connection_id",))]
+
+
+def lock_workflow_approvals_for_receiver(
+    cur: Any, *, account_id: str, receiver: dict[str, Any]
+) -> list[dict[str, Any]]:
+    cur.execute(
+        """
+        SELECT id, projection_jsonb
+          FROM catalog_secret_approvals
+         WHERE account_id::text = %s AND consumer_kind = 'workflow'
+           AND projection_jsonb -> 'receivers' @> %s::jsonb
+         ORDER BY id
+         FOR UPDATE
+        """,
+        (account_id, json.dumps([receiver])),
+    )
+    return _rows(cur, ("id", "projection_jsonb"))
+
+
 def record_audit(
     cur: Any,
     *,

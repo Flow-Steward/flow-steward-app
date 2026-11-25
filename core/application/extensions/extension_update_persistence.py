@@ -6,6 +6,7 @@ from core.application.management.command_models import (
     ExtensionDescriptorImportFileInput,
     ExtensionReleaseInstallInput,
 )
+from core.application.secrets.repository import install_release
 
 from .archive_update_models import PreparedUpdate, UpdateRollbackState, account_id
 from .binding_context import ExtensionLifecycleContext
@@ -147,6 +148,11 @@ def persist_candidate_update(
         raise RuntimeError("Candidate release must be staged before persistence")
     caller_owns_transaction = context.archive_transaction_is_caller_owned(request.bl)
     with context.archive_lifecycle_transaction(request.bl) as transaction_conn:
+        secret_update = request.catalog_secret_update
+        previous_secret_release = None
+        if secret_update is not None:
+            with transaction_conn.cursor() as cur:
+                previous_secret_release = install_release(cur, install_id=secret_update.install_id)
         installed = state.sync_staged_extension_release(
             bl=request.bl,
             release_root=prepared.candidate_release_dir,
@@ -179,6 +185,14 @@ def persist_candidate_update(
                 enabled.extension or installed
             ),
         )
+        if secret_update is not None and previous_secret_release is not None:
+            secret_update.persist(
+                transaction_conn,
+                scope=request.scope,
+                previous_install=request.current_install,
+                previous_release=previous_secret_release,
+                install_store=request.install_store,
+            )
         rollback.lifecycle_commit_attempted = True
     return dict(enabled.extension or installed), caller_owns_transaction
 

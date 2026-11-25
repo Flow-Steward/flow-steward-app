@@ -358,6 +358,65 @@ def _catalog_db(create_database):
     return conn, project, connection_id, SecretCatalogService(lambda: conn, encrypt=lambda v: "enc")
 
 
+@pytest.mark.parametrize("destination_changed", [False, True])
+def test_trusted_release_carries_only_unchanged_connection_approvals(
+    create_database, destination_changed
+) -> None:
+    from core.application.secrets.release_approvals import carry_release_approvals
+
+    conn, _project_id, connection_id, service = _catalog_db(create_database)
+    try:
+        previous = {"release_id": "rel_secret_1", "descriptor_sha256": "a" * 64}
+        candidate = {"release_id": "rel_secret_2", "descriptor_sha256": "b" * 64}
+        with conn.cursor() as cur:
+            for version, release in (("1.0.0", previous), ("2.0.0", candidate)):
+                cur.execute(
+                    "INSERT INTO extension_releases "
+                    "(release_id, extension_id, release_version, descriptor_sha256) "
+                    "VALUES (%s, 'partner', %s, %s)",
+                    (release["release_id"], version, release["descriptor_sha256"]),
+                )
+            cur.execute(
+                "INSERT INTO extension_installs (extension_id, account_id, install_id, release_id) "
+                "VALUES ('partner', %s, 'pi_secret', %s)",
+                (ACCOUNT, previous["release_id"]),
+            )
+            cur.execute(
+                "UPDATE project_connections SET extension_id = 'partner', "
+                "extension_install_id = 'pi_secret' WHERE connection_id = %s",
+                (connection_id,),
+            )
+        status = service.save_connection_values(
+            connection_id, _human(), values={"api_token": "typed"}
+        )
+        service.approve_connections(_human(), approvals={connection_id: status["fingerprint"]})
+        with conn.cursor() as cur:
+            if destination_changed:
+                cur.execute(
+                    "UPDATE project_connections SET remote_base_url = 'https://new.example.test' "
+                    "WHERE connection_id = %s",
+                    (connection_id,),
+                )
+            cur.execute(
+                "UPDATE extension_installs SET release_id = %s WHERE install_id = 'pi_secret'",
+                (candidate["release_id"],),
+            )
+            carry_release_approvals(
+                cur,
+                account_id=ACCOUNT,
+                install_id="pi_secret",
+                previous=previous,
+                candidate=candidate,
+                repository="https://github.com/flow-steward/partner",
+                actor="updater",
+                actor_kind="human",
+            )
+        current = service.connection_approval_status(connection_id, _human())
+        assert current["status"] == ("approval_required" if destination_changed else "approved")
+    finally:
+        conn.close()
+
+
 def test_an_unapproved_configuration_and_a_stale_snapshot_are_refused(create_database) -> None:
     conn, _project_id, connection_id, service = _catalog_db(create_database)
     try:

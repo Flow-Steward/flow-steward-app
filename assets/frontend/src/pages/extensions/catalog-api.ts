@@ -67,6 +67,8 @@ export type ExtensionCatalogEntry = {
    * did not. Empty when nothing is added or the installed set is unknown.
    */
   added_permissions?: string[];
+  secret_update_repository?: string;
+  secret_update_repository_trusted?: boolean;
 };
 
 export type ExtensionCatalogListing = {
@@ -111,6 +113,7 @@ export async function installExtensionFromCatalog(
   version: string,
   releaseSha256: string,
   approvedBrowserAuthorityImpactHash = "",
+  secretUpdateRepository?: string,
 ) {
   return fetchJson<Record<string, unknown>>("/api/extensions/catalog/install", {
     method: "POST",
@@ -121,6 +124,9 @@ export async function installExtensionFromCatalog(
       ...(approvedBrowserAuthorityImpactHash
         ? { approved_browser_authority_impact_hash: approvedBrowserAuthorityImpactHash }
         : {}),
+      ...(secretUpdateRepository === undefined
+        ? {}
+        : { secret_update_repository: secretUpdateRepository }),
     }),
   });
 }

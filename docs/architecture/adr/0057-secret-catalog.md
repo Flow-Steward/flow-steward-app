@@ -122,7 +122,8 @@ accepted.
 - **What does not change the fingerprint:** replacing a secret's value, or editing a
   secret's metadata. Those are protected by `secrets:write` instead.
 - **What makes the configuration unapproved:** any change to the projection, including
-  a new extension release, a changed binding or a changed destination.
+  a changed binding, a changed destination, or a new extension release without
+  inherited approval from a trusted catalog update.
 - **How approval works.** It is a separate, protected operation. The server approves
   exactly the fingerprint the person was shown and returns a conflict if the
   configuration changed meanwhile. Approving several connections for one new release
@@ -132,6 +133,23 @@ accepted.
   way.
 - **Where it shows.** The consumer reports its approval status, and the status appears
   in the consumer's card and list.
+
+### Trusted catalog updates
+
+An interactive installation administrator can trust one extension's release
+repository when applying an update from the catalog. The host checks that the
+catalog's repository and archive URL identify the same GitHub repository and verifies
+the archive against the catalog's pinned digest. Trust is recorded for the account's
+install and its exact release. It can be cleared at the next catalog update.
+
+A later update can inherit trust when the previous install still points to the
+release recorded in the trust grant and the verified archive comes from the same
+repository. A manual upload or a different repository requires its own approval.
+The update transaction carries forward only existing approvals for the outgoing
+release. For project connections it requires the same executable configuration and
+bindings. For workflows it carries forward only matching extension receivers, with
+their project, step and tool identity intact. The workflow fingerprint and HTTP
+destinations retain their original approval. The audit records the release transition.
 
 ### Workflow inputs (2b)
 
@@ -197,8 +215,9 @@ accepted.
     allowlist. The call uses that row, after the same lineage checks.
   Identities carry no host paths, so one release is one identity on every host.
   An approval records the receivers per project, and the approval panel names each
-  one. A read must match the approved entry of its own job's project; a new
-  release, an edited tool manifest or a changed MCP connector needs a new approval.
+  one. A read must match the approved entry of its own job's project. A new release
+  needs a new approval unless a trusted catalog update inherited it. An edited
+  tool manifest or a changed MCP connector needs its own approval.
   A step whose receiver cannot be selected never receives a catalog secret. A
   workflow-local secret reaches connector inputs as before.
 - **Child workflows.** A catalog secret travels to an Invoke child only when the child
