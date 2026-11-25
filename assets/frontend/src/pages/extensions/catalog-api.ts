@@ -62,6 +62,7 @@ export type ExtensionCatalogEntry = {
   installed_version: string;
   installed_install_id: string;
   installed_release_id?: string;
+  installed_descriptor_sha256?: string;
   installed_state: string;
   /**
    * For an update: permissions this release asks for that the installed one
@@ -114,7 +115,7 @@ export async function installExtensionFromCatalog(
   version: string,
   releaseSha256: string,
   approvedBrowserAuthorityImpactHash = "",
-  secretUpdateTrust?: { repository: string; install_id: string; release_id: string },
+  secretUpdateTrust?: { repository: string; install_id: string; release_id: string; descriptor_sha256: string },
 ) {
   return fetchJson<Record<string, unknown>>("/api/extensions/catalog/install", {
     method: "POST",

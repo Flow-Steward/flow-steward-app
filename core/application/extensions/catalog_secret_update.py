@@ -70,6 +70,16 @@ class CatalogSecretUpdate:
     requested_repository: str | None
     repository_id: int | None
     expected_release_id: str | None = None
+    expected_descriptor_sha256: str | None = None
+
+    def require_expected_release(self, release: dict[str, Any]) -> None:
+        if self.expected_release_id is not None and (
+            self.expected_release_id != release["release_id"]
+            or self.expected_descriptor_sha256 != release["descriptor_sha256"]
+        ):
+            raise ServiceConflictError(
+                "The installed extension release changed. Reload the catalog before trusting its updates."
+            )
 
     def trusted_repository(self, install: Any, release: dict[str, Any]) -> str:
         if not self.repository_id:

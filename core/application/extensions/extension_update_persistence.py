@@ -135,6 +135,7 @@ def persist_candidate_update(
         if secret_update is not None:
             with transaction_conn.cursor() as cur:
                 previous_secret_release = install_release(cur, install_id=secret_update.install_id)
+            secret_update.require_expected_release(previous_secret_release)
         installed = state.sync_staged_extension_release(
             bl=request.bl,
             release_root=prepared.candidate_release_dir,

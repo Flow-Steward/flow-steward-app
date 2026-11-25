@@ -533,6 +533,9 @@ class ExtensionCatalogInstallService:
                     expected_release_id=secret_update_trust.release_id
                     if secret_update_trust
                     else None,
+                    expected_descriptor_sha256=secret_update_trust.descriptor_sha256
+                    if secret_update_trust
+                    else None,
                 )
             }
             if existing is not None
@@ -582,21 +585,14 @@ class ExtensionCatalogInstallService:
                 status_code=409,
             )
 
-    def _installed_permissions(self, install: Any) -> list[str] | None:
-        """The permissions the installed release asks for, or None when unknown."""
+    def _installed_release(self, install: Any) -> Any:
         release_id = str(getattr(install, "release_id", "") or "").strip()
         if self._get_runtime_store is None or not release_id:
             return None
         try:
-            release = self._get_runtime_store().get_release(release_id)
+            return self._get_runtime_store().get_release(release_id)
         except Exception:
             return None
-        if release is None:
-            return None
-        scopes = (getattr(release, "descriptor", None) or {}).get("required_scopes")
-        if not isinstance(scopes, (list, tuple)):
-            return None
-        return sorted({str(scope).strip() for scope in scopes if str(scope or "").strip()})
 
     def _require_item(self, extension_id: str) -> ExtensionCatalogItem:
         index = self._load_index()
@@ -643,10 +639,13 @@ class ExtensionCatalogInstallService:
         # extension page lists it above Update, because permissions are the
         # trust decision an update can change.
         added_permissions: list[str] = []
+        installed_release = None
         if display_state == STATE_UPDATE_AVAILABLE and install is not None:
-            installed = self._installed_permissions(install)
-            if installed is not None:
-                added_permissions = sorted(set(item.permissions_summary) - set(installed))
+            installed_release = self._installed_release(install)
+            scopes = (getattr(installed_release, "descriptor", None) or {}).get("required_scopes")
+            if isinstance(scopes, (list, tuple)):
+                installed = {str(scope).strip() for scope in scopes if str(scope or "").strip()}
+                added_permissions = sorted(set(item.permissions_summary) - installed)
         return {
             **item.as_dict(),
             "display_state": display_state,
@@ -659,6 +658,9 @@ class ExtensionCatalogInstallService:
             if install
             else "",
             "installed_release_id": str(getattr(install, "release_id", "") or ""),
+            "installed_descriptor_sha256": str(
+                getattr(installed_release, "descriptor_sha256", "") or ""
+            ),
             "installed_state": str(getattr(install, "state", "") or "") if install else "",
         }
 

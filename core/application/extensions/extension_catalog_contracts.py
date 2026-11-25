@@ -17,6 +17,7 @@ class CatalogSecretUpdateTrustRequest(BaseModel):
     repository: str = Field(max_length=250)
     install_id: str = Field(min_length=1, max_length=250)
     release_id: str = Field(min_length=1, max_length=250)
+    descriptor_sha256: str = Field(min_length=1, max_length=80)
 
 
 class ExtensionCatalogInstallRequest(BaseModel):

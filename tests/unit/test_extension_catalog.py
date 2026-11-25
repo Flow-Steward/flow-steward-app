@@ -33,7 +33,7 @@ from core.application.extensions.extension_catalog_install import (
     ExtensionCatalogInstallService,
     catalog_display_state,
 )
-from core.application.management.errors import ServiceForbiddenError
+from core.application.management.errors import ServiceConflictError, ServiceForbiddenError
 from core.application.management.scope import ScopeContext, normalize_scope
 from core.infrastructure.static_catalog import settings as catalog_settings
 from core.infrastructure.static_catalog.http_fetch import (
@@ -532,7 +532,10 @@ def test_catalog_update_passes_only_the_repository_of_the_verified_archive(monke
     )
     scope = ScopeContext(account_id="acc_7", principal_type="admin", auth_source="local")
     trust = CatalogSecretUpdateTrustRequest(
-        repository=repository, install_id="inst_a", release_id="rel_old"
+        repository=repository,
+        install_id="inst_a",
+        release_id="rel_old",
+        descriptor_sha256="c" * 64,
     )
     with pytest.raises(ServiceForbiddenError, match="signed in interactively"):
         service.install_from_catalog(
@@ -568,6 +571,10 @@ def test_catalog_update_passes_only_the_repository_of_the_verified_archive(monke
     assert update.repository_id == 12345
     assert update.install_id == "inst_a"
     assert update.expected_release_id == "rel_old"
+    assert update.expected_descriptor_sha256 == "c" * 64
+    update.require_expected_release({"release_id": "rel_old", "descriptor_sha256": "c" * 64})
+    with pytest.raises(ServiceConflictError, match="installed extension release changed"):
+        update.require_expected_release({"release_id": "rel_old", "descriptor_sha256": "d" * 64})
 
     index["items"][0]["release_zip_url"] = (
         "https://github.com/flow-steward/other/releases/download/v2.0.0/extension.zip"

@@ -170,7 +170,7 @@ function ExtensionUpdatePageActions({
   const phase = updates.installStateById[entry.extension_id]?.phase ?? "idle";
   return (
     <>
-      {repository && entry.installed_install_id && entry.installed_release_id ? (
+      {repository && entry.installed_install_id && entry.installed_release_id && entry.installed_descriptor_sha256 ? (
         <DsCheckbox
           checked={checked}
           disabled={phase !== "idle"}
@@ -215,7 +215,7 @@ function extensionUpdatePageNotice(extensionId: string, updates: ExtensionUpdate
           ) : null}
           {action.kind === "update" && !action.disabled ? (
             <ExtensionUpdatePageActions
-              key={`${entry.release_zip_sha256}:${entry.installed_release_id ?? ""}:${entry.secret_update_repository ?? ""}`}
+              key={`${entry.release_zip_sha256}:${entry.installed_release_id ?? ""}:${entry.installed_descriptor_sha256 ?? ""}:${entry.secret_update_repository ?? ""}`}
               entry={entry}
               updates={updates}
             />

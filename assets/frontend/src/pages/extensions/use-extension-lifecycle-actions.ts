@@ -407,6 +407,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
           repository: secretUpdateRepository,
           install_id: entry.installed_install_id,
           release_id: entry.installed_release_id ?? "",
+          descriptor_sha256: entry.installed_descriptor_sha256 ?? "",
         },
       );
       await refreshAfterInstalledSetChanged();
