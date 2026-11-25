@@ -229,6 +229,10 @@ class ExtensionArchiveInstallService:
             )
             if catalog_secret_update is not None and (
                 getattr(current_install, "install_id", None) != catalog_secret_update.install_id
+                or (
+                    catalog_secret_update.expected_release_id is not None
+                    and current_install.release_id != catalog_secret_update.expected_release_id
+                )
             ):
                 raise ServiceConflictError(
                     "Extension installation changed during the catalog update"

@@ -2329,6 +2329,15 @@ def test_extension_scan_preserves_active_remote_runtime_url() -> None:
         "entrypoint": {"mode": "remote_https"},
         "runtime": {"contract_version": "extension_host_v2"},
     }
+    provenance = {
+        "catalog_secret_update_trust": {
+            "repository": "https://github.com/acme/llm",
+            "repository_id": 12345,
+            "install_id": "existing-install",
+            "release_id": "902",
+            "descriptor_sha256": hashlib.sha256(json.dumps(manifest).encode("utf-8")).hexdigest(),
+        }
+    }
     conn.fetchone_results = [
         {"account_id": "acc_default", "display_name": "Main account", "is_active": True},
         {"id": 901},
@@ -2339,6 +2348,7 @@ def test_extension_scan_preserves_active_remote_runtime_url() -> None:
             "state": "active",
             "remote_base_url": "https://runtime.example.com",
             "release_id": "902",
+            "provenance_jsonb": provenance,
             "release_descriptor_sha256": hashlib.sha256(
                 json.dumps(manifest).encode("utf-8")
             ).hexdigest(),
@@ -2369,6 +2379,10 @@ def test_extension_scan_preserves_active_remote_runtime_url() -> None:
     sql, params = install_calls[-1]
     assert "remote_base_url" in sql
     assert params[8] == "https://runtime.example.com"
+    assert (
+        json.loads(params[6])["catalog_secret_update_trust"]
+        == provenance["catalog_secret_update_trust"]
+    )
     assert params[9] == "active"
     assert "remote_base_url = extension_installs.remote_base_url" in sql
     assert not any(

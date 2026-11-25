@@ -173,6 +173,7 @@ const UPDATE_ENTRY = catalogEntry({
   display_state: "update_available",
   installed_version: "1.9.0",
   installed_install_id: "inst_acme",
+  installed_release_id: "rel_acme_190",
   installed_state: "active",
   release_zip_url: "https://github.com/acme/ext-crm/releases/download/v1.10.0/acme_crm-1.10.0.zip",
   added_permissions: ["extension:network"],
@@ -806,7 +807,8 @@ describe("update notices (WordPress's update check)", () => {
     fireEvent.click(within(notice).getByRole("button", { name: "Update to v1.10.0" }));
 
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith(
-      "acme_crm", "1.10.0", DIGEST, "", repository,
+      "acme_crm", "1.10.0", DIGEST, "",
+      { repository, install_id: "inst_acme", release_id: "rel_acme_190" },
     ));
   });
 });

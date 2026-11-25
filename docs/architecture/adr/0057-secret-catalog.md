@@ -138,9 +138,11 @@ accepted.
 
 An interactive installation administrator can trust one extension's release
 repository when applying an update from the catalog. The host checks that the
-catalog's repository and archive URL identify the same GitHub repository and verifies
-the archive against the catalog's pinned digest. Trust is recorded for the account's
-install and its exact release. It can be cleared at the next catalog update.
+catalog's repository and archive URL identify the same GitHub repository. GitHub's
+release metadata for the immutable repository ID must report the same asset digest
+as the catalog, and the downloaded bytes must match it. Trust is recorded for the
+account's install and its exact release. It can be cleared at the next catalog
+update. Both choices pin the outgoing install and release shown to the administrator.
 
 A later update can inherit trust when the previous install still points to the
 release recorded in the trust grant and the verified archive comes from the same

@@ -403,7 +403,11 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
         entry.version,
         entry.release_zip_sha256,
         approvedImpactHash,
-        secretUpdateRepository,
+        secretUpdateRepository === undefined ? undefined : {
+          repository: secretUpdateRepository,
+          install_id: entry.installed_install_id,
+          release_id: entry.installed_release_id ?? "",
+        },
       );
       await refreshAfterInstalledSetChanged();
       setCatalogInstall(

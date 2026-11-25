@@ -46,12 +46,16 @@ def _trust(install: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def catalog_repository_is_trusted(install: Any, repository: str) -> bool:
+def catalog_repository_is_trusted(
+    install: Any, repository: str, *, repository_id: int | None = None
+) -> bool:
     trust = _trust(install)
     return bool(
         repository
         and getattr(install, "release_id", None)
         and trust.get("repository") == repository
+        and trust.get("repository_id")
+        and (repository_id is None or trust["repository_id"] == repository_id)
         and trust.get("install_id") == getattr(install, "install_id", None)
         and trust.get("release_id") == install.release_id
     )
@@ -64,12 +68,18 @@ class CatalogSecretUpdate:
     install_id: str
     repository: str
     requested_repository: str | None
+    repository_id: int | None
+    expected_release_id: str | None = None
 
     def trusted_repository(self, install: Any, release: dict[str, Any]) -> str:
+        if not self.repository_id:
+            return ""
         if self.requested_repository is not None:
             return self.requested_repository
         if (
-            catalog_repository_is_trusted(install, self.repository)
+            catalog_repository_is_trusted(
+                install, self.repository, repository_id=self.repository_id
+            )
             and install.release_id == release["release_id"]
             and _trust(install).get("descriptor_sha256") == release["descriptor_sha256"]
         ):
@@ -114,6 +124,7 @@ class CatalogSecretUpdate:
                     )
                 provenance[_TRUST_KEY] = {
                     "repository": trusted_repository,
+                    "repository_id": self.repository_id,
                     "install_id": self.install_id,
                     **candidate,
                 }
@@ -141,6 +152,7 @@ class CatalogSecretUpdate:
                     target={"install_id": self.install_id},
                     payload={
                         "repository": trusted_repository,
+                        "repository_id": self.repository_id,
                         "release_id": candidate["release_id"],
                     },
                 )

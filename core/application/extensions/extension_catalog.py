@@ -85,6 +85,45 @@ def fetch_extension_release_artifact(
     )
 
 
+def verify_github_release_repository(repository: str, item: ExtensionCatalogItem) -> int:
+    """Verify that GitHub's immutable repository owns the catalog asset digest."""
+    slug = repository.removeprefix("https://github.com/")
+    tag, filename = urlparse(item.release_zip_url).path.rsplit("/", 2)[-2:]
+
+    def github_json(path: str) -> dict[str, Any]:
+        return fetch_catalog_index_json(
+            f"https://api.github.com/{path}",
+            guard=_URL_GUARD,
+            max_bytes=MAX_CATALOG_INDEX_BYTES,
+            purpose="extension GitHub release provenance",
+            max_redirects=0,
+        ).payload
+
+    try:
+        repo = github_json(f"repos/{slug}")
+        repository_id = repo.get("id")
+        if type(repository_id) is not int or repository_id <= 0:
+            raise CatalogFetchError("GitHub did not return a repository ID")
+        if str(repo.get("full_name") or "").lower() != slug:
+            raise CatalogFetchError("GitHub returned a different repository")
+        release = github_json(f"repositories/{repository_id}/releases/tags/{quote(tag, safe='')}")
+        assets = release.get("assets")
+        if not isinstance(assets, list) or not any(
+            isinstance(asset, dict)
+            and asset.get("name") == filename
+            and asset.get("digest") == f"sha256:{item.release_zip_sha256}"
+            for asset in assets
+        ):
+            raise CatalogFetchError(
+                "GitHub did not associate the selected archive with the repository"
+            )
+    except CatalogFetchError as exc:
+        raise ExtensionCatalogError(
+            str(exc), code="extension_catalog_secret_repository_unverified"
+        ) from exc
+    return repository_id
+
+
 SCHEMA_VERSION = "extension_catalog/v1"
 PUBLICATION_STATUSES = frozenset({"published", "deprecated"})
 VERIFICATION_STATUSES = frozenset({"verified", "unverified"})

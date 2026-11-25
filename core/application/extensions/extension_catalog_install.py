@@ -37,8 +37,12 @@ from core.application.extensions.extension_catalog import (
     fetch_extension_release_artifact,
     load_extension_catalog,
     search_extension_catalog,
+    verify_github_release_repository,
 )
-from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
+from core.application.extensions.extension_catalog_contracts import (
+    CatalogSecretUpdateTrustRequest,
+    ExtensionCatalogInstallRequest,
+)
 from core.application.extensions.install import InstallState
 from core.application.extensions.lifecycle_ports import require_role
 from core.application.extensions.semver import compare_semver
@@ -410,7 +414,7 @@ class ExtensionCatalogInstallService:
         release_sha256: str,
         scope: ScopeContext | None = None,
         approved_browser_authority_impact_hash: str = "",
-        secret_update_repository: str | None = None,
+        secret_update_trust: CatalogSecretUpdateTrustRequest | None = None,
     ) -> Any:
         """Fetch, verify, and install the exact catalog release the card showed.
 
@@ -464,18 +468,38 @@ class ExtensionCatalogInstallService:
         if existing is not None:
             self._require_update(item, existing)
         repository = catalog_release_repository(item.repository_url, item.release_zip_url)
-        if secret_update_repository is not None:
+        if secret_update_trust is not None:
             scoped = normalize_scope(scope)
             require_approval_authority(scoped)
             require_role(scoped, "admin")
-            if existing is None or (
-                secret_update_repository and secret_update_repository != repository
+            if (
+                existing is None
+                or existing.install_id != secret_update_trust.install_id
+                or existing.release_id != secret_update_trust.release_id
+                or (secret_update_trust.repository and secret_update_trust.repository != repository)
             ):
                 raise ExtensionCatalogError(
                     "The extension installation or its release repository changed. Reload the catalog and try again.",
                     code="extension_catalog_secret_repository_changed",
                     status_code=409,
                 )
+        requested_repository = secret_update_trust.repository if secret_update_trust else None
+        trusted = catalog_repository_is_trusted(existing, repository)
+        repository_id = (
+            verify_github_release_repository(repository, item)
+            if requested_repository or (requested_repository is None and trusted)
+            else None
+        )
+        if (
+            trusted
+            and requested_repository is None
+            and not catalog_repository_is_trusted(existing, repository, repository_id=repository_id)
+        ):
+            raise ExtensionCatalogError(
+                "The GitHub repository identity has changed. Review the source before updating.",
+                code="extension_catalog_secret_repository_changed",
+                status_code=409,
+            )
 
         try:
             archive = self._fetch_artifact(
@@ -504,10 +528,15 @@ class ExtensionCatalogInstallService:
                 "_catalog_secret_update": CatalogSecretUpdate(
                     install_id=existing.install_id,
                     repository=repository,
-                    requested_repository=secret_update_repository,
+                    requested_repository=requested_repository,
+                    repository_id=repository_id,
+                    expected_release_id=secret_update_trust.release_id
+                    if secret_update_trust
+                    else None,
                 )
             }
-            if existing is not None and (repository or secret_update_repository is not None)
+            if existing is not None
+            and (repository_id is not None or secret_update_trust is not None)
             else {}
         )
         return self._get_binding_service().install_extension_archive(
@@ -629,6 +658,7 @@ class ExtensionCatalogInstallService:
             "installed_install_id": str(getattr(install, "install_id", "") or "")
             if install
             else "",
+            "installed_release_id": str(getattr(install, "release_id", "") or ""),
             "installed_state": str(getattr(install, "state", "") or "") if install else "",
         }
 

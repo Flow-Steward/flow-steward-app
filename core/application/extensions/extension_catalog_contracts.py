@@ -11,6 +11,14 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class CatalogSecretUpdateTrustRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    repository: str = Field(max_length=250)
+    install_id: str = Field(min_length=1, max_length=250)
+    release_id: str = Field(min_length=1, max_length=250)
+
+
 class ExtensionCatalogInstallRequest(BaseModel):
     """The exact release selected from the published catalog."""
 
@@ -22,7 +30,7 @@ class ExtensionCatalogInstallRequest(BaseModel):
     approved_browser_authority_impact_hash: str = Field(
         default="", max_length=64, pattern=r"^(?:|[a-f0-9]{64})$"
     )
-    secret_update_repository: str | None = Field(default=None, max_length=250)
+    secret_update_trust: CatalogSecretUpdateTrustRequest | None = None
 
 
 class ExtensionCatalogError(RuntimeError):
