@@ -347,6 +347,7 @@ class PlatformLoggerExtensionsAccountsRuntimeMixin:
                    install.state,
                    install.remote_base_url,
                    install.release_id,
+                   install.provenance_jsonb,
                    current_release.release_version AS current_release_version,
                    current_release.source_kind AS current_release_source_kind,
                    EXISTS (
@@ -488,6 +489,15 @@ class PlatformLoggerExtensionsAccountsRuntimeMixin:
             ),
         )
 
+        install_provenance = release_provenance
+        if existing_release_id == effective_release_id and (
+            effective_release_id != release_id or not target_descriptor_changed
+        ):
+            # A rescan or toggle of the same release must retain host-recorded approval.
+            install_provenance = {
+                **_as_dict(existing_install_row.get("provenance_jsonb")),
+                **release_provenance,
+            }
         install_values = (
             extension_key,
             version_value or "1.0.0",
@@ -495,7 +505,7 @@ class PlatformLoggerExtensionsAccountsRuntimeMixin:
             install_id,
             effective_release_id,
             descriptor_origin,
-            json.dumps(release_provenance),
+            json.dumps(install_provenance),
             runtime_mode,
             str(existing_install_row.get("remote_base_url") or "").strip() or None,
             install_state,
