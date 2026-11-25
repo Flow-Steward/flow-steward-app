@@ -173,6 +173,8 @@ const UPDATE_ENTRY = catalogEntry({
   display_state: "update_available",
   installed_version: "1.9.0",
   installed_install_id: "inst_acme",
+  installed_release_id: "rel_acme_190",
+  installed_descriptor_sha256: "c".repeat(64),
   installed_state: "active",
   release_zip_url: "https://github.com/acme/ext-crm/releases/download/v1.10.0/acme_crm-1.10.0.zip",
   added_permissions: ["extension:network"],
@@ -269,7 +271,7 @@ test("a plain install reports Installed only after the request returns, then off
   await clickInstall();
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(1));
-  expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "");
+  expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "", undefined);
   await waitFor(() => expect(screen.getByText("Installed.")).toBeInTheDocument());
   const open = await screen.findByRole("link", { name: "Open installed extension" });
   expect(open).toHaveAttribute("href", "/extensions/acme_crm#installed");
@@ -316,7 +318,7 @@ test("412 then confirm replays the approved hash and only then reports Installed
   fireEvent.click(screen.getByRole("button", { name: "Confirm and continue" }));
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(2));
-  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH);
+  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH, undefined);
   await waitFor(() => expect(screen.getByText("Installed.")).toBeInTheDocument());
 });
 
@@ -427,7 +429,7 @@ test("Update runs the catalog install call, says Updated to the version, and the
 
   await waitFor(() => expect(screen.getByRole("button", { name: "Updating…" })).toHaveAttribute("aria-busy", "true"));
   release();
-  await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+  await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "", undefined));
   // The Installed tab's row reports the same outcome; this is the Catalog page's.
   const catalogPanel = screen.getByRole("tabpanel", { name: "Catalog" });
   await waitFor(() => expect(within(catalogPanel).getByText("Updated to 1.10.0.")).toBeInTheDocument());
@@ -451,7 +453,7 @@ test("an Update that needs browser authority waits for approval, then replays th
   fireEvent.click(screen.getByRole("button", { name: "Confirm and continue" }));
 
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(2));
-  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH);
+  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH, undefined);
   await waitFor(() => expect(screen.getByText("Updated to 1.10.0.")).toBeInTheDocument());
 });
 
@@ -613,7 +615,7 @@ test.each([GRID_URL, "/extensions?mk_q=crm#marketplace"])("a superseded card ref
   mockedInstall.mockResolvedValueOnce({ status: "updated" });
   fireEvent.click(await quickUpdate("1.11.0"));
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(2));
-  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.11.0", NEWER_DIGEST, "");
+  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.11.0", NEWER_DIGEST, "", undefined);
 });
 
 test("the extension's page follows a superseded release to the new version", async () => {
@@ -647,12 +649,12 @@ test("a release superseded during browser approval ends the obsolete approval an
   expect(screen.queryByRole("dialog", { name: "Approve external browser code" })).not.toBeInTheDocument();
   expect(screen.getByText("A newer version 1.11.0 was published.")).toBeInTheDocument();
   expect(mockedInstall).toHaveBeenCalledTimes(2);
-  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH);
+  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.10.0", DIGEST, IMPACT_HASH, undefined);
 
   mockedInstall.mockResolvedValueOnce({ status: "updated" });
   fireEvent.click(update);
   await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(3));
-  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.11.0", NEWER_DIGEST, "");
+  expect(mockedInstall).toHaveBeenLastCalledWith("acme_crm", "1.11.0", NEWER_DIGEST, "", undefined);
 });
 
 test("the refusal is recognised by its code, never by its wording", async () => {
@@ -689,7 +691,7 @@ describe("update notices (WordPress's update check)", () => {
 
     fireEvent.click(within(table).getByRole("button", { name: "Update to v1.10.0" }));
 
-    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "", undefined));
     await waitFor(() => expect(within(table).getByText("Updated to 1.10.0.")).toBeInTheDocument());
     expect(within(table).queryByText("There is a new version of Acme CRM available.")).not.toBeInTheDocument();
     expect(mockedFetchUpdates.mock.calls.length).toBeGreaterThan(1);
@@ -723,10 +725,10 @@ describe("update notices (WordPress's update check)", () => {
 
     await waitFor(() => expect(within(table).getByRole("button", { name: "Queued" })).toBeDisabled());
     await waitFor(() => expect(mockedInstall).toHaveBeenCalledTimes(1));
-    expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "");
+    expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "", undefined);
 
     finishFirst();
-    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("beta_mail", "2.1.0", DIGEST, ""));
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("beta_mail", "2.1.0", DIGEST, "", undefined));
     await waitFor(() => expect(within(table).getByText("Updated to 2.1.0.")).toBeInTheDocument());
     expect(within(table).getByText("Updated to 1.10.0.")).toBeInTheDocument();
   });
@@ -784,8 +786,30 @@ describe("update notices (WordPress's update check)", () => {
     const detailReads = mockedFetchExtension.mock.calls.length;
     fireEvent.click(within(alert).getByRole("button", { name: "Update to v1.10.0" }));
 
-    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, ""));
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith("acme_crm", "1.10.0", DIGEST, "", undefined));
     // The page re-reads the extension, so it does not keep showing the old version.
     await waitFor(() => expect(mockedFetchExtension.mock.calls.length).toBeGreaterThan(detailReads));
+  });
+
+  test("the extension update can carry approved secrets from a repository the admin trusts", async () => {
+    const repository = "https://github.com/acme/acme_crm";
+    mockedFetchExtensions.mockResolvedValue([OLDER_RECORD] as never);
+    mockedFetchUpdates.mockResolvedValue(updateCheck([{
+      ...UPDATE_ENTRY,
+      secret_update_repository: repository,
+    }]));
+    mockedInstall.mockResolvedValue({ status: "updated" });
+    renderHub("/extensions/acme_crm");
+
+    const notice = await screen.findByTestId("extension-update-notice");
+    const trust = within(notice).getByRole("checkbox", { name: /Trust future updates/ });
+    expect(trust).not.toBeChecked();
+    fireEvent.click(trust);
+    fireEvent.click(within(notice).getByRole("button", { name: "Update to v1.10.0" }));
+
+    await waitFor(() => expect(mockedInstall).toHaveBeenCalledWith(
+      "acme_crm", "1.10.0", DIGEST, "",
+      { repository, install_id: "inst_acme", release_id: "rel_acme_190", descriptor_sha256: "c".repeat(64) },
+    ));
   });
 });

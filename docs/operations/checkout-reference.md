@@ -63,7 +63,7 @@ mismatch or download failure stops installation, without source fallback. Only
 explicit `./install.sh --from-source` builds the current checkout:
 
 ```bash
-git clone --branch v0.9.26 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone --branch v0.9.27 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```

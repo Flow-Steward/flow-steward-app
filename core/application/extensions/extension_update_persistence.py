@@ -6,11 +6,13 @@ from core.application.management.command_models import (
     ExtensionDescriptorImportFileInput,
     ExtensionReleaseInstallInput,
 )
+from core.application.secrets.repository import install_release
 
 from .archive_update_models import PreparedUpdate, UpdateRollbackState, account_id
 from .binding_context import ExtensionLifecycleContext
 from .binding_projection_service import ExtensionBindingProjectionService
 from .extension_state_service import ExtensionStateService
+from .install_browser_authority import persist_scanned_archive_browser_authority
 from .managed_release_service import ManagedReleaseService
 
 
@@ -50,7 +52,7 @@ def _apply_candidate_migrations(prepared: PreparedUpdate, transaction_conn: Any)
         )
 
 
-def _install_candidate_or_apply_handoff(
+def _install_candidate_descriptor_release(
     *, prepared: PreparedUpdate, managed_release: ManagedReleaseService
 ) -> None:
     request = prepared.request
@@ -77,25 +79,6 @@ def _install_candidate_or_apply_handoff(
             metadata_filename=EXTENSION_INSTALL_METADATA_FILENAME,
             install_id=str(install_result.install_id or ""),
         )
-        return
-    if request.browser_authority_handoff is None:
-        return
-    current = request.install_store.get(
-        extension_id=prepared.extension_id,
-        account_id=account_id(request.scope),
-    )
-    if current is None:
-        return
-    from .browser_authority_approval import with_browser_authority_approval
-
-    request.install_store.set_provenance(
-        extension_id=prepared.extension_id,
-        account_id=current.account_id,
-        provenance=with_browser_authority_approval(
-            current.provenance,
-            approval=request.browser_authority_handoff.approval,
-        ),
-    )
 
 
 def _reconcile_candidate_oauth_release(prepared: PreparedUpdate, transaction_conn: Any) -> None:
@@ -147,6 +130,12 @@ def persist_candidate_update(
         raise RuntimeError("Candidate release must be staged before persistence")
     caller_owns_transaction = context.archive_transaction_is_caller_owned(request.bl)
     with context.archive_lifecycle_transaction(request.bl) as transaction_conn:
+        secret_update = request.catalog_secret_update
+        previous_secret_release = None
+        if secret_update is not None:
+            with transaction_conn.cursor() as cur:
+                previous_secret_release = install_release(cur, install_id=secret_update.install_id)
+            secret_update.require_expected_release(previous_secret_release)
         installed = state.sync_staged_extension_release(
             bl=request.bl,
             release_root=prepared.candidate_release_dir,
@@ -154,7 +143,7 @@ def persist_candidate_update(
         )
         _import_candidate_descriptor(prepared)
         _apply_candidate_migrations(prepared, transaction_conn)
-        _install_candidate_or_apply_handoff(
+        _install_candidate_descriptor_release(
             prepared=prepared,
             managed_release=managed_release,
         )
@@ -171,6 +160,13 @@ def persist_candidate_update(
             _install_store=request.install_store,
             _runtime_store=request.runtime_store,
         )
+        if not prepared.candidate_release_id:
+            persist_scanned_archive_browser_authority(
+                handoff=request.browser_authority_handoff,
+                install_store=request.install_store,
+                runtime_store=request.runtime_store,
+                release_root=prepared.candidate_release_dir,
+            )
         projection.reconcile_callback_registrations(
             bl=request.bl,
             extension_id=prepared.extension_id,
@@ -179,6 +175,14 @@ def persist_candidate_update(
                 enabled.extension or installed
             ),
         )
+        if secret_update is not None and previous_secret_release is not None:
+            secret_update.persist(
+                transaction_conn,
+                scope=request.scope,
+                previous_install=request.current_install,
+                previous_release=previous_secret_release,
+                install_store=request.install_store,
+            )
         rollback.lifecycle_commit_attempted = True
     return dict(enabled.extension or installed), caller_owns_transaction
 

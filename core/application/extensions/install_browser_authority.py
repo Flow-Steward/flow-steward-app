@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+from pathlib import Path
 from typing import Any
 
 from core.application.management.command_models import ExtensionReleaseInstallInput
@@ -13,8 +14,10 @@ from .browser_authority_approval import (
     browser_authority_approval_provenance,
     browser_authority_impact,
     candidate_browser_tree_sha256,
+    current_browser_authority_impact,
     require_browser_authority_approval,
     resolve_browser_authority_manifest,
+    with_browser_authority_approval,
 )
 from .service_support import _normalize_text
 
@@ -115,4 +118,48 @@ def prepare_install_browser_authority(
     )
 
 
-__all__ = ["prepare_install_browser_authority"]
+def persist_scanned_archive_browser_authority(
+    *,
+    handoff: PreparedBrowserAuthorityApproval | None,
+    install_store: Any,
+    runtime_store: Any,
+    release_root: Path,
+) -> None:
+    """Bind the approved archive's browser authority to its published scan release."""
+    if handoff is None:
+        return
+    approved = handoff.impact
+    current = install_store.get(extension_id=approved.extension_id, account_id=approved.account_id)
+    release = (
+        runtime_store.get_release(current.release_id) if current and current.release_id else None
+    )
+    if release is None or release.release_version != handoff.candidate_version:
+        raise ServiceValidationError("Approved browser authority release is missing")
+
+    impact = current_browser_authority_impact(record=current, release=release)
+    if (
+        impact is None
+        or not impact.approval_required
+        or impact.bundle_root != str(release_root.resolve())
+        or impact.surface_fingerprint != approved.surface_fingerprint
+    ):
+        raise ServiceValidationError(
+            "Approved browser authority does not match the published bundle"
+        )
+
+    approval = browser_authority_approval_provenance(
+        impact,
+        actor_id=str(handoff.approval["actor_id"]),
+        approved_at=float(handoff.approval["approved_at"]),
+        approved_impact_hash=approved.impact_hash,
+    )
+    updated = install_store.set_provenance(
+        extension_id=approved.extension_id,
+        account_id=approved.account_id,
+        provenance=with_browser_authority_approval(current.provenance, approval=approval),
+    )
+    if updated is None:
+        raise ServiceValidationError("Approved browser authority could not be saved")
+
+
+__all__ = ["persist_scanned_archive_browser_authority", "prepare_install_browser_authority"]

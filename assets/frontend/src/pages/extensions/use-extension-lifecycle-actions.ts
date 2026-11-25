@@ -389,7 +389,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
    * a failure. It reports `Installed.` or `Updated to X.` on exactly one path:
    * a request that came back without raising.
    */
-  function installCatalogExtension(entry: ExtensionCatalogEntry) {
+  function installCatalogExtension(entry: ExtensionCatalogEntry, secretUpdateRepository?: string) {
     const extensionId = entry.extension_id;
     const updating = entry.display_state === "update_available";
     const cancelledText = updating
@@ -403,6 +403,12 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
         entry.version,
         entry.release_zip_sha256,
         approvedImpactHash,
+        secretUpdateRepository === undefined ? undefined : {
+          repository: secretUpdateRepository,
+          install_id: entry.installed_install_id,
+          release_id: entry.installed_release_id ?? "",
+          descriptor_sha256: entry.installed_descriptor_sha256 ?? "",
+        },
       );
       await refreshAfterInstalledSetChanged();
       setCatalogInstall(

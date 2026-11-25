@@ -9,7 +9,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.application.extensions.archive_install_service import ExtensionArchiveInstallService
+from core.application.extensions.archive_new_install_service import (
+    ExtensionArchiveNewInstallService,
+)
 from core.application.extensions.archive_validation_service import ValidatedExtensionBundle
+from core.application.extensions.browser_authority_approval import require_current_browser_authority
+from core.application.extensions.extension_runtime import ExtensionReleaseRecord
+from core.application.extensions.install import ExtensionInstallStore
 from core.application.management.errors import ServicePreconditionError
 from core.application.management.scope import ScopeContext
 from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
@@ -192,3 +198,79 @@ def test_archive_update_rejection_leaves_old_release_active(tmp_path: Path):
 
     assert current.state == "active"
     service._update.update_simple_extension_bundle.assert_not_called()
+
+
+def test_archive_install_attaches_approval_to_published_release(tmp_path: Path) -> None:
+    from core.application.extensions.archive_new_install_service import (
+        _NewInstallRequest,
+        _NewInstallRollbackState,
+    )
+
+    bundle = _bundle(tmp_path / "candidate")
+    scope = _scope()
+    archive_service = _service()
+    with pytest.raises(ServicePreconditionError) as preview:
+        archive_service._prepare_browser_authority_handoff(
+            bundle=bundle, current_install=None, resolved_scope=scope, approved_impact_hash=""
+        )
+    approved_hash = preview.value.payload["impact_hash"]
+    handoff = archive_service._prepare_browser_authority_handoff(
+        bundle=bundle,
+        current_install=None,
+        resolved_scope=scope,
+        approved_impact_hash=approved_hash,
+    )
+    release = ExtensionReleaseRecord(
+        release_id="published-release",
+        extension_id=bundle.extension_id,
+        release_version=bundle.version,
+        descriptor=bundle.compiled["compiled_manifest"],
+        descriptor_sha256="a" * 64,
+    )
+    install_store = ExtensionInstallStore()
+    install_store.install(
+        extension_id=bundle.extension_id,
+        account_id=scope.account_id,
+        version=bundle.version,
+        release_id=release.release_id,
+    )
+    runtime_store = MagicMock()
+    runtime_store.get_release.return_value = release
+    context = MagicMock()
+    context.archive_lifecycle_transaction.return_value = contextlib.nullcontext()
+    request = _NewInstallRequest(
+        bl=MagicMock(),
+        install_store=install_store,
+        runtime_store=runtime_store,
+        bundle_dir=bundle.bundle_dir,
+        compiled=bundle.compiled,
+        extension_id=bundle.extension_id,
+        extensions_root=tmp_path,
+        metadata_filename=".fs-extension-install.yaml",
+        scope=scope,
+        descriptor_name="",
+        browser_authority_handoff=handoff,
+        approved_browser_authority_impact_hash=approved_hash,
+    )
+
+    service = ExtensionArchiveNewInstallService(
+        context=context,
+        projection=MagicMock(),
+        managed_release=MagicMock(),
+        cleanup=MagicMock(),
+        state=MagicMock(),
+        get_logger=MagicMock(),
+    )
+    service._commit_new_install(
+        request=request,
+        state=_NewInstallRollbackState(
+            target_dir=tmp_path / "active",
+            staged_dir=tmp_path / "staged",
+            release_dir=bundle.bundle_dir,
+        ),
+    )
+
+    record = install_store.get(extension_id=bundle.extension_id, account_id=scope.account_id)
+    assert record is not None
+    require_current_browser_authority(record=record, release=release)
+    assert record.provenance["browser_authority_approval"]["approved_impact_hash"] == approved_hash

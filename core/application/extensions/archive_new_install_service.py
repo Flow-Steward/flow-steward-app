@@ -31,6 +31,7 @@ from .binding_context import ExtensionLifecycleContext
 from .binding_projection_service import ExtensionBindingProjectionService
 from .browser_authority_approval import PreparedBrowserAuthorityApproval
 from .extension_state_service import ExtensionStateService
+from .install_browser_authority import persist_scanned_archive_browser_authority
 from .lifecycle_ports import ERR_DATABASE_NOT_CONFIGURED, service_scope
 from .managed_release_service import ManagedReleaseService
 
@@ -285,22 +286,6 @@ class ExtensionArchiveNewInstallService:
             )
             if request.descriptor_name:
                 self._install_release_descriptor(request=request, state=state)
-            elif request.browser_authority_handoff is not None:
-                current = request.install_store.get(
-                    extension_id=request.extension_id,
-                    account_id=service_scope(request.scope).account_id or "acc_default",
-                )
-                if current is not None:
-                    from .browser_authority_approval import with_browser_authority_approval
-
-                    request.install_store.set_provenance(
-                        extension_id=request.extension_id,
-                        account_id=current.account_id,
-                        provenance=with_browser_authority_approval(
-                            current.provenance,
-                            approval=request.browser_authority_handoff.approval,
-                        ),
-                    )
             enabled = self._state.set_enabled_state_locked(
                 request.extension_id,
                 bl=request.bl,
@@ -313,6 +298,13 @@ class ExtensionArchiveNewInstallService:
                 _install_store=request.install_store,
                 _runtime_store=request.runtime_store,
             )
+            if not request.descriptor_name:
+                persist_scanned_archive_browser_authority(
+                    handoff=request.browser_authority_handoff,
+                    install_store=request.install_store,
+                    runtime_store=request.runtime_store,
+                    release_root=state.release_dir,
+                )
             state.lifecycle_commit_attempted = True
         return _CommittedNewInstall(
             installed=installed,

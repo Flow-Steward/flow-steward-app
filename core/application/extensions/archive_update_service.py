@@ -27,6 +27,7 @@ from .binding_context import (
     ExtensionRuntimeStoreType,
 )
 from .binding_projection_service import ExtensionBindingProjectionService
+from .catalog_secret_update import CatalogSecretUpdate
 from .extension_state_service import ExtensionStateService
 from .extension_update_persistence import persist_candidate_update
 from .managed_release_service import ManagedReleaseService
@@ -392,6 +393,7 @@ class ExtensionArchiveUpdateService:
         descriptor_name: str = "",
         browser_authority_handoff: Any | None = None,
         approved_browser_authority_impact_hash: str = "",
+        catalog_secret_update: CatalogSecretUpdate | None = None,
     ) -> ExtensionArchiveInstallResultView:
         if not bl:
             raise ServiceUnavailableError("Database not configured")
@@ -407,6 +409,7 @@ class ExtensionArchiveUpdateService:
             descriptor_name=descriptor_name,
             browser_authority_handoff=browser_authority_handoff,
             approved_browser_authority_impact_hash=(approved_browser_authority_impact_hash),
+            catalog_secret_update=catalog_secret_update,
         )
         prepared = self._prepare_update(request)
         self._adopt_unmanaged_layout(prepared)

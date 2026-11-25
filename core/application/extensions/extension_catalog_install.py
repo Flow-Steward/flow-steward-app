@@ -23,6 +23,11 @@ from typing import Any
 
 import yaml
 
+from core.application.extensions.catalog_secret_update import (
+    CatalogSecretUpdate,
+    catalog_release_repository,
+    catalog_repository_is_trusted,
+)
 from core.application.extensions.extension_catalog import (
     CAPABILITY_LABELS,
     PERMISSION_LABELS,
@@ -32,11 +37,17 @@ from core.application.extensions.extension_catalog import (
     fetch_extension_release_artifact,
     load_extension_catalog,
     search_extension_catalog,
+    verify_github_release_repository,
 )
-from core.application.extensions.extension_catalog_contracts import ExtensionCatalogInstallRequest
+from core.application.extensions.extension_catalog_contracts import (
+    CatalogSecretUpdateTrustRequest,
+    ExtensionCatalogInstallRequest,
+)
 from core.application.extensions.install import InstallState
+from core.application.extensions.lifecycle_ports import require_role
 from core.application.extensions.semver import compare_semver
 from core.application.management.scope import ScopeContext, normalize_scope
+from core.application.secrets.authority import require_approval_authority
 from core.infrastructure.config.version import get_app_version
 from core.infrastructure.static_catalog.http_fetch import (
     CatalogArtifactMismatchError,
@@ -403,6 +414,7 @@ class ExtensionCatalogInstallService:
         release_sha256: str,
         scope: ScopeContext | None = None,
         approved_browser_authority_impact_hash: str = "",
+        secret_update_trust: CatalogSecretUpdateTrustRequest | None = None,
     ) -> Any:
         """Fetch, verify, and install the exact catalog release the card showed.
 
@@ -455,6 +467,39 @@ class ExtensionCatalogInstallService:
         existing = self._installs_by_extension_id(scope=scope).get(item.extension_id)
         if existing is not None:
             self._require_update(item, existing)
+        repository = catalog_release_repository(item.repository_url, item.release_zip_url)
+        if secret_update_trust is not None:
+            scoped = normalize_scope(scope)
+            require_approval_authority(scoped)
+            require_role(scoped, "admin")
+            if (
+                existing is None
+                or existing.install_id != secret_update_trust.install_id
+                or existing.release_id != secret_update_trust.release_id
+                or (secret_update_trust.repository and secret_update_trust.repository != repository)
+            ):
+                raise ExtensionCatalogError(
+                    "The extension installation or its release repository changed. Reload the catalog and try again.",
+                    code="extension_catalog_secret_repository_changed",
+                    status_code=409,
+                )
+        requested_repository = secret_update_trust.repository if secret_update_trust else None
+        trusted = catalog_repository_is_trusted(existing, repository)
+        repository_id = (
+            verify_github_release_repository(repository, item)
+            if requested_repository or (requested_repository is None and trusted)
+            else None
+        )
+        if (
+            trusted
+            and requested_repository is None
+            and not catalog_repository_is_trusted(existing, repository, repository_id=repository_id)
+        ):
+            raise ExtensionCatalogError(
+                "The GitHub repository identity has changed. Review the source before updating.",
+                code="extension_catalog_secret_repository_changed",
+                status_code=409,
+            )
 
         try:
             archive = self._fetch_artifact(
@@ -478,11 +523,31 @@ class ExtensionCatalogInstallService:
             ) from exc
 
         _assert_archive_declares(archive, extension_id=item.extension_id, version=item.version)
+        secret_update = (
+            {
+                "_catalog_secret_update": CatalogSecretUpdate(
+                    install_id=existing.install_id,
+                    repository=repository,
+                    requested_repository=requested_repository,
+                    repository_id=repository_id,
+                    expected_release_id=secret_update_trust.release_id
+                    if secret_update_trust
+                    else None,
+                    expected_descriptor_sha256=secret_update_trust.descriptor_sha256
+                    if secret_update_trust
+                    else None,
+                )
+            }
+            if existing is not None
+            and (repository_id is not None or secret_update_trust is not None)
+            else {}
+        )
         return self._get_binding_service().install_extension_archive(
             filename=f"{item.extension_id}-{item.version}.zip",
             content=archive,
             scope=scope,
             approved_browser_authority_impact_hash=approved_browser_authority_impact_hash,
+            **secret_update,
         )
 
     @staticmethod
@@ -520,21 +585,14 @@ class ExtensionCatalogInstallService:
                 status_code=409,
             )
 
-    def _installed_permissions(self, install: Any) -> list[str] | None:
-        """The permissions the installed release asks for, or None when unknown."""
+    def _installed_release(self, install: Any) -> Any:
         release_id = str(getattr(install, "release_id", "") or "").strip()
         if self._get_runtime_store is None or not release_id:
             return None
         try:
-            release = self._get_runtime_store().get_release(release_id)
+            return self._get_runtime_store().get_release(release_id)
         except Exception:
             return None
-        if release is None:
-            return None
-        scopes = (getattr(release, "descriptor", None) or {}).get("required_scopes")
-        if not isinstance(scopes, (list, tuple)):
-            return None
-        return sorted({str(scope).strip() for scope in scopes if str(scope or "").strip()})
 
     def _require_item(self, extension_id: str) -> ExtensionCatalogItem:
         index = self._load_index()
@@ -576,23 +634,33 @@ class ExtensionCatalogInstallService:
         platform_version: str,
     ) -> dict[str, Any]:
         display_state = catalog_display_state(item, install, platform_version=platform_version)
+        repository = catalog_release_repository(item.repository_url, item.release_zip_url)
         # What the newer release asks for that the installed one did not: the
         # extension page lists it above Update, because permissions are the
         # trust decision an update can change.
         added_permissions: list[str] = []
+        installed_release = None
         if display_state == STATE_UPDATE_AVAILABLE and install is not None:
-            installed = self._installed_permissions(install)
-            if installed is not None:
-                added_permissions = sorted(set(item.permissions_summary) - set(installed))
+            installed_release = self._installed_release(install)
+            scopes = (getattr(installed_release, "descriptor", None) or {}).get("required_scopes")
+            if isinstance(scopes, (list, tuple)):
+                installed = {str(scope).strip() for scope in scopes if str(scope or "").strip()}
+                added_permissions = sorted(set(item.permissions_summary) - installed)
         return {
             **item.as_dict(),
             "display_state": display_state,
             "added_permissions": added_permissions,
+            "secret_update_repository": repository,
+            "secret_update_repository_trusted": catalog_repository_is_trusted(install, repository),
             "compatible": catalog_release_compatible(item, platform_version=platform_version),
             "installed_version": str(getattr(install, "version", "") or "") if install else "",
             "installed_install_id": str(getattr(install, "install_id", "") or "")
             if install
             else "",
+            "installed_release_id": str(getattr(install, "release_id", "") or ""),
+            "installed_descriptor_sha256": str(
+                getattr(installed_release, "descriptor_sha256", "") or ""
+            ),
             "installed_state": str(getattr(install, "state", "") or "") if install else "",
         }
 

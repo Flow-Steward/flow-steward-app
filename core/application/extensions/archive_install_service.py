@@ -12,6 +12,7 @@ from core.application.management.command_models_registry_tools import (
     ExtensionArchiveInstallResultView,
 )
 from core.application.management.errors import (
+    ServiceConflictError,
     ServiceUnavailableError,
     ServiceValidationError,
 )
@@ -41,6 +42,7 @@ from .browser_authority_approval import (
     candidate_browser_tree_sha256,
     require_browser_authority_approval,
 )
+from .catalog_secret_update import CatalogSecretUpdate
 from .extension_state_service import ExtensionStateService
 from .lifecycle_ports import (
     ERR_DATABASE_NOT_CONFIGURED,
@@ -153,6 +155,7 @@ class ExtensionArchiveInstallService:
         content: bytes,
         scope: ScopeContext | None = None,
         approved_browser_authority_impact_hash: str = "",
+        _catalog_secret_update: CatalogSecretUpdate | None = None,
     ) -> ExtensionArchiveInstallResultView:
         resolved_scope = service_scope(scope)
         require_global_extension_lifecycle_scope(resolved_scope)
@@ -189,6 +192,7 @@ class ExtensionArchiveInstallService:
                 resolved_scope=resolved_scope,
                 scope=scope,
                 approved_browser_authority_impact_hash=(approved_browser_authority_impact_hash),
+                catalog_secret_update=_catalog_secret_update,
             )
 
     def _install_validated_bundle(
@@ -201,6 +205,7 @@ class ExtensionArchiveInstallService:
         resolved_scope: ScopeContext,
         scope: ScopeContext | None,
         approved_browser_authority_impact_hash: str = "",
+        catalog_secret_update: CatalogSecretUpdate | None = None,
     ) -> ExtensionArchiveInstallResultView:
         install_store = self._context.install_store(bl)
         runtime_store = self._context.runtime_store(bl)
@@ -222,6 +227,16 @@ class ExtensionArchiveInstallService:
                 extensions_root=extensions_root,
                 install_store=install_store,
             )
+            if catalog_secret_update is not None and (
+                getattr(current_install, "install_id", None) != catalog_secret_update.install_id
+                or (
+                    catalog_secret_update.expected_release_id is not None
+                    and current_install.release_id != catalog_secret_update.expected_release_id
+                )
+            ):
+                raise ServiceConflictError(
+                    "Extension installation changed during the catalog update"
+                )
             handoff = self._prepare_browser_authority_handoff(
                 bundle=bundle,
                 current_install=current_install,
@@ -247,6 +262,7 @@ class ExtensionArchiveInstallService:
                     descriptor_name=descriptor_name,
                     browser_authority_handoff=handoff,
                     approved_browser_authority_impact_hash=(approved_browser_authority_impact_hash),
+                    catalog_secret_update=catalog_secret_update,
                 )
             target_dir = self._managed_release.managed_simple_extension_root(bundle.extension_id)
             if target_dir.exists():
