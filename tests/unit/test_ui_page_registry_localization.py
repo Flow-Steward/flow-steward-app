@@ -32,13 +32,17 @@ def test_settings_metadata_uses_lithuanian_profile_without_mutating_registration
         "retention": "Saugojimas",
         "notifications": "Pranešimai",
         "service_accounts": "Tarnybinės paskyros",
-        "model_providers": "Modelių tiekėjai",
+        "model_providers": "Pokalbių modeliai",
     }
     assert registries == original
     english_pages = resolve_registered_settings_pages(
         registries, auth_user={"roles": ["admin"], "locale": "en"}, include_core=True
     )
     assert english_pages[0]["title"] == "General"
+    assert (
+        next(page for page in english_pages if page["page_key"] == "model_providers")["title"]
+        == "Chat Models"
+    )
 
 
 def test_core_navigation_metadata_localizes_all_visible_label_fields() -> None:

@@ -5648,6 +5648,9 @@ msgstr ""
 msgid "react.extensions.this_version_also_asks_for"
 msgstr "Ši versija taip pat prašo:"
 
+msgid "react.extensions.trust_secret_updates_from_repository"
+msgstr "Leisti būsimiems naujinimams iš {repository} naudoti jau patvirtintas paslaptis"
+
 msgid "react.extensions.try_verifying_value0_again"
 msgstr "Bandyti dar kartą patikrinti {value0}"
 
@@ -12441,7 +12444,7 @@ msgid "react.settings.machine_tokens_issued_for_this_identity"
 msgstr "Šiai tapatybei išduoti mašininiai prieigos raktai."
 
 msgid "react.settings.manage_model_providers_available_to_workflow_execution"
-msgstr "Tvarkykite modelių tiekėjus, prieinamus darbo eigų vykdymui."
+msgstr "Agentai naudoja šiuos modelius pokalbiams ir įrankiams iškviesti."
 
 msgid "react.settings.manage_where_operational_updates_are_delivered_and_which_workflows_can_use_each_channel_channels_are_the_email"
 msgstr ""
@@ -12474,7 +12477,7 @@ msgid "react.settings.model_provider_verified"
 msgstr "Modelio tiekėjas patikrintas."
 
 msgid "react.settings.model_providers"
-msgstr "Modelių tiekėjai"
+msgstr "Pokalbių modeliai"
 
 msgid "react.settings.model_providers_unavailable"
 msgstr "Modelių tiekėjai nepasiekiami."
@@ -12713,6 +12716,21 @@ msgstr "Instrukcijų įterpimas"
 
 msgid "react.settings.prompt_injection_value1_context"
 msgstr "Instrukcijų įterpimo kontekstas: {value1}"
+
+msgid "react.settings.provider_discovery_empty"
+msgstr "Su šiuo API raktu nerasta aktualių pokalbių modelių."
+
+msgid "react.settings.provider_discovery_failed"
+msgstr "Nepavyko įkelti modelių. Patikrinkite API raktą arba įveskite modelio ID rankiniu būdu."
+
+msgid "react.settings.provider_discovery_help"
+msgstr "Įkelkite su šiuo API raktu pasiekiamus pokalbių modelius arba įveskite modelio ID rankiniu būdu. Išsaugojus pasirinktas modelis bus patikrintas."
+
+msgid "react.settings.provider_discovery_load"
+msgstr "Įkelti modelius"
+
+msgid "react.settings.provider_discovery_loading"
+msgstr "Įkeliami modeliai…"
 
 msgid "react.settings.provider_id_is_missing"
 msgstr "Trūksta tiekėjo ID."
@@ -13356,7 +13374,7 @@ msgid "react.settings.value1_action"
 msgstr "{value1} veiksmas"
 
 msgid "react.settings.value1_configured_providers_discovered_via_api_model_providers"
-msgstr "Per /api/model-providers aptikta sukonfigūruotų tiekėjų: {value1}."
+msgstr "Agentų pokalbiams sukonfigūruoti tiekėjai: {value1}."
 
 msgid "react.settings.value1_days"
 msgstr "Dienų: {value1}"
@@ -13889,7 +13907,7 @@ msgid "react.shared.messages"
 msgstr "Pranešimai"
 
 msgid "react.shared.model_providers"
-msgstr "Modelių tiekėjai"
+msgstr "Pokalbių modeliai"
 
 msgid "react.shared.model_routes"
 msgstr "Modelių maršrutai"
@@ -25757,7 +25775,7 @@ msgid "settings.tab.mcp_connectors"
 msgstr "MCP jungtys"
 
 msgid "settings.tab.model_providers"
-msgstr "Modelių tiekėjai"
+msgstr "Pokalbių modeliai"
 
 msgid "settings.tab.notifications"
 msgstr "Pranešimai"

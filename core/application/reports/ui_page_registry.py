@@ -147,7 +147,7 @@ _CORE_SETTINGS_PAGE_DEFINITIONS: tuple[dict[str, Any], ...] = (
     },
     {
         "page_key": "model_providers",
-        "title": "Model Providers",
+        "title": "Chat Models",
         "path": "/settings/providers",
         "nav_section": "settings_hub",
         "render_mode": "react_shell",
@@ -157,7 +157,7 @@ _CORE_SETTINGS_PAGE_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "sidebar_nav": False,
         "settings_tab": True,
         "sort_order": 70,
-        "loading_text": "Loading model providers...",
+        "loading_text": "Loading chat models...",
     },
     {
         "page_key": "account",

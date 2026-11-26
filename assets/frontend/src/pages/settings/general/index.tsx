@@ -75,8 +75,8 @@ export function SettingsGeneralPage() {
       </DsCard>
 
       <DsCard
-        description={t("react.settings.value1_configured_providers_discovered_via_api_model_providers", "{value1} configured providers discovered via /api/model-providers.", { value1: String(providerCount) })}
-        title={t("react.settings.model_providers", "Model providers")}
+        description={t("react.settings.value1_configured_providers_discovered_via_api_model_providers", "{value1} providers configured for agent chat.", { value1: String(providerCount) })}
+        title={t("react.settings.model_providers", "Chat Models")}
       >
         {overviewQuery.isLoading || loaderShown ? (
           loaderShown ? <p className="fs-empty-copy"><DsLoader label={t("settings.loading.model_providers", "Loading model providers…")} variant="orbit-inline" /></p> : null
@@ -99,7 +99,7 @@ export function SettingsGeneralPage() {
         <div className="fs-footer-actions">
           {[
             { href: "/settings/users", label: t("react.settings.user_management", "User management") },
-            { href: "/settings/providers", label: t("react.settings.model_providers", "Model providers") },
+            { href: "/settings/providers", label: t("react.settings.model_providers", "Chat Models") },
             { href: "/settings/security", label: t("react.settings.security_policy", "Security policy") },
             { href: "/settings/service-accounts", label: t("react.settings.service_accounts_2", "Service accounts") },
             { href: "/settings/notifications", label: t("react.settings.notification_channels", "Notification channels") },

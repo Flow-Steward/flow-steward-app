@@ -716,10 +716,13 @@ def test_stable_release_waits_for_anonymous_installer_pulls_and_retains_evidence
     assert "anonymous-installer" in upload["with"]["path"]
 
 
-def test_every_documented_install_clone_matches_candidate_version() -> None:
-    """A guide that still names an old tag sends new installs to that old release."""
+def test_default_install_clone_is_unpinned_and_explicit_pins_match_candidate() -> None:
+    """Quickstarts select the release at install time and explicit examples stay current."""
     root = Path(__file__).resolve().parents[2]
     version = (root / "VERSION").read_text().strip()
+    default_clone = "git clone https://github.com/Flow-Steward/flow-steward-app.git flow-steward"
+    for path in (root / "README.md", root / "docs/GUIDE.md"):
+        assert default_clone in path.read_text(encoding="utf-8")
     pattern = re.compile(r"git clone --branch (v\d+\.\d+\.\d+) \S*Flow-Steward/flow-steward-app")
     documents = [root / "README.md", *sorted((root / "docs").rglob("*.md"))]
     pinned = {
@@ -728,6 +731,4 @@ def test_every_documented_install_clone_matches_candidate_version() -> None:
         if "releases" not in path.relative_to(root).parts
         for tag in pattern.findall(path.read_text(encoding="utf-8"))
     }
-    assert "README.md" in pinned
-    assert "docs/GUIDE.md" in pinned
     assert {path: tag for path, tag in pinned.items() if tag != f"v{version}"} == {}

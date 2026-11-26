@@ -228,7 +228,8 @@ class ExtensionArchiveInstallService:
                 install_store=install_store,
             )
             if catalog_secret_update is not None and (
-                getattr(current_install, "install_id", None) != catalog_secret_update.install_id
+                current_install is None
+                or getattr(current_install, "install_id", None) != catalog_secret_update.install_id
                 or (
                     catalog_secret_update.expected_release_id is not None
                     and current_install.release_id != catalog_secret_update.expected_release_id

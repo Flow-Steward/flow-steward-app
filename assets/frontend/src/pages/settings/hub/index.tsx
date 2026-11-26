@@ -105,7 +105,7 @@ function getFallbackSettingsTabs(t: I18nContextValue["t"] = fallbackContext.t): 
   { pageKey: "service_accounts", path: "/settings/service-accounts", title: t("react.settings.service_accounts", "Service Accounts") },
   { pageKey: "retention", path: "/settings/retention", title: t("settings.retention.title", "Retention") },
   { pageKey: "notifications", path: "/settings/notifications", title: t("settings.tab.notifications", "Notifications") },
-  { pageKey: "model_providers", path: "/settings/providers", title: t("settings.tab.model_providers", "Model Providers") },
+  { pageKey: "model_providers", path: "/settings/providers", title: t("settings.tab.model_providers", "Chat Models") },
 ];
 }
 

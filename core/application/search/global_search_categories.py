@@ -38,7 +38,7 @@ _FAMILY_LABELS: tuple[tuple[str, str, str], ...] = (
     ("datasets", "Datasets", "admin"),
     ("saved_queries", "Saved queries", "admin"),
     ("data_connections", "Data connections", "admin"),
-    ("model_providers", "Model providers", "admin"),
+    ("model_providers", "Chat Models", "admin"),
     ("model_routes", "Model routes", "admin"),
     ("users", "Users", "admin"),
     ("workspaces", "Workspaces", "admin"),

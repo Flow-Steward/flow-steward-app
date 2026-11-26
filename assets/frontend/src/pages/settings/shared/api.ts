@@ -279,6 +279,17 @@ export async function fetchModelCatalogSettings(): Promise<SettingsEntity> {
   return fetchJson<SettingsEntity>("/api/settings/model-catalog");
 }
 
+export async function discoverModelProviderModels(
+  payload: { provider_type: string; api_key: string; provider_id: string },
+  signal: AbortSignal,
+) {
+  const response = await fetchJson<{ models: { model_id: string; label: string }[] }>(
+    "/api/model-providers/discover",
+    { method: "POST", body: JSON.stringify(payload), cache: "no-store", signal },
+  );
+  return response.models;
+}
+
 export async function createModelProvider(payload: SettingsEntity) {
   return fetchJson<unknown>("/api/model-providers", {
     method: "POST",

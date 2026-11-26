@@ -56,22 +56,23 @@ missing-Docker/Compose errors also link to the installation guides.
 For a Linux server, read the [Linux host autostart guidance](compact-scalable-deployment.md#linux-host-autostart)
 for Docker restart behavior and explicit retirement of a legacy systemd unit.
 
-Production installation downloads the published installer and complete official
-image set for a clean checkout at its published release tag. The tag must point
-to HEAD so local controller/schema inputs match that exact release. A checkout
-mismatch or download failure stops installation, without source fallback. Only
-explicit `./install.sh --from-source` builds the current checkout:
+In a fresh branch checkout, `./install.sh` selects the stable release marked
+Latest, records its exact tag and commit, and downloads the release into a
+separate checkout under `.flow-steward/`. The new installation uses a
+directory-specific Compose project. Reruns reuse the selected release, and
+`./flow-steward` manages it from the original checkout:
 
 ```bash
-git clone --branch v0.9.28 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ```
 
-Use a full clone for exact release verification. Keep tracked files clean.
+For a specific version, begin with a full, clean clone of its published tag.
+Every official installation verifies the exact release files and image revisions.
 For development use `./install.sh --environment development --deployment-profile scalable`
-from the same clean tag: Core comes from the official release, and only the frontend dev
-server and the test/audit images are built locally at that tag. Update it with
+to use the official Core images and build the frontend dev server and test/audit
+images from the release checkout. Update it with
 `./flow-steward release upgrade --confirm`, which needs a clean tree (commit or stash your
 changes first) and leaves the checkout on a detached HEAD at the new tag. Use
 `--from-source` when you change Core code: it builds every image from the checkout, on
@@ -113,11 +114,11 @@ The guided installer supports either bundled self-hosted storage or external
 S3-compatible storage. Production does not include the test runner, audit
 tools, Sonar, Mailpit, backend reload, or Vite HMR.
 
-In the guided UI, place S3 credentials and provided TLS files under the
-repository (for example `.flow-steward/import/`). To use an owner-only file
-elsewhere on the host, pass its absolute path directly as an `./install.sh`
-option; the launcher mounts that input file read-only. Generated TLS output
-paths must stay inside the repository.
+The guided UI reads S3 credentials and provided TLS files inside the release
+checkout. To import relative input paths from the launch directory, pass them
+as `./install.sh` options. For files elsewhere on the host, pass the absolute
+path explicitly so the installer can mount the input read-only. Keep generated
+TLS output paths inside the release checkout.
 
 If the installer detects a running pre-Phase3 stack without
 `.flow-steward/install-state.json`, it refuses automatic adoption and preserves

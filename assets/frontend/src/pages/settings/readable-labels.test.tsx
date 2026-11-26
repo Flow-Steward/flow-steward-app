@@ -66,7 +66,7 @@ describe("Settings readable labels with internal IDs unchanged", () => {
     expect(document.body).not.toHaveTextContent(new RegExp(internalId));
     expect(http.providers[0]?.id).toBe(internalId);
     expect(http.requests.every(({ method }) => method === "GET")).toBe(true);
-    expect(screen.getByRole("link", { name: "Model providers" })).toHaveAttribute("href", "/settings/providers");
+    expect(screen.getByRole("link", { name: "Chat Models" })).toHaveAttribute("href", "/settings/providers");
   });
 
   it("distinguishes loading provider inventory from an empty inventory", async () => {

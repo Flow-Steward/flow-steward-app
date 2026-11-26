@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from core.application.management import ServiceError
 
@@ -28,6 +28,23 @@ class ModelProviderMutationRequest(BaseModel):
     default_model: str = ""
     upstream_revision: str = Field(default="", max_length=512)
     config: dict[str, Any] = Field(default_factory=dict)
+
+
+class ModelProviderDiscoveryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provider_type: Literal["openai", "anthropic"]
+    api_key: SecretStr = Field(default=SecretStr(""), max_length=4096)
+    provider_id: str = Field(default="", max_length=128)
+
+
+class ModelProviderDiscoveryOption(BaseModel):
+    model_id: str
+    label: str
+
+
+class ModelProviderDiscoveryResponse(BaseModel):
+    models: list[ModelProviderDiscoveryOption]
 
 
 def create_api_model_providers_router(
@@ -68,6 +85,26 @@ def create_api_model_providers_router(
         except Exception as e:
             return api_error_response(e)
         return JSONResponse(jsonable_encoder(result), status_code=201)
+
+    @router.post("/api/model-providers/discover", response_model=ModelProviderDiscoveryResponse)
+    async def api_discover_model_provider_models(
+        request: Request, body: ModelProviderDiscoveryRequest, response: Response
+    ):
+        try:
+            scope = request_scope(request)
+            models = await asyncio.to_thread(
+                model_provider_command_service().discover_model_provider_models,
+                body.provider_type,
+                api_key=body.api_key.get_secret_value(),
+                provider_id=body.provider_id,
+                scope=scope,
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        response.headers["Cache-Control"] = "no-store"
+        return {"models": models}
 
     @router.put("/api/model-providers/{provider_id}")
     async def api_update_model_provider(

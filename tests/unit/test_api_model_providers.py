@@ -190,3 +190,41 @@ def test_provider_mutation_accepts_upstream_revision_evidence() -> None:
     assert response.status_code == 201
     command = service.create_model_provider.call_args.args[0]
     assert command["upstream_revision"] == "sha256:revision-a"
+
+
+def test_discover_provider_models_offloads_account_scoped_lookup(monkeypatch) -> None:
+    service = MagicMock()
+    service.discover_model_provider_models.return_value = [
+        {"model_id": "new-model", "label": "New model"}
+    ]
+    scope = SimpleNamespace(account_id="acc-1")
+    offloaded: list[str] = []
+
+    async def _to_thread(function, *args, **kwargs):
+        offloaded.append(function._mock_name)
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr(model_providers.asyncio, "to_thread", _to_thread)
+    app = FastAPI()
+    app.include_router(
+        model_providers.create_api_model_providers_router(
+            model_provider_command_service=lambda: service,
+            request_scope=lambda _request: scope,
+            service_error_response=lambda error: JSONResponse(
+                {"error": str(error)}, status_code=error.status_code
+            ),
+            api_error_response=lambda _error: JSONResponse({}, status_code=500),
+        )
+    )
+    response = TestClient(app).post(
+        "/api/model-providers/discover",
+        json={"provider_type": "anthropic", "provider_id": "provider-1"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"models": [{"model_id": "new-model", "label": "New model"}]}
+    service.discover_model_provider_models.assert_called_once_with(
+        "anthropic", api_key="", provider_id="provider-1", scope=scope
+    )
+    assert offloaded == ["discover_model_provider_models"]
+    assert response.headers["cache-control"] == "no-store"

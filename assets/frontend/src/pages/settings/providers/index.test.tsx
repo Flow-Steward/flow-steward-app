@@ -2,12 +2,13 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
+import { HttpError } from "@/lib/http/errors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { SettingsProvidersPage } from "@/pages/settings/providers";
 import {
   createModelProvider,
-  fetchModelCatalogSettings,
+  discoverModelProviderModels,
   fetchModelProvidersCollection,
   reverifyModelProvider,
   updateModelProvider,
@@ -16,14 +17,14 @@ import {
 vi.mock("@/pages/settings/shared/api", () => ({
   createModelProvider: vi.fn(),
   deleteModelProvider: vi.fn(),
-  fetchModelCatalogSettings: vi.fn(),
+  discoverModelProviderModels: vi.fn(),
   fetchModelProvidersCollection: vi.fn(),
   reverifyModelProvider: vi.fn(),
   updateModelProvider: vi.fn(),
 }));
 
 const mockedCreateModelProvider = vi.mocked(createModelProvider);
-const mockedFetchModelCatalogSettings = vi.mocked(fetchModelCatalogSettings);
+const mockedDiscoverModelProviderModels = vi.mocked(discoverModelProviderModels);
 const mockedFetchModelProvidersCollection = vi.mocked(
   fetchModelProvidersCollection,
 );
@@ -54,27 +55,14 @@ async function chooseType(user: User, label: string) {
 describe("SettingsProvidersPage", () => {
   beforeEach(() => {
     mockedCreateModelProvider.mockReset();
-    mockedFetchModelCatalogSettings.mockReset();
+    mockedDiscoverModelProviderModels.mockReset();
     mockedFetchModelProvidersCollection.mockReset();
     mockedReverifyModelProvider.mockReset();
     mockedUpdateModelProvider.mockReset();
     mockedFetchModelProvidersCollection.mockResolvedValue([] as never);
-    mockedFetchModelCatalogSettings.mockResolvedValue({
-      families: [
-        {
-          family_id: "openai",
-          models: [{ model_id: "gpt-5.6-terra", label: "GPT-5.6 Terra" }],
-        },
-        {
-          family_id: "anthropic",
-          models: [{ model_id: "claude-sonnet-5", label: "Claude Sonnet 5" }],
-        },
-        {
-          family_id: "google",
-          models: [{ model_id: "gemini-3-pro", label: "Gemini 3 Pro" }],
-        },
-      ],
-    } as never);
+    mockedDiscoverModelProviderModels.mockResolvedValue([
+      { model_id: "new-model", label: "New model" },
+    ]);
     mockedReverifyModelProvider.mockResolvedValue({
       verification_status: "passed",
     } as never);
@@ -149,18 +137,92 @@ describe("SettingsProvidersPage", () => {
     expect(screen.queryByLabelText("API version")).not.toBeInTheDocument();
   });
 
-  it("offers official provider presets with catalog model choices and no editable endpoint", async () => {
+  it("loads current models on demand and clears suggestions when the provider changes", async () => {
     const user = userEvent.setup();
     renderPage();
 
     await user.click(screen.getByRole("button", { name: "Add provider" }));
-
-    expect(screen.getByRole("combobox", { name: "Provider type" })).toHaveTextContent("OpenAI (official)");
+    const loadModels = screen.getByRole("button", { name: "Load models" });
+    const defaultModel = screen.getByLabelText("Default model");
+    expect(loadModels).toBeDisabled();
+    expect(defaultModel).not.toHaveAttribute("list");
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Default model")).toHaveAttribute(
-      "list",
-      "provider-default-model-options",
+
+    const enteredKey = "openai-test";
+    await user.type(screen.getByLabelText("API key"), enteredKey);
+    await user.click(loadModels);
+    expect(mockedDiscoverModelProviderModels).toHaveBeenCalledWith(
+      { provider_type: "openai", api_key: enteredKey, provider_id: "" },
+      expect.any(AbortSignal),
     );
+    await waitFor(() => expect(defaultModel).toHaveAttribute("list", "provider-default-model-options"));
+    expect(screen.getByText("New model", { selector: "option" })).toHaveValue("new-model");
+
+    await chooseType(user, "Anthropic (official)");
+    expect(defaultModel).not.toHaveAttribute("list");
+    expect(loadModels).toBeDisabled();
+    await user.click(screen.getByRole("combobox", { name: "Provider type" }));
+    expect(screen.queryByRole("option", { name: /google/i })).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByText(/google|vertex/i)).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "Catalog" })).not.toBeInTheDocument();
+  });
+
+  it("aborts model discovery when the key changes and ignores its late result", async () => {
+    let finishRequest: (() => void) | undefined;
+    let requestSignal: AbortSignal | undefined;
+    mockedDiscoverModelProviderModels.mockImplementation((_payload, signal) => {
+      requestSignal = signal;
+      return new Promise((resolve) => {
+        finishRequest = () => resolve([{ model_id: "stale-model", label: "Stale model" }]);
+      });
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Add provider" }));
+    const key = screen.getByLabelText("API key");
+    await user.type(key, "old-key");
+    await user.click(screen.getByRole("button", { name: "Load models" }));
+    await user.clear(key);
+    expect(requestSignal?.aborted).toBe(true);
+    finishRequest?.();
+
+    await waitFor(() => expect(screen.getByLabelText("Default model")).not.toHaveAttribute("list"));
+  });
+
+  it("shows a safe provider error and keeps the manual model selection", async () => {
+    mockedDiscoverModelProviderModels.mockRejectedValue(new HttpError({
+      payload: { code: "rate_limited", message: "Could not load models from the provider" },
+      status: 502,
+      url: "/api/model-providers/discover",
+    }));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "Add provider" }));
+    await chooseType(user, "Anthropic (official)");
+    await user.type(screen.getByLabelText("API key"), "test-key");
+    const model = screen.getByLabelText("Default model");
+    await user.type(model, "manual-model");
+    await user.click(screen.getByRole("button", { name: "Load models" }));
+
+    await waitFor(() => expect(screen.getByText("The provider is rate limited. Try again later.")).toBeVisible());
+    expect(model).toHaveValue("manual-model");
+    expect(model).not.toHaveAttribute("list");
+  });
+
+  it("keeps existing Google providers verifiable and removable outside the provider form", async () => {
+    mockedFetchModelProvidersCollection.mockResolvedValue([
+      { id: "google-1", name: "Existing Google", provider_type: "google", default_model: "gemini-model" },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Existing Google" }));
+    expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Verify" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+    expect(screen.getByText("gemini-model")).toBeVisible();
   });
 
   it("omits hidden Azure fields after switching to OpenAI Compatible", async () => {

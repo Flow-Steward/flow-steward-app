@@ -175,6 +175,53 @@ class ModelProviderCommandService:
             if not result_published:
                 release_claim()
 
+    def discover_model_provider_models(
+        self,
+        provider_type: str,
+        *,
+        api_key: str,
+        provider_id: str,
+        scope: ScopeContext | None = None,
+    ) -> list[dict[str, str]]:
+        from core.application.settings.official_model_discovery import (
+            DISCOVERABLE_PROVIDER_TYPES,
+            ModelDiscoveryError,
+            discover_official_models,
+        )
+
+        if provider_type not in DISCOVERABLE_PROVIDER_TYPES:
+            raise ServiceValidationError("This provider does not support official model discovery")
+        key = api_key.strip()
+        if not key and provider_id:
+            from core.application.auth.secrets import decrypt_secret
+
+            account_id = str(_service_scope(scope).account_id or "").strip()
+            if not account_id:
+                raise ServiceNotFoundError(_MESSAGE_MODEL_PROVIDER_NOT_FOUND)
+            conn = self._logger().conn
+            provider = model_provider_store.get_model_provider(
+                conn, provider_id=provider_id, account_id=account_id
+            )
+            if provider is None or provider.get("provider_type") != provider_type:
+                raise ServiceNotFoundError(_MESSAGE_MODEL_PROVIDER_NOT_FOUND)
+            if secret_ref := provider.get("api_key_ref"):
+                ciphertext = model_provider_store.get_secret_ref_ciphertext(
+                    conn, account_id=account_id, ref_key=secret_ref
+                )
+                if ciphertext:
+                    key = decrypt_secret(ciphertext)
+        if not key:
+            raise ServiceValidationError("An API key is required to load models")
+        try:
+            return discover_official_models(provider_type, key)
+        except ModelDiscoveryError as exc:
+            code = str(exc)
+            raise ServiceError(
+                "Could not load models from the provider",
+                status_code=422 if code == "authentication_error" else 502,
+                payload={"code": code, "message": "Could not load models from the provider"},
+            ) from None
+
     def create_model_provider(
         self, command: dict[str, Any], *, scope: ScopeContext | None = None
     ) -> dict[str, Any]:
@@ -334,6 +381,8 @@ class ModelProviderCommandService:
             if existing is None:
                 raise ServiceNotFoundError(_MESSAGE_MODEL_PROVIDER_NOT_FOUND)
             previous_ref = str(existing.get("api_key_ref") or "").strip()
+            if previous_ref and not api_key and existing.get("provider_type") != provider_type:
+                raise ServiceValidationError("Enter a new API key when changing the provider type")
             effective_ref = ref_key or previous_ref or None
             routing_changed = bool(api_key) or any(
                 (
