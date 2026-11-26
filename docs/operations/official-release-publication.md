@@ -103,8 +103,10 @@ imply that unexecuted tests passed.
 
 ## Sequence
 
-1. Complete selected verification and any separately requested full acceptance,
-   commit the reviewed versioned notes, then create and push the immutable tag.
+1. Commit the reviewed versioned notes on a pre-release branch. Complete selected
+   verification and any separately requested full acceptance, then use the
+   [guarded release PR merge](remote-quality.md#pre-release-branches). Create and
+   push the immutable tag on the verified PR head after it is merged.
 2. On native AMD64, set `FS_RELEASE_PLATFORM=linux/amd64` and run
    `scripts/release/official-release-build.sh`.
 3. On native ARM64, use the same tag, revision, and artifact directory, set
@@ -258,8 +260,8 @@ The full gate builds its PostgreSQL dependency and audit image on a dedicated
 runner, with the repository's development example environment and disposable audit
 DB/broker. It does not connect to a production installation.
 
-After local impacted verification and reviewed versioned notes, push the matching
-stable tag `vX.Y.Z`. The workflow validates the tag, VERSION, clean source and main
+After the guarded release PR merge, push the matching stable tag `vX.Y.Z` on the
+verified PR head. The workflow validates the tag, VERSION, clean source and main
 ancestry, records publication scope without starting a full quality run, builds each native role set and
 retains OCI archives for 30 days. It validates archive checksums before accessing
 registries and rejects any existing version whose child/index digests differ.

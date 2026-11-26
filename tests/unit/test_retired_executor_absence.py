@@ -112,16 +112,10 @@ _EXTERNAL_CODE_CLIENT = "Clau" + "de Code"
 # install lifecycle for the same local clients in its own README.
 _AGENT_SKILL_PACKAGES = ("flow-steward-operator", "flow-steward-developer")
 ALLOWED_TOOLKIT_DOCUMENTATION_LINES = {
-    # Reviewed source-control request refs, not a bundled product executor.
-    # Only these exact operator/ADR lines are allowed; runtime references remain banned.
+    # Reviewed diagnostic ref and historical ADR lines.
     Path("docs/operations/remote-quality.md"): {
         line.lower().encode("utf-8")
         for line in (
-            f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-release/my-task",
-            f"git push origin HEAD:refs/heads/{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/my-task",
-            f"the dedicated `{_EXTERNAL_AGENT_RUNTIME}/remote-quality-pilot` branch: its push runs `release-sonar`",
-            f"`{_EXTERNAL_AGENT_RUNTIME}/verify-release/` or `{_EXTERNAL_AGENT_RUNTIME}/verify-sonar/` ref: those refs request a full run.",
-            f"the bootstrap ref `{_EXTERNAL_AGENT_RUNTIME}/quality-reuse-live` forces this diagnostic even on push;",
             f"`secret-scan-only`. The dedicated `{_EXTERNAL_AGENT_RUNTIME}/secret-scan-live` measurement ref always",
         )
     },

@@ -814,8 +814,9 @@ Notes:
 - `--sonar-full` intentionally skips `tests/**` to keep scans stable and avoid scanner OOM on large suites.
 - `--sonar-full` auto-applies tuned RAM defaults (configurable via `*_FULL` vars in `.env.example`).
 
-GitHub Actions are disabled. Run Tier 1–3 and SonarQube locally in Docker;
-no GitHub CI artifact or status check is required for merge or release.
+Run affected Tier 1 checks locally in Docker. Use the
+[pre-release branch workflow](remote-quality.md#pre-release-branches) to verify
+Tier 2 and CodeQL before merging a release PR. Request Tier 3 and Sonar separately.
 
 ### Image Targets
 
