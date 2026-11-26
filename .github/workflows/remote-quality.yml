@@ -1,7 +1,9 @@
 name: Remote quality pilot
-run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }} · ${{ github.ref_name }}
+run-name: Quality ${{ (github.event_name == 'push' && 'pre-release') || (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }} · ${{ github.ref_name }}
 
 on:
+  push:
+    branches: ['release/**', '*/release-[0-9]*']
   # Weekly backstop for impacted-test selection (ADR 0070): main's Tier 3
   # suites run whole and rebuild their impact maps.
   schedule:
@@ -29,13 +31,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: remote-quality-${{ github.ref }}
+  group: remote-quality-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }}
+  QUALITY_MODE: ${{ (github.event_name == 'push' && 'pre-release') || (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }}
 
 jobs:
   quality:
@@ -182,9 +184,9 @@ jobs:
               sudo chmod -R g+rwX "$output"
             fi
           done
-      - name: Find a bounded official per-file scanner cache for this dispatch
+      - name: Find a bounded official per-file scanner cache for this candidate
         id: scanner-cache-source
-        if: github.event_name == 'workflow_dispatch' && env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check' && steps.restore-source-evidence.outcome != 'success'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check' && steps.restore-source-evidence.outcome != 'success'
         continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         with:

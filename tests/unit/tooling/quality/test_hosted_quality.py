@@ -68,7 +68,7 @@ def test_main_is_fetched_again_and_stale_candidate_is_rejected(
     assert "Update this branch from origin/main" in result.stderr
 
 
-@pytest.mark.parametrize("mode", ["release", "release-sonar"])
+@pytest.mark.parametrize("mode", ["pre-release", "release", "release-sonar", "release-full"])
 def test_release_candidate_behind_main_is_rejected_with_both_commits(
     candidate: tuple[Path, dict[str, str]], mode: str
 ) -> None:
@@ -382,10 +382,86 @@ def _remote_quality_workflow() -> dict:
     return yaml.safe_load((source_root / ".github/workflows/remote-quality.yml").read_text())
 
 
-def test_remote_quality_requires_dispatch_or_weekly_schedule() -> None:
+def test_remote_quality_automates_only_pre_release_pushes() -> None:
     workflow = _remote_quality_workflow()
     events = workflow.get("on", workflow.get(True))
-    assert set(events) == {"workflow_dispatch", "schedule"}
+    assert set(events) == {"push", "workflow_dispatch", "schedule"}
+    assert events["push"] == {"branches": ["release/**", "*/release-[0-9]*"]}
+    assert "github.event_name == 'push' && 'pre-release'" in workflow["env"]["QUALITY_MODE"]
+    assert "github.event_name" in workflow["concurrency"]["group"]
+    for name in ("tier3", "release_gate", "sonar"):
+        assert "github.event_name == 'push'" not in workflow["jobs"][name]["if"]
+
+
+@pytest.mark.parametrize(
+    ("quality", "codeql", "behind", "error"),
+    [
+        ("success", "success", "0", ""),
+        ("cancelled", "success", "0", "Quality"),
+        ("missing", "success", "0", "Quality"),
+        ("old-mode", "success", "0", "Quality"),
+        ("old-sha", "success", "0", "Quality"),
+        ("success", "failure", "0", "CodeQL"),
+        ("success", "success", "1", "main"),
+    ],
+)
+def test_release_merge_requires_green_checks_on_current_candidate(
+    tmp_path: Path, quality: str, codeql: str, behind: str, error: str
+) -> None:
+    gh = tmp_path / "gh"
+    gh.write_text(
+        f"#!{sys.executable}\n"
+        + """\
+import os
+import sys
+
+args = sys.argv[1:]
+sha = "a" * 40
+branch = "release/0.9.29"
+if args[:2] == ["pr", "view"]:
+    print(branch, sha, sep="\\t")
+elif args[:2] == ["run", "list"]:
+    assert args[args.index("--branch") + 1] == branch
+    assert args[args.index("--commit") + 1] == sha
+    assert args[args.index("--event") + 1] == "push"
+    quality = args[args.index("--workflow") + 1] == "remote-quality.yml"
+    conclusion = os.environ["QUALITY_RESULT" if quality else "CODEQL_RESULT"]
+    if conclusion != "missing":
+        title = f"Quality pre-release · {branch}" if quality else "CodeQL"
+        if conclusion == "old-mode":
+            title = f"Quality tier2 · {branch}"
+        print("b" * 40 if conclusion == "old-sha" else sha, "completed",
+              "success" if conclusion in {"old-mode", "old-sha"} else conclusion, title, sep="\\t")
+elif args[0] == "api":
+    assert args[1].endswith("/compare/main..." + sha)
+    print(os.environ["BEHIND_MAIN"])
+elif args[:2] == ["pr", "merge"]:
+    assert args[args.index("--match-head-commit") + 1] == sha
+    print("merged exact candidate")
+else:
+    raise AssertionError(args)
+"""
+    )
+    gh.chmod(0o755)
+    result = subprocess.run(
+        ["bash", str(SCRIPT.with_name("merge-release-pr.sh")), "53"],
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}:{os.environ['PATH']}",
+            "QUALITY_RESULT": quality,
+            "CODEQL_RESULT": codeql,
+            "BEHIND_MAIN": behind,
+        },
+        capture_output=True,
+        text=True,
+    )
+    if error:
+        assert result.returncode == 1
+        assert error in result.stderr
+        assert "merged exact candidate" not in result.stdout
+    else:
+        assert result.returncode == 0, result.stderr
+        assert "merged exact candidate" in result.stdout
 
 
 def test_explicit_cross_run_import_is_optional_and_fails_closed_before_building() -> None:

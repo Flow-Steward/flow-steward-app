@@ -141,8 +141,11 @@ This release's bare `lint.sh`, `--fast`, and `--full` select complete registry
 scopes; use explicit `--checks` commands for ordinary work.
 
 Full, heavy, nightly and Sonar runs require a separate explicit request.
-Handoff, merge and publication never authorize them implicitly. GitHub quality
-execution must be requested manually; a push or release is not such a request.
+Handoff, merge and publication never authorize them implicitly. A push to a
+designated pre-release branch requests its hosted Tier 2 gate. Before merging a
+release PR, use `bash core/entrypoints/cli/scripts/merge-release-pr.sh <PR>`
+to require green Tier 2 and CodeQL results for the current PR head. Other
+hosted quality runs require a manual request or an authorized schedule.
 After failure or timeout, retain the log and candidate SHA and run only failed
 or timed-out targets plus new impact against that SHA. Report unknown and unrun
 coverage; do not restart the full gate automatically. See the canonical standards

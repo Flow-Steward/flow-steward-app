@@ -66,12 +66,12 @@ route for Tier 2/Tier 3 above. A broad or heavy test selection also runs hosted,
 even when a targeted command can select it. If GitHub execution is unavailable,
 report that verification pending rather than running a heavy local gate.
 
-The canonical standards govern scope and authorization: hosted quality needs a
-manual request or an already authorized recurring schedule; a push, merge or
-publication alone does not authorize it. This supersedes the automatic-push
-and mandatory-full-publication wording of the original pilot above. The hosted
-workflow enforces this through manual dispatch and the existing weekly schedule.
-Impacted and parallel execution follow ADR 0070.
+The canonical standards govern scope and authorization. Designated pre-release
+branch pushes request Tier 2. Other runs require a manual request or an
+authorized recurring schedule. Release agents verify Tier 2 and CodeQL for the
+PR head before merging. This supersedes the blanket automatic-push and
+mandatory-full-publication wording of the original pilot. Impacted and parallel
+execution follow ADR 0070.
 
 ## Incremental local commit checks
 

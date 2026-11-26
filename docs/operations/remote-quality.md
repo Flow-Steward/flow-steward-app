@@ -2,7 +2,34 @@
 
 The public source is `Flow-Steward/flow-steward-app`. Tier 1 stays on the
 developer's computer. The Remote quality pilot workflow runs the same canonical
-Docker gate on standard hosted Linux runners. It neither publishes nor merges.
+Docker gate on standard hosted Linux runners. It records results for the candidate SHA.
+
+## Pre-release branches
+
+1. Create a branch such as `release/0.9.29` from current public `main`.
+   Commit the release changes and reviewed notes, and run affected local Tier 1.
+2. Push the candidate branch and open a pull request into `main`. The branch
+   push starts Quality in `pre-release` mode (Tier 2) and CodeQL. Use the results
+   from the current PR head. Each new candidate commit gets its own results.
+3. If a check fails, inspect the failure, correct the candidate and push it
+   again. The gate reuses eligible evidence by fingerprint. If `main` advanced,
+   integrate it into the branch and verify the new head before merging.
+4. When both branch runs are green, run the guarded merge command.
+
+   ```bash
+   bash core/entrypoints/cli/scripts/merge-release-pr.sh <PR>
+   ```
+
+   The command requires successful pre-release Quality and CodeQL push runs
+   for the current PR head, checks its ancestry against current `main`, and
+   passes that head SHA to GitHub's merge command. Release agents use this command
+   for release PRs. Replacing the candidate invalidates its old pass.
+
+The guarded merge preserves the verified head as an ancestor of `main`.
+Tag that verified head for publication. See
+[Official release publication](official-release-publication.md#sequence).
+Existing agent-prefixed version branches such as `agent/release-0.9.29` also
+trigger the pre-release gate.
 
 ## Agent workflow
 
@@ -27,16 +54,16 @@ gh workflow run remote-quality.yml --repo Flow-Steward/flow-steward-app \
 ```
 
 The workflow checks the candidate SHA and current main before proceeding.
-Only the `release` and `release-sonar` modes fail when the
-candidate does not include current main, at the start or because another pull
-request landed during the run; the error names both commits. Tier 2,
-`single-check` and the diagnostic modes keep their result and report a warning,
-because it still describes the branch commit. A newer run on the same ref cancels
-the older run. Separate refs run independently.
+The `pre-release`, `release`, `release-sonar` and `release-full` modes fail when
+the candidate does not include current main, at the start or because another
+pull request landed during the run. Manual `tier2`, `single-check` and the
+diagnostic modes keep their result and report a warning because the result still
+describes the branch commit. A newer run on the same ref and event cancels the
+older run. Manual diagnostics run independently of branch pushes.
 
-Hosted Quality starts through manual dispatch or the existing weekly schedule on
-main. Branch pushes, merges and tag publication leave Quality idle. CodeQL and
-official image publication have their own workflows.
+Hosted Quality also supports manual dispatch and the existing weekly schedule
+on main. Automatic Tier 2 is scoped to designated pre-release branches. CodeQL
+and official image publication have their own workflows.
 
 The local pre-commit hook keeps environment-artifact synchronization and the
 repository boundary guard, then runs affected backend/frontend Tier 1 checks.
