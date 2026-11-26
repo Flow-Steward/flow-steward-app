@@ -124,6 +124,75 @@ def upgrade_target_database(
         )
 
 
+#: The in-image platform-module command (ADR 0082 §5) and the bound on its answer.
+PLATFORM_MODULE_COMMAND = "core.entrypoints.cli.ops.platform_modules"
+_PLATFORM_MODULE_OUTPUT_LIMIT = 1024 * 1024
+
+
+def run_platform_module_command(
+    target: ComposeTarget,
+    arguments: tuple[str, ...],
+    *,
+    timeout_seconds: int,
+    run_compose: ComposeCommandRunner,
+    environment: Mapping[str, str],
+) -> dict[str, Any]:
+    """Run one platform-module command in a disposable container of the Compact image.
+
+    The same invocation as the Compact database upgrade above: ``compose run --rm
+    --no-deps -T --entrypoint python compact-runtime`` -- the installed image, the
+    service's own data volume at ``/data``, the image's default user (root) and the
+    installed environment -- with the module command instead of the migrator. It
+    neither stops nor starts the runtime container; callers do that first when the
+    command writes. stdout is one JSON document; a non-zero exit raises
+    ``StackGatewayError`` with the command's own reported error.
+    """
+    if target.deployment_profile != "compact":
+        raise StackGatewayError(
+            action="platform_modules",
+            detail="Platform modules are delegated to the runtime image only on Compact.",
+        )
+    outcome = run_compose(
+        target,
+        (
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            "--entrypoint",
+            "python",
+            "compact-runtime",
+            "-m",
+            PLATFORM_MODULE_COMMAND,
+            *arguments,
+        ),
+        action="platform_modules",
+        environment=environment,
+        timeout_seconds=timeout_seconds,
+        separate_stderr=True,
+    )
+    raw = str(outcome.stdout or "")
+    try:
+        if len(raw.encode("utf-8")) > _PLATFORM_MODULE_OUTPUT_LIMIT:
+            raise ValueError("oversized platform-module result")
+        payload = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise StackGatewayError(
+            action="platform_modules",
+            detail="The platform-module command returned an invalid result.",
+        ) from exc
+    if (
+        not isinstance(payload, dict)
+        or payload.get("ok") is not True
+        or not isinstance(payload.get("result"), dict)
+    ):
+        raise StackGatewayError(
+            action="platform_modules",
+            detail="The platform-module command returned an unsuccessful result.",
+        )
+    return dict(payload["result"])
+
+
 class TargetReleaseMigration:
     def __init__(
         self,

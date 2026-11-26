@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 
 from core.application.auth.effective_permissions import resolve_effective_permissions
 from core.application.extensions.system_email import system_email_available
+from core.application.reports.ui_page_registry import HOST_RENDERER_KINDS
 from core.application.settings.date_time_format import stored_date_format, stored_time_format
 from core.infrastructure.config.installation_mode import installation_mode
 from core.infrastructure.config.workflow_file_limits import (
@@ -123,8 +124,15 @@ def _normalize_registered_pages(payload: Any) -> list[dict[str, Any]]:
         path = str(record.get("path") or "").strip()
         component_key = str(record.get("component_key") or "").strip()
         page_key = str(record.get("page_key") or record.get("key") or "").strip()
-        if not page_key or not path.startswith("/") or not component_key:
+        control_surface = record.get("control_surface")
+        host_rendered = (
+            isinstance(control_surface, Mapping)
+            and str(control_surface.get("kind") or "").strip() in HOST_RENDERER_KINDS
+        )
+        if not page_key or not path.startswith("/") or not (component_key or host_rendered):
             continue
+        if host_rendered:
+            record["control_surface"] = dict(control_surface)
         record["key"] = str(record.get("key") or page_key)
         record["page_key"] = page_key
         record["path"] = path
@@ -190,9 +198,13 @@ def create_api_app_bootstrap_router(
             )
             auth_source = str(getattr(request.state, "auth_source", "") or "").strip().lower()
 
+            # The browser sees the features of the signed-in account only.
+            account_id = str(auth_user.get("account_id") or "").strip() if authenticated else ""
             entitlement_service = platform_contract("entitlement_service")
             snapshot_fn = getattr(entitlement_service, "snapshot", None)
-            feature_flags = dict(snapshot_fn() or {}) if callable(snapshot_fn) else {}
+            feature_flags = (
+                dict(snapshot_fn(account_id) or {}) if account_id and callable(snapshot_fn) else {}
+            )
 
             local_enabled = bool(local_auth_enabled())
             bootstrap_required = bool(local_auth_bootstrap_required())

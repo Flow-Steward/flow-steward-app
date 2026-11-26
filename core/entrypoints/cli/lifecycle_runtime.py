@@ -12,7 +12,7 @@ from collections.abc import Callable, Mapping
 from functools import cached_property
 from http.client import HTTPConnection, HTTPException
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from core.application.auth.secrets import decrypt_secret
 from core.application.clone.contracts import CloneDataClass
@@ -83,6 +83,9 @@ from core.infrastructure.lifecycle.storage_gateway import LifecycleStorageGatewa
 from core.infrastructure.release.github import GitHubJSONFetcher
 from core.infrastructure.release.github_credentials import GitHubReleaseCredentialLoader
 from core.infrastructure.release.installed_origin import InstalledReleaseOriginReader
+
+if TYPE_CHECKING:
+    from core.application.release.platform_modules import ModuleActivator
 
 _IMAGE_ROOT = Path(__file__).resolve().parents[3]
 _REPO_ROOT = Path(str(_runtime_env.get("FS_DOCKER_HOST_PROJECT_ROOT") or _IMAGE_ROOT)).resolve()
@@ -797,6 +800,7 @@ class LifecycleCLIRuntime:
                     step="release_policy",
                 )
 
+        from core.application.release.platform_modules import LazyModuleActivator
         from core.application.release.upgrade_workflow import ReleaseUpgradeWorkflow
         from core.infrastructure.release.upgrade_gateway import (
             CheckoutWriterQuiesce,
@@ -840,8 +844,72 @@ class LifecycleCLIRuntime:
                     if active is not None and active.environment == "development"
                     else None
                 ),
+                # ADR 0082 §5: built on first use, so composing the release service
+                # never probes platform modules for commands that do not change them.
+                modules=LazyModuleActivator(lambda: self._platform_module_activator(profile)),
             ),
         )
+
+    def _platform_module_activator(self, profile: str) -> ModuleActivator:
+        """ADR 0082 §5: the activator for this profile, built on first use.
+
+        * Compact: the runtime directory lives in the ``compact-runtime`` data volume,
+          which this process cannot enter; ``CompactModuleActivator`` runs the module
+          store in a disposable container of the installed runtime image.
+        * Scalable: this process mounts the runtime directory read-write and runs the
+          store itself. Where that directory cannot even be inspected (a development
+          checkout run on the host, a mount this user may not enter), every probe
+          answers "not available here" and the no-op activator says why.
+        """
+        from core.application.release.platform_modules import NoModuleActivator
+        from core.infrastructure.platform_modules.loader import platform_modules_root
+        from core.infrastructure.release.platform_module_activator import (
+            CompactModuleActivator,
+            ComposeRoleRestarter,
+            FilesystemModuleActivator,
+        )
+
+        restarter = ComposeRoleRestarter(
+            target_provider=self._installed_compose_target,
+            restart=self.docker_lifecycle_gateway.restart,
+            stop=self.docker_lifecycle_gateway.stop,
+        )
+        if profile == "compact":
+            if not str(_runtime_env.get("FS_CONFIGURATION_STATE_ROOT") or "").strip():
+                # A provider console inside the runtime container: it cannot stop the
+                # container it runs in, so it cannot take the roles down for the switch.
+                return NoModuleActivator(
+                    reason=(
+                        "On Compact, platform modules are changed by the host management "
+                        "CLI (./flow-steward), not from inside the runtime container."
+                    )
+                )
+            gateway = self.docker_lifecycle_gateway
+
+            def run_command(arguments: tuple[str, ...]) -> dict[str, object]:
+                return gateway.platform_module_command(
+                    self._installed_compose_target(),
+                    arguments,
+                    environment=_installed_runtime_environment(),
+                )
+
+            return CompactModuleActivator(
+                run_command=run_command,
+                restarter=restarter,
+                target_provider=self._installed_compose_target,
+            )
+        root = platform_modules_root()
+        try:
+            present = root.parent.is_dir()
+        except OSError as exc:
+            return NoModuleActivator(
+                reason=f"The runtime directory {root.parent} cannot be inspected here: {exc}."
+            )
+        if not present:
+            return NoModuleActivator(
+                reason=f"The runtime directory {root.parent} does not exist in this process."
+            )
+        return FilesystemModuleActivator(root, restarter=restarter)
 
     @cached_property
     def maintenance_service(self) -> MaintenanceServicePort:

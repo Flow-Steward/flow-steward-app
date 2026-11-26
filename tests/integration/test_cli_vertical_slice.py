@@ -453,6 +453,17 @@ class RecordingRegistry:
                 "operation_id": "release-operation",
                 "log_path": "/tmp/release-operation.log",
             }
+        if key == "release.modules-list":
+            return {"status": "listed", "activation_supported": True}
+        if key == "release.modules-apply":
+            return {
+                "status": "upgraded",
+                "active_environment": "development",
+                "current_version": "1.0.0",
+                "target_version": "1.0.0",
+                "operation_id": "release-operation",
+                "log_path": "/tmp/release-operation.log",
+            }
         if key == "clone.create":
             assert self.prepared_clone is not None
             return {
@@ -770,6 +781,16 @@ def command_cases(tmp_path: Path) -> dict[str, CommandCase]:
             command_id="release.upgrade",
             args=["release", "upgrade"],
             expected={"target_version": "", "dry_run": False, "timeout_seconds": 60},
+        ),
+        "release.modules-list": CommandCase(
+            command_id="release.modules-list",
+            args=["release", "modules-list"],
+            expected={},
+        ),
+        "release.modules-apply": CommandCase(
+            command_id="release.modules-apply",
+            args=["release", "modules-apply"],
+            expected={"modules": "", "restore_previous": False},
         ),
         "clone.create": CommandCase(
             command_id="clone.create",

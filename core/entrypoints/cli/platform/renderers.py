@@ -556,6 +556,8 @@ RENDERERS: dict[str, Renderer] = {
     "release.info": RichRenderer(),
     "release.check": RichRenderer(),
     "release.upgrade": RichRenderer(),
+    "release.modules-list": RichRenderer(),
+    "release.modules-apply": RichRenderer(),
     "maintenance.status": RichRenderer(),
     "maintenance.enable": RichRenderer(),
     "maintenance.disable": RichRenderer(),

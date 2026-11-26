@@ -155,8 +155,14 @@ def middleware_decision(
     recorded: list | None = None,
     stored: dict | None = None,
     loader=None,
+    contributed: tuple = (),
+    check_scopes: bool = False,
 ) -> tuple[bool, object]:
-    """Run the real middleware once; ``recorded`` collects the token scopes it required."""
+    """Run the real middleware once; ``recorded`` collects the token scopes it required.
+
+    ``contributed`` are module route rules (ADR 0082) the middleware reads per request.
+    ``check_scopes`` keeps the real token scope check instead of recording and passing.
+    """
     external = user.get("auth_source") == "external"
     bearer = user.get("auth_source") in {"pat", "machine"}
     seen: dict = {}
@@ -171,7 +177,8 @@ def middleware_decision(
         return True
 
     original = auth_http_runtime.principal_has_required_scopes
-    auth_http_runtime.principal_has_required_scopes = _record
+    if not check_scopes:
+        auth_http_runtime.principal_has_required_scopes = _record
     try:
         response = asyncio.run(
             auth_http_runtime.local_auth_middleware(
@@ -210,6 +217,7 @@ def middleware_decision(
                 path_login="/login",
                 load_role_permissions_fn=loader
                 or (lambda _bl: SYSTEM_ROLE_PERMISSIONS if stored is None else stored),
+                contributed_route_rules_fn=lambda: contributed,
             )
         )
     finally:

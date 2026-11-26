@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes } from "react-router";
 
 import { fetchJson } from "@/lib/http/client";
 import { useAuth } from "@/lib/auth/useAuth";
-import { SettingsHubPage } from "@/pages/settings/hub";
+import { RegisteredSettingsResourceAdminPage, SettingsHubPage } from "@/pages/settings/hub";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
@@ -82,7 +82,7 @@ describe("SettingsHubPage", () => {
   it("localizes the loaded resource count in the registered settings surface", async () => {
     mockedFetchJson.mockResolvedValue({ items: [{ id: "record-1", name: "Fixture record" }, { id: "record-2", name: "Fixture record two" }] });
     const auth = mockedUseAuth();
-    mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [{ key: "records", title: "Fixture records", list_path: "/private/fixture", item_path: "/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Name", type: "text", required: true }] }] } }] } });
+    mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [{ key: "records", title: "Fixture records", list_path: "/api/private/fixture", item_path: "/api/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Name", type: "text", required: true }] }] } }] } });
     const messages: Record<string, string> = { "react.settings.records_count": "Įrašų: {count}" };
     render(<I18nContext.Provider value={{ ...fallbackContext, locale: "lt", messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}><MemoryRouter initialEntries={["/settings/fixture"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter></I18nContext.Provider>);
     await waitFor(() => expect(screen.getByText("Įrašų: 2")).toBeInTheDocument());
@@ -92,11 +92,11 @@ describe("SettingsHubPage", () => {
   it.each([undefined, "Owner empty label", ""])("localizes only an absent resource empty label, preserving explicit metadata %s", async (emptyLabel) => {
     mockedFetchJson.mockResolvedValue({ items: [] });
     const auth = mockedUseAuth();
-    const resource = { key: "records", title: "Fixture records", list_path: "/private/fixture", item_path: "/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Owner field", type: "text", required: true }], ...(emptyLabel === undefined ? {} : { empty_label: emptyLabel }) };
+    const resource = { key: "records", title: "Fixture records", list_path: "/api/private/fixture", item_path: "/api/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Owner field", type: "text", required: true }], ...(emptyLabel === undefined ? {} : { empty_label: emptyLabel }) };
     mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [resource] } }] } });
     const messages: Record<string, string> = { "react.settings.no_records_configured": "Įrašų nesukonfigūruota." };
     render(<I18nContext.Provider value={{ ...fallbackContext, locale: "lt", messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}><MemoryRouter initialEntries={["/settings/fixture"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter></I18nContext.Provider>);
-    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/private/fixture"));
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/fixture"));
     await waitFor(() => expect(screen.getByRole("table", { name: "Fixture records" })).toHaveAttribute("aria-busy", "false"));
     if (emptyLabel === undefined) expect(screen.getByText("Įrašų nesukonfigūruota.")).toBeInTheDocument();
     else if (emptyLabel) expect(screen.getByText(emptyLabel)).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe("SettingsHubPage", () => {
   it("renders a registered resource admin control surface from registry metadata", async () => {
     mockedFetchJson.mockImplementation(async (path) => {
       const requestPath = stringFromUnknownValue(path);
-      if (requestPath === "/private/sources") {
+      if (requestPath === "/api/private/sources") {
         return {
           items: [
             {
@@ -220,7 +220,7 @@ describe("SettingsHubPage", () => {
           ],
         };
       }
-      if (requestPath === "/private/policies") {
+      if (requestPath === "/api/private/policies") {
         return {
           items: [
             {
@@ -254,8 +254,8 @@ describe("SettingsHubPage", () => {
                   key: "sources",
                   title: "Directory Sources",
                   description: "Sources available for sign-in.",
-                  list_path: "/private/sources",
-                  item_path: "/private/sources/{key}",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "key",
@@ -271,8 +271,8 @@ describe("SettingsHubPage", () => {
                 {
                   key: "policies",
                   title: "Access Policies",
-                  list_path: "/private/policies",
-                  item_path: "/private/policies/{id}",
+                  list_path: "/api/private/policies",
+                  item_path: "/api/private/policies/{id}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "id",
@@ -303,14 +303,14 @@ describe("SettingsHubPage", () => {
     expect(screen.getByText("example.com")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add" })).toHaveLength(2);
     expect(screen.queryByText(/dedicated React screen/i)).not.toBeInTheDocument();
-    expect(mockedFetchJson).toHaveBeenCalledWith("/private/sources");
-    expect(mockedFetchJson).toHaveBeenCalledWith("/private/policies");
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/sources");
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/policies");
   });
 
   it("submits create edit and delete actions for registered resource admin surfaces", async () => {
     mockedFetchJson.mockImplementation(async (path, init) => {
       const requestPath = stringFromUnknownValue(path);
-      if (!init && requestPath === "/private/sources") {
+      if (!init && requestPath === "/api/private/sources") {
         return {
           items: [{ key: "source-a", name: "Source A", kind: "external", enabled: true }],
         };
@@ -334,8 +334,8 @@ describe("SettingsHubPage", () => {
                 {
                   key: "sources",
                   title: "Sources",
-                  list_path: "/private/sources",
-                  item_path: "/private/sources/{key}",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "key",
@@ -374,7 +374,7 @@ describe("SettingsHubPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources",
+        "/api/private/sources",
         expect.objectContaining({ method: "POST" }),
       );
     });
@@ -386,14 +386,14 @@ describe("SettingsHubPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources/source-a",
+        "/api/private/sources/source-a",
         expect.objectContaining({ method: "PUT" }),
       );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(mockedFetchJson).not.toHaveBeenCalledWith(
-      "/private/sources/source-a",
+      "/api/private/sources/source-a",
       expect.objectContaining({ method: "DELETE" }),
     );
     fireEvent.click(
@@ -401,7 +401,7 @@ describe("SettingsHubPage", () => {
     );
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources/source-a",
+        "/api/private/sources/source-a",
         expect.objectContaining({ method: "DELETE" }),
       );
     });
@@ -421,11 +421,11 @@ describe("SettingsHubPage", () => {
       writes: [] as Record<string, unknown>[],
     };
     mockedFetchJson.mockImplementation(async (path, init) => {
-      if (!init && path === "/private/json-resources") {
+      if (!init && path === "/api/private/json-resources") {
         state.reads += 1;
         return { items: [{ ...state.record }] } as never;
       }
-      if (path === "/private/json-resources/resource-a" && init?.method === "PUT") {
+      if (path === "/api/private/json-resources/resource-a" && init?.method === "PUT") {
         if (typeof init.body !== "string") {
           throw new Error("Expected a serialized resource body.");
         }
@@ -451,8 +451,8 @@ describe("SettingsHubPage", () => {
             resources: [{
               key: "json_resources",
               title: "JSON Resources",
-              list_path: "/private/json-resources",
-              item_path: "/private/json-resources/{id}",
+              list_path: "/api/private/json-resources",
+              item_path: "/api/private/json-resources/{id}",
               collection_key: "items",
               record_key: "item",
               id_field: "id",
@@ -573,5 +573,94 @@ describe("SettingsHubPage", () => {
     expect(state.reads).toBe(2);
     expect(state.record.config).toEqual({ corrected: true });
     expect(JSON.parse((reopened as HTMLTextAreaElement).value)).toEqual({ corrected: true });
+  });
+});
+
+describe("RegisteredSettingsResourceAdminPage resource paths", () => {
+  const resource = {
+    key: "records",
+    title: "Module records",
+    list_path: "/api/modules/fixture/records",
+    item_path: "/api/modules/fixture/records/{id}",
+    collection_key: "items",
+    id_field: "id",
+    display_field: "name",
+    fields: [{ key: "name", label: "Name", type: "text", required: true }],
+  };
+
+  function renderPage(overrides: Record<string, string>) {
+    const page = {
+      key: "module_records",
+      page_key: "module_records",
+      label: "Module Records",
+      title: "Module Records",
+      path: "/modules/records",
+      control_surface: { kind: "resource_admin", resources: [{ ...resource, ...overrides }] },
+    };
+    render(<MemoryRouter><RegisteredSettingsResourceAdminPage page={page} /></MemoryRouter>);
+  }
+
+  beforeEach(() => {
+    mockedFetchJson.mockReset();
+    mockedFetchJson.mockResolvedValue({ items: [] });
+  });
+
+  it("loads a resource from its same-origin API path", async () => {
+    renderPage({});
+
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/fixture/records"));
+    expect(screen.getByRole("table", { name: "Module records" })).toBeInTheDocument();
+  });
+
+  it.each<Record<string, string>>([
+    { list_path: "//evil.example/api/records" },
+    { list_path: "/private/records" },
+    { list_path: "https://evil.example/api/records" },
+    { list_path: "/api/../admin/records" },
+    { item_path: "//evil.example/api/records/{id}" },
+    { item_path: "/private/records/{id}" },
+  ])("rejects a resource whose path leaves the same-origin API: %j", (overrides) => {
+    renderPage(overrides);
+
+    expect(screen.getByRole("link", { name: "Open Module Records" })).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Module records" })).not.toBeInTheDocument();
+    expect(mockedFetchJson).not.toHaveBeenCalled();
+  });
+
+  it.each([".", "..", "a/b", "a\\b", "a?b", "a#b", "a\u0000b", "a\nb", "a\u007fb", "a\uD800b", "\uDC00"])(
+    "refuses to build an item URL from the record id %j",
+    async (id) => {
+      mockedFetchJson.mockResolvedValue({ items: [{ id, name: "Odd record" }] });
+      renderPage({});
+      await waitFor(() => expect(screen.getByText("Odd record")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Record ID is missing.");
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Record ID is missing.");
+
+      // Only the list was read; no request ever addressed an item path.
+      expect(mockedFetchJson).toHaveBeenCalledTimes(1);
+      expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/fixture/records");
+    },
+  );
+
+  it("substitutes a usable record id into the final item path segment", async () => {
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "a.b c", name: "Usable record" }] });
+    renderPage({});
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete record" }),
+    );
+
+    await waitFor(() => {
+      expect(mockedFetchJson).toHaveBeenCalledWith(
+        "/api/modules/fixture/records/a.b%20c",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
   });
 });

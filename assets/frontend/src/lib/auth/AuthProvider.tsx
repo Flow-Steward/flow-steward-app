@@ -82,7 +82,10 @@ export type RegisteredPageRecord = {
   label: string;
   title: string;
   path: string;
-  component_key: string;
+  /** Vite-compiled page component; absent when a host renderer draws the page. */
+  component_key?: string;
+  /** Declared surface; a host-renderer kind renders without a component_key (ADR 0082). */
+  control_surface?: Record<string, unknown>;
   nav_section?: string;
   nav_order?: number;
   nav_label?: string;
@@ -246,6 +249,9 @@ function normalizeSettingsPages(payload: unknown): SettingsPageRecord[] {
   return rows;
 }
 
+/** Control-surface kinds drawn by a renderer in this bundle (ADR 0082, section 6). */
+const HOST_RENDERER_KINDS = new Set(["resource_admin"]);
+
 function normalizeRegisteredPages(payload: unknown): RegisteredPageRecord[] {
   if (!Array.isArray(payload)) {
     return [];
@@ -266,7 +272,15 @@ function normalizeRegisteredPages(payload: unknown): RegisteredPageRecord[] {
       record.component_key,
       "",
     ]).trim();
-    if (!pageKey || !path.startsWith("/") || !componentKey) {
+    const controlSurface = record.control_surface;
+    const hostRendered =
+      Boolean(controlSurface)
+      && typeof controlSurface === "object"
+      && !Array.isArray(controlSurface)
+      && HOST_RENDERER_KINDS.has(
+        firstStringFromUnknownValue([(controlSurface as Record<string, unknown>).kind, ""]).trim(),
+      );
+    if (!pageKey || !path.startsWith("/") || !(componentKey || hostRendered)) {
       return;
     }
     const label = firstStringFromUnknownValue([

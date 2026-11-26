@@ -53,6 +53,9 @@ vi.mock("@/pages/operator/section-page", () => ({
 
 vi.mock("@/pages/settings/hub", () => ({
   SettingsHubPage: () => <div>Settings hub</div>,
+  RegisteredSettingsResourceAdminPage: ({ page }: Readonly<{ page: { title: string } }>) => (
+    <div>Resource admin: {page.title}</div>
+  ),
 }));
 
 const mockedUseAuth = vi.mocked(useAuth);
@@ -400,5 +403,105 @@ describe("AppRouter", () => {
 
     expect(screen.getByText("Registered page: Private Fixture")).toBeInTheDocument();
     expect(screen.queryByText("Settings hub")).not.toBeInTheDocument();
+  });
+
+  describe("host-rendered registered pages", () => {
+    const resourceAdminSurface = {
+      kind: "resource_admin",
+      resources: [{
+        key: "records",
+        title: "Records",
+        list_path: "/api/modules/fixture/records",
+        id_field: "id",
+        fields: [{ key: "name", label: "Name", type: "text" }],
+      }],
+    };
+
+    function renderAt(path: string, overrides: Partial<AuthSession>) {
+      globalThis.history.pushState({}, "", path);
+      mockedUseAuth.mockReturnValue({
+        error: null,
+        isAuthenticated: true,
+        logout: vi.fn(async () => undefined),
+        refresh: vi.fn(async () => undefined),
+        switchAccount: vi.fn(async () => undefined),
+        session: createSession({ authenticated: true, ...overrides }),
+        status: "authenticated",
+      });
+      render(createElement(AppRouter));
+    }
+
+    it("renders a keyless resource_admin page outside settings with the host renderer", async () => {
+      renderAt("/modules/records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/modules/records",
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      await waitFor(() => expect(screen.getByText("Resource admin: Module Records")).toBeInTheDocument());
+      expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
+    });
+
+    it("keeps the placeholder for a keyless page with an unknown surface kind", () => {
+      renderAt("/modules/dashboard", {
+        registered_pages: [{
+          key: "module_dashboard",
+          page_key: "module_dashboard",
+          label: "Module Dashboard",
+          title: "Module Dashboard",
+          path: "/modules/dashboard",
+          control_surface: { kind: "dashboard" },
+        }],
+      });
+
+      expect(screen.getByRole("heading", { name: "This page is not available." })).toBeInTheDocument();
+      expect(screen.getByText("The registered screen is not included in this frontend build.")).toBeInTheDocument();
+      expect(screen.queryByText("Resource admin: Module Dashboard")).not.toBeInTheDocument();
+    });
+
+    it("prefers a compiled component over the host renderer", () => {
+      renderAt("/modules/records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/modules/records",
+          component_key: "private.fixture",
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      expect(screen.getByText("Registered page: Module Records")).toBeInTheDocument();
+      expect(screen.queryByText("Resource admin: Module Records")).not.toBeInTheDocument();
+    });
+
+    it("keeps a keyless resource_admin settings tab inside the settings hub", async () => {
+      renderAt("/settings/module-records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/settings/module-records",
+          control_surface: resourceAdminSurface,
+        }],
+        settings_pages: [{
+          page_key: "module_records",
+          title: "Module Records",
+          path: "/settings/module-records",
+          settings_tab: true,
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      await waitFor(() => expect(screen.getByText("Settings hub")).toBeInTheDocument());
+      expect(screen.queryByText("Resource admin: Module Records")).not.toBeInTheDocument();
+    });
   });
 });

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from collections.abc import Callable, Mapping
+from typing import Any
 
-if TYPE_CHECKING:
-    from fastapi import Request
+from fastapi import Request
+
+from core.application.settings.platform_contracts import (
+    FeatureNotEntitledError,
+    normalize_entitlement_name,
+)
 
 CORE_ENTRYPOINTS_ADMIN_DEPS_INIT_NOT_CALLED_VALUE = "core.entrypoints.admin.deps.init() not called"
 
@@ -205,6 +209,51 @@ def require_authenticated_user(request: Request, *, required_roles: set[str] | N
         CORE_ENTRYPOINTS_ADMIN_DEPS_INIT_NOT_CALLED_VALUE
     )
     return _require_authenticated_user_fn(request, required_roles=required_roles)
+
+
+def request_account_id(request: Request) -> str:
+    """The account of the authenticated request, or ``""`` when nobody is signed in."""
+    auth_user = getattr(request.state, "auth_user", None)
+    if not isinstance(auth_user, Mapping):
+        return ""
+    return str(auth_user.get("account_id") or "").strip()
+
+
+def _request_entitlement_service(request: Request) -> Any:
+    container = getattr(request.app.state, "runtime_container", None)
+    registries = getattr(container, "registries", None)
+    contracts = registries.get("platform_contracts") if isinstance(registries, Mapping) else None
+    return contracts.get("entitlement_service") if isinstance(contracts, Mapping) else None
+
+
+def require_entitlement(feature: str) -> Callable[[Request], None]:
+    """A FastAPI dependency that refuses a request whose account lacks ``feature``.
+
+    The refusal is :class:`FeatureNotEntitledError`, rendered by the Core exception
+    handler as HTTP 403 with code ``feature_not_entitled`` and the feature name in
+    ``details.feature``. Authentication stays with the auth middleware; a request
+    without an account is not entitled. Declare it once per module router::
+
+        APIRouter(dependencies=[Depends(require_entitlement("feature_a"))])
+    """
+    name = normalize_entitlement_name(feature)
+    if not name:
+        raise ValueError("require_entitlement needs a feature name")
+
+    def _require_feature_entitlement(request: Request) -> None:
+        account_id = request_account_id(request)
+        is_entitled = getattr(_request_entitlement_service(request), "is_entitled", None)
+        entitled = False
+        if account_id and callable(is_entitled):
+            try:
+                entitled = bool(is_entitled(account_id, name))
+            except Exception:
+                logger.warning("entitlement check for %s failed; refusing", name)
+                entitled = False
+        if not entitled:
+            raise FeatureNotEntitledError(name)
+
+    return _require_feature_entitlement
 
 
 def optional_actor_username(request: Request, default: str = "operator") -> str:

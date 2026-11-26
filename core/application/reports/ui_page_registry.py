@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, MutableMapping
+import re
+from collections.abc import Iterable, Iterator, Mapping, MutableMapping
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from typing import Any
 
+from core.application.auth.route_permissions import module_api_prefix
 from core.application.settings.ui_i18n import (
     normalize_ui_locale,
     resolve_ui_locale,
@@ -12,6 +18,103 @@ from core.application.settings.ui_i18n import (
 )
 
 _COMMUNITY_SAFE_EDITIONS = ("community", "private")
+
+# Control-surface kinds rendered by a renderer that ships in the Core frontend
+# bundle (ADR 0082, section 6). A page declaring one of these kinds needs no
+# Vite-compiled ``component_key``.
+HOST_RENDERER_KINDS = frozenset({"resource_admin"})
+
+_RESOURCE_ADMIN_FIELD_TYPES = frozenset(
+    {"text", "textarea", "number", "select", "checkbox", "csv", "json"}
+)
+_SAME_ORIGIN_API_PATH = re.compile(r"^/api/[A-Za-z0-9_\-/{}.]+$")
+_API_PATH_TOKEN = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
+_CORE_DEFINITION_MARKER = "_core_definition"
+_PAGE_REGISTRY_NAMES = ("settings_pages", "navigation_items", "registered_pages")
+# Server-side only: which platform module registered a page. Never sent to the
+# browser; operator diagnostics read it from the registries.
+SOURCE_MODULE_FIELD = "source_module"
+# Core entries without the Core marker that any registrant may replace under the
+# same page key (a vendor build ships its own Extensions screen).
+_REPLACEABLE_CORE_PAGE_KEYS = frozenset({"extensions"})
+
+
+class PageRegistrySealedError(RuntimeError):
+    """A page registration arrived after the composition root sealed the registries."""
+
+
+# The page dictionaries the composition root sealed, by identity. Module views copy
+# ``registries`` at the top level but share these inner dictionaries, so a module
+# holding an old view is refused as well. Strong references keep ``id`` stable.
+_SEALED_PAGE_REGISTRIES: dict[int, Any] = {}
+
+
+def seal_page_registries(registries: MutableMapping[str, Any]) -> None:
+    """Refuse every later page registration into ``registries`` (ADR 0082).
+
+    Startup order: Core registers its own pages, the module loader runs every
+    module's entrypoint, then the composition root calls this. Core registers no
+    page after startup (extension pages are served by the extension runtime, not
+    through this registry), so the seal covers every registration: an unscoped
+    call made later from a hook, thread or callback can no longer claim Core's
+    privileges. Sealing is idempotent.
+    """
+    for name in _PAGE_REGISTRY_NAMES:
+        registry = registries.setdefault(name, {})
+        _SEALED_PAGE_REGISTRIES[id(registry)] = registry
+
+
+def page_registries_sealed(registries: Mapping[str, Any]) -> bool:
+    """Whether any page dictionary of ``registries`` has been sealed."""
+    for name in _PAGE_REGISTRY_NAMES:
+        registry = registries.get(name)
+        if registry is not None and _SEALED_PAGE_REGISTRIES.get(id(registry)) is registry:
+            return True
+    return False
+
+
+def _refuse_sealed(registries: Mapping[str, Any], page_key: str) -> None:
+    if page_registries_sealed(registries):
+        raise PageRegistrySealedError(
+            f"page {page_key!r} cannot be registered: page registration closed when "
+            "startup finished; register pages from the module's register entrypoint"
+        )
+
+
+@dataclass(slots=True)
+class PageRegistrationScope:
+    """Who registers pages while Core's module loader runs an entrypoint.
+
+    ``module_id`` is the identity under which Core loaded a prepared platform
+    module, or ``None`` for an optional bootstrap module listed by environment,
+    which has no verified identity. Outside any scope, and only until the
+    registries are sealed (:func:`seal_page_registries`), the caller is Core.
+    """
+
+    module_id: str | None
+    page_keys: list[str] = dataclass_field(default_factory=list)
+
+
+_REGISTRATION_SCOPE: ContextVar[PageRegistrationScope | None] = ContextVar(
+    "fs_page_registration_scope", default=None
+)
+
+
+@contextmanager
+def page_registration_scope(*, module_id: str | None) -> Iterator[PageRegistrationScope]:
+    """Bind page registrations inside the block to a loaded module (ADR 0082).
+
+    Only Core's module loader opens a scope. Pages registered inside it are stamped
+    with ``source_module`` and their host-rendered resources are confined to the
+    module's API tree. The scope is reset on exit, also when the block raises.
+    """
+    scope = PageRegistrationScope(module_id=str(module_id or "").strip() or None)
+    token = _REGISTRATION_SCOPE.set(scope)
+    try:
+        yield scope
+    finally:
+        _REGISTRATION_SCOPE.reset(token)
+
 
 _CORE_SETTINGS_TITLE_KEYS = {
     "settings_home": "shell.nav.settings",
@@ -223,17 +326,32 @@ def _auth_roles(auth_user: dict[str, Any] | None) -> set[str]:
     return {_normalize_text(role).lower() for role in roles if _normalize_text(role)}
 
 
-def _entitlement_visible(required_entitlement: str, entitlement_service: Any = None) -> bool:
+def _auth_account_id(auth_user: Mapping[str, Any] | None) -> str:
+    if not isinstance(auth_user, Mapping):
+        return ""
+    return _normalize_text(auth_user.get("account_id"))
+
+
+def _entitlement_visible(
+    required_entitlement: str,
+    auth_user: Mapping[str, Any] | None,
+    entitlement_service: Any = None,
+) -> bool:
+    """A page that needs a feature is visible only to an account entitled to it.
+
+    An anonymous request has no account and is never entitled.
+    """
     feature = _normalize_text(required_entitlement).lower()
     if not feature:
         return True
-    is_enabled = getattr(entitlement_service, "is_enabled", None)
-    if callable(is_enabled):
-        try:
-            return bool(is_enabled(feature))
-        except Exception:
-            return False
-    return False
+    account_id = _auth_account_id(auth_user)
+    is_entitled = getattr(entitlement_service, "is_entitled", None)
+    if not account_id or not callable(is_entitled):
+        return False
+    try:
+        return bool(is_entitled(account_id, feature))
+    except Exception:
+        return False
 
 
 def _permission_visible(
@@ -308,6 +426,7 @@ def _page_visible(
         return False
     if not _entitlement_visible(
         _normalize_text(record.get("required_entitlement")),
+        auth_user,
         entitlement_service,
     ):
         return False
@@ -316,6 +435,282 @@ def _page_visible(
         auth_user,
         authorization_service=authorization_service,
     )
+
+
+def _same_origin_api_path(
+    value: Any, *, label: str, allow_tokens: bool, api_prefix: str = "/api/"
+) -> str:
+    path = _normalize_text(value)
+    if (
+        not _SAME_ORIGIN_API_PATH.fullmatch(path)
+        or path.startswith("//")
+        or ".." in path
+        or "://" in path
+        or "?" in path
+        or "#" in path
+    ):
+        raise ValueError(f"{label} must be a same-origin /api/ path, got {path!r}")
+    if not path.startswith(api_prefix) or path == api_prefix:
+        raise ValueError(f"{label} must live under {api_prefix}, got {path!r}")
+    remainder = _API_PATH_TOKEN.sub("", path) if allow_tokens else path
+    if "{" in remainder or "}" in remainder:
+        raise ValueError(f"{label} may use braces only as {{name}} tokens, got {path!r}")
+    return path
+
+
+def _resource_admin_field(value: Any, *, resource_key: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError(
+            f"resource_admin resource {resource_key!r} has a field that is not a mapping"
+        )
+    field = dict(value)
+    field_key = _normalize_text(field.get("key"))
+    field_type = _normalize_text(field.get("type"), fallback="text")
+    if not field_key:
+        raise ValueError(f"resource_admin resource {resource_key!r} has a field without a key")
+    if field_type not in _RESOURCE_ADMIN_FIELD_TYPES:
+        raise ValueError(
+            f"resource_admin field {resource_key}.{field_key} has unknown type {field_type!r}"
+        )
+    field["key"] = field_key
+    field["type"] = field_type
+    return field
+
+
+def _resource_admin_resource(value: Any, *, api_prefix: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("resource_admin resources must be mappings")
+    resource = dict(value)
+    resource_key = _normalize_text(resource.get("key"))
+    if not resource_key:
+        raise ValueError("resource_admin resource requires a key")
+    for required in ("title", "id_field"):
+        if not _normalize_text(resource.get(required)):
+            raise ValueError(f"resource_admin resource {resource_key!r} requires {required}")
+    raw_fields = resource.get("fields")
+    if isinstance(raw_fields, (str, bytes, Mapping)) or not isinstance(raw_fields, Iterable):
+        raw_fields = []
+    fields = [_resource_admin_field(item, resource_key=resource_key) for item in raw_fields]
+    if not fields:
+        raise ValueError(f"resource_admin resource {resource_key!r} requires at least one field")
+    resource["key"] = resource_key
+    resource["fields"] = fields
+    # The browser calls list_path verbatim, so it carries no tokens; item_path
+    # substitutes the record id into its {name} token.
+    resource["list_path"] = _same_origin_api_path(
+        resource.get("list_path"),
+        label=f"resource_admin resource {resource_key!r} list_path",
+        allow_tokens=False,
+        api_prefix=api_prefix,
+    )
+    if _normalize_text(resource.get("item_path")):
+        item_path = _same_origin_api_path(
+            resource.get("item_path"),
+            label=f"resource_admin resource {resource_key!r} item_path",
+            allow_tokens=True,
+            api_prefix=api_prefix,
+        )
+        # Exactly one {name} token, and it is the whole final segment, so the
+        # substituted record id can never change which collection is addressed.
+        tokens = _API_PATH_TOKEN.findall(item_path)
+        if len(tokens) != 1 or item_path.rsplit("/", 1)[-1] != tokens[0]:
+            raise ValueError(
+                f"resource_admin resource {resource_key!r} item_path must end in exactly "
+                f"one {{name}} token as its final segment, got {item_path!r}"
+            )
+        resource["item_path"] = item_path
+    return resource
+
+
+def _normalize_control_surface(
+    control_surface: Mapping[str, Any] | None,
+    *,
+    component_key: str,
+    api_prefix: str = "/api/",
+) -> dict[str, Any] | None:
+    """Validate a declared control surface; host-renderer kinds are checked strictly.
+
+    A page with a compiled ``component_key`` owns its surface and may use any
+    kind. A page without one is rendered by the Core bundle, so its surface
+    must be a host-renderer kind whose resources stay on same-origin API paths
+    under ``api_prefix``: ``/api/`` for Core, the module's own tree for a module.
+    """
+
+    if not isinstance(control_surface, Mapping):
+        return None
+    surface = dict(control_surface)
+    kind = _normalize_text(surface.get("kind"))
+    if kind not in HOST_RENDERER_KINDS:
+        if component_key:
+            return surface
+        raise ValueError(
+            f"control_surface kind {kind!r} has no host renderer; "
+            f"supported kinds: {sorted(HOST_RENDERER_KINDS)}"
+        )
+    raw_resources = surface.get("resources")
+    if isinstance(raw_resources, (str, bytes, Mapping)) or not isinstance(raw_resources, Iterable):
+        raw_resources = []
+    resources = [_resource_admin_resource(item, api_prefix=api_prefix) for item in raw_resources]
+    if not resources:
+        raise ValueError("resource_admin control_surface requires at least one resource")
+    surface["kind"] = kind
+    surface["resources"] = resources
+    return surface
+
+
+def _has_host_renderer(record: Mapping[str, Any]) -> bool:
+    surface = record.get("control_surface")
+    return isinstance(surface, Mapping) and surface.get("kind") in HOST_RENDERER_KINDS
+
+
+def _route_path(value: Any) -> str:
+    path = _normalize_text(value)
+    return path.rstrip("/") or "/"
+
+
+def _owner_label(source_module: str | None) -> str:
+    return f"platform module {source_module!r}" if source_module else "Core"
+
+
+def _reject_page_collision(
+    registries: MutableMapping[str, Any],
+    *,
+    page_key: str,
+    path: str,
+    source_module: str | None,
+) -> None:
+    """Refuse a registration that would replace a page another owner registered.
+
+    Owners are Core (no ``source_module``) and each platform module. A page that
+    Core marks as its own is never replaceable, not even by Core. Within one owner
+    a later registration replaces the earlier one. The one exception is the
+    unmarked Core ``extensions`` entry, which any owner may replace under the same
+    page key.
+    """
+
+    target_path = _route_path(path)
+    for registry_name in _PAGE_REGISTRY_NAMES:
+        registry = registries.get(registry_name)
+        if not isinstance(registry, Mapping):
+            continue
+        for record in registry.values():
+            if not isinstance(record, Mapping):
+                continue
+            same_key = record.get("page_key") == page_key
+            same_path = _route_path(record.get("path")) == target_path
+            if not (same_key or same_path):
+                continue
+            if record.get(_CORE_DEFINITION_MARKER):
+                if same_key:
+                    raise ValueError(f"page key {page_key!r} is reserved by a Core page")
+                raise ValueError(
+                    f"page path {path!r} is reserved by Core page {record.get('page_key')!r}"
+                )
+            owner = _normalize_text(record.get(SOURCE_MODULE_FIELD)) or None
+            if owner == source_module:
+                continue
+            if same_key and owner is None and page_key in _REPLACEABLE_CORE_PAGE_KEYS:
+                continue
+            what = f"page key {page_key!r}" if same_key else f"page path {path!r}"
+            raise ValueError(
+                f"{what} already belongs to {_owner_label(owner)} "
+                f"(page {record.get('page_key')!r}); {_owner_label(source_module)} "
+                "cannot replace it"
+            )
+
+
+def _build_page_record(
+    *,
+    key: str = "",
+    page_key: str = "",
+    label: str = "",
+    title: str = "",
+    path: str,
+    component_key: str = "",
+    icon: str = "",
+    nav_section: str = "system",
+    nav_order: int | None = None,
+    render_mode: str = "react_shell",
+    required_permission: str = "",
+    required_entitlement: str = "",
+    edition_visibility: Iterable[str] | str = _COMMUNITY_SAFE_EDITIONS,
+    core_page: bool = False,
+    sidebar_nav: bool = False,
+    settings_tab: bool = False,
+    sort_order: int = 100,
+    nav_label: str = "",
+    nav_icon: str = "",
+    current_pages: Iterable[str] | None = None,
+    loading_text: str = "",
+    control_surface: Mapping[str, Any] | None = None,
+    api_prefix: str = "/api/",
+) -> dict[str, Any]:
+    normalized_page_key = _normalize_text(key or page_key)
+    normalized_label = _normalize_text(label or nav_label or title, fallback=normalized_page_key)
+    normalized_icon = _normalize_text(icon or nav_icon, fallback="file")
+    normalized_order = int(nav_order if nav_order is not None else sort_order)
+    normalized_component_key = _normalize_text(component_key)
+    record = {
+        "key": normalized_page_key,
+        "page_key": normalized_page_key,
+        "label": normalized_label,
+        "title": _normalize_text(title or label, fallback=normalized_label),
+        "path": _normalize_text(path, fallback="/"),
+        "component_key": normalized_component_key,
+        "nav_section": _normalize_text(nav_section, fallback="system"),
+        "render_mode": _normalize_text(render_mode, fallback="react_shell"),
+        "required_permission": _normalize_text(required_permission),
+        "required_entitlement": _normalize_text(required_entitlement),
+        "edition_visibility": _normalize_multi_text(
+            edition_visibility,
+            fallback=_COMMUNITY_SAFE_EDITIONS,
+        ),
+        "core_page": bool(core_page),
+        "sidebar_nav": bool(sidebar_nav),
+        "settings_tab": bool(settings_tab),
+        "sort_order": normalized_order,
+        "nav_order": normalized_order,
+        "nav_label": normalized_label,
+        "nav_icon": normalized_icon,
+        "icon": normalized_icon,
+        "current_pages": list(
+            _normalize_multi_text(
+                current_pages or (normalized_page_key,),
+                fallback=(normalized_page_key,),
+            )
+        ),
+        "loading_text": _normalize_text(loading_text),
+    }
+    surface = _normalize_control_surface(
+        control_surface, component_key=normalized_component_key, api_prefix=api_prefix
+    )
+    if surface is not None:
+        record["control_surface"] = surface
+    return record
+
+
+def _store_page_record(registries: MutableMapping[str, Any], record: dict[str, Any]) -> None:
+    page_key = record["page_key"]
+    settings_registry = registries.setdefault("settings_pages", {})
+    navigation_registry = registries.setdefault("navigation_items", {})
+    page_registry = registries.setdefault("registered_pages", {})
+    if record["settings_tab"] or str(record["path"]).startswith("/settings"):
+        settings_registry[page_key] = record
+    else:
+        settings_registry.pop(page_key, None)
+
+    if record["sidebar_nav"]:
+        navigation_registry[page_key] = record
+    else:
+        navigation_registry.pop(page_key, None)
+
+    # A page reaches the shell either through a compiled component or through a
+    # host renderer selected by its control-surface kind.
+    renderable = bool(record["component_key"]) or _has_host_renderer(record)
+    if renderable and record["render_mode"] == "react_shell":
+        page_registry[page_key] = record
+    else:
+        page_registry.pop(page_key, None)
 
 
 def register_page(
@@ -344,64 +739,69 @@ def register_page(
     loading_text: str = "",
     control_surface: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Register one internal React shell page/navigation record."""
+    """Register one internal React shell page/navigation record.
 
-    normalized_page_key = _normalize_text(key or page_key)
-    normalized_label = _normalize_text(label or nav_label or title, fallback=normalized_page_key)
-    normalized_icon = _normalize_text(icon or nav_icon, fallback="file")
-    normalized_order = int(nav_order if nav_order is not None else sort_order)
-    record = {
-        "key": normalized_page_key,
-        "page_key": normalized_page_key,
-        "label": normalized_label,
-        "title": _normalize_text(title or label, fallback=normalized_label),
-        "path": _normalize_text(path, fallback="/"),
-        "component_key": _normalize_text(component_key),
-        "nav_section": _normalize_text(nav_section, fallback="system"),
-        "render_mode": _normalize_text(render_mode, fallback="react_shell"),
-        "required_permission": _normalize_text(required_permission),
-        "required_entitlement": _normalize_text(required_entitlement),
-        "edition_visibility": _normalize_multi_text(
-            edition_visibility,
-            fallback=_COMMUNITY_SAFE_EDITIONS,
-        ),
-        "core_page": bool(core_page),
-        "sidebar_nav": bool(sidebar_nav),
-        "settings_tab": bool(settings_tab),
-        "sort_order": normalized_order,
-        "nav_order": normalized_order,
-        "nav_label": normalized_label,
-        "nav_icon": normalized_icon,
-        "icon": normalized_icon,
-        "current_pages": list(
-            _normalize_multi_text(
-                current_pages or (normalized_page_key,),
-                fallback=(normalized_page_key,),
-            )
-        ),
-        "loading_text": _normalize_text(loading_text),
-    }
-    if isinstance(control_surface, Mapping):
-        record["control_surface"] = dict(control_surface)
+    Raises ``ValueError`` when the declared control surface is invalid, when
+    the page key or path would replace a page another owner registered (Core or
+    another platform module), or when a host-rendered page comes from neither
+    Core nor a prepared platform module. Raises :class:`PageRegistrySealedError`
+    once the composition root sealed the registries.
 
-    settings_registry = registries.setdefault("settings_pages", {})
-    navigation_registry = registries.setdefault("navigation_items", {})
-    page_registry = registries.setdefault("registered_pages", {})
-    if record["settings_tab"] or str(record["path"]).startswith("/settings"):
-        settings_registry[normalized_page_key] = record
-    else:
-        settings_registry.pop(normalized_page_key, None)
+    Inside a prepared module's :func:`page_registration_scope` the record is
+    stamped with that module's id as ``source_module`` (no argument can set it)
+    and host-rendered resources must live under ``/api/modules/<module id>/``.
+    Outside any scope the caller is Core, which is only possible before sealing.
+    """
 
-    if record["sidebar_nav"]:
-        navigation_registry[normalized_page_key] = record
-    else:
-        navigation_registry.pop(normalized_page_key, None)
-
-    if record["component_key"] and record["render_mode"] == "react_shell":
-        page_registry[normalized_page_key] = record
-    else:
-        page_registry.pop(normalized_page_key, None)
-
+    _refuse_sealed(registries, _normalize_text(key or page_key))
+    scope = _REGISTRATION_SCOPE.get()
+    source_module = scope.module_id if scope is not None else None
+    record = _build_page_record(
+        key=key,
+        page_key=page_key,
+        label=label,
+        title=title,
+        path=path,
+        component_key=component_key,
+        icon=icon,
+        nav_section=nav_section,
+        nav_order=nav_order,
+        render_mode=render_mode,
+        required_permission=required_permission,
+        required_entitlement=required_entitlement,
+        edition_visibility=edition_visibility,
+        core_page=core_page,
+        sidebar_nav=sidebar_nav,
+        settings_tab=settings_tab,
+        sort_order=sort_order,
+        nav_label=nav_label,
+        nav_icon=nav_icon,
+        current_pages=current_pages,
+        loading_text=loading_text,
+        control_surface=control_surface,
+        api_prefix=module_api_prefix(source_module) if source_module else "/api/",
+    )
+    if scope is not None and source_module is None and _has_host_renderer(record):
+        # ADR 0082, section 6: only Core and verified platform modules may use a
+        # renderer that ships in the Core bundle.
+        raise ValueError(
+            f"page {record['page_key']!r} uses a host renderer; only Core and prepared "
+            "platform modules may register host-rendered pages"
+        )
+    if scope is None or source_module is not None:
+        # An environment-listed bootstrap module keeps its pre-ADR 0082 behaviour
+        # and may replace any page; Core and platform modules may not.
+        _reject_page_collision(
+            registries,
+            page_key=record["page_key"],
+            path=record["path"],
+            source_module=source_module,
+        )
+    if source_module:
+        record[SOURCE_MODULE_FIELD] = source_module
+    _store_page_record(registries, record)
+    if scope is not None:
+        scope.page_keys.append(record["page_key"])
     return dict(record)
 
 
@@ -451,19 +851,26 @@ def register_settings_page(
 
 
 def register_core_settings_pages(registries: MutableMapping[str, Any]) -> None:
-    """Register the Community-owned settings and navigation entries."""
+    """Register the Community-owned settings and navigation entries.
 
+    Definitions flagged ``core_page`` are reserved: a later registration with
+    the same page key or path is refused. The Extensions entry is not a Core
+    page and stays replaceable by a same-key registration.
+    """
+
+    _refuse_sealed(registries, "core settings pages")
     for definition in _CORE_SETTINGS_PAGE_DEFINITIONS:
-        register_settings_page(registries, **definition)
-        page_key = definition["page_key"]
-        for registry_name in ("settings_pages", "navigation_items", "registered_pages"):
-            record = registries[registry_name].get(page_key)
-            if record is not None:
-                record["_title_i18n_key"] = _CORE_SETTINGS_TITLE_KEYS[page_key]
+        record = _build_page_record(**definition)
+        record["_title_i18n_key"] = _CORE_SETTINGS_TITLE_KEYS[record["page_key"]]
+        if record["core_page"]:
+            record[_CORE_DEFINITION_MARKER] = True
+        _store_page_record(registries, record)
 
 
 def _localized_page_record(record: dict[str, Any], locale: str) -> dict[str, Any]:
     localized = dict(record)
+    localized.pop(_CORE_DEFINITION_MARKER, None)
+    localized.pop(SOURCE_MODULE_FIELD, None)
     title_key = localized.pop("_title_i18n_key", None)
     if locale == "en" or not title_key:
         return localized
@@ -596,6 +1003,12 @@ def resolve_registered_shell_paths(registries: dict[str, Any]) -> tuple[str, ...
 
 
 __all__ = [
+    "HOST_RENDERER_KINDS",
+    "SOURCE_MODULE_FIELD",
+    "PageRegistrationScope",
+    "PageRegistrySealedError",
+    "page_registration_scope",
+    "page_registries_sealed",
     "register_core_settings_pages",
     "register_page",
     "register_settings_page",
@@ -603,4 +1016,5 @@ __all__ = [
     "resolve_registered_pages",
     "resolve_registered_settings_pages",
     "resolve_registered_shell_paths",
+    "seal_page_registries",
 ]

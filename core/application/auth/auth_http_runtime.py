@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 from urllib.parse import urlencode
 
@@ -32,16 +32,25 @@ from core.application.auth.inbound_oauth_policy import (
 from core.application.auth.permissions import (
     ADMIN_ROLE,
     OPERATOR_ROLE,
+    PERMISSIONS,
     SYSTEM_ROLE_PERMISSIONS,
     highest_system_role,
+    token_grants_permission,
 )
 from core.application.auth.principal import (
     ResolvedPrincipal,
     is_machine_principal,
     is_token_scoped_principal,
     principal_has_required_scopes,
+    principal_scopes,
 )
-from core.application.auth.route_permissions import route_admin_only, route_permission
+from core.application.auth.route_permissions import (
+    RoutePermission,
+    RoutePermissionRule,
+    is_module_api_path,
+    route_admin_only,
+    route_permission,
+)
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.mcp_dev_proxy import MCP_DEV_AUTH_HEADER, mcp_dev_proxy_enabled
 
@@ -148,8 +157,13 @@ _UNMAPPED = object()
 _WORKFLOW_RUN_RE = re.compile(r"^/api/workflows/[^/]+/run$")
 
 
-def _route_needs(method: str, path: str, permission: str) -> bool:
-    match = route_permission(method, path)
+def _route_needs(
+    method: str,
+    path: str,
+    permission: str,
+    contributed_rules: Sequence[RoutePermissionRule] = (),
+) -> bool:
+    match = route_permission(method, path, contributed_rules)
     return match is not None and match.permission == permission
 
 
@@ -172,20 +186,35 @@ def _stored_role_permissions(bl: Any) -> Mapping[str, frozenset[str]]:
     return SYSTEM_ROLE_PERMISSIONS
 
 
+def _contributed_route_rules(
+    contributed_route_rules_fn: Callable[[], Sequence[RoutePermissionRule]] | None,
+) -> tuple[RoutePermissionRule, ...]:
+    """Module route rules for this request; a failing reader contributes none (closed)."""
+    if not callable(contributed_route_rules_fn):
+        return ()
+    try:
+        return tuple(contributed_route_rules_fn() or ())
+    except Exception:
+        _LOG.warning("module route permission rules are unavailable; using Core rules only")
+        return ()
+
+
 def _person_route_permission(
     method: str,
     path: str,
     *,
     interactive_source: str,
     contributed_own_account_write: bool,
+    contributed_rules: Sequence[RoutePermissionRule] = (),
 ) -> str | None | object:
     """The permission a person's request needs, ``None`` for any signed-in person, or
     :data:`_UNMAPPED` when no rule maps it.
 
     A write an edition contributes as a person's own-account route (the
     ``self_service_auth_write_paths`` registry) needs ``account.self`` like Core's own.
+    ``contributed_rules`` are the route rules platform modules registered (ADR 0082).
     """
-    match = route_permission(method, path)
+    match = route_permission(method, path, contributed_rules)
     if match is not None:
         permission = match.permission
     elif contributed_own_account_write:
@@ -463,6 +492,66 @@ def _read_scopes(path: str) -> list[str]:
     return [_TOKEN_READ, _TOKEN_ADMIN_ALL]
 
 
+def _module_token_refusal(user: dict[str, Any], match: RoutePermission | None) -> Any:
+    """A token on a module route also needs the catalogue grant of the route's permission.
+
+    The coarse read/command scope list above is what Core asks of every route; for a
+    module route the token must in addition be granted the declared permission through
+    :func:`core.application.auth.permissions.token_grants_permission`, the catalogue's
+    own permission-to-scope table (``secrets:write`` for ``secrets.value.write``,
+    ``admin:all`` for an admin permission, never for ``secrets.approve``).
+    """
+    if match is None or not _principal_requires_http_scopes(user):
+        return None
+    definition = PERMISSIONS.get(str(match.permission or ""))
+    if definition is not None and token_grants_permission(definition, principal_scopes(user)):
+        return None
+    return JSONResponse(
+        {"error": f"Missing required token scope (the route needs {match.permission})"},
+        status_code=403,
+    )
+
+
+async def _module_machine_refusal(
+    principal: ResolvedPrincipal,
+    user: dict[str, Any],
+    *,
+    match: RoutePermission | None,
+    admin_required: bool,
+    bl: Any,
+    load_role_permissions_fn: Any,
+    roles_intersect_fn: Any,
+    auth_admin_roles: set[str],
+    err_route_not_mapped: str,
+    err_admin_role_required: str,
+    err_operator_role_required: str,
+) -> Any:
+    """Service accounts, extension runtime and system actors in a module's API tree.
+
+    No blanket rule of the machine branch applies there: the declared permission must
+    be held through the principal's roles and the stored role permissions, the mapping
+    a person's request uses. A route no module rule maps is a read under the generic
+    ``platform.read`` rule or an unmapped write, refused to everybody.
+    """
+    if match is None or match.permission is None:
+        return JSONResponse({"error": err_route_not_mapped}, status_code=403)
+    if admin_required and not roles_intersect_fn(user.get("roles") or [], auth_admin_roles):
+        return JSONResponse({"error": err_admin_role_required}, status_code=403)
+    try:
+        stored = (
+            {}
+            if highest_system_role(principal.roles) == ADMIN_ROLE
+            else await run_in_threadpool(load_role_permissions_fn or _stored_role_permissions, bl)
+        )
+    except Exception:
+        return JSONResponse({"error": "Role permissions are unavailable"}, status_code=503)
+    if match.permission in owner_role_permissions(principal, role_permissions=stored):
+        return None
+    operator_holds = match.permission in role_permission_keys(OPERATOR_ROLE, stored)
+    error = err_operator_role_required if operator_holds else err_admin_role_required
+    return JSONResponse({"error": error}, status_code=403)
+
+
 def _login_redirect_target(path_login: str, *, next_path: str) -> str:
     target = str(path_login or "/login").strip() or "/login"
     requested = str(next_path or "").strip()
@@ -505,6 +594,7 @@ async def local_auth_middleware(
     path_login: str,
     load_role_permissions_fn: Any = None,
     err_route_not_mapped: str = "No permission is defined for this route",
+    contributed_route_rules_fn: Callable[[], Sequence[RoutePermissionRule]] | None = None,
 ) -> Any:
     request.state.auth_user = None
     request.state.auth_principal = None
@@ -642,11 +732,16 @@ async def local_auth_middleware(
 
     authoring_validate = _is_workflow_authoring_validate(path, method)
     machine = is_machine_principal(user)
+    contributed_rules = _contributed_route_rules(contributed_route_rules_fn)
+    # ADR 0082: a module's API tree is decided by its own rules, else the generic read
+    # rule; no own-account or machine-write default reaches into it.
+    module_tree = is_module_api_path(path)
+    module_match = route_permission(method, path, contributed_rules) if module_tree else None
     # ADR 0076 §3: token scopes and service accounts keep their rules. A former
     # admin-only route, a delete and creating workflows need admin:all from a token and
     # the admin role from a service account (its operator deletes excepted).
     admin_required = bool(
-        route_admin_only(method, path)
+        route_admin_only(method, path, contributed_rules)
         or (method == "DELETE" and not (machine and _is_operator_delete(path, method)))
         or _is_workflow_authoring_create(path, method)
     )
@@ -680,10 +775,18 @@ async def local_auth_middleware(
             {"error": f"Missing required token scope (needs one of: {accepted})"},
             status_code=403,
         )
+    if module_tree:
+        token_refusal = _module_token_refusal(user, module_match)
+        if token_refusal is not None:
+            return token_refusal
 
-    own_account_write = method not in _HTTP_SAFE_METHODS and (
-        _route_needs(method, path, OWN_ACCOUNT_PERMISSION)
-        or bool(is_self_service_auth_write_route_fn(path))
+    own_account_write = (
+        method not in _HTTP_SAFE_METHODS
+        and not module_tree
+        and (
+            _route_needs(method, path, OWN_ACCOUNT_PERMISSION, contributed_rules)
+            or bool(is_self_service_auth_write_route_fn(path))
+        )
     )
     if principal_permission_kind(principal) != NOT_ROLE_BASED:
         # A person, or a person's own token: the route table and the permissions of
@@ -708,6 +811,7 @@ async def local_auth_middleware(
             path,
             interactive_source=auth_source,
             contributed_own_account_write=own_account_write,
+            contributed_rules=contributed_rules,
         )
         if permission is _UNMAPPED:
             return JSONResponse({"error": err_route_not_mapped}, status_code=403)
@@ -716,6 +820,24 @@ async def local_auth_middleware(
             operator_holds = permission in role_permission_keys(OPERATOR_ROLE, stored)
             error = err_operator_role_required if operator_holds else err_admin_role_required
             return JSONResponse({"error": error}, status_code=403)
+        return await call_next(request)
+
+    if module_tree:
+        machine_refusal = await _module_machine_refusal(
+            principal,
+            user,
+            match=module_match,
+            admin_required=admin_required,
+            bl=bl,
+            load_role_permissions_fn=load_role_permissions_fn,
+            roles_intersect_fn=roles_intersect_fn,
+            auth_admin_roles=auth_admin_roles,
+            err_route_not_mapped=err_route_not_mapped,
+            err_admin_role_required=err_admin_role_required,
+            err_operator_role_required=err_operator_role_required,
+        )
+        if machine_refusal is not None:
+            return machine_refusal
         return await call_next(request)
 
     # Service accounts, extension runtime and system actors: their rules are unchanged.

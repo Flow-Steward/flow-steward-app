@@ -122,10 +122,15 @@ _MESSAGES = {
     "jobs.approve": "Approved",
     "jobs.reject": "Rejected",
     "release.upgrade": "Release upgraded",
+    "release.modules-apply": "Platform modules activated",
     "database.upgrade": "Database upgraded",
 }
 # The columns worth a table cell, per command and list field; other lists pick their own.
 _TABLE_COLUMNS: dict[str, dict[str, tuple[str, ...]]] = {
+    "release.modules-list": {
+        "active_modules": ("id", "version", "digest"),
+        "staged_modules": ("id", "version", "digest"),
+    },
     "backup.list": {"backups": ("path", "size_bytes", "created_at", "verification_status")},
     "users.list": {
         "users": (

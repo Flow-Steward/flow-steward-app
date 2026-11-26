@@ -2,21 +2,28 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import logging
+import threading
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Protocol
 
-_COMMUNITY_ENTITLEMENTS: dict[str, bool] = {
-    "external_sign_in": False,
-    "identity_access": False,
-    "audit_export": False,
-    "extension_governance": False,
-    "private_extension_catalog": False,
-}
+from core.application.management.errors import ServiceForbiddenError
+
+_LOG = logging.getLogger(__name__)
+
+#: The machine code an API refusal carries when the account lacks a feature.
+FEATURE_NOT_ENTITLED_CODE = "feature_not_entitled"
 
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def normalize_entitlement_name(value: Any) -> str:
+    """The canonical spelling of a feature or limit name: trimmed and lowercase."""
+    return _normalize_text(value).lower()
 
 
 def _normalize_role_set(
@@ -122,23 +129,169 @@ class CommunityAuthorizationService:
         return False
 
 
+class EntitlementSource(Protocol):
+    """Supplies features and numeric limits; it never decides (ADR 0082, section 3)."""
+
+    def features_for(self, account_id: str) -> Collection[str]: ...
+
+    def limits_for(self, account_id: str) -> Mapping[str, int]: ...
+
+
 class EntitlementService(Protocol):
-    def is_enabled(self, feature: str) -> bool: ...
+    def is_entitled(self, account_id: str, feature: str) -> bool: ...
 
-    def snapshot(self) -> dict[str, bool]: ...
+    def limit(self, account_id: str, name: str) -> int | None: ...
+
+    def snapshot(self, account_id: str) -> Mapping[str, bool]: ...
+
+    def register_entitlement_source(self, source: EntitlementSource) -> None: ...
 
 
-@dataclass(slots=True)
-class CommunityEntitlementService:
-    """Community entitlements are explicit and deterministic."""
+class EntitlementSourceError(Exception):
+    """A registered source raised or answered with something that is not a valid answer."""
 
-    feature_flags: dict[str, bool] = field(default_factory=lambda: dict(_COMMUNITY_ENTITLEMENTS))
 
-    def is_enabled(self, feature: str) -> bool:
-        return bool(self.feature_flags.get(_normalize_text(feature).lower(), False))
+class FeatureNotEntitledError(ServiceForbiddenError):
+    """An API request needs a feature the caller's account is not entitled to."""
 
-    def snapshot(self) -> dict[str, bool]:
-        return dict(sorted(self.feature_flags.items()))
+    def __init__(self, feature: str) -> None:
+        self.feature = normalize_entitlement_name(feature)
+        message = f"This account is not entitled to the feature '{self.feature}'"
+        super().__init__(
+            message,
+            payload={
+                "code": FEATURE_NOT_ENTITLED_CODE,
+                "message": message,
+                "details": {"feature": self.feature},
+            },
+        )
+
+
+def _source_features(source: EntitlementSource, account_id: str) -> frozenset[str]:
+    raw = source.features_for(account_id)
+    if isinstance(raw, (str, bytes)) or not isinstance(raw, Collection):
+        raise EntitlementSourceError("features_for must return a collection of names")
+    names = set()
+    for item in raw:
+        if not isinstance(item, str):
+            raise EntitlementSourceError("features_for returned a name that is not a string")
+        name = normalize_entitlement_name(item)
+        if name:
+            names.add(name)
+    return frozenset(names)
+
+
+def _source_limits(source: EntitlementSource, account_id: str) -> dict[str, int]:
+    raw = source.limits_for(account_id)
+    if not isinstance(raw, Mapping):
+        raise EntitlementSourceError("limits_for must return a mapping")
+    limits: dict[str, int] = {}
+    for key, value in raw.items():
+        name = normalize_entitlement_name(key) if isinstance(key, str) else ""
+        if not name or isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise EntitlementSourceError("limits_for must map names to non-negative integers")
+        limits[name] = value
+    return limits
+
+
+class CoreEntitlementService:
+    """The only decider of feature entitlements and numeric limits, per account.
+
+    Platform modules register :class:`EntitlementSource` objects; the service asks
+    them and decides. With no source registered nothing is entitled and every limit
+    is ``None``, so callers keep their instance default. ``None`` therefore means
+    "no source speaks for this limit", never "a source failed".
+
+    Rules:
+
+    - A feature is entitled for an account when any registered source lists it for
+      that account.
+    - A limit that several sources define resolves to the largest value (the most
+      permissive one): sources are additive, and a second source must never
+      lower what the first one granted. ``None`` means no source
+      defines the limit.
+    - Sources can be registered but never replaced or removed. Registering the
+      same object again is a no-op.
+    - A source that raises, or answers with an invalid shape, fails the whole call
+      closed: ``is_entitled`` answers ``False``, ``limit`` answers ``0`` (nothing
+      allowed) and ``snapshot`` answers an empty mapping. ``limit`` must not answer
+      ``None`` here: callers read ``None`` as "use the instance default", which is
+      wider than any limit a source narrowed below it. The failure is logged once
+      per source.
+    - An empty account id (an anonymous request) is never entitled.
+
+    Feature and limit names are compared trimmed and lowercase.
+    """
+
+    __slots__ = ("_failed_sources", "_lock", "_sources")
+
+    def __init__(self) -> None:
+        self._sources: tuple[EntitlementSource, ...] = ()
+        self._failed_sources: set[int] = set()
+        self._lock = threading.Lock()
+
+    def register_entitlement_source(self, source: EntitlementSource) -> None:
+        if not callable(getattr(source, "features_for", None)) or not callable(
+            getattr(source, "limits_for", None)
+        ):
+            raise TypeError("an entitlement source needs features_for and limits_for")
+        with self._lock:
+            if any(existing is source for existing in self._sources):
+                return
+            self._sources = (*self._sources, source)
+
+    def _report_failure(self, source: EntitlementSource, exc: Exception) -> None:
+        with self._lock:
+            if id(source) in self._failed_sources:
+                return
+            self._failed_sources.add(id(source))
+        _LOG.warning(
+            "entitlement source %s failed (%s); answering not entitled",
+            type(source).__name__,
+            type(exc).__name__,
+        )
+
+    def _entitled_features(self, account_id: str) -> frozenset[str] | None:
+        """The union of every source's features, or ``None`` when a source failed."""
+        features: set[str] = set()
+        for source in self._sources:
+            try:
+                features |= _source_features(source, account_id)
+            except Exception as exc:
+                self._report_failure(source, exc)
+                return None
+        return frozenset(features)
+
+    def is_entitled(self, account_id: str, feature: str) -> bool:
+        account = _normalize_text(account_id)
+        name = normalize_entitlement_name(feature)
+        if not account or not name:
+            return False
+        features = self._entitled_features(account)
+        return bool(features is not None and name in features)
+
+    def limit(self, account_id: str, name: str) -> int | None:
+        """The account's limit; ``None`` when no source defines it, ``0`` on a source failure."""
+        account = _normalize_text(account_id)
+        limit_name = normalize_entitlement_name(name)
+        if not account or not limit_name:
+            return None
+        values: list[int] = []
+        for source in self._sources:
+            try:
+                limits = _source_limits(source, account)
+            except Exception as exc:
+                self._report_failure(source, exc)
+                return 0
+            if limit_name in limits:
+                values.append(limits[limit_name])
+        return max(values) if values else None
+
+    def snapshot(self, account_id: str) -> Mapping[str, bool]:
+        """The entitled features of an account for the browser; a missing key is ``False``."""
+        account = _normalize_text(account_id)
+        features = self._entitled_features(account) if account else frozenset()
+        return MappingProxyType(dict.fromkeys(sorted(features or ()), True))
 
 
 class AuditSink(Protocol):
@@ -297,21 +450,13 @@ def build_platform_contracts(
     admin_roles: Iterable[str] | None = None,
     operator_roles: Iterable[str] | None = None,
     viewer_roles: Iterable[str] | None = None,
-    entitlement_overrides: Mapping[str, bool] | None = None,
 ) -> dict[str, Any]:
-    entitlements = dict(_COMMUNITY_ENTITLEMENTS)
-    for key, enabled in dict(entitlement_overrides or {}).items():
-        normalized = _normalize_text(key).lower()
-        if not normalized:
-            continue
-        entitlements[normalized] = bool(enabled)
-
     authorization_service = CommunityAuthorizationService(
         admin_roles=_normalize_role_set(admin_roles, fallback=("admin",)),
         operator_roles=_normalize_role_set(operator_roles, fallback=("operator",)),
         viewer_roles=_normalize_role_set(viewer_roles, fallback=("viewer",)),
     )
-    entitlement_service = CommunityEntitlementService(feature_flags=entitlements)
+    entitlement_service = CoreEntitlementService()
     return {
         "authorization_service": authorization_service,
         "entitlement_service": entitlement_service,
@@ -322,15 +467,20 @@ def build_platform_contracts(
 
 
 __all__ = [
+    "FEATURE_NOT_ENTITLED_CODE",
     "AuditSink",
     "AuthorizationService",
     "CommunityAuthorizationService",
-    "CommunityEntitlementService",
     "CommunityExtensionGovernancePolicy",
+    "CoreEntitlementService",
     "DomainEventAuditSink",
     "EntitlementService",
+    "EntitlementSource",
+    "EntitlementSourceError",
     "ExtensionGovernancePolicy",
+    "FeatureNotEntitledError",
     "InDatabaseSecretProvider",
     "SecretProvider",
     "build_platform_contracts",
+    "normalize_entitlement_name",
 ]

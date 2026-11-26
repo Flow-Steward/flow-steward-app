@@ -2495,6 +2495,27 @@ without a PostgreSQL role may keep an existing selected image; if it is missing,
 restore it or choose a complete newer release. Development source builds require
 explicit `--from-source`.
 
+#### Platform modules (prototype, ADR 0082)
+
+`release modules-list` shows the platform modules every role loads and each version
+the deployment manager staged. `release modules-apply` makes the highest staged
+version of every module (or the versions named with `--modules id@version,...`) the
+active set through the same journaled operation as `release upgrade`, keeping the
+installed release: maintenance, a verified backup, the roles stopped, the list
+written, database migrations, the roles started, health checks. It needs the same
+review or `--confirm`, and leaves maintenance enabled on failure. After a failed
+change whose new set brought a module migration, restore the pre-upgrade backup and
+run `release modules-apply --restore-previous --confirm`. Only an official
+installation can change modules this way. On Compact, the list is read and written
+by a disposable container of the installed runtime image, because the host CLI
+cannot enter the runtime directory in the data volume.
+
+```bash
+./flow-steward release modules-list
+./flow-steward release modules-apply --confirm
+./flow-steward release modules-apply --restore-previous --confirm
+```
+
 #### Development upgrade
 
 A Development installation from a release tag upgrades with the same command:

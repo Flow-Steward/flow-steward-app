@@ -56,6 +56,7 @@ class _ReadOnlyConnection:
             self.rows = [(_BASELINE,)]
         elif (
             "SELECT migration_id, checksum" in statement
+            or "SELECT module_id, migration_id, checksum" in statement
             or "pg_stat_activity" in statement
             or statement.startswith("WITH refs AS")
         ):
@@ -162,6 +163,25 @@ def test_complete_release_artifacts_leave_supported_preflight_unblocked(
 
     assert report["blocking"] == []
     assert report["pending_migrations"] == [_REQUIRED_SQL]
+    assert "pending_module_migrations" not in report
+
+
+def test_preflight_reports_pending_platform_module_migrations_read_only(
+    release_artifacts: Path, tmp_path: Path
+) -> None:
+    module_dir = tmp_path / "acme-billing" / "db" / "migrations"
+    module_dir.mkdir(parents=True)
+    (module_dir / "20261201000000_init.sql").write_text("CREATE TABLE invoices (id int);\n")
+
+    # The read-only connection fails the test on any statement that is not a read.
+    report = upgrade_preflight.preflight(
+        _ReadOnlyConnection(),
+        root=release_artifacts,
+        module_sources=[("acme.billing", "1.0.0", module_dir)],
+    )
+
+    assert report["blocking"] == []
+    assert report["pending_module_migrations"] == {"acme.billing": ["20261201000000_init.sql"]}
 
 
 def test_installer_baseline_refuses_missing_release_sql_before_any_migration_mutation(

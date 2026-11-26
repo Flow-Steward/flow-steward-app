@@ -91,6 +91,10 @@ def main() -> None:
     except Exception as exc:
         logger.warning("Control-plane logging bootstrap failed (non-fatal): %s", exc)
 
+    from core.infrastructure.platform_modules.loader import register_platform_modules_for_role
+
+    register_platform_modules_for_role("control", config=config, logger=logger)
+
     from core.infrastructure.runtime.entrypoint_db_adapters import (
         enforce_runtime_schema,
         resolve_platform_dsn,

@@ -55,7 +55,7 @@ _flow_steward_complete() {
         maintenance) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "disable enable status" -- "$cur")); return; fi ;;
         projects) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "dispatch-notification list notification-deliveries notification-routes show" -- "$cur")); return; fi ;;
         quality) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "check-ci-excludes check-naming lint release-gate sonar-ensure-rules sonar-export-issues sonar-generate-backlog verify" -- "$cur")); return; fi ;;
-        release) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "check info upgrade" -- "$cur")); return; fi ;;
+        release) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "check info modules-apply modules-list upgrade" -- "$cur")); return; fi ;;
         reports) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "diagnostics generate get" -- "$cur")); return; fi ;;
         stack) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "logs rebuild restart start status stop" -- "$cur")); return; fi ;;
         testing) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "cutover-preflight cutover-smoke fuzz-api fuzz-mcp fuzz-ui nightfire-regression smoke-test" -- "$cur")); return; fi ;;
@@ -135,6 +135,8 @@ _flow_steward_complete() {
         "quality verify") words="--json --plain --no-color --verbose --non-interactive --confirm --input-json --tier --evidence-mode --fingerprint-source --trust --commit-sha --repository-root --evidence-root --timeout-seconds --help" ;;
         "release check") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "release info") words="--json --plain --no-color --verbose --non-interactive --help" ;;
+        "release modules-apply") words="--json --plain --no-color --verbose --non-interactive --confirm --modules --restore-previous --no-restore-previous --help" ;;
+        "release modules-list") words="--json --plain --no-color --verbose --non-interactive --help" ;;
         "release upgrade") words="--json --plain --no-color --verbose --non-interactive --confirm --target-version --dry-run --no-dry-run --skip-db-backup --no-skip-db-backup --timeout-seconds --help" ;;
         "reports diagnostics") words="--json --plain --no-color --verbose --non-interactive --input-json --host --doctor --help" ;;
         "reports generate") words="--json --plain --no-color --verbose --non-interactive --confirm --params --persist --no-persist --help" ;;

@@ -166,6 +166,13 @@ function normalizeField(value: unknown): ControlSurfaceField | null {
   };
 }
 
+// Resource requests carry app cookies and CSRF headers, so they must stay on
+// same-origin API paths. The server validates this at registration; this is
+// the defence-in-depth check.
+function isSameOriginApiPath(path: string): boolean {
+  return path.startsWith("/api/") && !path.startsWith("//") && !path.includes("..") && !path.includes("://");
+}
+
 function normalizeResource(value: unknown): ControlSurfaceResource | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -174,11 +181,15 @@ function normalizeResource(value: unknown): ControlSurfaceResource | null {
   const key = firstStringFromUnknownValue([record.key, ""]).trim();
   const title = firstStringFromUnknownValue([record.title, key]).trim();
   const listPath = firstStringFromUnknownValue([record.list_path, ""]).trim();
+  const itemPath = firstStringFromUnknownValue([record.item_path, ""]).trim();
   const idField = firstStringFromUnknownValue([record.id_field, ""]).trim();
   const fields = Array.isArray(record.fields)
     ? record.fields.map(normalizeField).filter(isTruthy)
     : [];
-  if (!key || !title || !listPath.startsWith("/") || !idField || fields.length === 0) {
+  if (!key || !title || !isSameOriginApiPath(listPath) || !idField || fields.length === 0) {
+    return null;
+  }
+  if (itemPath && !isSameOriginApiPath(itemPath)) {
     return null;
   }
   return {
@@ -188,7 +199,7 @@ function normalizeResource(value: unknown): ControlSurfaceResource | null {
     emptyLabel: typeof record.empty_label === "string" ? record.empty_label : undefined,
     fields,
     idField,
-    itemPath: firstStringFromUnknownValue([record.item_path, ""]).trim(),
+    itemPath,
     key,
     listPath,
     recordKey: firstStringFromUnknownValue([record.record_key, "item"]).trim() || "item",
@@ -318,7 +329,28 @@ function fieldControlId(resource: ControlSurfaceResource, field: ControlSurfaceF
     .join("-");
 }
 
-function resolveItemPath(resource: ControlSurfaceResource, id: string): string {
+const RECORD_ID_PATH_CHARACTERS = new Set(["/", "\\", "?", "#"]);
+
+// A record id is substituted into a request path. "." and ".." survive
+// encodeURIComponent and the browser would normalise them out of the resource
+// tree; separators and control characters must never reach the path at all.
+function isUsableRecordId(id: string): boolean {
+  if (!id || id === "." || id === "..") return false;
+  for (const character of id) {
+    const code = character.codePointAt(0) ?? 0;
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f) || RECORD_ID_PATH_CHARACTERS.has(character)) return false;
+  }
+  try {
+    // A lone UTF-16 surrogate cannot be percent-encoded.
+    encodeURIComponent(id);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function resolveItemPath(resource: ControlSurfaceResource, id: string): string | null {
+  if (!isUsableRecordId(id)) return null;
   const encodedId = encodeURIComponent(id);
   if (resource.itemPath) {
     return resource.itemPath.includes("{")
@@ -652,8 +684,16 @@ function ResourceAdminPanel({
     setFormOpen(true);
   }
 
+  function recordIdUnusable() {
+    setMessage({ text: t("react.settings.record_id_is_missing", "Record ID is missing."), tone: "danger" });
+  }
+
   function beginEdit(record: AdminRecord) {
     const id = firstStringFromUnknownValue([record[resource.idField], ""]).trim();
+    if (!isUsableRecordId(id)) {
+      recordIdUnusable();
+      return;
+    }
     setEditingId(id);
     setFormValues(valuesFromRecord(resource, record));
     setMessage(null);
@@ -663,11 +703,16 @@ function ResourceAdminPanel({
   async function saveResource(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
+    const editing = Boolean(editingId);
+    const target = editing ? resolveItemPath(resource, editingId) : resource.listPath;
+    if (target === null) {
+      recordIdUnusable();
+      return;
+    }
     setSaving(true);
     try {
-      const editing = Boolean(editingId);
       const payload = payloadFromValues(resource, formValues, { editing }, t);
-      await fetchJson<SaveResponse>(editing ? resolveItemPath(resource, editingId) : resource.listPath, {
+      await fetchJson<SaveResponse>(target, {
         method: editing ? "PUT" : "POST",
         body: JSON.stringify(payload),
       });
@@ -685,8 +730,8 @@ function ResourceAdminPanel({
 
   function requestDelete(record: AdminRecord) {
     const id = firstStringFromUnknownValue([record[resource.idField], ""]).trim();
-    if (!id) {
-      setMessage({ text: t("react.settings.record_id_is_missing", "Record ID is missing."), tone: "danger" });
+    if (!isUsableRecordId(id)) {
+      recordIdUnusable();
       return;
     }
     setPendingDelete(record);
@@ -696,10 +741,16 @@ function ResourceAdminPanel({
     const record = pendingDelete;
     if (!record) return;
     const id = firstStringFromUnknownValue([record[resource.idField], ""]).trim();
+    const target = resolveItemPath(resource, id);
+    if (target === null) {
+      setPendingDelete(null);
+      recordIdUnusable();
+      return;
+    }
     setMessage(null);
     setSaving(true);
     try {
-      await fetchJson<SaveResponse>(resolveItemPath(resource, id), { method: "DELETE" });
+      await fetchJson<SaveResponse>(target, { method: "DELETE" });
       setMessage({ text: t("react.settings.record_deleted", "Record deleted."), tone: "success" });
       await onReload();
     } catch (error) {

@@ -59,6 +59,7 @@ ALLOWED_PLAN_BUILDER_REFS = frozenset(
         "config.apply.preview",
         "environment.switch.preview",
         "release.upgrade.preview",
+        "release.modules-apply.preview",
         "clone.restore.preview",
     }
 )

@@ -5456,6 +5456,7 @@
       "core/application/extensions/url_safety.py",
       "core/entrypoints/cli/compact_container_cli.py",
       "core/entrypoints/cli/doctor.py",
+      "core/entrypoints/cli/ops/platform_modules.py",
       "core/infrastructure/monitoring/docker_containers.py",
       "core/infrastructure/runtime/app_lifecycle_runtime.py",
       "core/infrastructure/runtime_containers.py",
@@ -8747,6 +8748,27 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_PIP_AUDIT_REQUIREMENTS_SEMGREP"
+  },
+  {
+    "canonical_name": "FS_PLATFORM_MODULES_ROOT",
+    "code_read_locations": [
+      "core/infrastructure/platform_modules/loader.py"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Overrides the directory of prepared platform modules (ADR 0082). Unset uses /run/flow-steward-runtime/platform-modules, which every runtime role reads; Compact child processes do not receive this override.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_PLATFORM_MODULES_ROOT"
   },
   {
     "canonical_name": "FS_PROCESS_METRICS_HOST",

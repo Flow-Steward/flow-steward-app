@@ -33,6 +33,8 @@ _OPERATIONS = (
     "release-info",
     "release-check",
     "release-upgrade",
+    "release-modules-list",
+    "release-modules-apply",
     "backup-create",
     "backup-list",
     "backup-verify",
@@ -59,6 +61,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-db-backup", action="store_true")
     parser.add_argument("--target-version", default="")
     parser.add_argument("--timeout-seconds", type=int)
+    parser.add_argument("--modules", default="")
+    parser.add_argument("--restore-previous", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--plain", action="store_true")
     parser.add_argument("--no-color", action="store_true")
@@ -84,6 +88,7 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "backup-list": ["backup", "list"],
         "release-info": ["release", "info"],
         "release-check": ["release", "check"],
+        "release-modules-list": ["release", "modules-list"],
     }
     specified = {
         "backup": args.backup is not None,
@@ -102,6 +107,8 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
         "target_version": bool(args.target_version),
         "timeout_seconds": args.timeout_seconds is not None,
         "passphrase_stdin": args.passphrase_stdin,
+        "modules": bool(args.modules),
+        "restore_previous": args.restore_previous,
     }
     allowed = {
         "database-upgrade": {
@@ -124,6 +131,7 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             "confirm",
             "skip_db_backup",
         },
+        "release-modules-apply": {"modules", "restore_previous", "confirm"},
         "clone-create": {"output", "passphrase_stdin", "confirm"},
         "clone-restore": {
             "archive",
@@ -197,6 +205,14 @@ def _canonical_argv(args: argparse.Namespace) -> list[str]:
             command.append("--dry-run")
         if args.skip_db_backup:
             command.append("--skip-db-backup")
+        if args.confirm:
+            command.append("--confirm")
+    elif args.operation == "release-modules-apply":
+        command = ["release", "modules-apply"]
+        if args.modules:
+            command.extend(("--modules", args.modules))
+        if args.restore_previous:
+            command.append("--restore-previous")
         if args.confirm:
             command.append("--confirm")
     elif args.operation == "clone-create":

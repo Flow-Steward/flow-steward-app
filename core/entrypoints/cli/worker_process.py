@@ -29,6 +29,10 @@ def main() -> None:
 
     set_session_role("worker")
     validate_compact_only_settings(_runtime_env)
+    from core.infrastructure.config.runtime_config import CONFIG
+    from core.infrastructure.platform_modules.loader import register_platform_modules_for_role
+
+    register_platform_modules_for_role("worker", config=CONFIG)
     if str(_runtime_env.get("FS_MCP_GROUNDING_REQUIRED") or "").strip().lower() in {
         "1",
         "true",

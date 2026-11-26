@@ -15,9 +15,24 @@ REPO_ROOT = INFRASTRUCTURE_ROOT.parents[1]
 # splits). The SCC invariant below is the
 # authoritative cycle gate; this remains a secondary shrinking inventory.
 INFRASTRUCTURE_APPLICATION_IMPORT_BASELINE = 55
-RELEASE_APPLICATION_ADAPTERS = frozenset({"core/infrastructure/release/github.py"})
+RELEASE_APPLICATION_ADAPTERS = frozenset(
+    {
+        "core/infrastructure/release/github.py",
+        # ADR 0082 §5: the ModuleActivator port over the shared runtime directory.
+        "core/infrastructure/release/platform_module_activator.py",
+    }
+)
 RELEASE_APPLICATION_IMPORT_SURFACE = frozenset(
-    {"core.application.release.catalog.ReleaseDiscoveryError"}
+    {
+        "core.application.release.catalog.ReleaseDiscoveryError",
+        "core.application.lifecycle.errors.LifecycleError",
+        "core.application.lifecycle.stack_models.StackGatewayError",
+        "core.application.release.platform_modules.MODULE_DESCRIPTOR_KEYS",
+        "core.application.release.platform_modules.PreparedModuleRef",
+        "core.application.release.platform_modules.canonical_module_set",
+        "core.application.release.platform_modules.module_descriptor_digest",
+        "core.application.release.platform_modules.role_verification_unsupported",
+    }
 )
 # ADR 0060 owns the journal contracts in application and their native adapters
 # in infrastructure. Freeze each adapter's contract symbols, not all services

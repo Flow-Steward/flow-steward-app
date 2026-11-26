@@ -154,6 +154,54 @@ def test_serve_app_registers_platform_contracts() -> None:
     assert "extension_governance_policy" in container.service_factories
 
 
+def test_serve_app_exposes_module_entitlement_and_route_rule_seams() -> None:
+    """ADR 0082: a module reaches the seams through the container passed to register()."""
+    from core.application.auth.route_permissions import ModuleRoutePermissionRegistry
+    from core.application.settings.platform_contracts import FeatureNotEntitledError
+    from core.entrypoints.admin.deps import require_entitlement
+
+    api_runtime = _import_serve()
+    container = api_runtime.app.state.runtime_container
+
+    entitlements = container.service_factories["entitlement_service"]()
+    assert entitlements is container.registries["platform_contracts"]["entitlement_service"]
+    assert callable(entitlements.register_entitlement_source)
+    assert container.auth_helpers["require_entitlement"] is require_entitlement
+    assert isinstance(
+        container.registries["module_route_permissions"], ModuleRoutePermissionRegistry
+    )
+    assert FeatureNotEntitledError in api_runtime.app.exception_handlers
+    # Plain Core loads no platform module, so nothing is recorded as registered by one.
+    assert container.metadata["platform_module_registrations"] == []
+    assert api_runtime.app.state.platform_module_registrations == []
+    assert "platform_module" not in container.metadata
+
+
+def test_serve_app_seals_page_registries_after_module_loading() -> None:
+    """ADR 0082: once startup finished no caller, scoped or not, registers a page."""
+    from core.application.reports.ui_page_registry import (
+        PageRegistrySealedError,
+        page_registration_scope,
+        page_registries_sealed,
+        register_page,
+    )
+
+    api_runtime = _import_serve()
+    registries = api_runtime.app.state.runtime_container.registries
+
+    assert page_registries_sealed(registries)
+    with pytest.raises(PageRegistrySealedError, match="'late_page'"):
+        register_page(registries, key="late_page", path="/late", component_key="late.page")
+    with (
+        page_registration_scope(module_id="acme.notes"),
+        pytest.raises(PageRegistrySealedError, match="'late_module_page'"),
+    ):
+        register_page(
+            dict(registries), key="late_module_page", path="/late-module", component_key="x"
+        )
+    assert "late_page" not in registries["registered_pages"]
+
+
 def test_management_chat_routes_are_retired_but_operations_remain() -> None:
     api_runtime = _import_serve()
     paths = {route.path for route in api_runtime.app.routes if hasattr(route, "path")}

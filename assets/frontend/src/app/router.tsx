@@ -9,6 +9,7 @@ import { registeredPageComponents } from "@/app/extensions";
 import { RequireAdmin, RequireAuth, RequireCapability } from "@/lib/auth/guards";
 import { hasCapability } from "@/lib/auth/capabilities";
 import { sessionPermissions } from "@/lib/auth/permissions";
+import type { RegisteredPageRecord } from "@/lib/auth/AuthProvider";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { BootstrapPage } from "@/pages/auth/bootstrap";
@@ -132,6 +133,12 @@ const WorkflowsBuilderPageLazy = lazy(async () => {
   return { default: module.WorkflowsBuilderPage };
 });
 
+// Host renderer for module pages declared without a compiled component (ADR 0082).
+const RegisteredSettingsResourceAdminPageLazy = lazy(async () => {
+  const module = await holdForLoader(import("@/pages/settings/hub"));
+  return { default: module.RegisteredSettingsResourceAdminPage };
+});
+
 export function HomeGate() {
   const auth = useAuth();
   const { t } = useI18n();
@@ -182,6 +189,14 @@ function normalizeRoutePath(path: string) {
   return normalized === "/" ? "/" : normalized;
 }
 
+function registeredPageSurfaceKind(page: RegisteredPageRecord): string {
+  const surface = page.control_surface;
+  if (!surface || typeof surface !== "object" || Array.isArray(surface)) {
+    return "";
+  }
+  return firstStringFromUnknownValue([surface.kind, ""]).trim();
+}
+
 function RegisteredPageRoute() {
   const auth = useAuth();
   const { t } = useI18n();
@@ -197,6 +212,9 @@ function RegisteredPageRoute() {
 
   const componentKey = firstStringFromUnknownValue([page.component_key, ""]).trim();
   const Component = componentKey ? registeredPageComponents[componentKey] : undefined;
+  if (!Component && registeredPageSurfaceKind(page) === "resource_admin") {
+    return <RegisteredSettingsResourceAdminPageLazy page={page} />;
+  }
   if (!Component) {
     return (
       <PagePlaceholder
@@ -215,17 +233,18 @@ function SettingsDynamicRoute() {
   const auth = useAuth();
   const location = useLocation();
   const currentPath = normalizeRoutePath(location.pathname);
-  const hasRegisteredPage = (auth.session?.registered_pages || []).some(
+  const registeredPage = (auth.session?.registered_pages || []).find(
     (candidate) => normalizeRoutePath(candidate.path) === currentPath,
   );
-
-  if (hasRegisteredPage) {
+  const settingsPage = (auth.session?.settings_pages || []).find(
+    (candidate) => normalizeRoutePath(candidate.path) === currentPath,
+  );
+  // A compiled page wins; a host-rendered settings tab stays inside the hub.
+  const registeredComponentKey = firstStringFromUnknownValue([registeredPage?.component_key, ""]).trim();
+  if (registeredPage && (registeredComponentKey || !settingsPage?.settings_tab)) {
     return <RegisteredPageRoute />;
   }
-  const hasSettingsPage = (auth.session?.settings_pages || []).some(
-    (candidate) => normalizeRoutePath(candidate.path) === currentPath,
-  );
-  return hasSettingsPage ? <SettingsHubPage /> : <ShellNotFound />;
+  return settingsPage ? <SettingsHubPage /> : <ShellNotFound />;
 }
 
 export function AppRouter() {

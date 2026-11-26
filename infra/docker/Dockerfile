@@ -206,6 +206,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/extensions/release_membership_lock.py \
     core/application/extensions/projected_dataset_bridge.py \
+    core/application/extensions/semver.py \
     core/application/extensions/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/jobs/job_lifecycle_repository.py \
@@ -349,6 +350,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/db/psycopg_runtime/ c
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/extension_runtime/package_identity.py core/infrastructure/extension_runtime/object_storage.py core/infrastructure/extension_runtime/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/installer/ core/infrastructure/installer/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/lifecycle/ core/infrastructure/lifecycle/
+COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/platform_modules/ core/infrastructure/platform_modules/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/infrastructure/release/ core/infrastructure/release/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs db/schema/ db/schema/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs db/migrations/ db/migrations/

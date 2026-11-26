@@ -5,8 +5,14 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from core.application.auth.route_permissions import ModuleRoutePermissionRegistry
 from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
+from core.entrypoints.admin.deps import require_entitlement
 from core.entrypoints.api import route_registration as api_routes
+from core.entrypoints.api.platform_module_loading import (
+    MODULE_SERVICE_ERROR_TYPES,
+    load_platform_modules,
+)
 from core.entrypoints.api.public_openapi_policy import PUBLIC_OPENAPI_POLICY
 from core.infrastructure.extension_runtime.extension_runtime_helpers import (
     get_extension_query_provider,
@@ -111,6 +117,17 @@ def _is_self_service_auth_write_route(current_app: FastAPI, path: str) -> bool:
     Core's own-account writes are ``account.self`` in the route table (ADR 0076).
     """
     return _optional_route_allowed(current_app, path, "self_service_auth_write_paths")
+
+
+def _module_route_rules(current_app: FastAPI) -> tuple[Any, ...]:
+    """Route permission rules platform modules registered (ADR 0082, section 2)."""
+    container = _runtime_container(current_app)
+    registries = getattr(container, "registries", None)
+    if not isinstance(registries, dict):
+        return ()
+    registry = registries.get("module_route_permissions")
+    rules = getattr(registry, "rules", None)
+    return tuple(rules()) if callable(rules) else ()
 
 
 def _build_event_command_service_factory(current_app: FastAPI):
@@ -404,13 +421,16 @@ def create_app(
             is_self_service_auth_write_route=lambda path: _is_self_service_auth_write_route(
                 current_app, path
             ),
+            contributed_route_rules=lambda: _module_route_rules(current_app),
             csrf_request_valid=lambda request: api_routes._csrf_request_valid(request),
             start_runtime_reporting=lambda: start_optional_process_reporting(
                 runtime_values=dict(runtime_env), service_type=runtime_service_type
             ),
         ),
     )
-    runtime._register_core_exception_handlers(current_app)
+    runtime._register_core_exception_handlers(
+        current_app, service_error_types=MODULE_SERVICE_ERROR_TYPES
+    )
     if runtime.CONFIG.get("extension_installer_proxy_enabled", False):
         from core.application.extensions.installer_projection_refresh import (
             InstallerProjectionSync,
@@ -450,6 +470,7 @@ def create_app(
             "request_scope": runtime._request_scope,
             "request_principal": runtime._request_principal,
             "request_auth_user_payload": runtime._request_auth_user_payload,
+            "require_entitlement": require_entitlement,
             "api_error_response": runtime._api_error_response,
             "service_error_response": runtime._service_error_response,
             "public_base_url": runtime._public_base_url,
@@ -515,6 +536,7 @@ def create_app(
             "request_principal_resolvers": [],
             "extension_query_provider_factory": get_extension_query_provider,
             "platform_contracts": platform_contracts,
+            "module_route_permissions": ModuleRoutePermissionRegistry(),
         },
         metadata={
             "edition": "community",
@@ -553,11 +575,30 @@ def create_app(
         )
     api_routes._register_core_routes(current_app)
 
-    optional_private_modules_loaded = runtime._load_optional_private_modules(
-        current_app,
-        container,
-        logger=runtime.logger,
+    from core.infrastructure.platform_modules.loader import (
+        activate_prepared_platform_modules,
+        describe_platform_modules,
     )
+
+    platform_modules = activate_prepared_platform_modules("app")
+    platform_modules_loaded = [
+        {"id": module.module_id, "version": module.version} for module in platform_modules
+    ]
+    container.metadata["platform_modules_loaded"] = platform_modules_loaded
+    current_app.state.platform_modules_loaded = platform_modules_loaded
+    optional_private_modules_loaded = load_platform_modules(
+        current_app, container, platform_modules, logger=runtime.logger
+    )
+    # Core pages and every module's pages are in; any later registration is refused.
+    runtime._ui_page_registry.seal_page_registries(container.registries)
+    current_app.state.platform_module_registrations = container.metadata[
+        "platform_module_registrations"
+    ]
+    if platform_modules:
+        runtime.logger.info(
+            "Platform modules active for role app: %s",
+            describe_platform_modules(platform_modules),
+        )
     container.metadata["optional_private_modules_loaded"] = list(optional_private_modules_loaded)
     current_app.state.optional_private_modules_loaded = list(optional_private_modules_loaded)
     api_routes._register_registered_frontend_shell_routes(current_app)

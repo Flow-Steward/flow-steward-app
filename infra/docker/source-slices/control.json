@@ -628,6 +628,8 @@
     "core/infrastructure/observability/process_metrics_runtime.py",
     "core/infrastructure/observability/runtime_logging.py",
     "core/infrastructure/observability/sentry.py",
+    "core/infrastructure/platform_modules/__init__.py",
+    "core/infrastructure/platform_modules/loader.py",
     "core/infrastructure/public_identity.py",
     "core/infrastructure/runtime/__init__.py",
     "core/infrastructure/runtime/app_factory.py",

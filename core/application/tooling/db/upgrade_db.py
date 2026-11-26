@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import contextlib
 import sys
+from collections.abc import Callable, Iterable
+from pathlib import Path
 from typing import Any
 
 from core.application.tooling.db import (
@@ -33,6 +35,43 @@ UPGRADE_ADVISORY_LOCK_KEY = migration_runner.MIGRATION_ADVISORY_LOCK_KEY
 # generated after it. Such a database is not upgradable: it is recreated.
 PRE_RELEASE_MIGRATION_CUTOFF = "20260926000000"
 _PRE_RELEASE_SHOWN = 3
+
+#: Process role under which the upgrade asks for the prepared platform modules.
+#: The database upgrade runs from the control plane (ADR 0074).
+PLATFORM_MODULE_UPGRADE_ROLE = "control"
+
+#: Returns the prepared platform modules whose migrations the upgrade applies:
+#: ``ModuleMigrationSource`` objects or ``(module_id, module_version,
+#: migrations_dir)`` tuples.
+ModuleSourcesProvider = Callable[[], Iterable[Any]]
+
+
+def prepared_module_migration_sources() -> tuple[migration_runner.ModuleMigrationSource, ...]:
+    """The prepared platform modules (ADR 0082) as migration sources.
+
+    Each module ships its migrations in ``<module dir>/db/migrations``. A Core
+    build without platform-module support yields nothing. The modules are verified
+    against their list but activated on a copy of ``sys.path``: the upgrade only
+    needs their directories and never imports module code.
+    """
+    try:
+        from core.infrastructure.platform_modules.loader import (
+            activate_prepared_platform_modules,
+        )
+    except ImportError:
+        return ()
+    modules = activate_prepared_platform_modules(
+        PLATFORM_MODULE_UPGRADE_ROLE,
+        sys_path=list(sys.path),
+    )
+    return tuple(
+        migration_runner.ModuleMigrationSource(
+            module_id=str(module.module_id),
+            module_version=str(module.version),
+            migrations_dir=Path(module.path) / "db" / "migrations",
+        )
+        for module in modules
+    )
 
 
 def pre_release_migrations(applied: list[str]) -> list[str]:
@@ -113,8 +152,25 @@ def _stamp_verified_canonical_baseline(conn, *, component: str) -> dict[str, Any
     }
 
 
-def inspect_database_upgrade(*, dsn: str | None = None) -> dict[str, Any]:
+def _module_sources(provider: ModuleSourcesProvider | None) -> tuple[Any, ...]:
+    return tuple((provider or prepared_module_migration_sources)())
+
+
+def _module_migration_mismatch(report: dict[str, dict[str, list[str]]]) -> list[str]:
+    """``module: file`` for every module migration not exactly applied (read-only report)."""
+    return [
+        f"{module_id}: {name}"
+        for module_id, entry in sorted(report.items())
+        for key in ("pending", "drifted", "unknown")
+        for name in entry.get(key, ())
+    ]
+
+
+def inspect_database_upgrade(
+    *, dsn: str | None = None, module_sources: ModuleSourcesProvider | None = None
+) -> dict[str, Any]:
     dsn = _resolved_dsn(dsn)
+    sources = _module_sources(module_sources)
     conn = psycopg_runtime.connect(dsn)
     try:
         state = inspect_canonical_schema_state(conn)
@@ -126,6 +182,8 @@ def inspect_database_upgrade(*, dsn: str | None = None) -> dict[str, Any]:
         # of silently treating the database as compatible (ADR 0012).
         migration_state = migration_runner.inspect_migrations(conn)
         pre_release = pre_release_migrations(migration_runner.applied_unknown_migrations(conn))
+        # Read-only: creates neither the module ledger nor a schema (ADR 0082).
+        module_state = migration_runner.inspect_module_migrations(conn, sources)
     finally:
         conn.close()
     pending = migration_state["pending"]
@@ -138,21 +196,36 @@ def inspect_database_upgrade(*, dsn: str | None = None) -> dict[str, Any]:
     state["needs_upgrade"] = (
         bool(state.get("needs_upgrade")) or bool(pending) or bool(drifted) or bool(pre_release)
     )
+    if module_state:
+        # A module-only change (same Core release, new module SQL) needs the
+        # database step as much as a Core migration does.
+        state["module_migrations"] = module_state
+        state["needs_upgrade"] = state["needs_upgrade"] or (
+            migration_runner.module_migrations_need_upgrade(module_state)
+        )
     return state
 
 
 def preflight_database_upgrade(
-    *, dsn: str | None = None, allow_unlabeled_sessions: bool = False
+    *,
+    dsn: str | None = None,
+    allow_unlabeled_sessions: bool = False,
+    module_sources: ModuleSourcesProvider | None = None,
 ) -> dict[str, Any]:
     """Read-only check of everything that would stop the upgrade (ADR 0056)."""
     set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
+    sources = _module_sources(module_sources)
     conn = psycopg_runtime.connect(dsn)
     try:
         conn.autocommit = False
         with conn.cursor() as cur:
             cur.execute("SET TRANSACTION READ ONLY")
-        return upgrade_preflight.preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
+        return upgrade_preflight.preflight(
+            conn,
+            allow_unlabeled_sessions=allow_unlabeled_sessions,
+            module_sources=sources,
+        )
     finally:
         with contextlib.suppress(Exception):
             conn.rollback()
@@ -178,8 +251,14 @@ class DatabaseUpgradeBlockedError(RuntimeError):
         )
 
 
-def _refuse_blocked_preflight(conn, *, allow_unlabeled_sessions: bool) -> None:
-    report = upgrade_preflight.preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
+def _refuse_blocked_preflight(
+    conn, *, allow_unlabeled_sessions: bool, module_sources: tuple[Any, ...] = ()
+) -> None:
+    report = upgrade_preflight.preflight(
+        conn,
+        allow_unlabeled_sessions=allow_unlabeled_sessions,
+        module_sources=module_sources,
+    )
     if report["blocking"]:
         raise DatabaseUpgradeBlockedError(list(report["blocking"]))
 
@@ -191,6 +270,7 @@ def upgrade_database(
     maintenance_confirmed: bool = False,
     skip_db_backup: bool = False,
     allow_unlabeled_sessions: bool = False,
+    module_sources: ModuleSourcesProvider | None = None,
 ) -> dict[str, Any]:
     if skip_db_backup and not maintenance_confirmed:
         raise RuntimeError(
@@ -199,6 +279,7 @@ def upgrade_database(
     set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
+    sources = _module_sources(module_sources)
     conn = psycopg_runtime.connect(dsn)
     conn.autocommit = True
     with conn.cursor() as cur:
@@ -212,7 +293,11 @@ def upgrade_database(
         )
     try:
         # Repeated under the lock: what preflight reported may have changed since.
-        _refuse_blocked_preflight(conn, allow_unlabeled_sessions=allow_unlabeled_sessions)
+        _refuse_blocked_preflight(
+            conn,
+            allow_unlabeled_sessions=allow_unlabeled_sessions,
+            module_sources=sources,
+        )
         vector_lifecycle.require_pgvector_image(conn)
         tracking_exists = migration_runner.migrations_table_exists(conn)
         if tracking_exists:
@@ -231,6 +316,13 @@ def upgrade_database(
                 conn,
                 component="database upgrade baseline",
             )
+        # Platform modules migrate after Core, under the same advisory lock, each
+        # in its own schema and ledger (ADR 0082); never in the Core ledger.
+        module_migrations = migration_runner.apply_platform_module_migrations(
+            conn,
+            sources,
+            acquire_lock=False,
+        )
         schema_reconcile = {
             "files": 0,
             "statements": 0,
@@ -251,6 +343,7 @@ def upgrade_database(
         summary["schema_cleanup"] = schema_cleanup
         summary["schema_reconcile"] = schema_reconcile
         summary["schema_migrations"] = schema_migrations
+        summary["platform_module_migrations"] = module_migrations
         summary["workflow_knowledge_graph"] = init_db.init_workflow_knowledge_graph(dsn=dsn)
         init_db.init_extension_catalog()
         init_db.init_langgraph_schema()
@@ -299,13 +392,21 @@ def baseline_migration_history(
     *,
     dsn: str | None = None,
     author: str = "installer",
+    module_sources: ModuleSourcesProvider | None = None,
 ) -> dict[str, Any]:
-    """Create a migration ledger only for a proven canonical clean baseline."""
+    """Create a migration ledger only for a proven canonical clean baseline.
+
+    Prepared platform modules (ADR 0082) are handled like Core: on a fresh
+    database their migrations run through the module runner after Core's, never
+    stamped; on an existing ledger any module migration that is not exactly
+    applied refuses the baseline, as a pending Core migration does.
+    """
     del author  # Reserved for the operator audit envelope printed by the caller.
     set_session_role("upgrade")
     dsn = _resolved_dsn(dsn)
     init_db.validate_bootstrap_layout()
     upgrade_preflight.validate_release_artifacts()
+    sources = _module_sources(module_sources)
     conn = psycopg_runtime.connect(dsn)
     conn.autocommit = True
     with conn.cursor() as cur:
@@ -329,20 +430,37 @@ def baseline_migration_history(
                 for phase in upgrade_phases.UPGRADE_PHASES
                 if phase.phase_id not in upgrade_phases.recorded_phases(conn)
             ]
-            if state["pending"] or state["drifted"] or missing_phases:
+            module_mismatch = _module_migration_mismatch(
+                migration_runner.inspect_module_migrations(conn, sources)
+            )
+            if state["pending"] or state["drifted"] or missing_phases or module_mismatch:
+                detail = (
+                    f" Platform module migrations not applied as shipped: {module_mismatch}."
+                    if module_mismatch
+                    else ""
+                )
                 raise RuntimeError(
                     "Migration history already exists but does not match this release; "
-                    "use flow-steward database upgrade after verifying a backup."
+                    "use flow-steward database upgrade after verifying a backup." + detail
                 )
             return {
                 "total": len(migration_runner.discover_migration_files()),
                 "stamped": [],
                 "skipped": [],
             }
-        return _stamp_verified_canonical_baseline(
+        baseline = _stamp_verified_canonical_baseline(
             conn,
             component="installer database baseline",
         )
+        if sources:
+            baseline["platform_module_migrations"] = (
+                migration_runner.apply_platform_module_migrations(
+                    conn,
+                    sources,
+                    acquire_lock=False,
+                )
+            )
+        return baseline
     finally:
         with contextlib.suppress(Exception), conn.cursor() as cur:
             cur.execute("SELECT pg_advisory_unlock(%s)", (UPGRADE_ADVISORY_LOCK_KEY,))

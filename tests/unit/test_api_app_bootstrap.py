@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from core.application.reports.ui_page_registry import (
+    page_registration_scope,
     register_core_settings_pages,
     register_page,
     resolve_registered_navigation_sections,
@@ -17,8 +18,16 @@ from core.entrypoints.api.app_bootstrap import create_api_app_bootstrap_router
 
 
 class _EntitlementServiceStub:
-    def snapshot(self) -> dict[str, bool]:
-        return {"external_sign_in": True, "identity_access": True}
+    """Entitles only ``acc_default``; any other account gets its own empty snapshot."""
+
+    def __init__(self) -> None:
+        self.asked_for: list[str] = []
+
+    def snapshot(self, account_id: str) -> dict[str, bool]:
+        self.asked_for.append(account_id)
+        if account_id == "acc_default":
+            return {"feature_a": True, "feature_b": True}
+        return {}
 
 
 def _api_error_response(exc, request=None):
@@ -33,8 +42,11 @@ def _build_client(
     local_auth_enabled: bool = True,
     app_edition: str = "community",
     stored_date_time_format: tuple[str, str] = ("MM/DD/YYYY", "12h"),
+    account_id: str = "acc_default",
+    entitlement_service: _EntitlementServiceStub | None = None,
 ) -> TestClient:
     app = FastAPI()
+    entitlements = entitlement_service or _EntitlementServiceStub()
 
     if with_auth:
 
@@ -47,7 +59,7 @@ def _build_client(
                 "email": "admin@example.test",
                 "display_name": "Admin User",
                 "roles": ["admin"],
-                "account_id": "acc_default",
+                "account_id": account_id,
                 "account_ids": ["acc_default", "acc_ops"],
                 "account_memberships": [
                     {"account_id": "acc_default", "account_name": "Default", "is_default": True}
@@ -75,9 +87,7 @@ def _build_client(
             local_auth_bootstrap_required=lambda: bootstrap_required,
             external_auth_enabled=False,
             current_app_edition=lambda: app_edition,
-            platform_contract=lambda key: (
-                _EntitlementServiceStub() if key == "entitlement_service" else None
-            ),
+            platform_contract=lambda key: entitlements if key == "entitlement_service" else None,
             build_client_i18n_payload=lambda request, auth_user=None: {
                 "locale": "en",
                 "fallback_locale": "en",
@@ -169,7 +179,7 @@ def test_api_app_bootstrap_includes_user_permissions_and_memberships() -> None:
     assert body["auth"]["user"]["permissions"] == ["account.self", "jobs.read", "users.manage"]
     assert body["auth"]["user"]["roles"] == ["admin"]
     assert body["environment"]["edition"] == "private"
-    assert body["feature_flags"]["identity_access"] is True
+    assert body["feature_flags"]["feature_b"] is True
     assert body["auth"]["external_sign_in"]["providers_path"] == "/external-sign-in/providers"
     assert body["i18n"]["auth_user_present"] is True
     assert body["settings_pages"][0]["auth_user_present"] is True
@@ -213,11 +223,34 @@ def test_api_app_bootstrap_keeps_admin_metadata_when_auth_is_disabled() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["feature_flags"]["identity_access"] is True
+    # Without a signed-in account nothing is entitled (ADR 0082, section 3).
+    assert body["feature_flags"] == {}
     assert body["settings_pages"][0]["page_key"] == "retention"
     assert body["settings_pages"][0]["auth_user_present"] is False
     assert body["registered_pages"][0]["path"] == "/private/fixture"
     assert body["shell_navigation"]["system"][0]["path"] == "/extensions"
+
+
+def test_api_app_bootstrap_feature_flags_belong_to_the_signed_in_account() -> None:
+    entitlements = _EntitlementServiceStub()
+
+    entitled = _build_client(with_auth=True, entitlement_service=entitlements)
+    other = _build_client(with_auth=True, account_id="acc_ops", entitlement_service=entitlements)
+
+    assert entitled.get("/api/app/bootstrap").json()["feature_flags"] == {
+        "feature_a": True,
+        "feature_b": True,
+    }
+    assert other.get("/api/app/bootstrap").json()["feature_flags"] == {}
+    assert entitlements.asked_for == ["acc_default", "acc_ops"]
+
+
+def test_api_app_bootstrap_does_not_ask_for_an_anonymous_snapshot() -> None:
+    entitlements = _EntitlementServiceStub()
+
+    _build_client(with_auth=False, entitlement_service=entitlements).get("/api/app/bootstrap")
+
+    assert entitlements.asked_for == []
 
 
 def test_bootstrap_has_only_active_permissions_and_environment() -> None:
@@ -397,3 +430,86 @@ def test_a_principal_without_role_permissions_gets_none() -> None:
 
     assert summary is not None
     assert summary["permissions"] is None
+
+
+def _registered_pages_client(registries: dict) -> TestClient:
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def inject_auth(request, call_next):
+        request.state.auth_user = {"roles": ["admin"], "locale": "en"}
+        return await call_next(request)
+
+    app.include_router(
+        create_api_app_bootstrap_router(
+            request_principal=lambda _request: None,
+            local_auth_enabled=lambda: True,
+            local_auth_bootstrap_required=lambda: False,
+            external_auth_enabled=False,
+            current_app_edition=lambda: "community",
+            platform_contract=lambda _key: None,
+            build_client_i18n_payload=build_client_i18n_payload,
+            registered_pages_resolver=lambda **kwargs: resolve_registered_pages(
+                registries, auth_user=kwargs.get("auth_user"), locale=kwargs.get("locale")
+            ),
+            api_error_response=_api_error_response,
+        )
+    )
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_bootstrap_keeps_a_keyless_page_rendered_by_a_host_renderer() -> None:
+    registries: dict = {}
+    register_core_settings_pages(registries)
+    surface = {
+        "kind": "resource_admin",
+        "description": "Module records",
+        "resources": [
+            {
+                "key": "records",
+                "title": "Records",
+                "list_path": "/api/modules/acme.example/records",
+                "item_path": "/api/modules/acme.example/records/{id}",
+                "id_field": "id",
+                "fields": [{"key": "name", "label": "Name", "type": "text"}],
+            }
+        ],
+    }
+    with page_registration_scope(module_id="acme.example"):
+        register_page(
+            registries,
+            key="module_records",
+            label="Module Records",
+            path="/modules/records",
+            control_surface=surface,
+        )
+    register_page(
+        registries,
+        key="vendor",
+        label="Vendor",
+        path="/vendor",
+        component_key="vendor.page",
+    )
+    # A row that reaches the payload without a renderer is still dropped.
+    registries["registered_pages"]["orphan"] = {
+        "key": "orphan",
+        "page_key": "orphan",
+        "path": "/orphan",
+        "component_key": "",
+        "control_surface": {"kind": "dashboard"},
+    }
+
+    response = _registered_pages_client(registries).get("/api/app/bootstrap")
+
+    assert response.status_code == 200
+    pages = {page["page_key"]: page for page in response.json()["registered_pages"]}
+    assert set(pages) == {"module_records", "vendor"}
+    assert pages["module_records"]["component_key"] == ""
+    assert pages["module_records"]["control_surface"]["kind"] == "resource_admin"
+    assert pages["module_records"]["control_surface"]["resources"][0]["list_path"] == (
+        "/api/modules/acme.example/records"
+    )
+    # Which module registered a page is a server-side diagnostic, not browser data.
+    assert registries["registered_pages"]["module_records"]["source_module"] == "acme.example"
+    assert "source_module" not in pages["module_records"]
+    assert pages["vendor"]["component_key"] == "vendor.page"

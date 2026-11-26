@@ -1,0 +1,5 @@
+{
+  "id": "acme.reference-notes",
+  "import": "fs_reference_notes",
+  "version": "1.0.0"
+}

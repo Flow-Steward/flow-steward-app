@@ -22,12 +22,25 @@ A rule marked ``admin_only`` is a route that was on the admin-only list. That li
 still decides two rules ADR 0076 leaves as they are: the token scope a route needs
 (``admin:all`` for these) and the role a service account needs (admin). The flag is
 that list; the parity test proves it marks exactly the routes the list matched.
+
+Platform modules (ADR 0082) add rules only through a
+:class:`ModuleRouteRuleRegistrar` that Core binds to the module's loaded identity,
+and only under their own prefix ``/api/modules/<module id>/``. Their rules are checked right before the generic
+``/api/.*`` read rule, after every other Core rule, and name only permissions of
+Core's catalogue. A module rule is admin-only exactly when its permission is
+admin-only on some Core rule; own-account and interactive-only permissions are
+refused. With nothing registered the decision is the table's alone.
 """
 
 from __future__ import annotations
 
 import re
+import threading
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+
+from core.application.auth.permissions import ALL_PERMISSION_KEYS
+from core.infrastructure.extension_runtime.package_identity import CANONICAL_EXTENSION_ID_RE
 
 _SEG = r"[^/]+"
 _READ = frozenset({"GET"})
@@ -51,6 +64,8 @@ class RoutePermissionRule:
     #: The route needs ``admin:all`` from a token and the admin role from a service
     #: account (the former admin-only route list).
     admin_only: bool = False
+    #: The platform module that contributed the rule; ``None`` for Core's own rules.
+    module_id: str | None = None
 
 
 def _rule(
@@ -294,36 +309,221 @@ class RoutePermission:
     rule: RoutePermissionRule
 
 
-def route_permission(method: str, path: str) -> RoutePermission | None:
-    """The permission ``method path`` needs, or ``None`` when no rule maps the route."""
+#: Where module rules are checked: right before the generic API read rule.
+_API_READ_CATCH_ALL_INDEX = next(
+    index for index, rule in enumerate(ROUTE_PERMISSION_RULES) if rule.pattern.pattern == r"/api/.*"
+)
+#: Every module API route lives under this prefix, followed by the module id.
+MODULE_API_PREFIX = "/api/modules/"
+
+
+def module_api_prefix(module_id: str) -> str:
+    """The path prefix a platform module owns: ``/api/modules/<module id>/``."""
+    return f"{MODULE_API_PREFIX}{module_id}/"
+
+
+def is_module_api_path(path: str) -> bool:
+    """Whether ``path`` lies in some platform module's API tree."""
+    return str(path or "").strip().startswith(MODULE_API_PREFIX)
+
+
+#: Permissions Core's table marks admin-only on at least one rule. A module rule that
+#: names one is admin-only as well: a token then needs ``admin:all`` and a service
+#: account the admin role, as on the strictest Core route with that permission. The
+#: module does not choose; the permission decides.
+MODULE_ADMIN_ONLY_PERMISSIONS: frozenset[str] = frozenset(
+    rule.permission
+    for rule in ROUTE_PERMISSION_RULES
+    if rule.admin_only and rule.permission is not None
+)
+#: Permissions a module rule may not name, and why. Own-account permissions are the
+#: signed-in principal's self-service (Core lets a local machine principal make such a
+#: write with no role and maps an external sign-in to another permission), and
+#: approving a configuration's secrets is decided only in a person's interactive
+#: session, which the secret service checks, not the route table.
+MODULE_REFUSED_PERMISSIONS: dict[str, str] = {
+    "account.self": "is the principal's own-account self-service",
+    "account.profile.write": "is the principal's own-account self-service",
+    "secrets.approve": "is decided only in a person's interactive session",
+}
+
+
+def _has_dot_segment(path: str) -> bool:
+    return any(segment in {".", ".."} for segment in path.split("/"))
+
+
+def _contributed_match(
+    method: str, path: str, contributed: Sequence[RoutePermissionRule]
+) -> RoutePermission | None:
+    # A contributed rule never decides a path outside the module tree, nor one with
+    # dot segments, whatever its pattern says.
+    if not path.startswith(MODULE_API_PREFIX) or _has_dot_segment(path):
+        return None
+    for rule in contributed:
+        if method in rule.methods and rule.pattern.fullmatch(path):
+            return RoutePermission(rule.permission, rule)
+    return None
+
+
+def route_permission(
+    method: str, path: str, contributed: Sequence[RoutePermissionRule] = ()
+) -> RoutePermission | None:
+    """The permission ``method path`` needs, or ``None`` when no rule maps the route.
+
+    ``contributed`` are module rules from :class:`ModuleRoutePermissionRegistry`;
+    they are checked after every Core rule except the generic API read rule.
+    """
     method_text = str(method or "").strip().upper()
     if method_text in _SAFE_ALIASES:
         method_text = "GET"
     path_text = str(path or "").strip()
-    for rule in ROUTE_PERMISSION_RULES:
+    for index, rule in enumerate(ROUTE_PERMISSION_RULES):
+        if index == _API_READ_CATCH_ALL_INDEX and contributed:
+            match = _contributed_match(method_text, path_text, contributed)
+            if match is not None:
+                return match
         if method_text in rule.methods and rule.pattern.fullmatch(path_text):
             return RoutePermission(rule.permission, rule)
     return None
 
 
-def route_admin_only(method: str, path: str) -> bool:
+def route_admin_only(
+    method: str, path: str, contributed: Sequence[RoutePermissionRule] = ()
+) -> bool:
     """Whether the route was admin-only: a token needs ``admin:all``, a service account admin."""
-    match = route_permission(method, path)
+    match = route_permission(method, path, contributed)
     return bool(match is not None and match.rule.admin_only)
 
 
-def route_allowed(method: str, path: str, permissions: frozenset[str] | set[str]) -> bool:
+def route_allowed(
+    method: str,
+    path: str,
+    permissions: frozenset[str] | set[str],
+    contributed: Sequence[RoutePermissionRule] = (),
+) -> bool:
     """Whether a holder of ``permissions`` may make the request; unmapped routes are denied."""
-    match = route_permission(method, path)
+    match = route_permission(method, path, contributed)
     if match is None:
         return False
     return match.permission is None or match.permission in permissions
 
 
+class ModuleRoutePermissionRegistry:
+    """Route permission rules that platform modules contribute (ADR 0082, section 2).
+
+    A module registers a rule for its own API tree only. The pattern is relative to
+    ``/api/modules/<module id>/`` and is compiled as a group behind that literal
+    prefix, so it cannot match any other path. A rule names a permission of Core's
+    catalogue; a module cannot invent a permission or make a route public. Whether
+    the rule is admin-only follows from the permission
+    (:data:`MODULE_ADMIN_ONLY_PERMISSIONS`), never from the module, and a permission of
+    :data:`MODULE_REFUSED_PERMISSIONS` is refused. Rules can be added but not replaced
+    or removed.
+    """
+
+    __slots__ = ("_counts", "_lock", "_rules")
+
+    def __init__(self) -> None:
+        self._rules: tuple[RoutePermissionRule, ...] = ()
+        self._counts: dict[str, int] = {}
+        self._lock = threading.Lock()
+
+    def register(
+        self,
+        module_id: str,
+        *,
+        methods: Iterable[str],
+        pattern: str,
+        permission: str,
+    ) -> RoutePermissionRule:
+        """Add one rule; raises ``ValueError`` when it would leave the module's tree."""
+        module = str(module_id or "").strip()
+        if not CANONICAL_EXTENSION_ID_RE.fullmatch(module):
+            raise ValueError(f"module id {module_id!r} is not a canonical package id")
+        if isinstance(methods, str):
+            methods = (methods,)
+        method_set = frozenset(str(item or "").strip().upper() for item in methods)
+        if not method_set or not method_set <= _ANY:
+            raise ValueError(f"methods must be a non-empty subset of {sorted(_ANY)}")
+        permission_key = str(permission or "").strip()
+        if permission_key not in ALL_PERMISSION_KEYS:
+            raise ValueError(f"permission {permission!r} is not in Core's permission catalogue")
+        refused = MODULE_REFUSED_PERMISSIONS.get(permission_key)
+        if refused is not None:
+            raise ValueError(
+                f"permission {permission_key!r} cannot guard a module route: it {refused}"
+            )
+        relative = str(pattern or "")
+        if not relative or relative.startswith("/"):
+            raise ValueError("pattern must be relative to the module prefix, without a leading /")
+        try:
+            # Compiled alone first: a pattern with unbalanced groups could otherwise
+            # close the wrapping group and add an alternative outside the prefix.
+            re.compile(relative)
+            compiled = re.compile(rf"{re.escape(module_api_prefix(module))}(?:{relative})")
+        except re.error as exc:
+            raise ValueError(f"pattern {pattern!r} is not a valid expression: {exc}") from exc
+        rule = RoutePermissionRule(
+            method_set,
+            compiled,
+            permission_key,
+            admin_only=permission_key in MODULE_ADMIN_ONLY_PERMISSIONS,
+            module_id=module,
+        )
+        with self._lock:
+            self._rules = (*self._rules, rule)
+            self._counts[module] = self._counts.get(module, 0) + 1
+        return rule
+
+    def rules(self) -> tuple[RoutePermissionRule, ...]:
+        return self._rules
+
+    def rule_count(self, module_id: str) -> int:
+        """How many rules were registered under ``module_id``."""
+        return self._counts.get(str(module_id or "").strip(), 0)
+
+
+class ModuleRouteRuleRegistrar:
+    """The route permission registration point one platform module receives.
+
+    Core builds it with the identity under which it loaded the module, so the
+    module cannot name another module's tree: ``register`` takes no module id.
+    The shared registry is held only in a closure, not in an attribute. That is an
+    interface boundary, not a sandbox: in-process code can always introspect.
+    """
+
+    __slots__ = ("_add",)
+
+    def __init__(self, registry: ModuleRoutePermissionRegistry, module_id: str) -> None:
+        module = str(module_id or "").strip()
+        if not CANONICAL_EXTENSION_ID_RE.fullmatch(module):
+            raise ValueError(f"module id {module_id!r} is not a canonical package id")
+
+        def add(methods: Iterable[str], pattern: str, permission: str) -> RoutePermissionRule:
+            return registry.register(
+                module, methods=methods, pattern=pattern, permission=permission
+            )
+
+        self._add = add
+
+    def register(
+        self, *, methods: Iterable[str], pattern: str, permission: str
+    ) -> RoutePermissionRule:
+        """Add one rule under the loaded module's own ``/api/modules/<id>/`` tree."""
+        return self._add(methods, pattern, permission)
+
+
 __all__ = [
+    "MODULE_ADMIN_ONLY_PERMISSIONS",
+    "MODULE_API_PREFIX",
+    "MODULE_REFUSED_PERMISSIONS",
     "ROUTE_PERMISSION_RULES",
+    "ModuleRoutePermissionRegistry",
+    "ModuleRouteRuleRegistrar",
     "RoutePermission",
     "RoutePermissionRule",
+    "is_module_api_path",
+    "module_api_prefix",
     "route_admin_only",
     "route_allowed",
     "route_permission",

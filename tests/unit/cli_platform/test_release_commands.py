@@ -24,10 +24,14 @@ from core.application.release.catalog import PublishedRelease, ReleaseVersion
 from core.application.release.contracts import ReleaseIdentity, ReleaseImageIdentity
 from core.application.release.images import required_product_roles
 from core.application.release.installed_origin import OfficialInstallationOrigin
+from core.application.release.platform_modules import PreparedModuleRef
 from core.application.release.service import (
     PreparedReleaseUpgrade,
     ReleaseCheckRequest,
     ReleaseInfoRequest,
+    ReleaseModulesApplyRequest,
+    ReleaseModulesListRequest,
+    ReleaseModulesResult,
     ReleaseResult,
     ReleaseService,
     ReleaseUpgradeRequest,
@@ -63,6 +67,10 @@ def _release_identity(version: str) -> ReleaseIdentity:
     )
 
 
+def _ledger(version: str) -> PreparedModuleRef:
+    return PreparedModuleRef(id="acme.ledger", version=version, digest="sha256:" + "ab" * 32)
+
+
 @dataclass
 class _ReleaseService:
     calls: list[tuple[str, object]] = field(default_factory=list)
@@ -88,6 +96,22 @@ class _ReleaseService:
             target_release=_release_identity("2.0.0"),
         )
 
+    def modules_list(self, request: ReleaseModulesListRequest) -> ReleaseModulesResult:
+        self.calls.append(("modules_list", request))
+        return ReleaseModulesResult(
+            deployment_profile="scalable",
+            activation_supported=True,
+            active_modules=(_ledger("1.0.0"),),
+            staged_modules=(_ledger("1.0.0"), _ledger("1.1.0")),
+            next_steps=("flow-steward release modules-apply --confirm",),
+        )
+
+    def module_upgrade_request(self, request: ReleaseModulesApplyRequest) -> ReleaseUpgradeRequest:
+        self.calls.append(("module_request", request))
+        if request.restore_previous:
+            return ReleaseUpgradeRequest(target_version="1.0.0", restore_previous_modules=True)
+        return ReleaseUpgradeRequest(target_version="1.0.0", target_modules=(_ledger("1.1.0"),))
+
     def prepare_upgrade(self, request: ReleaseUpgradeRequest) -> PreparedReleaseUpgrade:
         self.calls.append(("plan", request))
         if self.catalog_unconfigured:
@@ -106,6 +130,8 @@ class _ReleaseService:
             dry_run=request.dry_run,
             skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
+            target_modules=request.target_modules,
+            restore_previous_modules=request.restore_previous_modules,
         )
 
     def review_upgrade(self, prepared: PreparedReleaseUpgrade) -> dict[str, object]:
@@ -239,7 +265,13 @@ def _real_service_app(*, outcome: str, expected_timeout_seconds: int = 1800) -> 
 def test_release_specs_are_exact_and_closed() -> None:
     specs = {spec.command_id: spec for spec in PUBLIC_COMMAND_SPECS if spec.path[0] == "release"}
 
-    assert tuple(specs) == ("release.info", "release.check", "release.upgrade")
+    assert tuple(specs) == (
+        "release.info",
+        "release.check",
+        "release.upgrade",
+        "release.modules-list",
+        "release.modules-apply",
+    )
     assert specs["release.info"].operation_type is OperationType.READ
     assert specs["release.check"].operation_type is OperationType.READ
     assert specs["release.info"].compact_support.value == "platform"
@@ -588,3 +620,128 @@ def test_release_backup_waiver_survives_cli_review_binding():
     result = CliRunner().invoke(app, ["release", "upgrade", "--skip-db-backup", "--confirm"])
     assert result.exit_code == 0, result.output
     assert runtime.release_service.calls[-1][1].skip_db_backup is True
+
+
+# -- ADR 0082 §5: the operator's platform-module change -----------------------------
+
+
+def test_module_specs_reuse_the_release_upgrade_policies() -> None:
+    specs = {spec.command_id: spec for spec in PUBLIC_COMMAND_SPECS}
+    listing = specs["release.modules-list"]
+    apply = specs["release.modules-apply"]
+
+    assert listing.operation_type is OperationType.READ
+    assert listing.interactive_policy is InteractivePolicy.IMMEDIATE
+    assert listing.compact_support.value == "platform"
+    assert listing.fields == ()
+    assert apply.operation_type is OperationType.CHANGE
+    assert apply.interactive_policy is InteractivePolicy.ALWAYS_REVIEW
+    assert apply.compact_support.value == "platform"
+    assert apply.lifecycle_interrupts is True
+    assert apply.plan_builder_ref == "release.modules-apply.preview"
+    assert apply.result_model is ReleaseResult
+    assert {field.key: field.option_name for field in apply.fields} == {
+        "modules": "--modules",
+        "restore_previous": "--restore-previous",
+    }
+
+
+def test_modules_list_reports_active_and_staged_sets_as_json() -> None:
+    app, runtime = _app()
+
+    result = CliRunner().invoke(app, ["release", "modules-list", "--json"])
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "release.modules-list"
+    assert [module["version"] for module in payload["result"]["staged_modules"]] == [
+        "1.0.0",
+        "1.1.0",
+    ]
+    assert payload["result"]["active_modules"][0]["id"] == "acme.ledger"
+    assert [call[0] for call in runtime.release_service.calls] == ["modules_list"]
+
+
+def test_modules_list_plain_output_names_the_next_step() -> None:
+    app, _runtime = _app()
+
+    result = CliRunner().invoke(app, ["release", "modules-list", "--plain"])
+
+    assert result.exit_code == 0, result.output
+    assert "acme.ledger" in result.output
+    assert "flow-steward release modules-apply --confirm" in result.output
+
+
+def test_modules_apply_requires_review_like_release_upgrade() -> None:
+    app, runtime = _app()
+
+    result = CliRunner().invoke(app, ["release", "modules-apply", "--non-interactive", "--plain"])
+
+    assert result.exit_code == 10
+    assert [call[0] for call in runtime.release_service.calls] == ["module_request", "plan"]
+
+
+def test_modules_apply_runs_the_journaled_upgrade_of_the_installed_release() -> None:
+    app, runtime = _app()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "release",
+            "modules-apply",
+            "--modules",
+            "acme.ledger@1.1.0",
+            "--non-interactive",
+            "--confirm",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["command"] == "release.modules-apply"
+    assert payload["operation_id"] == "release-operation"
+    calls = runtime.release_service.calls
+    assert [call[0] for call in calls] == ["module_request", "plan", "upgrade"]
+    assert calls[0][1] == ReleaseModulesApplyRequest(modules="acme.ledger@1.1.0")
+    prepared = calls[-1][1]
+    assert isinstance(prepared, PreparedReleaseUpgrade)
+    assert prepared.target_release.version == "1.0.0"
+    assert prepared.target_modules == (_ledger("1.1.0"),)
+    assert prepared.restore_previous_modules is False
+
+
+def test_modules_apply_restore_previous_maps_to_the_request_field() -> None:
+    app, runtime = _app()
+
+    result = CliRunner().invoke(
+        app,
+        ["release", "modules-apply", "--restore-previous", "--non-interactive", "--confirm"],
+    )
+
+    assert result.exit_code == 0, result.output
+    calls = runtime.release_service.calls
+    assert calls[0][1] == ReleaseModulesApplyRequest(restore_previous=True)
+    assert calls[-1][1].restore_previous_modules is True
+    assert calls[-1][1].target_modules is None
+
+
+def test_modules_apply_refuses_a_named_set_with_restore_previous() -> None:
+    app, runtime = _app()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "release",
+            "modules-apply",
+            "--modules",
+            "acme.ledger@1.1.0",
+            "--restore-previous",
+            "--non-interactive",
+            "--confirm",
+            "--json",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert runtime.release_service.calls == []

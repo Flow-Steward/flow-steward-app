@@ -729,6 +729,25 @@ class DockerLifecycleGateway:
             environment=environment,
         )
 
+    def platform_module_command(
+        self,
+        target: ComposeTarget,
+        arguments: tuple[str, ...],
+        *,
+        environment: Mapping[str, str],
+        timeout_seconds: int = 300,
+    ) -> dict[str, Any]:
+        """ADR 0082 §5: run one platform-module command in the Compact runtime image."""
+        from core.infrastructure.release.upgrade_gateway import run_platform_module_command
+
+        return run_platform_module_command(
+            target,
+            arguments,
+            timeout_seconds=timeout_seconds,
+            run_compose=self._run_compose,
+            environment=environment,
+        )
+
     def stop_checkout_writers(
         self, target: ComposeTarget, *, environment: Mapping[str, str]
     ) -> None:
