@@ -69,9 +69,9 @@ report that verification pending rather than running a heavy local gate.
 The canonical standards govern scope and authorization: hosted quality needs a
 manual request or an already authorized recurring schedule; a push, merge or
 publication alone does not authorize it. This supersedes the automatic-push
-and mandatory-full-publication wording of the original pilot above. The existing
-hosted workflow and impacted/parallel execution in ADR 0070 remain in place;
-this amendment does not dispatch a run or change workflow triggers.
+and mandatory-full-publication wording of the original pilot above. The hosted
+workflow enforces this through manual dispatch and the existing weekly schedule.
+Impacted and parallel execution follow ADR 0070.
 
 ## Incremental local commit checks
 
@@ -81,5 +81,5 @@ also broaden the selection. This is not a strict index-only selector or proof
 for the whole branch. An incoming merge is compared with its first-parent HEAD.
 Manual `auto` still compares the accumulated branch change with `main`, and
 explicit regression paths remain necessary for dependencies outside the graph.
-A clean committed HEAD can select no tests locally; the remote exact-SHA
-cumulative gate remains mandatory and retains its complete suite scope.
+A clean committed HEAD can select no tests locally. Hosted verification still
+requires evidence for the candidate SHA.

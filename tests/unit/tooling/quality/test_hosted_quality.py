@@ -382,6 +382,12 @@ def _remote_quality_workflow() -> dict:
     return yaml.safe_load((source_root / ".github/workflows/remote-quality.yml").read_text())
 
 
+def test_remote_quality_requires_dispatch_or_weekly_schedule() -> None:
+    workflow = _remote_quality_workflow()
+    events = workflow.get("on", workflow.get(True))
+    assert set(events) == {"workflow_dispatch", "schedule"}
+
+
 def test_explicit_cross_run_import_is_optional_and_fails_closed_before_building() -> None:
     workflow = _remote_quality_workflow()
     # PyYAML's YAML 1.1 loader treats the Actions `on` key as True.

@@ -1,9 +1,7 @@
 name: Remote quality pilot
-run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }} · ${{ github.ref_name }}
+run-name: Quality ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }} · ${{ github.ref_name }}
 
 on:
-  push:
-    branches: ['**']
   # Weekly backstop for impacted-test selection (ADR 0070): main's Tier 3
   # suites run whole and rebuild their impact maps.
   schedule:
@@ -37,17 +35,13 @@ concurrency:
 env:
   DOCKER_BUILD_RECORD_UPLOAD: 'false'
   FS_STACK_ENV_FILE: /dev/null
-  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode || (github.ref_name == 'codex/sonar-runtime-pilot' && 'sonar-diagnostic') || ((github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')) && 'release-sonar') || (startsWith(github.ref_name, 'codex/verify-release/') && 'release') || 'tier2' }}
+  QUALITY_MODE: ${{ (github.ref_name == 'codex/secret-scan-live' && 'secret-scan-only') || (github.ref_name == 'codex/quality-reuse-live' && 'reuse-smoke') || (github.event_name == 'schedule' && 'release-full') || inputs.mode }}
 
 jobs:
   quality:
-    # The v0.9.9 release workflow owns the user's one-time focused acceptance.
-    # Skip this duplicate branch gate only for its explicitly marked main commit.
     if: >-
       github.repository == 'Flow-Steward/flow-steward-app' && github.event.repository.private == false &&
-      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
-      !(github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-        contains(github.event.head_commit.message, '[focused-release-v0.9.9]'))
+      github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     permissions:
@@ -188,9 +182,9 @@ jobs:
               sudo chmod -R g+rwX "$output"
             fi
           done
-      - name: Find a bounded official per-file scanner cache for this push
+      - name: Find a bounded official per-file scanner cache for this dispatch
         id: scanner-cache-source
-        if: github.event_name == 'push' && env.QUALITY_MODE != 'reuse-smoke' && steps.restore-source-evidence.outcome != 'success'
+        if: github.event_name == 'workflow_dispatch' && env.QUALITY_MODE != 'reuse-smoke' && env.QUALITY_MODE != 'single-check' && steps.restore-source-evidence.outcome != 'success'
         continue-on-error: true
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0 (Node 24)
         with:
@@ -424,7 +418,7 @@ jobs:
             logs/coverage
           retention-days: 3
           if-no-files-found: warn
-      - name: Retain only current per-file scanner proofs for later pushes
+      - name: Retain only current per-file scanner proofs for later runs
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2 (Node 24)
         with:
@@ -570,9 +564,7 @@ jobs:
       github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
       github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
       needs.quality.result == 'success' &&
-      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule' ||
-       (github.event_name == 'push' && (github.ref_name == 'codex/remote-quality-pilot' ||
-        startsWith(github.ref_name, 'codex/verify-sonar/') || startsWith(github.ref_name, 'codex/verify-release/'))))
+      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule')
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     permissions:
@@ -661,9 +653,7 @@ jobs:
       always() && !cancelled() &&
       github.ref_name != 'codex/secret-scan-live' && inputs.mode != 'secret-scan-only' &&
       github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
-      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule' ||
-       (github.event_name == 'push' && (github.ref_name == 'codex/remote-quality-pilot' ||
-        startsWith(github.ref_name, 'codex/verify-sonar/') || startsWith(github.ref_name, 'codex/verify-release/')))) &&
+      (inputs.mode == 'release' || inputs.mode == 'release-sonar' || inputs.mode == 'release-full' || github.event_name == 'schedule') &&
       needs.quality.result == 'success' && needs.tier3.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -741,9 +731,7 @@ jobs:
       github.ref_name != 'codex/quality-reuse-live' && inputs.mode != 'reuse-smoke' &&
       (inputs.reuse_run_id == '' || needs.quality.outputs.evidence_imported == 'true') &&
       (needs.quality.result == 'success' || needs.quality.result == 'failure') &&
-      (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic' ||
-       (github.event_name == 'push' &&
-        (github.ref_name == 'codex/sonar-runtime-pilot' || github.ref_name == 'codex/remote-quality-pilot' || startsWith(github.ref_name, 'codex/verify-sonar/')))) &&
+      (inputs.mode == 'release-sonar' || inputs.mode == 'sonar-diagnostic') &&
       needs.tier3.result != 'cancelled'
     runs-on: ubuntu-24.04
     timeout-minutes: 120

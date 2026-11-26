@@ -195,7 +195,8 @@ def test_workflow_carries_only_scanner_proofs_automatically_and_prefers_explicit
     workflow = yaml.safe_load((ROOT / ".github/workflows/remote-quality.yml").read_text())
     steps = workflow["jobs"]["quality"]["steps"]
     selector = next(step for step in steps if step.get("id") == "scanner-cache-source")
-    assert "github.event_name == 'push'" in selector["if"]
+    assert "github.event_name == 'workflow_dispatch'" in selector["if"]
+    assert "env.QUALITY_MODE != 'single-check'" in selector["if"]
     download = next(step for step in steps if step.get("id") == "restore-scanner-cache")
     assert download["with"]["name"] == "${{ steps.scanner-cache-source.outputs.artifact_name }}"
     assert download["with"]["path"] == "${{ runner.temp }}/scanner-cache"
