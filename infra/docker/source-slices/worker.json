@@ -746,6 +746,7 @@
     "core/application/settings/model_provider_catalog_repository.py",
     "core/application/settings/model_provider_endpoint_policy.py",
     "core/application/settings/model_provider_verification_rate_limit.py",
+    "core/application/settings/official_model_discovery.py",
     "core/application/settings/platform_contracts.py",
     "core/application/settings/timezone_service.py",
     "core/application/settings/ui_i18n.py",

@@ -12325,6 +12325,9 @@ msgstr "Filtruoti tiekėjus"
 msgid "react.settings.findings"
 msgstr "Radiniai"
 
+msgid "react.settings.google_gemini_api"
+msgstr "Google („Gemini“ API raktas)"
+
 msgid "react.settings.google_official"
 msgstr "Google (oficialus)"
 
@@ -12713,6 +12716,21 @@ msgstr "Instrukcijų įterpimas"
 
 msgid "react.settings.prompt_injection_value1_context"
 msgstr "Instrukcijų įterpimo kontekstas: {value1}"
+
+msgid "react.settings.provider_discovery_empty"
+msgstr "Teikėjas šiam raktui nepateikė jokių modelių."
+
+msgid "react.settings.provider_discovery_failed"
+msgstr "Nepavyko įkelti modelių. Patikrinkite API raktą arba įveskite modelio ID rankiniu būdu."
+
+msgid "react.settings.provider_discovery_help"
+msgstr "Įkelkite modelius, pasiekiamus su šiuo API raktu, arba įveskite modelio ID rankiniu būdu. Išsaugojus pasirinktas modelis bus patikrintas."
+
+msgid "react.settings.provider_discovery_load"
+msgstr "Įkelti modelius"
+
+msgid "react.settings.provider_discovery_loading"
+msgstr "Įkeliami modeliai…"
 
 msgid "react.settings.provider_id_is_missing"
 msgstr "Trūksta tiekėjo ID."
@@ -13418,6 +13436,9 @@ msgstr "Patikros klaida"
 
 msgid "react.settings.verify"
 msgstr "Patikrinti"
+
+msgid "react.settings.vertex_ai_provider_setup"
+msgstr "Nustatykite „Google Cloud Vertex AI“ naudodami jo plėtinį."
 
 msgid "react.settings.waiting_for_first_posture_scan"
 msgstr "Laukiama pirmos saugumo būklės patikros."

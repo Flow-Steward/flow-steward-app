@@ -12133,6 +12133,9 @@ msgstr "Filter providers"
 msgid "react.settings.findings"
 msgstr "Findings"
 
+msgid "react.settings.google_gemini_api"
+msgstr "Google (Gemini API key)"
+
 msgid "react.settings.google_official"
 msgstr "Google (official)"
 
@@ -12512,6 +12515,21 @@ msgstr "Prompt injection"
 
 msgid "react.settings.prompt_injection_value1_context"
 msgstr "Prompt injection {value1} context"
+
+msgid "react.settings.provider_discovery_empty"
+msgstr "The provider returned no models for this key."
+
+msgid "react.settings.provider_discovery_failed"
+msgstr "Could not load models. Check the API key or enter a model ID manually."
+
+msgid "react.settings.provider_discovery_help"
+msgstr "Load models available to this API key, or enter a model ID manually. Saving verifies the selected model."
+
+msgid "react.settings.provider_discovery_load"
+msgstr "Load models"
+
+msgid "react.settings.provider_discovery_loading"
+msgstr "Loading models…"
 
 msgid "react.settings.provider_id_is_missing"
 msgstr "Provider ID is missing."
@@ -13209,6 +13227,9 @@ msgstr "Verification error"
 
 msgid "react.settings.verify"
 msgstr "Verify"
+
+msgid "react.settings.vertex_ai_provider_setup"
+msgstr "Set up Google Cloud Vertex AI through its extension."
 
 msgid "react.settings.waiting_for_first_posture_scan"
 msgstr "Waiting for first posture scan."

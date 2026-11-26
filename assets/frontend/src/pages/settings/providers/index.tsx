@@ -2,9 +2,10 @@ import { DsSearchInput } from "@/components/ui/search-input";
 import { textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { useI18n } from "@/lib/i18n/useI18n";
-import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
+import type { I18nContextValue } from "@/lib/i18n/context";
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,7 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createModelProvider,
   deleteModelProvider,
-  fetchModelCatalogSettings,
+  discoverModelProviderModels,
   fetchModelProvidersCollection,
   reverifyModelProvider,
   updateModelProvider,
@@ -25,6 +26,9 @@ import {
   firstStringFromUnknownValue,
   stringFromUnknownValue,
 } from "@/lib/utils/unknown-values";
+import { isHttpError } from "@/lib/http/errors";
+import { isApiEnvelope } from "@/lib/http/types";
+import { entryPath } from "@/pages/extensions/marketplace-model";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -51,17 +55,20 @@ type ProviderFormState = {
 
 
 
-function getProviderTypes(t: I18nContextValue["t"] = fallbackContext.t) {
+function getProviderTypes(t: I18nContextValue["t"], isLegacyGoogle: boolean) {
   return [
-  { value: "openai", label: t("react.settings.openai_official", "OpenAI (official)") },
-  { value: "anthropic", label: t("react.settings.anthropic_official", "Anthropic (official)") },
-  { value: "google", label: t("react.settings.google_official", "Google (official)") },
-  { value: "openai_compatible", label: t("react.settings.openai_compatible", "OpenAI Compatible") },
-  { value: "azure_openai", label: t("settings.model_providers.option.azure_openai", "Azure OpenAI") },
-];
+    { value: "openai", label: t("react.settings.openai_official", "OpenAI (official)") },
+    { value: "anthropic", label: t("react.settings.anthropic_official", "Anthropic (official)") },
+    ...(isLegacyGoogle
+      ? [{ value: "google", label: t("react.settings.google_gemini_api", "Google (Gemini API key)") }]
+      : []),
+    { value: "openai_compatible", label: t("react.settings.openai_compatible", "OpenAI Compatible") },
+    { value: "azure_openai", label: t("settings.model_providers.option.azure_openai", "Azure OpenAI") },
+  ];
 }
 
-const OFFICIAL_PROVIDER_TYPES = new Set(["openai", "anthropic", "google"]);
+const DISCOVERABLE_PROVIDER_TYPES = new Set(["openai", "anthropic"]);
+const OFFICIAL_PROVIDER_TYPES = new Set([...DISCOVERABLE_PROVIDER_TYPES, "google"]);
 
 function providerPayload(form: ProviderFormState): Entity {
   const providerType = form.provider_type.trim();
@@ -103,9 +110,8 @@ type ProviderDialogProps = {
   nameRef: RefObject<HTMLInputElement | null>;
   onClose: () => void;
   onSubmit: (event: React.SyntheticEvent<HTMLFormElement>) => void;
-  open: boolean;
   saving: boolean;
-  selectedModelOptions: ModelOption[];
+  savedProviderType: string;
   setForm: React.Dispatch<React.SetStateAction<ProviderFormState>>;
   updateField: <K extends keyof ProviderFormState>(
     key: K,
@@ -115,7 +121,7 @@ type ProviderDialogProps = {
   usesOfficialEndpoint: boolean;
 };
 
-function submitLabel(editing: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
+function submitLabel(editing: boolean, t: I18nContextValue["t"]): string {
   return editing ? t("react.settings.save_provider", "Save provider") : t("react.settings.create_provider", "Create provider");
 }
 
@@ -126,15 +132,63 @@ function ProviderDialog({
   nameRef,
   onClose,
   onSubmit,
-  open,
   saving,
-  selectedModelOptions,
+  savedProviderType,
   setForm,
   updateField,
   usesAzureEndpoint,
   usesOfficialEndpoint,
 }: Readonly<ProviderDialogProps>) {
   const { t } = useI18n();
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelFeedback, setModelFeedback] = useState("");
+  const discoveryRequest = useRef<AbortController | null>(null);
+  const discoverable = DISCOVERABLE_PROVIDER_TYPES.has(form.provider_type);
+  const canUseSavedKey = savedProviderType === form.provider_type;
+
+  useEffect(() => () => discoveryRequest.current?.abort(), []);
+
+  function clearDiscovery() {
+    discoveryRequest.current?.abort();
+    setLoadingModels(false);
+    setModels([]);
+    setModelFeedback("");
+  }
+
+  async function loadModels() {
+    clearDiscovery();
+    const request = new AbortController();
+    discoveryRequest.current = request;
+    setLoadingModels(true);
+    try {
+      const results = normalizeModelOptions(await discoverModelProviderModels({
+        provider_type: form.provider_type,
+        api_key: form.api_key.trim(),
+        provider_id: canUseSavedKey ? editingProviderId : "",
+      }, request.signal));
+      if (request.signal.aborted) return;
+      setModels(results);
+      if (!results.length) {
+        setModelFeedback(t("react.settings.provider_discovery_empty", "The provider returned no models for this key."));
+      }
+    } catch (error) {
+      if (request.signal.aborted) return;
+      const payload = isHttpError(error) ? error.payload : null;
+      const details = isApiEnvelope(payload) ? payload.error : payload;
+      const code = details && typeof details === "object" && "code" in details ? details.code : null;
+      setModelFeedback(providerErrorMessage(
+        code,
+        t("react.settings.provider_discovery_failed", "Could not load models. Check the API key or enter a model ID manually."),
+        t,
+      ));
+    } finally {
+      if (!request.signal.aborted) {
+        setLoadingModels(false);
+      }
+    }
+  }
+
   return (
     <DsDialog
       busy={saving}
@@ -156,7 +210,7 @@ function ProviderDialog({
       }
       initialFocusRef={nameRef}
       onClose={onClose}
-      open={open}
+      open
       title={editingProviderId ? t("react.settings.edit_provider", "Edit provider") : t("react.settings.add_provider", "Add provider")}
     >
       <form className="fs-dialog-form" id="provider-form" noValidate onSubmit={onSubmit}>
@@ -180,17 +234,25 @@ function ProviderDialog({
             id="provider-type"
             required
             onChange={(providerType) => {
+              if (providerType === form.provider_type) return;
+              clearDiscovery();
               setForm((current) => ({
                 ...current,
+                api_key: "",
+                default_model: "",
                 api_version: providerType === "azure_openai" ? current.api_version : "",
                 base_url: OFFICIAL_PROVIDER_TYPES.has(providerType) ? "" : current.base_url,
                 deployment_name: providerType === "azure_openai" ? current.deployment_name : "",
                 provider_type: providerType,
               }));
             }}
-            options={getProviderTypes(t)}
+            options={getProviderTypes(t, savedProviderType === "google")}
             value={form.provider_type}
           />
+          <span className="fs-field-helper">
+            {t("react.settings.vertex_ai_provider_setup", "Set up Google Cloud Vertex AI through its extension.")}{" "}
+            <a href={entryPath("flowsteward.google-cloud-vertex")}>{t("react.extensions.marketplace", "Catalog")}</a>
+          </span>
         </div>
         <div className="fs-form-grid">
           {!usesOfficialEndpoint ? (
@@ -214,13 +276,13 @@ function ProviderDialog({
             <input
               className="fs-input"
               id="provider-default-model"
-              list={selectedModelOptions.length ? "provider-default-model-options" : undefined}
+              list={models.length ? "provider-default-model-options" : undefined}
               onChange={(event) => updateField("default_model", event.target.value)}
               value={form.default_model}
             />
-            {selectedModelOptions.length ? (
+            {models.length ? (
               <datalist id="provider-default-model-options">
-                {selectedModelOptions.map((model) => (
+                {models.map((model) => (
                   <option key={model.modelId} value={model.modelId}>
                     {model.label}
                   </option>
@@ -270,10 +332,33 @@ function ProviderDialog({
           <input
             className="fs-input"
             id="provider-api-key"
-            onChange={(event) => updateField("api_key", event.target.value)}
+            onChange={(event) => {
+              clearDiscovery();
+              updateField("api_key", event.target.value);
+            }}
             type="password"
             value={form.api_key}
           />
+          {discoverable ? (
+            <>
+              <span className="fs-field-helper">
+                {t("react.settings.provider_discovery_help", "Load models available to this API key, or enter a model ID manually. Saving verifies the selected model.")}
+              </span>
+              <div>
+                <Button
+                  busy={loadingModels}
+                  busyLabel={t("react.settings.provider_discovery_loading", "Loading models…")}
+                  disabled={saving || (!form.api_key.trim() && !canUseSavedKey)}
+                  onClick={() => ignoreAsyncResult(loadModels())}
+                  type="button"
+                  variant="secondary"
+                >
+                  {t("react.settings.provider_discovery_load", "Load models")}
+                </Button>
+              </div>
+              {modelFeedback ? <span className="fs-field-helper" role="status">{modelFeedback}</span> : null}
+            </>
+          ) : null}
         </div>
         {message ? <DsAlert title={message} tone="warning" /> : null}
       </form>
@@ -350,28 +435,6 @@ export function SettingsProvidersPage() {
     queryFn: fetchModelProvidersCollection,
   });
   const providersLoaderShown = useLoaderDelay(providersQuery.isLoading);
-  const modelCatalogQuery = useQuery<{ families?: unknown }>({
-    queryKey: ["settings", "model-catalog"],
-    queryFn: fetchModelCatalogSettings,
-  });
-
-  const modelsByProviderType = useMemo<Record<string, ModelOption[]>>(() => {
-    const catalog = modelCatalogQuery.data || {};
-    const families = Array.isArray(catalog.families) ? catalog.families : [];
-    return Object.fromEntries(
-      families
-        .filter(
-          (family): family is Entity =>
-            Boolean(family) && typeof family === "object",
-        )
-        .map((family) => [
-          firstStringFromUnknownValue([family.family_id, ""]),
-          normalizeModelOptions(family.models),
-        ])
-        .filter(([providerType]) => Boolean(providerType)),
-    );
-  }, [modelCatalogQuery.data]);
-  const selectedModelOptions = modelsByProviderType[form.provider_type] || [];
   const usesOfficialEndpoint = OFFICIAL_PROVIDER_TYPES.has(form.provider_type);
   const usesAzureEndpoint = form.provider_type === "azure_openai";
 
@@ -716,21 +779,24 @@ export function SettingsProvidersPage() {
         </article>
       </div>
 
-      <ProviderDialog
-        editingProviderId={editingProviderId}
-        form={form}
-        message={message}
-        nameRef={nameRef}
-        onClose={() => setAddOpen(false)}
-        onSubmit={(event) => ignoreAsyncResult(handleCreate(event))}
-        open={addOpen}
-        saving={saving}
-        selectedModelOptions={selectedModelOptions}
-        setForm={setForm}
-        updateField={updateField}
-        usesAzureEndpoint={usesAzureEndpoint}
-        usesOfficialEndpoint={usesOfficialEndpoint}
-      />
+      {addOpen ? (
+        <ProviderDialog
+          editingProviderId={editingProviderId}
+          form={form}
+          message={message}
+          nameRef={nameRef}
+          onClose={() => setAddOpen(false)}
+          onSubmit={(event) => ignoreAsyncResult(handleCreate(event))}
+          saving={saving}
+          savedProviderType={stringFromUnknownValue(
+            providers.find((provider) => provider.id === editingProviderId)?.provider_type,
+          )}
+          setForm={setForm}
+          updateField={updateField}
+          usesAzureEndpoint={usesAzureEndpoint}
+          usesOfficialEndpoint={usesOfficialEndpoint}
+        />
+      ) : null}
 
       <DsDialog
         busy={saving}

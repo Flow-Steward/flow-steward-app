@@ -12036,6 +12036,9 @@ msgstr ""
 msgid "react.settings.findings"
 msgstr ""
 
+msgid "react.settings.google_gemini_api"
+msgstr ""
+
 msgid "react.settings.google_official"
 msgstr ""
 
@@ -12403,6 +12406,21 @@ msgid "react.settings.prompt_injection"
 msgstr ""
 
 msgid "react.settings.prompt_injection_value1_context"
+msgstr ""
+
+msgid "react.settings.provider_discovery_empty"
+msgstr ""
+
+msgid "react.settings.provider_discovery_failed"
+msgstr ""
+
+msgid "react.settings.provider_discovery_help"
+msgstr ""
+
+msgid "react.settings.provider_discovery_load"
+msgstr ""
+
+msgid "react.settings.provider_discovery_loading"
 msgstr ""
 
 msgid "react.settings.provider_id_is_missing"
@@ -13129,6 +13147,9 @@ msgid "react.settings.verification_error"
 msgstr ""
 
 msgid "react.settings.verify"
+msgstr ""
+
+msgid "react.settings.vertex_ai_provider_setup"
 msgstr ""
 
 msgid "react.settings.waiting_for_first_posture_scan"
