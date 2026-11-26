@@ -1,6 +1,37 @@
 #!/bin/sh
 set -eu
 ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+managed_release_path="$ROOT_DIR/core/entrypoints/cli/scripts/managed_release_path.sh"
+if [ -f "$managed_release_path" ]; then
+  # shellcheck source=core/entrypoints/cli/scripts/managed_release_path.sh
+  . "$managed_release_path"
+  if flow_steward_has_managed_release "$ROOT_DIR"; then
+    if [ -n "${FS_INSTALLER_STATE_DIR:-}" ]; then
+      printf '%s\n' "Flow Steward: this directory is bound to its managed release state." >&2
+      exit 4
+    fi
+    if ! managed_checkout=$(flow_steward_managed_checkout "$ROOT_DIR"); then
+      printf '%s\n' "Flow Steward: the managed release checkout is pending or unavailable. Rerun ./install.sh." >&2
+      exit 4
+    fi
+    if [ ! -f "$managed_checkout/.flow-steward/compose.env" ]; then
+      printf '%s\n' "Flow Steward: this release has no installation configuration yet. Rerun ./install.sh." >&2
+      exit 4
+    fi
+    if ! flow_steward_read_release_pin "$ROOT_DIR"; then
+      printf '%s\n' "Flow Steward: the saved release pin is invalid. Rerun ./install.sh to diagnose it." >&2
+      exit 4
+    fi
+    if [ "${FS_COMPOSE_PROJECT_NAME:-$managed_project}" != "$managed_project" ] ||
+      ! flow_steward_managed_project_matches "$managed_checkout" "$managed_project"; then
+      printf '%s\n' "Flow Steward: this installation is bound to Compose project $managed_project." >&2
+      exit 4
+    fi
+    FS_COMPOSE_PROJECT_NAME=$managed_project
+    export FS_COMPOSE_PROJECT_NAME
+    exec "$managed_checkout/flow-steward" "$@"
+  fi
+fi
 FS_CLI_INVOCATION=$0
 # `sh flow-steward` leaves a bare name that only PATH could resolve.
 case "$0" in */*) ;; *) command -v "$0" >/dev/null 2>&1 || FS_CLI_INVOCATION=./$0 ;; esac

@@ -63,7 +63,11 @@ for arg in "$@"; do
 done
 expect_path_value=0
 input_option=""
+managed_release_args=()
+managed_release_input_indices=()
+managed_release_input_count=0
 for arg in "$@"; do
+  managed_release_args+=("$arg")
   if [[ ${expect_path_value} -eq 1 ]]; then
     if [[ "${arg}" == -* ]]; then
       echo "Installer file-path option requires a value." >&2
@@ -109,14 +113,22 @@ for arg in "$@"; do
   elif [[ -n "${input_path}" && "${input_path}" == '~'* ]]; then
     echo "Expand '~' in installer file paths before invoking ./install.sh." >&2
     exit 3
+  elif [[ -n "${input_path}" && ( "${current_option}" == "--s3-credentials-path" || "${installer_tls_mode}" == "provided" ) ]]; then
+    # These files are operator inputs in the launch directory. Preserve their
+    # meaning when the managed install runs from its own checkout.
+    managed_release_input_indices+=($(( ${#managed_release_args[@]} - 1 )))
+    managed_release_input_count=$((managed_release_input_count + 1))
+    if [[ "${arg}" == "${input_path}" ]]; then
+      managed_release_args[${#managed_release_args[@]}-1]="${ROOT_DIR}/${input_path}"
+    else
+      managed_release_args[${#managed_release_args[@]}-1]="${current_option}=${ROOT_DIR}/${input_path}"
+    fi
   fi
 done
 if [[ ${expect_path_value} -eq 1 ]]; then
   echo "Installer file-path option requires a value." >&2
   exit 3
 fi
-
-echo "Flow Steward installer: preparing management runtime..." >&2
 
 run_with_host_python() {
   local python_bin="${PYTHON_BIN:-}"
@@ -142,6 +154,7 @@ PY
 }
 
 if [[ "${FS_INSTALLER_USE_HOST_PYTHON:-0}" == "1" ]]; then
+  echo "Flow Steward installer: preparing management runtime..." >&2
   run_with_host_python "$@"
 fi
 
@@ -151,6 +164,39 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "Mac, Windows or Linux desktop: https://docs.docker.com/desktop/ (includes Compose)." >&2
   exit 127
 fi
+
+managed_release_path="${ROOT_DIR}/core/entrypoints/cli/scripts/managed_release_path.sh"
+if [[ -f "${managed_release_path}" ]]; then
+  # shellcheck source=core/entrypoints/cli/scripts/managed_release_path.sh
+  source "${managed_release_path}"
+  requested_release_repository="${FS_RELEASE_REPOSITORY:-${flow_steward_public_release_repository}}"
+  use_managed_release=0
+  if flow_steward_has_managed_release "${ROOT_DIR}"; then
+    if [[ ${installer_from_source} -eq 1 || -n "${FS_INSTALLER_STATE_DIR:-}" ||
+      "${requested_release_repository}" != "${flow_steward_public_release_repository}" ]]; then
+      echo "Flow Steward installer: this directory is bound to its managed release. Use a separate checkout for a different installation." >&2
+      exit 4
+    fi
+    if [[ "${MANAGEMENT_MODULE}" == "doctor" || ${installer_help_only} -eq 1 ]] &&
+      ! flow_steward_managed_checkout "${ROOT_DIR}" >/dev/null; then
+      echo "Flow Steward installer: the managed release checkout is pending or unavailable. Rerun ./install.sh." >&2
+      exit 4
+    fi
+    use_managed_release=1
+  elif [[ "${MANAGEMENT_MODULE}" == "installer" && ${installer_from_source} -eq 0 && ${installer_help_only} -eq 0 &&
+    -z "${FS_INSTALLER_STATE_DIR:-}" &&
+    "${requested_release_repository}" == "${flow_steward_public_release_repository}" ]] &&
+    flow_steward_can_select_release "${ROOT_DIR}"; then
+    use_managed_release=1
+  fi
+  if [[ ${use_managed_release} -eq 1 ]]; then
+    exec bash "${ROOT_DIR}/core/entrypoints/cli/scripts/managed_release_install.sh" "${ROOT_DIR}" \
+      "${managed_release_input_count}" ${managed_release_input_indices[@]+"${managed_release_input_indices[@]}"} \
+      ${managed_release_args[@]+"${managed_release_args[@]}"}
+  fi
+fi
+
+echo "Flow Steward installer: preparing management runtime..." >&2
 
 # AC17: both host entrypoints are POSIX shell and call these directly. The union
 # is checked, not just the ones install.sh needs: an operator whose install
