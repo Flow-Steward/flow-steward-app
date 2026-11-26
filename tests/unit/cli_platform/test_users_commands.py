@@ -69,7 +69,7 @@ class _UsersRegistry:
                     "username": command.email,
                     "email": command.email,
                     "password_hash": "must-not-cross-application-boundary",
-                    "roles": command.roles,
+                    "roles": [command.role] if command.role else [],
                 },
             }
         if key == "users.set-password":
@@ -107,7 +107,7 @@ class _UsersRegistry:
                 "user": {
                     "id": value.user_id or "u_1",
                     "email": value.email,
-                    "roles": value.roles,
+                    "roles": [value.role],
                 },
             }
         raise AssertionError(f"Unexpected service key {key!r}")
@@ -164,7 +164,10 @@ def test_users_role_help_distinguishes_create_default_from_required_set_roles() 
 
     assert create_help.exit_code == 0, create_help.output
     assert set_roles_help.exit_code == 0, set_roles_help.output
-    assert "Default: viewer." in create_help.output
+    create_text = " ".join(create_help.output.split())
+    # Without --role the server decides: admin for an installation's first user.
+    assert "first user of an installation becomes admin" in create_text
+    assert "Default: viewer." not in create_help.output
     assert "('viewer',)" not in create_help.output
     assert "Default: viewer." not in set_roles_help.output
     assert "--role" in set_roles_help.output
@@ -239,7 +242,7 @@ def test_plain_user_wizard_collects_exactly_one_target(
         (UserSelectorInput, {}),
         (UserPasswordUpdateInput, {"password": "StrongPass_123!"}),
         (UserActiveUpdateInput, {"is_active": True}),
-        (UserRolesUpdateInput, {"roles": ["viewer"]}),
+        (UserRolesUpdateInput, {"role": "viewer"}),
     ),
 )
 @pytest.mark.parametrize(
@@ -257,12 +260,54 @@ def test_existing_user_contracts_require_exactly_one_nonblank_selector(
         model(**selector, **extra)
 
 
-def test_user_role_contracts_keep_create_default_but_require_set_roles_values() -> None:
+def test_user_role_contracts_leave_create_default_to_the_server_but_require_set_roles_values() -> (
+    None
+):
     created = UserCreateInput(email="operator@example.com", password="StrongPass_123!")
 
-    assert created.roles == ["viewer"]
-    with pytest.raises(ValidationError, match="at least one role"):
-        UserRolesUpdateInput(user_id="u_1", roles=[])
+    # Empty: admin for an installation's first user, viewer after (the repository decides).
+    assert created.role == ""
+    with pytest.raises(ValidationError, match="role must be one of admin, operator or viewer"):
+        UserRolesUpdateInput(user_id="u_1", role="")
+    with pytest.raises(ValidationError, match="role must be one of admin, operator or viewer"):
+        UserCreateInput(email="operator@example.com", password="StrongPass_123!", role="owner")
+    assert UserRolesUpdateInput(user_id="u_1", role=" Operator ").role == "operator"
+
+
+@pytest.mark.parametrize("leaf", ("create", "set-roles"))
+def test_role_is_one_choice_of_the_system_roles(leaf: str) -> None:
+    """ADR 0076 §7: a user holds one system role, so --role names one of three."""
+    from core.application.management.command_specs.contracts import FieldType
+    from core.application.management.command_specs.users import (
+        USERS_CREATE_SPEC,
+        USERS_SET_ROLES_SPEC,
+    )
+
+    spec = USERS_CREATE_SPEC if leaf == "create" else USERS_SET_ROLES_SPEC
+    role = {field.key: field for field in spec.fields}["role"]
+    assert role.type is FieldType.SINGLE_SELECT
+    assert [choice.value for choice in role.choices] == ["admin", "operator", "viewer"]
+
+    app, registry = _app()
+    result = CliRunner().invoke(
+        app,
+        [
+            "--non-interactive",
+            "--json",
+            "users",
+            leaf,
+            "--email",
+            "operator@example.com",
+            "--role",
+            "owner",
+            *(["--password-stdin"] if leaf == "create" else []),
+            "--confirm",
+        ],
+        input="StrongPass_123!\n",
+    )
+
+    assert result.exit_code != 0, result.output
+    assert registry.calls == []
 
 
 @pytest.mark.parametrize(
@@ -358,7 +403,7 @@ def test_set_roles_aggregates_missing_roles_and_target_before_service() -> None:
         (issue["field"], issue["code"])
         for issue in _payload(result.output)["error"]["field_issues"]
     ] == [
-        ("roles", "missing"),
+        ("role", "missing"),
         ("target", "exactly_one_of"),
     ]
 
@@ -600,7 +645,7 @@ def test_phase2_user_mutation_leaves_delegate_to_shared_request_models() -> None
             ],
             "users.set-roles",
             UserRolesUpdateInput,
-            {"email": "operator@example.com", "roles": ["operator"]},
+            {"email": "operator@example.com", "role": "operator"},
             "",
         ),
     ]

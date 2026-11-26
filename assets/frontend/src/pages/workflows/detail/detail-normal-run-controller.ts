@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { exceedsRunUploadLimits, useRunUploadLimits } from "@/lib/auth/run-upload-limits";
 import { objectOrEmpty, testRunPayloadFromInputs } from "./detail-helpers";
 import { workflowTestRunInputRow } from "./detail-test-run-controller";
 import { readWorkflowRunFile, runBuilderWorkflow } from "../shared/run-api";
@@ -28,7 +29,7 @@ export function useWorkflowNormalRunController(options: RunOptions) {
   const contract = objectOrEmpty(objectOrEmpty(options.contract).interface);
   const fields = Array.isArray(contract.expected_inputs) ? contract.expected_inputs.map(objectOrEmpty) : [];
   const fileFields = fields.filter((field) => field.type === "file");
-  const totalBytes = Object.values(files).reduce((size, file) => size + file.size, 0);
+  const uploadLimits = useRunUploadLimits();
   // Blocked by the run's own settings; a sibling test run that is starting
   // blocks it too, but only as an ignored press, never as a disabled look.
   const blockedAtRest = !options.canRun || !options.enabled || !options.projectId || !Number.isSafeInteger(options.revision) || Number(options.revision) < 1 ||
@@ -36,7 +37,8 @@ export function useWorkflowNormalRunController(options: RunOptions) {
     !Array.isArray(contract.trigger_channels) || !contract.trigger_channels.includes("ui") ||
     Object.keys(options.fieldErrors).some((path) => !fileFields.some((field) => path === `inputs.${String(field.name)}`)) ||
     fileFields.some((field) => field.required && !files[String(field.name)]) ||
-    Object.values(files).some((file) => !file.size) || Object.keys(files).length > 10 || totalBytes > 1_048_576;
+    Object.values(files).some((file) => !file.size) ||
+    exceedsRunUploadLimits(Object.values(files).map((file) => file.size), uploadLimits);
   const blocked = blockedAtRest || options.testBusy;
   const live = useRef({ blocked, acknowledged, files, owner });
   useLayoutEffect(() => { committed.current = options; live.current = { blocked, acknowledged, files, owner }; });

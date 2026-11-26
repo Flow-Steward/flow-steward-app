@@ -108,7 +108,12 @@ class OrchestratorSupervisorRoutingMixin:
         state: OrchestratorState | dict[str, Any] | None = None,
     ) -> RoutingResolution:
         """Validate and hydrate an already-selected workflow binding."""
-        from core.application.orchestration.classifier import TaskClassification, classify_task
+        from core.application.orchestration.classifier import (
+            TaskClassification,
+            classify_task,
+            explicit_selection_classification,
+        )
+        from core.application.orchestration.routing_node import EXPLICIT_WORKFLOW_SELECTION_SOURCES
 
         state_dict = state if isinstance(state, dict) else {}
         project_config = state_dict.get("project_config") or {}
@@ -127,10 +132,6 @@ class OrchestratorSupervisorRoutingMixin:
             .strip()
             .lower()
         )
-
-        classification = self._classification_from_state(envelope, state_dict)
-        if classification is None:
-            classification = classify_task(envelope, kb_context, project_config)
 
         reentry_context = self._build_reentry_context(envelope, state_dict)
         selection_source = (
@@ -156,6 +157,15 @@ class OrchestratorSupervisorRoutingMixin:
         explicit_override = bool(requested_workflow_id)
         if not selection_source and explicit_override:
             selection_source = "explicit_request"
+
+        classification = self._classification_from_state(envelope, state_dict)
+        if classification is None:
+            # ADR 0079: only an inferred selection asks the model; a named
+            # workflow is classified without a model call.
+            if selection_source in EXPLICIT_WORKFLOW_SELECTION_SOURCES:
+                classification = explicit_selection_classification()
+            else:
+                classification = classify_task(envelope, kb_context, project_config)
         routing_reason = "workflow_binding"
         routing_signals: dict[str, object] = {
             "selection_source": selection_source or "explicit_request",

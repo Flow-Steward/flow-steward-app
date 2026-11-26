@@ -707,11 +707,17 @@ class TestMCPAuthBootstrap:
         )
 
     @pytest.mark.parametrize(
-        ("factor_enabled", "expired", "issues_session"),
-        [(True, False, False), (False, True, False), (False, False, True)],
+        ("factor_enabled", "expired", "required", "reset_pending", "issues_session"),
+        [
+            (True, False, False, False, False),
+            (False, True, False, False, False),
+            (False, False, False, False, True),
+            (False, False, True, False, False),
+            (False, False, False, True, False),
+        ],
     )
     def test_db_session_bootstrap_enforces_local_credential_policy(
-        self, monkeypatch, factor_enabled, expired, issues_session
+        self, monkeypatch, factor_enabled, expired, required, reset_pending, issues_session
     ):
         from core.application.auth import mfa_service, password, resolve
         from core.application.orchestration.tools import mcp_tools
@@ -719,7 +725,7 @@ class TestMCPAuthBootstrap:
         monkeypatch.delenv("FS_AUTH_MFA_REQUIRED", raising=False)
         cursor = MagicMock()
         cursor.__enter__.return_value = cursor
-        cursor.fetchone.return_value = ("42",)
+        cursor.fetchone.side_effect = [("42",), (required, reset_pending)]
         connection = MagicMock(transaction=None, autocommit=True)
         connection.cursor.return_value = cursor
         logger = SimpleNamespace(
@@ -751,7 +757,10 @@ class TestMCPAuthBootstrap:
             enabled.assert_not_called()
             connection.cursor.assert_not_called()
         else:
-            enabled.assert_called_once_with(cursor, "42")
+            if required or reset_pending:
+                enabled.assert_not_called()
+            else:
+                enabled.assert_called_once_with(cursor, "42")
             assert "FOR UPDATE" in sql[0]
             assert cursor.execute.call_args_list[0].args[1] == ("42", "stored-hash", False)
 

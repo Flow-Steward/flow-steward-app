@@ -12,6 +12,7 @@ from core.application.extensions.callback_protocol import (
 from core.application.extensions.composite_actions import workflow_handler_issues
 from core.application.extensions.identity import normalize_extension_id
 from core.application.extensions.oauth_contract import (
+    contract_section,
     declared_ui_page_ids,
     is_safe_oauth_post_connect_action,
 )
@@ -515,6 +516,7 @@ def validate_compiled_manifest(compiled_manifest: dict) -> dict:
         action_ids=action_ids,
         query_ids=query_ids,
         manifest_kind=str(compiled_manifest.get("kind") or "").strip().lower(),
+        declares_connection_notification=_declares_connection_notification(compiled_manifest),
     )
     _validate_external_effect_pre_save_actions(
         compiled_manifest,
@@ -872,3 +874,16 @@ def _validate_extension_dependencies(
                     )
             except ValueError:
                 pass
+
+
+def _declares_connection_notification(compiled_manifest: dict) -> bool:
+    """Whether any connection type states its own notification target (a mixed provider).
+
+    Validation also runs where no application settings exist (the dependency
+    installer), so this reads the manifest directly and imports nothing that
+    resolves security configuration.
+    """
+    return any(
+        isinstance(row, dict) and isinstance(row.get("notification"), dict)
+        for row in contract_section(compiled_manifest, "connection_types")
+    )

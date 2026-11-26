@@ -18,6 +18,7 @@ import {
 import { WorkflowsBuilderPage } from "@/pages/workflows/builder";
 import { buildCanvasLayout } from "@/pages/workflows/builder/layout";
 import type * as CanvasModule from "@/pages/workflows/builder/canvas";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/workflows/shared/api", () => {
   return {
@@ -196,7 +197,7 @@ const authValue: AuthContextValue = {
     authenticated: true, local_auth_enabled: true, bootstrap_required: false, external_auth_enabled: false,
     roles: ["admin"], permissions: { can_read: true, can_mutate: true }, account_memberships: [],
     user: { id: "builder-admin", email: "builder@example.test", username: "builder", display_name: "Builder",
-      roles: ["admin"], account_id: "account-test", account_ids: ["account-test"], account_memberships: [] },
+      roles: ["admin"], permissions: permissionsForRoles(["admin"]), account_id: "account-test", account_ids: ["account-test"], account_memberships: [] },
     i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
     feature_flags: {}, environment: { edition: "community", mode: "production" },
     settings_pages: [], registered_pages: [], shell_navigation: {},

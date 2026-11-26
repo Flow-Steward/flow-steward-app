@@ -568,6 +568,9 @@ def dispatch_notification_from_reaction(
     elif action_target == "extension_channel":
         provider_key = str(action_payload.get("provider_key") or "").strip()
         channel_id = str(action_payload.get("channel_id") or "").strip()
+        # The connection the automation delivers through: required for a mixed
+        # provider, and the whole destination of a connection bound to one channel.
+        connection_id = str(action_payload.get("connection_id") or "").strip()
         # An email extension addresses people, not channels: the automation names them.
         recipients = _notification_recipients(action_payload.get("recipients"))
         if not provider_key:
@@ -576,10 +579,13 @@ def dispatch_notification_from_reaction(
                 "reason": "provider_key is required for extension_channel target",
                 "executed": False,
             }
-        if not channel_id and not recipients:
+        if not channel_id and not recipients and not connection_id:
             return {
                 "status": "ignored",
-                "reason": "channel_id or recipients is required for extension_channel target",
+                "reason": (
+                    "channel_id, recipients or connection_id is required for "
+                    "extension_channel target"
+                ),
                 "executed": False,
             }
         channel_capability = (
@@ -592,12 +598,16 @@ def dispatch_notification_from_reaction(
             or str(event.get("event_type") or "").strip()
             or "workflow.automation.notify"
         )
-        target_label = channel_id or ",".join(recipients)
+        target_label = channel_id or ",".join(recipients) or connection_id
         route_config: dict[str, Any] = (
             {"channel_id": channel_id, "required_capability": channel_capability or "notify"}
             if channel_id
             else {"to": recipients}
+            if recipients
+            else {}
         )
+        if connection_id:
+            route_config["connection_id"] = connection_id
         direct_routes = [
             {
                 "route_key": f"extension_channel:{provider_key}:{target_label}",

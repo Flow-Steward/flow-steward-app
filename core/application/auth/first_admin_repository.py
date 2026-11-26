@@ -50,7 +50,8 @@ class PostgresFirstAdminRepository:
                         """
                         INSERT INTO user_roles (user_id, role_id)
                         VALUES (%s,%s)
-                        ON CONFLICT (user_id, role_id) DO NOTHING
+                        ON CONFLICT (user_id, role_id, workspace_id, project_id, workflow_id)
+                        DO NOTHING
                         """,
                         (user_id, str(role_row[0])),
                     )

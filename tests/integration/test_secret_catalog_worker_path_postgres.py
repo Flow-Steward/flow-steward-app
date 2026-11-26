@@ -812,7 +812,10 @@ _CONNECTOR_STEP = {
 }
 
 
-def test_an_extension_release_update_does_not_inherit_the_approval(stand, monkeypatch) -> None:
+@pytest.mark.parametrize("trusted_update", [False, True])
+def test_extension_release_updates_preserve_only_trusted_approvals(
+    stand, monkeypatch, trusted_update
+) -> None:
     """Approved workflow, catalog secret in an extension input, same install updated."""
     from core.application.orchestration import connector_receiver, connector_step_runtime
 
@@ -869,8 +872,30 @@ def test_an_extension_release_update_does_not_inherit_the_approval(stand, monkey
     assert payload == {"token": VALUE}
 
     # The same install now runs another release; the workflow did not change.
+    if trusted_update:
+        from core.application.secrets.release_approvals import carry_release_approvals
+
+        with stand.conn.cursor() as cur:
+            carry_release_approvals(
+                cur,
+                account_id=ACCOUNT,
+                install_id="pi_partner",
+                previous={"release_id": "rel_1", "descriptor_sha256": "sha256:aaaa"},
+                candidate={"release_id": "rel_2", "descriptor_sha256": "sha256:bbbb"},
+                repository="https://github.com/flow-steward/partner",
+                actor="updater",
+                actor_kind="human",
+            )
     current.update(release_id="rel_2", digest="sha256:bbbb")
     status = stand.service.workflow_approval_status("wf_ext", _human(), project_id=stand.project_id)
+    if trusted_update:
+        assert status["status"] == "approved"
+        payload, _protected, _over = connector_step_runtime._payload_for_dispatch(
+            {"token": _ref(key)}, state, spy, pin(connector_install_id="pi_partner").identity()
+        )
+        assert payload == {"token": VALUE}
+        return
+
     assert status["status"] == "approval_required"
     spy.reads.clear()
     # The new release does not inherit the approval.

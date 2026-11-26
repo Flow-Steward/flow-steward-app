@@ -173,6 +173,74 @@ describe("shared design-system adapters", () => {
     expect(document.body.contains(menu)).toBe(true);
   });
 
+  it("reopens an applied filter at its pill and restores keyboard focus", async () => {
+    const user = userEvent.setup();
+    render(
+      <AdvancedTableFilters
+        fields={[{ key: "status", label: "Status", options, multiple: true }]}
+        onChange={vi.fn()}
+        onClear={vi.fn()}
+        values={{ status: "salesforce,spreadsheet,hubspot" }}
+      />,
+    );
+    const pill = screen.getByRole("button", { name: "Status · 3 selected" });
+    await user.tab();
+    expect(pill).toHaveFocus();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Salesforce, Spreadsheet, HubSpot");
+
+    await user.keyboard("{Enter}");
+    const menu = screen.getByRole("menu", { name: "Choose a filter" });
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Salesforce" })).toBeChecked();
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    await waitFor(() => expect(within(menu).getByRole("menuitemcheckbox", { name: "Salesforce" })).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(pill).toHaveFocus());
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  describe("typed filter fields keep their arrow keys", () => {
+    function TypedHarness() {
+      const [values, setValues] = useState<Record<string, string>>({});
+      return (
+        <AdvancedTableFilters
+          fields={[
+            { key: "document_date", label: "Document date", options: [], input: "date_range" },
+            { key: "total", label: "Total", options: [], input: "number_range" },
+          ]}
+          onChange={(key, value) => setValues((current) => ({ ...current, [key]: value }))}
+          onClear={() => setValues({})}
+          values={values}
+        />
+      );
+    }
+
+    it.each([
+      ["Document date", "date"],
+      ["Total", "number"],
+    ])("leaves ArrowUp and ArrowDown to the %s field and keeps Escape for the menu", async (label, type) => {
+      const user = userEvent.setup();
+      render(<TypedHarness />);
+      await user.click(screen.getByRole("button", { name: "Add filter" }));
+      await user.click(await screen.findByRole("menuitem", { name: label }));
+      const menu = await screen.findByRole("menu", { name: "Choose a filter" });
+      const from = within(menu).getAllByLabelText("From")[0] as HTMLInputElement;
+      expect(from.type).toBe(type);
+      from.focus();
+
+      const arrowUp = new KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true, cancelable: true });
+      from.dispatchEvent(arrowUp);
+      const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true });
+      from.dispatchEvent(arrowDown);
+
+      expect(arrowUp.defaultPrevented).toBe(false);
+      expect(arrowDown.defaultPrevented).toBe(false);
+      expect(from).toHaveFocus();
+
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(screen.getByRole("menuitem", { name: label })).toBeInTheDocument());
+    });
+  });
+
   describe("filter menu with many options", () => {
     const manyOptions = (count: number) => Array.from({ length: count }, (_, index) => ({
       value: `wf-${index + 1}`,
@@ -198,29 +266,29 @@ describe("shared design-system adapters", () => {
       return screen.findByRole("menu", { name: "Choose a filter" });
     }
 
-    it("shows no search box at ten options", async () => {
+    it("shows no search box at seven options", async () => {
       const user = userEvent.setup();
-      render(<Harness count={10} />);
+      render(<Harness count={7} />);
       const menu = await openWorkflowField(user);
       expect(within(menu).queryByRole("searchbox")).not.toBeInTheDocument();
-      expect(within(menu).getAllByRole("menuitem")).toHaveLength(11);
+      expect(within(menu).getAllByRole("menuitem")).toHaveLength(8);
     });
 
-    it("searches above ten options, focused on open and case-insensitive", async () => {
+    it("searches at eight options, focused on open and case-insensitive", async () => {
       const user = userEvent.setup();
-      render(<Harness count={11} />);
+      render(<Harness count={8} />);
       const menu = await openWorkflowField(user);
       const search = within(menu).getByRole("searchbox", { name: "Search workflow" });
       await waitFor(() => expect(search).toHaveFocus());
 
       await user.type(search, "CLASSIFY");
-      const rows = within(menu).getAllByRole("menuitem").filter((item) => item.textContent !== "All fields");
+      const rows = within(menu).getAllByRole("menuitem").filter((item) => item.getAttribute("aria-label") !== "All fields · Workflow");
       expect(rows).toHaveLength(1);
-      // One line per label; the full text and the description stay in the title.
-      expect(rows[0]).toHaveAttribute("title", "Classify support requests with a very long workflow name that will not fit · Support project");
+      expect(rows[0]).toHaveAccessibleName("Classify support requests with a very long workflow name that will not fit");
+      expect(rows[0]).toHaveAccessibleDescription("Support project");
 
       await user.type(search, "zzz");
-      expect(within(menu).getByText("No results")).toBeInTheDocument();
+      expect(within(menu).getByText("No matching values")).toBeInTheDocument();
     });
 
     it("walks the search box and the options with the arrow keys and selects with Enter", async () => {
@@ -238,7 +306,7 @@ describe("shared design-system adapters", () => {
       await user.keyboard("{ArrowUp}{ArrowUp}");
       expect(search).toHaveFocus();
       await user.keyboard("{ArrowUp}");
-      expect(within(menu).getByRole("menuitem", { name: "All fields" })).toHaveFocus();
+      expect(within(menu).getByRole("menuitem", { name: "All fields · Workflow" })).toHaveFocus();
       await user.keyboard("{End}");
       expect(within(menu).getByRole("menuitem", { name: "Workflow 12" })).toHaveFocus();
 
@@ -247,8 +315,8 @@ describe("shared design-system adapters", () => {
       expect(screen.queryByRole("menu", { name: "Choose a filter" })).not.toBeInTheDocument();
     });
 
-    it("keeps the menu wide, capped to the viewport, with a scrolling one-line list", () => {
-      expect(settingsStyles).toMatch(/\.fs-filter-menu \{[^}]*width:\s*min\(340px,\s*calc\(100vw - \(2 \* var\(--fs-space-200\)\)\)\)/s);
+    it("keeps the menu compact and capped to the viewport, with a scrolling one-line list", () => {
+      expect(settingsStyles).toMatch(/\.fs-filter-menu \{[^}]*width:\s*min\(208px,\s*calc\(100vw - \(2 \* var\(--fs-space-200\)\)\)\)/s);
       expect(settingsStyles).toMatch(/\.fs-filter-menu-options \{[^}]*max-height:[^;]+;[^}]*overflow-y:\s*auto/s);
       expect(settingsStyles).toMatch(/\.fs-filter-menu-label,\s*\.fs-filter-menu-description \{[^}]*text-overflow:\s*ellipsis;[^}]*white-space:\s*nowrap/s);
     });
@@ -1030,6 +1098,23 @@ describe("foundation control feedback", () => {
     expect(control).toHaveAttribute("aria-busy", "true");
     expect(control).toHaveAttribute("aria-disabled", "true");
     expect(control).toBeEnabled();
+  });
+
+  it("renders a viewport tooltip outside the scrollable table and keeps its accessible description", async () => {
+    const user = userEvent.setup();
+    render(
+      <div className="fs-table-scroll" role="region" aria-label="Scrollable table">
+        <IconButton icon={Search} label="Extension runtime health" tooltipInViewport />
+      </div>,
+    );
+    const button = screen.getByRole("button", { name: "Extension runtime health" });
+    await user.tab();
+    const tooltip = screen.getByRole("tooltip");
+    expect(button).toHaveAccessibleDescription("Extension runtime health");
+    expect(within(screen.getByRole("region", { name: "Scrollable table" })).queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await user.tab();
+    expect(tooltip).not.toBeInTheDocument();
   });
 
   it("guards the busy IconButton immediately and preserves its name before the glyph delay", async () => {

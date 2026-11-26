@@ -344,7 +344,7 @@ def test_a_failed_refresh_serves_the_stale_index(
     assert stale.catalog_revision == "r1"
     availability = workflow_template_catalog_availability()
     assert availability["stale"] is True
-    assert "host is down" in availability["last_refresh_error"]
+    assert availability["last_refresh_error"] == "Catalog refresh failed."
 
 
 def test_a_failed_first_fetch_reports_the_catalog_unavailable(

@@ -71,10 +71,12 @@ from .worker_delivery import (
     _queue_name_for_delivery,
 )
 from .worker_inbound_polling import (
+    BackgroundPollPorts,
     _background_poll_actions,
     _binding_poll_due,
     _parse_iso_datetime,
     _start_extension_inbound_poll_loop,
+    _start_provider_event_dispatch_sweep_loop,
 )
 from .worker_schema_compat import (
     WorkerSchemaDependencies,
@@ -118,6 +120,7 @@ __all__ = [
     "_schema_compat_retry_settings",
     "_sigterm_handler",
     "_start_extension_inbound_poll_loop",
+    "_start_provider_event_dispatch_sweep_loop",
     "_to_json_obj",
     "_truncate_text",
     "_worker_id",
@@ -171,6 +174,8 @@ def main(
     *,
     ensure_guardrails_seeded: Callable[..., dict] | None = None,
     process_extension_response_envelope: Callable[..., object] | None = None,
+    sweep_provider_event_dispatches: Callable[[], object] | None = None,
+    background_poll_ports: BackgroundPollPorts | None = None,
     maintenance_active: Callable[[], bool] = _maintenance_inactive,
     curate_terminal_job: Callable[..., list[str]] | None = None,
     job_terminal_statuses: Collection[str] = (),
@@ -203,6 +208,7 @@ def main(
     args = parser.parse_args()
     metrics_server = None
     inbound_poll_handle: tuple[threading.Event, threading.Thread] | None = None
+    provider_event_sweep_handle: tuple[threading.Event, threading.Thread] | None = None
     terminal_curation_handle: tuple[threading.Event, threading.Thread] | None = None
     workflow_knowledge_sync_handle: tuple[threading.Event, threading.Thread] | None = None
     observation_heartbeat_handle: tuple[threading.Event, threading.Thread] | None = None
@@ -275,6 +281,11 @@ def main(
         worker_id=wid,
         project_id=args.project_id,
         process_extension_response_envelope=process_extension_response_envelope,
+        poll_ports=background_poll_ports,
+    )
+    provider_event_sweep_handle = _start_provider_event_dispatch_sweep_loop(
+        worker_id=wid,
+        sweep=sweep_provider_event_dispatches,
     )
     terminal_curation_handle = start_terminal_curation_loop(
         curate_terminal_job=curate_terminal_job,
@@ -329,6 +340,10 @@ def main(
             thread.join(timeout=2)
         if inbound_poll_handle is not None:
             stop_event, thread = inbound_poll_handle
+            stop_event.set()
+            thread.join(timeout=2)
+        if provider_event_sweep_handle is not None:
+            stop_event, thread = provider_event_sweep_handle
             stop_event.set()
             thread.join(timeout=2)
         if metrics_server is not None:

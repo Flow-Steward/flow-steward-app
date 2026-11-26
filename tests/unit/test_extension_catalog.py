@@ -20,7 +20,9 @@ from core.application.extensions.extension_catalog import (
     load_extension_catalog,
     parse_extension_catalog_index,
     reset_extension_catalog_cache,
+    verify_github_release_repository,
 )
+from core.application.extensions.extension_catalog_contracts import CatalogSecretUpdateTrustRequest
 from core.application.extensions.extension_catalog_install import (
     STATE_INCOMPATIBLE,
     STATE_INSTALL,
@@ -31,7 +33,8 @@ from core.application.extensions.extension_catalog_install import (
     ExtensionCatalogInstallService,
     catalog_display_state,
 )
-from core.application.management.scope import normalize_scope
+from core.application.management.errors import ServiceConflictError, ServiceForbiddenError
+from core.application.management.scope import ScopeContext, normalize_scope
 from core.infrastructure.static_catalog import settings as catalog_settings
 from core.infrastructure.static_catalog.http_fetch import (
     CatalogArtifactMismatchError,
@@ -509,6 +512,165 @@ def test_the_browser_authority_approval_hash_reaches_the_installer(
     )
 
     assert binding.calls[0]["approved_browser_authority_impact_hash"] == "a" * 64
+
+
+def test_catalog_update_passes_only_the_repository_of_the_verified_archive(monkeypatch) -> None:
+    extension_id = "synthetic_extension_000"
+    repository = "https://github.com/flow-steward/example"
+    installed = _Install(extension_id, "1.0.0", "inst_a", release_id="rel_old")
+    binding = _BindingService()
+    service, fetched = _service(monkeypatch, store=_InstallStore(installed), binding=binding)
+    index = _index(3)
+    index["items"][0].update(
+        repository_url="https://github.com/Flow-Steward/Example/tree/v2.0.0",
+        release_zip_url=f"{repository}/releases/download/v2.0.0/extension.zip",
+    )
+    _install_host(monkeypatch, _reply(index))
+    monkeypatch.setattr(
+        "core.application.extensions.extension_catalog_install.verify_github_release_repository",
+        lambda _repository, _item: 12345,
+    )
+    scope = ScopeContext(account_id="acc_7", principal_type="admin", auth_source="local")
+    trust = CatalogSecretUpdateTrustRequest(
+        repository=repository,
+        install_id="inst_a",
+        release_id="rel_old",
+        descriptor_sha256="c" * 64,
+    )
+    with pytest.raises(ServiceForbiddenError, match="signed in interactively"):
+        service.install_from_catalog(
+            extension_id,
+            version="2.0.0",
+            release_sha256=_DIGEST_2_0_0,
+            scope=scope.model_copy(update={"auth_source": "api_token"}),
+            secret_update_trust=trust,
+        )
+    with pytest.raises(ExtensionCatalogError) as stale:
+        service.install_from_catalog(
+            extension_id,
+            version="2.0.0",
+            release_sha256=_DIGEST_2_0_0,
+            scope=scope,
+            secret_update_trust=trust.model_copy(update={"release_id": "rel_stale"}),
+        )
+    assert stale.value.code == "extension_catalog_secret_repository_changed"
+    assert not fetched
+
+    service.install_from_catalog(
+        extension_id,
+        version="2.0.0",
+        release_sha256=_DIGEST_2_0_0,
+        scope=scope,
+        secret_update_trust=trust,
+    )
+
+    assert len(fetched) == 1
+    update = binding.calls[0]["_catalog_secret_update"]
+    assert update.repository == repository
+    assert update.requested_repository == repository
+    assert update.repository_id == 12345
+    assert update.install_id == "inst_a"
+    assert update.expected_release_id == "rel_old"
+    assert update.expected_descriptor_sha256 == "c" * 64
+    update.require_expected_release({"release_id": "rel_old", "descriptor_sha256": "c" * 64})
+    with pytest.raises(ServiceConflictError, match="installed extension release changed"):
+        update.require_expected_release({"release_id": "rel_old", "descriptor_sha256": "d" * 64})
+
+    index["items"][0]["release_zip_url"] = (
+        "https://github.com/flow-steward/other/releases/download/v2.0.0/extension.zip"
+    )
+    reset_extension_catalog_cache()
+    _install_host(monkeypatch, _reply(index))
+    with pytest.raises(ExtensionCatalogError) as exc:
+        service.install_from_catalog(
+            extension_id,
+            version="2.0.0",
+            release_sha256=_DIGEST_2_0_0,
+            scope=scope,
+            secret_update_trust=trust,
+        )
+    assert exc.value.code == "extension_catalog_secret_repository_changed"
+    assert len(fetched) == 1
+
+
+def test_catalog_update_trust_is_bound_to_the_previous_install_and_release() -> None:
+    from core.application.extensions.catalog_secret_update import CatalogSecretUpdate
+    from core.application.extensions.install import ExtensionInstallRecord
+
+    repository = "https://github.com/flow-steward/example"
+    release = {"release_id": "old-id", "descriptor_sha256": "a" * 64}
+    install = ExtensionInstallRecord(
+        extension_id="example",
+        version="1.0.0",
+        account_id="acc_7",
+        install_id="inst_a",
+        release_id=release["release_id"],
+        provenance={
+            "catalog_secret_update_trust": {
+                "repository": repository,
+                "repository_id": 12345,
+                "install_id": "inst_a",
+                **release,
+            }
+        },
+    )
+    update = CatalogSecretUpdate(
+        "inst_a", repository, requested_repository=None, repository_id=12345
+    )
+    assert update.trusted_repository(install, release) == repository
+    assert not update.trusted_repository(install, {**release, "descriptor_sha256": "b" * 64})
+    assert not update.trusted_repository(
+        install.model_copy(update={"release_id": "manual"}), release
+    )
+    assert not update.trusted_repository(
+        install.model_copy(update={"install_id": "inst_b"}), release
+    )
+    assert not CatalogSecretUpdate(
+        "inst_a", "https://github.com/other/example", requested_repository=None, repository_id=12345
+    ).trusted_repository(install, release)
+    assert not CatalogSecretUpdate(
+        "inst_a", repository, requested_repository=None, repository_id=54321
+    ).trusted_repository(install, release)
+    assert not CatalogSecretUpdate(
+        "inst_a", repository, requested_repository="", repository_id=None
+    ).trusted_repository(install, release)
+
+
+@pytest.mark.parametrize("matches", [True, False])
+def test_github_provenance_checks_the_asset_under_the_immutable_repo_id(
+    monkeypatch, matches
+) -> None:
+    index = _index(1)
+    index["items"][0]["release_zip_url"] = (
+        "https://github.com/flow-steward/example/releases/download/v2.0.0/extension.zip"
+    )
+    item = parse_extension_catalog_index(index).items[0]
+    host = _install_host(
+        monkeypatch,
+        _reply({"id": 12345, "full_name": "Flow-Steward/Example"}),
+        _reply(
+            {
+                "assets": [
+                    {
+                        "name": "extension.zip",
+                        "digest": f"sha256:{item.release_zip_sha256 if matches else 'a' * 64}",
+                    }
+                ]
+            }
+        ),
+    )
+    repository = "https://github.com/flow-steward/example"
+    if matches:
+        assert verify_github_release_repository(repository, item) == 12345
+    else:
+        with pytest.raises(ExtensionCatalogError) as error:
+            verify_github_release_repository(repository, item)
+        assert error.value.code == "extension_catalog_secret_repository_unverified"
+    assert [call["url"] for call in host.calls] == [
+        "https://api.github.com/repos/flow-steward/example",
+        "https://api.github.com/repositories/12345/releases/tags/v2.0.0",
+    ]
+    assert all(call["max_redirects"] == 0 for call in host.calls)
 
 
 @pytest.mark.parametrize(

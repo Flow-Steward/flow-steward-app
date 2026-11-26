@@ -3,6 +3,8 @@ import type { WorkflowNormalRunController } from "./detail-normal-run-controller
 import { useEffect, useId, useRef, type ChangeEvent, type ReactNode } from "react";
 import { DsAlert, DsCheckbox, DsDialog, RequiredLabel } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
+import { FileDropzone } from "@/components/workflow-inputs/file-dropzone";
+import { useUploadLimitsHint } from "@/components/workflow-inputs/file-dropzone-support";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import type { WorkflowChangeSetController } from "./detail-change-set";
@@ -49,6 +51,7 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
   const initialFocusRef = useRef<HTMLElement | null>(null);
   const open = ctx.workflowTestRunLaunchOpen;
   const normalRun = ctx.normalRun;
+  const runFileHint = useUploadLimitsHint(false);
   const busy = ctx.workflowTestRunMutation.isPending || Boolean(normalRun?.busy);
   const currentStartError = ctx.workflowTestRunMutationIsCurrent !== false && ctx.workflowTestRunMutation.isError;
   const applying = ctx.canvasChangeSet.status === "applying";
@@ -195,8 +198,16 @@ export function WorkflowTestRunLaunchDialog({ ctx }: Readonly<{ ctx: WorkflowTes
             <label className="fs-field-label" htmlFor={`${id}-actual-${String(field.name)}`}>
               {t("react.workflows.normal_run_actual_file", "Actual file for {name}", { name: String(field.label || field.name) })}
             </label>
-            <input key={`${normalRun.fileOwner}-${normalRun.jobId}-${String(field.name)}`} id={`${id}-actual-${String(field.name)}`} className="workflow-run-file" type="file" disabled={busy || applying} required={Boolean(field.required)}
-              onChange={(event) => normalRun!.setFile(String(field.name), event.target.files?.[0])} />
+            <FileDropzone
+              disabled={busy || applying}
+              files={normalRun.files[String(field.name)] ? [normalRun.files[String(field.name)]] : []}
+              hint={runFileHint}
+              inputId={`${id}-actual-${String(field.name)}`}
+              multiple={false}
+              onFiles={(next) => normalRun!.setFile(String(field.name), next[0])}
+              required={Boolean(field.required)}
+              testId={`normal-run-file-${String(field.name)}`}
+            />
           </div>)}
           <DsCheckbox checked={normalRun.acknowledged} disabled={busy || applying} onChange={normalRun.setAcknowledged}>
             {t("react.workflows.normal_run_acknowledgement", "I understand this workflow run can create external changes and use live credentials.")}

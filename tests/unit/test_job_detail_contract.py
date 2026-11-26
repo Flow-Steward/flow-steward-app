@@ -283,6 +283,42 @@ def test_build_job_detail_contract_returns_canonical_lifecycle_projection():
     assert payload["runtime_journal"][0]["event"] == "approval_wait"
 
 
+def test_job_detail_carries_the_public_approval_review_unbounded():
+    review = {
+        "fields": [{"name": "notes", "label": "Notes", "type": "paragraph", "editable": True}],
+        "values": {"notes": "Clause. " * 800},
+        "invalid": {},
+        "original": [],
+    }
+
+    class _ReviewApprovalQueryService(_ApprovalQueryService):
+        def get_current_gate(self, job_id, *, scope=None):
+            _ = (job_id, scope)
+            return _Dump(
+                {
+                    "thread_id": "thread-42",
+                    "payload": {"stage": "Review", "message": "Check the invoice."},
+                    "review": review,
+                }
+            )
+
+    payload = asyncio.run(
+        build_job_detail_contract(
+            job_id="42",
+            scope=None,
+            job_query_service=_JobQueryService(),
+            approval_query_service=_ReviewApprovalQueryService(),
+            get_thread_state_values=lambda _thread_id: {
+                "needs_user_approval": True,
+                "status": "awaiting_approval",
+            },
+            user_role="operator",
+        )
+    )
+
+    assert payload["approval_gate"]["review"] == review
+
+
 def test_failed_test_run_uses_public_workflow_progress_when_job_detail_rows_are_sparse():
     class _SparseFailedTestRunService(_JobQueryService):
         async def get_job_status(self, job_id, *, scope=None, include_workflow_result=False):

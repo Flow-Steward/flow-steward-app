@@ -6,6 +6,7 @@ Sign-in callers pass their transaction cursor to factor verification.
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -14,7 +15,13 @@ from typing import Any, Literal, TypedDict
 from cryptography.exceptions import InvalidTag
 
 from core.application.auth import mfa_codes, mfa_repository
-from core.application.auth.local_credentials import installation_requires_mfa, lock_local_user
+from core.application.auth.local_credentials import (
+    UserAuthenticatorPolicy,
+    authenticator_policy_available,
+    installation_requires_mfa,
+    lock_local_user,
+    read_authenticator_policy,
+)
 from core.infrastructure.db.db_pool import transaction_connection
 from core.infrastructure.security.secret_codec import (
     decrypt_secret,
@@ -28,6 +35,17 @@ _ENROLLMENT_TTL = timedelta(minutes=10)
 class TotpEnrollment(TypedDict):
     secret: str
     uri: str
+
+
+class LoginEnrollment(TotpEnrollment):
+    token: str
+
+
+@dataclass(frozen=True)
+class LoginAuthenticatorCheck:
+    failure: Literal["", "mfa_enrollment_required", "mfa_required", "mfa_invalid_code"] = ""
+    enrollment: LoginEnrollment | None = None
+    recovery_codes: list[str] | None = None
 
 
 def _now() -> datetime:
@@ -111,6 +129,50 @@ def disable_mfa(cur: Any, user_id: str) -> None:
     mfa_repository.delete_factor(cur, user_id)
 
 
+def check_login_authenticator(
+    cur: Any,
+    *,
+    user_id: str,
+    username: str,
+    account_id: str,
+    code: str,
+    enrollment_token: str,
+    installation_required: bool,
+    policy: UserAuthenticatorPolicy,
+) -> LoginAuthenticatorCheck:
+    """Verify a factor or provision a mandatory enrollment under the login user lock."""
+    enabled = mfa_enabled(cur, user_id)
+    needs_enrollment = policy.reset_pending or (policy.required and not enabled)
+    if enrollment_token:
+        if not needs_enrollment:
+            return LoginAuthenticatorCheck(failure="mfa_invalid_code")
+        recovery_codes = complete_mfa_enrollment(
+            cur, user_id=user_id, code=code, session_id=f"login:{account_id}:{enrollment_token}"
+        )
+        if recovery_codes is None:
+            return LoginAuthenticatorCheck(failure="mfa_invalid_code")
+        if policy.reset_pending:
+            mfa_repository.clear_reset_pending(cur, user_id)
+        return LoginAuthenticatorCheck(recovery_codes=recovery_codes)
+    if needs_enrollment:
+        token = secrets.token_hex(32)
+        enrollment = begin_mfa_enrollment(
+            cur, user_id=user_id, username=username, session_id=f"login:{account_id}:{token}"
+        )
+        return LoginAuthenticatorCheck(
+            failure="mfa_enrollment_required", enrollment={**enrollment, "token": token}
+        )
+    if not enabled:
+        return LoginAuthenticatorCheck(
+            failure="mfa_enrollment_required" if installation_required else ""
+        )
+    if not code.strip():
+        return LoginAuthenticatorCheck(failure="mfa_required")
+    return LoginAuthenticatorCheck(
+        failure="" if verify_mfa(cur, user_id, code) else "mfa_invalid_code"
+    )
+
+
 AuthenticatorOperation = Literal["enroll", "verify", "disable"]
 _Outcome = Literal["ok", "inactive_session", "required", "invalid_proof", "throttled"]
 
@@ -129,7 +191,16 @@ def authenticator_settings_status(
     with transaction_connection(bl) as conn, conn.cursor() as cur:
         if mfa_repository.active_cookie_session_id(cur, user_id, cookie_hash) is None:
             return None
-        return {"enabled": mfa_enabled(cur, user_id), "required": installation_requires_mfa()}
+        return {
+            "enabled": mfa_enabled(cur, user_id),
+            "required": _settings_require_mfa(bl, cur, user_id),
+        }
+
+
+def _settings_require_mfa(bl: Any, cur: Any, user_id: str) -> bool:
+    return installation_requires_mfa() or (
+        authenticator_policy_available(bl) and read_authenticator_policy(cur, user_id).enforced
+    )
 
 
 def update_authenticator_settings(
@@ -152,7 +223,7 @@ def update_authenticator_settings(
         session_id = mfa_repository.active_cookie_session_id(cur, user_id, cookie_hash, lock=True)
         if session_id is None:
             return AuthenticatorChange("inactive_session")
-        if operation == "disable" and installation_requires_mfa():
+        if operation == "disable" and _settings_require_mfa(bl, cur, user_id):
             return AuthenticatorChange("required")
         locked, retry_after = check_attempts()
         if locked:
@@ -173,7 +244,7 @@ def update_authenticator_settings(
                 "throttled" if locked else "invalid_proof", retry_after_seconds=retry_after
             )
         if operation != "enroll":
-            mfa_repository.revoke_other_sessions(cur, user_id, session_id)
+            mfa_repository.revoke_sessions(cur, user_id, keep_session_id=session_id)
         return AuthenticatorChange("ok", payload=payload)
 
 

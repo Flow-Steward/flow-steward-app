@@ -15,7 +15,10 @@ from pathlib import Path
 
 _PROC_LOCKS = Path("/proc/locks")
 # Top-level entries of an installation's state directory that hold nothing secret.
-STATE_NOT_SECRET = frozenset({"release", "installer-runtime.cid"})
+# build-cache is the BuildKit layer cache of images built from the checkout; the build
+# context excludes .env* and .flow-steward (.dockerignore), and BuildKit recreates its
+# files with its own modes on every build, so narrowing them could never hold.
+STATE_NOT_SECRET = frozenset({"release", "installer-runtime.cid", "build-cache"})
 
 
 def flock_held(path: Path, *, proc_locks: Path = _PROC_LOCKS) -> bool | None:

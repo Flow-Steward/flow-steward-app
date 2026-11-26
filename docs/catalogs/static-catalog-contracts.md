@@ -333,7 +333,8 @@ all three). It is a fallback for outages, never a freshness window:
   serving;
 - if a read fails (network error, HTTP error, invalid document) and an index is
   cached, that index is served and availability reports `stale: true` with
-  `last_refresh_error`; `fetched_at` is when the host last confirmed the index;
+  the public message `last_refresh_error: "Catalog refresh failed."`.
+  `fetched_at` is when the host last confirmed the index.
 - a failed read starts a 10-second cooldown in which reads serve the last good
   index (or report the catalog unavailable) without dialling the host, so a
   dead host costs one outbound round trip per cooldown rather than one per

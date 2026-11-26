@@ -18,11 +18,12 @@ import { RequireAuth } from "@/lib/auth/guards";
 import { isHttpError } from "@/lib/http/errors";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
 import { useI18n } from "@/lib/i18n/useI18n";
+import { formatDate } from "@/lib/time/date-time-format";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { fetchProjectsList } from "@/pages/projects/list/api";
 import { decideOAuthConsent, fetchOAuthConsent } from "@/pages/settings/shared/api";
-import { oauthNotice, oauthPresetDescription, oauthPresetLabel } from "@/pages/settings/shared/oauth-copy";
-import type { OAuthConsentPreset, OAuthConsentView, OAuthPresetId } from "@/pages/settings/shared/types";
+import { oauthNotice, oauthPresetDescription, oauthPresetLabel, permissionText, roleLabel } from "@/pages/settings/shared/oauth-copy";
+import type { OAuthConsentDecision, OAuthConsentPreset, OAuthConsentView, OAuthPresetId } from "@/pages/settings/shared/types";
 
 import "@/pages/settings/shared/settings.css";
 
@@ -59,6 +60,11 @@ function requestErrorNotice(error: unknown, t: Translate = fallbackContext.t): {
       return {
         title: t("react.oauth.authorization_already_decided_title", "This request has already been answered"),
         copy: t("react.oauth.authorization_already_decided_copy", "Each connection request can be approved or denied once. Start the connection again from the app if needed."),
+      };
+    case "advanced_options_admin_only":
+      return {
+        title: t("react.oauth.request_failed_title", "The connection request could not be completed"),
+        copy: t("react.agent_access.advanced_options_admin_only", "Your agent gets the access of your role; only an admin chooses the access, the expiry and the projects."),
       };
     case "authorization_expired":
       return {
@@ -107,36 +113,139 @@ function ConsentErrorPage({ code }: Readonly<{ code: string }>) {
   );
 }
 
+/** The plain sentence of what the app will be able to do "as my role" (ADR 0076 §5). */
+function roleAccessSentence(view: OAuthConsentView, clientLabel: string, t: Translate): string {
+  const access = view.role_access;
+  if (access?.narrower) {
+    return t("react.oauth.role_access_narrower", "{client} asked for less than your role allows, so it gets only this part of your access.", { client: clientLabel });
+  }
+  if (access?.role === "admin") {
+    return t("react.oauth.role_access_admin", "{client} will be able to do what you can do in Flow Steward.", { client: clientLabel });
+  }
+  if (access?.role === "operator") {
+    return t("react.oauth.role_access_operator", "{client} will be able to see what you see and do the work you do: start workflows, decide approvals and control jobs. It cannot change how Flow Steward is set up.", { client: clientLabel });
+  }
+  return t("react.oauth.role_access_viewer", "{client} will be able to see what you see in Flow Steward. It cannot change anything.", { client: clientLabel });
+}
+
 function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; view: OAuthConsentView }>) {
   const { t } = useI18n();
+  // ADR 0076 §5: an operator or a viewer chooses nothing; only an admin has the presets.
+  const advanced = Boolean(view.advanced_options);
+  const roleAccess = view.role_access;
   const available = view.presets.filter((preset) => preset.available);
   const initialPreset = available.find((preset) => preset.id === view.default_preset)?.id ?? available[0]?.id ?? null;
   const [preset, setPreset] = useState<OAuthPresetId | null>(initialPreset);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const expiryOptions = view.expiry_days_options.length ? view.expiry_days_options : [7, 30, 90];
-  const [expiryDays, setExpiryDays] = useState<number>(expiryOptions.includes(view.default_expiry_days) ? view.default_expiry_days : expiryOptions[0]);
+  const preferredExpiry = initialPreset === "my_role" && roleAccess ? roleAccess.expiry_days : view.default_expiry_days;
+  const [expiryDays, setExpiryDays] = useState<number>(expiryOptions.includes(preferredExpiry) ? preferredExpiry : expiryOptions[0]);
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [pendingDecision, setPendingDecision] = useState<"approve" | "deny" | null>(null);
   const submitting = pendingDecision !== null;
   const [decisionError, setDecisionError] = useState<{ title: string; copy: string } | null>(null);
-  const projectsQuery = useQuery({ queryKey: ["oauth", "consent", "projects"], queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }), enabled: available.length > 0 });
+  const projectsQuery = useQuery({ queryKey: ["oauth", "consent", "projects"], queryFn: () => fetchProjectsList({ page: 1, perPage: 200, search: "" }), enabled: advanced && advancedOpen && available.length > 0 });
   const projectOptions = useMemo(() => (projectsQuery.data?.projects || []).map((project) => ({ value: String(project.id), label: project.name?.trim() || t("react.settings.unnamed_project", "Unnamed project") })), [projectsQuery.data, t]);
   const clientLabel = view.client.client_name || view.client.client_host;
+  const canAllow = advanced ? Boolean(preset) : Boolean(roleAccess?.available);
+  const who = view.user ? view.user.display_name || view.user.username : "";
 
   async function decide(decision: "approve" | "deny") {
     if (submitting) return;
-    if (decision === "approve" && !preset) return;
+    if (decision === "approve" && !canAllow) return;
     setPendingDecision(decision);
     setDecisionError(null);
     try {
-      const body = decision === "approve" && preset
-        ? { decision: "approve" as const, preset, expiry_days: expiryDays, project_ids: projectIds }
-        : { decision: "deny" as const };
+      let body: OAuthConsentDecision = { decision: "deny" };
+      if (decision === "approve") {
+        // "As my role": the decision alone; the server gives the role and the expiry.
+        body = advanced && preset ? { decision: "approve", preset, expiry_days: expiryDays, project_ids: projectIds } : { decision: "approve" };
+      }
       const result = await decideOAuthConsent(view.request_id, body);
       onRedirect(result.redirect_to);
     } catch (error) {
       setDecisionError(requestErrorNotice(error, t));
       setPendingDecision(null);
     }
+  }
+
+  function renderRoleAccess() {
+    if (!roleAccess) return null;
+    if (!roleAccess.available) {
+      return (
+        <DsAlert title={t("react.oauth.nothing_grantable_title", "Nothing can be granted")} tone="warning">
+          {t("react.oauth.nothing_grantable_copy", "The access this app asks for is more than your account allows. You can only deny the request.")}
+        </DsAlert>
+      );
+    }
+    return (
+      <>
+        <p>{roleAccessSentence(view, clientLabel, t)}</p>
+        {roleAccess.permissions.length ? (
+          <details className="fs-field" open={roleAccess.narrower}>
+            <summary className="fs-field-label">{t("react.oauth.role_access_details", "What it can do")}</summary>
+            <ul className="fs-field-helper">
+              {roleAccess.permissions.map((item) => <li key={item.key}>{permissionText(item.key, item.description, t)}</li>)}
+            </ul>
+          </details>
+        ) : null}
+        <p className="fs-field-helper">
+          {t("react.oauth.role_access_expiry", "Works for {days} days, until {date}. Connect again from the app to keep it working after that.", { days: String(roleAccess.expiry_days), date: formatDate(roleAccess.expires_at) })}
+        </p>
+      </>
+    );
+  }
+
+  function renderAdvanced() {
+    const projectsSummary = projectIds.length
+      ? t("react.oauth.project_count", "{value1} projects", { value1: String(projectIds.length) })
+      : t("react.agent_access.all_projects", "All projects");
+    return (
+      <>
+        <div className="fs-field">
+          <p className="fs-field-helper">{[oauthPresetLabel(preset || "", t), t("react.settings.value1_days", "{value1} days", { value1: String(expiryDays) }), projectsSummary].join(" · ")}</p>
+          <div className="fs-footer-actions">
+            <button aria-expanded={advancedOpen} className="fs-button ghost sm" disabled={submitting} onClick={() => setAdvancedOpen((open) => !open)} type="button">
+              {advancedOpen ? t("react.agent_access.hide_advanced_options", "Hide advanced options") : t("react.agent_access.advanced_options", "Advanced options")}
+            </button>
+          </div>
+        </div>
+        {advancedOpen ? (
+          <>
+            <fieldset className="fs-field">
+              <legend className="fs-field-label">{t("react.oauth.access_legend", "Access level")}</legend>
+              {view.presets.map((option) => (
+                <div className="fs-field" key={option.id}>
+                  <DsRadio checked={preset === option.id} disabled={!option.available || submitting} name="oauth-preset" onChange={() => setPreset(option.id)} value={option.id}>
+                    <strong>{oauthPresetLabel(option.id, t)}</strong>
+                  </DsRadio>
+                  <span className="fs-field-helper">{oauthPresetDescription(option.id, t)}</span>
+                  {option.subset_of_preset ? <span className="fs-field-helper">{t("react.oauth.preset_subset", "Only the access this app requested:")}</span> : null}
+                  <span className="fs-footer-actions">{option.scopes.map((scope) => <DsValueChip key={scope}>{scope}</DsValueChip>)}</span>
+                  {option.available ? null : <span className="fs-field-helper error">{reasonText(option, t)}</span>}
+                </div>
+              ))}
+            </fieldset>
+            <div className="fs-field">
+              <span className="fs-field-label">{t("react.settings.project_restrictions", "Project restrictions")}</span>
+              <MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} disabled={submitting} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
+              <span className="fs-field-helper">{t("react.oauth.projects_help", "Empty means every project you can access. Choosing projects does not isolate account-wide agents and skills.")}</span>
+            </div>
+            <fieldset className="fs-field">
+              <legend className="fs-field-label fs-required-label">{t("react.oauth.expiry_legend", "Access ends after")}<span aria-hidden="true" className="fs-required">*</span></legend>
+              <div className="fs-radio-grid">
+                {expiryOptions.map((days) => (
+                  <DsRadio checked={expiryDays === days} disabled={submitting} key={days} name="oauth-expiry" onChange={() => setExpiryDays(days)} value={String(days)}>
+                    {t("react.settings.value1_days", "{value1} days", { value1: String(days) })}
+                  </DsRadio>
+                ))}
+              </div>
+              <span className="fs-field-helper">{t("react.oauth.expiry_help", "Refreshing the connection never extends this date. You can revoke it earlier in Settings → Account → Personal tokens.")}</span>
+            </fieldset>
+          </>
+        ) : null}
+      </>
+    );
   }
 
   return (
@@ -169,56 +278,25 @@ function ConsentForm({ onRedirect, view }: Readonly<{ onRedirect: RedirectFn; vi
         ) : null}
       </DsCard>
 
-      <DsCard title={t("react.oauth.access_title", "Access")} description={t("react.oauth.access_description", "The app gets only the access you choose here, never more than your own role allows.")}>
-        {available.length ? null : (
-          <DsAlert title={t("react.oauth.nothing_grantable_title", "Nothing can be granted")} tone="warning">
-            {t("react.oauth.nothing_grantable_copy", "The access this app asks for is more than your account allows. You can only deny the request.")}
-          </DsAlert>
-        )}
-        <fieldset className="fs-field">
-          <legend className="fs-field-label">{t("react.oauth.access_legend", "Access level")}</legend>
-          {view.presets.map((option) => (
-            <div className="fs-field" key={option.id}>
-              <DsRadio checked={preset === option.id} disabled={!option.available || submitting} name="oauth-preset" onChange={() => setPreset(option.id)} value={option.id}>
-                <strong>{oauthPresetLabel(option.id, t)}</strong>
-              </DsRadio>
-              <span className="fs-field-helper">{oauthPresetDescription(option.id, t)}</span>
-              {option.subset_of_preset ? <span className="fs-field-helper">{t("react.oauth.preset_subset", "Only the access this app requested:")}</span> : null}
-              <span className="fs-footer-actions">{option.scopes.map((scope) => <DsValueChip key={scope}>{scope}</DsValueChip>)}</span>
-              {option.available ? null : <span className="fs-field-helper error">{reasonText(option, t)}</span>}
-            </div>
-          ))}
-        </fieldset>
+      <DsCard title={t("react.oauth.access_title", "Access")} description={t("react.oauth.role_access_description", "The app acts as you and can never do more than your own role allows.")}>
+        {who ? (
+          <p className="fs-field-helper">
+            {view.user?.role
+              ? t("react.oauth.signed_in_as_role", "Signed in as {name} · {role}", { name: who, role: roleLabel(view.user.role, t) })
+              : t("react.oauth.signed_in_as", "Signed in as {name}", { name: who })}
+          </p>
+        ) : null}
+        {renderRoleAccess()}
+        {advanced && available.length ? renderAdvanced() : null}
       </DsCard>
-
-      {available.length ? (
-        <DsCard title={t("react.oauth.limits_title", "Projects and duration")} description={t("react.oauth.limits_description", "Narrow the access further and choose when it ends.")}>
-          <div className="fs-field">
-            <span className="fs-field-label">{t("react.settings.project_restrictions", "Project restrictions")}</span>
-            <MultiCombobox ariaLabel={t("react.settings.project_restrictions", "Project restrictions")} disabled={submitting} loading={projectsQuery.isLoading} loadingLabel={t("react.settings.loading_projects", "Loading projects…")} onChange={setProjectIds} options={projectOptions} placeholder={t("react.settings.search_projects", "Search projects")} selected={projectIds} />
-            <span className="fs-field-helper">{t("react.oauth.projects_help", "Empty means every project you can access. Choosing projects does not isolate account-wide agents and skills.")}</span>
-          </div>
-          <fieldset className="fs-field">
-            <legend className="fs-field-label fs-required-label">{t("react.oauth.expiry_legend", "Access ends after")}<span aria-hidden="true" className="fs-required">*</span></legend>
-            <div className="fs-radio-grid">
-              {expiryOptions.map((days) => (
-                <DsRadio checked={expiryDays === days} disabled={submitting} key={days} name="oauth-expiry" onChange={() => setExpiryDays(days)} value={String(days)}>
-                  {t("react.settings.value1_days", "{value1} days", { value1: String(days) })}
-                </DsRadio>
-              ))}
-            </div>
-            <span className="fs-field-helper">{t("react.oauth.expiry_help", "Refreshing the connection never extends this date. You can revoke it earlier in Settings → Account → Personal tokens.")}</span>
-          </fieldset>
-        </DsCard>
-      ) : null}
 
       {decisionError ? <DsAlert title={decisionError.title} tone="danger">{decisionError.copy}</DsAlert> : null}
 
       <div className="fs-footer-actions">
         <Button busy={pendingDecision === "deny"} busyLabel={t("react.oauth.sending", "Sending…")} onClick={() => ignoreAsyncResult(decide("deny"))} type="button" variant="secondary">{t("react.oauth.deny", "Deny")}</Button>
-        {available.length ? (
-          <Button busy={pendingDecision === "approve"} busyLabel={t("react.oauth.sending", "Sending…")} disabled={!preset} onClick={() => ignoreAsyncResult(decide("approve"))} type="button" variant="primary">
-            {t("react.oauth.allow", "Allow access")}
+        {canAllow ? (
+          <Button busy={pendingDecision === "approve"} busyLabel={t("react.oauth.sending", "Sending…")} onClick={() => ignoreAsyncResult(decide("approve"))} type="button" variant="primary">
+            {t("react.oauth.allow_short", "Allow")}
           </Button>
         ) : null}
       </div>

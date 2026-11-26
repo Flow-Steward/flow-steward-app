@@ -141,7 +141,10 @@ function OAuthConfigurationDeleteDialog({
   preview: OAuthConfigurationDeletePreview | null;
 }>) {
   const { t } = useI18n();
-  const connections = preview?.impact.connections ?? [];
+  const impactConnections = preview?.impact.connections ?? [];
+  // A connection that only takes its credentials from the configuration is kept.
+  const connections = impactConnections.filter((connection) => connection.link !== "credentials");
+  const keptConnections = impactConnections.filter((connection) => connection.link === "credentials");
   const steps = preview?.impact.workflow_steps ?? [];
   // A recreated connection gets a new id: every step bound to the old one
   // stops working until it is pointed at the new one, so name them here.
@@ -165,7 +168,20 @@ function OAuthConfigurationDeleteDialog({
       pending={busy}
       pendingLabel={t("react.extensions.deleting_configuration", "Deleting configuration…")}
       title={t("react.extensions.delete_this_configuration", "Delete this configuration?")}
-    />
+    >
+      {keptConnections.length ? (
+        <>
+          <p className="fs-confirm-note">
+            {t("react.extensions.oauth_delete_kept_credentials_connections", "These connections take their credentials from this configuration. They are kept but stop working until they are linked to another configuration.")}
+          </p>
+          <ul aria-label={t("react.extensions.connections_kept", "Connections kept")} className="fs-confirm-objects">
+            {keptConnections.map((connection) => (
+              <li key={connection.connection_id}>{connection.display_name || connection.connection_id}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+    </ConfirmActionDialog>
   );
 }
 

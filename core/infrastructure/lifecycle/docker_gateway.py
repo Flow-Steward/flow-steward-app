@@ -27,6 +27,7 @@ from core.infrastructure.installer.process import (
     docker_host_state_dir,
 )
 from core.infrastructure.lifecycle import docker_runtime_support
+from core.infrastructure.lifecycle.docker_cli_errors import cli_error_detail
 from core.infrastructure.lifecycle.docker_runtime_support import (
     _IMAGE_PREPARATION_TIMEOUT_SECONDS,
     _RETAINED_MANAGEMENT_SERVICES,
@@ -908,7 +909,10 @@ class DockerLifecycleGateway:
                 detail=f"Docker {action} failed: {type(exc).__name__}.",
             ) from exc
         if int(outcome.returncode) != 0:
-            raw_detail = str(getattr(outcome, "stderr", "") or outcome.stdout or "").strip()
+            raw_detail = (
+                cli_error_detail(outcome.stdout)
+                or str(getattr(outcome, "stderr", "") or outcome.stdout or "").strip()
+            )
             detail = redact_installer_text(raw_detail)
             if len(detail) > 600:
                 detail = f"...{detail[-597:]}"

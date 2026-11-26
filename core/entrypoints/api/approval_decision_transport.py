@@ -8,8 +8,11 @@ from pydantic import ValidationError
 
 from core.application.management.command_models import ApprovalDecisionInput
 from core.application.management.errors import ServiceValidationError
+from core.application.workflows.approval_review import REVIEW_VALUES_MAX_BYTES
 
-MAX_APPROVAL_DECISION_BODY_BYTES = 64 * 1024
+#: A decision carries a comment and, for a typed review, the edits of its
+#: fields, which are bounded like a run's inputs (ADR 0075).
+MAX_APPROVAL_DECISION_BODY_BYTES = REVIEW_VALUES_MAX_BYTES + 64 * 1024
 
 
 def _payload_too_large() -> ServiceValidationError:

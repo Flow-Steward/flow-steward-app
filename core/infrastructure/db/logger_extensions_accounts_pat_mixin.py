@@ -72,7 +72,9 @@ class PlatformLoggerPersonalAccessTokensMixin:
                 """
                 SELECT r.key FROM user_roles ur
                 JOIN roles r ON r.id = ur.role_id
-                WHERE ur.user_id = %s ORDER BY r.key
+                WHERE ur.user_id = %s
+                  AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
+                ORDER BY r.key
                 """,
                 (str(row.get("user_id") or ""),),
             )

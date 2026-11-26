@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
@@ -127,5 +127,38 @@ describe("returned files in the workflow interface", () => {
     render(<>{view.renderWorkflowReturnedFiles()}</>);
     expect(screen.getByText("No returned files.")).toBeVisible();
     expect(screen.getByText(/tick “Return from workflow” on the step result/)).toBeVisible();
+  });
+});
+
+describe("declared field shapes in the workflow interface", () => {
+  it("describes several files with item bounds and a dated text field", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<EditorHarness editor="input" onSave={onSave} />);
+    await user.click(screen.getByRole("button", { name: "Add input" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "photos");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "array");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Element type" }), "file");
+    await user.type(screen.getByRole("spinbutton", { name: "Minimum items" }), "1");
+    await user.type(screen.getByRole("spinbutton", { name: "Maximum items" }), "4");
+    await user.click(screen.getByRole("button", { name: "Save contract" }));
+    expect(onSave).toHaveBeenLastCalledWith([{
+      name: "photos", type: "array", required: false, items: { type: "file" }, min_items: 1, max_items: 4,
+    }]);
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "string");
+    expect(screen.queryByRole("combobox", { name: "Element type" })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Format" }), "date");
+    await user.click(screen.getByRole("button", { name: "Save contract" }));
+    expect(onSave).toHaveBeenLastCalledWith([{ name: "photos", type: "string", required: false, format: "date" }]);
+  });
+
+  it("offers no file elements for an output", async () => {
+    const user = userEvent.setup();
+    render(<EditorHarness editor="output" onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Add output" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Type" }), "array");
+    const elementTypes = screen.getByRole("combobox", { name: "Element type" });
+    expect(within(elementTypes).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).not.toContain("file");
   });
 });

@@ -63,7 +63,6 @@ from core.application.auth import auth_http_runtime as _auth_http_runtime
 from core.application.auth import (
     serve_auth_runtime as _serve_auth_runtime,
 )
-from core.application.auth.config import AUTH_ADMIN_ONLY_PATTERNS as _AUTH_ADMIN_ONLY_PATTERNS
 from core.application.auth.config import AUTH_ADMIN_ROLES as _AUTH_ADMIN_ROLES
 from core.application.auth.config import AUTH_BOOTSTRAP_TOKEN_HEADER as _AUTH_BOOTSTRAP_TOKEN_HEADER
 from core.application.auth.config import AUTH_COOKIE_NAME as _AUTH_COOKIE_NAME

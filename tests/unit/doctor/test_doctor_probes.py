@@ -524,3 +524,55 @@ class _Log:
 
     def write(self, message: str) -> None:
         self.lines.append(message)
+
+
+@pytest.mark.parametrize(
+    ("environment", "env_file"), [("development", ".env"), ("production", ".env.prod")]
+)
+def test_the_backup_key_is_read_from_the_installations_own_env_file(
+    tmp_path: Path, environment: str, env_file: str
+) -> None:
+    """0.9.23 dev E2E: doctor read .env.prod on development and reported the backup
+    key missing although .env held it."""
+    from core.infrastructure.installer.installation_doctor import InstallationDoctorProbe
+
+    other = ".env.prod" if env_file == ".env" else ".env"
+    (tmp_path / env_file).write_text("FS_BACKUP_ENCRYPTION_KEY=present\n")
+    (tmp_path / other).write_text("FS_BACKUP_ENCRYPTION_KEY=\n")
+    gateway = _revision_gateway(tmp_path, {})
+    probe = InstallationDoctorProbe(
+        root=tmp_path,
+        gateway=gateway,
+        state=gateway.state_store,
+        config=InstallConfig(environment=environment),
+        log=None,
+    )
+
+    assert probe.backup_key_present() is True
+
+
+def test_the_source_build_cache_is_not_reported_as_a_readable_secret(tmp_path: Path) -> None:
+    """0.9.23 dev E2E: BuildKit writes <state>/build-cache 0755/0444 on every build."""
+    from core.infrastructure.installer.installation_doctor import InstallationDoctorProbe
+
+    gateway = _revision_gateway(tmp_path, {})
+    state = gateway.state_store.root
+    cache = state / "build-cache" / "fs-app"
+    cache.mkdir(parents=True)
+    (cache / "index.json").write_text("{}")
+    (cache / "index.json").chmod(0o444)
+    secret = state / "install-state.json"
+    secret.write_text("{}")
+    secret.chmod(0o644)
+    probe = InstallationDoctorProbe(
+        root=tmp_path,
+        gateway=gateway,
+        state=gateway.state_store,
+        config=_config(),
+        log=None,
+    )
+
+    reported = probe.wide_secrets()
+
+    assert any("install-state.json" in line for line in reported)
+    assert not any("build-cache" in line for line in reported)

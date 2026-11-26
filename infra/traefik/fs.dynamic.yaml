@@ -12,7 +12,6 @@ http:
       service: fs-mcp
       middlewares:
         - fs-strip-mcp-forward
-      tls: {}
 
     fs:
       rule: "PathPrefix(`/`)"
@@ -22,7 +21,6 @@ http:
       middlewares:
         - fs-strip-mcp-forward
         - fs-compress
-      tls: {}
 
   services:
     fs-mcp:

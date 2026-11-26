@@ -1,10 +1,19 @@
+import { ROLE_PERMISSIONS } from "@/test/role-permissions";
+
 import { canMutateJob, isCancellableJobStatus } from "./job-action-policy";
 
+// ADR 0076: cancel, restart and acknowledge need jobs.write; the role lists are the
+// catalogue matrix, so admin and operator keep the authority and a viewer has none.
 it.each([
-  [["admin"], true], [["operator"], true], [[" Admin "], true], [["viewer", "OPERATOR"], true],
-  [["viewer"], false], [[], false], [[null, "administrator"], false],
-])("preserves job mutation authority for roles %j", (roles, expected) => {
-  expect(canMutateJob(roles as unknown[])).toBe(expected);
+  ["admin", true], ["operator", true], ["viewer", false],
+] as const)("keeps job mutation authority for %s: %s", (role, expected) => {
+  expect(canMutateJob(new Set(ROLE_PERMISSIONS[role]))).toBe(expected);
+});
+
+it("gives no mutation authority without the jobs.write permission", () => {
+  expect(canMutateJob(new Set())).toBe(false);
+  expect(canMutateJob(new Set(["jobs.read", "jobs.manage"]))).toBe(false);
+  expect(canMutateJob(new Set(["jobs.write"]))).toBe(true);
 });
 
 it.each([

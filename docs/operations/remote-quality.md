@@ -2,7 +2,34 @@
 
 The public source is `Flow-Steward/flow-steward-app`. Tier 1 stays on the
 developer's computer. The Remote quality pilot workflow runs the same canonical
-Docker gate on standard hosted Linux runners. It neither publishes nor merges.
+Docker gate on standard hosted Linux runners. It records results for the candidate SHA.
+
+## Pre-release branches
+
+1. Create a branch such as `release/0.9.29` from current public `main`.
+   Commit the release changes and reviewed notes, and run affected local Tier 1.
+2. Push the candidate branch and open a pull request into `main`. The branch
+   push starts Quality in `pre-release` mode (Tier 2) and CodeQL. Use the results
+   from the current PR head. Each new candidate commit gets its own results.
+3. If a check fails, inspect the failure, correct the candidate and push it
+   again. The gate reuses eligible evidence by fingerprint. If `main` advanced,
+   integrate it into the branch and verify the new head before merging.
+4. When both branch runs are green, run the guarded merge command.
+
+   ```bash
+   bash core/entrypoints/cli/scripts/merge-release-pr.sh <PR>
+   ```
+
+   The command requires successful pre-release Quality and CodeQL push runs
+   for the current PR head, checks its ancestry against current `main`, and
+   passes that head SHA to GitHub's merge command. Release agents use this command
+   for release PRs. Replacing the candidate invalidates its old pass.
+
+The guarded merge preserves the verified head as an ancestor of `main`.
+Tag that verified head for publication. See
+[Official release publication](official-release-publication.md#sequence).
+Existing agent-prefixed version branches such as `agent/release-0.9.29` also
+trigger the pre-release gate.
 
 ## Agent workflow
 
@@ -10,41 +37,33 @@ Docker gate on standard hosted Linux runners. It neither publishes nor merges.
 2. Before a long gate, fetch origin and merge current origin/main into the branch.
    Resolve conflicts, rerun affected Tier 1 checks, then commit and push the public
    candidate. Do not push private repository history or secrets to the public repo.
-3. Every branch push runs Tier 2. Read the run for that exact SHA and wait for its
-   conclusion; a pending, skipped or failed run is not verification.
-4. Before merge, push the same clean candidate SHA to a task-specific verification
-   ref (commands below). `verify-release` runs cumulative Tier 2 + Tier 3;
-   `verify-sonar` additionally runs the Sonar pilot for substantial core changes.
-   The Run workflow menu's `release` / `release-sonar` modes are also available
-   once the workflow exists on main.
+3. When hosted verification is requested, open **Actions → Remote quality pilot
+   → Run workflow**. Select the candidate branch and the requested mode.
+   Use `single-check` with a registry check ID for a focused diagnostic.
+4. Read the run for that exact SHA and verify its conclusion. Select `release`,
+   `release-full` or `release-sonar` only when the corresponding broader scope was
+   requested.
 5. Recheck origin/main immediately before merge. If it is no longer an ancestor
    of the verified candidate, integrate it and repeat verification on the new SHA.
 
-From the **public source checkout**, using an existing Git write connection:
+From the **public source checkout**, with GitHub Actions write access:
 
 ```bash
-# Replace my-task with the task's own stable name; use one verification ref per task.
-git push origin HEAD:refs/heads/codex/verify-release/my-task
-# Or, for the full gate plus the Sonar pilot:
-git push origin HEAD:refs/heads/codex/verify-sonar/my-task
+gh workflow run remote-quality.yml --repo Flow-Steward/flow-steward-app \
+  --ref my-candidate-branch -f mode=single-check -f check=frontend-licenses
 ```
 
-These refs preserve the candidate SHA; the workflow checks that SHA and current
-main before proceeding. Only the `release` and `release-sonar` modes fail when the
-candidate does not include current main, at the start or because another pull
-request landed during the run; the error names both commits. Tier 2,
-`single-check` and the diagnostic modes keep their result and report a warning,
-because it still describes the branch commit. Updating the same task ref cancels its obsolete run;
-separate task refs run independently. No GitHub CLI token is needed for this
-route. The agent must read the resulting exact-SHA run and await its conclusion.
-Remove owned verification refs after merging while retaining the merged commit.
+The workflow checks the candidate SHA and current main before proceeding.
+The `pre-release`, `release`, `release-sonar` and `release-full` modes fail when
+the candidate does not include current main, at the start or because another
+pull request landed during the run. Manual `tier2`, `single-check` and the
+diagnostic modes keep their result and report a warning because the result still
+describes the branch commit. A newer run on the same ref and event cancels the
+older run. Manual diagnostics run independently of branch pushes.
 
-Manual dispatch requires the workflow to exist on main. Bootstrap is handled by
-the dedicated `codex/remote-quality-pilot` branch: its push runs `release-sonar`
-without merging unverified workflow changes into main. Ordinary branch pushes run
-Tier 2 only; the two verification prefixes request the full modes. Latest pushes
-cancel obsolete work on that same branch; different
-branches get independent VMs. No pull_request_target or self-hosted runner is used.
+Hosted Quality also supports manual dispatch and the existing weekly schedule
+on main. Automatic Tier 2 is scoped to designated pre-release branches. CodeQL
+and official image publication have their own workflows.
 
 The local pre-commit hook keeps environment-artifact synchronization and the
 repository boundary guard, then runs affected backend/frontend Tier 1 checks.
@@ -69,8 +88,8 @@ so a long feature branch does not broaden the fix cycle to every earlier edit:
 Frontend `auto:<failed-sha>` is available on its own; it cannot be combined with
 explicit paths in the current frontend wrapper. Add consumers outside the import
 graph manually. These checks stop at the first failure and collect no coverage.
-They neither run Tier 2/Tier 3 nor certify a release. Do not push each fix to a
-`codex/verify-release/` or `codex/verify-sonar/` ref: those refs request a full run.
+They neither run Tier 2/Tier 3 nor certify a release. Dispatch only the requested
+or affected hosted check when the retry requires hosted verification.
 **Re-run failed jobs** on a release run is for a failure that needs no code
 change (a runner-load flake): it repeats only the failed Tier 3 parts, then the
 cumulative release gate and Sonar. The parts after `quality` read its artifacts
@@ -112,9 +131,8 @@ also compares the real frontend input fingerprint and assets digest across VMs
 without executing the frontend suite. Missing evidence or a changed fingerprint
 fails the diagnostic instead of silently running extra tests.
 
-The bootstrap ref `codex/quality-reuse-live` forces this diagnostic even on push;
-Tier 2, Tier 3, PostgreSQL image preparation and Sonar are excluded. Before the
-dispatch mode is on main, a temporary `.github/quality-reuse-smoke-source.json`
+Tier 2, Tier 3, PostgreSQL image preparation and Sonar are excluded. A temporary
+`.github/quality-reuse-smoke-source.json`
 containing `{"source_run_id":"<producer-id>"}` can select its consumer source.
 That control file belongs only on the temporary proof ref and must not be merged
 to main. The uploaded `reuse-smoke.json` explicitly records that this is not a
@@ -130,7 +148,7 @@ selection/results and remaining coverage; it is not a full green gate.
 
 The `sonar-diagnostic` dispatch mode measures the Sonar runtime independently:
 Tier 2 runs first, Tier 3 is not selected, and Sonar analyzes all canonical sources
-without test coverage. The bootstrap runtime-pilot branch selects this mode.
+without test coverage.
 It cannot qualify a release; use `release-sonar` for cumulative release evidence.
 
 Release modes run Tier 3 on parallel VMs (ADR 0070). The `tier3` job runs four

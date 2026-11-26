@@ -28,6 +28,7 @@ import { WorkflowTransformBuilder } from "@/pages/workflows/detail/detail-transf
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { numericDraftFromInput, numericInputValue, stepNumericFieldErrors } from "./detail-step-numeric-fields";
 import { WaitEventSetup } from "./detail-wait-event-setup";
+import { ApprovalReviewFields } from "./detail-approval-review-fields";
 import { toggledReturnedFiles, type ReturnedFileEntry, type StepFileResult } from "./detail-returned-files";
 
 type WorkflowStepSmartSetupContext = Record<string, any>;
@@ -717,6 +718,27 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
             />
           </label>
           <ApprovalShownOutputs ctx={ctx} />
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block text-xs text-[var(--fs-text-secondary)]">
+              <span>{t("react.workflows.review.approve_label", "Approve button")}</span>
+              <input
+                className={inputClass}
+                onChange={(event) => replaceStepKindConfigField("approval", "approve_label", event.target.value || undefined)}
+                placeholder={t("jobs.actions.approve", "Approve")}
+                value={textOrEmpty(stepKindConfig.approve_label)}
+              />
+            </label>
+            <label className="block text-xs text-[var(--fs-text-secondary)]">
+              <span>{t("react.workflows.review.reject_label", "Reject button")}</span>
+              <input
+                className={inputClass}
+                onChange={(event) => replaceStepKindConfigField("approval", "reject_label", event.target.value || undefined)}
+                placeholder={t("jobs.detail.review.reject", "Reject")}
+                value={textOrEmpty(stepKindConfig.reject_label)}
+              />
+            </label>
+          </div>
+          <ApprovalReviewFields ctx={ctx} />
           <p className="text-[11px] text-[var(--fs-text-tertiary)]">
             {t("react.workflows.approval_outcomes_hint", "Connect the Approved and Rejected outcomes on the canvas or under Connections.")}
           </p>

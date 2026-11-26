@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useRememberProject } from "@/lib/utils/use-remember-project";
 import { queryKeys } from "@/lib/query/keys";
@@ -74,7 +75,7 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   const [jobActionMessage, setJobActionMessage] = useState("");
   const [jobActionError, setJobActionError] = useState("");
 
-  const canMutate = canMutateJob(auth.session?.user?.roles || auth.session?.roles || []);
+  const canMutate = canMutateJob(sessionPermissions(auth.session));
 
   const detailQuery = useJobDetailQuery(jobId, detailQueryEnabled);
   const detail = detailForApprovalGate(

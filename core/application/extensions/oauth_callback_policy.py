@@ -202,7 +202,10 @@ def _post_connect_config(
         display_name = result.verified_display_name or result.verified_email or result.subject
     elif replaced:
         # A failed verification does not change the bound account. Keep its
-        # constraint for retries and subsequent reconnects using the new grant.
+        # constraint for retries and subsequent reconnects using the new grant,
+        # but drop the identity details the failed verification did not confirm.
+        for field in _VERIFIED_IDENTITY_FIELDS:
+            oauth.pop(field, None)
         oauth["subject"] = replaced
     else:
         for field in _VERIFIED_IDENTITY_FIELDS:

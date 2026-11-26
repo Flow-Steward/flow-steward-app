@@ -152,6 +152,15 @@ from .command_models import (
     WorkflowReactionsUpdateInput,
     WorkflowRunInput,
 )
+from .command_services_response_envelope import (
+    _commit_connection_poll_result,
+    _dispatch_envelope_commands,
+    _emit_envelope_events,
+    _extension_declared_scopes,
+    _PollStateRejected,
+    _process_extension_response_envelope,
+    _route_extension_event_through_event_command_service,
+)
 from .errors import (
     ServiceConflictError,
     ServiceError,
@@ -570,6 +579,13 @@ def _persist_file_refs(
                     "source_ref": f"{str(source_ref_prefix or 'file').strip()}:{index}",
                     "retention_class": str(meta.get("retention_class") or "run_window").strip()
                     or "run_window",
+                    # The declared input the upload was sent for: with several files in
+                    # one input (ADR 0075) it keeps each stored copy tied to its place.
+                    **(
+                        {"field_name": str(file_row["input_name"]).strip()}
+                        if str(file_row.get("input_name") or "").strip()
+                        else {}
+                    ),
                 }
             )
     except Exception:
@@ -685,190 +701,6 @@ def _authoritative_scope(
     )
 
 
-def _process_extension_response_envelope(
-    invocation: dict[str, Any],
-    extension: dict[str, Any],
-    extension_id: str,
-    *,
-    scope: ScopeContext | None = None,
-    audit: dict[str, Any] | None = None,
-    bl: Any = None,
-    get_logger: Callable[[], Any] | None = None,
-    event_command_service_factory: Callable[[], Any] | None = None,
-) -> None:
-    """Process commands[] and events[] from a normalized extension response.
-
-    Called after a successful extension invocation. Normalizes the raw subprocess
-    response into v1.1 canonical envelope, dispatches valid commands, and emits
-    valid events through the domain event ledger.
-
-    Mutates *invocation* by adding ``_envelope`` key with the normalized shape.
-    """
-    raw_response = invocation.get("response")
-    if not isinstance(raw_response, dict) or not raw_response:
-        return
-
-    from core.infrastructure.db.extension_response import (
-        filter_valid_commands,
-        filter_valid_events,
-        normalize_extension_response,
-    )
-
-    env = normalize_extension_response(raw_response)
-
-    # Attach normalized envelope to invocation for callers
-    invocation["_envelope"] = env.model_dump(mode="json")
-
-    from core.application.extensions.response_envelope import process_project_state_updates
-
-    audit = dict(audit or {})
-    process_project_state_updates(
-        invocation,
-        extension=extension,
-        extension_id=extension_id,
-        db=bl,
-        account_id=str(
-            audit.get("account_id") or getattr(scope, "account_id", None) or DEFAULT_ACCOUNT_ID
-        ).strip()
-        or DEFAULT_ACCOUNT_ID,
-        project_id=str(audit.get("project_id") or getattr(scope, "project_id", None) or "").strip(),
-        actor_id=str(audit.get("actor_id") or getattr(scope, "actor_id", None) or "").strip()
-        or None,
-        connection_id=str(audit.get("connection_id") or "").strip() or None,
-    )
-    if invocation.get("status") == "failed":
-        return
-
-    compiled = extension.get("compiled_manifest") or {}
-    supported_events = list(
-        compiled.get("supported_events") or extension.get("supported_events") or []
-    )
-
-    # Process commands through unified dispatch
-    if env.commands:
-        from core.infrastructure.extension_runtime.extension_runtime import command_scope
-
-        # An extension may only dispatch host commands whose command-scope it
-        # declared in required_scopes (what the operator approved at install).
-        declared_scopes = _extension_declared_scopes(extension)
-        valid_commands = filter_valid_commands(list(env.commands))
-        for cmd in valid_commands:
-            command_type = str(cmd.get("command_type") or "").strip()
-            needed_scope = command_scope(command_type)
-            if needed_scope and needed_scope not in declared_scopes:
-                logger.warning(
-                    "Extension %s attempted command '%s' without declared scope '%s' — skipped",
-                    extension_id,
-                    command_type,
-                    needed_scope,
-                )
-                continue
-            try:
-                from .command_models import CommandDispatchInput
-                from .command_services_dispatch import CommandDispatchService
-
-                cmd_svc = CommandDispatchService(
-                    get_logger=get_logger or (lambda: bl),
-                    event_command_service_factory=event_command_service_factory,
-                )
-                cmd_svc.dispatch(
-                    CommandDispatchInput(
-                        command_type=str(cmd.get("command_type") or "").strip(),
-                        target=dict(cmd.get("target") or {}),
-                        payload=dict(cmd.get("payload") or {}),
-                        source=f"extension:{extension_id}",
-                        correlation_id=str(cmd.get("correlation_id") or "").strip(),
-                    ),
-                    scope=scope,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Extension command dispatch failed: ext=%s cmd_type=%s error=%s",
-                    extension_id,
-                    cmd.get("command_type"),
-                    exc,
-                )
-
-    # Process events through domain event ledger
-    if env.events:
-        from core.infrastructure.extension_runtime.extension_runtime import emit_extension_event
-
-        valid_events = filter_valid_events(list(env.events), declared_event_types=supported_events)
-        runtime_ctx = {**audit}
-        if bl is not None:
-            runtime_ctx["logger"] = bl
-        for evt in valid_events:
-            try:
-                if _route_extension_event_through_event_command_service(
-                    extension_id=extension_id,
-                    event=evt,
-                    scope=scope,
-                    runtime_context=runtime_ctx,
-                    event_command_service_factory=event_command_service_factory,
-                ):
-                    continue
-                emit_extension_event(
-                    extension,
-                    event_type=str(evt.get("event_type") or "").strip(),
-                    correlation_id=str(evt.get("correlation_id") or "").strip(),
-                    scope=scope,
-                    project_id=str(audit.get("project_id") or "").strip() or None,
-                    summary=str(evt.get("summary") or "").strip(),
-                    severity=str(evt.get("severity") or "info").strip(),
-                    payload=dict(evt.get("payload") or {}),
-                    runtime_context=runtime_ctx,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Extension event emission failed: ext=%s evt_type=%s error=%s",
-                    extension_id,
-                    evt.get("event_type"),
-                    exc,
-                )
-
-
-def _route_extension_event_through_event_command_service(
-    *,
-    extension_id: str,
-    event: dict[str, Any],
-    scope: ScopeContext | None,
-    runtime_context: dict[str, Any] | None = None,
-    event_command_service_factory: Callable[[], Any] | None = None,
-) -> bool:
-    event_payload = dict(event or {})
-    project_id = str(
-        (runtime_context or {}).get("project_id") or getattr(scope, "project_id", None) or ""
-    ).strip()
-    if not project_id:
-        return False
-    event_payload["project_id"] = project_id
-
-    if event_command_service_factory is None:
-        return False
-
-    event_command_service = event_command_service_factory()
-    if event_command_service is None or not hasattr(
-        event_command_service, "ingest_provider_events"
-    ):
-        return False
-
-    event_scope = normalize_scope(
-        scope,
-        project_id=project_id,
-        workflow_id=str(event_payload.get("workflow_id") or "").strip() or None,
-    )
-    event_command_service.ingest_provider_events(
-        ProviderEventIngestInput(
-            provider_key=str(extension_id or "").strip().lower(),
-            project_id=project_id,
-            result={},
-            events=[event_payload],
-        ),
-        scope=event_scope,
-    )
-    return True
-
-
 # ---------------------------------------------------------------------------
 # Trash lifecycle service
 # ---------------------------------------------------------------------------
@@ -946,23 +778,6 @@ _SELF_HOSTED_ENV = "SELF_HOSTED_MODE"
 
 def _self_hosted_mode_enabled() -> bool:
     return _runtime_env.get(_SELF_HOSTED_ENV, "").strip().lower() in ("1", "true", "yes", "on")
-
-
-def _extension_declared_scopes(extension: Any) -> set[str]:
-    """Declared (operator-approved) scope envelope for an extension.
-
-    Self-contained extraction (extension.required_scopes + compiled_manifest
-    .required_scopes) that avoids the wildcard-import helpers used by
-    ``extension_runtime_entrypoints.extension_required_scopes``.
-    """
-    ext = extension if isinstance(extension, dict) else {}
-    manifest = ext.get("compiled_manifest")
-    manifest = manifest if isinstance(manifest, dict) else {}
-    scopes: set[str] = set()
-    for source in (ext.get("required_scopes"), manifest.get("required_scopes")):
-        if isinstance(source, (list, tuple, set)):
-            scopes.update(str(item).strip() for item in source if str(item or "").strip())
-    return scopes
 
 
 def _extension_operation_declared_scopes(

@@ -16,6 +16,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from core.application.auth import mfa_codes, mfa_service
 from core.application.auth.password import password_hash, verify_password
 from core.entrypoints.api.auth_sessions import create_auth_sessions_router
 
@@ -43,13 +44,17 @@ class _Store:
         self.sessions_revoked_for: list[str] = []
         self.failures: list[tuple[str, str]] = []
         self.audit: list[dict[str, Any]] = []
+        self.authenticator_policy = (False, False)
+        self.pending_factor: tuple[str, datetime] | None = None
+        self.active_factor: tuple[str, int] | None = None
+        self.recovery_hashes: list[str] = []
 
 
 class _Cursor:
     def __init__(self, store: _Store) -> None:
         self._store = store
         self.rowcount = 0
-        self._locked = False
+        self._next_row: tuple[Any, ...] | None = None
         self._reading_history = False
 
     def __enter__(self) -> _Cursor:
@@ -61,6 +66,7 @@ class _Cursor:
     def execute(self, query: str, params: Any = None) -> None:
         normalized = " ".join(str(query).split())
         self.rowcount = 0
+        self._next_row = None
         if normalized.startswith("UPDATE users SET password_hash"):
             new_hash, user_id = params
             assert str(user_id) == str(self._store.user["id"])
@@ -74,7 +80,21 @@ class _Cursor:
         elif "FROM auth_password_history" in normalized:
             self._reading_history = True
         elif normalized.startswith("SELECT id FROM users"):
-            self._locked = True
+            self._next_row = (self._store.user["id"],)
+        elif normalized.startswith("SELECT authenticator_required, authenticator_reset_pending"):
+            self._next_row = self._store.authenticator_policy
+        elif normalized.startswith("SELECT 1 FROM auth_totp_factors"):
+            self._next_row = (1,) if self._store.active_factor else None
+        elif normalized.startswith("SELECT pending_secret_enc FROM auth_totp_factors"):
+            pending = self._store.pending_factor
+            self._next_row = (pending[0],) if pending and pending[1] > params[1] else None
+        elif normalized.startswith("INSERT INTO auth_totp_factors"):
+            self._store.pending_factor = (params[1], params[2])
+        elif normalized.startswith("UPDATE auth_totp_factors SET secret_enc"):
+            self._store.active_factor = (params[0], params[1])
+            self._store.pending_factor = None
+        elif normalized.startswith("UPDATE users SET authenticator_reset_pending = false"):
+            self._store.authenticator_policy = (self._store.authenticator_policy[0], False)
         elif normalized.startswith("INSERT INTO auth_sessions"):
             self._store.sessions_inserted += 1
             self.rowcount = 1
@@ -83,13 +103,23 @@ class _Cursor:
         return [(value,) for value in self._store.password_history] if self._reading_history else []
 
     def fetchone(self) -> Any:
-        return (self._store.user["id"],) if self._locked else None
+        return self._next_row
+
+    def executemany(self, query: str, params: list[tuple[str, str]]) -> None:
+        assert query.startswith("INSERT INTO auth_mfa_recovery_codes")
+        self._store.recovery_hashes = [value for _, value in params]
 
 
-def _client(store: _Store, *, authenticator_storage: bool = False) -> TestClient:
+def _client(
+    store: _Store, *, authenticator_storage: bool = False, authenticator_policy: bool = False
+) -> TestClient:
     bl = SimpleNamespace(
         conn=SimpleNamespace(cursor=lambda **_kwargs: _Cursor(store)),
-        _column_exists=lambda _table, _column: False,
+        _column_exists=lambda table, column: (
+            authenticator_policy
+            and table == "users"
+            and column in {"authenticator_required", "authenticator_reset_pending"}
+        ),
         _table_exists=lambda table: (
             authenticator_storage and table in {"auth_totp_factors", "auth_mfa_recovery_codes"}
         ),
@@ -268,7 +298,7 @@ def test_local_login_warns_within_the_last_two_weeks() -> None:
 
 
 def test_enrolled_user_cannot_replace_expired_password_without_factor(monkeypatch) -> None:
-    sessions = "core.entrypoints.api.auth_sessions"
+    sessions = "core.application.auth.mfa_service"
     monkeypatch.setattr(f"{sessions}.mfa_enabled", lambda *_args: True)
     monkeypatch.setattr(f"{sessions}.verify_mfa", lambda _cur, _user, code: code == "918275")
     store = _Store(must_change_password=False)
@@ -294,9 +324,7 @@ def test_enrolled_user_cannot_replace_expired_password_without_factor(monkeypatc
 
 
 def test_installation_requirement_blocks_unenrolled_account(monkeypatch) -> None:
-    sessions = "core.entrypoints.api.auth_sessions"
-    monkeypatch.setattr(f"{sessions}.installation_requires_mfa", lambda: True)
-    monkeypatch.setattr(f"{sessions}.mfa_enabled", lambda *_args: False)
+    monkeypatch.setenv("FS_AUTH_MFA_REQUIRED", "1")
     store = _Store(must_change_password=False)
     client = _client(store, authenticator_storage=True)
 
@@ -305,6 +333,81 @@ def test_installation_requirement_blocks_unenrolled_account(monkeypatch) -> None
     assert response.json()["mfa_enrollment_required"] is True
     assert not _has_session_cookie(response)
     assert store.sessions_inserted == 0
+
+
+@pytest.mark.parametrize(
+    ("required", "reset_pending", "must_change_password"),
+    [(True, False, False), (False, True, True)],
+)
+def test_per_user_authenticator_is_enrolled_before_session_issue(
+    monkeypatch, required, reset_pending, must_change_password
+) -> None:
+    store = _Store(must_change_password=must_change_password)
+    store.authenticator_policy = (required, reset_pending)
+    client = _client(store, authenticator_storage=True, authenticator_policy=True)
+    monkeypatch.setenv("ENCRYPTION_KEY", "unit-test-encryption-key")
+    monkeypatch.setenv("FS_AUTH_MFA_REQUIRED", "1" if reset_pending else "0")
+    now = datetime.fromtimestamp(120, UTC)
+    monkeypatch.setattr(mfa_service, "_now", lambda: now)
+    fields = {"new_password": _PERMANENT} if must_change_password else {}
+
+    challenge = _login(client, _TEMPORARY, **fields)
+
+    assert challenge.status_code == 403
+    assert challenge.json()["mfa_enrollment_required"] is True
+    enrollment = challenge.json()["authenticator_enrollment"]
+    assert set(enrollment) == {"token", "secret", "uri"}
+    assert challenge.headers["Cache-Control"] == "no-store"
+    assert "set-cookie" not in challenge.headers
+    assert enrollment["secret"] not in store.pending_factor[0]
+    assert store.sessions_inserted == 0
+    assert store.active_factor is None
+    assert verify_password(_TEMPORARY, store.user["password_hash"])
+    code = mfa_codes._authenticator(enrollment["secret"]).generate(now.timestamp()).decode()
+
+    rejected = _login(
+        client, _TEMPORARY, mfa_code=code, authenticator_enrollment_token="0" * 64, **fields
+    )
+
+    assert rejected.status_code == 403
+    assert rejected.json()["mfa_required"] is True
+    assert "set-cookie" not in rejected.headers
+    assert store.failures == [(_EMAIL, "198.51.100.7")]
+    assert store.sessions_inserted == 0
+
+    confirmed = _login(
+        client,
+        _TEMPORARY,
+        mfa_code=code,
+        authenticator_enrollment_token=enrollment["token"],
+        **fields,
+    )
+
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.headers["Cache-Control"] == "no-store"
+    assert _has_session_cookie(confirmed)
+    assert store.sessions_inserted == 1
+    assert store.authenticator_policy == (required, False)
+    assert store.pending_factor is None
+    assert store.active_factor is not None
+    assert verify_password(
+        _PERMANENT if must_change_password else _TEMPORARY, store.user["password_hash"]
+    )
+    recovery_codes = confirmed.json()["recovery_codes"]
+    assert len(recovery_codes) == 10
+    assert store.recovery_hashes == [mfa_codes.recovery_code_hash(code) for code in recovery_codes]
+
+    repeated = _login(
+        client,
+        _PERMANENT if must_change_password else _TEMPORARY,
+        mfa_code=code,
+        authenticator_enrollment_token=enrollment["token"],
+    )
+
+    assert repeated.status_code == 403
+    assert "set-cookie" not in repeated.headers
+    assert "recovery_codes" not in repeated.json()
+    assert store.sessions_inserted == 1
 
 
 def test_required_password_change_rejects_a_prior_password_before_signing_in() -> None:

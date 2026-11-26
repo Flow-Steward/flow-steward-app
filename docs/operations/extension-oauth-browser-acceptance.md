@@ -64,7 +64,8 @@ The provider maps the declared `email_hint` local part to deterministic cases:
 The spec is `assets/frontend/tests/e2e/extension-oauth.spec.ts`. Extensions
 installed from the catalog keep their own browser specs in their own
 repositories. The spec verifies
-real operator/viewer sessions; exact configuration selection and cosmetic rename
+real admin/viewer sessions (an administrator configures OAuth applications and
+connects; an operator's save is refused, ADR 0076); exact configuration selection and cosmetic rename
 without secret replacement; text, secret, email, and plain-text intent inputs;
 visible and semantic required markers; min/max and HTTPS-origin validation;
 focus, red invalid styling, and ARIA error association; server-side bypass

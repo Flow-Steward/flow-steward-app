@@ -162,6 +162,7 @@ def test_worker_inbound_response_processor_is_not_used_by_normal_job_actions() -
         "        worker_id=wid,\n"
         "        project_id=args.project_id,\n"
         "        process_extension_response_envelope=process_extension_response_envelope,\n"
+        "        poll_ports=background_poll_ports,\n"
         "    )"
     )
     assert injection in worker_source

@@ -75,7 +75,10 @@ def test_public_readiness_exposes_only_component_states(monkeypatch, ready):
     assert checks["postgres"]["error"] == diagnostic
 
 
-@pytest.mark.parametrize("mutation", ["none", "failure", "boolean", "digest", "recovery", "count"])
+@pytest.mark.parametrize(
+    "mutation",
+    ["none", "failure", "boolean", "digest", "recovery", "count", "own_upgrade", "other_recovery"],
+)
 def test_public_readiness_preserves_release_transition_safety(monkeypatch, mutation):
     from core.application.tooling.ops.deployment_doctor_live import (
         _expected_release_transition_only,
@@ -119,6 +122,18 @@ def test_public_readiness_preserves_release_transition_safety(monkeypatch, mutat
         checks["lifecycle_recovery"]["state"] = "recovery_required"
     elif mutation == "count":
         checks["workflow_knowledge_sync"]["consecutive_failures"] = "0"
+    elif mutation == "own_upgrade":
+        checks["lifecycle_recovery"] = {
+            "ok": False,
+            "state": "recovery_required",
+            "recovery_required_scope": "release_upgrade",
+        }
+    elif mutation == "other_recovery":
+        checks["lifecycle_recovery"] = {
+            "ok": False,
+            "state": "recovery_required",
+            "recovery_required_scope": "other",
+        }
     monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
     monkeypatch.setattr(
         health.deps, "compute_readiness", lambda _bl: {"ready": False, "checks": checks}
@@ -127,7 +142,9 @@ def test_public_readiness_preserves_release_transition_safety(monkeypatch, mutat
     response = client.get("/health/ready")
 
     assert response.status_code == 503
-    assert _expected_release_transition_only(response.json()) is (mutation == "none")
+    assert _expected_release_transition_only(response.json()) is (
+        mutation in {"none", "own_upgrade"}
+    )
     assert "private driver failure" not in response.text
 
 
@@ -209,3 +226,35 @@ def test_deep_readiness_preserves_typed_checks_without_internal_details(monkeypa
     assert knowledge["graph"]["available"] is False
     assert knowledge["vector"]["available"] is True
     assert knowledge["scope"] == {"freshness": "stale", "catalog_digest": "a" * 64}
+
+
+@pytest.mark.parametrize(
+    ("scope", "expected"),
+    [
+        ("release_upgrade", True),
+        ("other", False),
+        ("none", False),
+        ("forged", False),
+        (None, False),
+    ],
+)
+def test_public_readiness_lets_a_release_upgrade_wait_for_its_own_journal(
+    monkeypatch, scope, expected
+):
+    """0.9.23 dev E2E: a development app reads the upgrade's own recovery_required
+    projection from the bind-mounted checkout; only that one is an expected state."""
+    from core.application.tooling.ops.deployment_doctor_live import (
+        _expected_lifecycle_mutation_only,
+    )
+
+    health, client = _import_health_module()
+    lifecycle = {"ok": False, "state": "recovery_required"}
+    if scope is not None:
+        lifecycle["recovery_required_scope"] = scope
+    checks = {"postgres": {"ok": True}, "lifecycle_recovery": lifecycle}
+    monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
+    monkeypatch.setattr(
+        health.deps, "compute_readiness", lambda _bl: {"ready": False, "checks": checks}
+    )
+
+    assert _expected_lifecycle_mutation_only(client.get("/health/ready").json()) is expected

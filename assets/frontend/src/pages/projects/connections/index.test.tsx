@@ -103,4 +103,28 @@ describe("ProjectConnectionsEditor", () => {
       screen.queryByText("Connections appear here when an extension connects one for this project."),
     ).not.toBeInTheDocument();
   });
+
+  it("marks the connection that sends system email and says who may change it", async () => {
+    mockedFetchProjectConnectionsList.mockResolvedValue([
+      {
+        connection_id: "conn_mail",
+        display_name: "Platform sender",
+        extension_id: "example_mail",
+        connection_kind: "extension",
+        connection_type: "example_relay",
+        enabled: true,
+        system_email_sender: true,
+        system_email_sender_locked: true,
+      },
+      { connection_id: "conn_other", display_name: "Other inbox", extension_id: "example_mail", enabled: true },
+    ]);
+
+    renderEditor();
+
+    await waitFor(() => expect(screen.getByText("Used as the system email sender")).toBeInTheDocument());
+    expect(screen.getAllByTestId("system-email-sender-notice")).toHaveLength(1);
+    expect(screen.getByText("Only a platform administrator can change the system email sender's connection.")).toBeInTheDocument();
+    // The settings link is for platform administrators only.
+    expect(screen.queryByRole("link", { name: /Settings › Email/ })).not.toBeInTheDocument();
+  });
 });

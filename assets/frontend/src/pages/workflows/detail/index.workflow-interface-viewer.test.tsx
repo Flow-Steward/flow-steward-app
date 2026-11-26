@@ -1,5 +1,6 @@
 import { fireEvent, screen, within, waitFor } from "@testing-library/react";
 import { mockedUseIsAdmin, mockedUseAuth, canvasGraphFixture, fetchSpy, mockedFetchWorkflowCanvasGraph, mockedFetchWorkflowDetail, mockedFetchWorkflowContract, renderPage, workflowDetailFixture } from "./index.test-helpers";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 // jsdom has no canvas hit testing; interaction targets are explicit nodes.
 const hitTestDescriptor = Object.getOwnPropertyDescriptor(document, "elementsFromPoint");
@@ -11,7 +12,7 @@ afterAll(() => {
 
 it("lets a viewer inspect public Start and Stop contracts without edit controls or writes", async () => {
   mockedUseIsAdmin.mockReturnValue(false);
-  mockedUseAuth.mockReturnValue({ session: { authenticated: true, user: { roles: ["viewer"] }, roles: ["viewer"] } } as ReturnType<typeof mockedUseAuth>);
+  mockedUseAuth.mockReturnValue({ session: { authenticated: true, user: { roles: ["viewer"], permissions: permissionsForRoles(["viewer"]) }, roles: ["viewer"] } } as ReturnType<typeof mockedUseAuth>);
   const contract = { enabled: true, input_mode: "fields", expected_inputs: [{ name: "login", type: "secret", default_configured: true, default: "must-not-render" }], output_mode: "variables", expected_outputs: [{ name: "result", type: "string" }] };
   mockedFetchWorkflowContract.mockResolvedValue({ workflow_id: "weekly_report", interface: contract, definition_issues: [] } as never);
   mockedFetchWorkflowDetail.mockResolvedValue(workflowDetailFixture({
@@ -44,7 +45,7 @@ afterEach(() => vi.restoreAllMocks());
 
 it("shows a viewer the inactive contract without any activation action or write", async () => {
   mockedUseIsAdmin.mockReturnValue(false);
-  mockedUseAuth.mockReturnValue({ session: { authenticated: true, user: { roles: ["viewer"] }, roles: ["viewer"] } } as ReturnType<typeof mockedUseAuth>);
+  mockedUseAuth.mockReturnValue({ session: { authenticated: true, user: { roles: ["viewer"], permissions: permissionsForRoles(["viewer"]) }, roles: ["viewer"] } } as ReturnType<typeof mockedUseAuth>);
   const contract = { enabled: false, input_mode: "fields", expected_inputs: [], expected_outputs: [{ name: "summary", type: "string", required: true }] };
   mockedFetchWorkflowContract.mockResolvedValue({ workflow_id: "weekly_report", interface: contract, definition_issues: [] } as never);
   mockedFetchWorkflowDetail.mockResolvedValue(workflowDetailFixture({ settings: { callable: contract } }));

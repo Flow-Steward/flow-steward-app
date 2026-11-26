@@ -73,8 +73,19 @@ def coordinate_extension_delivery(
     persist: DeliveryPersistencePort,
     mark_running: MarkExternalEffectRunningPort,
     report_persistence_error: Callable[[str, Exception], None] | None = None,
+    idempotency_key: str = "",
 ) -> dict[str, Any]:
-    """Run prepare/persist/lease/execute in the only safe external-effect order."""
+    """Run prepare/persist/lease/execute in the only safe external-effect order.
+
+    Every request carries the claimed effect's ``idempotency_key`` and
+    ``external_effect_id`` at the top level, next to ``event``, so the extension
+    can key its own write: a retry of one delivery carries the same pair.
+    """
+    effect_fields: dict[str, str] = {}
+    if str(idempotency_key or "").strip():
+        effect_fields["idempotency_key"] = str(idempotency_key).strip()
+    if str(external_effect_id or "").strip():
+        effect_fields["external_effect_id"] = str(external_effect_id).strip()
 
     pre_dispatch_kinds = pre_dispatch_host_mutation_kinds(extension, operation_id)
     invocation: dict[str, Any] = {}
@@ -106,6 +117,7 @@ def coordinate_extension_delivery(
             prepare_invocation = invoke(
                 {
                     "action": operation_id,
+                    **effect_fields,
                     "delivery_phase": "prepare",
                     "action_payload": prepare_action_payload,
                     "event": event,
@@ -144,6 +156,7 @@ def coordinate_extension_delivery(
     if not invocation:
         request_payload = {
             "action": operation_id,
+            **effect_fields,
             "action_payload": action_payload,
             "event": event,
             "route": route_payload,

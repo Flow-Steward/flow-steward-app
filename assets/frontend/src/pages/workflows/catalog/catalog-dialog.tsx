@@ -1,8 +1,9 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Search } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { DsDialog, DsTabs } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import { useCompactCatalog } from "@/lib/react/use-compact-catalog";
@@ -366,21 +367,17 @@ export function WorkflowCatalogDialog({
     // On the page the search heads the results column, beside the rail; in
     // the dialog it spans the dialog above both.
     const searchField = (
-      <label className="fs-search">
-        <Search aria-hidden="true" />
-        <input
-          aria-label={t("react.workflows.search_templates_and_integrations_variant_40297bca", "Search templates and integrations")}
-          disabled={browseState === "unavailable" || browseState === "not-configured"}
-          onChange={(event) => {
-            const q = event.target.value;
-            writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
-          }}
-          placeholder={t("react.workflows.search_templates_and_integrations", "Search templates and integrations…")}
-          ref={firstFieldRef}
-          type="search"
-          value={urlState.filters.q}
-        />
-      </label>
+      <DsSearchInput
+        aria-label={t("react.workflows.search_templates_and_integrations_variant_40297bca", "Search templates and integrations")}
+        disabled={browseState === "unavailable" || browseState === "not-configured"}
+        onValueChange={(value) => {
+          const q = value;
+          writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
+        }}
+        placeholder={t("react.workflows.search_templates_and_integrations", "Search templates and integrations…")}
+        inputRef={firstFieldRef}
+        value={urlState.filters.q}
+      />
     );
     body = (
       <>

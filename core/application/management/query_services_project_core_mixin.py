@@ -711,6 +711,71 @@ class ProjectQueryServiceCoreMixin:
             policy=dict(policy or {}) if isinstance(policy, dict) else {},
         )
 
+    def list_operator_sections(self, *, scope: ScopeContext | None = None) -> list[dict[str, Any]]:
+        """The operator menu (ADR 0075): published workflows in each visible project.
+
+        One item per active binding of a workflow published with the UI channel,
+        in projects and workflows the caller may see (token limits included).
+        """
+        from core.application.projects.operator_sections import operator_sections
+
+        resolved = self._scope(scope)
+        bl = self._get_logger()
+        if not bl:
+            raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
+        reader = getattr(bl, "list_active_project_workflow_bindings", None)
+        bindings = reader(account_id=resolved.account_id) if callable(reader) else []
+        return [
+            section.model_dump(mode="json")
+            for section in operator_sections(bindings or [], resolved)
+        ]
+
+    def get_operator_section(
+        self,
+        project_id: Any,
+        workflow_id: str,
+        *,
+        scope: ScopeContext | None = None,
+    ) -> dict[str, Any]:
+        """One section's page: its form, list and result settings resolved against the contract."""
+        from core.application.projects.operator_sections import operator_section_detail
+
+        resolved = self._scope(scope, project_id=project_id)
+        bl = self._get_logger()
+        if not bl:
+            raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
+        project = self._require_project_in_scope(bl, str(project_id), resolved)
+        normalized_workflow_id = str(workflow_id or "").strip()
+        rows = (
+            bl.get_project_workflows(str(project_id), enabled_only=True, include_deleted=False)
+            if hasattr(bl, "get_project_workflows")
+            else []
+        )
+        bound = any(
+            isinstance(row, dict)
+            and str(row.get("workflow_id") or "").strip() == normalized_workflow_id
+            and row.get("enabled", True)
+            and not row.get("deleted_at")
+            for row in rows or []
+        )
+        detail = (
+            operator_section_detail(
+                {
+                    "project_id": str(project.get("id") or project_id),
+                    "project_name": str(project.get("name") or ""),
+                    "account_id": project.get("account_id"),
+                    "workspace_id": project.get("workspace_id"),
+                    "workflow_id": normalized_workflow_id,
+                },
+                resolved,
+            )
+            if bound
+            else None
+        )
+        if detail is None:
+            raise ServiceNotFoundError("Section not found")
+        return detail.model_dump(mode="json")
+
     def get_project_edit_form(
         self,
         project_id: Any,

@@ -8,6 +8,7 @@ import { WORKSPACE_STORAGE_KEY } from "@/lib/utils/workspace-selection";
 import { JobsListPage } from "@/pages/jobs/list";
 import { MonitoringPage } from "@/pages/monitoring";
 import { fetchMonitoringStorage, fetchMonitoringSummary } from "@/pages/monitoring/api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/lib/http/client", () => ({ fetchJson: vi.fn() }));
@@ -34,7 +35,7 @@ describe("Monitoring stuck job navigation", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     localStorage.setItem(WORKSPACE_STORAGE_KEY, "workspace-own");
-    vi.mocked(useAuth).mockReturnValue({ session: { user: { roles: ["admin"] } } } as never);
+    vi.mocked(useAuth).mockReturnValue({ session: { user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never);
     vi.mocked(fetchMonitoringStorage).mockResolvedValue({});
     vi.mocked(fetchMonitoringSummary).mockResolvedValue({
       ready: false,
@@ -77,14 +78,14 @@ describe("Monitoring stuck job navigation", () => {
     await waitFor(() => expect(screen.getByText("Persisted stuck job 1")).toBeInTheDocument());
     // The link opens the Stuck status group, which holds stuck and orphaned runs.
     await waitFor(() => expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
-      "/api/v2/jobs?page=1&per_page=25&status=stuck&status=orphaned&workspace_id=workspace-own",
+      "/api/v2/jobs?status=stuck&status=orphaned&workspace_id=workspace-own&page=1&per_page=25",
     ));
     fireEvent.click(screen.getByRole("button", { name: "Next page" }));
     await waitFor(() => expect(screen.getByText("Persisted stuck job 2")).toBeInTheDocument());
     expect(screen.queryByText("Persisted stuck job 1")).not.toBeInTheDocument();
     expect(screen.getByText("Status · Stuck")).toBeInTheDocument();
     expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
-      "/api/v2/jobs?page=2&per_page=25&status=stuck&status=orphaned&workspace_id=workspace-own",
+      "/api/v2/jobs?status=stuck&status=orphaned&workspace_id=workspace-own&page=2&per_page=25",
     );
   });
 
@@ -102,7 +103,7 @@ describe("Monitoring stuck job navigation", () => {
     await waitFor(() => expect(screen.getByText("Status · Stuck")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByRole("table", { name: "Jobs" })).toBeInTheDocument());
     expect(vi.mocked(fetchJson)).toHaveBeenCalledWith(
-      "/api/v2/jobs?page=1&per_page=25&status=stuck&status=orphaned&workspace_id=workspace-own",
+      "/api/v2/jobs?status=stuck&status=orphaned&workspace_id=workspace-own&page=1&per_page=25",
     );
   });
 });

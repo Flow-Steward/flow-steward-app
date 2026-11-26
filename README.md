@@ -114,6 +114,14 @@ installation does not require AI provider credentials; configure them afterward.
 Full installation instructions: [User guide, Step 1](docs/GUIDE.md#step-1--initial-setup)
 and [Compact and Scalable deployment](docs/operations/compact-scalable-deployment.md).
 
+## Secure local sign-in with an authenticator app
+
+Starting with v0.9.23, users who sign in with a local password can add an
+authenticator app under **Settings → Account → Sign-in**. Save the one-time
+recovery codes shown during setup. Enrollment is optional by default. An
+installation operator can require a second factor after local users complete
+setup. See the [authenticator setup, recovery, and rollout guide](docs/user/local-account-authenticator.md).
+
 ## Report a bug
 
 Attach a System Diagnostics file to your report. Download it from

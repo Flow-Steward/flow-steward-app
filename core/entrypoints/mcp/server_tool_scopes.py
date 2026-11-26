@@ -20,6 +20,11 @@ One deliberate divergence from `AUDIT-068`'s wording: workflow reads still accep
 MCP stricter than HTTP would mean the same token behaves differently per
 transport, which is the problem this table exists to remove. Project and job
 reads do **not** accept `registry.read` — HTTP never granted them either.
+
+ADR 0076 §4: :data:`MCP_TOOL_PERMISSIONS` names the catalogue permission each tool
+needs, the same key the route table gives the API route the tool calls. A person may
+use a tool exactly when their role may call that route; the test matrix proves it per
+system role.
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ ADMIN = (_TOKEN_ADMIN_ALL,)
 _JOBS_READ = ("jobs.read", "jobs:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
 _JOBS_WRITE = ("jobs.write", "jobs:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
 _PROJECTS_READ = ("projects.read", "projects:*", _TOKEN_READ, _TOKEN_ADMIN_ALL)
+_PROJECTS_WRITE = ("projects.write", "projects:*", _TOKEN_COMMAND, _TOKEN_ADMIN_ALL)
 _WORKFLOWS_READ = (
     "workflows.read",
     _TOKEN_WORKFLOWS_ALL,
@@ -97,6 +103,8 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
     # --- projects ----------------------------------------------------------
     "project_list": _PROJECTS_READ,
     "project_connections": _PROJECTS_READ,
+    "project_create": _PROJECTS_WRITE,
+    "project_update": _PROJECTS_WRITE,
     # --- workflow authoring: registry creation differs from launch ----------
     "capability_search": _WORKFLOWS_READ,
     "capability_describe": _WORKFLOWS_READ,
@@ -160,6 +168,113 @@ MCP_TOOL_SCOPES: dict[str, tuple[str, ...]] = {
 }
 
 
+#: tool name -> the ADR 0076 permission it needs: the route table's key for the API
+#: route the tool proxies (``MCP_TOOL_ROUTES``). Every tool appears here.
+MCP_TOOL_PERMISSIONS: dict[str, str] = {
+    # --- public catalogues: the admin's (the former admin-only routes) -----------
+    "catalog_search": "registry.manage",
+    "extension_catalog_install": "extensions.manage",
+    # --- jobs ----------------------------------------------------------------
+    "job_approval": "jobs.read",
+    "job_approvals": "jobs.read",
+    "job_usage_breakdown": "jobs.read",
+    "job_decision_overrides": "jobs.read",
+    "job_errors": "jobs.read",
+    "job_events": "jobs.read",
+    "job_incident": "jobs.read",
+    "job_logs": "jobs.read",
+    "job_messages": "jobs.read",
+    "job_list": "jobs.read",
+    "job_approvals_pending": "jobs.read",
+    "job_result": "jobs.read",
+    "job_runtime_journal": "jobs.read",
+    "job_status": "jobs.read",
+    "workflow_run_report": "jobs.read",
+    "job_trace": "jobs.read",
+    "project_jobs": "jobs.read",
+    "job_acknowledge": "jobs.write",
+    "job_unacknowledge": "jobs.write",
+    "job_cancel": "jobs.write",
+    "job_restart": "jobs.write",
+    "job_approval_decide": "approvals.decide",
+    # --- projects --------------------------------------------------------------
+    "project_list": "projects.read",
+    "project_connections": "projects.read",
+    "project_create": "projects.write",
+    "project_update": "projects.write",
+    # --- workflow authoring ------------------------------------------------------
+    "capability_search": "workflows.read",
+    "capability_describe": "workflows.read",
+    "workflow_examples_search": "workflows.read",
+    "workflow_authoring_schema": "workflows.read",
+    "workflow_draft_validate": "workflows.read",
+    "workflow_draft_save": "workflows.manage",
+    "workflow_definition": "registry.read",
+    "workflow_apply_changes": "workflows.manage",
+    "workflow_convert_group": "workflows.manage",
+    # --- workflows ---------------------------------------------------------------
+    "workflow_contract": "workflows.read",
+    "workflow_list": "workflows.read",
+    "workflow_suggestions": "workflows.read",
+    "workflow_validate": "workflows.read",
+    "workflow_trigger": "workflows.run",
+    # --- hooks, portability: the project's workflow configuration ----------------
+    "workflow_hooks_list": "workflows.manage",
+    "workflow_hook_get": "workflows.manage",
+    "workflow_hook_preview": "workflows.manage",
+    "workflow_hook_bind": "workflows.manage",
+    "workflow_hook_unbind": "workflows.manage",
+    "workflow_hook_create_and_bind": "workflows.manage",
+    "workflow_where_used": "workflows.manage",
+    "workflow_export": "workflows.manage",
+    "workflow_stats": "workflows.manage",
+    "workflow_import": "workflows.manage",
+    "workflow_set_enabled": "workflows.manage",
+    # --- agents and skills -------------------------------------------------------
+    "agent_authoring_schema": "platform.read",
+    "skill_authoring_schema": "platform.read",
+    "agent_list": "registry.manage",
+    "agent_get": "registry.manage",
+    "agent_create": "registry.manage",
+    "agent_update": "registry.manage",
+    "agent_validate": "registry.manage",
+    "agent_set_enabled": "registry.manage",
+    "agent_skill_assign": "registry.manage",
+    "agent_skill_unassign": "registry.manage",
+    "agent_skill_set_instructions": "registry.manage",
+    "skill_list": "registry.manage",
+    "skill_get": "registry.manage",
+    "skill_create": "registry.manage",
+    "skill_update": "registry.manage",
+    "skill_inputs_set": "registry.manage",
+    "skill_outputs_set": "registry.manage",
+    "skill_validate": "registry.manage",
+    "skill_set_enabled": "registry.manage",
+    "model_options": "registry.read",
+    # --- reports -----------------------------------------------------------------
+    "report_get": "reports.read",
+    "report_generate": "reports.write",
+    # --- notifications -------------------------------------------------------------
+    "project_notification_deliveries": "notify.read",
+    "project_notification_routes": "notify.read",
+    "dispatch_project_notification": "notify.dispatch",
+}
+
+
+def required_permission_for_tool(tool: str) -> str:
+    """The permission *tool* needs; an unknown tool needs one no role is given by default.
+
+    ``platform.manage`` is the admin's: an unmapped tool is a wiring mistake and the
+    safe reading is the most restrictive one, as for its scopes.
+    """
+    return MCP_TOOL_PERMISSIONS.get(str(tool or "").strip(), "platform.manage")
+
+
+def tool_allowed_for_permissions(tool: str, permissions: frozenset[str] | set[str]) -> bool:
+    """Whether a holder of ``permissions`` may use *tool* (the API route decides as well)."""
+    return required_permission_for_tool(tool) in permissions
+
+
 def required_scopes_for_tool(tool: str) -> tuple[str, ...]:
     """Return the any-of scopes for *tool*.
 
@@ -170,4 +285,10 @@ def required_scopes_for_tool(tool: str) -> tuple[str, ...]:
     return MCP_TOOL_SCOPES.get(str(tool or "").strip(), ADMIN)
 
 
-__all__ = ["MCP_TOOL_SCOPES", "required_scopes_for_tool"]
+__all__ = [
+    "MCP_TOOL_PERMISSIONS",
+    "MCP_TOOL_SCOPES",
+    "required_permission_for_tool",
+    "required_scopes_for_tool",
+    "tool_allowed_for_permissions",
+]

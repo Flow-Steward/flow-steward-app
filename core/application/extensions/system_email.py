@@ -7,18 +7,18 @@ email-change verification, a welcome note -- go out through that connection.
 Without one there is no system email: the sign-in page hides "Forgot
 password?", and an administrator resets passwords instead.
 
-The connection used is the oldest enabled one, so adding another connection
-later does not silently move system mail elsewhere.
+The connection used is the one a platform administrator chose and confirmed
+in Settings -> Email (``system_email_sender``); nothing else is ever used.
 
 Every send returns ``{"ok": bool, "reason": str}``; ``reason`` is ``sent``,
-``disabled_or_unconfigured`` (no email connection), ``invalid_recipient`` or
+``disabled_or_unconfigured`` (no confirmed sender), ``invalid_recipient``,
+``system_sender_changed`` (the sender changed while the message was built) or
 ``send_failed``.
 """
 
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from typing import Any
 
@@ -53,6 +53,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Your account has been created. You can now sign in using {email}.\n\n"
             "If you did not expect this, please contact your administrator.",
         ),
+        "agent_connection_expiring": (
+            "Your AI agent connection stops working soon",
+            "Hi {display_name},\n\n"
+            "Your AI agent connection {client} stops working on {end_date}.\n\n"
+            "To keep it working, open AI agents in Flow Steward, choose Connect again "
+            "and put the new key into {client}:\n"
+            "{agents_url}\n\n"
+            "If you no longer use this connection, you can ignore this email.",
+        ),
+        "agent_app_connection_expiring": (
+            "Your AI app connection stops working soon",
+            "Hi {display_name},\n\n"
+            "The connection of {client} to Flow Steward stops working on {end_date}.\n\n"
+            "To keep it working, connect Flow Steward again from {client}. "
+            "Flow Steward asks you to allow it once more.\n\n"
+            "Your AI agent connections: {agents_url}\n\n"
+            "If you no longer use this connection, you can ignore this email.",
+        ),
     },
     "lt": {
         "password_reset": (
@@ -78,6 +96,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Sveiki, {display_name},\n\n"
             "Jūsų paskyra sukurta. Dabar galite prisijungti naudodami adresą {email}.\n\n"
             "Jei nesitikėjote šio laiško, susisiekite su administratoriumi.",
+        ),
+        "agent_connection_expiring": (
+            "Jūsų DI agento ryšys netrukus nustos veikti",
+            "Sveiki, {display_name},\n\n"
+            "Jūsų DI agento ryšys {client} nustos veikti {end_date}.\n\n"
+            "Kad jis veiktų toliau, Flow Steward atverkite skiltį „DI agentai“, pasirinkite "
+            "„Prijungti iš naujo“ ir įrašykite naują raktą į {client}:\n"
+            "{agents_url}\n\n"
+            "Jei šio ryšio nebenaudojate, galite nepaisyti šio laiško.",
+        ),
+        "agent_app_connection_expiring": (
+            "Jūsų DI programos ryšys netrukus nustos veikti",
+            "Sveiki, {display_name},\n\n"
+            "Programos {client} ryšys su Flow Steward nustos veikti {end_date}.\n\n"
+            "Kad jis veiktų toliau, iš naujo prijunkite Flow Steward iš {client}. "
+            "Flow Steward dar kartą paprašys jūsų leidimo.\n\n"
+            "Jūsų DI agentų ryšiai: {agents_url}\n\n"
+            "Jei šio ryšio nebenaudojate, galite nepaisyti šio laiško.",
         ),
     },
 }
@@ -122,94 +158,116 @@ def _platform_store() -> Any:
 
 
 def find_email_connection(bl: Any) -> tuple[dict[str, Any], str] | None:
-    """The oldest enabled connection of an email notification extension, if any.
+    """The confirmed system email sender, if it can send now.
 
-    Returns ``(connection, extension_key)``. An email extension is one that is a
-    notification provider whose deliveries address a recipient; the platform does
-    not know extensions by name.
+    Returns ``(connection, extension_key)``. Only the connection a platform
+    administrator chose in Settings -> Email (or the one an upgraded install was
+    pinned to once) is ever used; there is no fallback to another connection.
     """
-    from core.application.extensions.external_effects import notification_target_kind
+    from core.application.extensions.system_email_sender import sender_status
 
-    if bl is None or not hasattr(bl, "list_enabled_extension_connections"):
+    if bl is None:
         return None
-    extensions: dict[str, dict[str, Any] | None] = {}
-    for connection in bl.list_enabled_extension_connections() or []:
-        extension_key = _text(connection.get("extension_id"))
-        if not extension_key:
-            continue
-        if extension_key not in extensions:
-            try:
-                extensions[extension_key] = bl.get_extension(extension_key)
-            except Exception:
-                extensions[extension_key] = None
-        extension = extensions[extension_key] or {}
-        if (
-            bool(extension.get("enabled"))
-            and _text(extension.get("kind")) == "notification_provider"
-            and notification_target_kind(extension) == "recipient"
-        ):
-            return dict(connection), extension_key
-    return None
-
-
-_AVAILABILITY_TTL_SECONDS = 30.0
-_availability_lock = threading.Lock()
-_availability_cache: dict[str, float | bool] = {}
+    try:
+        status = sender_status(bl)
+    except Exception as exc:
+        logger.debug("system email sender could not be read: %s", type(exc).__name__)
+        return None
+    if not status.available:
+        return None
+    extension_key = _text(
+        status.extension.get("extension_key") or status.extension.get("extension_id")
+    ) or _text(status.connection.get("extension_id"))
+    return dict(status.connection), extension_key
 
 
 def system_email_available(bl: Any = None, *, clock: Any = time.monotonic) -> bool:
-    """Whether the platform can send email: an email extension is connected.
+    """Whether the platform can send email: a confirmed sender can send now.
 
     Asked on every app load (the sign-in page shows "Forgot password?" only
     when it is true), so the answer is kept for a short while.
     """
-    now = clock()
-    with _availability_lock:
-        checked_at = _availability_cache.get("at")
-        if isinstance(checked_at, float) and now - checked_at < _AVAILABILITY_TTL_SECONDS:
-            return bool(_availability_cache.get("available"))
+    from core.application.extensions.system_email_sender import cached_availability
+
     try:
-        available = find_email_connection(bl if bl is not None else _platform_store()) is not None
+        return cached_availability(bl if bl is not None else _platform_store(), clock=clock)
     except Exception as exc:
-        logger.debug("system email availability check failed: %s", exc)
-        available = False
-    with _availability_lock:
-        _availability_cache.update({"at": float(now), "available": available})
-    return available
+        logger.debug("system email availability check failed: %s", type(exc).__name__)
+        return False
 
 
 def _send(kind: str, *, recipient: str, locale: str, bl: Any = None, **values: Any) -> dict:
+    from core.application.extensions import system_email_sender
+    from core.application.notifications.delivery import (
+        NotificationAuthorizationRequired,
+        PreparedDeliveryTarget,
+        build_notification_connection_target,
+        deliver_direct_notification,
+    )
+
     normalized_recipient = _normalize_email(recipient)
     if not normalized_recipient:
         return {"ok": False, "reason": "invalid_recipient"}
     store = bl if bl is not None else _platform_store()
-    found = find_email_connection(store)
-    if found is None:
+    # One read of the setting and the connection; the send is built from it.
+    try:
+        status = system_email_sender.sender_status(store)
+    except Exception as exc:
+        logger.warning("System email sender could not be read: %s", type(exc).__name__)
         return {"ok": False, "reason": "disabled_or_unconfigured"}
-    connection, extension_key = found
+    if not status.available:
+        return {"ok": False, "reason": "disabled_or_unconfigured"}
+    extension_key = _text(
+        status.extension.get("extension_key") or status.extension.get("extension_id")
+    ) or _text(status.connection.get("extension_id"))
+    try:
+        runtime_connection, logged_connection = build_notification_connection_target(
+            store, status.connection
+        )
+    except NotificationAuthorizationRequired:
+        logger.warning("System email %s was not delivered: authorization_required", kind)
+        return {"ok": False, "reason": "send_failed", "provider": extension_key}
+    except Exception as exc:
+        logger.warning("System email %s was not delivered: %s", kind, type(exc).__name__)
+        return {"ok": False, "reason": "send_failed", "provider": extension_key}
+    prepared = PreparedDeliveryTarget(
+        extension=status.extension,
+        extension_install_id=_text(status.connection.get("extension_install_id")),
+        connection_id=_text(status.connection.get("connection_id")),
+        runtime_connection=runtime_connection,
+        logged_connection=logged_connection,
+        capability=status.capability,
+    )
     subject, body = render_system_email(kind, locale=locale, **values)
-    from core.application.notifications.delivery import deliver_direct_notification
-
     result = deliver_direct_notification(
         store,
-        connection=connection,
+        connection=status.connection,
         extension_key=extension_key,
         event_type=f"system.{kind}",
         recipients=[normalized_recipient],
         subject=subject,
         message=body,
+        prepared_target=prepared,
+        admission_check=lambda: system_email_sender.admission_check(store, status),
+        payload_sensitive=True,
     )
     if _text(result.get("status")) == "delivered":
         return {"ok": True, "reason": "sent", "provider": extension_key}
     from core.application.security.credential_redaction import redact_text
 
+    error_text = _text(result.get("error_text"))
     logger.warning(
         "System email %s was not delivered through %s: %s",
         kind,
         extension_key,
-        redact_text(_text(result.get("error_text"))) or "delivery failed",
+        redact_text(error_text) or "delivery failed",
     )
-    return {"ok": False, "reason": "send_failed", "provider": extension_key}
+    reason = (
+        system_email_sender.SYSTEM_SENDER_CHANGED
+        if error_text == system_email_sender.SYSTEM_SENDER_CHANGED
+        else "send_failed"
+    )
+    return {"ok": False, "reason": reason, "provider": extension_key}
 
 
 def send_password_reset_email(
@@ -273,9 +331,38 @@ def send_signup_notification_email(
     )
 
 
+def send_agent_connection_expiring_email(
+    *,
+    recipient: str,
+    client: str,
+    end_date: str,
+    agents_url: str,
+    oauth_app: bool,
+    display_name: str = "",
+    locale: str = "",
+    bl: Any = None,
+) -> dict[str, Any]:
+    """Tell the owner that an AI agent connection stops working on ``end_date``.
+
+    ``oauth_app`` is a cloud client connected through OAuth consent, renewed from the
+    client itself; otherwise it is a personal agent token, renewed with Connect again.
+    """
+    return _send(
+        "agent_app_connection_expiring" if oauth_app else "agent_connection_expiring",
+        recipient=recipient,
+        locale=locale,
+        bl=bl,
+        display_name=display_name,
+        client=client,
+        end_date=end_date,
+        agents_url=agents_url,
+    )
+
+
 __all__ = [
     "find_email_connection",
     "render_system_email",
+    "send_agent_connection_expiring_email",
     "send_email_change_verification_email",
     "send_password_reset_email",
     "send_signup_notification_email",

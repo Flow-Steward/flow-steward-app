@@ -358,7 +358,7 @@ def test_registry_adapts_validated_models_and_async_service_results() -> None:
     users_list_input = UsersListCommandInput(
         search="Ada", include_inactive=True, include_deleted=True
     )
-    user_input = UserCreateInput(email="operator@example.com", password="safe", roles=["viewer"])
+    user_input = UserCreateInput(email="operator@example.com", password="safe", role="viewer")
 
     assert asyncio.run(registry.invoke("users.list", users_list_input)) == {"users": []}
     assert registry.runtime.user_query_service.kwargs == {
@@ -498,7 +498,7 @@ def test_registry_delegates_phase2_user_and_extension_operations(tmp_path: Path)
     assert asyncio.run(
         registry.invoke(
             "users.set-roles",
-            UserRolesUpdateInput(email="operator@example.com", roles=["operator"]),
+            UserRolesUpdateInput(email="operator@example.com", role="operator"),
         )
     ) == {"status": "updated"}
 

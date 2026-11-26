@@ -123,8 +123,9 @@ Final verification must identify the exact commit SHA and candidate environment.
 Ordinary verification, including release preparation, `MUST` select checks from
 the diff and known dependency chains. Full, heavy, nightly and Sonar runs require
 a separate explicit request; handoff, merge and publication do not authorize
-them. GitHub quality execution `MUST` be manually requested, never inferred from
-a push or release. Remote evidence proves only its recorded source and scope,
+them. Pushing a designated pre-release branch explicitly requests its hosted
+Tier 2 gate. Other hosted quality runs require a manual request or an authorized
+schedule. Remote evidence proves only its recorded source and scope,
 never a different private commit. Documentation workflows remain independent.
 
 Evidence has one of two reuse scopes, set per check in the registry (ADR 0036):
@@ -250,6 +251,7 @@ not authorize local execution.
 
 ### Release verification
 
+- `MUST` run the pre-release Tier 2 gate and CodeQL on the release PR head before merge. Use the guarded merge command in [Remote quality checks](../operations/remote-quality.md) to verify successful runs for that SHA and recheck current main.
 - `MUST` verify the release diff and known related behavior, recording the final SHA, exact commands, selected checks and unrun coverage. Publication `MUST NOT` start or require a new full gate implicitly.
 - Release-version, image-default and packaged database-artifact changes `MUST` include focused version-consistency and affected migration/image-packaging contracts in Tier 1 before any separately requested broad gate, including `tests/unit/test_platform_version_consistency.py`.
 - When the user explicitly requests complete Tier 2/Tier 3 acceptance, only complete matching evidence may be called a full pass. The Tier 3 delta or a targeted pass alone cannot establish it; a failed full gate stays failed after a partial retry.
@@ -287,7 +289,7 @@ scope decision; they do not automatically justify running all tests.
 
 ## Execution Policy
 
-- `MUST` run selected checks through the canonical Docker gate and `fs-audit`: short Tier 1 locally, Tier 2/Tier 3 and heavy scopes on GitHub-hosted runners. Hosted quality execution requires a separate manual request or an already authorized recurring schedule and must preserve its selected scope; no push or publication implicitly requests it. If hosted execution is unavailable, report the scope pending instead of running it locally.
+- `MUST` run selected checks through the canonical Docker gate and `fs-audit`: short Tier 1 locally, Tier 2/Tier 3 and heavy scopes on GitHub-hosted runners. Hosted execution requires an authorized trigger and must preserve its selected scope. A designated pre-release branch push authorizes Tier 2. Other runs require a manual request or authorized schedule. If hosted execution is unavailable, report the scope pending instead of running it locally.
 - `MUST` resolve the intended target branch and accepted source SHA before verification, recheck before merge, and verify new impact when the candidate changes. A changed SHA does not automatically request a complete gate.
 - `MUST` inspect the run's repository, workflow, event, exact head SHA and conclusion before accepting remote evidence. A cached artifact or green result for another SHA is not evidence. Remote execution does not itself enforce GitHub branch protection or perform merges.
 - `MUST NOT` start Sonar because of a substantial core edit, failure, handoff, merge or publication alone. Sonar requires a separate explicit request and reports its actual profile, coverage and baseline limitations.

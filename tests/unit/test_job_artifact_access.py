@@ -272,8 +272,10 @@ def test_job_artifact_preview_opens_a_pdf_inline_without_a_sandbox(
     [
         ("image/svg+xml", 8, 415),
         ("text/html", 8, 415),
-        ("text/csv", 8, 415),
+        ("application/msword", 8, 415),
+        ("application/vnd.ms-powerpoint", 8, 415),
         ("image/png", 20 * 1024 * 1024 + 1, 413),
+        ("text/csv", 20 * 1024 * 1024 + 1, 413),
     ],
 )
 def test_job_artifact_preview_refuses_scriptable_and_oversized_files_without_reading_them(
@@ -400,3 +402,74 @@ def test_text_over_the_preview_limit_is_refused_without_reading_it(
     )
 
     assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    ("content_type", "filename"),
+    [
+        ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "totals.xlsx"),
+        ("application/vnd.ms-excel", "legacy.xls"),
+        ("text/csv; charset=utf-8", "rows.csv"),
+        (
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "contract.docx",
+        ),
+        ("", "totals.XLSX"),
+        ("", "rows.csv"),
+        ("", "contract.docx"),
+    ],
+)
+def test_documents_are_served_as_opaque_bytes_for_the_page_previewer(
+    monkeypatch: pytest.MonkeyPatch, content_type: str, filename: str
+) -> None:
+    """ADR 0080: the browser previews these itself, so they never open as a page."""
+    body = b"PK\x03\x04<html><script>alert(1)</script>"
+    monkeypatch.setattr(
+        dependencies, "_artifact_read_bytes", lambda _artifact_id, *, max_size_bytes: body
+    )
+
+    response = asyncio.run(
+        _preview_endpoint(content_type, filename=filename, size_bytes=len(body))(
+            SimpleNamespace(), "job-a", "art-1"
+        )
+    )
+
+    assert response.status_code == 200
+    assert response.body == body
+    assert response.media_type == "application/octet-stream"
+    assert response.headers["content-disposition"].startswith("attachment;")
+    assert response.headers["content-security-policy"] == "sandbox; default-src 'none'"
+    assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_an_untyped_pdf_is_previewed_by_its_extension(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        dependencies, "_artifact_read_bytes", lambda _artifact_id, *, max_size_bytes: b"%PDF-1.7"
+    )
+
+    response = asyncio.run(
+        _preview_endpoint("", filename="scan.PDF")(SimpleNamespace(), "job-a", "art-1")
+    )
+
+    assert response.status_code == 200
+    assert response.media_type == "application/pdf"
+
+
+def test_a_declared_type_is_not_overridden_by_a_document_extension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        dependencies,
+        "_artifact_read_bytes",
+        lambda *_args, **_kwargs: pytest.fail("a declared other type is not previewed"),
+    )
+
+    for declared, filename in (
+        ("application/octet-stream", "totals.xlsx"),
+        ("application/msword", "contract.docx"),
+        ("application/zip", "rows.csv"),
+    ):
+        response = asyncio.run(
+            _preview_endpoint(declared, filename=filename)(SimpleNamespace(), "job-a", "art-1")
+        )
+        assert response.status_code == 415, declared

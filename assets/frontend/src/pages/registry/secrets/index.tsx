@@ -1,3 +1,5 @@
+import { DsSearchInput } from "@/components/ui/search-input";
+import { useHasCapability } from "@/lib/auth/capabilities";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { z } from "@/lib/validation/zod";
@@ -17,7 +19,6 @@ import {
   PageContainer,
   Pagination,
   RowActionMenu,
-  Search,
 } from "@/components/shared/design-system";
 import {
   type CatalogSecret,
@@ -62,6 +63,7 @@ function SecretRow({
   onEdit,
   onReplace,
   onDelete,
+  canDelete,
 }: Readonly<{
   secret: CatalogSecret;
   menuOpen: boolean;
@@ -69,6 +71,8 @@ function SecretRow({
   onEdit: () => void;
   onReplace: () => void;
   onDelete: () => void;
+  /** ADR 0066 amendment: deleting unbinds every consumer, so it is the admin's. */
+  canDelete: boolean;
 }>) {
   const { t } = useI18n();
   const uses = secret.usage_count ?? 0;
@@ -101,12 +105,16 @@ function SecretRow({
               {t("react.registry.secrets.replace", "Replace value")}
             </button>
           </div>
-          <div className="fs-row-menu-separator" />
-          <div className="fs-row-menu-group">
-            <button className="danger" onClick={onDelete} role="menuitem" type="button">
-              {t("react.registry.secrets.delete", "Delete")}
-            </button>
-          </div>
+          {canDelete ? (
+            <>
+              <div className="fs-row-menu-separator" />
+              <div className="fs-row-menu-group">
+                <button className="danger" onClick={onDelete} role="menuitem" type="button">
+                  {t("react.registry.secrets.delete", "Delete")}
+                </button>
+              </div>
+            </>
+          ) : null}
         </RowActionMenu>
       </td>
     </tr>
@@ -119,6 +127,7 @@ function SecretRow({
  */
 export function RegistrySecretsPage() {
   const { t } = useI18n();
+  const canDelete = useHasCapability("administer_platform");
   const queryClient = useQueryClient();
   const [filters, setFilters] = useFilterState<SecretFilters>("secrets/filters", secretFiltersSchema, EMPTY_FILTERS);
   const [page, setPage] = useState(1);
@@ -235,16 +244,12 @@ export function RegistrySecretsPage() {
             onClear={() => updateFilters({ usage: "" })}
             values={{ usage: filters.usage }}
           />
-          <label className="fs-search">
-            <Search aria-hidden="true" />
-            <input
-              aria-label={t("react.registry.secrets.search", "Search secrets")}
-              onChange={(event) => updateFilters({ search: event.target.value })}
-              placeholder={t("react.registry.secrets.search_placeholder", "Search secrets…")}
-              type="search"
-              value={filters.search}
-            />
-          </label>
+          <DsSearchInput
+            aria-label={t("react.registry.secrets.search", "Search secrets")}
+            onValueChange={(value) => updateFilters({ search: value })}
+            placeholder={t("react.registry.secrets.search_placeholder", "Search secrets…")}
+            value={filters.search}
+          />
           <span aria-live="polite" className="fs-management-result-announcement">
             {t("react.registry.secrets.count", "Secrets: {value0}", { value0: String(rows.length) })}
           </span>
@@ -266,6 +271,7 @@ export function RegistrySecretsPage() {
             <tbody>
               {visible.map((secret) => (
                 <SecretRow
+                  canDelete={canDelete}
                   key={secret.id}
                   menuOpen={menuFor === secret.id}
                   onDelete={() => {

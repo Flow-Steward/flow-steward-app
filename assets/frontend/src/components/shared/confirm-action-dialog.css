@@ -18,7 +18,8 @@
 .fs-confirm-objects-more { color: var(--fs-text-tertiary); }
 
 /* Its own line, so a skimming reader cannot fold it into the consequence. */
-.fs-confirm-irreversible {
+.fs-confirm-irreversible,
+.fs-confirm-note {
   margin: 0;
   color: var(--fs-text-secondary);
   font-family: var(--fs-short-dialog-description-font);

@@ -55,7 +55,9 @@ def _probe(state, gateway) -> doctor_probe.InstallationDoctorProbe:
         root=state.root.parent,
         gateway=gateway,
         state=state,
-        config=SimpleNamespace(deployment_profile="compact", worker_processes=1),
+        config=SimpleNamespace(
+            deployment_profile="compact", worker_processes=1, environment="production"
+        ),
         log=doctor_probe.TemporaryDoctorLog(),
     )
 

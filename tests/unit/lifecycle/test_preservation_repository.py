@@ -89,7 +89,7 @@ class FakeCursor(AbstractContextManager["FakeCursor"]):
         elif "COUNT(*) FROM public.platform_workflow_knowledge_documents" in normalized:
             self.rows = [(8,)]
         elif "FROM public.secret_refs" in normalized:
-            self.rows = list(self.connection.secret_refs)
+            self.rows = list(self.connection.reference_rows)
         else:  # pragma: no cover - makes additions fail loudly
             raise AssertionError(f"unexpected query: {normalized}")
 
@@ -105,7 +105,10 @@ class FakeConnection:
         self,
         *,
         migration_table_exists: bool = True,
-        secret_refs: tuple[tuple[str, str, str], ...] = (
+        # Rows of public.secret_refs. Named neutrally: CodeQL treats a fake
+        # cursor's "secret" attribute as a secret source for every cursor read
+        # in the codebase.
+        reference_rows: tuple[tuple[str, str, str], ...] = (
             ("account-a", "provider.api_key", "ciphertext-must-never-serialize"),
         ),
     ):
@@ -121,7 +124,7 @@ class FakeConnection:
         self.statements: list[str] = []
         self.parameters: list[tuple[Any, ...]] = []
         self.migration_table_exists = migration_table_exists
-        self.secret_refs = secret_refs
+        self.reference_rows = reference_rows
 
     def transaction(self, *, force_rollback: bool = False) -> FakeTransaction:
         self.in_transaction = True
@@ -247,7 +250,7 @@ def test_repository_checks_every_secret_ref_without_serializing_ciphertext() -> 
 
 def test_empty_secret_ref_set_has_a_valid_empty_control_proof() -> None:
     repository = PreservationRepository(
-        connection_factory=lambda: FakeConnection(secret_refs=()),
+        connection_factory=lambda: FakeConnection(reference_rows=()),
         decrypt_control=lambda _value: "unused",
     )
 

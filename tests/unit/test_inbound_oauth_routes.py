@@ -234,7 +234,10 @@ def test_resource_must_be_this_installation(store, resource: str, error) -> None
     [
         ("openid", "invalid_scope"),
         ("offline_access jobs.read", ["jobs.read"]),
-        ("", None),
+        # ADR 0076 §5: an open request is stored open; the consent reads it as the
+        # person's role (operator, viewer) or the operational preset (admin offers).
+        ("", []),
+        ("offline_access", []),
     ],
 )
 def test_scope_handling(store, scope: str, expected) -> None:
@@ -244,12 +247,7 @@ def test_scope_handling(store, scope: str, expected) -> None:
         assert _query(response)["error"] == ["invalid_scope"]
         return
     request_id = _query(response)["request"][0]
-    stored = store.authorizations[request_id]["requested_scopes"]
-    if expected is None:
-        assert len(stored) == 7
-        assert "admin:all" not in stored
-    else:
-        assert stored == expected
+    assert store.authorizations[request_id]["requested_scopes"] == expected
 
 
 def test_unsupported_response_type(store) -> None:

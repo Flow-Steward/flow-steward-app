@@ -157,6 +157,16 @@ def test_scope_parsing() -> None:
     ]
 
 
+def test_explicit_scope_parsing_keeps_an_open_request_open() -> None:
+    """ADR 0076 §5: a client that names nothing is told apart from an explicit request."""
+    assert policy.parse_explicit_scopes(None) == []
+    assert policy.parse_explicit_scopes("") == []
+    assert policy.parse_explicit_scopes("offline_access") == []
+    assert policy.parse_explicit_scopes("offline_access jobs.read") == ["jobs.read"]
+    with pytest.raises(policy.InvalidScopeError):
+        policy.parse_explicit_scopes("openid")
+
+
 def test_pkce_is_s256_only() -> None:
     verifier = "v" * 43
     challenge = policy.pkce_s256_challenge(verifier)

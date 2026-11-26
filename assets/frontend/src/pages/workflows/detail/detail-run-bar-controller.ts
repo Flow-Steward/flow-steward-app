@@ -23,7 +23,8 @@ type Options = Readonly<{
   navigationBusy: boolean;
   historyDisabled: boolean;
   navigate: (action: () => Promise<boolean>) => Promise<boolean>;
-  roles: readonly unknown[];
+  /** The person's permissions (ADR 0076): Stop needs `jobs.write`. */
+  permissions: ReadonlySet<string>;
   timezone: string;
   confirmStop: () => Promise<boolean>;
   requestRunAgain?: (proof: SelectedTestRunProof) => Promise<boolean>;
@@ -110,7 +111,7 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
   const canonical = selectedRun.verifiedDetail ? buildCanonicalJobDetailView({ detail: selectedRun.verifiedDetail,
     detailEntity: record(selectedRun.verifiedDetail), runtimeEntity: record(selectedRun.verifiedDetail.runtime) }, t) : null;
   const verified = Boolean(canonical && canonical.jobId === selectedRun.selected?.jobId);
-  const canStop = verified && canMutateJob(options.roles) && !canonical?.isTerminal && isCancellableJobStatus(canonical?.statusCode);
+  const canStop = verified && canMutateJob(options.permissions) && !canonical?.isTerminal && isCancellableJobStatus(canonical?.statusCode);
   const stopBusy = Boolean(pendingStop && selectedRun.isCurrent(pendingStop.proof));
 
   function currentStopOwner(proof: SelectedTestRunProof): Options | null {
@@ -118,7 +119,7 @@ export function useWorkflowRunBarController(options: Options): CanvasRunBarProps
     if (!current?.selectedRun.isCurrent(proof) || current.selectedRun.selected?.jobId !== proof.jobId || !current.selectedRun.verifiedDetail) return null;
     const detail = current.selectedRun.verifiedDetail;
     const view = buildCanonicalJobDetailView({ detail, detailEntity: record(detail), runtimeEntity: record(detail.runtime) });
-    if (view.jobId !== proof.jobId || view.isTerminal || !canMutateJob(current.roles) || !isCancellableJobStatus(view.statusCode)) return null;
+    if (view.jobId !== proof.jobId || view.isTerminal || !canMutateJob(current.permissions) || !isCancellableJobStatus(view.statusCode)) return null;
     // Cache writes precede observer commits. Only restrict the already verified
     // current owner here; a cached row must never grant Stop authority.
     const cached = queryClient.getQueryData<JobDetail>(queryKeys.jobDetail(proof.jobId));

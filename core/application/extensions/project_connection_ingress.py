@@ -9,11 +9,17 @@ piece of connection state across untouched.
 Runtime-owned ingress fields (webhook status, update cursor, discovered chats)
 are not reachable here: only manifest-declared fields are accepted, and an
 undeclared key in the payload is ignored.
+
+With a selected connection (``connection_id``) the patch locks that row and,
+when a written field other than a poll interval changes value (the poll mode,
+a sync scope), moves its ``config_generation``: a poll that started under the old
+settings is then rejected with its events and cursor.
 """
 
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 from typing import Any
 
 from core.application.extensions.project_connection_state import (
@@ -63,6 +69,8 @@ def patch_project_connection_ingress(
     connection_type: str = "",
     account_id: str = "",
     ingress_schema: dict[str, Any] | None = None,
+    connection_id: str = "",
+    generation_exempt_fields: frozenset[str] | set[str] = frozenset(),
 ) -> dict[str, Any]:
     """Merge the supplied declared fields into `ingress_config`.
 
@@ -83,15 +91,82 @@ def patch_project_connection_ingress(
         )
     payload = _as_dict(input_payload)
 
-    existing = _as_dict(
-        store.get_project_connection(
+    selected_connection_id = _text(connection_id)
+    conn = getattr(store, "conn", None)
+    if selected_connection_id and conn is not None:
+        from core.infrastructure.db.db_pool import transaction_connection
+
+        transaction = transaction_connection(conn)
+    else:
+        transaction = nullcontext()
+    with transaction:
+        if selected_connection_id and conn is not None:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT connection_id FROM project_connections "
+                    "WHERE connection_id = %s FOR UPDATE",
+                    (selected_connection_id,),
+                )
+        lookup: dict[str, Any] = {
+            "project_id": normalized_project_id,
+            "extension_id": normalized_extension_id,
+            "extension_install_id": _text(extension_install_id),
+            "enabled_only": False,
+        }
+        if selected_connection_id:
+            lookup["connection_id"] = selected_connection_id
+        existing = _as_dict(store.get_project_connection(**lookup))
+        if (
+            selected_connection_id
+            and _text(existing.get("connection_id")) != selected_connection_id
+        ):
+            raise IngressPatchRejected(
+                "project_connection_not_found", "The selected connection was not found."
+            )
+        row, written, merged, generation_changed = _write_ingress_patch(
+            store,
+            existing=existing,
+            declared=declared,
+            payload=payload,
+            ingress_schema=ingress_schema,
             project_id=normalized_project_id,
             extension_id=normalized_extension_id,
-            extension_install_id=_text(extension_install_id),
-            enabled_only=False,
+            extension_install_id=extension_install_id,
+            connection_type=connection_type,
+            account_id=account_id,
+            generation_exempt_fields=frozenset(generation_exempt_fields),
         )
-    )
-    merged = copy.deepcopy(_as_dict(existing.get("ingress_config")))
+        if generation_changed and selected_connection_id and conn is not None:
+            from core.application.extensions.connection_poll_commit import (
+                bump_config_generation,
+            )
+
+            with conn.cursor() as cur:
+                bump_config_generation(cur, selected_connection_id)
+
+    return {
+        "values": {field: nested_get(merged, field) for field in declared},
+        "written_fields": written,
+        "connection_id": _text(row.get("connection_id")),
+    }
+
+
+def _write_ingress_patch(
+    store: Any,
+    *,
+    existing: dict[str, Any],
+    declared: list[str],
+    payload: dict[str, Any],
+    ingress_schema: dict[str, Any] | None,
+    project_id: str,
+    extension_id: str,
+    extension_install_id: str,
+    connection_type: str,
+    account_id: str,
+    generation_exempt_fields: frozenset[str],
+) -> tuple[dict[str, Any], list[str], dict[str, Any], bool]:
+    before = _as_dict(existing.get("ingress_config"))
+    merged = copy.deepcopy(before)
     written: list[str] = []
     for field in declared:
         if field not in payload:
@@ -123,17 +198,17 @@ def patch_project_connection_ingress(
         carried["ingress_config"] = merged
         row = _as_dict(
             store.upsert_project_connection(
-                project_id=normalized_project_id,
-                extension_id=normalized_extension_id,
+                project_id=project_id,
+                extension_id=extension_id,
                 **carried,
             )
         )
-
-    return {
-        "values": {field: nested_get(merged, field) for field in declared},
-        "written_fields": written,
-        "connection_id": _text(row.get("connection_id")),
-    }
+    generation_changed = any(
+        field not in generation_exempt_fields
+        and nested_get(before, field) != nested_get(merged, field)
+        for field in written
+    )
+    return row, written, merged, generation_changed
 
 
 __all__ = ["CONFIG_FIELDS", "IngressPatchRejected", "patch_project_connection_ingress"]

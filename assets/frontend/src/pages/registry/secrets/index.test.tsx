@@ -11,7 +11,10 @@ import {
   replaceCatalogSecretValue,
   updateCatalogSecret,
 } from "@/pages/registry/secrets/api";
+import { useHasCapability } from "@/lib/auth/capabilities";
 import { RegistrySecretsPage } from "@/pages/registry/secrets";
+
+vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 
 vi.mock("@/pages/registry/secrets/api", () => ({
   CATALOG_SECRETS_QUERY_KEY: ["secrets", "all"],
@@ -55,6 +58,7 @@ async function openRowAction(user: ReturnType<typeof userEvent.setup>, secretNam
 describe("RegistrySecretsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useHasCapability).mockReturnValue(true);
     vi.mocked(fetchCatalogSecrets).mockResolvedValue([shopToken, sharedKey]);
     vi.mocked(createCatalogSecret).mockResolvedValue(shopToken);
     vi.mocked(updateCatalogSecret).mockResolvedValue(shopToken);
@@ -194,5 +198,16 @@ describe("RegistrySecretsPage", () => {
     await waitFor(() => expect(within(dialog).getByText("Nothing uses this secret.")).toBeInTheDocument());
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(deleteCatalogSecret).toHaveBeenCalledWith("s2", "rev-0"));
+  });
+
+  it("lets an operator replace a value but not delete the secret", async () => {
+    // ADR 0066 amendment: deleting unbinds every consumer, so it is the admin's.
+    vi.mocked(useHasCapability).mockReturnValue(false);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Shop token" }));
+    expect(screen.getByRole("menuitem", { name: "Replace value" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
   });
 });

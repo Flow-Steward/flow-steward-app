@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from core.entrypoints.mcp.server_api_tool import McpToolResult, api_tool_response
 from core.entrypoints.mcp.server_runtime import mcp
 
@@ -10,6 +12,29 @@ from core.entrypoints.mcp.server_runtime import mcp
 def project_list() -> McpToolResult:
     """List projects visible to the caller."""
     return api_tool_response("project_list", locals())
+
+
+@mcp.tool()
+def project_create(project: dict[str, object]) -> McpToolResult:
+    """Create a project in a workspace the caller can manage.
+
+    Provide `name` and `workspace_id` in `project`. Optional project settings
+    include `description`, `project_rules`, `default_provider`, `default_model`,
+    `workflow_ids`, `operator_default_workflow_id` and `data_connection_ids`.
+    Returns the new project ID. Report a name conflict to the user.
+    """
+    return api_tool_response("project_create", locals())
+
+
+@mcp.tool()
+def project_update(project_id: UUID, changes: dict[str, object]) -> McpToolResult:
+    """Edit an existing project by its ID from project_list or project_create.
+
+    In `changes`, send only the project fields you want to edit, such as `name`
+    or `description`. An empty `description` clears it. The project API applies
+    its usual field permissions and validation.
+    """
+    return api_tool_response("project_update", locals())
 
 
 @mcp.tool()
@@ -89,7 +114,8 @@ def workflow_trigger(
 
     Discover workflows, read workflow_contract, and ask for missing required inputs
     before calling. For file inputs, send files with input_name, filename, mime_type,
-    and content_base64 (strict base64; 10 files, 1 MiB decoded total).
+    and content_base64 (strict base64; 10 files, 1 MiB decoded total). A list-of-files
+    input takes one entry per file with the same input_name, in order.
     Never send server paths, URLs or invented artifact IDs as files.
     Pass declared inputs in payload. Inputs with a configured default are fixed
     (`caller_may_supply: false` in workflow_contract) and must not be sent: the
@@ -102,8 +128,10 @@ def workflow_trigger(
 
 __all__ = [
     "project_connections",
+    "project_create",
     "project_jobs",
     "project_list",
+    "project_update",
     "workflow_contract",
     "workflow_list",
     "workflow_suggestions",

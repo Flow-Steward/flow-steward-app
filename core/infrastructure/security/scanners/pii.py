@@ -13,6 +13,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from pydantic import PrivateAttr
+
 from core.infrastructure.security.config import SECURITY_PII_SALT
 from core.infrastructure.security.models import ScanFinding, meets_severity_threshold
 from core.infrastructure.security.policy import PIIConfig
@@ -46,6 +48,59 @@ def _email_spans(text: str) -> Iterator[tuple[int, int]]:
             yield start.start(), address_end
 
 
+# A phone is written with a "+" country code or with separators. A bare digit run
+# (receipt 0045821, invoice 5551234567) is a document number, order ID or code, and
+# pseudonymizing it destroys extracted data for good, since the token is one-way.
+_SEP = r"[-.\s]"
+_PHONE_END = r"(?!\w|[.-]\d|\.\.)"
+_PHONE_US_COUNTRY = re.compile(
+    rf"(?<![\w.+-])(?:\+1{_SEP}?|1{_SEP})(?:\(\d{{3}}\){_SEP}?|\d{{3}}{_SEP}?)\d{{3}}{_SEP}?\d{{4}}"
+    + _PHONE_END
+)
+_PHONE_US_AREA = re.compile(
+    r"(?<![\w.+-])(?:"
+    rf"\(\d{{3}}\){_SEP}?\d{{3}}{_SEP}?\d{{4}}"  # (555) 123-4567
+    rf"|\d{{3}}{_SEP}\d{{3}}{_SEP}?\d{{4}}"  # 555-123-4567, 555 1234567
+    rf"|\d{{6}}{_SEP}\d{{4}}"  # 555123-4567
+    rf"){_PHONE_END}"
+)
+# A local number is written 555-1234. "123.4567" is a decimal and "125 1500" two
+# columns of an OCR'd table, so neither a dot nor a space makes a local phone.
+_PHONE_US_LOCAL = re.compile(rf"(?<![\w.+-])\d{{3}}-\d{{4}}{_PHONE_END}")
+_PHONE_INTERNATIONAL = re.compile(r"(?<![\w+])\+\d{1,3}(?:[-.\s]?\(?\d{1,5}\)?){1,6}(?![\w+])")
+# A number right after a document-number label is that document's number, unless the
+# label belongs to a phone ("Phone No. 555-123-4567", "Tel. Nr. +370 612 34567").
+_DOCUMENT_LABEL_BEFORE = re.compile(
+    r"(?:(?<!\w)(?:nr|no|nº|num|number|ref|id)\.?|[#№])\s*[:#]?\s*$", re.IGNORECASE
+)
+_PHONE_WORD_BEFORE = re.compile(
+    r"(?<!\w)(?:tel|telephone|phone|ph|mob|mobile|cell|fax|telefonas|telefon|telefono|tlf)"
+    r"\.?\s*$",
+    re.IGNORECASE,
+)
+_LABEL_LOOKBACK = 40
+
+
+def _after_document_label(text: str, start: int) -> bool:
+    before = text[max(0, start - _LABEL_LOOKBACK) : start]
+    label = _DOCUMENT_LABEL_BEFORE.search(before)
+    return label is not None and _PHONE_WORD_BEFORE.search(before[: label.start()]) is None
+
+
+def _phone_spans(
+    pattern: re.Pattern[str], *, min_digits: int = 0, max_digits: int = 15
+) -> Callable[[str], Iterator[tuple[int, int]]]:
+    def spans(text: str) -> Iterator[tuple[int, int]]:
+        for match in pattern.finditer(text):
+            digits = sum(char.isdigit() for char in match.group())
+            if min_digits <= digits <= max_digits and not _after_document_label(
+                text, match.start()
+            ):
+                yield match.span()
+
+    return spans
+
+
 # ---------------------------------------------------------------------------
 # PII detector definitions
 # ---------------------------------------------------------------------------
@@ -73,27 +128,25 @@ _DETECTORS: list[PIIDetector] = [
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(
-            r"(?<![\w.])\+?1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"
-        ),
+        regex=_phone_spans(_PHONE_US_COUNTRY),
         severity="medium",
         description="US phone number with country code",
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(r"(?<![\w.])\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"),
+        regex=_phone_spans(_PHONE_US_AREA),
         severity="medium",
         description="US phone number with area code",
     ),
     PIIDetector(
         pii_type="phone_us",
-        regex=re.compile(r"(?<![\w.-])\d{3}[-.\s]?\d{4}(?!\w|\.\d|\.\.)"),
+        regex=_phone_spans(_PHONE_US_LOCAL),
         severity="medium",
         description="US local phone number",
     ),
     PIIDetector(
         pii_type="phone_international",
-        regex=re.compile(r"\+\d{1,3}[-.\s]?\d{4,14}"),
+        regex=_phone_spans(_PHONE_INTERNATIONAL, min_digits=7),
         severity="medium",
         description="International phone number",
     ),
@@ -248,6 +301,11 @@ _DETECTOR_POLICY_KEY = {
 }
 
 
+class _PIIFinding(ScanFinding):
+    _span: tuple[int, int] = PrivateAttr()
+    _hard_redact: bool = PrivateAttr()
+
+
 class PIIGuard:
     """PII detection engine with pseudonymization and hard-redaction modes."""
 
@@ -264,8 +322,9 @@ class PIIGuard:
         token = hmac.new(self._hmac_key, value.encode(), hashlib.sha256).hexdigest()[:12]
         return f"[PII:{pii_type}:{token}]"
 
-    def _hard_redact(self, pii_type: str) -> str:
-        return f"[PII:{pii_type}:REDACTED]"
+    def _hard_redact(self, pii_type: str, number: int | None = None) -> str:
+        suffix = f"_{number}" if number is not None else ""
+        return f"[PII:{pii_type}:REDACTED{suffix}]"
 
     def scan(
         self,
@@ -273,11 +332,11 @@ class PIIGuard:
         surface: str,
         config: PIIConfig,
         **kwargs,
-    ) -> list[ScanFinding]:
+    ) -> list[_PIIFinding]:
         if not config.enabled or not text:
             return []
 
-        findings: list[ScanFinding] = []
+        findings: list[_PIIFinding] = []
 
         for detector in _DETECTORS:
             if not self._detector_enabled(config, detector.pii_type):
@@ -307,57 +366,59 @@ class PIIGuard:
                 if normalized_severity not in {"low", "medium", "high", "critical"}:
                     normalized_severity = "medium"
 
-                findings.append(
-                    ScanFinding(
-                        surface=surface,
-                        severity=cast(
-                            Literal["low", "medium", "high", "critical"],
-                            normalized_severity,
-                        ),
-                        rule_id=f"pii:{detector.pii_type}",
-                        action=cast(
-                            Literal["allow", "warn", "redact", "block"],
-                            action,
-                        ),
-                        redacted_preview=preview,
-                        scanner="pii",
-                        confidence=0.85,
-                        context={
-                            "pii_type": detector.pii_type,
-                            "description": detector.description,
-                        },
-                    )
+                finding = _PIIFinding(
+                    surface=surface,
+                    severity=cast(
+                        Literal["low", "medium", "high", "critical"],
+                        normalized_severity,
+                    ),
+                    rule_id=f"pii:{detector.pii_type}",
+                    action=cast(
+                        Literal["allow", "warn", "redact", "block"],
+                        action,
+                    ),
+                    redacted_preview=preview,
+                    scanner="pii",
+                    confidence=0.85,
+                    context={
+                        "pii_type": detector.pii_type,
+                        "description": detector.description,
+                    },
                 )
+                finding._span = (start, end)
+                finding._hard_redact = config.mode == "hard_redact"
+                findings.append(finding)
 
         return findings
 
-    def redact(self, text: str, findings: list[ScanFinding]) -> str:
+    def redact(self, text: str, findings: list[_PIIFinding]) -> str:
         """Apply redaction/pseudonymization to text based on findings."""
-        previews: dict[str, str] = {}
-        for finding in findings:
-            previews.setdefault(finding.rule_id, finding.redacted_preview)
-
-        replacements: list[tuple[int, int, str]] = []
-        for detector in _DETECTORS:
-            preview = previews.get(f"pii:{detector.pii_type}")
-            if preview is None:
+        ordered = sorted(
+            (finding for finding in findings if finding.action == "redact"),
+            key=lambda finding: (finding._span[0], -finding._span[1]),
+        )
+        replacements: list[tuple[_PIIFinding, int, int | None]] = []
+        numbers_by_rule: dict[str, dict[str, int]] = {}
+        for finding in ordered:
+            start, end = finding._span
+            if replacements and start < replacements[-1][1]:
+                # The first span represents the union. Equal starts prefer the longest span.
+                first, previous_end, number = replacements[-1]
+                replacements[-1] = (first, max(previous_end, end), number)
                 continue
+            number = None
+            if finding._hard_redact:
+                numbers = numbers_by_rule.setdefault(finding.rule_id, {})
+                number = numbers.setdefault(text[start:end], len(numbers) + 1)
+            replacements.append((finding, end, number))
 
-            validator = _VALIDATORS.get(detector.validator) if detector.validator else None
-            for start, end in detector.spans(text):
-                if validator and not validator(text[start:end]):
-                    continue
-                replacements.append((start, end, preview))
-
-        # Merge overlaps against the original offsets. The first span's preview
-        # represents the union, with the longer span winning equal starts.
         parts: list[str] = []
         cursor = 0
-        for start, end, preview in sorted(replacements, key=lambda span: (span[0], -span[1])):
-            if start < cursor:
-                cursor = max(cursor, end)
-                continue
-            parts.extend((text[cursor:start], preview))
+        for finding, end, number in replacements:
+            preview = finding.redacted_preview
+            if number is not None and len(numbers_by_rule[finding.rule_id]) > 1:
+                preview = self._hard_redact(finding.context["pii_type"], number)
+            parts.extend((text[cursor : finding._span[0]], preview))
             cursor = end
         parts.append(text[cursor:])
         return "".join(parts)

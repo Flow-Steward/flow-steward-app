@@ -844,9 +844,9 @@ class ProjectCommandServiceTasksMixin:
             meta_patch = self._attachment_metadata_patch(job_row, attachment_metadata)
             meta_patch["files"] = [dict(row) for row in attachment_metadata]
             if declared_direct_inputs:
-                final_inputs = dict(workflow_inputs)
-                for uploaded, stored in zip(attachment_rows, attachment_metadata, strict=True):
-                    final_inputs[uploaded["input_name"]] = dict(stored)
+                final_inputs = self._bind_stored_file_inputs(
+                    workflow_interface, workflow_inputs, attachment_rows, attachment_metadata
+                )
                 meta_patch["inputs"] = final_inputs
                 task_envelope["inputs"] = final_inputs
             meta_patch["task_envelope"] = dict(task_envelope)

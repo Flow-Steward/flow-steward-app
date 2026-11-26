@@ -54,6 +54,10 @@ export function extensionConnectionEligibility(
   if (row.enabled === false) {
     return { allowed: false, applicable: true, guidance: t("react.workflows.enable_this_connection_before_using_it", "Enable this connection before using it."), optionSuffix: t("react.registry.disabled", "Disabled") };
   }
+  // A connection whose sign-in configuration was removed or is incomplete cannot run.
+  if (textOrEmpty(row.credentials_status) === "credentials_unavailable") {
+    return { allowed: false, applicable: true, guidance: t("react.extensions.credentials_unavailable_configuration_removed_or_incomplete", "Credentials unavailable: its sign-in configuration was removed or is incomplete."), optionSuffix: t("react.registry.needs_attention", "Needs attention") };
+  }
   const oauth = objectOrEmpty(objectOrEmpty(row.connection_config).oauth);
   const lifecycle = textOrEmpty(row.oauth_lifecycle_status || oauth.lifecycle_status).toLowerCase();
   if (lifecycle && !["connected", "verified"].includes(lifecycle)) {

@@ -20,6 +20,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+import yaml
+
 from core.application.extensions.extension_catalog_install import (
     active_install_by_install_id,
     active_installs_for_extension,
@@ -143,6 +145,42 @@ class InstallAwareWorkflowDb:
         return getattr(self._db, name)
 
 
+def _require_typed_contract_minimum(item: WorkflowTemplateCatalogItem, bundle_yaml: str) -> None:
+    """A template with typed contract fields or review fields declares the Core that has them.
+
+    An older Core would import it and run it without the shape checks and the
+    review fields, so a template that declares an older minimum is refused here
+    rather than published as compatible with releases it cannot run on.
+    """
+    from core.application.workflows.workflow_feature_versions import (
+        TYPED_CONTRACT_CORE_MIN,
+        any_workflow_uses_typed_contract,
+        declares_at_least,
+    )
+
+    try:
+        parsed = yaml.safe_load(bundle_yaml)
+    except yaml.YAMLError:
+        return  # the import parser reports a malformed bundle with its own error
+    workflows = parsed.get("workflows") if isinstance(parsed, dict) else None
+    rows = (
+        [row for row in workflows if isinstance(row, dict)] if isinstance(workflows, list) else []
+    )
+    if not any_workflow_uses_typed_contract(rows):
+        return
+    if declares_at_least(item.compatible_min_version, TYPED_CONTRACT_CORE_MIN):
+        return
+    raise WorkflowTemplateCatalogError(
+        (
+            f"Workflow template '{item.item_id}' {item.version} uses typed contract fields or "
+            f"Approval review fields, which need Flow Steward {TYPED_CONTRACT_CORE_MIN} or later, "
+            f"but declares compatible.min '{item.compatible_min_version or 'none'}'."
+        ),
+        code="workflow_template_min_version_too_low",
+        status_code=409,
+    )
+
+
 class WorkflowTemplateCatalogCreateService:
     """Preflight and create one catalog workflow via workflow portability."""
 
@@ -201,6 +239,12 @@ class WorkflowTemplateCatalogCreateService:
             )
         return item
 
+    def load_checked_item_yaml(self, item: WorkflowTemplateCatalogItem) -> str:
+        """The verified bundle, refused when its content needs a later Core than it declares."""
+        bundle_yaml = self.load_item_yaml(item)
+        _require_typed_contract_minimum(item, bundle_yaml)
+        return bundle_yaml
+
     def load_item_yaml(self, item: WorkflowTemplateCatalogItem) -> str:
         """Download and verify one template bundle. Nothing else is fetched."""
         try:
@@ -242,7 +286,7 @@ class WorkflowTemplateCatalogCreateService:
         project_id: str = "",
     ) -> dict[str, Any]:
         item = self.require_item(item_id)
-        bundle_yaml = self.load_item_yaml(item)
+        bundle_yaml = self.load_checked_item_yaml(item)
         merged, outcomes, discovery = self._resolve_extensions(
             bundle_yaml,
             item_id=item.item_id,
@@ -277,7 +321,7 @@ class WorkflowTemplateCatalogCreateService:
         scope: ScopeContext | None = None,
     ) -> dict[str, Any]:
         item = self.require_item(item_id)
-        bundle_yaml = self.load_item_yaml(item)
+        bundle_yaml = self.load_checked_item_yaml(item)
         merged, outcomes, _discovery = self._resolve_extensions(
             bundle_yaml,
             item_id=item.item_id,

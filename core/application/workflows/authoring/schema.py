@@ -17,6 +17,10 @@ from core.application.workflows.workflow_definition_validation import (
     WAITING_STEP_KINDS,
     step_outcomes,
 )
+from core.application.workflows.workflow_feature_versions import (
+    TYPED_CONTRACT_CORE_MIN,
+    TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN,
+)
 from core.application.workflows.workflow_portability import BUNDLE_KIND, SCHEMA_VERSION
 from core.application.workflows.workflow_step_config_contracts import STEP_CONFIG_ALLOWED_KEYS
 from core.infrastructure.config.installation_mode import installation_mode
@@ -87,6 +91,28 @@ _GROUP_NOT_CONVERTIBLE = (
 )
 
 
+_APPROVAL_REVIEW_GUIDANCE = (
+    "override.approval.review gives the person typed fields to check and correct before "
+    "deciding. Each of review.fields is a workflow contract field (name, label, type, "
+    "required, options, items, properties, min_items, max_items, format, description) "
+    "plus editable (the person may change it) and from (its initial value, the same "
+    "selector syntax as an invoke_workflow input mapping: "
+    "message.step.<step_id>.artifacts.<name>, state.<path> or literal:<json>). A field "
+    "without a type is a paragraph; secret fields are refused, and a required field that "
+    "is not editable needs a from. review.original names a file or a list of files shown "
+    "beside the fields; review.fields_from_workflow is an editor hint only. On approve the "
+    "checked values become the step's outputs message.step.<step_id>.artifacts.<field>, "
+    "which later steps map like any other output; message.step.<step_id>.artifacts.comment "
+    "carries the reviewer's comment, which is the feedback on the rejected branch, and "
+    "artifacts.decision is approved or rejected. Decisions send corrections as values "
+    "(job_approval_decide values): editable fields only, typed as listed. A template or "
+    "extension bundle that uses review or the contract shape keys declares the first Core "
+    "version that has them, or its import is refused: the catalog entry's "
+    f"compatible.min {TYPED_CONTRACT_CORE_MIN} or later, the bundle's runtime.compatibility.platform_min "
+    f"{TYPED_WORKFLOW_CONTRACT_PLATFORM_MIN} or later."
+)
+
+
 class WorkflowAuthoringSchema:
     """Expose existing schemas with the persisted locations their consumers read."""
 
@@ -145,6 +171,45 @@ class WorkflowAuthoringSchema:
                 "connector_id": "installed_tool",
                 "connector_install_id": "installed_extension",
                 "override": {kind: {"operation_id": "send"}},
+            }
+        elif kind == "approval":
+            result["review_guidance"] = _APPROVAL_REVIEW_GUIDANCE
+            result["example_step"] = {
+                "step_id": "check_before_accounting",
+                "step_kind": kind,
+                "override": {
+                    kind: {
+                        "message": "Compare the recognized document with the original",
+                        "approve_label": "Export to accounting",
+                        "reject_label": "Recognize again",
+                        "review": {
+                            "original": "state.inputs.files",
+                            "fields_from_workflow": "accounting_export",
+                            "fields": [
+                                {
+                                    "name": "supplier",
+                                    "type": "string",
+                                    "required": True,
+                                    "editable": True,
+                                    "from": "message.step.recognize.artifacts.supplier",
+                                },
+                                {
+                                    "name": "total",
+                                    "type": "number",
+                                    "required": True,
+                                    "editable": True,
+                                    "from": "message.step.recognize.artifacts.total",
+                                },
+                                {
+                                    "name": "confidence",
+                                    "type": "number",
+                                    "editable": False,
+                                    "from": "message.step.recognize.artifacts.confidence",
+                                },
+                            ],
+                        },
+                    }
+                },
             }
         elif kind == "agent":
             result["example_step"] = {
@@ -490,7 +555,7 @@ class WorkflowAuthoringSchema:
                 },
                 "interface": {
                     "persisted_location": "workflow.settings.callable",
-                    "description": "The public boundary: trigger_channels, expected_inputs and expected_outputs. report_output names one required output of type object that holds a report snapshot written by a Template step in format report (ADR 0059). Change it with the update_interface operation (a shallow patch; null removes a key), never with a raw settings write.",
+                    "description": "The public boundary: trigger_channels, expected_inputs and expected_outputs. A field may also declare its shape: items for an array element {type, options?, format?, properties?} (several files: type array with items.type file), properties for an object (sub-fields in the same model, at most 3 levels deep), min_items/max_items for an array, and format (date, date-time, time, email, uri) for string or paragraph; each is checked only when declared. report_output names one required output of type object that holds a report snapshot written by a Template step in format report (ADR 0059). Change it with the update_interface operation (a shallow patch; null removes a key), never with a raw settings write.",
                 },
                 "hook": {
                     "persisted_location": "steps[].override.invoke_workflow.hook",

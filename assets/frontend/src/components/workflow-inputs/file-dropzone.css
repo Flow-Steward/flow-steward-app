@@ -1,0 +1,180 @@
+/* Files for a form field (design: "New run" form): a dashed drop zone with a
+   browse link and the limits, then the chosen files as one bordered list. */
+.fs-dropzone-field {
+  display: grid;
+  gap: var(--fs-space-100);
+  min-width: 0;
+}
+
+.fs-dropzone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-150);
+  min-width: 0;
+  padding: var(--fs-space-200);
+  border: 1.5px dashed var(--fs-border-default);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-canvas);
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.fs-dropzone[data-over="true"] {
+  border-color: var(--fs-action-primary);
+  background: var(--fs-action-primary-wash);
+}
+
+/* While files hover the zone, its children must not end the drag. */
+.fs-dropzone[data-over="true"] * {
+  pointer-events: none;
+}
+
+.fs-dropzone[data-disabled="true"] {
+  opacity: 0.6;
+}
+
+.fs-dropzone-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  background: var(--fs-bg-surface);
+  color: var(--fs-text-secondary);
+}
+
+.fs-dropzone-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fs-dropzone-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  color: var(--fs-text-primary);
+}
+
+/* The browse link holds the hidden input, so a click anywhere on it opens the picker. */
+.fs-dropzone-pick {
+  position: relative;
+  border-radius: 2px;
+  color: var(--fs-action-primary);
+  font-weight: var(--fs-type-weight-medium);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.fs-dropzone-pick:focus-within {
+  box-shadow: var(--fs-focus-ring);
+}
+
+.fs-dropzone[data-disabled="true"] .fs-dropzone-pick {
+  cursor: not-allowed;
+}
+
+.fs-dropzone-hint {
+  color: var(--fs-text-tertiary);
+}
+
+.fs-dropzone-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-100);
+  color: var(--fs-text-secondary);
+}
+
+.fs-dropzone-clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fs-action-primary);
+  font-weight: var(--fs-type-weight-medium);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.fs-dropzone-clear:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.fs-dropzone-files {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--fs-border-subtle);
+  border-radius: var(--fs-radius-container);
+  list-style: none;
+}
+
+.fs-dropzone-file {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--fs-space-100);
+  min-height: 48px;
+  padding: var(--fs-space-050) var(--fs-space-075) var(--fs-space-050) var(--fs-space-150);
+  border-bottom: 1px solid var(--fs-border-subtle);
+}
+
+.fs-dropzone-file:last-child {
+  border-bottom: 0;
+}
+
+.fs-dropzone-file-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--fs-text-tertiary);
+}
+
+/* The head shrinks with an ellipsis; the tail with the extension always shows.
+   pre, not nowrap: a space where the name is cut must not collapse. */
+.fs-dropzone-file-name {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+
+.fs-dropzone-file-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fs-dropzone-file-tail {
+  flex: none;
+}
+
+.fs-dropzone-file-size {
+  color: var(--fs-text-tertiary);
+  font-family: var(--ff-data);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-dropzone {
+    transition: none;
+  }
+}
+
+/* Hidden from sight while files hover; still in the page for focus and screen readers. */
+.fs-dropzone-pick[data-hidden="true"] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}

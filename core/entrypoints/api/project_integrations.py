@@ -17,6 +17,10 @@ from core.application.extensions.external_effects import (
     declared_features,
     notification_target_kind,
 )
+from core.application.extensions.notification_capability import (
+    group_provider_connections,
+    notification_connection_view,
+)
 from core.application.management import ServiceError, ServiceForbiddenError
 from core.application.management.command_models import (
     ProjectNotificationDispatchInput,
@@ -260,6 +264,11 @@ def create_project_integrations_router(
                             or extension_row.get("provider_type_key")
                             or "task_provider"
                         ).strip()
+                    connection_view = (
+                        notification_connection_view(extension_row, payload)
+                        if provider_type_key == "notification_provider"
+                        else {"notification_target_kind": notification_target_kind(extension_row)}
+                    )
                     project_providers.append(
                         {
                             "provider_key": extension_id,
@@ -288,7 +297,7 @@ def create_project_integrations_router(
                                 ]
                                 or declared_features(extension_row)
                             ),
-                            "notification_target_kind": notification_target_kind(extension_row),
+                            **connection_view,
                             "notification_recipient_format": notification_recipient_format(
                                 extension_row
                             ),
@@ -305,7 +314,7 @@ def create_project_integrations_router(
 
         return {
             "project_id": project_id,
-            "project_providers": project_providers,
+            "project_providers": group_provider_connections(project_providers),
         }
 
     @router.post("/api/projects/{project_id}/providers/bind")

@@ -16,6 +16,23 @@ from .query_services_job_core_mixin import job_page_window, job_status_filter_va
 _APPROVALS_PAGE_MAX = 200
 
 
+def _review_roots(bl: Any, job_ids: list[str]) -> dict[str, dict[str, Any]]:
+    """The top of each approval holder's Invoke chain; none when the store cannot say."""
+    reader = getattr(bl, "read_review_roots", None)
+    ids = [job_id for job_id in job_ids if job_id]
+    if not callable(reader) or not ids:
+        return {}
+    from core.application.workflows.approval_waiting_propagation import invoke_chain_max_depth
+
+    try:
+        roots = reader(job_ids=ids, max_depth=max(1, invoke_chain_max_depth()))
+    except Exception as exc:
+        # The list still answers: each job then opens as itself.
+        logger.warning("read_review_roots failed: %s", exc)
+        return {}
+    return roots if isinstance(roots, dict) else {}
+
+
 class JobQueryServiceQueueMixin:
     def list_awaiting_approval_jobs(
         self, *, scope: ScopeContext | None = None
@@ -34,13 +51,22 @@ class JobQueryServiceQueueMixin:
             # not. Fail loudly instead (AUDIT-038 symptom d).
             logger.warning("list_awaiting_approval_jobs failed: %s", exc)
             raise ServiceUnavailableError("Approvals queue unavailable") from exc
-        return [
-            AwaitingApprovalJobView.model_validate(
-                self._serialize_awaiting_approval_job_row(dict(job))
-            )
+        rows = [
+            self._serialize_awaiting_approval_job_row(dict(job))
             for job in (jobs or [])
             if isinstance(job, dict) and job_row_in_scope(resolved, job)
         ]
+        roots = _review_roots(bl, [str(row.get("id") or "") for row in rows])
+        for row in rows:
+            root = roots.get(str(row.get("id") or ""))
+            # A chain stays inside one project; anything else is its own root.
+            if root and str(root.get("root_project_id") or "") == str(row.get("project_id") or ""):
+                row["root_job_id"] = str(root.get("root_job_id") or "") or row.get("id")
+                row["root_workflow"] = root.get("root_workflow") or row.get("selected_workflow")
+            else:
+                row["root_job_id"] = row.get("id")
+                row["root_workflow"] = row.get("selected_workflow")
+        return [AwaitingApprovalJobView.model_validate(row) for row in rows]
 
     def page_awaiting_approval_jobs(
         self,

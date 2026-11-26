@@ -14,6 +14,7 @@ import {
   saveExtensionOAuthConfiguration,
   startExtensionOAuthAuthorization,
 } from "@/pages/extensions/extension-oauth-api";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/extensions/extension-oauth-api", () => ({
   deleteExtensionOAuthConfiguration: vi.fn(),
@@ -118,7 +119,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     ["viewer", false],
   ] as const)("shows global lifecycle controls to %s only when authorized", (role, visible) => {
     render(
-      <AuthContext.Provider value={{ session: { roles: [role] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: [role], user: { roles: [role], permissions: permissionsForRoles([role]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           detailExtension={{ extension_id: "fixture.extension", active: true } as never}
@@ -145,7 +146,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     const handleToggle = vi.fn();
     const handleUninstall = vi.fn();
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           busyById={{ "fixture.extension": "health" }}
@@ -170,7 +171,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
   it("shows administrators the code review folded, in plain words, with file and line", () => {
     const props = panelProps();
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <ExtensionDetailPanel
           {...props}
           detailExtension={{
@@ -223,7 +224,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
 
   it("describes Uninstall the same way for every extension", () => {
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           detailExtension={{ extension_id: "fixture.extension", active: true } as never}
@@ -330,7 +331,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           activeManifestPage={mail}
@@ -388,7 +389,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     function renderLocked(activeManifestPage: Record<string, unknown>, roles = ["admin"]) {
       const setActiveExtensionPageId = vi.fn();
       render(
-        <AuthContext.Provider value={{ session: { roles } } as never}>
+        <AuthContext.Provider value={{ session: { roles, user: { roles, permissions: permissionsForRoles(roles) } } } as never}>
           <ExtensionDetailPanel
             {...panelProps()}
             activeManifestPage={activeManifestPage}
@@ -471,7 +472,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     });
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           activeManifestPage={service}
@@ -518,7 +519,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["viewer"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["viewer"], user: { roles: ["viewer"], permissions: permissionsForRoles(["viewer"]) } } } as never}>
         <ExtensionDetailPanel
           {...panelProps()}
           activeManifestPage={mail}
@@ -577,7 +578,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["admin"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}>
           <ExtensionDetailPanel
             {...panelProps()}
@@ -657,7 +658,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}>
           <ExtensionDetailPanel
             {...panelProps()}
@@ -834,7 +835,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     }
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>
       </AuthContext.Provider>,
     );
@@ -958,7 +959,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}>
           <ExtensionDetailPanel
             {...panelProps()}
@@ -1019,7 +1020,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     });
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}>
           <ExtensionDetailPanel
             {...panelProps()}
@@ -1143,7 +1144,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     }
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>
       </AuthContext.Provider>,
     );
@@ -1253,7 +1254,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     }
 
     render(
-      <AuthContext.Provider value={{ session: { roles: ["viewer"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["viewer"], user: { roles: ["viewer"], permissions: permissionsForRoles(["viewer"]) } } } as never}>
         <QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>
       </AuthContext.Provider>,
     );
@@ -1314,7 +1315,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
     };
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+      <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
         <QueryClientProvider client={queryClient}>
           <ExtensionDetailPanel
             {...panelProps()}
@@ -1380,7 +1381,7 @@ describe("ExtensionDetailPanel marketplace links", () => {
         );
       }
       render(
-        <AuthContext.Provider value={{ session: { roles: ["operator"] } } as never}>
+        <AuthContext.Provider value={{ session: { roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never}>
           <QueryClientProvider client={queryClient}><Harness /></QueryClientProvider>
         </AuthContext.Provider>,
       );

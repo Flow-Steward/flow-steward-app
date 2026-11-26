@@ -312,7 +312,11 @@ def create_workflow_with_definition(
     )
     if blocking:
         raise WorkflowDefinitionChangeError("The workflow definition has blocking issues", blocking)
-    settings = dict(data.get("settings") or {})
+    from core.application.registry.workflow_operator_form_checks import portable_settings
+
+    # A created workflow starts without an operator acknowledgement (ADR 0075):
+    # imports, templates and generated children have no admin who confirmed it here.
+    settings = dict(portable_settings(dict(data.get("settings") or {})))
     if ANNOTATIONS_SETTING in settings:
         try:
             settings[ANNOTATIONS_SETTING] = normalize_portable_annotations(

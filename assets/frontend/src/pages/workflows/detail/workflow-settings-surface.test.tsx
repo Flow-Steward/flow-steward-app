@@ -5,6 +5,7 @@ import { createMemoryRouter, RouterProvider } from "react-router";
 
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 import { WorkflowsOverviewPage } from "@/pages/workflows/overview";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 const workflowId = "lazy-settings-fixture";
 const projectId = "project-settings-fixture";
@@ -30,7 +31,7 @@ function auth(role: "admin" | "operator"): AuthContextValue {
       user: {
         id: "settings-fixture-user", email: "settings-fixture@example.invalid",
         username: "settings-fixture", display_name: "Settings fixture",
-        roles: [role], account_id: "settings-fixture-account",
+        roles: [role], permissions: permissionsForRoles([role]), account_id: "settings-fixture-account",
         account_ids: ["settings-fixture-account"], account_memberships: [],
         timezone: "UTC", locale: "en",
       },
@@ -52,6 +53,10 @@ type FixtureOptions = {
   failSecretOnce?: boolean;
   failFileOnce?: boolean;
   steps?: unknown[];
+  /** The contract's operator block (ADR 0075). */
+  operator?: Record<string, unknown>;
+  /** A save that changes settings.operator is refused with these issues. */
+  operatorRefusal?: unknown[];
 };
 
 function fixture(options: FixtureOptions = {}) {
@@ -86,6 +91,9 @@ function fixture(options: FixtureOptions = {}) {
     requested.push({ method, path, body, cache: init?.cache || (input instanceof Request ? input.cache : undefined) });
     if (method === "PATCH" && path === `/api/workflows/${workflowId}`) {
       if (options.patchError) return json({ detail: options.patchError }, 409);
+      if (options.operatorRefusal) {
+        return json({ detail: { code: "workflow_operator_settings_invalid", message: "The operator form cannot be published with these issues.", issues: options.operatorRefusal } }, 400);
+      }
       const patch = body as Record<string, unknown>;
       expect(patch.expected_revision).toBe(detail.revision);
       Object.assign(detail, patch, { revision: detail.revision + 1 });
@@ -129,7 +137,7 @@ function fixture(options: FixtureOptions = {}) {
         const publicInterface = options.synthesizeEmptySchema && stored.input_mode === "json_schema" && !Object.keys((stored.input_schema || {}) as Record<string, unknown>).length
           ? { ...stored, input_schema: { type: "object", additionalProperties: false } }
           : stored;
-        return json({ ...detail, interface: publicInterface, definition_issues: [] });
+        return json({ ...detail, interface: publicInterface, definition_issues: [], ...(options.operator ? { operator: options.operator } : {}) });
       }
       if (path === `/api/workflows/${workflowId}/export-policy`) return json(portability);
       if (path === `/api/workflows/${workflowId}/triggers`) return json({ incoming_webhooks: [], provider_triggers: [], catalog: [] });
@@ -515,11 +523,11 @@ function pageTabNames() {
 }
 
 const CHANNEL_TABS = [
-  { name: "no channel", callable: { enabled: true, trigger_channels: ["ui"] }, tabs: ["Overview", "Projects", "Smart setup", "Automation", "History"] },
-  { name: "webhook", callable: { enabled: true, trigger_channels: ["webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "Webhook", "Automation", "History"] },
-  { name: "schedule", callable: { enabled: true, trigger_channels: ["schedule"] }, tabs: ["Overview", "Projects", "Smart setup", "Schedules", "Automation", "History"] },
-  { name: "both", callable: { enabled: true, trigger_channels: ["schedule", "webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "Webhook", "Schedules", "Automation", "History"] },
-  { name: "both with the interface off", callable: { enabled: false, trigger_channels: ["schedule", "webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "Automation", "History"] },
+  { name: "no channel", callable: { enabled: true, trigger_channels: ["ui"] }, tabs: ["Overview", "Projects", "Smart setup", "For operators", "Automation", "History"] },
+  { name: "webhook", callable: { enabled: true, trigger_channels: ["webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "For operators", "Webhook", "Automation", "History"] },
+  { name: "schedule", callable: { enabled: true, trigger_channels: ["schedule"] }, tabs: ["Overview", "Projects", "Smart setup", "For operators", "Schedules", "Automation", "History"] },
+  { name: "both", callable: { enabled: true, trigger_channels: ["schedule", "webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "For operators", "Webhook", "Schedules", "Automation", "History"] },
+  { name: "both with the interface off", callable: { enabled: false, trigger_channels: ["schedule", "webhook"] }, tabs: ["Overview", "Projects", "Smart setup", "For operators", "Automation", "History"] },
 ];
 
 it.each(CHANNEL_TABS)("lists the workflow page tabs in order for $name", async ({ callable, tabs }) => {
@@ -538,7 +546,7 @@ it("puts Hooks after Projects only when the workflow declares hooks", async () =
   const view = renderJourney(`${rootPath}?project_id=${projectId}`);
   try {
     await screen.findByRole("heading", { name: "Shipping status workflow" });
-    expect(pageTabNames()).toEqual(["Overview", "Projects", "Hooks", "Smart setup", "Schedules", "Automation", "History"]);
+    expect(pageTabNames()).toEqual(["Overview", "Projects", "Hooks", "Smart setup", "For operators", "Schedules", "Automation", "History"]);
   } finally { view.dispose(); }
 });
 
@@ -552,7 +560,7 @@ it("shows only Overview and Projects to an operator", async () => {
 });
 
 it.each([
-  ["smart-setup", "Smart setup"], ["webhook", "Webhook"], ["schedules", "Schedules"], ["automation", "Automation"], ["history", "History"],
+  ["smart-setup", "Smart setup"], ["operator", "For operators"], ["webhook", "Webhook"], ["schedules", "Schedules"], ["automation", "Automation"], ["history", "History"],
 ])("selects the %s tab from ?tab=", async (key, label) => {
   const state = fixture({ callable: { enabled: true, trigger_channels: ["schedule", "webhook"] } }); const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=${key}`);
   try {
@@ -571,13 +579,13 @@ it("shows a channel's tab at once when it is ticked on Smart setup, and hides it
   const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=smart-setup`);
   try {
     await openSettings();
-    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "Automation", "History"]);
+    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "For operators", "Automation", "History"]);
     await user.click(screen.getByLabelText("Schedule"));
-    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "Schedules", "Automation", "History"]);
+    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "For operators", "Schedules", "Automation", "History"]);
     await user.click(screen.getByLabelText("Incoming Webhook"));
-    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "Webhook", "Schedules", "Automation", "History"]);
+    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "For operators", "Webhook", "Schedules", "Automation", "History"]);
     await user.click(screen.getByLabelText("Schedule"));
-    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "Webhook", "Automation", "History"]);
+    expect(pageTabNames()).toEqual(["Overview", "Projects", "Smart setup", "For operators", "Webhook", "Automation", "History"]);
     // Nothing was saved to show them.
     expect(state.requested.filter(({ method }) => method === "PATCH")).toEqual([]);
   } finally { view.dispose(); }
@@ -860,5 +868,63 @@ it.each(["root", "member"])("keeps a literal __proto__ %s key when its visual la
     const properties = kind === "root" ? saved.properties : (saved.properties.customer as { properties: Record<string, unknown> }).properties;
     expect(Object.hasOwn(properties, "__proto__")).toBe(true);
     expect(properties["__proto__"]).toMatchObject({ type: "string", title: "Odd revised" });
+  } finally { view.dispose(); }
+});
+
+// ADR 0075: Workflow Settings → For operators.
+const operatorBlock = {
+  workflow_id: workflowId, workflow_name: "Shipping status workflow", workflow_revision: 7, title: "Shipping status workflow",
+  published: false, runnable: false, effects_acknowledged: false, settings: null, filters: [], issues: [],
+  form_fields: [
+    { name: "amount", kind: "number", widget: "number", widgets: ["number"], label: "amount", required: true, options: [], sub_fields: [] },
+    { name: "carrier", kind: "select", widget: "select", widgets: ["select", "radio", "button_group"], label: "carrier", required: false, options: ["dhl", "ups"], sub_fields: [] },
+  ],
+  input_schema: { type: "object", required: ["amount"], properties: { amount: { type: "number" }, carrier: { type: "string", enum: ["dhl", "ups"] } } },
+  output_schema: { type: "object", properties: {} },
+  compatibility: { condition_operators_by_kind: { number: ["=="], select: ["=="] }, result_displays: ["auto"], column_formats: ["auto"] },
+};
+
+async function openOperatorField(user: ReturnType<typeof userEvent.setup>, name: string) {
+  await waitFor(() => expect(screen.getByTestId(`operator-field-row-${name}`)).toBeInTheDocument());
+  const trigger = screen.getAllByRole("button").find((button) => within(button).queryByTestId(`operator-field-row-${name}`));
+  if (!trigger) throw new Error(`no row for ${name}`);
+  await user.click(trigger);
+}
+
+it("saves the operator form whole with the workflow settings", async () => {
+  const state = fixture({ callable: { enabled: true, trigger_channels: ["ui"] }, operator: operatorBlock }); const user = userEvent.setup();
+  const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=operator`);
+  try {
+    await openOperatorField(user, "carrier");
+    await user.click(screen.getByRole("tab", { name: "Presentation" }));
+    await user.type(screen.getByRole("textbox", { name: "Label of dhl" }), "DHL Express");
+    await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
+    await waitFor(() => expect(state.requested.filter(({ method }) => method === "PATCH")).toHaveLength(1));
+    const body = state.requested.find(({ method }) => method === "PATCH")?.body as { settings: Record<string, unknown> };
+    expect(body.settings.callable).toMatchObject({ trigger_channels: ["ui"] });
+    expect(body.settings.operator).toEqual({
+      published: false, menu_title: "", effects_acknowledged: null,
+      submission: { mode: "bulk", target_input: "" },
+      form: { order: [], fields: { carrier: { option_labels: { dhl: "DHL Express" } } } },
+      result: { order: [], fields: {} },
+      list: { columns: [], filters: [] },
+    });
+    expect(state.unexpected).toEqual([]);
+  } finally { view.dispose(); }
+});
+
+it("keeps a refused operator form on screen with the issue at its field", async () => {
+  const issue = { code: "form.hidden_required_without_default", message: "'amount' is required and hidden, but the contract gives it no default", path: "settings.operator.form.fields.amount.hidden", severity: "error" };
+  const state = fixture({ callable: { enabled: true, trigger_channels: ["ui"] }, operator: operatorBlock, operatorRefusal: [issue] }); const user = userEvent.setup();
+  const view = renderJourney(`${rootPath}?project_id=${projectId}&tab=operator`);
+  try {
+    await openOperatorField(user, "amount");
+    await user.click(screen.getByRole("switch", { name: "Hidden from the operator" }));
+    await user.click(screen.getByRole("button", { name: "Save workflow settings" }));
+    await waitFor(() => expect(screen.getByText("The operator form was not saved. Fix the issues shown at its fields.")).toBeInTheDocument());
+    await waitFor(() => expect(within(screen.getByTestId("operator-field-panel-amount")).getByText(issue.message)).toBeInTheDocument());
+    // The draft stays as edited.
+    expect(screen.getByRole("switch", { name: "Hidden from the operator" })).toBeChecked();
+    expect(state.requested.filter(({ method }) => method === "PATCH")).toHaveLength(1);
   } finally { view.dispose(); }
 });

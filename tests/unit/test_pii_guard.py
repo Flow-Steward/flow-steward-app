@@ -44,7 +44,7 @@ class TestDetection:
             (
                 "Email a@example.com or news@example.org.",
                 ["a@example.com", "news@example.org"],
-                "Email [PII:email:REDACTED] or [PII:email:REDACTED].",
+                "Email [PII:email:REDACTED_1] or [PII:email:REDACTED_2].",
             ),
             (
                 "Alias alice@example.com-archive",
@@ -86,8 +86,8 @@ class TestDetection:
         findings = guard.scan(text, "inbound", config)
         assert any("phone" in f.rule_id for f in findings)
 
-    def test_us_phone_without_separators_before_sentence_period(self, guard, config):
-        text = "Call 5551234567."
+    def test_us_phone_before_sentence_period(self, guard, config):
+        text = "Call 555-123-4567."
         findings = guard.scan(text, "inbound", config)
         assert any(f.rule_id == "pii:phone_us" for f in findings)
 
@@ -154,6 +154,84 @@ class TestDetection:
         assert all(f.rule_id != "pii:ipv4" for f in findings)
 
 
+def _phone_values(guard: PIIGuard, text: str) -> list[str]:
+    findings = guard.scan(text, "outbound", PIIConfig(mode="allow"))
+    return [f.redacted_preview for f in findings if f.rule_id.startswith("pii:phone")]
+
+
+class TestPhoneShape:
+    """A phone has separators or a "+" country code; a bare digit run is a document number."""
+
+    @pytest.mark.parametrize(
+        ("text", "phone"),
+        [
+            ("Call 555-123-4567 now.", "555-123-4567"),
+            ("Call (555) 123-4567 now.", "(555) 123-4567"),
+            ("Call (555)123-4567 now.", "(555)123-4567"),
+            ("Call 555.123.4567 now.", "555.123.4567"),
+            ("Call 555 123 4567 now.", "555 123 4567"),
+            ("Call 1-555-123-4567 now.", "1-555-123-4567"),
+            ("Call +1 (555) 123-4567 now.", "+1 (555) 123-4567"),
+            ("Call +15551234567 now.", "+15551234567"),
+            ("Dial 555-1234 for the front desk.", "555-1234"),
+            ("Reach us at +44-2071234567.", "+44-2071234567"),
+            ("Office: +44 20 7946 0958", "+44 20 7946 0958"),
+            ("Mob. +370 612 34567", "+370 612 34567"),
+            ("Tel. +49 (30) 1234567", "+49 (30) 1234567"),
+            ("Phone No. 555-123-4567", "555-123-4567"),
+            ("Phone #: (555) 123-4567", "(555) 123-4567"),
+            ("Tel. Nr. +370 612 34567", "+370 612 34567"),
+            ("Telefono Nr. 555-1234", "555-1234"),
+        ],
+    )
+    def test_written_phones_are_detected(self, guard, text, phone):
+        assert phone in _phone_values(guard, text)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            # The 2026-11-22 demo: Docling OCR of a receipt and an invoice.
+            "Kvito Nr. 0045821",
+            "MF Nr. 0003418",
+            '{"receipt_number": "0045821", "invoice_number": "MF Nr. 0003418"}',
+            "Receipt 0045821",
+            "Invoice 5551234567 issued 2026-11-22",
+            "Invoice No. 555-1234",
+            "Invoice No: 2024-1234567",
+            "Rechnung Nr. 555-123-4567",
+            "Order #555-1234",
+            "Order # 5551234567",
+            "Order ID: 15551234567",
+            "Ref. 555-1234",
+            "№ 555-1234",
+            "Code 4821937",
+            "Total 1234567 EUR",
+            "Rate 123.4567",
+            "2 x 125 1500",
+            "SKU ABC-555-1234",
+            "Serial 555-123-4567-89",
+        ],
+    )
+    def test_document_numbers_are_not_phones(self, guard, text):
+        assert _phone_values(guard, text) == []
+
+    def test_pseudonymize_keeps_document_numbers_in_extracted_fields(self, guard):
+        text = '{"receipt_number": "0045821", "invoice_number": "MF Nr. 0003418"}'
+        config = PIIConfig(mode="pseudonymize")
+
+        findings = guard.scan(text, "outbound", config)
+
+        assert guard.redact(text, findings) == text
+
+    def test_pseudonymize_still_masks_the_phone_next_to_a_document_number(self, guard):
+        text = "Kvito Nr. 0045821, tel. +370 612 34567"
+        config = PIIConfig(mode="pseudonymize")
+
+        redacted = guard.redact(text, guard.scan(text, "outbound", config))
+
+        assert redacted.startswith("Kvito Nr. 0045821, tel. [PII:phone_international:")
+
+
 class TestPseudonymization:
     def test_deterministic(self, guard, config):
         text = "john@example.com"
@@ -186,6 +264,15 @@ class TestHardRedact:
         findings = guard.scan("john@example.com", "inbound", config)
         assert findings[0].redacted_preview == "[PII:email:REDACTED]"
 
+    def test_numbers_distinct_values_in_text_order_and_reuses_numbers(self, guard):
+        text = "To: alpha@example.com; cc: beta@example.net; reply to alpha@example.com."
+        findings = guard.scan(text, "inbound", PIIConfig(mode="hard_redact"))
+
+        assert guard.redact(text, findings) == (
+            "To: [PII:email:REDACTED_1]; cc: [PII:email:REDACTED_2]; "
+            "reply to [PII:email:REDACTED_1]."
+        )
+
 
 class TestAllowMode:
     def test_allow_mode_logs_but_no_redact(self, guard):
@@ -194,6 +281,12 @@ class TestAllowMode:
         assert len(findings) > 0
         assert findings[0].action == "allow"
         assert findings[0].redacted_preview == "john@example.com"
+
+    def test_allow_mode_keeps_each_original_value(self, guard):
+        text = "From: alpha@example.com; to: beta@example.net."
+        findings = guard.scan(text, "inbound", PIIConfig(mode="allow"))
+
+        assert guard.redact(text, findings) == text
 
 
 class TestRedaction:

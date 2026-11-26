@@ -768,7 +768,7 @@ test("on a phone the results are rows and the facets one Add filter control", as
     expect(within(row).getByText("No package for this server.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Status" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Installed (1)" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: "Installed", description: "1 extension" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "1 extension" })).toBeInTheDocument());
     expect(screen.getByText("Status · Installed")).toBeInTheDocument();
   } finally {

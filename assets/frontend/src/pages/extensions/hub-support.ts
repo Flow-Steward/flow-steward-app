@@ -6,6 +6,7 @@ import { type ExtensionUninstallPlan, type ExtensionRecord } from "@/pages/exten
 import type { ExtensionCatalogListing } from "@/pages/extensions/catalog-api";
 import { isHttpError } from "@/lib/http/errors";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
+import { translatedExtensionActionErrorGuidance } from "@/pages/extensions/extension-action-error-guidance";
 
 export type ExtensionHealthStatus = Record<string, string>;
 export type ExtensionsViewFilter = "active" | "disabled" | "all";
@@ -203,6 +204,9 @@ function preservedReconnectMessage(connection: { display_name?: unknown } | unde
 
 export function oauthStartErrorMessage(error: unknown, t: I18nContextValue["t"] = fallbackContext.t): string {
   const payload = isHttpError(error) ? objectOrEmpty(error.payload) : {};
+  if (stringFrom(payload.code) === "system_sender_locked") {
+    return translatedExtensionActionErrorGuidance(t, "system_sender_locked");
+  }
   const technicalText = [
     error instanceof Error ? error.message : "",
     stringFrom(payload.error),

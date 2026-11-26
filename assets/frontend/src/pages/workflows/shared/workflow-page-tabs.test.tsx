@@ -15,23 +15,23 @@ vi.mock("@/pages/workflows/shared/api", () => ({ fetchWorkflowExportPolicy: vi.f
 vi.mock("@/pages/workflows/shared/project-context", () => ({ findWorkflowLinkedProjectId: vi.fn() }));
 
 const keys = (tabs: { key: string }[]) => tabs.map((tab) => tab.key);
-const ALL = ["smart-setup", "webhook", "schedules", "automation", "history"];
+const ALL = ["smart-setup", "operator", "webhook", "schedules", "automation", "history"];
 
 describe("workflowPageTabs", () => {
   it("lists Hooks, then the settings tabs, with a channel's tab only while that channel is on", () => {
     expect(keys(workflowPageTabs({ canAuthor: true, channels: { enabled: true, channels: ["webhook", "schedule"] }, hasHooks: true })))
       .toEqual(["hooks", ...ALL]);
     expect(keys(workflowPageTabs({ canAuthor: true, channels: { enabled: true, channels: ["schedule"] }, hasHooks: false })))
-      .toEqual(["smart-setup", "schedules", "automation", "history"]);
+      .toEqual(["smart-setup", "operator", "schedules", "automation", "history"]);
     expect(keys(workflowPageTabs({ canAuthor: true, channels: { enabled: true, channels: ["webhook"] }, hasHooks: false })))
-      .toEqual(["smart-setup", "webhook", "automation", "history"]);
+      .toEqual(["smart-setup", "operator", "webhook", "automation", "history"]);
     expect(keys(workflowPageTabs({ canAuthor: true, channels: { enabled: true, channels: ["ui"] }, hasHooks: false })))
-      .toEqual(["smart-setup", "automation", "history"]);
+      .toEqual(["smart-setup", "operator", "automation", "history"]);
   });
 
   it("hides both channel tabs while the workflow interface is off", () => {
     expect(keys(workflowPageTabs({ canAuthor: true, channels: { enabled: false, channels: ["webhook", "schedule"] }, hasHooks: false })))
-      .toEqual(["smart-setup", "automation", "history"]);
+      .toEqual(["smart-setup", "operator", "automation", "history"]);
   });
 
   it("gives everyone who cannot author the Hooks tab at most", () => {
@@ -43,9 +43,9 @@ describe("workflowPageTabs", () => {
     const detail = { settings: { callable: { enabled: true, trigger_channels: ["schedule"] } }, steps: [] };
     expect(savedWorkflowChannelState(detail)).toEqual({ enabled: true, channels: ["schedule"] });
     expect(savedWorkflowChannelState({})).toEqual({ enabled: false, channels: [] });
-    expect(keys(workflowPageTabsForDetail(detail, true, ((_key: string, text: string) => text) as never))).toEqual(["smart-setup", "schedules", "automation", "history"]);
+    expect(keys(workflowPageTabsForDetail(detail, true, ((_key: string, text: string) => text) as never))).toEqual(["smart-setup", "operator", "schedules", "automation", "history"]);
     expect(keys(workflowPageTabsForDetail(detail, true, ((_key: string, text: string) => text) as never, { enabled: true, channels: ["webhook"] })))
-      .toEqual(["smart-setup", "webhook", "automation", "history"]);
+      .toEqual(["smart-setup", "operator", "webhook", "automation", "history"]);
   });
 
   it("knows the Webhook tab by both its drawer key and its page key", () => {

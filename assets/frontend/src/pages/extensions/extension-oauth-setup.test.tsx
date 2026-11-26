@@ -1809,6 +1809,84 @@ describe("ExtensionOAuthSetup", () => {
     );
   });
 
+  it("lists connections that take their credentials from the configuration as kept", async () => {
+    const user = userEvent.setup();
+    mockedDeletePreview.mockResolvedValue({
+      configuration_id: primary.configuration_id,
+      expected_revision: 3,
+      changed_fields: ["__delete__"],
+      change_policies: ["reauthorization_required"],
+      connections: [
+        { connection_id: "connection-a", display_name: "Signed-in account", link: "oauth" },
+        { connection_id: "connection-b", display_name: "Reports", link: "credentials" },
+        { connection_id: "connection-c", display_name: "Archive", link: "credentials" },
+      ],
+      requires_confirmation: true,
+      confirmation_token: "delete-confirm",
+    });
+    renderSetup();
+
+    await user.click(await screen.findByRole("button", { name: "Delete configuration" }));
+    await waitFor(() => expect(screen.getByRole("alertdialog", { name: "Delete this configuration?" })).toBeVisible());
+    const deleteDialog = screen.getByRole("alertdialog", { name: "Delete this configuration?" });
+    // Only the connection holding its own grant is removed.
+    expect(deleteDialog).toHaveAccessibleDescription("Signed-in account and its local credentials will also be removed.");
+    expect(deleteDialog).toHaveTextContent(
+      "These connections take their credentials from this configuration. They are kept but stop working until they are linked to another configuration.",
+    );
+    const kept = within(deleteDialog).getByRole("list", { name: "Connections kept" });
+    expect(within(kept).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Reports", "Archive"]);
+    expect(within(deleteDialog).getByRole("button", { name: "Delete configuration and connections" })).toBeVisible();
+  });
+
+  it("names only the configuration when every connection it affects is kept", async () => {
+    const user = userEvent.setup();
+    mockedDeletePreview.mockResolvedValue({
+      configuration_id: primary.configuration_id,
+      expected_revision: 3,
+      changed_fields: ["__delete__"],
+      change_policies: [],
+      connections: [{ connection_id: "connection-b", display_name: "Reports", link: "credentials" }],
+      requires_confirmation: true,
+      confirmation_token: "delete-confirm",
+    });
+    renderSetup();
+
+    await user.click(await screen.findByRole("button", { name: "Delete configuration" }));
+    await waitFor(() => expect(screen.getByRole("alertdialog", { name: "Delete this configuration?" })).toBeVisible());
+    const deleteDialog = screen.getByRole("alertdialog", { name: "Delete this configuration?" });
+    expect(deleteDialog).toHaveAccessibleDescription("The configuration is removed from this extension.");
+    expect(within(within(deleteDialog).getByRole("list", { name: "Connections kept" })).getByText("Reports")).toBeVisible();
+    await user.click(within(deleteDialog).getByRole("button", { name: "Delete configuration" }));
+
+    expect(mockedDelete).toHaveBeenCalledWith(expect.anything(), primary.configuration_id, 3, "delete-confirm");
+  });
+
+  it("marks a credential field used only by connections that sign in as the application", async () => {
+    renderSetup({
+      providerDeclaration: {
+        ...provider,
+        credential_fields: [
+          ...provider.credential_fields,
+          {
+            field_id: "directory",
+            value_type: "text",
+            required: false,
+            secret: false,
+            label: "Directory",
+            help_text: "Where the application is registered.",
+            usage: "runtime",
+          },
+        ],
+      },
+    });
+
+    await waitFor(() => expect(screen.getByLabelText(/Directory/)).toHaveAccessibleDescription(
+      "Where the application is registered. Used by connections that sign in as the application; not sent during sign-in.",
+    ));
+    expect(screen.getByLabelText(/Application ID/)).toHaveAccessibleDescription("Copy the identifier from the provider console.");
+  });
+
   it.each([undefined, "delete-token"])("binds delete confirmation to the previewed configuration (token %s)", async (confirmationToken) => {
     const user = userEvent.setup();
     const secondary = {

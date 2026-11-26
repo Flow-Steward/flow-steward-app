@@ -164,6 +164,15 @@ class ProjectConnectionView(ViewModel):
     tags: list[str] = Field(default_factory=list)
     created_at: Any = None
     updated_at: Any = None
+    #: This connection sends the platform's system email (Settings -> Email).
+    system_email_sender: bool = False
+    #: Its settings, secrets, account, type and enabled state are read-only to
+    #: this viewer: only a platform administrator may change them.
+    system_email_sender_locked: bool = False
+    #: The OAuth configuration a credentials_from connection takes its values from.
+    credentials_configuration_id: str = ""
+    #: ``credentials_unavailable`` when that configuration is gone or incomplete.
+    credentials_status: str = ""
 
 
 class ProjectConnectionListView(ViewModel):

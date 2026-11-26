@@ -2,8 +2,20 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+import functools
+
+from core.application.workflows.provider_event_delivery import (
+    DeliveryBinding,
+    record_provider_event,
+)
 from core.application.workflows.provider_event_trigger_dispatch import (
+    match_provider_triggers,
+    provider_event_source_id,
     start_provider_event_workflows,
+)
+from core.infrastructure.db.db_pool import (
+    register_transaction_after_commit,
+    transaction_after_commit_supported,
 )
 
 from .command_services_common import *  # NOSONAR
@@ -326,6 +338,7 @@ class EventCommandServiceIngestMixin:
 
         event_ids: list[str] = []
         notification_deliveries: list[dict[str, Any]] = []
+        poll_binding = DeliveryBinding.from_mapping(command.connection_poll)
         default_event_source = str(
             result_payload.get("source") or f"provider:{provider_key}"
         ).strip()
@@ -423,6 +436,39 @@ class EventCommandServiceIngestMixin:
                 payload.get("job_id"),
                 result_payload.get("job_id"),
             )
+            provider_source_id = str(
+                event_payload.get("source_id")
+                or payload.get("source_id")
+                or event_payload.get("correlation_id")
+                or payload.get("correlation_id")
+                or ""
+            )
+            polled_event = None
+            if poll_binding is not None and event_type not in {
+                EXTERNAL_COMMENT_RECEIVED_VALUE,
+                "notification.interaction_received",
+            }:
+                # A connection poll: the event is stored once per source_id in the
+                # poll transaction, with one dispatch record per matched trigger.
+                # A replayed page records, notifies and starts nothing again.
+                polled_event = record_provider_event(
+                    bl,
+                    project_id=str(project_id),
+                    provider_key=provider_key,
+                    source_id=provider_event_source_id(provider_source_id, payload),
+                    event_type=event_type,
+                    payload=payload,
+                    triggers=match_provider_triggers(
+                        bl,
+                        provider_key=provider_key,
+                        project_id=str(project_id),
+                        event_type=event_type,
+                        payload=payload,
+                    ),
+                    binding=poll_binding,
+                )
+                if not polled_event.new:
+                    continue
             recorded = (
                 bl.record_domain_event(
                     event_id=str(envelope.get("event_id") or ""),
@@ -544,20 +590,28 @@ class EventCommandServiceIngestMixin:
                     reaction_was_routed = True
 
             if not reaction_was_routed:
-                notification_deliveries.extend(
-                    self._dispatch_project_notification_event(
-                        bl,
-                        project_id=project_id,
-                        event_type=event_type,
-                        severity=severity,
-                        workflow_id=workflow_id,
-                        payload=payload,
-                        event_id=normalized_event_id or None,
-                        account_id=account_id,
-                        correlation_id=correlation_id,
-                    )
-                    or []
+                notify = functools.partial(
+                    self._dispatch_project_notification_event,
+                    bl,
+                    project_id=project_id,
+                    event_type=event_type,
+                    severity=severity,
+                    workflow_id=workflow_id,
+                    payload=payload,
+                    event_id=normalized_event_id or None,
+                    account_id=account_id,
+                    correlation_id=correlation_id,
                 )
+                conn = getattr(bl, "conn", None)
+                if (
+                    polled_event is not None
+                    and conn is not None
+                    and transaction_after_commit_supported(conn)
+                ):
+                    # Notify only once the poll transaction holding the event commits.
+                    register_transaction_after_commit(conn, notify)
+                else:
+                    notification_deliveries.extend(notify() or [])
                 start_provider_event_workflows(
                     bl,
                     enqueue_task_fn=getattr(self, "_enqueue_task", None),
@@ -567,13 +621,8 @@ class EventCommandServiceIngestMixin:
                     payload=payload,
                     # Only an id the provider gave the event may serve as the
                     # replay key; the generated fallback correlation id repeats.
-                    source_id=str(
-                        event_payload.get("source_id")
-                        or payload.get("source_id")
-                        or event_payload.get("correlation_id")
-                        or payload.get("correlation_id")
-                        or ""
-                    ),
+                    source_id=provider_source_id,
+                    recorded=polled_event,
                 )
 
         return ProviderEventIngestResultView(

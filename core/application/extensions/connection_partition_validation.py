@@ -62,6 +62,24 @@ def connection_partition_schema(
     return {}
 
 
+#: Top-level keys Core itself keeps in a connection's partitions. They are the
+#: platform's, never the extension's, so no extension schema judges them: an
+#: OAuth connection's ``oauth`` lifecycle block in its config, and the
+#: background poll status Core records in its ingress config.
+CORE_OWNED_PARTITION_KEYS: dict[str, frozenset[str]] = {
+    "config": frozenset({"oauth"}),
+    "ingress": frozenset({"background_poll_status"}),
+}
+
+
+def extension_owned_partition(partition: str, value: Any) -> Any:
+    """*value* without the keys Core owns in that partition."""
+    owned = CORE_OWNED_PARTITION_KEYS.get(str(partition or "").strip(), frozenset())
+    if not owned or not isinstance(value, dict):
+        return value
+    return {key: item for key, item in value.items() if key not in owned}
+
+
 def validate_connection_partition(
     extension: dict[str, Any],
     *,
@@ -70,6 +88,7 @@ def validate_connection_partition(
     value: Any,
 ) -> list[str]:
     errors: list[str] = []
+    value = extension_owned_partition(partition, value)
     try:
         schema = connection_partition_schema(
             extension,
@@ -127,9 +146,11 @@ def require_valid_connection_partitions(
 
 
 __all__ = [
+    "CORE_OWNED_PARTITION_KEYS",
     "ConnectionPartitionSchemaRejected",
     "ConnectionPartitionsRejected",
     "connection_partition_schema",
+    "extension_owned_partition",
     "require_valid_connection_partitions",
     "validate_connection_partition",
 ]

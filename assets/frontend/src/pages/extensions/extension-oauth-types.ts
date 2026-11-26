@@ -12,6 +12,8 @@ export type OAuthCredentialFieldDeclaration = {
     max_length?: number;
     type?: "https_origin";
   };
+  /** `runtime`: stored and shown, never sent during sign-in. Absent means `exchange`. */
+  usage?: "exchange" | "runtime";
 };
 
 export type OAuthIntentInputDeclaration = {

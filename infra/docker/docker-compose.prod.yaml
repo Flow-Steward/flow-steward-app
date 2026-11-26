@@ -379,6 +379,11 @@ services:
       # reaches the other profile: process_spec.py ships only in the compact image.
       FS_APP_INTERNAL_URL: "http://fs-app:8099"
       <<: [*app-worker-environment, *installation-mode-environment]
+      # 0.9.25: `release upgrade` applies the target's migrations in a one-shot
+      # container of this service (upgrade_gateway.py) without the launcher's -e flags.
+      # The default log root, /app/.flow-steward/logs, is not writable here, so the
+      # command stopped with operation_log_unavailable. Same root as the launcher's.
+      FS_CLI_OPERATION_LOG_ROOT: /app/logs/cli
       # Shown on Settings -> Retention for accounts with no saved policy.
       FS_RETENTION_LOGS_DAYS: ${FS_RETENTION_LOGS_DAYS:-30}
       FS_RETENTION_MESSAGES_DAYS: ${FS_RETENTION_MESSAGES_DAYS:-30}

@@ -12,6 +12,7 @@ from core.application.workflows.workflow_portability_common import (
     _WORKFLOW_SAVE_FIELDS,
     _as_dict,
     _as_list,
+    _call_db_get,
     _json_safe,
     _raise_if_raw_mcp_connector_bindings,
     _redact_sensitive,
@@ -171,6 +172,9 @@ class WorkflowPortabilityRewriteMixin:
                 override["invoke_workflow"] = invoke
             if "action" in invoke:
                 override["invoke_workflow"] = self._rewrite_action_invoke(invoke, resolution_index)
+            approval = _as_dict(override.get("approval"))
+            if approval:
+                override["approval"] = self._rewrite_review_hint(approval, resolution_index)
 
             connector_install_id = _text(override.get("connector_install_id"))
             mapped_install = self._mapped_ref("extension", connector_install_id, resolution_index)
@@ -210,6 +214,40 @@ class WorkflowPortabilityRewriteMixin:
                 override["connector"] = connector
             row["override"] = override
         return row
+
+    def _rewrite_review_hint(
+        self,
+        approval: dict[str, Any],
+        resolution_index: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Rebind an Approval review's ``fields_from_workflow`` like an Invoke target.
+
+        The reference is an editor hint: execution reads the step's own fields.
+        A source the import maps follows the mapping; one that already exists on
+        the target under the same id (imported with this bundle or installed
+        before) keeps it. Only a source that resolves nowhere is dropped; the
+        fields stay either way.
+        """
+        review = _as_dict(approval.get("review"))
+        source = _text(review.get("fields_from_workflow"))
+        if not source:
+            return approval
+        mapped = self._mapped_ref("child_workflow", source, resolution_index)
+        if not mapped and ("workflow", source) in resolution_index:
+            mapped = self._target_workflow_id(source, resolution_index=resolution_index)
+        if not mapped and self._target_has_workflow(source):
+            mapped = source
+        review = dict(review)
+        if mapped:
+            review["fields_from_workflow"] = mapped
+        else:
+            review.pop("fields_from_workflow", None)
+        return {**approval, "review": review}
+
+    def _target_has_workflow(self, workflow_id: str) -> bool:
+        """Whether a workflow with this id already exists where the import lands."""
+        db = getattr(self, "db", None)
+        return db is not None and _call_db_get(db, "get_workflow", workflow_id) is not None
 
     def _rewrite_action_invoke(
         self,

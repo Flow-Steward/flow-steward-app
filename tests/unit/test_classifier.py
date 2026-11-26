@@ -290,3 +290,57 @@ class TestClassifyTaskPassThrough:
         ):
             result = classify_task(envelope, project_config=project_config)
         assert isinstance(result, TaskClassification)
+
+
+class TestClassifierReasoningDepth:
+    """ADR 0079: five labels need no deliberation, so the call runs at low depth."""
+
+    @staticmethod
+    def _captured_config(project_config):
+        import json as _json
+        from types import SimpleNamespace
+
+        seen: dict = {}
+
+        def _model(config, agent_name=None, **_kwargs):
+            seen["config"] = config
+            seen["agent_name"] = agent_name
+            llm = MagicMock()
+            llm.invoke.return_value = SimpleNamespace(
+                content=_json.dumps({"effort_hint": "small", "risk_level": "low"})
+            )
+            return llm
+
+        with patch("core.application.orchestration.model_provider.get_chat_model", _model):
+            classify_task(make_envelope("Read a receipt"), project_config=project_config)
+        return seen
+
+    def test_the_classifier_asks_for_low_reasoning(self):
+        seen = self._captured_config({"agents_config": {"default_provider": "openai"}})
+
+        agents_config = seen["config"]["agents_config"]
+        assert seen["agent_name"] == "classifier"
+        assert agents_config["default_provider"] == "openai"
+        assert agents_config["agents"]["config"]["classifier"] == {"reasoning_effort": "low"}
+
+    def test_the_projects_own_classifier_depth_wins(self):
+        project = {
+            "agents_config": {
+                "agents": {
+                    "config": {
+                        "classifier": {"reasoning_effort": "high"},
+                        "writer": {"reasoning_effort": "medium"},
+                    }
+                }
+            }
+        }
+
+        seen = self._captured_config(project)
+
+        config = seen["config"]["agents_config"]["agents"]["config"]
+        assert config["classifier"] == {"reasoning_effort": "high"}
+        assert config["writer"] == {"reasoning_effort": "medium"}
+        # The caller's project config is not changed in place.
+        assert project["agents_config"]["agents"]["config"]["classifier"] == {
+            "reasoning_effort": "high"
+        }

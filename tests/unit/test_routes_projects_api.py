@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -542,7 +543,9 @@ def test_api_project_create_rejects_extra_tools_before_service_write() -> None:
     assert response.json()["detail"] == "Unknown project field(s): extra_tools_json"
 
 
-def test_api_project_update_rejects_extra_tools_before_service_write() -> None:
+@pytest.mark.parametrize("field", ["extra_tools_json", "user_sections"])
+def test_api_project_update_rejects_unknown_fields_before_service_write(field: str) -> None:
+    """``user_sections`` is gone with the project sections model (ADR 0075)."""
     writes: list[Any] = []
 
     class _ProjectQuery:
@@ -569,9 +572,30 @@ def test_api_project_update_rejects_extra_tools_before_service_write() -> None:
         json={
             "name": "Renamed",
             "workspace_id": DEFAULT_WORKSPACE_ID,
-            "extra_tools_json": "[]",
+            field: [],
         },
     )
 
     assert (response.status_code, len(writes)) == (422, 0)
-    assert response.json()["detail"] == "Unknown project field(s): extra_tools_json"
+    assert response.json()["detail"] == f"Unknown project field(s): {field}"
+
+
+def test_api_project_detail_returns_the_stored_config_without_user_sections() -> None:
+    """ADR 0075: sections are derived from workflow bindings, not stored on the project."""
+    stored_config = {"security_policy": {"mode": "strict"}, "retention": {"days": 30}}
+
+    class _ProjectQuery:
+        def get_project_edit_form(self, project_id: str, *, scope: Any) -> Any:
+            return SimpleNamespace(project={"id": "7", "name": "Demo", "config": stored_config})
+
+    client = _client(
+        project_query_service=lambda: _ProjectQuery(),
+        project_command_service=lambda: SimpleNamespace(),
+    )
+
+    response = client.get("/api/projects/7")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["config"] == stored_config
+    assert "user_sections" not in body

@@ -255,6 +255,24 @@ def start_control_threads(
         t.start()
         started["invoke_child_cancel"] = (t, stop)
 
+    if "agent_expiry_reminders" in scan_fns:
+        # ADR 0076 §5: remind the owner before an AI agent connection stops working.
+        stop = threading.Event()
+        t = threading.Thread(
+            target=_run_generic_loop,
+            args=(
+                stop,
+                intervals.get("agent_expiry_reminders", config.retention_interval),
+                scan_fns["agent_expiry_reminders"],
+                "agent-expiry-reminders",
+                maintenance_active,
+            ),
+            name="control-agent-expiry-reminders",
+            daemon=True,
+        )
+        t.start()
+        started["agent_expiry_reminders"] = (t, stop)
+
     if config.watchdog_enabled and "watchdog" in scan_fns:
         stop = threading.Event()
         t = threading.Thread(

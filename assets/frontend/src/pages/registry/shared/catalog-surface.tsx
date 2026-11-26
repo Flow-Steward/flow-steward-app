@@ -1,3 +1,5 @@
+import { entityCreateErrorMessage } from "@/lib/i18n/entity-create-error-message";
+import { DsSearchInput } from "@/components/ui/search-input";
 import { stringFiltersSchema, textFilterSchema } from "@/lib/filters/filter-schemas";
 import { useFilterState } from "@/lib/filters/use-filter-state";
 import { fallbackContext, type I18nContextValue } from "@/lib/i18n/context";
@@ -36,7 +38,6 @@ import {
   DsTable,
   PageContainer,
   RowActionMenu,
-  Search,
 } from "@/components/shared/design-system";
 import {
   applyContractValidation,
@@ -618,7 +619,7 @@ export function RegistryCatalogSurface({
         ignoreAsyncResult(navigate(detailRouteForEntity(createdId)));
       }
     } catch (error) {
-      const text = error instanceof Error ? error.message : t("react.registry.display_failed_create_entity", "Failed to create entity.");
+      const text = entityCreateErrorMessage(error, t("react.registry.display_failed_create_entity", "Failed to create entity."), t);
       // A taken id or name is shown with its matches; nothing is retried under another id.
       setCreateConflict(registryConflictFromError(error));
       setCreateError(text);
@@ -672,16 +673,12 @@ export function RegistryCatalogSurface({
               onClear={() => setActiveFilters({})}
               values={activeFilters}
             />
-            <label className="fs-search">
-              <Search aria-hidden="true" />
-              <input
-                aria-label={t("react.registry.search_value0_entries", "Search {value0} entries", { value0: createLabel.toLowerCase() })}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("react.registry.search_value0", "Search {value0}…", { value0: createLabel.toLowerCase() })}
-                type="search"
-                value={search}
-              />
-            </label>
+            <DsSearchInput
+              aria-label={t("react.registry.search_value0_entries", "Search {value0} entries", { value0: createLabel.toLowerCase() })}
+              onValueChange={(value) => setSearch(value)}
+              placeholder={t("react.registry.search_value0", "Search {value0}…", { value0: createLabel.toLowerCase() })}
+              value={search}
+            />
             <span aria-live="polite" className="fs-management-result-announcement">
               {visibleRows.length} {" "}{t("react.registry.of", "of")}{" "}{displayRows.length}
             </span>

@@ -70,6 +70,11 @@
   min-height: var(--fs-advanced-search-search-height, 56px);
   padding: 0 14px;
   border-bottom: 1px solid var(--fs-advanced-search-border);
+  --fs-search-clear-text: var(--fs-advanced-search-muted-text);
+  --fs-search-clear-hover-bg: var(--fs-advanced-search-control-hover-bg);
+  --fs-search-clear-hover-text: var(--fs-advanced-search-text);
+  --fs-search-clear-transition: var(--fs-advanced-search-transition);
+  --fs-search-clear-focus-ring: var(--fs-advanced-search-focus-ring);
 }
 
 .fs-advanced-search__search-row > svg {
@@ -101,7 +106,6 @@
   appearance: none;
 }
 
-.fs-advanced-search__clear,
 .fs-advanced-search__escape {
   display: inline-grid;
   flex: none;
@@ -112,16 +116,6 @@
   color: var(--fs-advanced-search-muted-text);
   cursor: pointer;
   transition: var(--fs-advanced-search-transition);
-}
-
-/* Neutralize the default button padding so the 16px glyph stays centred in its square. */
-.fs-advanced-search__clear {
-  width: 26px;
-  height: 26px;
-  padding: 0;
-}
-
-.fs-advanced-search__escape {
   min-width: 28px;
   height: 26px;
   padding: 0;
@@ -130,13 +124,11 @@
   font-weight: 500;
 }
 
-.fs-advanced-search__clear:hover,
 .fs-advanced-search__escape:hover {
   background: var(--fs-advanced-search-control-hover-bg);
   color: var(--fs-advanced-search-text);
 }
 
-.fs-advanced-search__clear:focus-visible,
 .fs-advanced-search__escape:focus-visible,
 .fs-advanced-search__token-value:focus-visible,
 .fs-advanced-search__token-remove:focus-visible,

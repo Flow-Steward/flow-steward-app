@@ -22,15 +22,21 @@
   "roles": [
     {
       "key": "admin",
-      "label": "Admin"
+      "label": "Admin",
+      "is_system": true,
+      "description": "Configures the installation: users, extensions, projects, workflows, connections and secrets. Holds every permission."
     },
     {
       "key": "operator",
-      "label": "Operator"
+      "label": "Operator",
+      "is_system": true,
+      "description": "Does the work the admin configured: starts workflows, decides approvals, controls jobs and replaces secret values."
     },
     {
       "key": "viewer",
-      "label": "Viewer"
+      "label": "Viewer",
+      "is_system": true,
+      "description": "Reads history, results and files. Makes no changes."
     }
   ],
   "provider_types": [

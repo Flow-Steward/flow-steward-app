@@ -15,6 +15,12 @@ if (!statePath) {
   throw new Error("FS_OAUTH_ACCEPTANCE_STATE is required");
 }
 const acceptance = JSON.parse(readFileSync(statePath, "utf8")) as AcceptanceState;
+// Administrators configure OAuth applications; operators run work and may not
+// change them (ADR 0076).
+const admin = {
+  email: process.env.E2E_ADMIN_USERNAME || "",
+  password: process.env.E2E_ADMIN_PASSWORD || "",
+};
 const operator = {
   email: process.env.E2E_OPERATOR_USERNAME || "",
   password: process.env.E2E_OPERATOR_PASSWORD || "",
@@ -44,6 +50,13 @@ async function login(page: Page, credentials: { email: string; password: string 
   expect(response.status()).toBe(200);
   const payload = await response.json() as { csrf_token: string };
   return { "x-csrf-token": payload.csrf_token };
+}
+
+// What the person sees. textContent would also read the collapsed compiled
+// manifest an administrator gets under Advanced, which names error codes as
+// help-anchor keys.
+async function visibleText(page: Page) {
+  return await page.locator("body").innerText();
 }
 
 async function configurations(page: Page, projectId: string) {
@@ -94,8 +107,8 @@ async function startAuthorization(
 
 test.describe.configure({ mode: "serial" });
 
-test("real operator UI explains required and bounded values on Save", async ({ page }) => {
-  await login(page, operator);
+test("real admin UI explains required and bounded values on Save", async ({ page }) => {
+  await login(page, admin);
   await page.goto(
     `/app/extensions/${acceptance.extension_id}`
     + `?project_id=${acceptance.alpha_project_id}&extension_page=oauth_setup`,
@@ -206,11 +219,11 @@ test("real operator UI explains required and bounded values on Save", async ({ p
 });
 
 test("service rejects a browser-bypass mutation and viewer reads remain redacted", async ({ page }) => {
-  const operatorHeaders = await login(page, operator);
+  const adminHeaders = await login(page, admin);
   const invalid = await page.request.put(
     `${oauthPrefix(acceptance.alpha_project_id)}/configurations`,
     {
-      headers: operatorHeaders,
+      headers: adminHeaders,
       data: {
         display_name: "Bypass",
         values: { client_id: "" },
@@ -227,7 +240,7 @@ test("service rejects a browser-bypass mutation and viewer reads remain redacted
   const tooLong = await page.request.put(
     `${oauthPrefix(acceptance.alpha_project_id)}/configurations`,
     {
-      headers: operatorHeaders,
+      headers: adminHeaders,
       data: {
         display_name: "Bypass maximum",
         values: { client_id: "x".repeat(41) },
@@ -244,7 +257,7 @@ test("service rejects a browser-bypass mutation and viewer reads remain redacted
     const invalidSecret = await page.request.put(
       `${oauthPrefix(acceptance.alpha_project_id)}/configurations`,
       {
-        headers: operatorHeaders,
+        headers: adminHeaders,
         data: {
           display_name: "Bypass secret length",
           values: { client_id: "valid-client" },
@@ -259,6 +272,20 @@ test("service rejects a browser-bypass mutation and viewer reads remain redacted
     });
   }
 
+  const operatorHeaders = await login(page, operator);
+  const operatorSave = await page.request.put(
+    `${oauthPrefix(acceptance.alpha_project_id)}/configurations`,
+    {
+      headers: operatorHeaders,
+      data: {
+        display_name: "Operator application",
+        values: { client_id: "valid-client" },
+        secret_replacements: { client_secret: "valid-secret" },
+      },
+    },
+  );
+  expect(operatorSave.status()).toBe(403);
+
   await login(page, viewer);
   const alpha = await configurations(page, acceptance.alpha_project_id);
   const beta = await configurations(page, acceptance.beta_project_id);
@@ -272,7 +299,7 @@ test("service rejects a browser-bypass mutation and viewer reads remain redacted
 });
 
 test("real provider success, denial, reconnect failure, and closed redirect stay scoped", async ({ page }) => {
-  const headers = await login(page, operator);
+  const headers = await login(page, admin);
   const primary = acceptance.alpha_configuration_ids[0];
   await page.goto(
     `/app/extensions/${acceptance.extension_id}`
@@ -496,11 +523,11 @@ test("real provider success, denial, reconnect failure, and closed redirect stay
   await page.goto(unavailable.authorization_url);
   await expect(page).toHaveURL(/oauth=error&reason=provider_unavailable/u);
   await expect(page.getByText(/temporarily unavailable/u)).toBeVisible();
-  expect(await page.textContent("body")).not.toContain("temporarily_unavailable");
+  expect(await visibleText(page)).not.toContain("temporarily_unavailable");
 });
 
 test("invalid client targets only the selected configuration with safe guidance", async ({ page }) => {
-  const headers = await login(page, operator);
+  const headers = await login(page, admin);
   const selected = acceptance.alpha_configuration_ids[1];
   const flow = await startAuthorization(page, headers, {
     configurationId: selected,
@@ -514,7 +541,7 @@ test("invalid client targets only the selected configuration with safe guidance"
   const rows = await configurations(page, acceptance.alpha_project_id);
   expect(rows.find((row) => row.configuration_id === selected)?.status).toBe("needs_attention");
   expect(rows.find((row) => row.configuration_id !== selected)?.status).toBe("verified");
-  expect(await page.textContent("body")).not.toContain("invalid_client");
+  expect(await visibleText(page)).not.toContain("invalid_client");
 });
 
 test("viewer navigates isolated projects without OAuth mutation controls", async ({ page }) => {

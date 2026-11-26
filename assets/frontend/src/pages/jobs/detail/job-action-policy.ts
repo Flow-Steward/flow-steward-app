@@ -1,9 +1,12 @@
-import { firstStringFromUnknownValue, isTruthy } from "@/lib/utils/unknown-values";
+import { firstStringFromUnknownValue } from "@/lib/utils/unknown-values";
 
-/** Shared with the full Jobs header; the API remains the mutation authority. */
-export function canMutateJob(roles: readonly unknown[]): boolean {
-  const normalized = new Set(roles.map((role) => firstStringFromUnknownValue([role, ""]).trim().toLowerCase()).filter(isTruthy));
-  return normalized.has("admin") || normalized.has("operator");
+/**
+ * Cancel, restart and acknowledge need `jobs.write` (ADR 0076), the permission of
+ * POST /api/jobs/{id}/cancel and its siblings. Shared with the full Jobs header; the
+ * API remains the mutation authority.
+ */
+export function canMutateJob(permissions: ReadonlySet<string>): boolean {
+  return permissions.has("jobs.write");
 }
 
 export function isCancellableJobStatus(status: unknown): boolean {

@@ -35,6 +35,10 @@ class ScopeContext(BaseModel):
     allowed_project_ids: frozenset[str] = frozenset()
     allowed_workflow_ids: frozenset[str] = frozenset()
     token_scopes: frozenset[str] = frozenset()
+    #: The ADR 0076 permissions of a person or a person's token, computed once per
+    #: request by the auth middleware; ``None`` for service accounts, extension runtime
+    #: and system actors (their own rules apply) and for scopes built outside a request.
+    permissions: frozenset[str] | None = None
     user_timezone: str | None = None
     project_timezone: str | None = None
 
@@ -104,6 +108,7 @@ def normalize_scope(
     token_scopes: frozenset[str] | None = None,
     user_timezone: str | None = None,
     project_timezone: str | None = None,
+    permissions: frozenset[str] | None = None,
 ) -> ScopeContext:
     base: dict[str, Any]
     if isinstance(scope, ScopeContext):
@@ -180,6 +185,10 @@ def normalize_scope(
         if str(item).strip()
     )
 
+    resolved_permissions = _permission_keys(
+        permissions if permissions is not None else base.get("permissions")
+    )
+
     resolved_user_tz = (
         str(
             user_timezone
@@ -210,9 +219,17 @@ def normalize_scope(
         allowed_project_ids=resolved_allowed_project_ids,
         allowed_workflow_ids=resolved_allowed_workflow_ids,
         token_scopes=resolved_token_scopes,
+        permissions=resolved_permissions,
         user_timezone=resolved_user_tz,
         project_timezone=resolved_project_tz,
     )
+
+
+def _permission_keys(value: Any) -> frozenset[str] | None:
+    """Permission keys from a principal or a scope; ``None`` when none were computed."""
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return None
+    return frozenset(str(item).strip() for item in value if str(item).strip())
 
 
 def scope_from_principal(
@@ -242,6 +259,7 @@ def scope_from_principal(
         allowed_project_ids=frozenset(principal_allowed_project_ids(principal_dict)),
         allowed_workflow_ids=frozenset(principal_allowed_workflow_ids(principal_dict)),
         user_timezone=user_tz,
+        permissions=_permission_keys((principal_dict or {}).get("permissions")),
     )
 
 

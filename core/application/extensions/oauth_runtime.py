@@ -181,7 +181,12 @@ class OAuthRuntimeTokenService:
                 provider,
             )
         ):
-            self._deny()
+            from core.application.extensions.oauth_release_activation import (
+                release_attention_code,
+            )
+
+            # An update that changed sign-in names its reason; anything else is blocked.
+            self._deny(release_attention_code(configuration) or "oauth_runtime_blocked")
         connection = _mapping(
             self._repository.lock_connection(
                 connection_id=connection_id,

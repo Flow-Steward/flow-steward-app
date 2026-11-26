@@ -114,3 +114,22 @@ export async function fetchText(input: RequestInfo | URL, init: RequestInit = {}
   }
   return await response.text();
 }
+
+/** A file's bytes for a previewer the page runs itself, read with the session. */
+export async function fetchArrayBuffer(input: RequestInfo | URL, init: RequestInit = {}): Promise<ArrayBuffer> {
+  const headers = buildHttpHeaders({ ...init, headers: { Accept: "application/octet-stream", ...init.headers } });
+  const response = await fetch(input, {
+    ...init,
+    credentials: init.credentials || "same-origin",
+    headers,
+  });
+  if (!response.ok) {
+    throw new HttpError({
+      headers: response.headers,
+      status: response.status,
+      url: response.url || stringFromUnknownValue(input),
+      payload: await parseResponseBody(response),
+    });
+  }
+  return await response.arrayBuffer();
+}

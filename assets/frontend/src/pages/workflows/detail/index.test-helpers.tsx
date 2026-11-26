@@ -25,6 +25,7 @@ import { WorkflowsDetailPage } from "@/pages/workflows/detail";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import type * as WorkflowApi from "@/pages/workflows/shared/api";
 import type * as ProjectContext from "@/pages/workflows/shared/project-context";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/pages/workflows/shared/api", async (importOriginal) => {
   const original = await importOriginal<typeof WorkflowApi>();
@@ -136,7 +137,7 @@ vi.mock("@/lib/auth/useAuth", () => ({
     session: {
       authenticated: true,
       roles: ["admin"],
-      user: { roles: ["admin"] },
+      user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) },
     },
   })),
 }));
@@ -248,7 +249,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   mockedUseIsAdmin.mockReturnValue(true);
-  mockedUseAuth.mockReturnValue({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"] } } } as ReturnType<typeof mockedUseAuth>);
+  mockedUseAuth.mockReturnValue({ session: { authenticated: true, roles: ["admin"], user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as ReturnType<typeof mockedUseAuth>);
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
   vi.stubGlobal("DOMMatrixReadOnly", TestDOMMatrixReadOnly);
   globalThis.localStorage.clear();

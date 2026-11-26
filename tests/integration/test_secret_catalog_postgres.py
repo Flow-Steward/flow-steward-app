@@ -187,7 +187,9 @@ def _row(conn, connection_id: str) -> dict:
         return dict(cur.fetchone())
 
 
-def _human(role: str = "operator") -> ScopeContext:
+def _human(role: str = "admin") -> ScopeContext:
+    # Configuring secrets (binding, typed values, deletion) is the admin's under
+    # ADR 0076; the operator-only and viewer cases name their role explicitly.
     return ScopeContext(
         account_id=ACCOUNT, principal_type=role, auth_source="local", actor_id="person"
     )
@@ -354,6 +356,65 @@ def _catalog_db(create_database):
             remote_base_url="https://api.example.test/v1",
         )
     return conn, project, connection_id, SecretCatalogService(lambda: conn, encrypt=lambda v: "enc")
+
+
+@pytest.mark.parametrize("destination_changed", [False, True])
+def test_trusted_release_carries_only_unchanged_connection_approvals(
+    create_database, destination_changed
+) -> None:
+    from core.application.secrets.release_approvals import carry_release_approvals
+
+    conn, _project_id, connection_id, service = _catalog_db(create_database)
+    try:
+        previous = {"release_id": "rel_secret_1", "descriptor_sha256": "a" * 64}
+        candidate = {"release_id": "rel_secret_2", "descriptor_sha256": "b" * 64}
+        with conn.cursor() as cur:
+            for version, release in (("1.0.0", previous), ("2.0.0", candidate)):
+                cur.execute(
+                    "INSERT INTO extension_releases "
+                    "(release_id, extension_id, release_version, descriptor_sha256) "
+                    "VALUES (%s, 'partner', %s, %s)",
+                    (release["release_id"], version, release["descriptor_sha256"]),
+                )
+            cur.execute(
+                "INSERT INTO extension_installs (extension_id, account_id, install_id, release_id) "
+                "VALUES ('partner', %s, 'pi_secret', %s)",
+                (ACCOUNT, previous["release_id"]),
+            )
+            cur.execute(
+                "UPDATE project_connections SET extension_id = 'partner', "
+                "extension_install_id = 'pi_secret' WHERE connection_id = %s",
+                (connection_id,),
+            )
+        status = service.save_connection_values(
+            connection_id, _human(), values={"api_token": "typed"}
+        )
+        service.approve_connections(_human(), approvals={connection_id: status["fingerprint"]})
+        with conn.cursor() as cur:
+            if destination_changed:
+                cur.execute(
+                    "UPDATE project_connections SET remote_base_url = 'https://new.example.test' "
+                    "WHERE connection_id = %s",
+                    (connection_id,),
+                )
+            cur.execute(
+                "UPDATE extension_installs SET release_id = %s WHERE install_id = 'pi_secret'",
+                (candidate["release_id"],),
+            )
+            carry_release_approvals(
+                cur,
+                account_id=ACCOUNT,
+                install_id="pi_secret",
+                previous=previous,
+                candidate=candidate,
+                repository="https://github.com/flow-steward/partner",
+                actor="updater",
+                actor_kind="human",
+            )
+        current = service.connection_approval_status(connection_id, _human())
+        assert current["status"] == ("approval_required" if destination_changed else "approved")
+    finally:
+        conn.close()
 
 
 def test_an_unapproved_configuration_and_a_stale_snapshot_are_refused(create_database) -> None:
@@ -681,12 +742,15 @@ def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_datab
                 "INSERT INTO workspace_data_connections (connection_id, tenant_id, account_id,"
                 " workspace_id, display_name, secret_refs_jsonb)"
                 " VALUES ('dc_orders', %s, %s, %s, 'Orders DB',"
-                " '{\"refs\": {\"password\": \"project_connection:dc_orders:password\"}}')",
+                ' \'{"refs": {"password": "project_connection:dc_orders:password"}}\')',  # pragma: allowlist secret
                 (tenant, ACCOUNT, WORKSPACE),
             )
         secret = service.create_secret(_human(), name="Orders DB password", value="pw")
         apply_secret_choices(
-            conn, scope=_human(), connection_id="dc_orders", choices={"password": secret["id"]},
+            conn,
+            scope=_human(),
+            connection_id="dc_orders",
+            choices={"password": secret["id"]},
             typed=set(),
         )
         with conn.cursor() as cur:
@@ -700,12 +764,17 @@ def test_a_data_connection_reads_a_chosen_secret_by_its_catalog_key(create_datab
             ) == {"dc_orders": {"password": secret["id"]}}
 
         plan = service.delete_plan(secret["id"], _human())
-        assert [(u["consumer_kind"], u["consumer_id"], u["consumer_name"], u["field"])
-                for u in plan["usages"]] == [("data_connection", "dc_orders", "Orders DB", "password")]
+        assert [
+            (u["consumer_kind"], u["consumer_id"], u["consumer_name"], u["field"])
+            for u in plan["usages"]
+        ] == [("data_connection", "dc_orders", "Orders DB", "password")]
         with pytest.raises(ServiceForbiddenError):
             apply_secret_choices(
-                conn, scope=_token("secrets:write"), connection_id="dc_orders",
-                choices={"password": secret["id"]}, typed=set(),
+                conn,
+                scope=_token("secrets:write"),
+                connection_id="dc_orders",
+                choices={"password": secret["id"]},
+                typed=set(),
             )
 
         service.delete_secret(secret["id"], _human(), plan_revision=plan["revision"])

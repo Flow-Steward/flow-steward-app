@@ -79,7 +79,15 @@ def test_invoke_workflow_reference_location_matches_runtime_override():
         ),
         (
             "approval",
-            {"message", "show_outputs", "output_mapping", "response_mapping"},
+            {
+                "message",
+                "show_outputs",
+                "output_mapping",
+                "response_mapping",
+                "approve_label",
+                "reject_label",
+                "review",
+            },
             {"approved", "rejected", "error"},
         ),
     ],
@@ -193,3 +201,12 @@ def test_discovery_examples_satisfy_current_shared_definition_contract(monkeypat
         assert "workflow_id" not in config
         assert invoke_config_issues(config) == []
         assert parse_hook_declaration(config["hook"]).hook_id == "review_extension"
+
+
+def test_approval_profile_describes_review_fields_for_authors():
+    profile = WorkflowAuthoringSchema().get(step_kind="approval")["step_kinds"][0]
+
+    review = profile["example_step"]["override"]["approval"]["review"]
+    assert {"editable", "from"} <= set(review["fields"][0])
+    assert "message.step.<step_id>.artifacts.<field>" in profile["review_guidance"]
+    assert "compatible.min" in profile["review_guidance"]

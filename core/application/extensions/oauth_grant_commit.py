@@ -160,6 +160,20 @@ class OAuthGrantCommitter:
             raise ValueError(_MESSAGE_STALE_CONFIGURATION)
         return locked_provider, scope, configuration
 
+    def _new_connection_ingress(self, state: dict[str, Any]) -> dict[str, Any]:
+        """The connection type's declared ingress defaults (a poll mode of "off")."""
+        from core.application.extensions.background_poll_connection import ingress_defaults
+
+        try:
+            install = _mapping(
+                self._install_loader(
+                    _text(state.get("extension_install_id")), _text(state.get("account_id"))
+                )
+            )
+        except Exception:
+            return {}
+        return ingress_defaults(install, _text(state.get("connection_type")))
+
     def lineage_is_current(self, state: dict[str, Any]) -> bool:
         """Whether a commit of this state would pass its lineage checks right now.
 
@@ -349,7 +363,10 @@ class OAuthGrantCommitter:
                     expected_credential_revision=expected_connection_revision,
                 )
             else:
-                saved = self._repository.create_oauth_connection(**connection_values)
+                saved = self._repository.create_oauth_connection(
+                    **connection_values,
+                    ingress_config=self._new_connection_ingress(state),
+                )
             if not saved or not self._repository.mark_configuration_verified(**scope):
                 raise ValueError("stale grant")
         return _text(normalized_token_response.get("access_token")), post_connect_pending

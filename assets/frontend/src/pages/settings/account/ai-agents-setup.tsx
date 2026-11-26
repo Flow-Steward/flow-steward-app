@@ -182,6 +182,7 @@ function useAgentToken(tokenId: string) {
  * edited, so there is no Change here.
  */
 export function AgentTokenStep({
+  createAnotherLabel,
   disabled = false,
   number,
   onCreateAnother,
@@ -189,7 +190,7 @@ export function AgentTokenStep({
   presetLabel,
   title,
   tokenId,
-}: Readonly<{ disabled?: boolean; number: number; onCreateAnother: () => void; onRevoked: () => void; presetLabel: string; title: string; tokenId: string }>) {
+}: Readonly<{ createAnotherLabel?: string; disabled?: boolean; number: number; onCreateAnother: () => void; onRevoked: () => void; presetLabel: string; title: string; tokenId: string }>) {
   const { t } = useI18n();
   const tokenQuery = useAgentToken(tokenId);
   const [confirming, setConfirming] = useState(false);
@@ -231,7 +232,7 @@ export function AgentTokenStep({
 
   const actions = (
     <>
-      <button className="fs-button ghost sm" disabled={disabled || revoking} onClick={onCreateAnother} type="button">{t("react.agent_access.create_another_token", "Create another token")}</button>
+      <button className="fs-button ghost sm" disabled={disabled || revoking} onClick={onCreateAnother} type="button">{createAnotherLabel || t("react.agent_access.create_another_token", "Create another token")}</button>
       {token && !token.revoked ? <button className="fs-button ghost-danger sm" disabled={disabled || confirming} onClick={() => setConfirming(true)} type="button">{t("react.agent_access.revoke", "Revoke")}</button> : null}
     </>
   );

@@ -1,8 +1,9 @@
+import { DsSearchInput } from "@/components/ui/search-input";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Package, RefreshCw, Search, SearchX, TriangleAlert } from "lucide-react";
+import { Package, RefreshCw, SearchX, TriangleAlert } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import {
@@ -196,7 +197,7 @@ export function ExtensionMarketplaceCatalog({
     writeUrl((latest) => ({ filters: update(latest.filters), page: 1 }));
   const toggle = (key: MarketplaceFacetKey, value: string) =>
     onFilters((current) => toggleFacetValue(current, key, value));
-  const clearFacet = (key: MarketplaceFacetKey) => onFilters((current) => ({ ...current, [key]: [] }));
+  const changeFacet = (key: MarketplaceFacetKey, values: string[]) => onFilters((current) => ({ ...current, [key]: values }));
   const clearAll = () => onFilters((current) => clearFacetValues(current, MARKETPLACE_FACET_KEYS));
 
   // `?find=<id>` of a listed extension opens its page on the whole catalog.
@@ -428,26 +429,24 @@ export function ExtensionMarketplaceCatalog({
               {t("react.extensions.show_all", "Show all")}</button>
           </DsAlert>
         ) : null}
-        <label className="fs-search fs-marketplace-search">
-          <Search aria-hidden="true" />
-          <input
-            aria-label={t("react.extensions.search_extension_catalog", "Search extension catalog")}
-            disabled={loading}
-            maxLength={200}
-            onChange={(event) => {
-              const q = event.target.value;
-              writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
-            }}
-            placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
-            type="search"
-            value={filters.q}
-          />
-        </label>
+        <DsSearchInput
+          className="fs-marketplace-search"
+          aria-label={t("react.extensions.search_extension_catalog", "Search extension catalog")}
+          disabled={loading}
+          maxLength={200}
+          onValueChange={(value) => {
+            const q = value;
+            writeUrl((latest) => ({ filters: { ...latest.filters, q }, page: 1 }));
+          }}
+          placeholder={t("react.extensions.search_extensions_variant_0f46a3c9", "Search extensions…")}
+          value={filters.q}
+        />
         {loading || !items.length ? null : (
           <CatalogResultsHead
             announceDelayMs={ANNOUNCE_DELAY_MS}
             compact={compact}
-            countLabel={countLabel(visible.length)}
+            count={visible.length}
+            countLabel={countLabel}
             countRef={countRef}
             facets={facets}
             filters={filters}
@@ -468,9 +467,8 @@ export function ExtensionMarketplaceCatalog({
               ) : null
             }
             onClearAll={clearAll}
-            onClearFacet={clearFacet}
+            onFacetChange={changeFacet}
             onSort={(sort) => writeUrl(() => ({ sort, page: 1 }))}
-            onToggle={toggle}
             onView={(view) => writeUrl(() => ({ view, page: 1 }))}
             sort={urlState.sort}
             sortChoices={sortChoices}

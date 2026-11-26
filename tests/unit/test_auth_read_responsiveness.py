@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI, Request
 
 from core.application.auth.auth_http_runtime import local_auth_middleware
+from core.application.auth.permissions import SYSTEM_ROLE_PERMISSIONS
 from core.application.auth.principal import ResolvedPrincipal
 from core.application.auth.request_principal_runtime import roles_intersect
 from tests.support.api_read_probe import BlockedRead, probe_while_read_waits
@@ -59,7 +60,6 @@ def _auth_app(reader, boundary):
             local_auth_bootstrap_required_fn=value("bootstrap", True),
             auth_account_tables_available_fn=value("account_tables", True),
             roles_intersect_fn=roles_intersect,
-            is_admin_only_route_fn=lambda _path: True,
             is_registry_read_route_fn=lambda _path: False,
             is_self_service_auth_write_route_fn=lambda _path: False,
             csrf_request_valid_fn=lambda _request: True,
@@ -75,6 +75,7 @@ def _auth_app(reader, boundary):
             err_operator_role_required="Operator required",
             path_bootstrap="/bootstrap",
             path_login="/login",
+            load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
         )
 
     @app.get("/api/private")

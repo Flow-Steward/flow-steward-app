@@ -90,8 +90,11 @@ AC17-R97: Every tier runs inside the disposable `fs-audit` container, through `l
 - `MUST` preserve actual check-level pass/fail evidence and its fingerprint; deferred no-op checks are not valid evidence. Existing `--checks` selections do not promise per-file execution or per-target recovery from a full timeout.
 - `MUST` report the final release SHA, selected checks, achieved depth and unrun work. Publication does not implicitly request or require a new full gate; an explicitly requested full acceptance contract still requires complete matching evidence.
 - Additional deep audit checks `MAY` be requested through `lint.sh --checks`; `--audit` is a compatibility alias for the final committed gate.
-- GitHub quality execution `MUST` require a separate manual request; push, tag and
-  publication events do not authorize a quality run. Official publication `MUST`
+- GitHub quality execution `MUST` require a manual request, an authorized
+  schedule, or a designated pre-release branch push. The branch push authorizes
+  Tier 2 only. For release PRs, agents `MUST` use the
+  [guarded merge command](../operations/remote-quality.md#pre-release-branches)
+  to verify successful Tier 2 and CodeQL runs before merging. Official publication `MUST`
   preserve verification of the complete canonical image-role/platform set and source
   provenance in at least one configured registry. Unavailable mirrors remain visible
   in evidence; invalid identities and digest conflicts fail closed.

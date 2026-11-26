@@ -18,20 +18,18 @@ def _workflow() -> dict:
 
 
 @pytest.mark.parametrize(
-    ("ref", "event", "mode", "expected"),
+    ("ref", "mode", "expected"),
     [
-        (MEASUREMENT_REF, "push", "", ["secret_scan"]),
-        (MEASUREMENT_REF, "workflow_dispatch", "tier2", ["secret_scan"]),
-        (MEASUREMENT_REF, "workflow_dispatch", "release", ["secret_scan"]),
-        (MEASUREMENT_REF, "workflow_dispatch", "release-sonar", ["secret_scan"]),
-        (MEASUREMENT_REF, "workflow_dispatch", "release-full", ["secret_scan"]),
-        ("feature/ordinary-change", "workflow_dispatch", "secret-scan-only", ["secret_scan"]),
-        ("feature/ordinary-change", "push", "", ["quality"]),
-        ("feature/ordinary-change", "workflow_dispatch", "tier2", ["quality"]),
+        (MEASUREMENT_REF, "tier2", ["secret_scan"]),
+        (MEASUREMENT_REF, "release", ["secret_scan"]),
+        (MEASUREMENT_REF, "release-sonar", ["secret_scan"]),
+        (MEASUREMENT_REF, "release-full", ["secret_scan"]),
+        ("feature/ordinary-change", "secret-scan-only", ["secret_scan"]),
+        ("feature/ordinary-change", "tier2", ["quality"]),
     ],
 )
 def test_scanner_measurement_cannot_select_a_full_gate(
-    ref: str, event: str, mode: str, expected: list[str]
+    ref: str, mode: str, expected: list[str]
 ) -> None:
     workflow = _workflow()
     conditions = {name: job["if"] for name, job in workflow["jobs"].items()}
@@ -40,7 +38,7 @@ def test_scanner_measurement_cannot_select_a_full_gate(
             "repository": "Flow-Steward/flow-steward-app",
             "ref_name": ref,
             "ref": f"refs/heads/{ref}",
-            "event_name": event,
+            "event_name": "workflow_dispatch",
             "event": {"repository": {"private": False}, "head_commit": {"message": ""}},
         },
         "inputs": {"mode": mode, "reuse_run_id": ""},

@@ -8,7 +8,8 @@ import { AlertTriangle, Save } from "lucide-react";
 import { Link } from "react-router";
 import { ROUTE_FIELD_ELEMENT_IDS, type RouteFieldId } from "./validation";
 import type { ProjectNotificationProvider, ProviderChannel } from "./api";
-import { textOrEmpty, SEVERITY_OPTIONS, type RouteDraft, type RouteModalMode } from "./notification-route-model";
+import { SEVERITY_OPTIONS, type RouteDraft, type RouteModalMode } from "./notification-route-model";
+import { defaultRouteConnectionId, type RouteTarget } from "./notification-route-target";
 
 function getEventOptions(t: I18nContextValue["t"] = fallbackContext.t) {
   return [
@@ -21,13 +22,15 @@ function getEventOptions(t: I18nContextValue["t"] = fallbackContext.t) {
 ];
 }
 /**
- * Some providers deliver to a recipient (an address you type) rather than to a
- * channel (one you pick from a list the provider offers).
+ * Some routes deliver to a recipient (an address you type), some to a channel
+ * (one you pick from a list the provider offers), and some to the one channel
+ * their connection is bound to.
  *
- * Which one is read from `notification_target_kind`, derived by the platform from
- * the extension's own declaration. Matching a provider key here would mean the UI
- * knew which extension sends mail, and a second one would silently get the wrong
- * form.
+ * Which one is read from the selected connection, or for a provider whose
+ * connections all address the same kind from `notification_target_kind`; both
+ * are derived by the platform from the extension's own declaration. Matching a
+ * provider key here would mean the UI knew which extension sends mail, and a
+ * second one would silently get the wrong form.
  */
 function routeSaveLabel(mode: RouteModalMode, t: I18nContextValue["t"] = fallbackContext.t): string {
   return mode === "create" ? t("react.projects.create_route", "Create route") : t("react.projects.save_route", "Save route");
@@ -44,7 +47,7 @@ function routeSaveLabel(mode: RouteModalMode, t: I18nContextValue["t"] = fallbac
 function RouteTargetEditor({
   draft,
   error,
-  usesEmailApRecipient,
+  target,
   channels,
   channelsQuery,
   provider,
@@ -53,7 +56,7 @@ function RouteTargetEditor({
 }: Readonly<{
   draft: RouteDraft;
   error: { field: RouteFieldId | null; message: string } | null;
-  usesEmailApRecipient: boolean;
+  target: RouteTarget;
   channels: ProviderChannel[];
   channelsQuery: { isLoading?: boolean; error?: unknown } | undefined;
   provider: ProjectNotificationProvider | null;
@@ -62,7 +65,29 @@ function RouteTargetEditor({
 }>) {
   const { t } = useI18n();
   const channelsLoaderShown = useLoaderDelay(Boolean(channelsQuery?.isLoading));
-  if (usesEmailApRecipient) {
+  if (target.kind === "connection_required") {
+    return (
+      <p className="mt-2 text-sm fs-ink-tertiary">
+        {target.missing
+          ? t("react.projects.choose_a_connection_first", "Choose a connection first: it decides whether this route addresses recipients or a channel.")
+          : t("react.projects.connection_cannot_carry_routes_choose_another", "This connection can no longer carry notification routes. Choose another connection.")}
+      </p>
+    );
+  }
+  if (target.kind === "fixed_channel") {
+    return (
+      <label className="mt-2 block text-xs uppercase tracking-[0.15em] fs-ink-secondary">
+        <span>{t("react.projects.channel_set_by_connection", "Channel (set by the connection)")}</span>
+        <input
+          className="fs-input"
+          id={ROUTE_FIELD_ELEMENT_IDS.channel_id}
+          readOnly
+          value={target.label}
+        />
+      </label>
+    );
+  }
+  if (target.kind === "recipient") {
     return (
       <label className="mt-2 block text-xs uppercase tracking-[0.15em] fs-ink-secondary">
         <RequiredLabel>{t("react.projects.recipient_email", "Recipient email")}</RequiredLabel>
@@ -151,7 +176,8 @@ export function NotificationRouteDialog({
   provider,
   channels,
   channelsQuery,
-  usesEmailRecipientTarget,
+  connectionChoices,
+  target,
   workflowChoices,
   workflowsLoading,
   workflowsError,
@@ -173,7 +199,9 @@ export function NotificationRouteDialog({
   provider: ProjectNotificationProvider | null;
   channels: ProviderChannel[];
   channelsQuery: { isLoading?: boolean; error?: unknown } | undefined;
-  usesEmailRecipientTarget: boolean;
+  /** The connections a route of this provider may name; empty when it names none. */
+  connectionChoices: Array<{ value: string; label: string }>;
+  target: RouteTarget;
   workflowChoices: Array<{ value: string; label: string }>;
   workflowsLoading: boolean;
   workflowsError: boolean;
@@ -266,10 +294,8 @@ export function NotificationRouteDialog({
             onChange={(value) =>
               onChange({
                 channel_id: "",
-                connection_id: textOrEmpty(
-                  providerOptions.find(
-                    (candidate) => candidate.provider_key === value,
-                  )?.connection_id,
+                connection_id: defaultRouteConnectionId(
+                  providerOptions.find((candidate) => candidate.provider_key === value),
                 ),
                 provider_key: value,
               })
@@ -280,6 +306,21 @@ export function NotificationRouteDialog({
             value={draft.provider_key}
           />
         </div>
+        {connectionChoices.length ? (
+          <div className="block text-xs uppercase tracking-[0.15em] fs-ink-secondary">
+            <RequiredLabel>{t("react.projects.connection", "Connection")}</RequiredLabel>
+            <DsSelect
+              ariaLabel={t("react.projects.connection", "Connection")}
+              id={ROUTE_FIELD_ELEMENT_IDS.connection_id}
+              invalid={error?.field === "connection_id"}
+              onChange={(value) => onChange({ channel_id: "", connection_id: value })}
+              options={connectionChoices}
+              placeholder={t("react.projects.select_connection", "Select connection")}
+              required
+              value={draft.connection_id}
+            />
+          </div>
+        ) : null}
         <div className="block text-xs uppercase tracking-[0.15em] fs-ink-secondary">
           <RequiredLabel>{t("react.projects.event_type", "Event type")}</RequiredLabel>
           <DsSelect
@@ -324,7 +365,7 @@ export function NotificationRouteDialog({
       </div>
       <div className="mt-3 fs-surface-radius border border-subtle fs-surface-inset p-3">
         <p className="text-xs uppercase tracking-[0.15em] fs-ink-secondary">
-          {usesEmailRecipientTarget ? t("react.projects.recipient", "Recipient") : t("settings.notifications.columns.channel", "Channel")}
+          {target.kind === "recipient" ? t("react.projects.recipient", "Recipient") : t("settings.notifications.columns.channel", "Channel")}
         </p>
         <RouteTargetEditor
           channels={channels}
@@ -334,7 +375,7 @@ export function NotificationRouteDialog({
           onChange={onChange}
           projectId={projectId}
           provider={provider}
-          usesEmailApRecipient={usesEmailRecipientTarget}
+          target={target}
         />
       </div>
       <DsCheckbox

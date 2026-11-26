@@ -15,6 +15,8 @@ from core.application.orchestration.tools.mcp_tools import verify_worker_mcp_gro
 from core.application.tooling.db.bootstrap_seed import ensure_canonical_guardrails_seeded
 from core.entrypoints.cli.approval_command_runtime import create_runtime_approval_command_service
 from core.entrypoints.cli.worker_event_ingress import (
+    build_background_poll_ports,
+    build_provider_event_dispatch_sweep,
     build_worker_inbound_poll_response_processor,
 )
 from core.infrastructure.config.compact_runtime import validate_compact_only_settings
@@ -50,6 +52,8 @@ def main() -> None:
     run_worker(
         ensure_guardrails_seeded=ensure_canonical_guardrails_seeded,
         process_extension_response_envelope=process_extension_response,
+        sweep_provider_event_dispatches=build_provider_event_dispatch_sweep(),
+        background_poll_ports=build_background_poll_ports(),
         maintenance_active=public_submission_pause_active,
         curate_terminal_job=curate_completed_job_to_memory,
         job_terminal_statuses=JOB_TERMINAL_STATUSES,

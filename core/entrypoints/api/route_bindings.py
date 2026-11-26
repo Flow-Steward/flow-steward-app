@@ -579,6 +579,19 @@ def register_api_routes(
     )
     app.include_router(api_model_catalog_router)
 
+    from core.entrypoints.api.system_email_settings import (
+        create_api_system_email_settings_router,
+    )
+
+    app.include_router(
+        create_api_system_email_settings_router(
+            get_logger_only=get_integration_store,
+            request_scope=request_scope,
+            service_error_response=service_error_response,
+            api_error_response=api_error_response,
+        )
+    )
+
     api_llm_provider_extensions_router = create_api_llm_provider_extensions_router(
         get_logger_only=get_identity_store,
         require_authenticated_user=require_authenticated_user,

@@ -64,7 +64,10 @@ def _portable_extension_hint(item: dict[str, Any]) -> dict[str, Any]:
 
 class WorkflowPortabilityDefinitionsMixin:
     def _workflow_definition(self, workflow: dict[str, Any]) -> dict[str, Any]:
-        settings = _workflow_settings(workflow)
+        from core.application.registry.workflow_operator_form_checks import portable_settings
+
+        # An operator acknowledgement belongs to this installation's admin (ADR 0075).
+        settings = portable_settings(_workflow_settings(workflow))
         # The graph is service-owned: it travels as its own definition field and
         # comes back in through the change service, never as a settings key.
         graph = settings.get(EXECUTION_GRAPH_SETTING)

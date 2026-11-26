@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { fetchJson } from "@/lib/http/client";
 import { JobsListPage } from "@/pages/jobs/list";
 import { LOADER_DELAY_MS, LOADER_MIN_SHOWN_MS } from "@/components/shared/use-loader-delay";
+import { permissionsForRoles } from "@/test/role-permissions";
 
 vi.mock("@/lib/auth/useAuth", () => ({
   useAuth: vi.fn(),
@@ -32,10 +33,9 @@ async function filterOptionLabels(fieldLabel: string) {
   fireEvent.click(screen.getByRole("button", { name: "Add filter" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: fieldLabel }));
   const menu = await screen.findByRole("menu", { name: "Choose a filter" });
-  // A single-value field lists menuitems, a multiple one menuitemcheckboxes.
-  return Array.from(menu.querySelectorAll('[role="menuitem"], [role="menuitemcheckbox"]'))
-    .map((item) => item.textContent?.trim() || "")
-    .filter((label) => label !== "All fields");
+  // The back row is the first menuitem, before the field's options.
+  return [...within(menu).getAllByRole("menuitem").slice(1), ...within(menu).queryAllByRole("menuitemcheckbox")]
+    .map((item) => item.textContent?.trim() || "");
 }
 
 /** Exactly the eight status groups, in their order. */
@@ -228,7 +228,7 @@ describe("JobsListPage", () => {
     mockedUseAuth.mockReturnValue({
       session: {
         user: {
-          roles: ["admin"],
+          roles: ["admin"], permissions: permissionsForRoles(["admin"]),
         },
       },
     } as never);
@@ -590,7 +590,12 @@ describe("JobsListPage", () => {
     mockFilteredJobsServer();
     renderJobsListPage("/jobs?status=failed,stuck,awaiting_approval&status=max_iterations&status=no_such_status");
 
-    await waitFor(() => expect(screen.getByText("Status · Waiting for approval, Stuck, Failed")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Status · 3 selected" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Status · 3 selected" }));
+    const menu = screen.getByRole("menu", { name: "Choose a filter" });
+    for (const name of ["Waiting for approval", "Stuck", "Failed"]) {
+      expect(within(menu).getByRole("menuitemcheckbox", { name })).toBeChecked();
+    }
     await waitFor(() => {
       expect(jobsRequests().at(-1)?.getAll("status")).toEqual(["awaiting_approval", "stuck", "orphaned", "failed", "max_iterations", "triage_needed"]);
     });
@@ -678,11 +683,6 @@ describe("JobsListPage", () => {
     });
   }
 
-  function workflowOptions() {
-    const menu = screen.getByRole("menu", { name: "Choose a filter" });
-    return within(menu).getAllByRole("menuitem").filter((item) => item.textContent !== "All fields");
-  }
-
   it("retains a historical run name without inferring extension identity from its local id", async () => {
     mockWorkflowCatalogServer();
     renderJobsListPage("/jobs");
@@ -694,10 +694,10 @@ describe("JobsListPage", () => {
     });
 
     await filterOptionLabels("Workflow");
-    const titles = workflowOptions().map((item) => item.getAttribute("title") || "");
-    expect(titles.some((title) => title.includes("extension."))).toBe(false);
-    expect(titles).toEqual(expect.arrayContaining(["Fan out demo", "Original fan out demo"]));
-    expect(titles.some((title) => title.includes("Previous install"))).toBe(false);
+    const menu = screen.getByRole("menu", { name: "Choose a filter" });
+    expect(within(menu).queryByRole("menuitem", { name: /extension\./ })).not.toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Fan out demo" })).toBeInTheDocument();
+    expect(within(menu).getByRole("menuitem", { name: "Original fan out demo" })).not.toHaveAccessibleDescription(/Previous install/);
   });
 
   it("tells same-named workflows apart by project or extension", async () => {
@@ -708,16 +708,13 @@ describe("JobsListPage", () => {
       expect(mockedFetchJson.mock.calls.some(([input]) => String(input).startsWith("/api/extensions"))).toBe(true);
     });
     await filterOptionLabels("Workflow");
+    const menu = screen.getByRole("menu", { name: "Choose a filter" });
     await waitFor(() => {
-      const titles = workflowOptions().map((item) => item.getAttribute("title"));
-      expect(titles).toEqual(expect.arrayContaining([
-        "Classify support requests · Billing",
-        "Classify support requests · Support",
-        "Classify support requests · TypeSafe JEV",
-      ]));
+      for (const description of ["Billing", "Support", "TypeSafe JEV"]) {
+        expect(within(menu).getByRole("menuitem", { name: "Classify support requests", description })).toBeInTheDocument();
+      }
     });
-    // A name nobody else uses carries no description.
-    expect(workflowOptions().map((item) => item.getAttribute("title"))).toContain("Inventory Import");
+    expect(within(menu).getByRole("menuitem", { name: "Inventory Import" })).not.toHaveAccessibleDescription();
   });
 });
 });
@@ -729,7 +726,7 @@ describe("JobsListPage first load", () => {
     vi.useFakeTimers();
     mockedUseAuth.mockReset();
     mockedFetchJson.mockReset();
-    mockedUseAuth.mockReturnValue({ session: { user: { roles: ["admin"] } } } as never);
+    mockedUseAuth.mockReturnValue({ session: { user: { roles: ["admin"], permissions: permissionsForRoles(["admin"]) } } } as never);
     const jobsAnswer = new Promise((resolve) => {
       resolveJobs = resolve;
     });

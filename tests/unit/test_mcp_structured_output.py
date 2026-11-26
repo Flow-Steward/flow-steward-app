@@ -14,11 +14,12 @@ import asyncio
 import json
 from types import SimpleNamespace
 from typing import Any, ClassVar
+from unittest.mock import AsyncMock
 
 import pytest
 from mcp import Client
 
-from core.entrypoints.mcp import server_api_tool
+from core.entrypoints.mcp import server_api_tool, server_maintenance
 from core.entrypoints.mcp.server import mcp
 
 _ENVELOPE_FIELDS = {"ok", "tool", "data", "meta"}
@@ -58,7 +59,7 @@ def _run(coro_factory: Any) -> Any:
 def test_tools_list_publishes_the_envelope_object_for_every_tool() -> None:
     tools = _run(lambda client: client.list_tools()).tools
 
-    assert len(tools) == 76
+    assert len(tools) == 78
     for tool in tools:
         schema = tool.output_schema
         assert schema is not None, tool.name
@@ -100,6 +101,65 @@ def test_catalog_search_uses_the_api_without_resolving_a_project(monkeypatch) ->
     assert result.structured_content["data"]["items"] == [
         {"detail_url": "https://flow.example.test/extensions?find=acme.shop#marketplace"}
     ]
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "method", "path", "body"),
+    [
+        (
+            "project_create",
+            {"project": {"name": "Sales", "workspace_id": "00000000-0000-0000-0000-000000000003"}},
+            "POST",
+            "/api/projects",
+            {"name": "Sales", "workspace_id": "00000000-0000-0000-0000-000000000003"},
+        ),
+        (
+            "project_update",
+            {
+                "project_id": "00000000-0000-0000-0000-000000000010",
+                "changes": {"name": "New name", "description": ""},
+            },
+            "PUT",
+            "/api/projects/00000000-0000-0000-0000-000000000010",
+            {"name": "New name", "description": ""},
+        ),
+    ],
+)
+def test_project_writes_delegate_once_with_the_callers_token_and_exact_body(
+    monkeypatch: pytest.MonkeyPatch,
+    tool: str,
+    arguments: dict[str, Any],
+    method: str,
+    path: str,
+    body: dict[str, str],
+) -> None:
+    response = {"project_id": "00000000-0000-0000-0000-000000000010", "name": body["name"]}
+
+    def request(_self: _App, method: str, path: str, **kwargs: Any) -> object:
+        _App.requests.append(
+            {
+                "method": method,
+                "path": path,
+                "bearer": kwargs["bearer"],
+                "body": kwargs["json_body"],
+            }
+        )
+        return response
+
+    monkeypatch.setattr(_App, "request", request)
+    monkeypatch.setattr(
+        server_maintenance.AppApiClient,
+        "request_async",
+        AsyncMock(return_value={"status": "disabled"}),
+    )
+
+    result = _run(lambda client: client.call_tool(tool, arguments))
+
+    assert not result.is_error, result.content
+    assert _App.requests == [
+        {"method": method, "path": path, "bearer": "caller-token", "body": body}
+    ]
+    assert result.structured_content["data"] == response
 
 
 def test_a_refusal_stays_a_tool_error_with_the_error_envelope_text(
