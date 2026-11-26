@@ -12133,9 +12133,6 @@ msgstr "Filter providers"
 msgid "react.settings.findings"
 msgstr "Findings"
 
-msgid "react.settings.google_gemini_api"
-msgstr "Google (Gemini API key)"
-
 msgid "react.settings.google_official"
 msgstr "Google (official)"
 
@@ -13227,9 +13224,6 @@ msgstr "Verification error"
 
 msgid "react.settings.verify"
 msgstr "Verify"
-
-msgid "react.settings.vertex_ai_provider_setup"
-msgstr "Set up Google Cloud Vertex AI through its extension."
 
 msgid "react.settings.waiting_for_first_posture_scan"
 msgstr "Waiting for first posture scan."

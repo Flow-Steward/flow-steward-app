@@ -28,7 +28,6 @@ import {
 } from "@/lib/utils/unknown-values";
 import { isHttpError } from "@/lib/http/errors";
 import { isApiEnvelope } from "@/lib/http/types";
-import { entryPath } from "@/pages/extensions/marketplace-model";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { DsAlert, DsDialog, DsSelect, DsTable, RequiredLabel, RowActionMenu } from "@/components/shared/design-system";
 import { DsLoader } from "@/components/shared/ds-loader";
@@ -55,20 +54,16 @@ type ProviderFormState = {
 
 
 
-function getProviderTypes(t: I18nContextValue["t"], isLegacyGoogle: boolean) {
+function getProviderTypes(t: I18nContextValue["t"]) {
   return [
     { value: "openai", label: t("react.settings.openai_official", "OpenAI (official)") },
     { value: "anthropic", label: t("react.settings.anthropic_official", "Anthropic (official)") },
-    ...(isLegacyGoogle
-      ? [{ value: "google", label: t("react.settings.google_gemini_api", "Google (Gemini API key)") }]
-      : []),
     { value: "openai_compatible", label: t("react.settings.openai_compatible", "OpenAI Compatible") },
     { value: "azure_openai", label: t("settings.model_providers.option.azure_openai", "Azure OpenAI") },
   ];
 }
 
-const DISCOVERABLE_PROVIDER_TYPES = new Set(["openai", "anthropic"]);
-const OFFICIAL_PROVIDER_TYPES = new Set([...DISCOVERABLE_PROVIDER_TYPES, "google"]);
+const OFFICIAL_PROVIDER_TYPES = new Set(["openai", "anthropic"]);
 
 function providerPayload(form: ProviderFormState): Entity {
   const providerType = form.provider_type.trim();
@@ -144,7 +139,7 @@ function ProviderDialog({
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelFeedback, setModelFeedback] = useState("");
   const discoveryRequest = useRef<AbortController | null>(null);
-  const discoverable = DISCOVERABLE_PROVIDER_TYPES.has(form.provider_type);
+  const discoverable = OFFICIAL_PROVIDER_TYPES.has(form.provider_type);
   const canUseSavedKey = savedProviderType === form.provider_type;
 
   useEffect(() => () => discoveryRequest.current?.abort(), []);
@@ -246,13 +241,9 @@ function ProviderDialog({
                 provider_type: providerType,
               }));
             }}
-            options={getProviderTypes(t, savedProviderType === "google")}
+            options={getProviderTypes(t)}
             value={form.provider_type}
           />
-          <span className="fs-field-helper">
-            {t("react.settings.vertex_ai_provider_setup", "Set up Google Cloud Vertex AI through its extension.")}{" "}
-            <a href={entryPath("flowsteward.google-cloud-vertex")}>{t("react.extensions.marketplace", "Catalog")}</a>
-          </span>
         </div>
         <div className="fs-form-grid">
           {!usesOfficialEndpoint ? (
@@ -417,7 +408,12 @@ export function SettingsProvidersPage() {
         },
       ],
       row_actions: [
-        { action_id: "edit", label: t("projects.grid.action.edit", "Edit"), variant: "default" },
+        {
+          action_id: "edit",
+          label: t("projects.grid.action.edit", "Edit"),
+          variant: "default",
+          visible_if: { field: "provider_type", in: getProviderTypes(t).map(({ value }) => value) },
+        },
         { action_id: "verify", label: t("react.settings.verify", "Verify"), variant: "default" },
         { action_id: "delete", label: t("projects.grid.action.delete", "Delete"), variant: "danger" },
       ],

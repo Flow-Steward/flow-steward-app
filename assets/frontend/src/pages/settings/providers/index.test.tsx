@@ -162,7 +162,8 @@ describe("SettingsProvidersPage", () => {
     expect(loadModels).toBeDisabled();
     await user.click(screen.getByRole("combobox", { name: "Provider type" }));
     expect(screen.queryByRole("option", { name: /google/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Catalog" })).toHaveAttribute("href", "/extensions?mk_entry=flowsteward.google-cloud-vertex#marketplace");
+    expect(within(screen.getByRole("dialog")).queryByText(/google|vertex/i)).not.toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).queryByRole("link", { name: "Catalog" })).not.toBeInTheDocument();
   });
 
   it("aborts model discovery when the key changes and ignores its late result", async () => {
@@ -209,7 +210,7 @@ describe("SettingsProvidersPage", () => {
     expect(model).not.toHaveAttribute("list");
   });
 
-  it("keeps an existing Google provider editable with its current model", async () => {
+  it("keeps existing Google providers verifiable and removable outside the provider form", async () => {
     mockedFetchModelProvidersCollection.mockResolvedValue([
       { id: "google-1", name: "Existing Google", provider_type: "google", default_model: "gemini-model" },
     ]);
@@ -217,11 +218,10 @@ describe("SettingsProvidersPage", () => {
     renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Actions for Existing Google" }));
-    await user.click(screen.getByRole("menuitem", { name: "Edit" }));
-    expect(screen.getByRole("combobox", { name: "Provider type" })).toHaveTextContent("Google (Gemini API key)");
-    expect(screen.getByLabelText("Default model")).toHaveValue("gemini-model");
-    expect(screen.queryByRole("button", { name: "Load models" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Verify" })).toBeVisible();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeVisible();
+    expect(screen.getByText("gemini-model")).toBeVisible();
   });
 
   it("omits hidden Azure fields after switching to OpenAI Compatible", async () => {

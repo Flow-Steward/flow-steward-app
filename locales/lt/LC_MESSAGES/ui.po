@@ -12325,9 +12325,6 @@ msgstr "Filtruoti tiekėjus"
 msgid "react.settings.findings"
 msgstr "Radiniai"
 
-msgid "react.settings.google_gemini_api"
-msgstr "Google („Gemini“ API raktas)"
-
 msgid "react.settings.google_official"
 msgstr "Google (oficialus)"
 
@@ -13436,9 +13433,6 @@ msgstr "Patikros klaida"
 
 msgid "react.settings.verify"
 msgstr "Patikrinti"
-
-msgid "react.settings.vertex_ai_provider_setup"
-msgstr "Nustatykite „Google Cloud Vertex AI“ naudodami jo plėtinį."
 
 msgid "react.settings.waiting_for_first_posture_scan"
 msgstr "Laukiama pirmos saugumo būklės patikros."

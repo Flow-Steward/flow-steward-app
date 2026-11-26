@@ -12036,9 +12036,6 @@ msgstr ""
 msgid "react.settings.findings"
 msgstr ""
 
-msgid "react.settings.google_gemini_api"
-msgstr ""
-
 msgid "react.settings.google_official"
 msgstr ""
 
@@ -13147,9 +13144,6 @@ msgid "react.settings.verification_error"
 msgstr ""
 
 msgid "react.settings.verify"
-msgstr ""
-
-msgid "react.settings.vertex_ai_provider_setup"
 msgstr ""
 
 msgid "react.settings.waiting_for_first_posture_scan"
