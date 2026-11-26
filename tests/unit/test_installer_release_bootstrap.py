@@ -271,9 +271,12 @@ def test_retry_refuses_to_execute_a_tag_moved_after_selection(
 def test_install_preserves_existing_or_explicit_checkout(bootstrap_host, original: str) -> None:
     checkout, _, docker_commands = bootstrap_host
     existing_config = checkout / ".env.prod"
+    existing_project = "existing-dev"
     arguments: tuple[str, ...] = ()
     if original == "configuration":
-        existing_config.write_text("FS_COMPOSE_PROJECT_NAME=existing-dev\n", encoding="utf-8")
+        existing_config.write_text(
+            f"FS_COMPOSE_PROJECT_NAME={existing_project}\n", encoding="utf-8"
+        )
     elif original == "source":
         arguments = ("--from-source",)
     else:
@@ -287,7 +290,8 @@ def test_install_preserves_existing_or_explicit_checkout(bootstrap_host, origina
     assert not (checkout / ".flow-steward" / "bootstrap-release").exists()
     if original == "configuration":
         assert (
-            existing_config.read_text(encoding="utf-8") == "FS_COMPOSE_PROJECT_NAME=existing-dev\n"
+            existing_config.read_text(encoding="utf-8")
+            == f"FS_COMPOSE_PROJECT_NAME={existing_project}\n"
         )
 
 
@@ -298,7 +302,10 @@ def test_managed_launch_refuses_configuration_for_another_compose_project(bootst
     managed_root = Path(installed.stdout.splitlines()[0])
     state = managed_root / ".flow-steward"
     state.mkdir(exist_ok=True)
-    (state / "compose.env").write_text("FS_COMPOSE_PROJECT_NAME=flow-steward\n", encoding="utf-8")
+    other_project = "flow-steward"
+    (state / "compose.env").write_text(
+        f"FS_COMPOSE_PROJECT_NAME={other_project}\n", encoding="utf-8"
+    )
 
     for command in ("install.sh", "flow-steward"):
         result = _run(checkout, command)

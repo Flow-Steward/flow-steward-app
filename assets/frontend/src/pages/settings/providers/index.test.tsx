@@ -148,10 +148,11 @@ describe("SettingsProvidersPage", () => {
     expect(defaultModel).not.toHaveAttribute("list");
     expect(screen.queryByLabelText("Base URL")).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("API key"), "openai-test");
+    const enteredKey = "openai-test";
+    await user.type(screen.getByLabelText("API key"), enteredKey);
     await user.click(loadModels);
     expect(mockedDiscoverModelProviderModels).toHaveBeenCalledWith(
-      { provider_type: "openai", api_key: "openai-test", provider_id: "" },
+      { provider_type: "openai", api_key: enteredKey, provider_id: "" },
       expect.any(AbortSignal),
     );
     await waitFor(() => expect(defaultModel).toHaveAttribute("list", "provider-default-model-options"));

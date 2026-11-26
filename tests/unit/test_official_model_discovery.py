@@ -236,11 +236,12 @@ def test_discovery_only_uses_the_saved_key_for_the_same_provider(monkeypatch, sa
 def test_changing_provider_type_requires_a_new_key(monkeypatch) -> None:
     conn = object()
     update = MagicMock()
+    saved_reference = "stored"
     monkeypatch.setattr(db_pool, "transaction_connection", nullcontext)
     monkeypatch.setattr(
         model_provider_store,
         "lock_model_provider_for_update",
-        lambda *_args, **_kwargs: {"provider_type": "openai", "api_key_ref": "stored"},
+        lambda *_args, **_kwargs: {"provider_type": "openai", "api_key_ref": saved_reference},
     )
     monkeypatch.setattr(model_provider_store, "update_model_provider", update)
     service = ModelProviderCommandService(lambda: SimpleNamespace(conn=conn))
