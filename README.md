@@ -65,27 +65,31 @@ prints a complete new-site configuration and an alternative for an existing
 HTTPS site before the first-administrator link. Applying host web-server changes
 remains a separate operator step.
 
-Use a full (not shallow) Git clone, then run:
+Clone the repository, then run:
 
 ```bash
-git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 ./install.sh
 ./flow-steward status
 ./flow-steward doctor
 ```
 
-Production installation downloads the published installer and complete official
-release image set from GHCR, with Docker Hub as the alternate registry. Production
-uses a clean checkout at the published release tag, keeping the installer, local
-management code and product images on that exact release.
+On a fresh branch checkout, `./install.sh` selects the public stable release marked
+Latest, records its tag and commit, and downloads its files into a separate checkout
+under `.flow-steward/`. The new installation gets its own Compose project name.
+Rerunning `./install.sh` uses the recorded release. `./flow-steward release upgrade`
+updates it explicitly. To start on a specific published version, clone its tag.
+
+The published installer downloads the complete official image set from GHCR, with Docker
+Hub as the alternate registry. The release checkout and image revisions must agree.
 Download or provenance failures stop installation. There is no automatic source
 fallback, and no image is built locally, including the installer and PostgreSQL.
 A host Python installation is not required. Docker owns autostart; the installer
 does not create a systemd service or request sudo.
 
-For development, run `./install.sh --environment development --deployment-profile scalable`
-from the same clean release tag. It installs the official Core images and builds only the
+For development, run `./install.sh --environment development --deployment-profile scalable`.
+It installs the official Core images and builds only the
 frontend dev server and the test/audit images locally, and `./flow-steward release upgrade
 --confirm` updates it like production. Only `./install.sh --from-source` builds Core from the
 current checkout, on any branch; repeat the flag to resume or update a source installation.

@@ -90,7 +90,7 @@ Missing CLI/Compose means the prerequisite needs installation. A failing
 
 ```bash
 # 1. Clone Flow Steward
-git clone --branch v0.9.23 https://github.com/Flow-Steward/flow-steward-app.git flow-steward
+git clone https://github.com/Flow-Steward/flow-steward-app.git flow-steward
 cd flow-steward
 
 # 2. Install or safely resume core, then validate shared readiness
@@ -130,16 +130,23 @@ until `./install.sh` or the repeated `release upgrade` starts the new release.
 blocks, the upgrade fails with `database_upgrade_blocked` and lists each issue and
 its next step; its log path is the host path under the logs directory.
 
-Production installation downloads the published management installer tagged with
-its checkout VERSION (`flow-steward-installer:X.Y.Z`). It runs the Python installer
-inside that image, so a host Python installation is not required. A clean checkout
-at its published `v<VERSION>` tag selects that exact stable release from the
-public `Flow-Steward/flow-steward-app` repository. Keep the tag at checkout HEAD
-and tracked files clean so the existing exact-release resolver can prove the
-local controller/schema matches the published images. A checkout/provenance
-mismatch stops with published-tag or explicit `--from-source` guidance; it does
-not claim the published images themselves are unavailable. An unpublished VERSION
-has no guaranteed installer image: use a published production tag or source mode.
+On a fresh branch checkout, the installer uses Git and curl to select the stable
+release marked Latest in `Flow-Steward/flow-steward-app`. It records the tag,
+commit and Compose project name before downloading a separate release checkout
+under `.flow-steward/`. The original branch and working files remain available.
+Run `./install.sh` and `./flow-steward` from the original checkout. Keep its
+`.flow-steward/` directory with the installation. It holds the selected checkout
+and its installation configuration. The installer copies relative paths for
+operator-supplied credentials and certificates from the original checkout into
+private installation state so retries can read the same inputs. Host ports still
+have to be available on a Docker host that runs several installations.
+
+Reruns use the recorded release, and `./flow-steward release upgrade` changes it
+explicitly. For a specific version, start from a clean checkout at the published
+`v<VERSION>` tag. The installer runs inside the published
+`flow-steward-installer:X.Y.Z` image for the selected version, so host Python is
+optional. Exact release verification keeps the host controller and database
+schema aligned with the published images.
 
 The complete digest-pinned product image set is verified by revision, role and
 platform, including PostgreSQL from 0.9.2. GHCR is tried first, Docker Hub second;
@@ -246,11 +253,12 @@ installer supports either bundled self-hosted storage or external
 S3-compatible storage. Production does not include the test runner, audit
 tools, Sonar, backend reload, or Vite HMR.
 
-The Docker-hosted guided UI can read S3 credentials and provided TLS files
-placed under the repository, such as `.flow-steward/import/`. For an input file
-elsewhere on the host, supply its absolute path on the original `./install.sh`
-command line so the launcher can mount that one file read-only. Relative paths
-may not escape the repository, and generated TLS outputs must remain inside it.
+The Docker-hosted guided UI reads S3 credentials and provided TLS files from
+the release checkout. When bootstrapping from a branch, pass files from the
+launch directory as options to `./install.sh` so it can import them. For an
+input elsewhere on the host, supply its absolute path on the command line so
+the installer can mount that file read-only. Generated TLS outputs must remain
+inside the release checkout.
 
 A pre-Phase3 stack with configuration or labeled Docker resources but no
 `.flow-steward/install-state.json` is preserved and refused as ambiguous;
@@ -265,10 +273,10 @@ existing host proxy, skips bundled Traefik, and binds `fs-app` only to
 backend; change it with `--reverse-proxy-backend-port` when needed. The
 installer rejects non-loopback backend hosts.
 
-For local development, run `./install.sh --environment development --deployment-profile scalable`
-from a clean published release tag. Core images come from the official release;
-only the frontend dev server and the test/audit images are built locally at that
-tag, and `./flow-steward release upgrade --confirm` updates it like production. Add
+For local development, run `./install.sh --environment development --deployment-profile scalable`.
+Core images come from the official release. The frontend dev server and the
+test/audit images are built locally from the release checkout, and
+`./flow-steward release upgrade --confirm` updates it like production. Add
 `--from-source` to build Core from the checkout when you change Core code.
 Development is a complete preset: core plus frontend and continuously ready
 test/audit runtimes; Mailpit and SonarQube/scanner are available on demand.

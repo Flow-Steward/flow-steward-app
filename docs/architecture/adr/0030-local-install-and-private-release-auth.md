@@ -7,7 +7,8 @@ published release tag installs its official images. Amended 2026-10-27 (release
 0.9.2): the PostgreSQL image is an official release image. Amended 2026-11-06
 (release 0.9.12): prebuilt production installer and explicit source mode. Amended
 2026-11-21 (release 0.9.23): Development installs and upgrades from the official
-release like production.
+release like production. Amended 2026-11-26 to select and retain a stable release
+automatically when bootstrapping from a fresh branch checkout.
 
 ## Context
 
@@ -31,14 +32,20 @@ ordinary production installation ignores it, explicit overrides win, and a missi
 cached image fails without a build. Read-only Doctor never writes the cache.
 Clone's existing runtime-state policy keeps it target-local.
 
-A fresh production install uses the existing exact published stable release
-resolver for a clean `v<VERSION>` checkout from `Flow-Steward/flow-steward-app`.
-The local tag must name HEAD and tracked inputs remain clean, preserving the
-existing controller/schema provenance contract. When this cannot be proved, the
-default install reports a checkout/provenance mismatch with published-tag or
-explicit source-mode guidance; it does not report an image availability failure.
-It never changes the checkout or selects a floating/latest target implicitly.
-Existing official state and handoff bindings keep their identities on resume.
+A fresh official install launched on a branch without installation configuration
+uses the stable release marked Latest by `Flow-Steward/flow-steward-app`. The
+host launcher records the tag, exact Git commit and Compose project identity
+before downloading the release. It atomically exposes the verified release
+checkout under the launch directory's owner-only `.flow-steward/`. The host
+entrypoints dispatch to that checkout on subsequent calls. Its distinct Compose
+identity defaults to a name derived from the physical launch directory.
+
+A clean checkout at a published `v<VERSION>` tag can still select a specific
+release directly. In both cases the release tag must name HEAD, the tracked
+controller and schema inputs must be clean, and the exact release resolver
+verifies the published image revisions. New release selection is limited to the
+first bootstrap. Existing installation state and handoff bindings keep their
+release identities, and changing the release uses the upgrade command.
 
 Only `./install.sh --from-source` authorizes management and product source builds,
 including subsequent source resume/update runs, in either environment. This mode
