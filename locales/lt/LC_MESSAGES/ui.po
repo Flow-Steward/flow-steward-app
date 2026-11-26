@@ -5648,6 +5648,9 @@ msgstr ""
 msgid "react.extensions.this_version_also_asks_for"
 msgstr "Ši versija taip pat prašo:"
 
+msgid "react.extensions.trust_secret_updates_from_repository"
+msgstr "Leisti būsimiems naujinimams iš {repository} naudoti jau patvirtintas paslaptis"
+
 msgid "react.extensions.try_verifying_value0_again"
 msgstr "Bandyti dar kartą patikrinti {value0}"
 

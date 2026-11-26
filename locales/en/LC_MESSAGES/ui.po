@@ -5544,6 +5544,9 @@ msgstr "This release was republished. Check it and try again."
 msgid "react.extensions.this_version_also_asks_for"
 msgstr "This version also asks for:"
 
+msgid "react.extensions.trust_secret_updates_from_repository"
+msgstr "Trust future updates from {repository} to use already approved secrets"
+
 msgid "react.extensions.try_verifying_value0_again"
 msgstr "Try verifying {value0} again"
 

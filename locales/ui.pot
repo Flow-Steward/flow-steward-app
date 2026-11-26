@@ -5409,6 +5409,9 @@ msgstr ""
 msgid "react.extensions.this_version_also_asks_for"
 msgstr ""
 
+msgid "react.extensions.trust_secret_updates_from_repository"
+msgstr ""
+
 msgid "react.extensions.try_verifying_value0_again"
 msgstr ""
 
