@@ -165,7 +165,7 @@ function ProviderDialog({
       if (request.signal.aborted) return;
       setModels(results);
       if (!results.length) {
-        setModelFeedback(t("react.settings.provider_discovery_empty", "The provider returned no models for this key."));
+        setModelFeedback(t("react.settings.provider_discovery_empty", "No current chat models were found for this API key."));
       }
     } catch (error) {
       if (request.signal.aborted) return;
@@ -193,7 +193,7 @@ function ProviderDialog({
           ? t("react.settings.update_provider_routing_details", "Update provider routing details.")
           : t("react.settings.create_a_provider_profile_for_model_routing", "Create a provider profile for model routing.")
       }
-      eyebrow={t("react.shared.model_providers", "Model providers")}
+      eyebrow={t("react.shared.model_providers", "Chat models")}
       footer={
         <>
           <button className="fs-button" disabled={saving} onClick={onClose} type="button">
@@ -333,7 +333,7 @@ function ProviderDialog({
           {discoverable ? (
             <>
               <span className="fs-field-helper">
-                {t("react.settings.provider_discovery_help", "Load models available to this API key, or enter a model ID manually. Saving verifies the selected model.")}
+                {t("react.settings.provider_discovery_help", "Load chat models available to this API key, or enter a model ID manually. Saving verifies the selected model.")}
               </span>
               <div>
                 <Button
@@ -741,7 +741,7 @@ export function SettingsProvidersPage() {
           <div>
             <h2 className="fs-panel-title">{t("react.settings.configured_providers", "Configured providers")}</h2>
             <p>
-              {t("react.settings.manage_model_providers_available_to_workflow_execution", "Manage model providers available to workflow execution.")} {providers.length} {t("react.settings.provider_records_discovered", "provider records discovered.")} </p>
+              {t("react.settings.manage_model_providers_available_to_workflow_execution", "Agents use these models for conversation and tool calls.")} {providers.length} {t("react.settings.provider_records_discovered", "provider records discovered.")} </p>
           </div>
           <button
             className="fs-button primary"
@@ -798,7 +798,7 @@ export function SettingsProvidersPage() {
         busy={saving}
         closeLabel={t("react.settings.close_delete_confirmation", "Close delete confirmation")}
         description={t("react.settings.delete_provider_value1_routes_that_use_it_stop_resolving", "Delete provider {value1}? Routes that use it stop resolving.", { value1: String(pendingDeleteLabel) })}
-        eyebrow={t("react.shared.model_providers", "Model providers")}
+        eyebrow={t("react.shared.model_providers", "Chat models")}
         footer={
           <>
             <button className="fs-button" disabled={saving} onClick={() => setPendingDelete(null)} type="button">

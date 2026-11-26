@@ -14,7 +14,7 @@ function getExactChildRouteLabels(t: I18nContextValue["t"] = fallbackContext.t) 
   ["/settings/account", t("auth.login.account_label", "Account")],
   ["/settings/general", t("registry.workflow_detail.settings.general", "General")],
   ["/settings/notifications", t("settings.tab.notifications", "Notifications")],
-  ["/settings/providers", t("settings.tab.model_providers", "Model Providers")],
+  ["/settings/providers", t("settings.tab.model_providers", "Chat Models")],
   ["/settings/retention", t("settings.retention.title", "Retention")],
   ["/settings/security", t("account.security.title", "Security")],
   ["/settings/service-accounts", t("react.shared.service_accounts", "Service Accounts")],

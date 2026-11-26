@@ -12244,7 +12244,7 @@ msgid "react.settings.machine_tokens_issued_for_this_identity"
 msgstr "Machine tokens issued for this identity."
 
 msgid "react.settings.manage_model_providers_available_to_workflow_execution"
-msgstr "Manage model providers available to workflow execution."
+msgstr "Agents use these models for conversation and tool calls."
 
 msgid "react.settings.manage_where_operational_updates_are_delivered_and_which_workflows_can_use_each_channel_channels_are_the_email"
 msgstr ""
@@ -12275,7 +12275,7 @@ msgid "react.settings.model_provider_verified"
 msgstr "Model provider verified."
 
 msgid "react.settings.model_providers"
-msgstr "Model providers"
+msgstr "Chat Models"
 
 msgid "react.settings.model_providers_unavailable"
 msgstr "Model providers unavailable."
@@ -12514,13 +12514,13 @@ msgid "react.settings.prompt_injection_value1_context"
 msgstr "Prompt injection {value1} context"
 
 msgid "react.settings.provider_discovery_empty"
-msgstr "The provider returned no models for this key."
+msgstr "No current chat models were found for this API key."
 
 msgid "react.settings.provider_discovery_failed"
 msgstr "Could not load models. Check the API key or enter a model ID manually."
 
 msgid "react.settings.provider_discovery_help"
-msgstr "Load models available to this API key, or enter a model ID manually. Saving verifies the selected model."
+msgstr "Load chat models available to this API key, or enter a model ID manually. Saving verifies the selected model."
 
 msgid "react.settings.provider_discovery_load"
 msgstr "Load models"
@@ -13161,7 +13161,7 @@ msgid "react.settings.value1_action"
 msgstr "{value1} action"
 
 msgid "react.settings.value1_configured_providers_discovered_via_api_model_providers"
-msgstr "{value1} configured providers discovered via /api/model-providers."
+msgstr "{value1} providers configured for agent chat."
 
 msgid "react.settings.value1_days"
 msgstr "{value1} days"
@@ -13695,7 +13695,7 @@ msgid "react.shared.messages"
 msgstr "Messages"
 
 msgid "react.shared.model_providers"
-msgstr "Model providers"
+msgstr "Chat models"
 
 msgid "react.shared.model_routes"
 msgstr "Model routes"
@@ -25394,7 +25394,7 @@ msgid "settings.tab.mcp_connectors"
 msgstr "MCP Connectors"
 
 msgid "settings.tab.model_providers"
-msgstr "Model Providers"
+msgstr "Chat Models"
 
 msgid "settings.tab.notifications"
 msgstr "Notifications"

@@ -66,7 +66,7 @@ describe("SettingsGeneralPage", () => {
     expect(screen.getByRole("heading", { name: "Auth mode" })).toBeInTheDocument();
     expect(screen.getByText("External sign-in")).toBeInTheDocument();
     expect(screen.queryByText(["S", "SO feature flag"].map((value) => stringFromUnknownValue(value)).join(""))).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Model providers" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chat Models" })).toBeInTheDocument();
     expect(screen.getByText("Anthropic")).toBeInTheDocument();
   });
 

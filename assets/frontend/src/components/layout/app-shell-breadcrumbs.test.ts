@@ -73,7 +73,7 @@ describe("breadcrumbsForPath", () => {
   });
 
   it.each([
-    ["/settings/providers", "Model Providers"],
+    ["/settings/providers", "Chat Models"],
   ])("uses the exact registered route label for %s", (path, currentLabel) => {
     const breadcrumbs = breadcrumbsForPath(path, labels);
 
