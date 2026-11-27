@@ -147,7 +147,7 @@ describe("LoginPage", () => {
     });
     const auth = mockedUseAuth.mock.results[0].value as ReturnType<typeof useAuth>;
 
-    expect(await screen.findByRole("heading", { name: "Choose an account." })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Choose an account." })).toBeInTheDocument());
     const select = screen.getByLabelText("Account") as HTMLSelectElement;
     // Only companies with a role; the default one is preselected.
     expect(Array.from(select.options).map((option) => option.textContent)).toEqual(["Choose an account", "Alpha", "Beta"]);
@@ -157,12 +157,12 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(auth.switchAccount).toHaveBeenCalledWith("acct-b"));
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
   });
 
   it("goes straight on when the chooser is asked for but there is one company", async () => {
     renderLogin({ authenticated: true, route: "/login?choose_account=1&next=%2Fdashboard" });
-    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Dashboard destination")).toBeInTheDocument());
   });
 
   it("renders the accepted Flow Steward sign-in pattern and local form", () => {
