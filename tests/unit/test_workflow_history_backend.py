@@ -242,11 +242,15 @@ def test_revision_number_names_the_same_entry_after_saves_toggle_and_cleanup(aud
 
 
 def _insert_legacy_entry(conn, workflow_id: str, snapshot: dict) -> str:
+    # A legacy entry as it exists after the C5 backfill
+    # (20261127090000_account_scoped_registry_ops): it carries the account its
+    # snapshot names, else the installation account; it still has no revision.
     return str(
         conn.execute(
-            "INSERT INTO registry_changelog (entity_type, entity_id, action, snapshot, author)"
-            " VALUES ('workflow', %s, 'update', %s::jsonb, 'legacy') RETURNING id",
-            (workflow_id, json.dumps(snapshot)),
+            "INSERT INTO registry_changelog"
+            " (entity_type, entity_id, action, snapshot, author, account_id)"
+            " VALUES ('workflow', %s, 'update', %s::jsonb, 'legacy', %s) RETURNING id",
+            (workflow_id, json.dumps(snapshot), str(DEFAULT_ACCOUNT_ID)),
         ).fetchone()[0]
     )
 
@@ -271,9 +275,11 @@ def test_diff_reads_named_entries_older_than_the_list_window(audit_db) -> None:
     _save(store, workflow_id, ("a",))
     oldest = str(_entry(store, workflow_id, 1)["id"])
     conn.execute(
-        "INSERT INTO registry_changelog (entity_type, entity_id, action, snapshot, author)"
-        " SELECT 'workflow', %s, 'update', '{}'::jsonb, 'filler' FROM generate_series(1, 205)",
-        (workflow_id,),
+        "INSERT INTO registry_changelog"
+        " (entity_type, entity_id, action, snapshot, author, account_id)"
+        " SELECT 'workflow', %s, 'update', '{}'::jsonb, 'filler', %s"
+        " FROM generate_series(1, 205)",
+        (workflow_id, str(DEFAULT_ACCOUNT_ID)),
     )
     _save(store, workflow_id, ("b",), expected=1)
 

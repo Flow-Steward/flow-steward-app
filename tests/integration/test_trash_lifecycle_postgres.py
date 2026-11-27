@@ -76,10 +76,10 @@ def _seed_project_dependencies(connection) -> dict[str, str]:
         )
         cur.execute(
             """
-            INSERT INTO project_workflows (project_id, workflow_id, is_default, enabled)
-            VALUES (%s, %s, true, true)
+            INSERT INTO project_workflows (project_id, workflow_id, account_id, is_default, enabled)
+            VALUES (%s, %s, %s, true, true)
             """,
-            (project_id, workflow_key),
+            (project_id, workflow_key, DEFAULT_ACCOUNT_ID),
         )
         cur.execute(
             """
