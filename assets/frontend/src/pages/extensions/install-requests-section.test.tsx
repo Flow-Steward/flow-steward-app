@@ -97,6 +97,7 @@ function renderHarness(props: Parameters<typeof Harness>[0]) {
 }
 
 beforeEach(() => {
+  vi.mocked(fetchExtensionInstallRequests).mockClear();
   vi.mocked(fetchExtensionInstallRequests).mockResolvedValue({ scope: "installation", items: [PENDING] });
   vi.mocked(approveExtensionInstallRequest).mockClear();
   vi.mocked(declineExtensionInstallRequest).mockClear();
