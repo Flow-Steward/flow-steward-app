@@ -80,6 +80,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/entrypoints/cli/lifecycle_click_app.py \
     core/entrypoints/cli/bootstrap_recovery.py \
     core/entrypoints/cli/lifecycle_lock_probe.py \
+    core/entrypoints/cli/lifecycle_readiness_checks.py \
     core/entrypoints/cli/lifecycle_runtime.py \
     core/entrypoints/cli/maintenance_adapters.py \
     core/entrypoints/cli/module_settings_source.py \

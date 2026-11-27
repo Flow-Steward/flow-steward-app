@@ -36,11 +36,9 @@ from core.infrastructure.lifecycle.docker_runtime_support import (
 
 from .docker_completion_prerequisites import run_completion_prerequisites
 from .docker_gateway_contracts import (
-    _CONTAINER_ID,
     _DOCKER_TIMEOUT_SECONDS,
     _FORMAT_IMAGE_ID,
     _IMAGE_ID,
-    _MESSAGE_JSON,
     DockerRollbackDependencies,
 )
 from .docker_image_preparation import prepare_production_images
@@ -48,6 +46,11 @@ from .docker_preservation_gateway import DockerPreservationGateway as DockerPres
 from .docker_preservation_gateway import DockerPreservationSnapshot as DockerPreservationSnapshot
 from .docker_preservation_gateway import ProcessRunner as ProcessRunner
 from .docker_profile_runtime_state import stage_profile_runtime_state
+from .docker_project_inventory import (
+    project_volumes,
+    remove_project_services,
+    stop_project_services,
+)
 from .docker_rollback_operations import (
     capture_rollback,
     configured_image_identities,
@@ -558,23 +561,14 @@ class DockerLifecycleGateway:
         output_sink: Callable[[str], None],
         heartbeat: Callable[[str], None],
     ) -> None:
-        """Remove rollback-absent services even when the source Compose omits them."""
-        docker_runtime_support.validate_project_name(project_name)
-        docker_runtime_support.validate_services(services)
-        container_ids = self._project_service_container_ids(
+        remove_project_services(
             project_name,
             services,
+            run=self._run,
             timeout_seconds=timeout_seconds,
-            action="restore_absent_inventory",
+            output_sink=output_sink,
+            heartbeat=heartbeat,
         )
-        if container_ids:
-            self._run(
-                ("docker", "rm", "--force", *container_ids),
-                action="restore_absent",
-                timeout_seconds=timeout_seconds,
-                output_sink=output_sink,
-                heartbeat=heartbeat,
-            )
 
     def _stop_project_services(
         self,
@@ -585,58 +579,14 @@ class DockerLifecycleGateway:
         output_sink: Callable[[str], None],
         heartbeat: Callable[[str], None],
     ) -> None:
-        """Stop retained cross-profile containers absent from the source Compose."""
-        container_ids = self._project_service_container_ids(
+        stop_project_services(
             project_name,
             services,
+            run=self._run,
             timeout_seconds=timeout_seconds,
-            action="restore_stopped_inventory",
+            output_sink=output_sink,
+            heartbeat=heartbeat,
         )
-        if container_ids:
-            self._run(
-                ("docker", "stop", *container_ids),
-                action="restore_stopped",
-                timeout_seconds=timeout_seconds,
-                output_sink=output_sink,
-                heartbeat=heartbeat,
-            )
-
-    def _project_service_container_ids(
-        self,
-        project_name: str,
-        services: tuple[str, ...],
-        *,
-        timeout_seconds: float,
-        action: str,
-    ) -> list[str]:
-        docker_runtime_support.validate_project_name(project_name)
-        docker_runtime_support.validate_services(services)
-        container_ids: list[str] = []
-        for service in services:
-            outcome = self._run(
-                (
-                    "docker",
-                    "ps",
-                    "--all",
-                    "--filter",
-                    f"label=com.docker.compose.project={project_name}",
-                    "--filter",
-                    f"label=com.docker.compose.service={service}",
-                    "--format",
-                    "{{.ID}}",
-                ),
-                action=action,
-                timeout_seconds=timeout_seconds,
-            )
-            for line in str(outcome.stdout or "").splitlines():
-                container_id = line.strip().lower()
-                if not _CONTAINER_ID.fullmatch(container_id):
-                    raise StackGatewayError(
-                        action=action,
-                        detail="Docker returned an invalid rollback container identity.",
-                    )
-                container_ids.append(container_id)
-        return container_ids
 
     def logs(
         self,
@@ -829,52 +779,7 @@ class DockerLifecycleGateway:
         )
 
     def _volumes(self, project_name: str) -> tuple[StackVolumeState, ...]:
-        docker_runtime_support.validate_project_name(project_name)
-        listing = self._run(
-            (
-                "docker",
-                "volume",
-                "ls",
-                "--filter",
-                f"label=com.docker.compose.project={project_name}",
-                "--format",
-                "{{.Name}}",
-            ),
-            action="volume_status",
-            timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
-        )
-        names = tuple(
-            sorted(line.strip() for line in str(listing.stdout).splitlines() if line.strip())
-        )
-        if not names:
-            return ()
-        inspected = self._run(
-            (
-                "docker",
-                "volume",
-                "inspect",
-                "--format",
-                _MESSAGE_JSON,
-                *names,
-            ),
-            action="volume_status",
-            timeout_seconds=_DOCKER_TIMEOUT_SECONDS,
-        )
-        volumes = tuple(
-            sorted(
-                (
-                    docker_runtime_support.stack_volume_state(item)
-                    for item in docker_runtime_support.json_objects(inspected.stdout)
-                ),
-                key=lambda item: item.name,
-            )
-        )
-        if tuple(volume.name for volume in volumes) != names:
-            raise StackGatewayError(
-                action="volume_status",
-                detail="Docker volume inventory did not match the selected project.",
-            )
-        return volumes
+        return project_volumes(project_name, run=self._run)
 
     def _run_compose(
         self,
