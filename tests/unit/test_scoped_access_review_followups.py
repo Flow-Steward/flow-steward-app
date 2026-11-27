@@ -12,6 +12,7 @@ Each test fails on the code before its fix:
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock
@@ -19,6 +20,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.application.auth.permissions import OPERATOR_PERMISSIONS, VIEWER_PERMISSIONS
+from core.application.management import command_services_project_run_requests_mixin
 from core.application.management.command_models import (
     ProjectScheduledJobToggleInput,
     ProjectScheduledJobUpdateInput,
@@ -146,13 +148,22 @@ def test_pausing_a_schedule_needs_the_permission_in_its_workflow() -> None:
     bl.update_scheduled_job.assert_not_called()
 
 
-def test_pausing_a_schedule_of_another_workflow_of_the_project_is_allowed() -> None:
+def test_pausing_a_schedule_of_another_workflow_of_the_project_is_allowed(monkeypatch) -> None:
     bl = _schedule_store(PAYROLL, "wf-other")
+    # The workflow row lock needs a database; the permission decision under test
+    # is made before it.
+    locks = []
+    monkeypatch.setattr(
+        command_services_project_run_requests_mixin,
+        "workflow_trigger_transaction",
+        lambda _bl, workflow_id, **kwargs: locks.append((workflow_id, kwargs)) or nullcontext(),
+    )
 
     _schedule_service(bl).toggle_scheduled_job(
         PAYROLL, "9", ProjectScheduledJobToggleInput(enabled="0"), scope=_limited_scope()
     )
     bl.update_scheduled_job.assert_called_once()
+    assert [workflow_id for workflow_id, _kwargs in locks] == ["wf-other"]
 
 
 def test_run_now_of_a_schedule_of_an_ungranted_workflow_is_not_revealed() -> None:

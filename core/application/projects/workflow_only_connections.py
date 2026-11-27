@@ -128,7 +128,9 @@ def workflow_connection_needs(
         rows = list(loader(account, sorted(workflow_ids))) if workflow_ids else []
     except Exception:
         logger.warning("Workflow dependency read failed; hiding project configuration")
-        return WorkflowConnectionNeeds(workflow_ids=workflow_ids)
+        # Fail closed: no needs at all, so not even an event mapping to a granted
+        # workflow reveals a connection while its dependencies are unknown.
+        return WorkflowConnectionNeeds(workflow_ids=frozenset())
     for row in rows:
         if not isinstance(row, Mapping):
             continue
