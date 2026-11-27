@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from core.application.auth.installation_admin import is_installation_admin
 from core.application.extensions.browser_assets import resolve_authorized_browser_asset
 from core.application.extensions.direct_effect_recovery_models import DirectEffectDecisionRequest
+from core.application.extensions.install_requests import can_request_extension_installs
 from core.application.management import ServiceError
 from core.application.management.command_models import (
     CommandBatchInput,
@@ -222,7 +223,10 @@ def create_reactions_extensions_router(
             body = dict(extension_binding_service().archive_lifecycle_availability().dump())
             # Installing, updating and removing code is the installation administrator's
             # (ADR 0020, C6); another account's administrator enables what is installed.
-            body["can_manage_installs"] = is_installation_admin(request_scope(request))
+            scope = request_scope(request)
+            body["can_manage_installs"] = is_installation_admin(scope)
+            # A company account's administrator asks for an install instead (ADR 0084).
+            body["can_request_installs"] = can_request_extension_installs(scope)
         except ServiceError as e:
             return service_error_response(e, request)
         except Exception as e:

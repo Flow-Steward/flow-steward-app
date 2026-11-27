@@ -12,7 +12,7 @@
     "released_baseline_fingerprints is append-only: every baseline a published release shipped, the supported upgrade sources of ADR 0056.",
     "20261120090000_role_permissions.sql: edited pre-1.0 by owner decision 2026-11-26 (it re-adds the user_roles workflow key in the form the database can hold; ADR 0020, step C4b)."
   ],
-  "baseline_schema_fingerprint": "2ac0bef459023825319ff7bf8aa68710838d6518a9fea310fdefbe296b10ecc6",
+  "baseline_schema_fingerprint": "5b8aef11c1f25142a4002dbc7a264393491c7bd0d54642d606b41ffa213050dd",
   "migrations": {
     "20261101153533_inbound_oauth_tables.sql": "c8f4063e2e456fe7b3004e7a41c924b6bcbfabe82e2c7bc7707a4418364ec3c0",
     "20261103090000_retired_agent_type.sql": "6a88aa8465458201edd171494c9e3c60cc89204ef35c6dec7fc10c02afc539f0",
@@ -44,7 +44,8 @@
     "20261127130000_extensions_per_account.sql": "6d629a05ed05f81e32c3dd119758db7644b22e0f6383bc2aeeee1e037892df00",
     "20261127150000_account_scoped_block_keys.sql": "fec049108982a6294810497fb09048b6f210fbfbc31aea04abe15cb2a3c80bf1",
     "20261127170000_roles_per_account.sql": "67d123bd42f9817a85987f9b19b2ac849248e06351ae25ac859e2ce7b59d660b",
-    "20261127190000_account_invitations.sql": "15209aa1811d5f533a713a38a2f734e93ed63f8221e089e5ea96793304b72f2c"
+    "20261127190000_account_invitations.sql": "15209aa1811d5f533a713a38a2f734e93ed63f8221e089e5ea96793304b72f2c",
+    "20261127210000_extension_install_requests.sql": "2e316c7ddfc656f95fdb87451f6e3157c70b23081090e84af5f96ef6347d3e47"
   },
   "released_baseline_fingerprints": [
     "1e11d7a421ff40ebbfd3fd910a04daad48439bee36a1f56930e331823cecfe7b",

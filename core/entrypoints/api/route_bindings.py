@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI, Request
 
+from core.application.extensions.install_requests import build_install_request_service
 from core.application.settings.ui_i18n import build_client_i18n_payload
 from core.entrypoints.api.app_bootstrap import create_api_app_bootstrap_router
 from core.entrypoints.api.auth_users_preferences import session_date_time_format
@@ -15,6 +16,9 @@ from core.entrypoints.api.contracts_v2 import create_api_contracts_v2_router
 from core.entrypoints.api.dashboard_metrics import create_dashboard_metrics_router
 from core.entrypoints.api.events import create_api_events_router
 from core.entrypoints.api.extension_catalog import create_extension_catalog_router
+from core.entrypoints.api.extension_install_requests import (
+    create_extension_install_requests_router,
+)
 from core.entrypoints.api.extension_oauth import create_extension_oauth_router
 from core.entrypoints.api.external_agents import create_api_external_agents_router
 from core.entrypoints.api.integrations_connectors import create_integrations_connectors_router
@@ -369,6 +373,19 @@ def register_api_routes(
         get_extension_runtime_store=get_extension_runtime_store,
     )
     app.include_router(extension_catalog_router)
+
+    # Requests to install an extension from a company account (ADR 0084). Also ahead
+    # of the router that owns `/api/extensions/{id}`.
+    app.include_router(
+        create_extension_install_requests_router(
+            install_request_service=lambda: build_install_request_service(
+                get_logger=get_logger, get_install_store=get_extension_install_store
+            ),
+            request_scope=request_scope,
+            service_error_response=service_error_response,
+            api_error_response=api_error_response,
+        )
+    )
 
     reactions_extensions_router = create_reactions_extensions_router(
         event_query_service=event_query_service,

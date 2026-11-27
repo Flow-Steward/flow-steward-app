@@ -174,5 +174,6 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         "20261127150000_account_scoped_block_keys.sql",
         "20261127170000_roles_per_account.sql",
         "20261127190000_account_invitations.sql",
+        "20261127210000_extension_install_requests.sql",
     ]
     assert status["needs_upgrade"] is True
