@@ -1150,13 +1150,14 @@ CREATE INDEX IF NOT EXISTS idx_user_account_memberships_role
     ON public.user_account_memberships USING btree (account_id, role_id);
 
 INSERT INTO public.user_account_memberships (user_id, account_id, is_default)
-SELECT u.id,
+SELECT
+       u.id,
        u.account_id,
        NOT EXISTS (
            SELECT 1 FROM public.user_account_memberships AS d
             WHERE d.user_id = u.id AND d.is_default)
   FROM public.users AS u
-  JOIN public.accounts AS a ON a.id = u.account_id
+  INNER JOIN public.accounts AS a ON u.account_id = a.id
  WHERE u.deleted_at IS NULL
    AND NOT EXISTS (
        SELECT 1 FROM public.user_account_memberships AS m
@@ -1166,9 +1167,11 @@ ON CONFLICT (user_id, account_id) DO NOTHING;
 UPDATE public.user_account_memberships AS m
    SET role_id = best.role_id
   FROM (
-      SELECT DISTINCT ON (ur.user_id) ur.user_id, ur.role_id
+      SELECT DISTINCT ON (ur.user_id)
+             ur.user_id,
+             ur.role_id
         FROM public.user_roles AS ur
-        JOIN public.roles AS r ON r.id = ur.role_id
+        INNER JOIN public.roles AS r ON ur.role_id = r.id
        WHERE ur.workspace_id IS NULL
          AND ur.project_id IS NULL
          AND ur.workflow_id IS NULL
