@@ -95,7 +95,8 @@ class VerifiedExternalIdentity:
     #: person is answering, when the sign-in returns to an invitation link
     #: (``/invitations/<token>``, ADR 0085 C1); empty otherwise.
     invitation_account_id: str = ""
-    #: Set by Core with ``invitation_account_id``: which invitation it is.
+    #: Set by Core with ``invitation_account_id``: which invitation link it is (a link
+    #: the administrator renews gets a new value).
     invitation_id: str = ""
 
 
@@ -441,15 +442,27 @@ class ExternalSignInPort:
         display_name: str = "",
         roles: Iterable[str] = ("viewer",),
         active: bool = True,
+        awaiting_invitation: bool = False,
     ) -> str:
         """Create a user of ``account_id`` without a local password; returns its id.
 
         The user can sign in only externally (its password hash never verifies).
+        ``awaiting_invitation`` marks a person created only to answer an invitation:
+        they take no role (``roles`` must be empty), are left out of user lists and
+        get no role in the installation account until accepting moves them into the
+        company they joined.
         Refused with :class:`ValueError` for an unknown or inactive account, a taken
         username, an installation without users (the first user is an administrator
         created locally) or a role other than :data:`GRANTABLE_ROLES`.
         """
         granted = _grantable(roles)
+        if awaiting_invitation and granted:
+            raise ValueError("A person awaiting an invitation takes no role")
+        marker = (
+            repository.AWAITING_INVITATION_MARKER
+            if awaiting_invitation
+            else repository.UNUSABLE_PASSWORD_MARKER
+        )
         username = str(email or "").strip().lower()
         if not username or "@" not in username or len(username) > 320:
             raise ValueError("A user needs an email address")
@@ -470,7 +483,7 @@ class ExternalSignInPort:
                 """,
                 (
                     username,
-                    repository.UNUSABLE_PASSWORD_MARKER,
+                    marker,
                     str(display_name or "").strip() or username,
                     bool(active),
                     account_id,
@@ -495,6 +508,8 @@ class ExternalSignInPort:
         display_name: str = "",
         account_name: str = "",
         created_by: str,
+        before: Callable[[Any], None] | None = None,
+        after: Callable[[Any, Mapping[str, str]], None] | None = None,
     ) -> dict[str, str]:
         """Self-service sign-up: a new account with a new person as its administrator.
 
@@ -509,6 +524,11 @@ class ExternalSignInPort:
         Refused with :class:`~core.application.auth.account_limit.AccountLimitError`
         when the limit is reached (409) or unreadable (503), and :class:`ValueError`
         for a taken email address, an installation without users, or no limit source.
+
+        ``before(cursor)`` runs in the same transaction, under the lock, after Core's
+        checks and before anything is written: a module checks its own quota there
+        and raises to refuse. ``after(cursor, created)`` runs before the commit: a
+        module records the new account there, so both commit or neither does.
         """
         import uuid
 
@@ -550,6 +570,8 @@ class ExternalSignInPort:
                 return int(_first_value(cur.fetchone()) or 0)
 
             require_account_creation_allowed(service, count_active)
+            if before is not None:
+                before(cur)
             cur.execute(
                 """
                 INSERT INTO accounts (id, account_key, display_name, is_active)
@@ -586,6 +608,8 @@ class ExternalSignInPort:
                     "user_id": user_id,
                 },
             )
+            if after is not None:
+                after(cur, {"account_id": account_id, "user_id": user_id})
         self._remember_created(user_id, account_id)
         return {"account_id": account_id, "user_id": user_id}
 
@@ -622,11 +646,11 @@ class ExternalSignInPort:
             cur.execute(
                 """
                 SELECT 1 FROM users u
-                 WHERE u.id = %s AND u.password_hash = %s
+                 WHERE u.id = %s AND u.password_hash = ANY(%s)
                    AND u.created_at > now() - interval '1 hour'
                    AND NOT EXISTS (SELECT 1 FROM auth_sessions s WHERE s.user_id = u.id)
                 """,
-                (user_id, repository.UNUSABLE_PASSWORD_MARKER),
+                (user_id, list(repository.UNUSABLE_PASSWORD_MARKERS)),
             )
             if cur.fetchone() is None:
                 return False

@@ -13,7 +13,7 @@ from core.application.auth.external_session_revocation import (
     revoke_external_sign_in_grants,
     roles_changed,
 )
-from core.application.auth.external_sign_in_repository import UNUSABLE_PASSWORD_MARKER
+from core.application.auth.external_sign_in_repository import AWAITING_INVITATION_MARKER
 from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.auth.local_credentials import authenticator_policy_available
 from core.application.auth.membership_roles import (
@@ -213,8 +213,9 @@ def list_auth_users(
     normalized_search = str(search or "").strip()
     normalized_role = str(role or "").strip().lower()
     conditions: list[str] = [
-        # People who sign in only externally and wait, with no company and no role,
-        # in the installation account to answer an invitation are nobody's users yet.
+        # People created only to answer an invitation (their own marker), waiting with
+        # no company and no role in the installation account, are nobody's users yet.
+        # Other people who sign in externally are listed as always.
         """
         AND NOT (
             u.password_hash = %s AND u.account_id::text = %s
@@ -225,7 +226,7 @@ def list_auth_users(
         )
         """
     ]
-    params: list[Any] = [UNUSABLE_PASSWORD_MARKER, str(INSTALLATION_ACCOUNT_ID)]
+    params: list[Any] = [AWAITING_INVITATION_MARKER, str(INSTALLATION_ACCOUNT_ID)]
 
     if not include_deleted:
         conditions.append("AND u.deleted_at IS NULL")

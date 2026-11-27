@@ -365,14 +365,9 @@ sessions switch accounts is open.
 
 ### Second review (2026-11-27)
 
-- **Trusted proxies are explicit.** The client address that sign-in limits count comes
-  from forwarded headers only when the peer is the bundled proxy (the `traefik`
-  service), loopback, or listed in `FS_PROXY_TRUSTED_IPS` (`proxy_trusted_ips`: the
-  operator's addresses or networks, the list uvicorn already trusts). The container's
-  default gateway and Docker's host aliases are no longer trusted implicitly: with a
-  port published straight from the container every client looks like the gateway, and
-  trusting it let any client name its own address. Behind a hosting platform's proxy,
-  or a host proxy reaching a published port, the operator lists it.
+- **Client address.** Unchanged here: deriving the client address correctly per
+  ingress mode is a separate Core task. Methods that count limits per client
+  (`wants_client_address`) are only as precise as that address on the deployment.
 - **Waiting newcomers.** A person who signs in only externally and waits in the
   installation account (no role) to answer an invitation is left out of user lists
   and can get no role there; accepting moves them into the company they joined (home
@@ -383,3 +378,21 @@ sessions switch accounts is open.
   account only with the person it was created with.
 - **A session without a role** gets no features, pages or permissions of the account
   from `/api/app/bootstrap`.
+
+### Final review (2026-11-27)
+
+- **Waiting newcomers are marked.** `create_user(..., awaiting_invitation=True)` gives a
+  person created only to answer an invitation the password marker
+  `!external-sign-in:awaiting-invitation` (it never verifies, like `!external-sign-in`).
+  Only such people are left out of user lists and refused a role in the installation
+  account; people a company sign-in provisioned there keep every role change.
+- **Accepting settles the person.** A person whose home is the installation account
+  and who has no role there (waiting, or who set a password with Forgot password
+  meanwhile) moves into the company they joined: home and default change, their
+  identity links move there, what they held in the installation account is revoked
+  and the role-less membership goes; the awaiting marker becomes the ordinary one.
+- **Invitation references follow the link.** `invitation_id` changes when the link
+  is renewed, so a module's "one newcomer per link" starts again with the new link.
+- **Own-account hooks.** `create_own_account(..., before=, after=)` runs a module's
+  check (`before(cursor)`, after Core's checks, under the account lifecycle lock) and
+  record (`after(cursor, created)`) in Core's transaction.

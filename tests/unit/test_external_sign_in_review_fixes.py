@@ -325,7 +325,9 @@ def test_discarding_removes_only_a_fresh_person_without_a_password() -> None:
     assert port.discard_new_person(user_id=person, account_id=account, reason="refused")
     assert not port.discard_new_person(user_id=person, account_id=account, reason="again")
     joined = "\n".join(cursor.executed)
-    assert "password_hash = %s" in joined and "NOT EXISTS (SELECT 1 FROM auth_sessions" in joined
+    assert (
+        "password_hash = ANY(%s)" in joined and "NOT EXISTS (SELECT 1 FROM auth_sessions" in joined
+    )
     assert "DELETE FROM users" in joined and "DELETE FROM accounts" in joined
     assert "platform_action_log" in joined
 
@@ -515,15 +517,15 @@ def test_the_inviting_administrator_does_not_manage_a_person_before_acceptance()
         require_user_access(invitee, ["00000000-0000-0000-0000-00000000000b"])
 
 
-# --- second review: waiting newcomers -------------------------------------------------
+# --- waiting newcomers: only people created to answer an invitation -------------------
 
 
-def test_an_installation_account_role_is_never_given_to_an_external_only_person() -> None:
+def test_a_newcomer_gets_no_installation_role_while_waiting() -> None:
     from core.application.auth.user_admin.command_service import (
         EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE,
     )
 
-    service = _users_service(repository.UNUSABLE_PASSWORD_MARKER)
+    service = _users_service(repository.AWAITING_INVITATION_MARKER)
     with pytest.raises(ServiceForbiddenError) as refused:
         service.update_user(
             UserUpdateInput(user_id=PERSON, role="viewer", actor_user_id="someone-else"),
@@ -532,12 +534,111 @@ def test_an_installation_account_role_is_never_given_to_an_external_only_person(
     assert refused.value.message == EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE
 
 
-def test_accepting_moves_a_waiting_newcomer_into_the_company(
+@pytest.mark.parametrize("role", ["viewer", "operator", "admin"])
+def test_a_company_sign_in_person_of_the_installation_account_keeps_role_changes(
+    role: str,
+) -> None:
+    """A person a company sign-in provisioned into the installation account (the
+    ordinary external-only marker) can be given, lowered or have any role as before;
+    the refusal reaches only people waiting to answer an invitation."""
+    service = _users_service(repository.UNUSABLE_PASSWORD_MARKER)
+    try:
+        service.update_user(
+            UserUpdateInput(user_id=PERSON, role=role, actor_user_id="someone-else"),
+            allowed_account_ids=[INSTALLATION_ACCOUNT_ID],
+        )
+    except ServiceForbiddenError as exc:  # pragma: no cover - the regression
+        pytest.fail(f"refused: {exc}")
+    except Exception:
+        pass  # the fake has no database past the checks
+
+
+def test_only_waiting_newcomers_are_left_out_of_user_lists() -> None:
+    from core.application.auth.user_admin import repository as users_repository
+
+    class Cursor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, tuple]] = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def execute(self, sql, params=()):
+            self.calls.append((sql, tuple(params)))
+
+        def fetchone(self):
+            return {"total": 0}
+
+        def fetchall(self):
+            return []
+
+    cursor = Cursor()
+
+    class Bl:
+        def _table_exists(self, _name):
+            return True
+
+        def _column_exists(self, *_args):
+            return True
+
+    import contextlib
+
+    original = users_repository._dict_cursor
+    users_repository._dict_cursor = lambda _bl: contextlib.nullcontext(cursor)
+    try:
+        users_repository.list_auth_users(
+            Bl(),
+            limit=10,
+            offset=0,
+            search="",
+            include_inactive=True,
+            include_deleted=False,
+            role="",
+            active_filter=None,
+            managed_account_ids=None,
+        )
+    except Exception:
+        pass
+    finally:
+        users_repository._dict_cursor = original
+    sql, params = cursor.calls[0]
+    assert "m_wait.role_id IS NOT NULL" in sql
+    # Keyed on the awaiting marker only: company sign-in people stay listed.
+    assert params[0] == repository.AWAITING_INVITATION_MARKER
+    assert repository.UNUSABLE_PASSWORD_MARKER not in params
+
+
+def test_a_port_newcomer_takes_the_awaiting_marker_and_no_role() -> None:
+    port = ExternalSignInPort(_connection)
+    with pytest.raises(ValueError, match="no role"):
+        port.create_user(
+            account_id=INSTALLATION_ACCOUNT_ID,
+            email="new@example.test",
+            roles=("viewer",),
+            awaiting_invitation=True,
+        )
+    assert repository.is_unusable_password(repository.AWAITING_INVITATION_MARKER)
+    assert repository.is_awaiting_invitation(repository.AWAITING_INVITATION_MARKER)
+    assert not repository.is_awaiting_invitation(repository.UNUSABLE_PASSWORD_MARKER)
+
+
+def test_accepting_moves_a_waiting_person_and_ends_their_installation_access(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    revoked: list[dict[str, Any]] = []
+    from core.application.auth import membership_roles
+
+    monkeypatch.setattr(
+        membership_roles,
+        "revoke_account_access",
+        lambda _cur, **kwargs: revoked.append(kwargs) or 0,
+    )
     other = "00000000-0000-0000-0000-00000000000b"
-    # The open invitation, then the newcomer found waiting in the installation account.
+    # The open invitation, then the person found waiting in the installation account.
     cur = _Cursor(rows=[_open_row(other), (PERSON,)])
     decide(
         cur,
@@ -549,20 +650,73 @@ def test_accepting_moves_a_waiting_newcomer_into_the_company(
     )
     statements = [sql for sql, _ in cur.executed]
     moved = next(i for i, sql in enumerate(statements) if sql.startswith("UPDATE users"))
-    assert statements[moved + 1].startswith("DELETE FROM user_account_memberships")
-    assert "role_id IS NULL" in statements[moved + 1]
-    assert statements[-1].startswith("UPDATE account_invitations")
     params = cur.executed[moved][1]
-    assert params[0] == other and params[2] == repository.UNUSABLE_PASSWORD_MARKER
+    # Home moves; the awaiting marker becomes the ordinary one; a set password stays.
+    assert params == (
+        other,
+        repository.AWAITING_INVITATION_MARKER,
+        repository.UNUSABLE_PASSWORD_MARKER,
+        PERSON,
+    )
+    assert "CASE WHEN password_hash" in statements[moved]
+    assert statements[moved + 1].startswith("UPDATE external_identities")
+    assert statements[moved + 2].startswith("DELETE FROM external_identities")
+    assert revoked == [
+        {
+            "user_id": PERSON,
+            "account_id": INSTALLATION_ACCOUNT_ID,
+            "reason": "invitation_accepted",
+        }
+    ]
+    assert any(
+        sql.startswith("DELETE FROM user_account_memberships") and "role_id IS NULL" in sql
+        for sql in statements
+    )
+    assert statements[-1].startswith("UPDATE account_invitations")
 
 
-def test_waiting_newcomers_are_left_out_of_user_lists() -> None:
-    import inspect
+def test_a_person_with_an_installation_role_is_not_moved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other)])  # the lookup finds nobody to move
+    decide(cur, token_hash="h" * 64, user_id=PERSON, accept=True, expected_role="operator")
+    assert not any(sql.startswith("UPDATE users") for sql, _ in cur.executed)
 
-    from core.application.auth.user_admin import repository as users_repository
 
-    source = inspect.getsource(users_repository)
-    assert "m_wait.role_id IS NOT NULL" in source
+def test_a_renewed_link_is_a_new_invitation_reference() -> None:
+    first = account_invitations.open_invitation_ref(_Cursor(rows=[_open_row("acct")]), "a" * 43)
+    renewed = account_invitations.open_invitation_ref(_Cursor(rows=[_open_row("acct")]), "b" * 43)
+    assert first[1] == renewed[1] == "acct"
+    assert first[0].startswith(INVITATION) and first[0] != renewed[0]
+
+
+def test_own_account_hooks_run_inside_cores_transaction() -> None:
+    from tests.unit.test_external_sign_in_installation_wide import ScriptedCursor, _own_port
+
+    cursor = ScriptedCursor(active_accounts=0)
+    seen: list[Any] = []
+    created = _own_port(cursor).create_own_account(
+        email="pat@example.test",
+        created_by="self-service",
+        before=lambda cur: seen.append(("before", cur is cursor)),
+        after=lambda cur, made: seen.append(("after", cur is cursor, dict(made))),
+    )
+    assert seen == [("before", True), ("after", True, created)]
+
+    class Full(Exception):
+        pass
+
+    def refuse(_cur):
+        raise Full
+
+    refused = ScriptedCursor(active_accounts=0)
+    with pytest.raises(Full):
+        _own_port(refused).create_own_account(
+            email="pat@example.test", created_by="self-service", before=refuse
+        )
+    assert not any("INSERT INTO accounts" in sql for sql, _ in refused.executed)
 
 
 def test_a_session_without_a_role_sees_nothing_of_the_account() -> None:

@@ -11,7 +11,10 @@ from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
 from core.application.auth.enforce import normalize_requested_roles
-from core.application.auth.external_sign_in_repository import is_unusable_password
+from core.application.auth.external_sign_in_repository import (
+    is_awaiting_invitation,
+    is_unusable_password,
+)
 from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.auth.local_credentials import (
     authenticator_policy_available,
@@ -150,8 +153,7 @@ EXTERNAL_ONLY_PASSWORD_MESSAGE = (
     "themselves with Forgot password."
 )
 EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE = (
-    "People of the installation account sign in with a password. This person signs in "
-    "only with an external sign-in."
+    "This person signed in only to answer an invitation to another company and gets no role here."
 )
 
 
@@ -573,12 +575,14 @@ class UserAdminCommandService:
             raise ServiceForbiddenError(EXTERNAL_ONLY_PASSWORD_MESSAGE)
         if (
             command.role is not None
-            and is_unusable_password(user.get("password_hash"))
+            and is_awaiting_invitation(user.get("password_hash"))
             and (role_account_id or str(user.get("account_id") or "").strip())
             == str(INSTALLATION_ACCOUNT_ID)
         ):
-            # The installation account is administered with a local password only
-            # (a person waiting there for an invitation gets no role in it).
+            # A person created only to answer an invitation waits in the installation
+            # account without a role; accepting moves them into their company. Other
+            # people who sign in externally (a company sign-in provisions them there
+            # too) keep every role change, lowering and removing included.
             raise ServiceForbiddenError(EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE)
         if all(
             value is None

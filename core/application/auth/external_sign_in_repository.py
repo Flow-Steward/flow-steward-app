@@ -19,8 +19,21 @@ UNUSABLE_PASSWORD_MARKER = "!external-sign-in"
 EXTERNAL_AUTH_METHOD = "external"
 
 
+#: The same, for a person created only to answer an invitation who has not accepted
+#: yet (no company, no role). Accepting turns it into :data:`UNUSABLE_PASSWORD_MARKER`;
+#: a password the person sets with Forgot password replaces it like any other.
+AWAITING_INVITATION_MARKER = "!external-sign-in:awaiting-invitation"
+#: Every password hash that never verifies.
+UNUSABLE_PASSWORD_MARKERS = (UNUSABLE_PASSWORD_MARKER, AWAITING_INVITATION_MARKER)
+
+
 def is_unusable_password(password_hash: Any) -> bool:
-    return str(password_hash or "") == UNUSABLE_PASSWORD_MARKER
+    return str(password_hash or "") in UNUSABLE_PASSWORD_MARKERS
+
+
+def is_awaiting_invitation(password_hash: Any) -> bool:
+    """A person created only to answer an invitation, who has not accepted it yet."""
+    return str(password_hash or "") == AWAITING_INVITATION_MARKER
 
 
 def _rows(cur: Any) -> list[dict[str, Any]]:

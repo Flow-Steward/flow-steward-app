@@ -305,29 +305,69 @@ def _open_invitation(cur: Any, token_hash: str, *, lock: bool) -> dict[str, str]
 
 
 def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
-    """A person who signs in only externally and was waiting, without a company, in the
-    installation account (no role) to answer this invitation moves into the company
-    they joined: it becomes their home and default, and the placeholder membership
-    goes. Nobody else is touched (ADR 0083 amendment, review fixes)."""
-    from core.application.auth.external_sign_in_repository import UNUSABLE_PASSWORD_MARKER
+    """Accepting moves a person whose home is the installation account, where they
+    hold no role, into the company they joined (ADR 0083 amendment, review fixes).
+
+    That is a person created only to answer an invitation (their awaiting marker
+    becomes the ordinary external-only one), or one who has set a password with
+    Forgot password meanwhile (a normal person now). The joined company becomes their
+    home and default; their identity links move there (a link the company already
+    has for that identity is dropped); what they held in the installation account is
+    revoked (sessions, tokens, grants) and the role-less membership goes. A person
+    with a role in the installation account is not touched.
+    """
+    from core.application.auth.external_sign_in_repository import (
+        AWAITING_INVITATION_MARKER,
+        UNUSABLE_PASSWORD_MARKER,
+    )
+    from core.application.auth.membership_roles import revoke_account_access
 
     installation = _text(INSTALLATION_ACCOUNT_ID)
     if not _text(user_id) or _text(account_id) == installation:
         return
     cur.execute(
         """
-        UPDATE users SET account_id = %s::uuid, updated_at = now()
-         WHERE id::text = %s AND password_hash = %s AND account_id::text = %s
+        SELECT u.id::text
+          FROM users u
+         WHERE u.id::text = %s AND u.account_id::text = %s
            AND NOT EXISTS (
                SELECT 1 FROM user_account_memberships m
-                WHERE m.user_id = users.id AND m.account_id::text = %s
+                WHERE m.user_id = u.id AND m.account_id::text = %s
                   AND m.role_id IS NOT NULL)
-        RETURNING id
+           FOR UPDATE OF u
         """,
-        (account_id, user_id, UNUSABLE_PASSWORD_MARKER, installation, installation),
+        (user_id, installation, installation),
     )
     if cur.fetchone() is None:
         return
+    cur.execute(
+        """
+        UPDATE users
+           SET account_id = %s::uuid,
+               password_hash = CASE WHEN password_hash = %s THEN %s ELSE password_hash END,
+               updated_at = now()
+         WHERE id::text = %s
+        """,
+        (account_id, AWAITING_INVITATION_MARKER, UNUSABLE_PASSWORD_MARKER, user_id),
+    )
+    cur.execute(
+        """
+        UPDATE external_identities e SET account_id = %s::uuid
+         WHERE e.user_id::text = %s AND e.account_id::text = %s
+           AND NOT EXISTS (
+               SELECT 1 FROM external_identities o
+                WHERE o.account_id::text = %s AND o.issuer = e.issuer
+                  AND o.subject = e.subject)
+        """,
+        (account_id, user_id, installation, account_id),
+    )
+    cur.execute(
+        "DELETE FROM external_identities WHERE user_id::text = %s AND account_id::text = %s",
+        (user_id, installation),
+    )
+    revoke_account_access(
+        cur, user_id=user_id, account_id=installation, reason="invitation_accepted"
+    )
     cur.execute(
         "DELETE FROM user_account_memberships "
         "WHERE user_id::text = %s AND account_id::text = %s AND role_id IS NULL",
@@ -346,8 +386,12 @@ def open_invitation_ref(cur: Any, token: str) -> tuple[str, str]:
     link)."""
     if not _text(token):
         return "", ""
-    found = _open_invitation(cur, invitation_token_hash(token), lock=False)
-    return (found["id"], found["account_id"]) if found else ("", "")
+    token_hash = invitation_token_hash(token)
+    found = _open_invitation(cur, token_hash, lock=False)
+    if not found:
+        return "", ""
+    # The link, not only the invitation: renewing the link (P1) gives a new one.
+    return f"{found['id']}:{token_hash[:16]}", found["account_id"]
 
 
 def preview(cur: Any, token_hash: str) -> dict[str, str]:
