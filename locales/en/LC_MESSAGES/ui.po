@@ -33034,6 +33034,54 @@ msgstr "No role here"
 msgid "react.settings.remove_from_this_company"
 msgstr "Remove from this company"
 
+msgid "react.settings.owner"
+msgstr "Owner"
+
+msgid "react.settings.transfer_ownership"
+msgstr "Transfer ownership"
+
+msgid "react.settings.transfer_ownership_to_value1"
+msgstr "Transfer ownership to {value1}?"
+
+msgid "react.settings.transfer_ownership_description"
+msgstr "{value1} gets the final say over this company once they accept. After that, they can remove you or change your role."
+
+msgid "react.settings.ownership_offered_to_value1_message"
+msgstr "Ownership was offered to {value1}. You stay the owner until they accept."
+
+msgid "react.settings.ownership_transfer_failed"
+msgstr "The ownership transfer was not offered"
+
+msgid "react.settings.value1_offers_you_ownership"
+msgstr "{value1} offers you ownership of this company"
+
+msgid "react.settings.ownership_offer_description"
+msgstr "As the owner you keep the final say: nobody else can remove you, change your role or your sign-in. The offer is open until {value1}."
+
+msgid "react.settings.accept_ownership"
+msgstr "Accept ownership"
+
+msgid "react.settings.decline"
+msgstr "Decline"
+
+msgid "react.settings.ownership_offered_to_value1"
+msgstr "Ownership offered to {value1}"
+
+msgid "react.settings.ownership_offer_waits"
+msgstr "You stay the owner until they accept. The offer is open until {value1}."
+
+msgid "react.settings.cancel_the_transfer"
+msgstr "Cancel the transfer"
+
+msgid "react.settings.ownership_transfer_cancelled"
+msgstr "The ownership transfer was cancelled."
+
+msgid "react.settings.you_are_now_the_owner"
+msgstr "You are now the owner of this company."
+
+msgid "react.settings.ownership_transfer_declined"
+msgstr "You declined the ownership transfer."
+
 msgid "react.settings.value1_was_removed_from_this_company"
 msgstr "{value1} was removed from this company."
 
