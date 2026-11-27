@@ -67,6 +67,7 @@ export function ServiceAccountsListCard({
                   <span className="fs-settings-list-head">
                     <strong>{firstStringFromUnknownValue([account.display_name, key])}</strong>
                     <DsBadge tone={active ? "green" : "neutral"}>{active ? t("account_settings.status.active", "Active") : t("account_settings.status.disabled", "Disabled")}</DsBadge>
+                    {account.created_by_has_left ? <DsBadge tone="orange">{t("react.settings.created_by_person_who_left", "Created by a person who has left")}</DsBadge> : null}
                   </span>
                   <span className="fs-settings-list-meta">{key || t("react.settings.missing_key", "(missing key)")}</span>
                   <span className="fs-settings-list-meta">{t("react.settings.scopes_2", "scopes:")} {toCsv(account.scopes) || "none"}</span>
@@ -142,6 +143,7 @@ export function ServiceAccountCredentials({
                   <span className="fs-settings-list-head">
                     <strong>{firstStringFromUnknownValue([token.label, token.name]).trim() || t("react.settings.unnamed_token", "Unnamed token")}</strong>
                     {revoked ? <DsBadge tone="orange">{t("react.settings.revoked_lowercase", "revoked")}</DsBadge> : null}
+                    {token.created_by_has_left ? <DsBadge tone="orange">{t("react.settings.created_by_person_who_left", "Created by a person who has left")}</DsBadge> : null}
                   </span>
                   <span className="fs-settings-list-meta">
                     {t("react.settings.expires", "expires:")}{" "}

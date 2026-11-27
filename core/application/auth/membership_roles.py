@@ -74,6 +74,14 @@ def set_membership_role(cur: Any, *, user_id: str, account_id: str, role: str | 
     )
     if cur.fetchone() is None:
         raise LookupError("The person is not a member of the account")
+    # A role that no longer decides approvals leaves the account's approval steps, as
+    # leaving the account does (ADR 0085, "Leaving a company"). Imported here: the
+    # permission reader imports this module.
+    from core.application.auth.approver_release import release_if_no_longer_deciding
+
+    release_if_no_longer_deciding(
+        cur, user_id=_text(user_id), account_id=_text(account_id), role=key
+    )
     return [key] if key else []
 
 

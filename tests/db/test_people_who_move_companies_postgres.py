@@ -90,6 +90,28 @@ def _remove_from_a(world: World, people: People) -> None:
     assert removed.status_code == 200, removed.text
 
 
+def _approvers(world: World) -> tuple[str, ...]:
+    """The assigned approvers of A's approval step."""
+    return ApprovalAssigneeRepository(world.store.conn, account_id=world.a.id).list_approver_ids(
+        world.workflow, APPROVAL_STEP
+    )
+
+
+def _operator_cannot_decide(world: World, operator: str) -> None:
+    """An operator of A holds approvals.decide by role, yet is no approver of the step."""
+    operators = client(world, cookie=session(world, operator, world.a.id))
+    operators.get("/api/projects")
+    assert "approvals.decide" in last_scope(operators).permissions
+    with pytest.raises(StepApproverRequiredError):
+        require_step_approver(
+            world.store.conn,
+            last_scope(operators),
+            workflow_ids=[world.workflow],
+            step_id=APPROVAL_STEP,
+            account_id=world.a.id,
+        )
+
+
 def _company_service_account(world: World, created_by: str) -> tuple[str, str]:
     """A service account of A and its machine token, set up by ``created_by``."""
     account_row = world.conn.execute(
@@ -215,6 +237,8 @@ def test_what_the_person_made_in_a_stays_as_and_their_approvals_are_released(
     ).fetchone()[0]
     assign_approver(world, world.a, dave)
     waiting = job(world, world.a, status="awaiting_approval")
+    # An operator of A, who holds approvals.decide but is no assigned approver.
+    operator = person(world, "olga", world.a.id, {world.a.id: "operator"})
     browser = client(world, cookie=session(world, dave, world.a.id))
     _join_b(world, people, browser)
 
@@ -255,27 +279,26 @@ def test_what_the_person_made_in_a_stays_as_and_their_approvals_are_released(
     ).fetchone()
     assert kept == (world.a.id, True, "active", name)
 
-    # The approval Dave was assigned to no longer waits for him: A decides it.
-    assert (
-        ApprovalAssigneeRepository(world.store.conn, account_id=world.a.id).list_approver_ids(
-            world.workflow, APPROVAL_STEP
-        )
-        == ()
-    )
-    assert (
-        require_step_approver(
-            world.store.conn,
-            bob_scope,
-            workflow_ids=[world.workflow],
-            step_id=APPROVAL_STEP,
-            account_id=world.a.id,
-        )
-        == frozenset()
-    )
+    # The approval Dave was the only approver of goes to A's administrators, not to
+    # everyone who may decide approvals.
+    assert _approvers(world) == (people.bob,)
+    assert require_step_approver(
+        world.store.conn,
+        bob_scope,
+        workflow_ids=[world.workflow],
+        step_id=APPROVAL_STEP,
+        account_id=world.a.id,
+    ) == frozenset({people.bob})
     assert bobs.get("/api/approvals").json()["jobs"] == [{"id": waiting, "can_decide": True}]
+    _operator_cannot_decide(world, operator)
     removal = next(entry for entry in world.audit if entry["action"] == "account_member_remove")
     assert removal["detail"]["released_approval_steps"] == [
-        {"workflow_id": world.workflow, "step_id": APPROVAL_STEP}
+        {
+            "account_id": world.a.id,
+            "workflow_id": world.workflow,
+            "step_id": APPROVAL_STEP,
+            "handed_to_admins": [people.bob],
+        }
     ]
 
 
@@ -357,12 +380,7 @@ def test_a_person_invited_back_gets_a_fresh_membership_and_old_tokens_stay_revok
     # What was revoked stays revoked; the old assignment does not come back.
     assert old_token.get("/api/projects").status_code == 401
     assert old_session.get("/api/projects").status_code == 401
-    assert (
-        ApprovalAssigneeRepository(world.store.conn, account_id=world.a.id).list_approver_ids(
-            world.workflow, APPROVAL_STEP
-        )
-        == ()
-    )
+    assert _approvers(world) == (people.bob,)
 
 
 # --- B5: removed from their only company ----------------------------------------------------
@@ -396,13 +414,8 @@ def test_a_person_with_one_company_is_deleted_not_removed_and_then_signs_in_nowh
     assert refused.json() == {"error": "Invalid credentials"}
     assert token.get("/api/projects").status_code == 401
     assert browser.get(f"/api/projects/{world.a.project}/jobs").status_code == 401
-    # A deleted person is soft-deleted; their approval assignments go all the same.
-    assert (
-        ApprovalAssigneeRepository(world.store.conn, account_id=world.a.id).list_approver_ids(
-            world.workflow, APPROVAL_STEP
-        )
-        == ()
-    )
+    # A deleted person is soft-deleted; their approval step goes to A's administrators.
+    assert _approvers(world) == (people.bob,)
 
 
 def test_a_person_without_a_role_anywhere_is_told_whom_to_ask(world: World, people: People) -> None:
@@ -420,3 +433,78 @@ def test_a_person_without_a_role_anywhere_is_told_whom_to_ask(world: World, peop
         "code": "no_role_in_account",
     }
     assert browser.get("/api/projects").status_code == 401
+
+
+# --- a demotion leaves the approval steps like leaving does ---------------------------------
+
+
+def test_a_demotion_that_stops_deciding_hands_the_step_to_the_administrators(
+    world: World, people: People
+) -> None:
+    operator = person(world, "olga", world.a.id, {world.a.id: "operator"})
+    assign_approver(world, world.a, people.dave)
+    bobs = client(world, cookie=session(world, people.bob, world.a.id))
+
+    demoted = bobs.put(f"/api/auth/users/{people.dave}", json={"role": "viewer"})
+    assert demoted.status_code == 200, demoted.text
+
+    assert _approvers(world) == (people.bob,)
+    _operator_cannot_decide(world, operator)
+    # Promoted again later, the old assignment does not come back.
+    assert bobs.put(f"/api/auth/users/{people.dave}", json={"role": "operator"}).status_code == 200
+    assert _approvers(world) == (people.bob,)
+
+
+def test_a_demotion_with_other_approvers_only_takes_the_person_off(
+    world: World, people: People
+) -> None:
+    erin = person(world, "erin", world.a.id, {world.a.id: "operator"})
+    assign_approver(world, world.a, people.dave)
+    assign_approver(world, world.a, erin)
+
+    with world.conn.cursor() as cur:
+        set_membership_role(cur, user_id=people.dave, account_id=world.a.id, role=None)
+
+    assert _approvers(world) == (erin,)
+
+
+def test_a_change_that_keeps_deciding_keeps_the_assignment(world: World, people: People) -> None:
+    assign_approver(world, world.a, people.dave)
+    bobs = client(world, cookie=session(world, people.bob, world.a.id))
+
+    promoted = bobs.put(f"/api/auth/users/{people.dave}", json={"role": "admin"})
+    assert promoted.status_code == 200, promoted.text
+
+    assert _approvers(world) == (people.dave,)
+
+
+# --- service accounts set up by someone who left ---------------------------------------------
+
+
+def test_the_listing_marks_credentials_set_up_by_a_person_who_left(
+    world: World, people: People
+) -> None:
+    dave_set_up, dave_token = _company_service_account(world, username(world, people.dave))
+    system_set_up, _ = _company_service_account(world, "system")
+    bob_set_up, _ = _company_service_account(world, username(world, people.bob))
+
+    def marks() -> dict[str, bool]:
+        listed = world.store.list_service_accounts(account_id=world.a.id, include_inactive=True)
+        return {row["id"]: row["created_by_has_left"] for row in listed}
+
+    assert marks() == {dave_set_up: False, system_set_up: False, bob_set_up: False}
+    browser = client(world, cookie=session(world, people.dave, world.a.id))
+    _join_b(world, people, browser)
+    _remove_from_a(world, people)
+
+    # Kept and working, but the administrator sees who no longer answers for it.
+    assert marks() == {dave_set_up: True, system_set_up: False, bob_set_up: False}
+    key = world.conn.execute(
+        "SELECT service_account_key FROM service_accounts WHERE id = %s", (dave_set_up,)
+    ).fetchone()[0]
+    tokens = world.store.list_service_account_tokens(
+        key, account_id=world.a.id, include_revoked=True
+    )
+    assert [(row["id"], row["created_by_has_left"], row["revoked"]) for row in tokens] == [
+        (dave_token, True, False)
+    ]

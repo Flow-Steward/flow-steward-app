@@ -847,4 +847,24 @@ describe("SettingsServiceAccountsPage", () => {
     await waitFor(() => expect(screen.getByText("scopes: jobs.read")).toBeVisible());
     expect(screen.getByText("scopes: none (no access)")).toBeVisible();
   });
+
+  it("marks an identity and a token created by a person who has left the company", async () => {
+    mockedFetchServiceAccountsCollection.mockResolvedValue([
+      { service_account_key: "ci-bot", display_name: "CI Bot", is_active: true, scopes: ["jobs.read"], created_by_has_left: true },
+      { service_account_key: "nightly", display_name: "Nightly", is_active: true, scopes: ["jobs.read"], created_by_has_left: false },
+    ]);
+    mockedFetchServiceAccountTokensCollection.mockResolvedValue([
+      { id: "31", label: "Deploy token", revoked: false, scopes: ["jobs.read"], expires_at: null, created_by_has_left: true },
+    ]);
+    const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+    renderPage();
+
+    const ciBot = await screen.findByRole("button", { name: /CI Bot/i });
+    expect(within(ciBot).getByText("Created by a person who has left")).toBeVisible();
+    expect(within(screen.getByRole("button", { name: /Nightly/i })).queryByText("Created by a person who has left")).toBeNull();
+
+    await user.click(ciBot);
+    const token = await screen.findByRole("button", { name: /Deploy token/i });
+    expect(within(token).getByText("Created by a person who has left")).toBeVisible();
+  });
 });

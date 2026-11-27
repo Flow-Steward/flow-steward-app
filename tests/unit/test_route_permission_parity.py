@@ -87,10 +87,16 @@ MACHINE_SELF_SERVICE_TIGHTENED = frozenset(
 #: Routes whose frozen answer was loosened on purpose, with the answer they give now.
 #: Switching between one's companies (ADR 0085) needs ``account.self``, which every
 #: role holds: a viewer in the acting company was stuck there while a person with no
-#: role at all could switch (P5). An external session stays pinned (the route refuses
-#: it) and a service account keeps the write-role rule.
+#: role at all could switch (P5). A viewer also changes their own profile, language,
+#: time zone and date format (owner decision, 2026-11-27). An external session keeps the
+#: external own-account rule and a service account keeps the write-role rule.
 LOOSENED_ON_PURPOSE: dict[tuple[str, str], dict[str, str]] = {
     ("POST", "/api/auth/switch-account"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/profile"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/timezone"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/locale"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/date-time-format"): {"session": "aov", "pat": "aov"},
+    ("POST", "/api/users/me/detect-timezone"): {"session": "aov", "pat": "aov"},
 }
 
 _ROUTE_TABLE = """
@@ -563,7 +569,7 @@ def test_every_permission_the_table_names_is_in_the_catalogue() -> None:
         ("GET", "/api/extensions/marketplace", "registry.read"),
         ("GET", "/api/extensions/install/compiled-manifest", "registry.read"),
         ("HEAD", "/api/jobs", "jobs.read"),
-        ("PATCH", "/api/users/me/locale", "account.profile.write"),
+        ("PATCH", "/api/users/me/locale", "account.self"),
         ("POST", "/api/auth/tokens", "account.self"),
         ("POST", "/api/auth/switch-account", "account.self"),
         ("GET", "/api/auth/users", "users.manage"),

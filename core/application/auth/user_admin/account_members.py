@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from core.application.auth.approver_release import release_approver
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.external_session_revocation import revoke_external_sign_in_grants
 from core.application.auth.membership_roles import (
@@ -226,33 +227,15 @@ def _next_home(cur: Any, user_id: str, leaving_account_id: str) -> str:
     return _text(_value(cur.fetchone(), "account_id", 0))
 
 
-def _release_approval_steps(cur: Any, user_id: str, account_id: str) -> list[dict[str, str]]:
+def _release_approval_steps(cur: Any, user_id: str, account_id: str) -> list[dict[str, Any]]:
     """Take the person off the approval steps of the account they leave.
 
-    An assigned approver (``approval_step_approvers``) who is no member any more can
-    never decide, so a step that names them would wait for nobody; and a later
-    membership must not bring an old assignment back. The rows go with the membership,
-    as they go with the person when the person is deleted (the table's comment in
-    ``db/schema``). Returns the steps the person was taken off, for the audit, so the
-    account's administrators can assign someone else where it matters.
+    A person who is no member any more can never decide, and a later membership must
+    not bring an old assignment back. A step they were the last approver of goes to the
+    account's administrators, never to everyone (:mod:`core.application.auth.approver_release`).
+    Returns the steps, for the audit.
     """
-    cur.execute(
-        """DELETE FROM approval_step_approvers
-            WHERE user_id::text = %s AND account_id::text = %s
-        RETURNING workflow_id, step_id""",
-        (user_id, account_id),
-    )
-    released: list[dict[str, str]] = []
-    rows = cur.fetchall()
-    for row in rows if isinstance(rows, (list, tuple)) else ():
-        if isinstance(row, Mapping):
-            workflow, step = row.get("workflow_id"), row.get("step_id")
-        elif isinstance(row, (list, tuple)) and len(row) >= 2:
-            workflow, step = row[0], row[1]
-        else:
-            continue
-        released.append({"workflow_id": _text(workflow), "step_id": _text(step)})
-    return released
+    return release_approver(cur, user_id=user_id, account_id=account_id)
 
 
 def remove_member(

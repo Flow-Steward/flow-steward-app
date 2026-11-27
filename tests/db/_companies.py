@@ -50,8 +50,14 @@ from core.application.registry.workflow_account import workflow_account_scope
 from core.entrypoints.api.auth_sessions import create_auth_sessions_router
 from core.entrypoints.api.auth_users import create_auth_users_router
 from core.infrastructure.db import job_admin_store
+from core.infrastructure.db.logger_extensions_accounts_common import (
+    PlatformLoggerExtensionsAccountsCommonMixin,
+)
 from core.infrastructure.db.logger_extensions_accounts_pat_mixin import (
     PlatformLoggerPersonalAccessTokensMixin,
+)
+from core.infrastructure.db.logger_extensions_accounts_service_tokens_mixin import (
+    PlatformLoggerServiceTokensMixin,
 )
 from core.infrastructure.db.platform_logger_common import SQL_AND, SQL_PROJECT_ACCOUNT_ID_EQ
 from core.infrastructure.db.psycopg_runtime._connection import ConnectionAdapter
@@ -100,7 +106,11 @@ class TxConnection:
         return getattr(self._adapter, name)
 
 
-class Store(PlatformLoggerPersonalAccessTokensMixin):
+class Store(
+    PlatformLoggerServiceTokensMixin,
+    PlatformLoggerPersonalAccessTokensMixin,
+    PlatformLoggerExtensionsAccountsCommonMixin,
+):
     """What the middleware and the auth routes read: Core's own queries, this transaction."""
 
     def __init__(self, conn: Any) -> None:

@@ -12815,6 +12815,9 @@ msgstr "Revoked"
 msgid "react.settings.revoked_lowercase"
 msgstr "revoked"
 
+msgid "react.settings.created_by_person_who_left"
+msgstr "Created by a person who has left"
+
 msgid "react.settings.revoking"
 msgstr "Revoking…"
 
@@ -32648,10 +32651,10 @@ msgid "react.agent_access.expiry_notice_dismiss"
 msgstr "Dismiss"
 
 msgid "react.permissions.account_self"
-msgstr "Manage your own sign-in: sign out, switch between your companies, change your password and email, your personal tokens, OAuth grants and AI agent connection"
+msgstr "Manage your own account: your profile, language, time zone and date format, sign out, switch between your companies, change your password and email, your personal tokens, OAuth grants and AI agent connection"
 
 msgid "react.permissions.account_profile_write"
-msgstr "Change your own profile, time zone, language and date format"
+msgstr "Change your own account from a session of external sign-in"
 
 msgid "react.permissions.jobs_read"
 msgstr "Read jobs, their results, files, logs and approvals"

@@ -423,33 +423,53 @@ a duplicate, short or missing token hash is refused.
 
 `tests/db/test_people_in_several_companies_postgres.py` and
 `tests/db/test_people_who_move_companies_postgres.py` run a person through several
-companies and a move from one to another. They led to three changes:
+companies and a move from one to another. They led to these changes (the owner's
+decisions of 2026-11-27 included):
 
-- **Approver assignments go with the membership.** Removing a membership deletes the
-  person's `approval_step_approvers` rows of that account, and deleting a person (a
-  soft delete, so the row's `ON DELETE CASCADE` never fires) deletes all of theirs.
-  Before, a step assigned only to a person who left waited for nobody, and a later
-  membership brought the old assignment back. A step left without approvers is decided
-  as an unrestricted step again, as after a hard delete; the removal's audit entry
-  (`account_member_remove`) lists the steps in `released_approval_steps` so the
-  account's administrators can assign someone else.
+- **Approver assignments go with the membership, and with the role that decides.** A
+  person is taken off the account's approval steps (`approval_step_approvers`,
+  `core/application/auth/approver_release.py`) when their membership is removed, when
+  they are deleted (a soft delete, so the row's `ON DELETE CASCADE` never fires; every
+  account), and when their role there changes to one without `approvals.decide` or to
+  none (`set_membership_role`, the one writer of a membership role: the users API, the
+  CLI and `ExternalSignInPort.remove_role` alike). A later membership or role never
+  brings an old assignment back.
+- **A step whose last approver goes is handed to the administrators.** It is never
+  opened to everyone who may decide approvals (an approver list only narrows, ADR 0066).
+  In the same transaction the account's active administrators at that moment become the
+  step's assigned approvers (rows with `created_by = 'approver-left'`): they decide it,
+  or assign someone else through the approvers port. This was chosen over a "fall back
+  to administrators" flag because the decision check, the approvals queue and the
+  `can_decide` view stay exactly as they are and read one list; an administrator who
+  joins later is not added (assign them through the port). With no other active
+  administrator (the last-administrator rule keeps one, so only an inconsistent
+  account), the step keeps no rows and is unrestricted, as before. The removal's audit
+  entry (`account_member_remove`) lists the steps in `released_approval_steps` with the
+  administrators each went to (`handed_to_admins`).
 - **Approvers are listed by membership.** `ApprovalAssignmentsPort.list_approvers` with
   an account kept only people whose home account it was; an approver who lives in
   another company and works here too is listed now, and one who left is not.
 - **The next home has a role.** When a person leaves their home company, the new home
   is an active company where they have a role, before the default and the oldest
   membership.
-
-- **Every role switches.** `POST /api/auth/switch-account` needed
-  `account.profile.write`, which a viewer does not hold, so a viewer in the acting
-  company could not move to another of their companies (while a person with no role at
-  all could, P5). It needs `account.self` now, which every role holds; the route still
-  checks the role in the target company and refuses an external session.
+- **Every role switches and manages its own settings.** `POST /api/auth/switch-account`,
+  `PATCH /api/users/me/(profile|timezone|locale|date-time-format)` and
+  `POST /api/users/me/detect-timezone` needed `account.profile.write`, which a viewer
+  does not hold: a viewer in the acting company could not move to another of their
+  companies (while a person with no role at all could, P5) nor change their own
+  language, time zone or date format. They need `account.self` now, which every role
+  holds. The switch route still checks the role in the target company and refuses an
+  external session; an external session's own-account writes keep needing
+  `account.profile.write` (ADR 0083), which only that rule uses now.
 
 What stays: workflows, runs, history and schedules the person made remain the
 account's (a due scheduled run is started by its schedule, never with the authority of
-whoever set it up), and service accounts and machine tokens belong to the account, not
-to the person who created them (§4), so they are not revoked.
+whoever set it up). Service accounts and machine tokens belong to the account, not to
+the person who created them (§4), so they are not revoked; the listings
+(`GET /api/auth/service-accounts` and its `/tokens`) carry `created_by_has_left: true`
+when the person named in `created_by` is no active member of the account any more, and
+Settings → Service accounts shows "Created by a person who has left" on such an
+identity or token.
 
 ## Not in this stage
 

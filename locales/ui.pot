@@ -12708,6 +12708,9 @@ msgstr ""
 msgid "react.settings.revoked_lowercase"
 msgstr ""
 
+msgid "react.settings.created_by_person_who_left"
+msgstr ""
+
 msgid "react.settings.revoking"
 msgstr ""
 

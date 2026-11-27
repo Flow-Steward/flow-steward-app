@@ -686,12 +686,11 @@ def delete_auth_user(
             )
         if callable(identities_checker) and identities_checker("approval_step_approvers") is True:
             # A deleted person is soft-deleted, so the row's ON DELETE CASCADE never
-            # fires: take them off every approval step here, or a step assigned only to
-            # them would wait for nobody (ADR 0085; the table's comment in db/schema).
-            cur.execute(
-                "DELETE FROM approval_step_approvers WHERE user_id::text = %s",
-                (normalized_user_id,),
-            )
+            # fires: take them off every approval step here; a step they were the last
+            # approver of goes to its account's administrators (ADR 0085).
+            from core.application.auth.approver_release import release_approver
+
+            release_approver(cur, user_id=normalized_user_id)
         cancelled_invitations = cancel_invitations_of_former_admins(cur, normalized_user_id)
     _audit_cancelled_invitations(bl, cancelled_invitations, actor=deleted_by)
     from core.application.auth.user_lifecycle_events import notify_user_deleted
