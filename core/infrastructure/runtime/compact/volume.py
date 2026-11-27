@@ -267,6 +267,7 @@ def _return_operation_log_root_to_operator(root_fd: int, layout: CompactVolumeLa
             # runs without its log and says so.
             with suppress(OSError):
                 os.fchown(leaf_fd, layout.operator_uid, layout.runtime_gid)
+                # nosemgrep: python.lang.security.audit.insecure-file-permissions.insecure-file-permissions -- owner-only directory requires execute permission.
                 os.fchmod(leaf_fd, 0o700)
                 os.fsync(leaf_fd)
         finally:

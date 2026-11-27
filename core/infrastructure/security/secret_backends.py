@@ -615,6 +615,7 @@ def read_remote_value(
     except Exception as exc:
         # A backend's own text can carry its endpoint, path or response; only the
         # type is useful to an operator.
+        # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- only the backend kind and the exception type are logged, never a value.
         _logger.warning("secret backend %s read failed: %s", kind, type(exc).__name__)
         _audit(ref_key, kind, StoredSecretUnavailable.code)
         raise StoredSecretUnavailable(ref_key) from None
@@ -658,6 +659,7 @@ def locate(conn: Any, *, account_id: str, ref_key: str) -> dict[str, Any] | None
     except Exception as exc:
         # Without the answer the reader cannot know where the value is; it never
         # guesses local.
+        # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- only the exception type are logged, never a value.
         _logger.warning("secret locator lookup failed: %s", type(exc).__name__)
         raise StoredSecretUnavailable(ref_key) from None
 
