@@ -157,6 +157,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/management/command_model
 COPY --chmod=u=rwX,go=rX --chown=fs:fs core/application/management/project_policy_validation.py core/application/management/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/__init__.py \
+    core/application/registry/account_references.py \
     core/application/registry/builder_metadata.py \
     core/application/registry/catalog_categories.py \
     core/application/registry/identifier_keys.py \
