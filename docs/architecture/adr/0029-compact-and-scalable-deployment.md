@@ -15,6 +15,30 @@ handling that is the usual reason to pick Caddy at all. Nginx and Apache remain.
 A `proxy_kind` of `caddy` already on disk is read as `nginx` rather than
 rejected, so existing installations stay loadable.
 
+Amended 2026-11-27 (forwarded-header trust per ingress): a security review found
+that Compact behind its bundled Traefik saw every visitor as one address. The
+internal router trusted only `FS_PROXY_TRUSTED_IPS` (loopback by default), so it
+replaced the outer Traefik's `X-Forwarded-For` with that Traefik's own address,
+and every per-client limit (sign-in, password reset, member lookup, external
+sign-in) became one bucket; Compact `external_proxy` and `platform` collapsed the
+same way. The trusted peers are now derived from the ingress, by one module
+(`core/infrastructure/security/forwarded_trust.py`) that the Compact supervisor,
+the router, uvicorn and Core all use. The Compose ingress overlays name the
+source (`FS_FORWARDED_TRUST_MODE`, `FS_FORWARDED_TRUST_PEER`): the bundled
+Traefik's Compose network range on Compact (its exact address, re-resolved every
+30 seconds, on Scalable), the proxy network's range for `external_traefik` and
+Docker-placed `external_proxy`, the bridge gateway for host-placed
+`external_proxy` (whose port is loopback-bound), and only the operator's list
+for `platform` or an image started without Compose, with a warning in the start
+log, `status` and `doctor` while that list names no proxy. The operator's
+`proxy_trusted_ips` always adds to the derived list. A list with an unreadable
+entry, or whose networks together cover every IPv4 or IPv6 address (split halves
+included), is refused everywhere instead of being skipped; Core, which re-reads it
+at run time, ignores it and logs why. Runtimes without a mode (development,
+unmanaged) keep their previous trust. This supersedes "The router trusts only the
+configured external proxy peer addresses/CIDRs" under HTTP composition and trust:
+it trusts the derived peers plus the configured ones.
+
 Operator procedures and supported commands are documented in the
 [deployment runbook](../../operations/compact-scalable-deployment.md).
 Persistent paths and permissions are defined by the

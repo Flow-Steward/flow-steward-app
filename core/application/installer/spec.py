@@ -11,6 +11,7 @@ from core.application.management.command_specs.contracts import (
     InteractivePolicy,
     OperationType,
 )
+from core.infrastructure.security.forwarded_trust import PROXY_TRUSTED_IPS_DESCRIPTION
 
 _TOKEN_INSTALLER_RUN = "installer.run"
 
@@ -296,7 +297,7 @@ INSTALLER_SPEC = CommandSpec(
             default="127.0.0.1/32,::1/128",
             option_name="--proxy-trusted-ips",
             advanced=True,
-            description="Comma-separated immediate proxy CIDRs; wildcard networks are rejected.",
+            description=PROXY_TRUSTED_IPS_DESCRIPTION,
         ),
         FieldSpec(
             key="traefik_network",

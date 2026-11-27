@@ -26,7 +26,7 @@ elsewhere. The default is `web`, but use it only if that entrypoint exists; do
 not invent an entrypoint on the external proxy. This setting does not alter the
 existing HTTPS or MCP routes or take over external TLS ownership.
 
-The application public origin is a scheme and hostname with an optional port and no path prefix. `/mcp` and `/mcp/…` route to MCP; `/mcpx` routes to the app. The installer, metrics ports, database, and broker stay private. Forwarded identity is trusted only from configured proxy CIDRs.
+The application public origin is a scheme and hostname with an optional port and no path prefix. `/mcp` and `/mcp/…` route to MCP; `/mcpx` routes to the app. The installer, metrics ports, database, and broker stay private. Forwarded identity is trusted only from the proxy of the selected ingress and the configured proxy CIDRs; see [Client addresses behind the proxy](#client-addresses-behind-the-proxy).
 
 For Nginx or Apache, run `flow-steward proxy-fragment` (add `--json` for the machine-readable form): it renders the fragment from the proxy kind, public host and backend ports this installation already recorded, and prints the backends it assumes. The renderer behind it is `ProxyRenderConfig` in `core.application.lifecycle.proxy_renderer`. Caddy is not a supported `proxy_kind`; an installation that selected it before is read as `nginx`, and its own Caddy keeps running untouched, but the fragment offered will be an Nginx one. The Apache fragment needs `mod_proxy`, `mod_proxy_http` and `mod_proxy_wstunnel`; the last carries the application's WebSocket routes under `/ws/`. Host placement uses `127.0.0.1:<port>` backends. Docker placement uses the selected external network and installation-specific aliases; `localhost` inside a proxy container is never an application backend.
 
@@ -41,6 +41,54 @@ For a provider-owned hostname, use the provider's TLS endpoint if available.
 Choose `external_proxy` with `reverse_proxy` for a proxy on the Docker host, or
 `platform` with `platform_managed` when the platform forwards HTTP traffic to
 Compact. The external system renews and serves its own certificate.
+
+### Client addresses behind the proxy
+
+Per-client limits (sign-in attempts, password reset, member lookup, external
+sign-in start and callback) and audit entries use the client address taken from
+`X-Forwarded-For`. Only a peer trusted to write that header may name the client.
+Trusting too little makes every visitor one address, so all of them share one
+bucket of every limit; trusting too much lets a client name any address it likes.
+The trust is derived from the ingress, and the Compact router, uvicorn and Core
+apply the same list:
+
+| Ingress | Trusted to name the client | Overlay sets |
+|---|---|---|
+| `bundled_traefik`, Compact | the range of the Compose network the bundled Traefik shares with `compact-runtime`, so a Traefik restarted with a new address stays trusted | `FS_FORWARDED_TRUST_MODE=proxy_network`, `FS_FORWARDED_TRUST_PEER=compact-runtime` |
+| `bundled_traefik`, Scalable | the address the name `traefik` resolves to; Core resolves it again every 30 seconds | `bundled_proxy` |
+| `external_traefik` | the range of `FS_TRAEFIK_NETWORK`, found through the runtime's own alias on it | `proxy_network` |
+| `external_proxy`, Docker placement | the range of `FS_PROXY_NETWORK`, found the same way | `proxy_network` |
+| `external_proxy`, host placement | the Docker bridge gateway, because the host proxy reaches the port published on `127.0.0.1` through Docker. This is safe only because that port is loopback-bound | `host_gateway` |
+| `platform` | nothing, until the operator names the platform's proxy in `FS_PROXY_TRUSTED_IPS` | `operator` (also when the image runs without Compose) |
+
+Loopback is always trusted, and `proxy_trusted_ips` (`FS_PROXY_TRUSTED_IPS`)
+always adds to the derived list. On a hosting platform, set it to the addresses
+or networks the platform's proxy connects from; elsewhere, set it only when a
+second proxy sits in front of the one above. A list with an unreadable entry, or
+with networks that together cover every IPv4 or IPv6 address (`0.0.0.0/0`,
+`::/0`, or halves such as `0.0.0.0/1,128.0.0.0/1`), is refused by `config set`
+and `config validate`, by the Compact supervisor (exit 78) and by
+`start_server.sh`. Core, which reads it again at run time, ignores such a list and
+logs why. With no trusted platform proxy, the runtime logs `WARNING client
+address: No proxy is trusted to name the client address ...` at start, and
+`status` and `doctor` show the `forwarded_client_address` recommendation.
+
+Each runtime logs what it derived when it starts: the Compact supervisor writes
+`Compact: forwarded client addresses trusted from (<mode>): <list>` to the
+`compact-runtime` log, and Scalable `fs-app` writes `[start_server] Forwarded
+client addresses trusted from (<mode>): <list>`. To check the result, fail a
+sign-in from two machines with different public addresses (also send a made-up
+`X-Forwarded-For` from one of them) and read the recorded addresses:
+
+```sql
+SELECT timestamp, result->>'client_ip' AS client_ip
+FROM platform_action_log
+WHERE action_type = 'auth_login' AND status = 'rejected'
+ORDER BY id DESC LIMIT 5;
+```
+
+Each row must show the machine's own public address: neither the proxy's
+address nor the made-up one.
 
 If the provider supplies a certificate and key as files, choose bundled
 Traefik with `provided`. When the provider rotates the certificate, deliver the

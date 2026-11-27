@@ -2,3 +2,7 @@ services:
   compact-runtime:
     ports:
       - "127.0.0.1:${FS_REVERSE_PROXY_BACKEND_PORT:-18099}:${FS_RUNTIME_HTTP_PORT:-8080}"
+    environment:
+      # ADR 0029 (2026-11-27): the host proxy reaches this loopback-only port through
+      # Docker, so the runtime sees the bridge gateway; trust it to name the client.
+      FS_FORWARDED_TRUST_MODE: host_gateway

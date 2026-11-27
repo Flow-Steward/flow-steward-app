@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -10,12 +11,16 @@ import pytest
 from core.application.auth import request_principal_runtime, serve_auth_runtime
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.route_permissions import route_permission
+from core.infrastructure.security.forwarded_trust import AttachedNetworks
 
 
 @pytest.fixture(autouse=True)
-def _isolate_bootstrap_state_file(monkeypatch: pytest.MonkeyPatch) -> None:
+def _isolate_bootstrap_state_file(monkeypatch: pytest.MonkeyPatch):
     """Keep bootstrap policy tests independent of the deployment environment."""
     monkeypatch.delenv("FS_AUTH_BOOTSTRAP_STATE_FILE", raising=False)
+    serve_auth_runtime.reset_forwarded_trust()
+    yield
+    serve_auth_runtime.reset_forwarded_trust()
 
 
 class _FakeRequest:
@@ -161,7 +166,7 @@ def test_bootstrap_request_allowed_rejects_trusted_proxy_without_explicit_opt_in
         "trusted_local_proxy_hosts",
         lambda: {"192.168.65.1"},
     )
-    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    serve_auth_runtime.reset_forwarded_trust()
 
     denied = serve_auth_runtime.bootstrap_request_allowed(
         _FakeRequest(
@@ -180,27 +185,34 @@ def test_bootstrap_request_allowed_rejects_trusted_proxy_without_explicit_opt_in
 
 
 def test_trusted_local_proxy_hosts_includes_exact_compose_reverse_proxy(monkeypatch) -> None:
+    """An unmanaged runtime (no trust mode) keeps what it trusted before."""
     resolved = {
         "host.docker.internal": "192.168.65.254",
         "gateway.docker.internal": "192.168.65.1",
         "traefik": "172.19.0.7",
     }
+    monkeypatch.delenv("FS_FORWARDED_TRUST_MODE", raising=False)
+    monkeypatch.delenv("FS_PROXY_TRUSTED_IPS", raising=False)
     monkeypatch.setattr(
-        serve_auth_runtime.socket,
-        "gethostbyname",
-        lambda hostname: resolved[hostname],
+        serve_auth_runtime,
+        "resolve_addresses",
+        lambda hostname: (ipaddress.ip_address(resolved[hostname]),),
     )
-    monkeypatch.setattr(serve_auth_runtime, "_default_gateway_host", lambda: "172.19.0.1")
-    serve_auth_runtime.trusted_local_proxy_hosts.cache_clear()
+    monkeypatch.setattr(
+        serve_auth_runtime,
+        "attached_networks",
+        lambda: AttachedNetworks(gateway="172.19.0.1"),
+    )
+    serve_auth_runtime.reset_forwarded_trust()
 
     assert serve_auth_runtime.trusted_local_proxy_hosts() == {
+        "127.0.0.1",
+        "::1",
         "172.19.0.1",
         "172.19.0.7",
         "192.168.65.1",
         "192.168.65.254",
     }
-
-    serve_auth_runtime.trusted_bootstrap_proxy_hosts.cache_clear()
     assert serve_auth_runtime.trusted_bootstrap_proxy_hosts() == {"172.19.0.7"}
 
 
@@ -218,7 +230,7 @@ def test_bootstrap_request_allowed_accepts_localhost_via_opted_in_trusted_proxy(
         "trusted_bootstrap_proxy_hosts",
         lambda: {"192.168.65.1"},
     )
-    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    serve_auth_runtime.reset_forwarded_trust()
 
     allowed = serve_auth_runtime.bootstrap_request_allowed(
         _FakeRequest(
@@ -352,7 +364,7 @@ def test_bootstrap_request_allowed_accepts_localhost_via_trusted_proxy_subnet(mo
         "trusted_local_proxy_hosts",
         lambda: {"172.19.0.1"},
     )
-    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    serve_auth_runtime.reset_forwarded_trust()
 
     denied = serve_auth_runtime.bootstrap_request_allowed(
         _FakeRequest(
@@ -379,7 +391,7 @@ def test_bootstrap_request_allowed_rejects_non_loopback_origin_via_trusted_proxy
         "trusted_local_proxy_hosts",
         lambda: {"192.168.65.1"},
     )
-    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    serve_auth_runtime.reset_forwarded_trust()
 
     denied = serve_auth_runtime.bootstrap_request_allowed(
         _FakeRequest(
@@ -405,7 +417,7 @@ def test_bootstrap_request_allowed_rejects_internal_proxy_without_original_clien
         "trusted_local_proxy_hosts",
         lambda: {"172.19.0.1"},
     )
-    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    serve_auth_runtime.reset_forwarded_trust()
 
     denied = serve_auth_runtime.bootstrap_request_allowed(
         _FakeRequest(

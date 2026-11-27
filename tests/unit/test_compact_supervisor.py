@@ -266,9 +266,54 @@ def test_compact_router_trusts_only_configured_proxy_peers() -> None:
     )
 
     assert (
-        "--entryPoints.compact.forwardedHeaders.trustedIPs=10.0.0.0/8,192.0.2.10/32"
+        "--entryPoints.compact.forwardedHeaders.trustedIPs=10.0.0.0/8,192.0.2.10"
         in specs[0].command
     )
+
+
+def test_compact_router_and_app_trust_the_bundled_proxy_network() -> None:
+    """ADR 0029 (2026-11-27): the supervisor puts the derived list -- here the bundled
+    Traefik's Compose network -- in FS_PROXY_TRUSTED_IPS; the router and the app's
+    uvicorn both trust it, and the app re-derives it from the same variables."""
+    settings = CompactRuntimeSettings.from_environment({"FS_DEPLOYMENT_PROFILE": "compact"})
+
+    specs = build_process_specs(
+        settings,
+        parent_environment={
+            "FS_PROXY_TRUSTED_IPS": "127.0.0.1,::1,172.20.0.0/16",
+            "FS_FORWARDED_TRUST_MODE": "proxy_network",
+            "FS_FORWARDED_TRUST_PEER": "compact-runtime",
+            "FS_WORKER_MCP_BEARER_TOKEN": "worker-token",
+        },
+        public_port=8080,
+        observation_fd=9,
+    )
+    router, app = specs[0], specs[1]
+
+    assert (
+        "--entryPoints.compact.forwardedHeaders.trustedIPs=127.0.0.1,::1,172.20.0.0/16"
+        in router.command
+    )
+    assert "--forwarded-allow-ips=127.0.0.1,::1,172.20.0.0/16" in app.command
+    assert app.environment["FS_FORWARDED_TRUST_MODE"] == "proxy_network"
+    assert app.environment["FS_FORWARDED_TRUST_PEER"] == "compact-runtime"
+    assert "FS_FORWARDED_TRUST_MODE" not in router.environment
+
+
+@pytest.mark.parametrize("trusted", ["0.0.0.0/1,128.0.0.0/1", "::/0", "10.0.0.0/8,bogus"])
+def test_compact_refuses_a_trust_list_it_cannot_use(trusted: str) -> None:
+    settings = CompactRuntimeSettings.from_environment({"FS_DEPLOYMENT_PROFILE": "compact"})
+
+    with pytest.raises(ValueError, match="FS_PROXY_TRUSTED_IPS"):
+        build_process_specs(
+            settings,
+            parent_environment={
+                "FS_PROXY_TRUSTED_IPS": trusted,
+                "FS_WORKER_MCP_BEARER_TOKEN": "worker-token",
+            },
+            public_port=8080,
+            observation_fd=9,
+        )
 
 
 def test_restart_budget_uses_bounded_exponential_delays() -> None:

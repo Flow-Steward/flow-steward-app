@@ -266,8 +266,11 @@ DEVELOPMENT_ROLE_ENV_KEYS = {
 # home exists, so a HOME there would be noise rather than a rule. The app carries it in
 # both, because it is pinned to the operator in both.
 PRODUCTION_ROLE_ENV_KEYS = {
+    # ADR 0029 (2026-11-27): production names the bundled Traefik as the proxy that names
+    # the client; development keeps the unmanaged trust, so the key is production-only.
     # 0.9.25: the release upgrade's one-shot migration container needs a writable log root.
-    "fs-app": APP_ENV_KEYS | {"FS_APP_IMAGE_DIGEST", "FS_CLI_OPERATION_LOG_ROOT"},
+    "fs-app": APP_ENV_KEYS
+    | {"FS_APP_IMAGE_DIGEST", "FS_CLI_OPERATION_LOG_ROOT", "FS_FORWARDED_TRUST_MODE"},
     "fs-worker": WORKER_ENV_KEYS | {"FS_WORKER_IMAGE_DIGEST", "HOME", "FS_PUBLIC_BASE_URL"},
     "control-plane": CONTROL_ENV_KEYS | {"FS_CONTROL_IMAGE_DIGEST", "HOME"},
 }

@@ -243,7 +243,7 @@ Existing reverse-proxy implementation.
 
 ### `proxy_trusted_ips`
 
-Comma-separated immediate proxy CIDRs; wildcard networks are rejected.
+Extra comma-separated addresses or networks of reverse proxies allowed to name the client address, which per-client sign-in limits and audit entries use. The proxy of each ingress is trusted without it (bundled Traefik, the proxy network, the host gateway); set it for a hosting platform's proxy. Networks that cover every address (0.0.0.0/0, or halves such as 0.0.0.0/1,128.0.0.0/1) and unreadable entries are rejected.
 
 - Default: `127.0.0.1/32, ::1/128`
 - Accepts: text

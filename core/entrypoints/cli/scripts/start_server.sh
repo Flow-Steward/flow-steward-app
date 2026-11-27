@@ -101,42 +101,14 @@ ensure_frontend_shell_build
 
 cd "$APP_ROOT"
 
-# External review P2: also the proxies the operator configured (FS_PROXY_TRUSTED_IPS, which
-# `config` records and Compact hands to its router). Without them an external Nginx,
-# Apache or shared Traefik reached fs-app untrusted: clients looked like the proxy and
-# HTTPS looked like HTTP. The configuration's own rule holds here too -- a wildcard
-# network or an unreadable entry refuses to start rather than trusting everyone.
-FORWARDED_ALLOW_IPS="$(${PYTHON:-python} - <<'PY'
-import ipaddress
-import os
-import socket
-import sys
-
-hosts = {"127.0.0.1", "::1"}
-for entry in (os.environ.get("FS_PROXY_TRUSTED_IPS") or "").split(","):
-    entry = entry.strip()
-    if not entry:
-        continue
-    try:
-        network = ipaddress.ip_network(entry, strict=False)
-    except ValueError:
-        sys.exit(f"[start_server] FS_PROXY_TRUSTED_IPS entry {entry!r} is not an address or network")
-    if network.prefixlen == 0:
-        sys.exit(f"[start_server] FS_PROXY_TRUSTED_IPS must not contain a wildcard network: {entry}")
-    hosts.add(str(network))
-for hostname in ("traefik",):
-    try:
-        addresses = socket.getaddrinfo(hostname, None, type=socket.SOCK_STREAM)
-    except OSError:
-        continue
-    for address in addresses:
-        try:
-            hosts.add(str(ipaddress.ip_address(address[4][0])))
-        except ValueError:
-            continue
-print(",".join(sorted(hosts)))
-PY
-)"
+# Which peers may name the client in X-Forwarded-For (ADR 0029, amendment 2026-11-27):
+# derived from the ingress the Compose overlay names (FS_FORWARDED_TRUST_MODE) plus the
+# operator's FS_PROXY_TRUSTED_IPS, by the same module Core and the Compact supervisor use.
+# An unreadable entry, or networks that add up to every address, refuse to start rather
+# than trusting everyone. The derivation and any warning are printed to the log.
+CORE_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+FORWARDED_ALLOW_IPS="$(PYTHONPATH="$CORE_ROOT${PYTHONPATH:+:$PYTHONPATH}" \
+  ${PYTHON:-python} -m core.infrastructure.security.forwarded_trust)"
 
 UVICORN_ARGS=(
   core.entrypoints.api.app:app

@@ -414,6 +414,9 @@ services:
       # External review P2: the proxies `config` recorded as trusted; start_server.sh adds
       # them to uvicorn's --forwarded-allow-ips. Compact hands the same value to its router.
       FS_PROXY_TRUSTED_IPS: ${FS_PROXY_TRUSTED_IPS:-}
+      # ADR 0029 (2026-11-27): the bundled Traefik names the client; the external ingress
+      # overlays replace this with the proxy network or the host gateway.
+      FS_FORWARDED_TRUST_MODE: bundled_proxy
       FS_PUBLIC_BASE_URL: ${FS_PUBLIC_BASE_URL}
       # ADR 0047: the authorization server's readiness compares its issuer and resource
       # with any override the MCP server sees, and checks the MCP forward header. All

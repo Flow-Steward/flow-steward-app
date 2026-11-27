@@ -16,6 +16,13 @@ from core.infrastructure.observability.otel_environment import (
     SUPPORTED_ENV_NAMES,
 )
 from core.infrastructure.platform_modules.module_settings import MODULE_SETTINGS_ENV
+from core.infrastructure.security.forwarded_trust import (
+    CONFIGURED_ENV,
+    LOOPBACK,
+    TRUST_MODE_ENV,
+    TRUST_PEER_ENV,
+    parse_trusted_proxies,
+)
 
 _COMMON_ENV = frozenset(
     {
@@ -45,6 +52,9 @@ _DATABASE_ENV = frozenset(
     }
 )
 _LOCAL_CREDENTIAL_POLICY_ENV = frozenset({"FS_AUTH_MFA_REQUIRED", "FS_AUTH_PASSWORD_MIN_LENGTH"})
+# ADR 0029 (2026-11-27): the app derives the same proxy trust as the router, refreshing
+# the names it resolves; the supervisor has already put the derived list in the first.
+_FORWARDED_TRUST_ENV = frozenset({CONFIGURED_ENV, TRUST_MODE_ENV, TRUST_PEER_ENV})
 
 _AUTH_BOOTSTRAP_ENV = frozenset(
     {
@@ -353,8 +363,20 @@ def _environment(
 
 
 def _trusted_proxy_ips(parent: Mapping[str, str]) -> str:
-    configured = str(parent.get("FS_PROXY_TRUSTED_IPS") or "").strip()
-    return configured or "127.0.0.1/32,::1/128"
+    """The peers the router and the app trust to name the client.
+
+    The supervisor puts the list derived for this ingress into FS_PROXY_TRUSTED_IPS
+    before building the roles (forwarded_trust.derive_forwarded_trust): the bundled
+    Traefik's network, the proxy network, the host gateway, plus the operator's own
+    entries. An unreadable entry, or networks adding up to every address, refuse here as
+    they do in Core, instead of being skipped (ADR 0029, amendment 2026-11-27).
+    """
+    configured = str(parent.get(CONFIGURED_ENV) or "").strip()
+    networks = parse_trusted_proxies(configured) if configured else LOOPBACK
+    return ",".join(
+        str(network.network_address) if network.num_addresses == 1 else str(network)
+        for network in networks
+    )
 
 
 def delivered_environment_names() -> frozenset[str]:
@@ -377,6 +399,7 @@ def delivered_environment_names() -> frozenset[str]:
         | _RETENTION_ENV
         | _TELEMETRY_ENV
         | _MODULE_SETTINGS_ENV
+        | _FORWARDED_TRUST_ENV
     )
 
 
@@ -409,6 +432,7 @@ def build_process_specs(
         | _MONITORING_ENV
         | _RETENTION_POLICY_ENV
         | _TELEMETRY_ENV
+        | _FORWARDED_TRUST_ENV
     )
     worker_env = (
         _COMMON_ENV
@@ -456,6 +480,9 @@ def build_process_specs(
                 "127.0.0.1",
                 "--port",
                 str(ports.app_port),
+                # The router is the app's immediate peer; the client is the rightmost
+                # address in X-Forwarded-For that none of these wrote.
+                f"--forwarded-allow-ips={_trusted_proxy_ips(parent_environment)}",
                 "--workers",
                 str(settings.app_workers),
             ),

@@ -5,6 +5,11 @@ services:
       flow-steward-proxy:
         aliases:
           - "${FS_COMPOSE_PROJECT_NAME:-flow-steward}-app-proxy"
+    environment:
+      # ADR 0029 (2026-11-27): trust the proxy network's range to name the client; fs-app
+      # finds that network through its own alias on it.
+      FS_FORWARDED_TRUST_MODE: proxy_network
+      FS_FORWARDED_TRUST_PEER: "${FS_COMPOSE_PROJECT_NAME:-flow-steward}-app-proxy"
   fs-mcp:
     networks:
       default: {}

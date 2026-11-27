@@ -21,6 +21,7 @@ from core.application.management.command_specs.contracts import (
     InteractivePolicy,
     OperationType,
 )
+from core.infrastructure.security.forwarded_trust import PROXY_TRUSTED_IPS_DESCRIPTION
 
 _TOKEN_CONFIG_SHOW = "config.show"
 _TOKEN_CONFIG_VALIDATE = "config.validate"
@@ -264,7 +265,7 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 option_name="--proxy-trusted-ips",
                 advanced=True,
                 examples=("127.0.0.1/32,::1/128",),
-                description="Comma-separated immediate proxy CIDRs; wildcard networks are rejected.",
+                description=PROXY_TRUSTED_IPS_DESCRIPTION,
             ),
             FieldSpec(
                 key="traefik_network",

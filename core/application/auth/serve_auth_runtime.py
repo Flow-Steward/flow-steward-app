@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hmac
 import ipaddress
+import logging
 import re
-import socket
+import threading
+import time
 from collections.abc import Collection
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote, urlparse
@@ -24,6 +25,15 @@ from core.application.auth.local_credentials import (
 )
 from core.application.auth.membership_roles import account_role_keys
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
+from core.infrastructure.security.forwarded_trust import (
+    BUNDLED_PROXY_HOST,
+    AttachedNetworks,
+    ForwardedTrust,
+    derive_forwarded_trust,
+    resolve_addresses,
+)
+
+logger = logging.getLogger(__name__)
 
 _AUTH_SESSION_ISSUE_GUARDS: list[Any] = []
 
@@ -617,64 +627,91 @@ def _is_loopback_hostname(value: str) -> bool:
         return False
 
 
-def _default_gateway_host() -> str:
-    try:
-        with open("/proc/net/route", encoding="utf-8") as route_file:
-            next(route_file, None)
-            for raw_line in route_file:
-                fields = raw_line.strip().split()
-                if len(fields) < 3 or fields[1] != "00000000":
-                    continue
-                gateway_hex = fields[2]
-                gateway_bytes = bytes.fromhex(gateway_hex)
-                return str(ipaddress.ip_address(int.from_bytes(gateway_bytes, "little")))
-    except (OSError, ValueError):
-        return ""
-    return ""
+class _ForwardedTrustCache:
+    """The derived proxy trust, re-derived every ``ttl_seconds`` (ADR 0029, 2026-11-27).
 
-
-@lru_cache(maxsize=1)
-def trusted_local_proxy_hosts() -> set[str]:
-    hosts: set[str] = set()
-    for host_name in ("host.docker.internal", "gateway.docker.internal", "traefik"):
-        try:
-            resolved = socket.gethostbyname(host_name)
-        except OSError:
-            continue
-        normalized = _normalized_hostname(resolved)
-        if normalized:
-            hosts.add(normalized)
-    default_gateway = _normalized_hostname(_default_gateway_host())
-    if default_gateway:
-        hosts.add(default_gateway)
-    return hosts
-
-
-@lru_cache(maxsize=1)
-def trusted_bootstrap_proxy_hosts() -> set[str]:
-    try:
-        resolved = socket.gethostbyname("traefik")
-    except OSError:
-        return set()
-    normalized = _normalized_hostname(resolved)
-    return {normalized} if normalized else set()
-
-
-@lru_cache(maxsize=1)
-def trusted_local_proxy_networks() -> tuple[ipaddress._BaseNetwork, ...]:
-    """Return the trusted local proxy network set.
-
-    Bootstrap trust stays bound to exact local proxy hosts, not adjacent subnet
-    peers, so this intentionally returns an empty tuple.
+    Names are resolved again rather than once per process: an app that started before
+    the bundled proxy, or a proxy restarted with a new address, would otherwise put
+    every visitor in one bucket until the app itself restarted.
     """
-    return ()
+
+    def __init__(self, ttl_seconds: float = 30.0) -> None:
+        self.ttl_seconds = ttl_seconds
+        self._lock = threading.Lock()
+        self._trust: ForwardedTrust | None = None
+        self._derived_at = 0.0
+        self._reported: tuple[str, ...] = ()
+
+    def get(self) -> ForwardedTrust:
+        now = time.monotonic()
+        with self._lock:
+            if self._trust is None or now - self._derived_at >= self.ttl_seconds:
+                self._trust = derive_forwarded_trust(
+                    _runtime_env,
+                    strict=False,
+                    resolve=lambda name: resolve_addresses(name),
+                    attached=lambda: attached_networks(),
+                )
+                self._derived_at = now
+                if self._trust.warnings != self._reported:
+                    self._reported = self._trust.warnings
+                    for warning in self._trust.warnings:
+                        logger.warning("Client address: %s", warning)
+            return self._trust
+
+    def clear(self) -> None:
+        with self._lock:
+            self._trust = None
+            self._reported = ()
+
+
+_FORWARDED_TRUST = _ForwardedTrustCache()
+
+
+def attached_networks() -> AttachedNetworks:
+    return AttachedNetworks.read()
+
+
+def forwarded_trust() -> ForwardedTrust:
+    return _FORWARDED_TRUST.get()
+
+
+def reset_forwarded_trust() -> None:
+    _FORWARDED_TRUST.clear()
+
+
+def trusted_local_proxy_hosts() -> set[str]:
+    """The exact peers trusted to name the client (loopback, the bundled proxy, the host
+    gateway where the ingress uses it, and the operator's single addresses)."""
+    return forwarded_trust().exact_hosts()
+
+
+def trusted_bootstrap_proxy_hosts() -> set[str]:
+    """Bootstrap trust stays bound to the bundled proxy's exact address."""
+    return {
+        _normalized_hostname(str(address))
+        for address in resolve_addresses(BUNDLED_PROXY_HOST)
+        if _normalized_hostname(str(address))
+    }
+
+
+def trusted_local_proxy_networks() -> tuple[ipaddress._BaseNetwork, ...]:
+    """The proxy networks trusted to name the client (the proxy network's range and the
+    operator's networks). Bootstrap trust never uses them."""
+    return forwarded_trust().wider_networks()
 
 
 def _client_host_in_trusted_local_proxy_scope(client_host: str) -> bool:
     normalized_client = _normalized_hostname(client_host)
     if not normalized_client:
         return False
-    return normalized_client in trusted_local_proxy_hosts()
+    if normalized_client in trusted_local_proxy_hosts():
+        return True
+    try:
+        address = ipaddress.ip_address(normalized_client)
+    except ValueError:
+        return False
+    return any(address in network for network in trusted_local_proxy_networks())
 
 
 def _request_trusts_forwarded_headers(request: Any) -> bool:
@@ -684,7 +721,7 @@ def _request_trusts_forwarded_headers(request: Any) -> bool:
         return False
     if client_host in {"127.0.0.1", "::1", "localhost"}:
         return True
-    return client_host in trusted_local_proxy_hosts()
+    return _client_host_in_trusted_local_proxy_scope(client_host)
 
 
 def _valid_ip_literal(value: str) -> str:
