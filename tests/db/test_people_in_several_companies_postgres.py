@@ -38,6 +38,7 @@ from tests.db._companies import (
     job,
     last_scope,
     limit_to_project,
+    make_owner,
     oauth_grant,
     person,
     personal_token,
@@ -308,6 +309,9 @@ def test_an_oauth_grant_made_in_a_answers_for_a_only(world: World) -> None:
 def test_the_last_admin_rule_is_per_company(world: World) -> None:
     alice = person(world, "alice", world.a.id, {world.a.id: "admin", world.b.id: "admin"})
     carol = person(world, "carol", world.b.id, {world.b.id: "admin"})
+    # Carol owns B (ADR 0085, "Company owner"): Alice, its first administrator, would
+    # otherwise be its owner, whom nobody demotes.
+    make_owner(world, world.b.id, carol)
 
     # A has no other administrator: the CLI (no acting person) is refused.
     service = UserAdminCommandService(get_logger=lambda: world.store)

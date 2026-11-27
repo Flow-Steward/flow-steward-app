@@ -195,6 +195,23 @@ def list_identities(cur: Any, *, account_id: str) -> list[dict[str, Any]]:
     return _rows(cur)
 
 
+def identity_user_id(cur: Any, identity_id: str, *, account_id: str) -> str:
+    """The person an identity link of the account signs in (``""``: no such link)."""
+    if not (is_uuid(identity_id) and is_uuid(account_id)):
+        return ""
+    cur.execute(
+        "SELECT CAST(user_id AS TEXT) AS user_id FROM external_identities"
+        " WHERE id = %s AND account_id = %s",
+        (identity_id, account_id),
+    )
+    row = cur.fetchone()
+    if isinstance(row, Mapping):
+        return str(row.get("user_id") or "").strip()
+    if isinstance(row, (list, tuple)) and row:
+        return str(row[0] or "").strip()
+    return ""
+
+
 def delete_identity(cur: Any, identity_id: str, *, account_id: str) -> bool:
     if not (is_uuid(identity_id) and is_uuid(account_id)):
         return False

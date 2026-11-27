@@ -17,6 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from core.application.auth.account_owner import require_owner_kept
 from core.application.auth.approver_release import release_approver
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.external_session_revocation import revoke_external_sign_in_grants
@@ -248,8 +249,8 @@ def remove_member(
     """Remove the person's membership of ``account_id``; returns the person.
 
     Refused for the administrator themselves, for the account's last active
-    administrator and for the person's only membership (the person is deleted
-    instead). The
+    administrator, for the account's owner (who transfers ownership first) and for
+    the person's only membership (the person is deleted instead). The
     person's scope limit there, their sessions, personal tokens and OAuth grants of
     that account and their assignments as an approver there go with the membership; a
     home account moves to another membership where the person has a role, if any.
@@ -272,6 +273,8 @@ def remove_member(
             "The last active administrator of this company cannot be removed: "
             "give another person the admin role here first"
         ) from exc
+    # The company's owner stays until they transfer ownership (ADR 0085).
+    require_owner_kept(cur, user_id=user_id, account_ids=[account_id])
     remaining = [item for item in accounts if item != account_id]
     if not remaining:
         raise ServiceConflictError("This is the person's only company: delete the person instead")

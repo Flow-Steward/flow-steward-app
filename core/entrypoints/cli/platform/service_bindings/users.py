@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from core.application.auth.user_admin.contracts import (
+    AccountOwnerReassignResultView,
     UserActiveUpdateInput,
     UserAuditContext,
     UserCreateInput,
+    UserOwnerReassignInput,
     UserPasswordUpdateInput,
     UserRolesUpdateInput,
     UserSelectorInput,
@@ -98,6 +100,23 @@ async def users_set_roles(runtime: RuntimeServices, value: object, **_kwargs: ob
     )
 
 
+async def users_reassign_owner(
+    runtime: RuntimeServices, value: object, **_kwargs: object
+) -> object:
+    command = (
+        value
+        if isinstance(value, UserOwnerReassignInput)
+        else UserOwnerReassignInput.model_validate(value)
+    )
+    result: AccountOwnerReassignResultView = await await_maybe(
+        runtime.user_command_service.reassign_owner(
+            command,
+            audit_context=_cli_audit_context(command),
+        )
+    )
+    return result
+
+
 async def users_issue_bootstrap_token(
     runtime: RuntimeServices, _value: object, **_kwargs: object
 ) -> object:
@@ -119,5 +138,6 @@ USER_SERVICE_FACTORIES: dict[str, ServiceFactory] = {
     "users.unlock": users_unlock,
     "users.set-active": users_set_active,
     "users.set-roles": users_set_roles,
+    "users.reassign-owner": users_reassign_owner,
     "users.issue-bootstrap-token": users_issue_bootstrap_token,
 }

@@ -9,14 +9,17 @@
     "core/application/__init__.py",
     "core/application/auth/__init__.py",
     "core/application/auth/account_memberships.py",
+    "core/application/auth/account_owner.py",
     "core/application/auth/agent_access_presets.py",
     "core/application/auth/agent_connection_catalog.py",
     "core/application/auth/agent_connection_reminders.py",
     "core/application/auth/agent_connection_repository.py",
+    "core/application/auth/approver_release.py",
     "core/application/auth/audit.py",
     "core/application/auth/bootstrap_tokens.py",
     "core/application/auth/config.py",
     "core/application/auth/csrf.py",
+    "core/application/auth/effective_permissions.py",
     "core/application/auth/enforce.py",
     "core/application/auth/external_session_revocation.py",
     "core/application/auth/first_admin.py",
@@ -44,6 +47,7 @@
     "core/application/auth/principal.py",
     "core/application/auth/rate_limit.py",
     "core/application/auth/resolve.py",
+    "core/application/auth/role_assignments.py",
     "core/application/auth/scope_contracts.py",
     "core/application/auth/secrets.py",
     "core/application/auth/serve_auth_runtime.py",
@@ -862,6 +866,10 @@
     },
     {
       "path": "db/migrations/20261127210000_extension_install_requests.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127220000_account_owner.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

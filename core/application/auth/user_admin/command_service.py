@@ -7,6 +7,7 @@ from typing import Any, Protocol, TypeAlias
 
 from core.application.auth import mfa_repository
 from core.application.auth.account_memberships import normalize_membership_account_ids
+from core.application.auth.account_owner import require_owner_consent
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
@@ -28,6 +29,7 @@ from core.application.auth.resolve import (
 )
 from core.application.auth.user_admin import repository as user_admin_repository
 from core.application.auth.user_admin.contracts import (
+    AccountOwnerReassignResultView,
     PublicUserView,
     UserActiveUpdateInput,
     UserAuditContext,
@@ -37,6 +39,7 @@ from core.application.auth.user_admin.contracts import (
     UserDeleteInput,
     UserDeleteResultView,
     UserMutationResultView,
+    UserOwnerReassignInput,
     UserPasswordUpdateInput,
     UserRolesUpdateInput,
     UserSelectorInput,
@@ -128,9 +131,12 @@ class UserAdminCommandRepository(Protocol):
         on_scope_limit_lifted: Callable[[], None] | None = None,
         actor: str = "",
         role_account_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> int: ...
 
-    def force_password_reset(self, bl: Any, *, user_id: Any) -> int: ...
+    def force_password_reset(
+        self, bl: Any, *, user_id: Any, actor_user_id: str | None = None
+    ) -> int: ...
 
     def delete_auth_user(
         self,
@@ -358,6 +364,8 @@ class UserAdminCommandService:
             username, primary_account_id, required, reset_pending = target
             membership_ids = mfa_repository.admin_target_membership_ids(cur, user_id)
             require_account_access([primary_account_id, *membership_ids], allowed_account_ids)
+            # Only a company owner changes their own authenticator (ADR 0085).
+            require_owner_consent(cur, user_id=user_id, actor_user_id=actor_user_id)
 
             if action == "reset":
                 mfa_repository.delete_factor(cur, user_id)
@@ -396,7 +404,9 @@ class UserAdminCommandService:
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView:
+        """Require a new password; a company owner's only by the owner (ADR 0085)."""
         bl = self._logger()
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
         require_user_access(user, allowed_account_ids)
@@ -404,6 +414,7 @@ class UserAdminCommandService:
         revoked_sessions = self._repository.force_password_reset(
             bl,
             user_id=str(user["id"]),
+            actor_user_id=actor_user_id,
         )
 
         username = str(user.get("username") or "")
@@ -489,6 +500,33 @@ class UserAdminCommandService:
             username=username,
             revoked_sessions=revoked_sessions,
         )
+
+    def reassign_owner(
+        self,
+        command: UserOwnerReassignInput,
+        *,
+        audit_context: UserAuditContext | None = None,
+    ) -> AccountOwnerReassignResultView:
+        """Give a company a new owner: the installation's recovery (ADR 0085).
+
+        The command line runs as the installation operator; the API route checks the
+        installation administrator itself. The person must be an active member of the
+        company; the reason is recorded in the auth audit.
+        """
+        from core.application.auth.user_admin.account_ownership import AccountOwnershipService
+
+        bl = self._logger()
+        user = self._resolve(bl, user_id=command.user_id, email=command.email)
+        context = resolve_audit_context(command.actor, audit_context)
+        result = AccountOwnershipService(
+            get_logger=lambda: bl, audit=self._log_auth_audit_event
+        ).reassign(
+            account_id=command.account_id,
+            to_user_id=str(user["id"]),
+            reason=command.reason,
+            actor=context.actor,
+        )
+        return AccountOwnerReassignResultView.model_validate(result)
 
     def set_active(
         self,
@@ -613,6 +651,7 @@ class UserAdminCommandService:
             on_scope_limit_lifted=lambda: lifted_scope_limit.append(True),
             actor=resolve_audit_context(command.actor, audit_context).actor,
             role_account_id=role_account_id,
+            actor_user_id=str(command.actor_user_id or "").strip() or None,
         )
 
         username = str(user.get("username") or "")

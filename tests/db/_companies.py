@@ -2,7 +2,9 @@
 
 Three companies (accounts A, B and C) share one installation. Each has a workspace,
 two projects and a workflow with the same key, so a check that confuses one company's
-row with another's fails. People are added per test with a role per company.
+row with another's fails. People are added per test with a role per company. The first
+administrator added to a company becomes its owner (ADR 0085, "Company owner");
+``make_owner`` names another one.
 
 Requests go through a small FastAPI app that runs Core's own authentication
 middleware (``local_auth_middleware``: session, personal token, role of the acting
@@ -63,7 +65,7 @@ from core.infrastructure.db.platform_logger_common import SQL_AND, SQL_PROJECT_A
 from core.infrastructure.db.psycopg_runtime._connection import ConnectionAdapter
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
-PASSWORD = "correct horse battery staple"
+PASSWORD = "correct horse battery staple"  # pragma: allowlist secret - a test password
 COOKIE = "fs_session"
 APPROVAL_STEP = "sign_off"
 
@@ -253,6 +255,25 @@ def person(world: World, name: str, home: str, roles: dict[str, str | None]) -> 
             (user_id, account_id, account_id == home, role),
         )
     return user_id
+
+
+def owner_of(world: World, account_id: str) -> str:
+    """The company's owner (ADR 0085, "Company owner"); ``""`` when it has none."""
+    row = world.conn.execute(
+        "SELECT owner_user_id::text FROM accounts WHERE id = %s", (account_id,)
+    ).fetchone()
+    return str(row[0] or "") if row else ""
+
+
+def make_owner(world: World, account_id: str, user_id: str) -> None:
+    """Make the person (an administrator there) the company's owner.
+
+    The first administrator added to a company becomes its owner by itself (a
+    database trigger); a scenario that needs another owner says so here.
+    """
+    world.conn.execute(
+        "UPDATE accounts SET owner_user_id = %s WHERE id = %s", (user_id, account_id)
+    )
 
 
 def username(world: World, user_id: str) -> str:
@@ -664,8 +685,10 @@ __all__ = [
     "job",
     "last_scope",
     "limit_to_project",
+    "make_owner",
     "new_id",
     "oauth_grant",
+    "owner_of",
     "person",
     "personal_token",
     "save_workflow",

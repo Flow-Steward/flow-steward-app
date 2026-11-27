@@ -6,6 +6,10 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.account_memberships import sync_user_account_memberships
+from core.application.auth.account_owner import (
+    require_owner_consent,
+    require_owner_kept,
+)
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.external_session_revocation import (
     accounts_changed,
@@ -117,6 +121,32 @@ def _require_admins_kept(
         require_other_admins(cur, user_id=user_id, account_ids=losing)
     except LastAccountAdminError as exc:
         raise ServiceConflictError(str(exc)) from exc
+
+
+def _require_owner_rules(
+    cur: Any,
+    *,
+    user_id: str,
+    actor_user_id: str | None,
+    deactivated: bool,
+    role_account: str | None,
+    kept_accounts: list[Any] | None,
+    sign_in_changed: bool,
+) -> None:
+    """A company owner stays and keeps their own sign-in (ADR 0085, "Company owner").
+
+    Nobody deactivates the owner, changes their role in the company they own or
+    takes them out of it; only the owner changes their password, the password-change
+    requirement or their memberships (which end every session).
+    """
+    if deactivated:
+        require_owner_kept(cur, user_id=user_id)
+    if role_account is not None:
+        require_owner_kept(cur, user_id=user_id, account_ids=[role_account])
+    if kept_accounts is not None:
+        require_owner_kept(cur, user_id=user_id, kept_account_ids=kept_accounts)
+    if sign_in_changed:
+        require_owner_consent(cur, user_id=user_id, actor_user_id=actor_user_id or "")
 
 
 #: The role every installation's first user gets, whatever the channel (CLI, API).
@@ -400,6 +430,7 @@ def update_auth_user(
     actor: str = "",
     role_account_id: str | None = None,
     new_membership_role: str | None = "viewer",
+    actor_user_id: str | None = None,
 ) -> int:
     """Apply the changes in one transaction; returns the number of revoked sessions.
 
@@ -409,7 +440,10 @@ def update_auth_user(
     ``on_scope_limit_lifted`` is then called. Added memberships get
     ``new_membership_role``. Refused with :class:`ServiceConflictError` when an
     account would lose its last active administrator: by a demotion, a deactivation
-    or a removed membership.
+    or a removed membership, and with
+    :class:`~core.application.auth.account_owner.AccountOwnerProtectedError` when it
+    would remove, demote or deactivate a company owner, or change an owner's password,
+    password-change requirement or memberships while ``actor_user_id`` is not the owner.
 
     A change of the role alone revokes only what the person holds in that account:
     its sessions, personal tokens and OAuth grants (ADR 0085, owner decision B).
@@ -440,6 +474,20 @@ def update_auth_user(
         locked = is_active is not None or roles is not None or requested_account_ids is not None
         if locked:
             _lock_user_lifecycle(cur)
+        # Only a company owner changes their own sign-in (ADR 0085), checked first.
+        _require_owner_rules(
+            cur,
+            user_id=normalized_user_id,
+            actor_user_id=actor_user_id,
+            deactivated=False,
+            role_account=None,
+            kept_accounts=None,
+            sign_in_changed=(
+                password is not None
+                or must_change_password is not None
+                or requested_account_ids is not None
+            ),
+        )
         if password is not None:
             cur.execute(
                 "SELECT password_hash FROM users WHERE id = %s AND deleted_at IS NULL FOR UPDATE",
@@ -490,6 +538,20 @@ def update_auth_user(
                     if requested_account_ids is not None and primary_account_id is not None
                     else None
                 ),
+            )
+            # The company owner stays (ADR 0085), after the last-administrator rule.
+            _require_owner_rules(
+                cur,
+                user_id=normalized_user_id,
+                actor_user_id=actor_user_id,
+                deactivated=is_active is False,
+                role_account=role_account if roles is not None else None,
+                kept_accounts=(
+                    [*requested_account_ids, primary_account_id]
+                    if requested_account_ids is not None and primary_account_id is not None
+                    else None
+                ),
+                sign_in_changed=False,
             )
         stored_roles: list[str] = []
         synced_accounts: list[str] | None = None
@@ -606,8 +668,16 @@ def force_password_reset(
     bl: Any,
     *,
     user_id: Any,
+    actor_user_id: str | None = None,
 ) -> int:
+    """Require a new password at next sign-in and end every session.
+
+    Only a company owner requires this of themselves (ADR 0085, "Company owner").
+    """
     with bl.conn.cursor() as cur:
+        require_owner_consent(
+            cur, user_id=str(user_id or "").strip(), actor_user_id=actor_user_id or ""
+        )
         cur.execute(
             "UPDATE users SET must_change_password = true WHERE id = %s",
             (str(user_id or "").strip(),),
@@ -647,6 +717,8 @@ def delete_auth_user(
         total = int((total_row.get("total") if isinstance(total_row, dict) else total_row[0]) or 0)
         if total <= 1:
             raise ServiceConflictError("The last user cannot be deleted")
+        # A company owner is deleted only after transferring ownership (ADR 0085).
+        require_owner_kept(cur, user_id=normalized_user_id)
 
         if bool(target.get("is_active")):
             # Every account the person administers keeps another active

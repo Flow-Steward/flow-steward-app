@@ -29,6 +29,15 @@ from core.application.auth.user_admin import account_members
 from core.application.auth.user_admin.projection import limit_view_to_accounts
 from core.entrypoints.api.auth_users import admin_managed_account_ids, create_auth_users_router
 
+
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 ROOT = Path(__file__).resolve().parents[2]
 USER = "11111111-1111-1111-1111-111111111111"
 ACCOUNT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"

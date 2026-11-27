@@ -88,6 +88,7 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "extension_account_enablements",
     "account_invitations",
     "extension_install_requests",
+    "account_owner_transfers",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",
@@ -334,6 +335,8 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("user_roles", "workflow_id"),
     ("user_roles", "role_is_system"),
     ("user_account_memberships", "role_id"),
+    # ADR 0085, "Company owner".
+    ("accounts", "owner_user_id"),
 )
 
 REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (
@@ -359,9 +362,17 @@ REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (
     "account_invitations_token_hash_key",
     # ADR 0084: one pending extension install request per account and extension.
     "extension_install_requests_pending_key",
+    # ADR 0085: one open ownership transfer per account.
+    "account_owner_transfers_pending_key",
 )
 
 _REQUIRED_RUNTIME_INDEX_DEFINITIONS: dict[str, tuple[str, ...]] = {
+    "account_owner_transfers_pending_key": (
+        "UNIQUE INDEX",
+        "account_owner_transfers",
+        "(account_id)",
+        "WHERE (status = 'pending'::text)",
+    ),
     "account_invitations_pending_key": (
         "UNIQUE INDEX",
         "account_invitations",

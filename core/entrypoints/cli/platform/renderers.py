@@ -604,6 +604,7 @@ RENDERERS: dict[str, Renderer] = {
     "users.unlock": RichRenderer(),
     "users.set-active": RichRenderer(),
     "users.set-roles": RichRenderer(),
+    "users.reassign-owner": RichRenderer(),
     "extensions.list": RichRenderer(),
     "extensions.show": RichRenderer(),
     "extensions.health": RichRenderer(),

@@ -205,7 +205,9 @@ class ExternalSignInRevocationPort:
     @staticmethod
     def revoke_access_in_account(cur: Any, *, user_id: Any, account_id: Any) -> int:
         """End the person's sessions, personal tokens and OAuth grants of one account
-        (a directory sync that removed or lowered their role there, ADR 0085)."""
+        (a directory sync that removed or lowered their role there, ADR 0085). Refused
+        for the account's owner (``AccountOwnerProtectedError``), whose role no sync
+        changes."""
         from core.application.auth.membership_roles import revoke_account_access
 
         return revoke_account_access(

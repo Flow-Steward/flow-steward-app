@@ -59,7 +59,7 @@ _flow_steward_complete() {
         reports) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "diagnostics generate get" -- "$cur")); return; fi ;;
         stack) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "logs rebuild restart start status stop" -- "$cur")); return; fi ;;
         testing) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "cutover-preflight cutover-smoke fuzz-api fuzz-mcp fuzz-ui nightfire-regression smoke-test" -- "$cur")); return; fi ;;
-        users) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "create force-reset issue-bootstrap-token list set-active set-password set-roles unlock" -- "$cur")); return; fi ;;
+        users) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "create force-reset issue-bootstrap-token list reassign-owner set-active set-password set-roles unlock" -- "$cur")); return; fi ;;
         workflows) if [[ -z "$leaf" && "$cur" != -* ]]; then COMPREPLY=($(compgen -W "apply-changes authoring-schema contract convert-group definition draft-save draft-validate entrypoints export hook-bind hook-create-and-bind hook-get hook-preview hook-unbind hooks-list import list run stats suggestions validate where-used" -- "$cur")); return; fi ;;
     esac
     case "$key" in
@@ -159,6 +159,7 @@ _flow_steward_complete() {
         "users force-reset") words="--json --plain --no-color --verbose --non-interactive --confirm --user-id --email --actor --help" ;;
         "users issue-bootstrap-token") words="--json --plain --no-color --verbose --non-interactive --confirm --help" ;;
         "users list") words="--json --plain --no-color --verbose --non-interactive --search --include-inactive --no-include-inactive --include-deleted --no-include-deleted --limit --offset --help" ;;
+        "users reassign-owner") words="--json --plain --no-color --verbose --non-interactive --confirm --account-id --user-id --email --reason --actor --help" ;;
         "users set-active") words="--json --plain --no-color --verbose --non-interactive --confirm --user-id --email --is-active --no-is-active --actor --help" ;;
         "users set-password") words="--json --plain --no-color --verbose --non-interactive --confirm --user-id --email --password-file --password-stdin --must-change-password --no-must-change-password --revoke-sessions --no-revoke-sessions --actor --help" ;;
         "users set-roles") words="--json --plain --no-color --verbose --non-interactive --confirm --user-id --email --role --actor --help" ;;

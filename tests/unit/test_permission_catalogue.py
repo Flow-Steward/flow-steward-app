@@ -39,6 +39,15 @@ from core.application.auth.role_assignments import (
 from core.application.auth.scope_contracts import EXACT_ONLY_SCOPES
 from core.application.management.errors import ServiceValidationError
 
+
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "db" / "migrations" / "20261120090000_role_permissions.sql"
 

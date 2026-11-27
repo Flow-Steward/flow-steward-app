@@ -7,11 +7,13 @@ from typing import Any, Protocol
 
 from core.application.auth.user_admin.contracts import (
     AccountListView,
+    AccountOwnerReassignResultView,
     UserActiveUpdateInput,
     UserAuditContext,
     UserCreateInput,
     UserListView,
     UserMutationResultView,
+    UserOwnerReassignInput,
     UserPasswordUpdateInput,
     UserRolesUpdateInput,
     UserSelectorInput,
@@ -119,6 +121,13 @@ class UserCommandServiceProtocol(Protocol):
         *,
         audit_context: UserAuditContext | None = None,
     ) -> UserMutationResultView: ...
+
+    def reassign_owner(
+        self,
+        command: UserOwnerReassignInput,
+        *,
+        audit_context: UserAuditContext | None = None,
+    ) -> AccountOwnerReassignResultView: ...
 
 
 class ProjectQueryServiceProtocol(Protocol):

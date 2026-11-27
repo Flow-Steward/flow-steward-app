@@ -9,10 +9,12 @@ from core.application.auth.bootstrap_tokens import (
     BootstrapTokenIssueResult,
 )
 from core.application.auth.user_admin.contracts import (
+    AccountOwnerReassignResultView,
     UserActiveUpdateInput,
     UserCreateInput,
     UserListView,
     UserMutationResultView,
+    UserOwnerReassignInput,
     UserPasswordUpdateInput,
     UserRolesUpdateInput,
     UserSelectorInput,
@@ -35,6 +37,7 @@ _TOKEN_USERS_UNLOCK = "users.unlock"
 _TOKEN_USERS_SET_ACTIVE = "users.set-active"
 _TOKEN_USERS_SET_ROLES = "users.set-roles"
 _TOKEN_USERS_ISSUE_BOOTSTRAP_TOKEN = "users.issue-bootstrap-token"
+_TOKEN_USERS_REASSIGN_OWNER = "users.reassign-owner"
 
 ROLE_CHOICES = (
     ChoiceItem(value="admin", label="Admin"),
@@ -446,6 +449,52 @@ USERS_SET_ROLES_SPEC = CommandSpec(
 )
 
 
+USERS_REASSIGN_OWNER_SPEC = CommandSpec(
+    command_id=_TOKEN_USERS_REASSIGN_OWNER,
+    path=("users", "reassign-owner"),
+    summary="Give a company a new owner.",
+    description=(
+        "Recovery for a company whose owner lost access: make an active member of the "
+        "company its owner (they get the admin role there if they had another one). "
+        "The reason is recorded in the audit log."
+    ),
+    examples=(
+        "flow-steward users reassign-owner --account-id 00000000-0000-0000-0000-000000000002 "
+        "--email admin@example.com --reason 'The owner lost access'",
+    ),
+    operation_type=OperationType.CHANGE,
+    interactive_policy=InteractivePolicy.ALWAYS_REVIEW,
+    fields=(
+        FieldSpec(
+            key="account_id",
+            label="Company",
+            type=FieldType.TEXT,
+            required=True,
+            description="Account id of the company that gets a new owner.",
+            examples=("00000000-0000-0000-0000-000000000002",),
+            option_name="--account-id",
+        ),
+        *_user_selector_fields(),
+        FieldSpec(
+            key="reason",
+            label="Reason",
+            type=FieldType.TEXT,
+            required=True,
+            description="Why the owner is reassigned; recorded in the audit log.",
+            examples=("The owner lost access to their email",),
+            option_name="--reason",
+        ),
+        _actor_field(),
+    ),
+    input_model=UserOwnerReassignInput,
+    result_model=AccountOwnerReassignResultView,
+    plan_builder_ref=None,
+    confirmation_policy_ref=None,
+    service_ref=_TOKEN_USERS_REASSIGN_OWNER,
+    result_renderer_ref=_TOKEN_USERS_REASSIGN_OWNER,
+    exactly_one_of=(USER_TARGET_GROUP,),
+)
+
 USERS_ISSUE_BOOTSTRAP_TOKEN_SPEC = CommandSpec(
     command_id=_TOKEN_USERS_ISSUE_BOOTSTRAP_TOKEN,
     path=("users", "issue-bootstrap-token"),
@@ -472,5 +521,6 @@ USER_COMMAND_SPECS = (
     USERS_UNLOCK_SPEC,
     USERS_SET_ACTIVE_SPEC,
     USERS_SET_ROLES_SPEC,
+    USERS_REASSIGN_OWNER_SPEC,
     USERS_ISSUE_BOOTSTRAP_TOKEN_SPEC,
 )
