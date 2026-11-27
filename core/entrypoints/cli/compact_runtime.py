@@ -62,6 +62,12 @@ from core.infrastructure.runtime.entrypoint_db_adapters import (
     create_user_counter,
 )
 from core.infrastructure.runtime.worker.worker_schema_compat import _run_schema_compatibility_check
+from core.infrastructure.security.forwarded_trust import (
+    CONFIGURED_ENV,
+    TRUST_MODE_ENV,
+    ForwardedTrust,
+    derive_forwarded_trust,
+)
 
 
 class CompactBootstrapResult(NamedTuple):
@@ -288,11 +294,31 @@ def _wait_for_bootstrap_dependencies(
         sleep(min(2.0, remaining))
 
 
+def _derive_forwarded_trust() -> ForwardedTrust:
+    """Who may name the client to the router and the app (ADR 0029, 2026-11-27).
+
+    Derived once for the router, whose trusted peers are fixed at start: a network range
+    (the bundled Traefik's Compose network, the proxy network) survives a restarted proxy
+    with a new address. An unset mode -- a hosting platform starting the image itself --
+    trusts only the operator's list, as the router always has, and says so when it is
+    only loopback. An unusable list refuses to start (exit 78).
+    """
+    trust = derive_forwarded_trust(os.environ, legacy_when_unset=False)
+    for warning in trust.warnings:
+        print(f"Compact WARNING client address: {warning}", file=sys.stderr)
+    print(
+        f"Compact: forwarded client addresses trusted from ({trust.mode}): {trust.render()}",
+        file=sys.stderr,
+    )
+    return trust
+
+
 def main() -> int:
     try:
         validate_artifact_storage_backend(_runtime_env.get("ARTIFACT_STORAGE_BACKEND"))
         settings = CompactRuntimeSettings.from_environment(os.environ)
         verify_compact_environment_identity(os.environ)
+        forwarded_trust = _derive_forwarded_trust()
         public_port = int(
             _runtime_env.get("PORT", _runtime_env.get("FS_RUNTIME_HTTP_PORT", "8080"))
         )
@@ -324,6 +350,9 @@ def main() -> int:
         _HELD_VOLUME_LOCKS.append(acquire_compact_volume_lock(data_root))
         bootstrapped = _bootstrap(data_root)
         process_environment = dict(os.environ)
+        # The app derives the same trust (and refreshes it); an unset mode is "operator" here.
+        process_environment[CONFIGURED_ENV] = forwarded_trust.render()
+        process_environment[TRUST_MODE_ENV] = forwarded_trust.mode
         process_environment["FS_WORKER_MCP_BEARER_TOKEN"] = bootstrapped.worker_token
         # ADR 0047 decision 19: a new MCP->app forward secret on every container start,
         # handed to the app and mcp roles only and never written to .env or the volume.

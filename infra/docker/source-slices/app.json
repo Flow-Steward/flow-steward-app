@@ -1787,6 +1787,7 @@
     "core/infrastructure/security/engine.py",
     "core/infrastructure/security/event_logger.py",
     "core/infrastructure/security/external_effect_replay_codec.py",
+    "core/infrastructure/security/forwarded_trust.py",
     "core/infrastructure/security/hmac_signatures.py",
     "core/infrastructure/security/integration.py",
     "core/infrastructure/security/jinja_sandbox.py",

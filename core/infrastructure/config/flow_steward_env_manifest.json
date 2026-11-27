@@ -3452,6 +3452,40 @@
       "notes": "Selected file-storage backend, read back by doctor to report the installed choice."
     },
     {
+      "name": "FS_FORWARDED_TRUST_MODE",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "runtime",
+      "notes": "Which proxy may name the client address (bundled_proxy, proxy_network, host_gateway, operator); set by the ingress Compose overlays, ADR 0029 amendment 2026-11-27. Unset keeps the unmanaged trust; on Compact it means operator."
+    },
+    {
+      "name": "FS_FORWARDED_TRUST_PEER",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "secret": false,
+      "preserve_existing": false,
+      "default": "",
+      "owner": "runtime",
+      "notes": "Name resolved for FS_FORWARDED_TRUST_MODE: the bundled proxy's service name, or the runtime's own alias on the proxy network; set by the ingress Compose overlays."
+    },
+    {
       "name": "FS_FRONTEND_BUILD_IMAGE",
       "groups": [
         "local_development"

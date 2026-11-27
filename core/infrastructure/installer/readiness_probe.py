@@ -8,6 +8,10 @@ from typing import Any
 
 from core.infrastructure.installer.host_diagnostics import collect_host_diagnostics
 from core.infrastructure.installer.state_store import InstallerStateStore
+from core.infrastructure.security.forwarded_trust import (
+    configuration_trust_warning,
+    forwarded_client_address_check,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -351,6 +355,12 @@ class StackReadinessProbe:
             )
         )
         checks = list(payload.get("checks") or [])
+        trust_warning = configuration_trust_warning(
+            str(getattr(config, "ingress_mode", "") or ""),
+            tuple(getattr(config, "proxy_trusted_ips", ()) or ()),
+        )
+        if trust_warning:
+            checks.append(forwarded_client_address_check(trust_warning))
         try:
             validation = self.configuration_service.validate_config(config)
         except Exception:

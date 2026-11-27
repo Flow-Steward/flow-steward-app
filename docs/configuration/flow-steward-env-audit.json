@@ -1134,6 +1134,25 @@
     "variable_name": "CONTROL_PLANE_INSTANCE_ID"
   },
   {
+    "canonical_name": "CORE_ROOT",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/start_server.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "CORE_ROOT"
+  },
+  {
     "canonical_name": "COV_FAIL_UNDER",
     "code_read_locations": [
       "core/entrypoints/cli/scripts/coverage_rebaseline.sh"
@@ -6579,6 +6598,44 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "FS_FILE_STORAGE"
+  },
+  {
+    "canonical_name": "FS_FORWARDED_TRUST_MODE",
+    "code_read_locations": [],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Which proxy may name the client address (bundled_proxy, proxy_network, host_gateway, operator); set by the ingress Compose overlays, ADR 0029 amendment 2026-11-27. Unset keeps the unmanaged trust; on Compact it means operator.; registry-managed metadata only",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_FORWARDED_TRUST_MODE"
+  },
+  {
+    "canonical_name": "FS_FORWARDED_TRUST_PEER",
+    "code_read_locations": [],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Name resolved for FS_FORWARDED_TRUST_MODE: the bundled proxy's service name, or the runtime's own alias on the proxy network; set by the ingress Compose overlays.; registry-managed metadata only",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_FORWARDED_TRUST_PEER"
   },
   {
     "canonical_name": "FS_FRONTEND_BUILD_IMAGE",
@@ -15983,6 +16040,25 @@
     "retired_alias_names": [],
     "secret": false,
     "variable_name": "PYTHON"
+  },
+  {
+    "canonical_name": "PYTHONPATH",
+    "code_read_locations": [
+      "core/entrypoints/cli/scripts/start_server.sh"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "PYTHONPATH"
   },
   {
     "canonical_name": "PYTHONPYCACHEPREFIX",

@@ -41,6 +41,10 @@ from core.infrastructure.lifecycle.job_quiescence_gateway import (
 )
 from core.infrastructure.lifecycle.maintenance_gateway import FilesystemMaintenanceGateway
 from core.infrastructure.lifecycle.state_store import LifecycleStateStore
+from core.infrastructure.security.forwarded_trust import (
+    environment_trust_warning,
+    forwarded_client_address_check,
+)
 
 _DATA_ROOT = Path("/data")
 _STATE_PROJECT_ROOT = _DATA_ROOT / "state"
@@ -101,6 +105,18 @@ def _compact_health_payload() -> dict[str, object]:
         connection.close()
 
 
+def _forwarded_trust_check() -> dict[str, str] | None:
+    """ADR 0029 (2026-11-27): inside the runtime -- a hosting platform's console -- the
+    proxy in front is the operator's to name; until it is, every visitor shares one
+    address and one bucket of every per-client limit. A host CLI (fs-cli) reads the
+    installed configuration instead, so its environment, which carries no trust mode,
+    is not asked."""
+    if str(_runtime_env.get("FS_CONFIGURATION_STATE_ROOT") or "").strip():
+        return None
+    warning = environment_trust_warning(_runtime_env)
+    return forwarded_client_address_check(warning) if warning else None
+
+
 def _readiness_payload() -> dict[str, object]:
     try:
         payload = _compact_health_payload()
@@ -136,6 +152,9 @@ def _readiness_payload() -> dict[str, object]:
     ingress = _ingress_check()
     if ingress is not None:
         checks.append(ingress)
+    trust_check = _forwarded_trust_check()
+    if trust_check is not None:
+        checks.append(trust_check)
     if ready and not str(_runtime_env.get("FS_COMPACT_HEALTH_URL") or "").strip():
         # AC17-R164: the aggregate is built from role liveness, so the application's own
         # readiness -- a stale graph catalogue among it -- never reached ./install.sh on

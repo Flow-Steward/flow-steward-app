@@ -63,7 +63,7 @@ def test_the_configured_proxies_are_trusted(tmp_path: Path) -> None:
 
     assert code == 0, stderr
     entries = set(allowed.split(","))
-    assert {"172.18.0.0/16", "10.8.0.7/32"} <= entries
+    assert {"172.18.0.0/16", "10.8.0.7"} <= entries
     assert {"127.0.0.1", "::1"} <= entries  # the loopback it always trusted
 
 
@@ -74,7 +74,10 @@ def test_without_configuration_the_old_trust_is_unchanged(tmp_path: Path) -> Non
     assert set(allowed.split(",")) == {"127.0.0.1", "::1"}
 
 
-@pytest.mark.parametrize("bad", ["0.0.0.0/0", "::/0", "not-an-address", "10.0.0.0/8,*"])
+@pytest.mark.parametrize(
+    "bad",
+    ["0.0.0.0/0", "::/0", "not-an-address", "10.0.0.0/8,*", "0.0.0.0/1,128.0.0.0/1"],
+)
 def test_a_wildcard_or_malformed_entry_refuses_to_start(tmp_path: Path, bad: str) -> None:
     """The same rule the configuration applies: trusting everyone is never a default."""
     code, allowed, stderr = _allowed(tmp_path, bad)

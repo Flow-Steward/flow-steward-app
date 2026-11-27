@@ -5,6 +5,11 @@ services:
       flow-steward-ingress:
         aliases:
           - "${COMPOSE_PROJECT_NAME:-flow-steward}-app"
+    environment:
+      # ADR 0029 (2026-11-27): trust the shared Traefik network's range to name the
+      # client; fs-app finds that network through its own alias on it.
+      FS_FORWARDED_TRUST_MODE: proxy_network
+      FS_FORWARDED_TRUST_PEER: "${COMPOSE_PROJECT_NAME:-flow-steward}-app"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=${FS_TRAEFIK_NETWORK:?FS_TRAEFIK_NETWORK is required}"

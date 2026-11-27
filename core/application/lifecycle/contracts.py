@@ -24,6 +24,7 @@ from pydantic import (
 
 from core.application.lifecycle.routing_policy import INGRESS_TLS_MODES
 from core.application.management.command_specs.contracts import OperationStep
+from core.infrastructure.security.forwarded_trust import trusted_proxy_problems
 
 
 class _ClosedModel(BaseModel):
@@ -210,10 +211,11 @@ class DeploymentConfig(_ClosedModel):
             raise ValueError("the Compact data volume is production-only, as Compact is")
         if self.ingress_mode == "platform" and self.deployment_profile != "compact":
             raise ValueError("platform ingress requires the Compact deployment profile")
-        for peer in self.proxy_trusted_ips:
-            network = ipaddress.ip_network(peer, strict=False)
-            if network.prefixlen == 0:
-                raise ValueError("proxy_trusted_ips must not contain a wildcard network")
+        for problem in trusted_proxy_problems(self.proxy_trusted_ips):
+            # ADR 0029 (2026-11-27): one rule with the runtime, which refuses the same
+            # list -- an unreadable entry, or networks adding up to every address
+            # (0.0.0.0/1,128.0.0.0/1 as much as 0.0.0.0/0).
+            raise ValueError(problem.replace("FS_PROXY_TRUSTED_IPS", "proxy_trusted_ips"))
         validate_internal_http_origin(self.extension_installer_origin)
         if self.ingress_mode == "external_traefik" and not self.traefik_network.strip():
             raise ValueError("external Traefik requires traefik_network")

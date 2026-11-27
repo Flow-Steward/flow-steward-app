@@ -217,6 +217,23 @@ def test_comma_separated_trusted_proxy_peers_normalize_to_closed_tuple() -> None
     assert config.proxy_trusted_ips == ("10.0.0.0/8", "192.0.2.1/32")
 
 
+@pytest.mark.parametrize(
+    ("peers", "message"),
+    [
+        ("0.0.0.0/0", "wildcard network"),
+        ("0.0.0.0/1,128.0.0.0/1", "wildcard network"),
+        ("::/1,8000::/1", "wildcard network"),
+        ("10.0.0.0/8,proxy.example", "not an address or network"),
+    ],
+)
+def test_trusted_proxy_peers_that_trust_everyone_or_cannot_be_read_are_refused(
+    peers: str, message: str
+) -> None:
+    """ADR 0029 (2026-11-27): the same rule as the runtime -- split halves included."""
+    with pytest.raises(ValidationError, match=message):
+        DeploymentConfig.model_validate({"environment": "production", "proxy_trusted_ips": peers})
+
+
 def test_compact_target_and_compose_environment_retain_profile_inputs() -> None:
     config = DeploymentConfig(
         environment="production",

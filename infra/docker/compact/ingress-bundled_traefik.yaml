@@ -11,6 +11,17 @@ services:
     environment:
       FS_COMPACT_INGRESS_ADDRESS: traefik:${APP_PORT:-8099}
 
+  # ADR 0029 (2026-11-27): the internal router and the app trust the bundled Traefik to
+  # name the client. They trust its Compose network's range (found through the runtime's
+  # own service name on it), not its current address: the router's trusted peers are
+  # fixed at start, and a restarted Traefik may come back with another address. Only
+  # this installation's services are on that network. Before this, the router trusted
+  # only loopback and every visitor reached the app as Traefik's one address.
+  compact-runtime:
+    environment:
+      FS_FORWARDED_TRUST_MODE: proxy_network
+      FS_FORWARDED_TRUST_PEER: compact-runtime
+
   traefik-files:
     image: ${TRAEFIK_IMAGE:-traefik:v3.3@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f}
     restart: "no"

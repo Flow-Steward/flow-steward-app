@@ -31,7 +31,7 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `46` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `181` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `183` |
 | `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `41` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
@@ -51,15 +51,15 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `vector_pgvector` | pgvector-backed vector search. | `4` |
 
 ## Summary
-- Raw env-like names discovered by audit: `840`
-- Cataloged variables from `.env.example*` or manifest: `617`
-- Raw audit-only names outside examples/manifest: `223`
+- Raw env-like names discovered by audit: `844`
+- Cataloged variables from `.env.example*` or manifest: `619`
+- Raw audit-only names outside examples/manifest: `225`
 - Unique variables in shipped `.env.example*` files: `380`
-- Variables in canonical manifest: `527`
+- Variables in canonical manifest: `529`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `148`
+- Internal Runtime: `150`
 - Public / Operator: `333`
 - Test Config: `34`
 - Test Only: `16`
@@ -67,7 +67,7 @@ Cataloged variables by scope:
 
 Raw audit-only names by scope:
 - Internal Runtime: `3`
-- Script Internal: `128`
+- Script Internal: `130`
 - Test Only: `44`
 - Tooling Internal: `8`
 - Uncategorized: `40`
@@ -804,6 +804,8 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_EXTENSION_INSTALLER_PROXY_ENABLED` | core_runtime | production, local_development | no | no | `0` | - | Application (1), Config (1) | Routes archive lifecycle HTTP calls to the private installer service. Enabled on the main Docker API, disabled on installer and standalone writable runtimes. | `core/application/extensions/archive_lifecycle_capability.py`<br>`core/infrastructure/config/runtime_config.py` |
 | `FS_EXTENSION_PORT` | core_runtime | production, local_development | no | no | - | - | No direct literal reads found | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | - |
 | `FS_EXTENSION_TOKEN` | core_runtime | production, local_development | no | yes | - | - | No direct literal reads found | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | - |
+| `FS_FORWARDED_TRUST_MODE` | core_runtime | production, local_development | no | no | - | - | No direct literal reads found | Which proxy may name the client address (bundled_proxy, proxy_network, host_gateway, operator); set by the ingress Compose overlays, ADR 0029 amendment 2026-11-27. Unset keeps the unmanaged trust; on Compact it means operator. | - |
+| `FS_FORWARDED_TRUST_PEER` | core_runtime | production, local_development | no | no | - | - | No direct literal reads found | Name resolved for FS_FORWARDED_TRUST_MODE: the bundled proxy's service name, or the runtime's own alias on the proxy network; set by the ingress Compose overlays. | - |
 | `FS_GRAPH_RESUME_EXECUTOR` | core_runtime | production, local_development | no | no | `subprocess` | - | No direct literal reads found | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | - |
 | `FS_GZIP_ENABLED` | core_runtime | production, local_development | no | no | - | - | Config (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/config/runtime_config.py` |
 | `FS_HOST_GID` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1), Docker Compose (3) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/flow_steward_launcher.sh`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
@@ -990,7 +992,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 | Scope | Count | Common Usage Areas |
 |---|---|---|
 | Internal Runtime | `3` | CLI scripts (3), Tests (1) |
-| Script Internal | `128` | CLI scripts (196), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
+| Script Internal | `130` | CLI scripts (198), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
 | Test Only | `44` | Tests (81), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
 | Uncategorized | `40` | Docker Compose (35), Tooling (9), Infrastructure (4), Database (4), Security (3) |

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import ipaddress
 from dataclasses import dataclass
 from pathlib import Path
 from string import Template
 from urllib.parse import urlsplit
 
 from core.infrastructure.config.compact_runtime import CompactPortMap
+from core.infrastructure.security.forwarded_trust import TrustedProxyError, parse_trusted_proxies
 
 _TEMPLATE_PATH = Path(__file__).with_name("router.yaml.tmpl")
 
@@ -33,14 +33,14 @@ def _loopback_http_origin(value: str) -> str:
     return f"http://127.0.0.1:{port}"
 
 
-def _trusted_peer(value: str) -> str:
+def _trusted_peers(values: tuple[str, ...]) -> tuple[str, ...]:
+    """The same rule as Core and the supervisor (ADR 0029, 2026-11-27): every entry an
+    address or network, and together never every address."""
     try:
-        network = ipaddress.ip_network(value, strict=False)
-    except ValueError as exc:
-        raise ValueError("forwarded trusted peer must be an IP address or CIDR") from exc
-    if network.prefixlen == 0:
-        raise ValueError("forwarded trusted peer must not trust a wildcard network")
-    return str(network)
+        networks = parse_trusted_proxies(values)
+    except TrustedProxyError as exc:
+        raise ValueError(f"forwarded trusted peer list refused: {exc}") from exc
+    return tuple(str(network) for network in networks)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +63,7 @@ class CompactRouterConfig:
         object.__setattr__(
             self,
             "forwarded_trusted_ips",
-            tuple(_trusted_peer(peer) for peer in self.forwarded_trusted_ips),
+            _trusted_peers(tuple(self.forwarded_trusted_ips)),
         )
 
 
