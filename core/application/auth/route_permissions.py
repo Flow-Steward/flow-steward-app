@@ -53,7 +53,7 @@ _ANY = _READ | _WRITE
 _SAFE_ALIASES = frozenset({"HEAD", "OPTIONS"})
 #: Path segments under /api/extensions/ that are platform routes, not an extension id.
 _RESERVED_EXTENSION_SEGMENTS = (
-    "bootstrap|descriptors|install|installs|marketplace|releases|runtime|scan"
+    "bootstrap|descriptors|install|install-requests|installs|marketplace|releases|runtime|scan"
 )
 
 
@@ -175,6 +175,9 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
     ),
     _rule(_ANY, r"/api/workspaces(?:/.*)?", "workspaces.manage", admin_only=True),
     # --- extensions -----------------------------------------------------------------------
+    # Requests to install an extension (ADR 0084): an account administrator asks, the
+    # installation administrator answers; the service decides which of the two a caller is.
+    _rule(_ANY, r"/api/extensions/install-requests(?:/.*)?", "extensions.manage", admin_only=True),
     _rule(
         _READ,
         rf"/api/extensions/(?!(?:{_RESERVED_EXTENSION_SEGMENTS})(?:/|$)){_SEG}(?:/compiled-manifest)?",

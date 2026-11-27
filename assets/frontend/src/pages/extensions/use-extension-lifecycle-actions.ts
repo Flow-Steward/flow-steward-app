@@ -393,7 +393,9 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
    * a failure. It reports `Installed.` or `Updated to X.` on exactly one path:
    * a request that came back without raising.
    */
-  function installCatalogExtension(entry: ExtensionCatalogEntry, secretUpdateRepository?: string) {
+  // `onInstalled` runs once the install succeeded: an install request is approved
+  // only then, so a failed install leaves it pending (ADR 0084).
+  function installCatalogExtension(entry: ExtensionCatalogEntry, secretUpdateRepository?: string, onInstalled?: () => void) {
     const extensionId = entry.extension_id;
     const updating = entry.display_state === "update_available";
     const cancelledText = updating
@@ -421,6 +423,7 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
           ? { phase: "idle", status: `Updated to ${entry.version}.`, outcome: "updated" }
           : { phase: "idle", status: "Installed.", outcome: "installed" },
       );
+      onInstalled?.();
     };
 
     const start = async () => {

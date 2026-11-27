@@ -246,6 +246,7 @@
     "core/application/extensions/install_availability_service.py",
     "core/application/extensions/install_browser_authority.py",
     "core/application/extensions/install_release_models.py",
+    "core/application/extensions/install_requests.py",
     "core/application/extensions/installed_icon.py",
     "core/application/extensions/installer_projection_refresh.py",
     "core/application/extensions/invocation_release.py",
@@ -1309,6 +1310,7 @@
     "core/entrypoints/api/extension_artifacts.py",
     "core/entrypoints/api/extension_callbacks.py",
     "core/entrypoints/api/extension_catalog.py",
+    "core/entrypoints/api/extension_install_requests.py",
     "core/entrypoints/api/extension_installer.py",
     "core/entrypoints/api/extension_installer_proxy.py",
     "core/entrypoints/api/extension_oauth.py",
@@ -2141,6 +2143,10 @@
     },
     {
       "path": "db/migrations/20261127190000_account_invitations.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127210000_extension_install_requests.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

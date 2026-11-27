@@ -16,6 +16,12 @@ import { DsAlert, DsBadge } from "@/components/shared/design-system";
 import { EntryIcon, Publisher } from "@/pages/extensions/marketplace-card";
 import type { ExtensionCatalogEntry, ExtensionCatalogInstallState } from "@/pages/extensions/catalog-api";
 import {
+  type InstallRequestActions,
+  requestActionLabel,
+  requestStateFor,
+  runRequestAction,
+} from "@/pages/extensions/install-requests";
+import {
   type BrowseContext,
   capabilityName,
   categoryName,
@@ -45,6 +51,7 @@ export function MarketplaceEntry({
   headingRef,
   onBack,
   onInstall,
+  requests,
 }: Readonly<{
   entry: ExtensionCatalogEntry;
   context: BrowseContext;
@@ -55,12 +62,15 @@ export function MarketplaceEntry({
   headingRef: RefObject<HTMLHeadingElement | null>;
   onBack: () => void;
   onInstall: (entry: ExtensionCatalogEntry) => void;
+  /** A company account's administrator asks instead of installing (ADR 0084). */
+  requests?: InstallRequestActions;
 }>) {
   const { t, locale } = useI18n();
   const action = mainAction(entry, {
     canAdminister,
     installBlockedReason,
     installationVersion: context.installationVersion,
+    request: requestStateFor(entry.extension_id, requests),
   }, t);
   const openRef = useRef<HTMLAnchorElement | null>(null);
   // Focus moves to "Open installed extension" only after an install or an
@@ -78,7 +88,10 @@ export function MarketplaceEntry({
   }, [install.outcome, action.kind]);
 
   const restingPhase = install.phase === "installing" ? "idle" : install.phase;
-  const badges = marketplaceBadges(entry, context.earliest, context.now, t);
+  const badges = [
+    ...(action.kind === "requested" ? [{ tone: "orange" as const, label: t("react.extensions.installation_requested", "Installation requested") }] : []),
+    ...marketplaceBadges(entry, context.earliest, context.now, t),
+  ];
   const paragraphs = (entry.description || entry.summary).split(/\n\s*\n/).filter(Boolean);
   const categories = entry.categories.map((id) => categoryName(context.labels, id)).join(", ");
   const updated = dateLabel(entry.updated_at, locale);
@@ -100,8 +113,22 @@ export function MarketplaceEntry({
       {t("react.extensions.open_installed_extension", "Open installed extension")}</Link>
   );
 
-  const canAct = canAdminister || action.kind === "open";
-  const button =
+  const requestKind = action.kind === "request" || action.kind === "requested" || action.kind === "enable" ? action.kind : null;
+  const canAct = canAdminister || action.kind === "open" || Boolean(requestKind && requests);
+  const requestButton = requestKind && requests ? (
+    <Button
+      aria-describedby={action.note ? NOTE_ID : undefined}
+      busy={Boolean(requests.busyById[entry.extension_id])}
+      busyLabel={requestActionLabel(requestKind, t)}
+      data-marketplace-request-action={requestKind}
+      onClick={() => runRequestAction(requestKind, entry, requests)}
+      type="button"
+      variant={requestKind === "requested" ? "secondary" : "primary"}
+    >
+      {requestActionLabel(requestKind, t)}
+    </Button>
+  ) : null;
+  const button = requestButton ?? (
     action.kind === "install" || action.kind === "update" ? (
       <Button
         aria-describedby={describedBy}
@@ -117,7 +144,8 @@ export function MarketplaceEntry({
       </Button>
     ) : (
       openLink
-    );
+    )
+  );
   // Who may not install sees no Install or Update button, only why (the
   // action-rights rule); an installed extension still opens for everyone.
   const actionBlock = (

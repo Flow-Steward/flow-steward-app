@@ -20,7 +20,9 @@ from typing import Any
 
 from core.application.auth.installation_admin import (
     INSTALLATION_ACCOUNT_ID,
+    INSTALLATION_ADMIN_REQUIRED_MESSAGE,
     is_installation_account,
+    is_installation_admin,
 )
 from core.application.management.errors import (
     ServiceForbiddenError,
@@ -436,6 +438,49 @@ class ExtensionAccountEnablementService:
         scope: ScopeContext | None = None,
     ) -> dict[str, Any]:
         return self._save(extension_id, scope=scope, settings=validate_account_settings(settings))
+
+    def enable_on_request(
+        self, extension_id: str, *, account_id: str, scope: ScopeContext | None
+    ) -> dict[str, Any]:
+        """Enable an installed extension for ``account_id`` because it asked for it.
+
+        Only the installation administrator answers an install request (ADR 0084,
+        "Requesting an extension"); the account's own settings are kept. The same rules
+        as :meth:`enable` apply to the install: it must be the installation's and on.
+        """
+        if scope is None or not is_installation_admin(scope):
+            raise ServiceForbiddenError(INSTALLATION_ADMIN_REQUIRED_MESSAGE)
+        target = _text(account_id)
+        if not target or is_installation_account(target):
+            raise ServiceValidationError("Choose a company account to enable the extension for")
+        normalized_id = _text(extension_id)
+        if self._own_install(normalized_id, target) is not None:
+            raise ServiceValidationError(
+                "This account has its own install of the extension; it is turned on or off"
+                " on that install"
+            )
+        install = self._installation_install(normalized_id)
+        install_state = getattr(install, "state", "")
+        if _text(getattr(install_state, "value", install_state)).lower() != "active":
+            raise ServiceValidationError(
+                "The extension is installed but turned off; turn it on before enabling it"
+                " for a company"
+            )
+        store = self._get_enablement_store()
+        previous = store.get(account_id=target, extension_id=normalized_id)
+        actor = _text(scope.actor_id) or _text(scope.user_id)
+        saved = store.save(
+            ExtensionAccountEnablement(
+                account_id=target,
+                extension_id=normalized_id,
+                install_id=_text(install.install_id),
+                state=ENABLED,
+                settings=dict(previous.settings) if previous is not None else {},
+                enabled_by=actor,
+                updated_by=actor,
+            )
+        )
+        return saved.view()
 
 
 def default_enablement_store(get_logger: Callable[[], Any]) -> DBExtensionAccountEnablementStore:

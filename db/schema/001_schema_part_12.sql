@@ -1249,3 +1249,43 @@ CREATE UNIQUE INDEX IF NOT EXISTS account_invitations_pending_key
     ON public.account_invitations USING btree (account_id, lower(invited_email))
     WHERE status = 'pending';
 -- End of block: migration 20261127190000_account_invitations.sql.
+
+-- Requests to install an extension (ADR 0084, "Requesting an extension"): an account
+-- administrator of a company account asks the installation administrator to install
+-- one catalog extension; installing it enables it for that account. extension_id is
+-- the catalog id; extension_name is the catalog name when the request was made, for
+-- the installation administrator's list. One pending request per account and
+-- extension; approved, declined and cancelled requests are kept as the record.
+-- Migration 20261127210000_extension_install_requests.sql makes the same change.
+CREATE TABLE IF NOT EXISTS public.extension_install_requests (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    extension_id text NOT NULL,
+    extension_name text DEFAULT ''::text NOT NULL,
+    requested_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    note text DEFAULT ''::text NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    decided_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    decided_at timestamp with time zone,
+    decline_reason text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT extension_install_requests_extension_id_check
+        CHECK (extension_id <> '' AND length(extension_id) <= 200),
+    CONSTRAINT extension_install_requests_extension_name_check
+        CHECK (length(extension_name) <= 200),
+    CONSTRAINT extension_install_requests_note_check CHECK (length(note) <= 500),
+    CONSTRAINT extension_install_requests_decline_reason_check
+        CHECK (length(decline_reason) <= 500),
+    CONSTRAINT extension_install_requests_status_check
+        CHECK (status IN ('pending', 'approved', 'declined', 'cancelled')),
+    CONSTRAINT extension_install_requests_decided_check
+        CHECK ((status = 'pending') = (decided_at IS NULL))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS extension_install_requests_pending_key
+    ON public.extension_install_requests USING btree (account_id, extension_id)
+    WHERE status = 'pending';
+
+CREATE INDEX IF NOT EXISTS idx_extension_install_requests_account
+    ON public.extension_install_requests USING btree (account_id, created_at);
+-- End of block: migration 20261127210000_extension_install_requests.sql.

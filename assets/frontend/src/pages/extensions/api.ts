@@ -42,6 +42,8 @@ export type ExtensionArchiveLifecycleAvailability = {
   available: boolean;
   /** Install, update and remove are the installation administrator's. */
   can_manage_installs?: boolean;
+  /** A company account's administrator asks the installation administrator instead (ADR 0084). */
+  can_request_installs?: boolean;
   reason_code: string;
   message: string;
   remediation: {
@@ -234,6 +236,7 @@ export async function fetchExtensionArchiveLifecycleAvailability(): Promise<Exte
   return {
     available: payload.available === true,
     can_manage_installs: payload.can_manage_installs !== false,
+    can_request_installs: payload.can_request_installs === true,
     reason_code: firstStringFromUnknownValue([payload.reason_code, "unavailable"]),
     message: firstStringFromUnknownValue([payload.message, ""]),
     remediation: {

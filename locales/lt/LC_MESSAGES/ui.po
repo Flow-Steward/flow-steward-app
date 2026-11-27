@@ -4111,6 +4111,9 @@ msgstr "leidėjas {value0}"
 msgid "react.extensions.callback_setup_is_managed_by_project_managers"
 msgstr "Grįžtamųjų iškvietimų sąranką valdo projektų vadovai."
 
+msgid "react.extensions.cancel_install_request"
+msgstr "Atšaukti prašymą"
+
 msgid "react.extensions.cancel_replacement"
 msgstr "Atšaukti keitimą"
 
@@ -4603,6 +4606,9 @@ msgstr "Įjungti šiai įmonei"
 msgid "react.extensions.enable_this_extension_to_configure_its_project_scoped_ui"
 msgstr "Įjunkite šį plėtinį jo projekto sąsajai konfigūruoti."
 
+msgid "react.extensions.enabled_for_this_company_note"
+msgstr "Šį plėtinį diegia ir atnaujina diegimo administratorius. Įjungus jį čia, jis įjungiamas tik šiai įmonei; jo ryšiai ir nustatymai lieka šioje įmonėje."
+
 msgid "react.extensions.extension_action_failed"
 msgstr "Plėtinio veiksmas nepavyko."
 
@@ -4697,6 +4703,87 @@ msgstr "Plėtiniams iš failo įdiegti priimami tik .zip archyvai."
 
 msgid "react.extensions.install_or_update_with"
 msgstr "Įdiegti arba atnaujinti naudojant"
+
+msgid "react.extensions.install_request_ask_consequence"
+msgstr "Diegimo administratoriaus bus paprašyta įdiegti jį jūsų įmonei. Prašymą galite atšaukti, kol jis neatsakė."
+
+msgid "react.extensions.install_request_ask_title"
+msgstr "Prašyti įdiegti {name}?"
+
+msgid "react.extensions.install_request_asked_by"
+msgstr "Paprašė"
+
+msgid "react.extensions.install_request_asked_on"
+msgstr "Paprašyta"
+
+msgid "react.extensions.install_request_company"
+msgstr "Įmonė"
+
+msgid "react.extensions.install_request_decline"
+msgstr "Atmesti"
+
+msgid "react.extensions.install_request_decline_confirm"
+msgstr "Atmesti prašymą"
+
+msgid "react.extensions.install_request_decline_consequence"
+msgstr "{company} matys, kad prašymas atmestas, ir jūsų priežastį, jei ją nurodysite. Niekas neįdiegiama."
+
+msgid "react.extensions.install_request_decline_title"
+msgstr "Atmesti prašymą dėl {name}?"
+
+msgid "react.extensions.install_request_declined"
+msgstr "Jūsų paskutinis prašymas atmestas. Galite paprašyti dar kartą."
+
+msgid "react.extensions.install_request_declined_reason"
+msgstr "Jūsų paskutinis prašymas atmestas: {reason}"
+
+msgid "react.extensions.install_request_declining"
+msgstr "Atmetama…"
+
+msgid "react.extensions.install_request_enable_note"
+msgstr "Šis plėtinys jau įdiegtas šiame serveryje. Įjunkite jį savo įmonei, kad galėtumėte jį naudoti."
+
+msgid "react.extensions.install_request_failed"
+msgstr "Prašymo išsiųsti nepavyko."
+
+msgid "react.extensions.install_request_not_approved"
+msgstr "Prašymo patvirtinti nepavyko."
+
+msgid "react.extensions.install_request_not_cancelled"
+msgstr "Prašymo atšaukti nepavyko."
+
+msgid "react.extensions.install_request_not_enabled"
+msgstr "Plėtinio įjungti nepavyko."
+
+msgid "react.extensions.install_request_not_installable"
+msgstr "Šiuo metu šio plėtinio negalima įdiegti iš katalogo."
+
+msgid "react.extensions.install_request_note"
+msgstr "Plėtinius diegia tik diegimo administratorius. Paprašykite jo įdiegti šį plėtinį jūsų įmonei."
+
+msgid "react.extensions.install_request_note_label"
+msgstr "Pastaba administratoriui (neprivaloma)"
+
+msgid "react.extensions.install_request_pending_note"
+msgstr "Įdiegimo prašymas išsiųstas. Diegimo administratorius plėtinį įdiegs arba atsakys į jūsų prašymą."
+
+msgid "react.extensions.install_request_reason_label"
+msgstr "Priežastis (neprivaloma)"
+
+msgid "react.extensions.install_request_send"
+msgstr "Siųsti prašymą"
+
+msgid "react.extensions.install_request_sending"
+msgstr "Siunčiama…"
+
+msgid "react.extensions.installation_requested"
+msgstr "Paprašyta įdiegti"
+
+msgid "react.extensions.installation_requests"
+msgstr "Įdiegimo prašymai"
+
+msgid "react.extensions.installation_requests_description"
+msgstr "Šio serverio įmonės paprašė šių plėtinių. „Įdiegti“ įdiegia plėtinį serveryje ir įjungia jį paprašiusiai įmonei."
 
 msgid "react.extensions.installed"
 msgstr "Įdiegta"
@@ -5384,6 +5471,9 @@ msgstr ""
 
 msgid "react.extensions.replace"
 msgstr "Pakeisti"
+
+msgid "react.extensions.request_installation"
+msgstr "Prašyti įdiegti"
 
 msgid "react.extensions.required_field"
 msgstr "Privalomas laukas"

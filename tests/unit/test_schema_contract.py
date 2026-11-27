@@ -347,6 +347,10 @@ def _canonical_runtime_index_rows() -> list[tuple[str, str]]:
             "account_invitations_token_hash_key",
             "CREATE UNIQUE INDEX account_invitations_token_hash_key ON public.account_invitations USING btree (token_hash)",
         ),
+        (
+            "extension_install_requests_pending_key",
+            "CREATE UNIQUE INDEX extension_install_requests_pending_key ON public.extension_install_requests USING btree (account_id, extension_id) WHERE (status = 'pending'::text)",
+        ),
     ]
 
 

@@ -8,6 +8,8 @@ import {
   type ExtensionCatalogInstallState,
   type ExtensionCatalogListing,
 } from "@/pages/extensions/catalog-api";
+import type { ExtensionRecord } from "@/pages/extensions/api";
+import type { ExtensionInstallRequest, InstallRequestActions } from "@/pages/extensions/install-requests";
 import { ExtensionMarketplaceCatalog } from "@/pages/extensions/marketplace-catalog";
 import { fetchInstallationVersion } from "@/pages/workflows/catalog/api";
 
@@ -115,6 +117,7 @@ type RenderOptions = {
   installBlockedReason?: string;
   installStateById?: Record<string, ExtensionCatalogInstallState>;
   onInstall?: (entry: ExtensionCatalogEntry) => void;
+  requests?: InstallRequestActions;
 };
 
 function renderMarketplace({
@@ -123,6 +126,7 @@ function renderMarketplace({
   installBlockedReason = "",
   installStateById = {},
   onInstall = vi.fn(),
+  requests,
 }: RenderOptions = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
@@ -138,6 +142,7 @@ function renderMarketplace({
                   installBlockedReason={installBlockedReason}
                   installStateById={installStateById}
                   onInstall={onInstall}
+                  requests={requests}
                 />
                 <LocationProbe />
               </>
@@ -877,4 +882,88 @@ test("the sort offers A–Z and Recently added only", async () => {
 
   fireEvent.click(await screen.findByRole("combobox", { name: "Sort" }));
   expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["A–Z", "Recently added"]);
+});
+
+describe("a company administrator asks for an install (ADR 0084)", () => {
+  const pending: ExtensionInstallRequest = {
+    id: "r-1",
+    account_id: "a",
+    account_name: "Company A",
+    extension_id: "acme.crm",
+    extension_name: "Acme CRM",
+    requested_by: "u",
+    requested_by_name: "Ann",
+    note: "",
+    status: "pending",
+    decided_at: "",
+    decline_reason: "",
+    created_at: "2026-11-27T10:00:00Z",
+  };
+
+  function requests(overrides: Partial<InstallRequestActions> = {}): InstallRequestActions {
+    return {
+      canRequest: true,
+      latestById: {},
+      enableableById: {},
+      busyById: {},
+      onRequest: vi.fn(),
+      onCancel: vi.fn(),
+      onEnable: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  test("the card offers Request installation instead of Install", async () => {
+    mockedFetchCatalog.mockResolvedValue(listing([CRM]));
+    const actions = requests();
+    renderMarketplace({ canAdminister: false, requests: actions });
+
+    const card = await screen.findByRole("article", { name: "Acme CRM" });
+    expect(within(card).queryByRole("button", { name: /^Install/ })).not.toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Request installation: Acme CRM" }));
+    expect(actions.onRequest).toHaveBeenCalledWith(expect.objectContaining({ extension_id: "acme.crm" }));
+  });
+
+  test("a waiting request shows Installation requested and can be cancelled", async () => {
+    mockedFetchCatalog.mockResolvedValue(listing([CRM]));
+    const actions = requests({ latestById: { "acme.crm": pending } });
+    renderMarketplace({ canAdminister: false, requests: actions });
+
+    const card = await screen.findByRole("article", { name: "Acme CRM" });
+    expect(within(card).getByText("Installation requested")).toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Cancel request: Acme CRM" }));
+    expect(actions.onCancel).toHaveBeenCalledWith(pending);
+  });
+
+  test("a declined request shows the reason on the extension's page and can be made again", async () => {
+    mockedFetchCatalog.mockResolvedValue(listing([CRM]));
+    const actions = requests({ latestById: { "acme.crm": { ...pending, status: "declined", decline_reason: "Not this year" } } });
+    renderMarketplace({ url: "/extensions?mk_entry=acme.crm#marketplace", canAdminister: false, requests: actions });
+
+    expect(await screen.findByText("Your last request was declined: Not this year")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Request installation" }));
+    expect(actions.onRequest).toHaveBeenCalled();
+  });
+
+  test("an extension already on the server is enabled for the company, not requested", async () => {
+    mockedFetchCatalog.mockResolvedValue(listing([CRM]));
+    const extension = { extension_id: "acme.crm", account_enablement: "not_enabled" } as ExtensionRecord;
+    const actions = requests({ enableableById: { "acme.crm": extension } });
+    renderMarketplace({ canAdminister: false, requests: actions });
+
+    const card = await screen.findByRole("article", { name: "Acme CRM" });
+    expect(within(card).queryByRole("button", { name: /Request installation/ })).not.toBeInTheDocument();
+    fireEvent.click(within(card).getByRole("button", { name: "Enable for this company: Acme CRM" }));
+    expect(actions.onEnable).toHaveBeenCalledWith(extension);
+  });
+
+  test("a viewer who may not ask sees no request button", async () => {
+    mockedFetchCatalog.mockResolvedValue(listing([CRM]));
+    renderMarketplace({ canAdminister: false });
+
+    const card = await screen.findByRole("article", { name: "Acme CRM" });
+    expect(within(card).queryByRole("button", { name: /Request installation/ })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /^Install/ })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /Enable for this company/ })).not.toBeInTheDocument();
+  });
 });

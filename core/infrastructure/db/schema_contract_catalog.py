@@ -87,6 +87,7 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "secret_backend_locators",
     "extension_account_enablements",
     "account_invitations",
+    "extension_install_requests",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",
@@ -356,6 +357,8 @@ REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (
     # token that names one invitation.
     "account_invitations_pending_key",
     "account_invitations_token_hash_key",
+    # ADR 0084: one pending extension install request per account and extension.
+    "extension_install_requests_pending_key",
 )
 
 _REQUIRED_RUNTIME_INDEX_DEFINITIONS: dict[str, tuple[str, ...]] = {
@@ -369,6 +372,12 @@ _REQUIRED_RUNTIME_INDEX_DEFINITIONS: dict[str, tuple[str, ...]] = {
         "UNIQUE INDEX",
         "account_invitations",
         "(token_hash)",
+    ),
+    "extension_install_requests_pending_key": (
+        "UNIQUE INDEX",
+        "extension_install_requests",
+        "(account_id, extension_id)",
+        "WHERE (status = 'pending'::text)",
     ),
     "external_identities_account_issuer_subject_key": (
         "UNIQUE INDEX",

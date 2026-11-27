@@ -3960,6 +3960,9 @@ msgstr ""
 msgid "react.extensions.callback_setup_is_managed_by_project_managers"
 msgstr ""
 
+msgid "react.extensions.cancel_install_request"
+msgstr ""
+
 msgid "react.extensions.cancel_replacement"
 msgstr ""
 
@@ -4422,6 +4425,9 @@ msgstr ""
 msgid "react.extensions.enable_this_extension_to_configure_its_project_scoped_ui"
 msgstr ""
 
+msgid "react.extensions.enabled_for_this_company_note"
+msgstr ""
+
 msgid "react.extensions.extension_action_failed"
 msgstr ""
 
@@ -4513,6 +4519,87 @@ msgid "react.extensions.install_extension_from_file_accepts_only_zip_archives"
 msgstr ""
 
 msgid "react.extensions.install_or_update_with"
+msgstr ""
+
+msgid "react.extensions.install_request_ask_consequence"
+msgstr ""
+
+msgid "react.extensions.install_request_ask_title"
+msgstr ""
+
+msgid "react.extensions.install_request_asked_by"
+msgstr ""
+
+msgid "react.extensions.install_request_asked_on"
+msgstr ""
+
+msgid "react.extensions.install_request_company"
+msgstr ""
+
+msgid "react.extensions.install_request_decline"
+msgstr ""
+
+msgid "react.extensions.install_request_decline_confirm"
+msgstr ""
+
+msgid "react.extensions.install_request_decline_consequence"
+msgstr ""
+
+msgid "react.extensions.install_request_decline_title"
+msgstr ""
+
+msgid "react.extensions.install_request_declined"
+msgstr ""
+
+msgid "react.extensions.install_request_declined_reason"
+msgstr ""
+
+msgid "react.extensions.install_request_declining"
+msgstr ""
+
+msgid "react.extensions.install_request_enable_note"
+msgstr ""
+
+msgid "react.extensions.install_request_failed"
+msgstr ""
+
+msgid "react.extensions.install_request_not_approved"
+msgstr ""
+
+msgid "react.extensions.install_request_not_cancelled"
+msgstr ""
+
+msgid "react.extensions.install_request_not_enabled"
+msgstr ""
+
+msgid "react.extensions.install_request_not_installable"
+msgstr ""
+
+msgid "react.extensions.install_request_note"
+msgstr ""
+
+msgid "react.extensions.install_request_note_label"
+msgstr ""
+
+msgid "react.extensions.install_request_pending_note"
+msgstr ""
+
+msgid "react.extensions.install_request_reason_label"
+msgstr ""
+
+msgid "react.extensions.install_request_send"
+msgstr ""
+
+msgid "react.extensions.install_request_sending"
+msgstr ""
+
+msgid "react.extensions.installation_requested"
+msgstr ""
+
+msgid "react.extensions.installation_requests"
+msgstr ""
+
+msgid "react.extensions.installation_requests_description"
 msgstr ""
 
 msgid "react.extensions.installed"
@@ -5170,6 +5257,9 @@ msgid "react.extensions.repair_and_save_this_connection_s_configuration_in_setup
 msgstr ""
 
 msgid "react.extensions.replace"
+msgstr ""
+
+msgid "react.extensions.request_installation"
 msgstr ""
 
 msgid "react.extensions.required_field"

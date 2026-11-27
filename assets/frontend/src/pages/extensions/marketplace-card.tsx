@@ -25,6 +25,12 @@ import { DsTable, type DsTableColumn } from "@/components/shared/design-system";
 import { Button } from "@/components/ui/button";
 import type { ExtensionCatalogEntry, ExtensionCatalogInstallState } from "@/pages/extensions/catalog-api";
 import {
+  type InstallRequestActions,
+  requestActionLabel,
+  requestStateFor,
+  runRequestAction,
+} from "@/pages/extensions/install-requests";
+import {
   type BrowseContext,
   categoryName,
   describeEntry,
@@ -53,6 +59,8 @@ export type ResultContext = BrowseContext & {
     installBlockedReason: string;
     stateById: Readonly<Record<string, ExtensionCatalogInstallState>>;
     onInstall: (entry: ExtensionCatalogEntry) => void;
+    /** A company account's administrator asks instead of installing (ADR 0084). */
+    request?: InstallRequestActions;
   };
 };
 
@@ -67,9 +75,18 @@ function quickAction(entry: ExtensionCatalogEntry, context: ResultContext, t: I1
     canAdminister: install.canAdminister,
     installBlockedReason: install.installBlockedReason,
     installationVersion: context.installationVersion,
+    request: requestStateFor(entry.extension_id, install.request),
   }, t);
+  if (action.kind === "request" || action.kind === "requested" || action.kind === "enable") return action.kind;
   if ((action.kind !== "install" && action.kind !== "update") || action.disabled) return null;
   return action.kind;
+}
+
+/** "Installation requested", worn while a company's request waits. */
+function requestedBadge(entry: ExtensionCatalogEntry, context: ResultContext, t: I18nContextValue["t"]) {
+  return quickAction(entry, context, t) === "requested"
+    ? [{ tone: "orange" as const, label: t("react.extensions.installation_requested", "Installation requested") }]
+    : [];
 }
 
 function QuickInstall({ entry, context }: Readonly<{ entry: ExtensionCatalogEntry; context: ResultContext }>) {
@@ -77,6 +94,28 @@ function QuickInstall({ entry, context }: Readonly<{ entry: ExtensionCatalogEntr
   const kind = quickAction(entry, context, t);
   const install = context.install;
   if (!kind || !install) return null;
+  if (kind === "request" || kind === "requested" || kind === "enable") {
+    const requests = install.request;
+    if (!requests) return null;
+    const label = requestActionLabel(kind, t);
+    return (
+      <Button
+        aria-label={`${label}: ${entry.name}`}
+        busy={Boolean(requests.busyById[entry.extension_id])}
+        busyLabel={label}
+        data-marketplace-request-action={kind}
+        onClick={(event) => {
+          event.stopPropagation();
+          runRequestAction(kind, entry, requests);
+        }}
+        size="sm"
+        type="button"
+        variant="secondary"
+      >
+        {label}
+      </Button>
+    );
+  }
   const phase = install.stateById[entry.extension_id]?.phase ?? "idle";
   const label = kind === "update" ? updateLabel(phase, entry.version, t) : installLabel(phase, t);
   const restingPhase = phase === "installing" ? "idle" : phase;
@@ -221,7 +260,7 @@ export function MarketplaceCard({ entry, context }: Readonly<{ entry: ExtensionC
       notes={<Notes context={context} entry={entry} />}
       open={open}
       state={action ? null : stateBadge(entry, t)}
-      statuses={lifecycle ? [lifecycle] : []}
+      statuses={[...requestedBadge(entry, context, t), ...(lifecycle ? [lifecycle] : [])]}
       summary={entry.summary}
       title={entry.name}
       version={versionText(entry)}
@@ -275,7 +314,7 @@ export function MarketplaceRow({ entry, context }: Readonly<{ entry: ExtensionCa
                   {entry.name}
                 </span>
                 <span className="fs-catalog-card-version">{versionText(entry)}</span>
-                <CatalogPills pills={marketplaceBadges(entry, context.earliest, context.now, t)} />
+                <CatalogPills pills={[...requestedBadge(entry, context, t), ...marketplaceBadges(entry, context.earliest, context.now, t)]} />
               </span>
               <Publisher entry={entry} />
             </span>
@@ -328,7 +367,7 @@ function marketplaceColumns(context: ResultContext, t: I18nContextValue["t"] = f
       header: t("extensions.runtime.status", "Status"),
       width: canInstall ? 192 : undefined,
       cell: (entry) => {
-        const pills = marketplaceBadges(entry, context.earliest, context.now, t);
+        const pills = [...requestedBadge(entry, context, t), ...marketplaceBadges(entry, context.earliest, context.now, t)];
         return (
           <span className="fs-marketplace-status-cell">
             {pills.length ? <CatalogPills pills={pills} /> : <span className="fs-catalog-list-muted">{t("react.extensions.not_installed", "Not installed")}</span>}

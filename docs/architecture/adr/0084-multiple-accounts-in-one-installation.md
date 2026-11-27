@@ -218,6 +218,44 @@ The guard `require_default_registry_account` is gone. A route that still serves
 only the installation account does so through the installation administrator
 predicate, because the resource it serves is installation-wide.
 
+### 7. Requesting an extension (amendment, 2026-11-27)
+
+Extension code stays installation-wide (section 2): only the installation
+administrator installs it. An account administrator of a company account asks for
+it in the product instead of outside it.
+
+- **Ask.** In the catalog, where the installation administrator sees Install, an
+  account administrator of a company account sees **Request installation** with an
+  optional short note. The item then shows "Installation requested" and **Cancel
+  request**. One pending request per account and extension (a partial unique key in
+  `extension_install_requests`). An extension the installation already installed is
+  not requested: the item offers "Enable for this company", the enablement of
+  section 2. The installation account never requests, so a single-account
+  installation shows no request at all.
+- **Answer.** The installation administrator sees **Installation requests** on the
+  Extensions page with a count: company, extension, who asked, when and the note.
+  **Install** runs the existing catalog install call for that item (the Install
+  button's own flow, approvals and errors included, and in a Compact deployment its
+  installer process); only after it succeeded does the page approve the request,
+  which enables the extension for the asking account through the existing
+  enablement service. An install that fails leaves the request pending. An
+  extension installed meanwhile by other means is only enabled. **Decline** closes the
+  request with an optional reason.
+- **Outcome.** The asking account sees its requests on the catalog items: installed
+  and enabled, or declined with the reason, after which it may ask again.
+- **Rules.** `core/application/extensions/install_requests.py` decides; the routes
+  under `/api/extensions/install-requests` (list, create, cancel, approve, decline)
+  are controllers and need `extensions.manage` (a token needs `admin:all`). Only an
+  account administrator of the request's account creates, cancels and lists that
+  account's requests; only the installation administrator lists every pending one,
+  approves and declines. Another account's request is answered as missing. Every
+  request, cancellation, approval and decline goes to the action audit trail
+  (`extension_install_request_*`, audit category `extensions`).
+- **Upgrade and rollback.** The table arrives with
+  `20261127210000_extension_install_requests.sql` (and the same block at the end of
+  `db/schema/001_schema_part_12.sql`). Rolling back drops the table and its ledger
+  row; the requests are lost, installs and enablements are not touched.
+
 ## Known gaps
 
 These are deliberate and recorded so that nobody reads more into the guarantees
