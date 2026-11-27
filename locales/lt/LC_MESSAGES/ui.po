@@ -33075,10 +33075,10 @@ msgid "react.agent_access.expiry_notice_dismiss"
 msgstr "Paslėpti"
 
 msgid "react.permissions.account_self"
-msgstr "Tvarkyti savo prisijungimą: atsijungti, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
+msgstr "Tvarkyti savo prisijungimą: atsijungti, perjungti savo įmones, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
 
 msgid "react.permissions.account_profile_write"
-msgstr "Keisti savo profilį, laiko juostą, kalbą ir datos formatą bei perjungti paskyrą"
+msgstr "Keisti savo profilį, laiko juostą, kalbą ir datos formatą"
 
 msgid "react.permissions.jobs_read"
 msgstr "Skaityti užduotis, jų rezultatus, failus, žurnalus ir patvirtinimus"

@@ -137,7 +137,6 @@ OPERATOR_WORK = [
     ("POST", "/api/extensions/fixture.extension/action/sync"),
     ("POST", "/api/extensions/fixture.extension/query/orders"),
     ("POST", "/api/projects/p1/extensions/i1/external-effects/e1/resolution"),
-    ("POST", "/api/auth/switch-account"),
     ("PATCH", "/api/users/me/locale"),
     ("POST", "/api/auth/agent-access/tokens"),
 ]
@@ -203,6 +202,26 @@ def test_viewer_makes_no_operator_work_write(method, path) -> None:
     response = _run(path, method, _person("viewer"))
 
     assert response.status_code == 403
+
+
+def _password_session(role: str) -> ResolvedPrincipal:
+    return ResolvedPrincipal(id=f"{role}-local", username=role, roles=[role], auth_source="local")
+
+
+@pytest.mark.parametrize("role", ["viewer", "operator", "admin"])
+@pytest.mark.parametrize("make_principal", [_password_session, _personal_token])
+def test_viewer_can_switch_account(role, make_principal) -> None:
+    """ADR 0085: every role moves to another of its companies (the route checks the role
+    there); a viewer is not stuck in the company they act in."""
+    response = _run("/api/auth/switch-account", "POST", make_principal(role))
+
+    assert response.status_code == 204, response.body
+
+
+def test_an_external_viewer_session_still_needs_the_external_own_account_permission() -> None:
+    """An external session is pinned to its account (the route refuses it, ADR 0083); its
+    own-account writes keep the open owner question's rule."""
+    assert _run("/api/auth/switch-account", "POST", _person("viewer")).status_code == 403
 
 
 @pytest.mark.parametrize(("method", "path"), MOVED_TO_ADMIN)

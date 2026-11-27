@@ -62,13 +62,13 @@ _CATALOGUE: tuple[Permission, ...] = (
     # --- the person's own account -------------------------------------------------
     Permission(
         "account.self",
-        "Manage your own sign-in: sign out, change your password and email, your "
-        "personal tokens, OAuth grants and AI agent connection",
+        "Manage your own sign-in: sign out, switch between your companies, change your "
+        "password and email, your personal tokens, OAuth grants and AI agent connection",
         token_scopes=(_READ_FAMILY, _COMMAND_FAMILY),
     ),
     Permission(
         "account.profile.write",
-        "Change your own profile, time zone, language and date format, and switch account",
+        "Change your own profile, time zone, language and date format",
         token_scopes=(_COMMAND_FAMILY,),
     ),
     # --- reading ------------------------------------------------------------------

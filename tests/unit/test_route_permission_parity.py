@@ -84,6 +84,15 @@ MACHINE_SELF_SERVICE_TIGHTENED = frozenset(
     }
 )
 
+#: Routes whose frozen answer was loosened on purpose, with the answer they give now.
+#: Switching between one's companies (ADR 0085) needs ``account.self``, which every
+#: role holds: a viewer in the acting company was stuck there while a person with no
+#: role at all could switch (P5). An external session stays pinned (the route refuses
+#: it) and a service account keeps the write-role rule.
+LOOSENED_ON_PURPOSE: dict[tuple[str, str], dict[str, str]] = {
+    ("POST", "/api/auth/switch-account"): {"session": "aov", "pat": "aov"},
+}
+
 _ROUTE_TABLE = """
 import json
 from core.entrypoints.api import app_factory
@@ -307,6 +316,10 @@ def test_every_principal_kind_gets_the_frozen_answer_on_every_route(kind) -> Non
         if kind == "machine" and (row["method"], row["path"]) in MACHINE_SELF_SERVICE_TIGHTENED:
             assert expected == "aov", key  # the frozen answer this set documents
             expected = "ao"
+        loosened = LOOSENED_ON_PURPOSE.get((row["method"], row["path"]), {})
+        if kind in loosened:
+            assert expected == "ao", key  # the frozen answer this map documents
+            expected = loosened[kind]
         allowed, scopes = _decisions(row, kind)
         if (row["method"], row["path"]) in PUBLIC_ROUTE_EXCEPTIONS and kind != "machine":
             # The documented exceptions: every role reaches the public handler.
@@ -552,6 +565,7 @@ def test_every_permission_the_table_names_is_in_the_catalogue() -> None:
         ("HEAD", "/api/jobs", "jobs.read"),
         ("PATCH", "/api/users/me/locale", "account.profile.write"),
         ("POST", "/api/auth/tokens", "account.self"),
+        ("POST", "/api/auth/switch-account", "account.self"),
         ("GET", "/api/auth/users", "users.manage"),
     ],
 )
