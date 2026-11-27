@@ -14,6 +14,7 @@ A selected account-scoped ``model_provider_id`` takes precedence and contributes
 its single verified ``default_model``. Missing or incompatible routes fail closed.
 """
 
+import re
 from dataclasses import dataclass
 from functools import cache
 from typing import Any, Self
@@ -35,6 +36,12 @@ ChatAnthropic: Any = None
 ChatOpenAI: Any = None
 ChatGoogleGenerativeAI: Any = None
 AzureChatOpenAI: Any = None
+
+# The current SDK uses Anthropic API 2023-06-01. Only Claude releases before
+# 4.7 accept non-default sampling. Legacy IDs can be version- or family-first.
+_ANTHROPIC_SAMPLING_MODELS = re.compile(
+    r"^claude-(?:[1-3](?:[.-]|$)|(?:haiku|sonnet|opus)-4(?:$|-(?:[0-6]|[0-9]{8})(?:-|$)))"
+)
 
 
 @cache
@@ -809,10 +816,7 @@ def get_chat_model(
                 "flow_steward_model": model,
             },
         }
-        # Anthropic rejects non-default sampling parameters for the current
-        # adaptive-thinking Sonnet/Opus releases; omission is the accepted
-        # default and preserves their native behavior.
-        if model not in {"claude-fable-5", "claude-opus-5", "claude-opus-4-8", "claude-sonnet-5"}:
+        if _ANTHROPIC_SAMPLING_MODELS.match(model):
             kwargs["temperature"] = temperature
         kwargs["api_key"] = provider_api_key
         if request_timeout is not None:

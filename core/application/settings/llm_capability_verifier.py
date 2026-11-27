@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import re
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any
 
@@ -136,7 +136,7 @@ def normalize_verification_error(error: Exception) -> str:
     return "upstream_error"
 
 
-_PROBE_TOOL = {
+_PROBE_TOOL: dict[str, Any] = {
     "type": "function",
     "function": {
         "name": "flow_steward_capability_probe",
@@ -223,6 +223,7 @@ def _invoke_before_deadline(
 def run_capability_suite(
     model: Any,
     *,
+    provider_type: str = "",
     timeout_seconds: float = 60.0,
     monotonic: Callable[[], float] = time.monotonic,
 ) -> set[str]:
@@ -247,7 +248,17 @@ def run_capability_suite(
                 "capability mismatch: basic chat probe did not return basic-ok"
             )
 
-    tool_model = model.bind_tools([_PROBE_TOOL], tool_choice="required", parallel_tool_calls=False)
+    anthropic = provider_type == "anthropic"
+    tools: list[Mapping[str, Any]] = [_PROBE_TOOL]
+    if anthropic:
+        from langchain_anthropic.chat_models import convert_to_anthropic_tool
+
+        tools = [convert_to_anthropic_tool(_PROBE_TOOL["function"], strict=True)]
+    # Some Claude models reject forced calls. The prompt asks for the call,
+    # and the probe still requires the exact tool name and arguments.
+    tool_model = model.bind_tools(
+        tools, tool_choice="auto" if anthropic else "required", parallel_tool_calls=False
+    )
     # The request names the follow-up as well. The value is only in the tool's
     # result, so repeating it still proves the model read that result; without
     # the instruction the replay turn had nothing to answer, and gpt-oss models
@@ -291,7 +302,11 @@ def run_capability_suite(
             ),
         ]
     )
-    final_model = model.bind_tools([_PROBE_TOOL], tool_choice="none", parallel_tool_calls=False)
+    final_model = model.bind_tools(
+        tools,
+        tool_choice={"type": "none"} if anthropic else "none",
+        parallel_tool_calls=None if anthropic else False,
+    )
     with _probe("tool_result"):
         final = _invoke_before_deadline(
             final_model,
@@ -304,17 +319,26 @@ def run_capability_suite(
                 "capability mismatch: tool result replay did not produce probe-ok"
             )
 
+    structured_options = (
+        {"strict": True, "method": "json_schema"} if anthropic else {"strict": True}
+    )
     with _probe("structured"):
         structured = _invoke_before_deadline(
-            model.with_structured_output(PROBE_SCHEMAS["structured"], strict=True),
+            model.with_structured_output(PROBE_SCHEMAS["structured"], **structured_options),
             "Return the required structured probe result.",
             deadline=deadline,
             monotonic=monotonic,
         )
         _require_probe_result("structured", structured)
     with _probe("combined"):
+        combined_model = model.with_structured_output(
+            PROBE_SCHEMAS["combined"], **structured_options
+        )
+        if anthropic:
+            # Keep the same tools in the conversation when replaying thinking.
+            combined_model = combined_model.bind(tools=tools, tool_choice={"type": "none"})
         combined = _invoke_before_deadline(
-            model.with_structured_output(PROBE_SCHEMAS["combined"], strict=True),
+            combined_model,
             messages,
             deadline=deadline,
             monotonic=monotonic,
