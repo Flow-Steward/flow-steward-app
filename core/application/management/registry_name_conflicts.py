@@ -182,7 +182,11 @@ class _ConflictView:
             # The disable guard's query: enabled workflows that run this agent.
             candidates = [
                 self._dependent("workflow", workflow_id)
-                for workflow_id in enabled_workflow_dependencies(self.db, agent_ids=[entity_id])
+                for workflow_id in enabled_workflow_dependencies(
+                    self.db,
+                    agent_ids=[entity_id],
+                    account_id=getattr(self.scope, "account_id", None),
+                )
             ]
         elif self.entity_type == "skill":
             reader = getattr(self.db, "get_agents_using_skill", None)

@@ -126,8 +126,12 @@ def enabled_workflow_dependencies(
     *,
     agent_ids: Iterable[str] = (),
     tool_id: str = "",
+    account_id: str | None = None,
 ) -> list[str]:
     """Return enabled workflows using agents or a direct connector tool.
+
+    The workflows are those of *account_id*, or of the bound account when none is
+    named (ADR 0084, C4b).
 
     Skills deliberately have no direct workflow edge. Callers resolve the
     agents using a skill and pass those agent ids here. Tools may use the same
@@ -137,7 +141,8 @@ def enabled_workflow_dependencies(
     target_agents = {str(agent_id or "").strip() for agent_id in agent_ids}
     target_agents.discard("")
     dependencies: set[str] = set()
-    workflows = db.list_workflows(enabled_only=True, include_definitions=True)
+    account = {"account_id": account_id} if str(account_id or "").strip() else {}
+    workflows = db.list_workflows(enabled_only=True, include_definitions=True, **account)
     for workflow in workflows or []:
         if not isinstance(workflow, dict):
             continue

@@ -55,6 +55,7 @@ class _Store:
         self.extensions = extensions or []
         self.connections = connections or []
         self.scope_names = scope_names or {}
+        self.scope_name_accounts: list[str | None] = []
         self.account_id = account_id
         self.reaction_reads: list[tuple[str, Any]] = []
 
@@ -78,7 +79,8 @@ class _Store:
     def list_project_connections(self, project_id, enabled_only=True):
         return [dict(row) for row in self.connections]
 
-    def list_workflow_reaction_scope_names(self, workflow_id):
+    def list_workflow_reaction_scope_names(self, workflow_id, *, account_id=None):
+        self.scope_name_accounts.append(account_id)
         return self.scope_names.get(workflow_id, {"group": {}, "step": {}})
 
     def __getattr__(self, name):  # pragma: no cover - only reached on a regression
@@ -398,6 +400,8 @@ def test_reads_rules_with_the_resolved_account() -> None:
         store, ScopeContext(account_id=DEFAULT_ACCOUNT_ID, actor_id="a", principal_type="user")
     )
     assert store.reaction_reads == [("wf-orders", DEFAULT_ACCOUNT_ID)]
+    # The scope names are read in the same account as the rules.
+    assert store.scope_name_accounts == [DEFAULT_ACCOUNT_ID]
 
 
 def test_another_accounts_project_is_refused() -> None:

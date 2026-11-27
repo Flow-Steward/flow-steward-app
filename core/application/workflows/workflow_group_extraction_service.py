@@ -252,7 +252,7 @@ class GroupExtractionService:
                 structural = list(
                     validate_workflow_definition(
                         definition_from_workflow(child),
-                        load_child=_child_definition_loader(self.db),
+                        load_child=_child_definition_loader(self.db, self.account_id),
                     )
                 )
                 bindings.issues.extend(structural)
@@ -278,7 +278,7 @@ class GroupExtractionService:
                     operations=operations,
                     author="preview",
                     dry_run=True,
-                    load_child=_child_definition_loader(child_view),
+                    load_child=_child_definition_loader(child_view, self.account_id),
                     readiness=readiness_from_validator(child_view, self.validate),
                 )
                 bindings.issues.extend(candidate.issues)
@@ -340,7 +340,10 @@ class GroupExtractionService:
                     entity_id=child["workflow_id"],
                 )
             created = create_workflow_with_definition(
-                self.db, child, author=author, load_child=_child_definition_loader(self.db)
+                self.db,
+                child,
+                author=author,
+                load_child=_child_definition_loader(self.db, self.account_id),
             )
             parent = apply_workflow_changes(
                 self.db,
@@ -348,7 +351,7 @@ class GroupExtractionService:
                 expected_revision=kwargs["expected_revision"],
                 operations=plan.operations,
                 author=author,
-                load_child=_child_definition_loader(self.db),
+                load_child=_child_definition_loader(self.db, self.account_id),
                 readiness=readiness_from_validator(self.db, self.validate),
             )
             for project in plan.projects:

@@ -461,7 +461,7 @@ def build_project_notification_overview(
         if not notify_rules:
             continue
         scope_names = (
-            bl.list_workflow_reaction_scope_names(workflow_id)
+            bl.list_workflow_reaction_scope_names(workflow_id, account_id=account_id)
             if hasattr(bl, "list_workflow_reaction_scope_names")
             else {}
         )

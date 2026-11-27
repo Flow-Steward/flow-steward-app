@@ -394,6 +394,9 @@ class WorkerWorkflowResumeTerminalAdapter:
                 workflow_id=context.workflow_id or None,
                 job_id=context.job_id,
                 event_id=event_id,
+                # The job carries its account (ADR 0084, C3); a project lookup is
+                # only the fallback for a row without one.
+                account_id=str(context.job_row.get("account_id") or "").strip() or None,
                 payload={
                     "status": context.final_status,
                     "task_id": str(context.job_row.get("task_id") or "").strip(),

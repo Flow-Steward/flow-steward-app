@@ -20,6 +20,7 @@ from core.application.workflows.workflow_portability_redaction import (
 from core.application.workflows.workflow_portability_redaction import (
     _SENSITIVE_KEY_MARKERS as _SENSITIVE_KEY_MARKERS,
 )
+from core.infrastructure.config.account_scope import MissingAccountScopeError
 from core.infrastructure.security.secret_reference import is_secret_reference
 
 logger = logging.getLogger(__name__)
@@ -596,6 +597,10 @@ def _call_db_get(db: Any, method_name: str, ref: str, **kwargs: Any) -> dict[str
         return None
     try:
         row = method(ref, **kwargs)
+    except MissingAccountScopeError:
+        # A lookup that names no account is a caller defect, never "not there": read
+        # as absent, an occupied target would look free (ADR 0084, C3).
+        raise
     except Exception:
         # Still swallowed, because a probe must not turn a missing dependency into a 500 --
         # but no longer silently. AC17-R67 was undiagnosable precisely here.
