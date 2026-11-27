@@ -108,7 +108,16 @@ change and are not replaced by permissions.
   write with no permission in the table is rejected: closed by default.
 - **MCP.** `server_tool_scopes.py` refers to the same keys. A tool still
   proxies the call to the API with the caller's token, so there is one final
-  check.
+  check. Discovery follows the role too (2026-11-27): after the token-scope
+  filter, `tools/list` drops every tool whose permission the caller's role does
+  not hold in the account the token is bound to (ADR 0085). The MCP server reads
+  those keys from `/api/auth/introspect` with the caller's own token, which now
+  returns `permissions` for a person and a person's token, and caches them per
+  token for under a minute. This is presentation only: if the lookup fails the
+  scope-only list is shown and the API still refuses what the role does not
+  allow. Service accounts, which are not role based, keep the scope-only list;
+  a person limited to some projects or workflows sees the tools of their role,
+  and the API decides which places each call reaches.
 - **Interface.** Bootstrap returns the current user's `permissions`.
   `CAPABILITY_ROLES` is removed; the visibility of menu items, buttons and tabs
   is computed from permissions.
