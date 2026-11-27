@@ -940,7 +940,7 @@ describe("a company administrator asks for an install (ADR 0084)", () => {
     const actions = requests({ latestById: { "acme.crm": { ...pending, status: "declined", decline_reason: "Not this year" } } });
     renderMarketplace({ url: "/extensions?mk_entry=acme.crm#marketplace", canAdminister: false, requests: actions });
 
-    expect(await screen.findByText("Your last request was declined: Not this year")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Your last request was declined: Not this year")).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Request installation" }));
     expect(actions.onRequest).toHaveBeenCalled();
   });

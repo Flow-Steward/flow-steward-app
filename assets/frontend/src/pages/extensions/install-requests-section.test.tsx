@@ -117,7 +117,7 @@ test("the installation administrator sees each pending request with its company,
 test("nobody else sees the section, and it stays away while nothing waits", async () => {
   renderHarness({ install: vi.fn() });
   await waitFor(() => expect(fetchExtensionInstallRequests).not.toHaveBeenCalled());
-  expect(screen.queryByTestId("extension-install-requests")).toBeNull();
+  expect(screen.queryByTestId("extension-install-requests")).not.toBeInTheDocument();
 });
 
 test("Install runs the catalog install and approves only after it succeeded", async () => {
@@ -142,7 +142,7 @@ test("a failed install leaves the request pending and shows the install's own er
     installStateById: { "acme.crm": { phase: "idle", status: "Install failed: no space left", outcome: "failed" } },
   });
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Install failed: no space left");
+  await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Install failed: no space left"));
   expect(approveExtensionInstallRequest).not.toHaveBeenCalled();
 });
 
@@ -174,7 +174,7 @@ test("a company administrator sends a request with an optional note", async () =
   renderHarness({ canRequest: true, install: vi.fn(), onReady: (value) => { actions = value; } });
 
   await waitFor(() => expect(actions?.canRequest).toBe(true));
-  expect(screen.queryByTestId("extension-install-requests")).toBeNull();
+  expect(screen.queryByTestId("extension-install-requests")).not.toBeInTheDocument();
   act(() => actions?.onRequest(entry("install")));
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText("Request installation of Acme CRM?")).toBeInTheDocument();
