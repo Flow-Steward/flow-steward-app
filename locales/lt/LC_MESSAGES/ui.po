@@ -33630,6 +33630,9 @@ msgstr "Tęsti"
 msgid "react.invitations.declined_title"
 msgstr "Kvietimas atmestas"
 
+msgid "react.invitations.sign_in_again"
+msgstr "Prisijungėte prie {company}. Prisijunkite dar kartą, kad ją atidarytumėte."
+
 msgid "react.invitations.declined_description"
 msgstr "Neprisijungėte prie {company}."
 

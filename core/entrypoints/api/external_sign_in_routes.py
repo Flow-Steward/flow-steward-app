@@ -29,6 +29,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 
+from core.application.auth import external_sign_in_repository as repository
 from core.application.auth.external_sign_in_admin import ExternalSignInAdmin
 from core.application.auth.external_sign_in_service import (
     CALLBACK_PATH,
@@ -39,6 +40,7 @@ from core.application.auth.external_sign_in_service import (
     StartResult,
     safe_return_path,
 )
+from core.application.auth.password import session_token_hash
 from core.application.auth.password_reset_rate_limit import (
     password_reset_throttle_check,
     password_reset_throttle_record,
@@ -55,6 +57,11 @@ HINT_MAX_ATTEMPTS = 30
 HINT_RATE_WINDOW_SECONDS = 60
 HINT_LOCKOUT_SECONDS = 60
 _HINT_THROTTLE_ACTION = "external_options_hint"
+#: Linking needs a password sign-in this recent (in seconds).
+LINK_PASSWORD_MAX_AGE_SECONDS = 600
+_LINK_NEEDS_RECENT_PASSWORD = (
+    "To link a sign-in, sign in with your password again and open the link right away."
+)
 _FAILED_FLASH = (
     "External sign-in did not complete. Try again, or ask your administrator to link "
     "your sign-in to your user."
@@ -110,6 +117,17 @@ def create_external_sign_in_router(
             password_reset_throttle_record(client_ip, **limits)
         return throttled, retry_after
 
+    def _session_is_recent(bl: Any, session_token: str) -> bool:
+        if not session_token:
+            return False
+        try:
+            with connection_for(bl) as conn, conn.cursor() as cur:
+                return repository.session_is_recent(
+                    cur, session_token_hash(session_token), LINK_PASSWORD_MAX_AGE_SECONDS
+                )
+        except Exception:
+            return False
+
     def _redirect_uri() -> str:
         base = str(public_base_url() or "").strip().rstrip("/")
         return f"{base}{CALLBACK_PATH}" if base else ""
@@ -143,8 +161,9 @@ def create_external_sign_in_router(
             session_guard=guard,
         )
 
-    def _to_login(return_path: str) -> RedirectResponse:
-        query = {"flash": _FAILED_FLASH}
+    def _to_login(return_path: str, message: str = "") -> RedirectResponse:
+        # A resolver's own sentence for the person, else the generic one.
+        query = {"flash": str(message or "").strip()[:240] or _FAILED_FLASH}
         if return_path and return_path != "/":
             query["next"] = return_path
         response = RedirectResponse(f"/login?{urlencode(query)}", status_code=303)
@@ -152,7 +171,12 @@ def create_external_sign_in_router(
         return response
 
     def _signed_in(result: SignInResult) -> RedirectResponse:
-        response = RedirectResponse(result.return_path, status_code=303, headers=_NO_STORE)
+        target = result.return_path
+        if getattr(result, "choose_account", False):
+            # Several companies: the sign-in page asks which one, as after a password
+            # sign-in, then goes on to the return path.
+            target = f"/login?{urlencode({'choose_account': '1', 'next': result.return_path})}"
+        response = RedirectResponse(target, status_code=303, headers=_NO_STORE)
         response.delete_cookie(BINDING_COOKIE, path=_BINDING_COOKIE_PATH)
         if not result.session_token:
             return response
@@ -213,6 +237,12 @@ def create_external_sign_in_router(
             if not isinstance(auth_user, dict) or auth_source != "local":
                 return _to_login(next_path)
             link_user_id = str(auth_user.get("id") or "") or None
+            session_token = str(request.cookies.get(auth_cookie_name) or "")
+            if not link_user_id or not await run_in_threadpool(
+                lambda: _session_is_recent(bl, session_token)
+            ):
+                # Linking adds a way in: only right after the password was entered.
+                return _to_login(next_path, _LINK_NEEDS_RECENT_PASSWORD)
         headers = {key.lower(): value for key, value in request.headers.items()}
         try:
             started = await run_in_threadpool(
@@ -223,10 +253,11 @@ def create_external_sign_in_router(
                     callback_url=_redirect_uri(),
                     headers=headers,
                     link_user_id=link_user_id,
+                    client_address=_client_ip(request),
                 )
             )
         except ExternalSignInRefused as exc:
-            return _to_login(exc.return_path)
+            return _to_login(exc.return_path, exc.public_message)
         except Exception:
             return _to_login(next_path)
         if not isinstance(started, StartResult):
@@ -256,10 +287,15 @@ def create_external_sign_in_router(
         headers = {key.lower(): value for key, value in request.headers.items()}
         try:
             result = await run_in_threadpool(
-                lambda: service.callback(params=params, browser_binding=binding, headers=headers)
+                lambda: service.callback(
+                    params=params,
+                    browser_binding=binding,
+                    headers=headers,
+                    client_address=_client_ip(request),
+                )
             )
         except ExternalSignInRefused as exc:
-            return _to_login(exc.return_path)
+            return _to_login(exc.return_path, exc.public_message)
         except Exception:
             return _to_login("/")
         return _signed_in(result)

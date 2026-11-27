@@ -614,6 +614,7 @@ def create_auth_users_router(
         user = _invited_person(request)
         if isinstance(user, JSONResponse):
             return user
+        source = str(getattr(request.state, "auth_source", "") or user.get("auth_source") or "")
         try:
             return account_invitation_service.decide(
                 token=body.token,
@@ -621,6 +622,7 @@ def create_auth_users_router(
                 username=str(user.get("username") or ""),
                 accept=True,
                 role=body.role,
+                external_session=source.strip().lower() == "external",
             )
         except Exception as e:
             return _user_service_error(e)

@@ -95,6 +95,7 @@ def register_auth_routes(
     err_too_many_password_reset_requests,
     err_too_many_login_attempts,
     first_admin_service_factory,
+    installation_wide_methods=None,
 ):
     _ = (
         request_scope,
@@ -245,6 +246,7 @@ def register_auth_routes(
         auth_cookie_name=auth_cookie_name,
         auth_csrf_cookie_name=auth_csrf_cookie_name,
         first_admin_service_factory=first_admin_service_factory,
+        installation_wide_methods=installation_wide_methods,
     )
     app.include_router(auth_sessions_router)
 

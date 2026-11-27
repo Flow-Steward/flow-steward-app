@@ -1,0 +1,793 @@
+"""Review fixes of the installation-wide sign-in seam (ADR 0083 amendment of 2026-11-27).
+
+- An administrator cannot set the password of a person who signs in only externally
+  (an account takeover path: set a password, then sign in as them and link another
+  sign-in).
+- An invitation to the installation account is not accepted from an external session.
+- What a resolver created is undone when Core refuses the sign-in afterwards, and
+  its ``after_session`` runs only once the session exists.
+- A method that asks for it gets the client's address at start and callback.
+- Module invitation limit policies add to Core's invitation limits; a failing one
+  refuses the invitation.
+- Linking needs a password sign-in at most ten minutes old.
+"""
+
+from __future__ import annotations
+
+import uuid
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
+import pytest
+
+from core.application.auth import external_sign_in_repository as repository
+from core.application.auth import invitation_policies
+from core.application.auth.external_sign_in_ports import (
+    BeginResult,
+    ExternalIdentityResolution,
+    ExternalSignInPort,
+    SignInOption,
+    VerifiedExternalIdentity,
+)
+from core.application.auth.external_sign_in_service import (
+    ExternalSignInRefused,
+    ExternalSignInService,
+)
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+from core.application.auth.user_admin import account_invitations
+from core.application.auth.user_admin.account_invitations import decide
+from core.application.auth.user_admin.command_service import (
+    EXTERNAL_ONLY_PASSWORD_MESSAGE,
+    UserAdminCommandService,
+)
+from core.application.auth.user_admin.contracts import UserUpdateInput
+from core.application.management.errors import (
+    ServiceForbiddenError,
+    ServiceUnavailableError,
+)
+from tests.unit.test_account_invitations import (
+    ADMIN,
+    INVITATION,
+    PERSON,
+    TOKEN,
+    _client,
+    _Cursor,
+    _RecordingInvitations,
+)
+from tests.unit.test_external_sign_in_service import (  # noqa: F401 - fixtures
+    ACCOUNT_ID,
+    CALLBACK,
+    USER_ID,
+    FakeStore,
+    _connection,
+    _encryption_key,
+    store,
+)
+
+# --- HIGH-1 (b): no password for a person who signs in only externally -------------------
+
+
+def _users_service(password_hash: str) -> UserAdminCommandService:
+    user = {
+        "id": PERSON,
+        "username": "pat@example.test",
+        "password_hash": password_hash,
+        "is_active": True,
+        "account_id": INSTALLATION_ACCOUNT_ID,
+        "account_ids": [INSTALLATION_ACCOUNT_ID],
+    }
+    return UserAdminCommandService(
+        get_logger=lambda: object(),
+        auth_tables_available_fn=lambda _bl: True,
+        get_user_by_id_fn=lambda _bl, _id: dict(user),
+    )
+
+
+def test_an_administrator_cannot_set_the_password_of_an_external_only_person() -> None:
+    service = _users_service(repository.UNUSABLE_PASSWORD_MARKER)
+    with pytest.raises(ServiceForbiddenError) as refused:
+        service.update_user(
+            UserUpdateInput(user_id=PERSON, password="A-long-enough-password-1"),
+            allowed_account_ids=[INSTALLATION_ACCOUNT_ID],
+        )
+    assert refused.value.message == EXTERNAL_ONLY_PASSWORD_MESSAGE
+
+
+# --- LOW-8: the installation account is joined with a password ----------------------------
+
+
+def _open_row(account: str) -> tuple:
+    return (INVITATION, account, "operator", "Ops", "Bob", "2026-12-11")
+
+
+def test_an_external_session_cannot_join_the_installation_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        account_invitations, "add_member", lambda *_a, **_k: pytest.fail("no membership")
+    )
+    cur = _Cursor(rows=[_open_row(str(INSTALLATION_ACCOUNT_ID))])
+    with pytest.raises(ServiceForbiddenError):
+        decide(
+            cur,
+            token_hash="h" * 64,
+            user_id=PERSON,
+            accept=True,
+            expected_role="operator",
+            external_session=True,
+        )
+    assert not any(sql.startswith("UPDATE") for sql, _ in cur.executed)
+
+
+def test_an_external_session_joins_an_ordinary_company_with_the_invited_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """HIGH-2: the person was no member before; accepting adds the invited role."""
+    added: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        account_invitations, "add_member", lambda _cur, **kwargs: added.append(kwargs)
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other)])
+    decide(
+        cur,
+        token_hash="h" * 64,
+        user_id=PERSON,
+        accept=True,
+        expected_role="operator",
+        external_session=True,
+    )
+    assert added == [
+        {"user_id": PERSON, "account_id": other, "role": "operator", "managed_account_ids": None}
+    ]
+
+
+def test_the_accept_route_says_whether_the_session_is_external() -> None:
+    service = _RecordingInvitations()
+    client = _client(service, {**ADMIN, "id": PERSON, "auth_source": "external"})
+    client.post("/api/auth/invitations/accept", json={"token": TOKEN, "role": "viewer"})
+    assert service.calls[-1][1]["external_session"] is True
+    local = _RecordingInvitations()
+    _client(local, {**ADMIN, "id": PERSON}).post(
+        "/api/auth/invitations/accept", json={"token": TOKEN, "role": "viewer"}
+    )
+    assert local.calls[-1][1]["external_session"] is False
+
+
+# --- MEDIUM-3: undo and after_session -----------------------------------------------------
+
+
+class AddressMethod:
+    kind = "wide"
+    installation_wide = True
+    wants_client_address = True
+
+    def __init__(self) -> None:
+        self.addresses: list[tuple[str, str]] = []
+
+    def options(self):
+        return [SignInOption(key="one", display_name="One")]
+
+    def option(self, key):
+        return self.options()[0] if key == "one" else None
+
+    def begin(self, key, *, callback_url, state, client_address=""):
+        self.addresses.append(("begin", client_address))
+        return BeginResult(redirect_url=f"https://wide.example.test/?state={state}")
+
+    def complete(self, key, *, params, headers, data, callback_url, client_address=""):
+        self.addresses.append(("complete", client_address))
+        return VerifiedExternalIdentity(
+            method="wide", option_key=key, account_id="", issuer="https://w", subject="s"
+        )
+
+
+class Resolver:
+    def __init__(self) -> None:
+        self.events: list[str] = []
+
+    def resolve(self, identity):
+        return ExternalIdentityResolution(
+            user_id=USER_ID,
+            account_id=ACCOUNT_ID,
+            undo=lambda: self.events.append("undo"),
+            after_session=lambda: self.events.append("after_session"),
+        )
+
+
+def _wide(guard: Any = None) -> tuple[ExternalSignInService, AddressMethod, Resolver]:
+    port = ExternalSignInPort(_connection)
+    method = AddressMethod()
+    resolver = Resolver()
+    port.register_sign_in_method(method)
+    port.set_identity_resolver(resolver)
+    service = ExternalSignInService(
+        connection=_connection,
+        port=port,
+        entitled=lambda *_: True,
+        audit=lambda **_: None,
+        session_ttl_hours=1,
+        session_guard=guard,
+    )
+    return service, method, resolver
+
+
+def _run(service: ExternalSignInService) -> Any:
+    started = service.start(
+        method="wide", key="one", next_path="/", callback_url=CALLBACK, client_address="192.0.2.4"
+    )
+    state = parse_qs(urlparse(started.authorization_url).query)["state"][0]
+    return service.callback(
+        params={"state": state},
+        browser_binding=started.browser_binding,
+        client_address="192.0.2.5",
+    )
+
+
+@pytest.fixture
+def wide_store(store: FakeStore, monkeypatch: pytest.MonkeyPatch) -> FakeStore:  # noqa: F811
+    monkeypatch.setattr(repository, "user_holds_installation_admin_role", lambda *_: False)
+    return store
+
+
+def test_after_session_runs_once_the_session_exists(wide_store: FakeStore) -> None:
+    service, method, resolver = _wide()
+    assert _run(service).session_token
+    assert resolver.events == ["after_session"]
+    assert method.addresses == [("begin", "192.0.2.4"), ("complete", "192.0.2.5")]
+
+
+def test_a_refusal_after_resolving_calls_undo_and_never_after_session(
+    wide_store: FakeStore,
+) -> None:
+    service, _method, resolver = _wide(guard=lambda *_: "session_guard_refused")
+    with pytest.raises(ExternalSignInRefused):
+        _run(service)
+    assert resolver.events == ["undo"]
+
+
+def test_a_method_that_does_not_ask_gets_no_address(wide_store: FakeStore) -> None:
+    class Plain(AddressMethod):
+        wants_client_address = False
+
+        def begin(self, key, *, callback_url, state):
+            return BeginResult(redirect_url=f"https://wide.example.test/?state={state}")
+
+        def complete(self, key, *, params, headers, data, callback_url):
+            return VerifiedExternalIdentity(
+                method="wide", option_key=key, account_id="", issuer="https://w", subject="s"
+            )
+
+    port = ExternalSignInPort(_connection)
+    port.register_sign_in_method(Plain())
+    port.set_identity_resolver(Resolver())
+    service = ExternalSignInService(
+        connection=_connection,
+        port=port,
+        entitled=lambda *_: True,
+        audit=lambda **_: None,
+        session_ttl_hours=1,
+    )
+    assert _run(service).session_token
+
+
+class _DiscardCursor:
+    def __init__(self, *, eligible: bool, account_free: bool) -> None:
+        self.executed: list[str] = []
+        self._eligible = eligible
+        self._account_free = account_free
+        self._answer: Any = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+    def execute(self, sql, params=()):
+        text = " ".join(sql.split())
+        self.executed.append(text)
+        if "FROM users u" in text:
+            self._answer = (1,) if self._eligible else None
+        elif "FROM accounts a" in text:
+            self._answer = (1,) if self._account_free else None
+        else:
+            self._answer = None
+
+    def fetchone(self):
+        return self._answer
+
+
+def _discard_port(cursor: _DiscardCursor) -> ExternalSignInPort:
+    from contextlib import contextmanager
+
+    class Conn:
+        def cursor(self, **_kwargs):
+            return cursor
+
+    @contextmanager
+    def connection():
+        yield Conn()
+
+    return ExternalSignInPort(connection)
+
+
+def test_discarding_removes_only_a_fresh_person_without_a_password() -> None:
+    cursor = _DiscardCursor(eligible=True, account_free=True)
+    account = str(uuid.uuid4())
+    port = _discard_port(cursor)
+    person = str(uuid.uuid4())
+    # Only what this port created, once, and only with its own account.
+    assert not port.discard_new_person(user_id=person, account_id=account, reason="x")
+    port._remember_created(person, account)
+    assert not port.discard_new_person(user_id=person, account_id="", reason="x")
+    port._remember_created(person, account)
+    assert port.discard_new_person(user_id=person, account_id=account, reason="refused")
+    assert not port.discard_new_person(user_id=person, account_id=account, reason="again")
+    joined = "\n".join(cursor.executed)
+    assert (
+        "password_hash = ANY(%s)" in joined and "NOT EXISTS (SELECT 1 FROM auth_sessions" in joined
+    )
+    assert "DELETE FROM users" in joined and "DELETE FROM accounts" in joined
+    assert "platform_action_log" in joined
+
+    kept = _DiscardCursor(eligible=False, account_free=True)
+    kept_port = _discard_port(kept)
+    other = str(uuid.uuid4())
+    kept_port._remember_created(other, account)
+    assert not kept_port.discard_new_person(user_id=other, account_id=account, reason="refused")
+    assert not any(sql.startswith("DELETE") for sql in kept.executed)
+
+
+# --- MEDIUM-5: module invitation limits ---------------------------------------------------
+
+
+def test_a_module_invitation_limit_is_counted_with_cores_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = invitation_policies.loading_checkpoint()
+    counted: list[Any] = []
+    try:
+        invitation_policies.register_invitation_limits(
+            lambda account: [(f"cap:{account}", 5, 86_400)]
+        )
+        service = account_invitations.AccountInvitationService(
+            get_logger=lambda: type("Bl", (), {"conn": None})(),
+            audit=lambda *_a, **_k: None,
+            send_invitation=lambda **_k: {"ok": True},
+            throttle=lambda _cur, limits: counted.extend(limits),
+            new_token=lambda: TOKEN,
+        )
+        monkeypatch.setattr(account_invitations, "transaction_connection", _fake_transaction)
+        monkeypatch.setattr(account_invitations, "delete_expired", lambda *_a: [])
+        monkeypatch.setattr(
+            account_invitations,
+            "invite",
+            lambda *_a, **_k: {"id": INVITATION, "expires_at": "x"},
+        )
+        monkeypatch.setattr(
+            account_invitations, "invitation_names", lambda *_a, **_k: ("Co", "Bob")
+        )
+        service.invite(
+            email="new@example.test",
+            role="viewer",
+            account_id=ACCOUNT_ID,
+            managed_account_ids=[ACCOUNT_ID],
+            admin_user_id=PERSON,
+            actor="admin",
+        )
+        keys = [limit.key for limit in counted]
+        assert f"module:cap:{ACCOUNT_ID}" in keys and len(keys) == 4
+
+        def broken(_account):
+            raise RuntimeError("down")
+
+        invitation_policies.register_invitation_limits(broken)
+        with pytest.raises(ServiceUnavailableError):
+            service.invite(
+                email="new@example.test",
+                role="viewer",
+                account_id=ACCOUNT_ID,
+                managed_account_ids=[ACCOUNT_ID],
+                admin_user_id=PERSON,
+                actor="admin",
+            )
+    finally:
+        invitation_policies.restore_loading_checkpoint(checkpoint)
+    assert invitation_policies.extra_invitation_limits(ACCOUNT_ID) == []
+
+
+def _fake_transaction(_conn):
+    from contextlib import contextmanager
+
+    @contextmanager
+    def run():
+        class Conn:
+            def cursor(self, **_kwargs):
+                return _Cursor()
+
+        yield Conn()
+
+    return run()
+
+
+def test_the_invitation_policy_registry_is_rolled_back_with_a_failed_module() -> None:
+    from core.infrastructure.platform_modules import registration_rollback
+
+    assert (
+        "core.application.auth.invitation_policies"
+        in registration_rollback._CORE_GLOBAL_REGISTRY_MODULES
+    )
+
+
+# --- LOW-6: linking needs a fresh password sign-in ----------------------------------------
+
+
+def test_a_session_is_recent_only_within_the_window() -> None:
+    class Cursor:
+        def __init__(self) -> None:
+            self.params: Any = None
+
+        def execute(self, sql, params):
+            self.params = params
+
+        def fetchone(self):
+            return (True,)
+
+    cursor = Cursor()
+    assert repository.session_is_recent(cursor, "hash", 600)
+    assert cursor.params == (600, "hash")
+
+
+@pytest.mark.parametrize("recent", [True, False])
+def test_link_start_needs_a_recent_password_session(
+    monkeypatch: pytest.MonkeyPatch, recent: bool
+) -> None:
+    from contextlib import contextmanager
+
+    from fastapi import FastAPI, Request
+    from fastapi.testclient import TestClient
+
+    from core.entrypoints.api import external_sign_in_routes as routes
+    from tests.unit.test_external_sign_in_routes import _FakeService
+
+    _FakeService.calls = []
+    _FakeService.refuse = ""
+    monkeypatch.setattr(routes, "ExternalSignInService", _FakeService)
+    monkeypatch.setattr(repository, "session_is_recent", lambda *_a: recent)
+
+    @contextmanager
+    def connection(_bl):
+        class Conn:
+            def cursor(self, **_kwargs):
+                return _Cursor()
+
+        yield Conn()
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def signed_in(request: Request, call_next):
+        request.state.auth_user = {"id": PERSON, "username": "pat@example.test"}
+        request.state.auth_source = "local"
+        return await call_next(request)
+
+    app.include_router(
+        routes.create_external_sign_in_router(
+            get_logger_only=lambda: object(),
+            connection_for=connection,
+            external_sign_in_port=lambda: object(),
+            entitlement_service=lambda: None,
+            session_issue_guard=lambda **_kwargs: None,
+            request_scope=lambda request: None,
+            service_error_response=lambda exc: None,
+            api_error_response=lambda exc: None,
+            log_auth_audit_event=lambda _bl, **_kwargs: None,
+            public_base_url=lambda: "https://flow.acme.test",
+            auth_cookie_secure=lambda: True,
+            auth_cookie_name="fs_session",
+            auth_csrf_cookie_name="fs_csrf",
+            auth_session_ttl_hours=12,
+        )
+    )
+    client = TestClient(app, base_url="https://flow.acme.test", follow_redirects=False)
+    client.cookies.set("fs_session", "token")
+    response = client.get("/api/auth/external/start?method=wide&key=one&intent=link")
+    assert response.status_code == 303
+    if recent:
+        [(_name, kwargs)] = _FakeService.calls
+        assert kwargs["link_user_id"] == PERSON and kwargs["client_address"]
+    else:
+        assert _FakeService.calls == []
+        assert "password+again" in response.headers["location"]
+
+
+def test_the_inviting_administrator_does_not_manage_a_person_before_acceptance() -> None:
+    """HIGH-1: an invitee of an installation-wide sign-in is only a member of the
+    installation account (no role) until they accept, so the inviting company's
+    administrator manages none of their accounts and cannot change them."""
+    from core.application.auth.user_admin.policies import require_user_access
+
+    invitee = {
+        "id": PERSON,
+        "account_id": INSTALLATION_ACCOUNT_ID,
+        "account_ids": [INSTALLATION_ACCOUNT_ID],
+    }
+    with pytest.raises(ServiceForbiddenError):
+        require_user_access(invitee, ["00000000-0000-0000-0000-00000000000b"])
+
+
+# --- waiting newcomers: only people created to answer an invitation -------------------
+
+
+def test_a_newcomer_gets_no_installation_role_while_waiting() -> None:
+    from core.application.auth.user_admin.command_service import (
+        EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE,
+    )
+
+    service = _users_service(repository.AWAITING_INVITATION_MARKER)
+    with pytest.raises(ServiceForbiddenError) as refused:
+        service.update_user(
+            UserUpdateInput(user_id=PERSON, role="viewer", actor_user_id="someone-else"),
+            allowed_account_ids=[INSTALLATION_ACCOUNT_ID],
+        )
+    assert refused.value.message == EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE
+
+
+@pytest.mark.parametrize("role", ["viewer", "operator", "admin"])
+def test_a_company_sign_in_person_of_the_installation_account_keeps_role_changes(
+    role: str,
+) -> None:
+    """A person a company sign-in provisioned into the installation account (the
+    ordinary external-only marker) can be given, lowered or have any role as before;
+    the refusal reaches only people waiting to answer an invitation."""
+    service = _users_service(repository.UNUSABLE_PASSWORD_MARKER)
+    try:
+        service.update_user(
+            UserUpdateInput(user_id=PERSON, role=role, actor_user_id="someone-else"),
+            allowed_account_ids=[INSTALLATION_ACCOUNT_ID],
+        )
+    except ServiceForbiddenError as exc:  # pragma: no cover - the regression
+        pytest.fail(f"refused: {exc}")
+    except Exception:
+        pass  # the fake has no database past the checks
+
+
+def test_only_waiting_newcomers_are_left_out_of_user_lists() -> None:
+    from core.application.auth.user_admin import repository as users_repository
+
+    class Cursor:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, tuple]] = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def execute(self, sql, params=()):
+            self.calls.append((sql, tuple(params)))
+
+        def fetchone(self):
+            return {"total": 0}
+
+        def fetchall(self):
+            return []
+
+    cursor = Cursor()
+
+    class Bl:
+        def _table_exists(self, _name):
+            return True
+
+        def _column_exists(self, *_args):
+            return True
+
+    import contextlib
+
+    original = users_repository._dict_cursor
+    users_repository._dict_cursor = lambda _bl: contextlib.nullcontext(cursor)
+    try:
+        users_repository.list_auth_users(
+            Bl(),
+            limit=10,
+            offset=0,
+            search="",
+            include_inactive=True,
+            include_deleted=False,
+            role="",
+            active_filter=None,
+            managed_account_ids=None,
+        )
+    except Exception:
+        pass
+    finally:
+        users_repository._dict_cursor = original
+    sql, params = cursor.calls[0]
+    assert "m_wait.role_id IS NOT NULL" in sql
+    # Keyed on the awaiting marker only: company sign-in people stay listed.
+    assert params[0] == repository.AWAITING_INVITATION_MARKER
+    assert repository.UNUSABLE_PASSWORD_MARKER not in params
+
+
+def test_a_port_newcomer_takes_the_awaiting_marker_and_no_role() -> None:
+    port = ExternalSignInPort(_connection)
+    with pytest.raises(ValueError, match="no role"):
+        port.create_user(
+            account_id=INSTALLATION_ACCOUNT_ID,
+            email="new@example.test",
+            roles=("viewer",),
+            awaiting_invitation=True,
+        )
+    assert repository.is_unusable_password(repository.AWAITING_INVITATION_MARKER)
+    assert repository.is_awaiting_invitation(repository.AWAITING_INVITATION_MARKER)
+    assert not repository.is_awaiting_invitation(repository.UNUSABLE_PASSWORD_MARKER)
+
+
+def _accept_with(cur: Any) -> dict[str, Any]:
+    return decide(
+        cur,
+        token_hash="h" * 64,
+        user_id=PERSON,
+        accept=True,
+        expected_role="operator",
+        external_session=True,
+    )
+
+
+def test_accepting_settles_an_awaiting_newcomer_and_moves_only_its_methods_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    revoked: list[dict[str, Any]] = []
+    from core.application.auth import membership_roles
+
+    monkeypatch.setattr(
+        membership_roles,
+        "revoke_account_access",
+        lambda _cur, **kwargs: revoked.append(kwargs) or 0,
+    )
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda _u: False, ("wide",))],
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    # The open invitation, then the person found: awaiting, no role elsewhere.
+    cur = _Cursor(rows=[_open_row(other), (repository.AWAITING_INVITATION_MARKER, False)])
+    result = _accept_with(cur)
+
+    assert result["sign_in_again"] is True
+    statements = [sql for sql, _ in cur.executed]
+    marker = next(i for i, sql in enumerate(statements) if "SET password_hash" in sql)
+    assert cur.executed[marker][1] == (
+        repository.UNUSABLE_PASSWORD_MARKER,
+        PERSON,
+        repository.AWAITING_INVITATION_MARKER,
+    )
+    assert "SET account_id" in statements[marker + 1]
+    assert "is_default" in statements[marker + 2]
+    moved = next(sql for sql in statements if sql.startswith("UPDATE external_identities"))
+    assert "method = ANY(%s)" in moved
+    assert next(
+        params for sql, params in cur.executed if sql.startswith("UPDATE external_identities")
+    )[3] == ["wide"]
+    assert revoked == [
+        {
+            "user_id": PERSON,
+            "account_id": INSTALLATION_ACCOUNT_ID,
+            "reason": "invitation_accepted",
+        }
+    ]
+    assert statements[-1].startswith("UPDATE account_invitations")
+
+
+@pytest.mark.parametrize("password_hash", [repository.UNUSABLE_PASSWORD_MARKER, "a-real-hash"])
+def test_somebody_who_is_no_newcomer_is_never_moved(
+    monkeypatch: pytest.MonkeyPatch, password_hash: str
+) -> None:
+    """A company sign-in person or a password person homed role-less in the
+    installation account stays where they are when joining another company."""
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda _u: False, ("wide",))],
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), (password_hash, False)])
+    result = _accept_with(cur)
+
+    assert "sign_in_again" not in result
+    statements = [sql for sql, _ in cur.executed]
+    assert not any(
+        sql.startswith(("UPDATE users", "UPDATE external_identities")) for sql in statements
+    )
+    assert not any(sql.startswith("DELETE") for sql in statements)
+
+
+def test_a_recorded_newcomer_who_set_a_password_is_settled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    from core.application.auth import membership_roles
+
+    monkeypatch.setattr(membership_roles, "revoke_account_access", lambda _cur, **_k: 0)
+    asked: list[str] = []
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda u: asked.append(u) or True, ("wide",))],
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), ("a-real-hash", False)])
+    assert _accept_with(cur)["sign_in_again"] is True
+    assert asked == [PERSON]
+
+
+def test_a_newcomer_with_a_role_elsewhere_keeps_home_and_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), (repository.AWAITING_INVITATION_MARKER, True)])
+    result = _accept_with(cur)
+    assert "sign_in_again" not in result
+    statements = [sql for sql, _ in cur.executed]
+    assert sum(1 for sql in statements if sql.startswith("UPDATE users")) == 1  # marker only
+    assert not any("SET account_id" in sql for sql in statements)
+
+
+def test_a_person_with_an_installation_role_is_not_moved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other)])  # the lookup finds nobody to move
+    decide(cur, token_hash="h" * 64, user_id=PERSON, accept=True, expected_role="operator")
+    assert not any(sql.startswith("UPDATE users") for sql, _ in cur.executed)
+
+
+def test_a_renewed_link_is_a_new_invitation_reference() -> None:
+    first = account_invitations.open_invitation_ref(_Cursor(rows=[_open_row("acct")]), "a" * 43)
+    renewed = account_invitations.open_invitation_ref(_Cursor(rows=[_open_row("acct")]), "b" * 43)
+    assert first[1] == renewed[1] == "acct"
+    assert first[0].startswith(INVITATION) and first[0] != renewed[0]
+
+
+def test_own_account_hooks_run_inside_cores_transaction() -> None:
+    from tests.unit.test_external_sign_in_installation_wide import ScriptedCursor, _own_port
+
+    cursor = ScriptedCursor(active_accounts=0)
+    seen: list[Any] = []
+    created = _own_port(cursor).create_own_account(
+        email="pat@example.test",
+        created_by="self-service",
+        before=lambda cur: seen.append(("before", cur is cursor)),
+        after=lambda cur, made: seen.append(("after", cur is cursor, dict(made))),
+    )
+    assert seen == [("before", True), ("after", True, created)]
+
+    class Full(Exception):
+        pass
+
+    def refuse(_cur):
+        raise Full
+
+    refused = ScriptedCursor(active_accounts=0)
+    with pytest.raises(Full):
+        _own_port(refused).create_own_account(
+            email="pat@example.test", created_by="self-service", before=refuse
+        )
+    assert not any("INSERT INTO accounts" in sql for sql, _ in refused.executed)
+
+
+def test_a_session_without_a_role_sees_nothing_of_the_account() -> None:
+    import inspect
+
+    from core.entrypoints.api import app_bootstrap
+
+    source = inspect.getsource(app_bootstrap.create_api_app_bootstrap_router)
+    assert "role_less = authenticated and not _normalized_roles(auth_user)" in source
+    assert "feature_flags = {}" in source

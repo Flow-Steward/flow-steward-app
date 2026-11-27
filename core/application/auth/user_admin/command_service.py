@@ -12,6 +12,11 @@ from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
 from core.application.auth.enforce import normalize_requested_roles
+from core.application.auth.external_sign_in_repository import (
+    is_awaiting_invitation,
+    is_unusable_password,
+)
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.auth.local_credentials import (
     authenticator_policy_available,
     authenticator_storage_available,
@@ -145,6 +150,17 @@ class UserAdminCommandRepository(Protocol):
         user_id: Any,
         deleted_by: str,
     ) -> int: ...
+
+
+#: Refusal of an administrator setting the password of a person who signs in only
+#: externally (ADR 0083 amendment of 2026-11-27).
+EXTERNAL_ONLY_PASSWORD_MESSAGE = (
+    "This person signs in only with an external sign-in. They can set a password "
+    "themselves with Forgot password."
+)
+EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE = (
+    "This person signed in only to answer an invitation to another company and gets no role here."
+)
 
 
 def _require_update_access(
@@ -649,6 +665,22 @@ class UserAdminCommandService:
                     else [role_account_id or str(user.get("account_id") or "").strip()]
                 ),
             )
+        if command.password is not None and is_unusable_password(user.get("password_hash")):
+            # A person who signs in only externally has no local password. Setting one
+            # would let whoever sets it in as that person, in every account they
+            # belong to; they set one themselves with Forgot password.
+            raise ServiceForbiddenError(EXTERNAL_ONLY_PASSWORD_MESSAGE)
+        if (
+            command.role is not None
+            and is_awaiting_invitation(user.get("password_hash"))
+            and (role_account_id or str(user.get("account_id") or "").strip())
+            == str(INSTALLATION_ACCOUNT_ID)
+        ):
+            # A person created only to answer an invitation waits in the installation
+            # account without a role; accepting moves them into their company. Other
+            # people who sign in externally (a company sign-in provisions them there
+            # too) keep every role change, lowering and removing included.
+            raise ServiceForbiddenError(EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE)
         if all(
             value is None
             for value in (

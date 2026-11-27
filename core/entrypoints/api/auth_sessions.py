@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from contextlib import suppress
 from typing import Any
 
@@ -71,6 +71,24 @@ WHERE session_token_hash = %s
   AND expires_at > now()
   AND auth_method = 'local'
 """
+#: A session of an installation-wide sign-in method moves too (ADR 0083 amendment of
+#: 2026-11-27): it is the person's own sign-in, not one company's.
+_SWITCH_INSTALLATION_WIDE_SESSION_ACCOUNT_SQL = """
+UPDATE auth_sessions s
+SET account_id = %s,
+    last_seen_at = now(),
+    updated_at = now()
+WHERE s.session_token_hash = %s
+  AND s.user_id = %s
+  AND s.revoked = false
+  AND s.expires_at > now()
+  AND s.auth_method = 'external'
+  AND EXISTS (
+      SELECT 1 FROM external_identities ei
+       WHERE ei.id = s.external_identity_id AND ei.method = ANY(%s))
+"""
+#: The refusal of moving a session of external sign-in into the installation account.
+EXTERNAL_SESSION_INSTALLATION_CODE = "external_session_installation_account"
 
 
 def _open_invitation_token(bl: Any, token: str) -> bool:
@@ -114,6 +132,7 @@ def create_auth_sessions_router(
     auth_csrf_cookie_name: str,
     first_admin_service_factory: Callable[[Any], FirstAdminService],
     invitation_token_open: Callable[[Any, str], bool] | None = None,
+    installation_wide_methods: Callable[[], Iterable[str]] | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["auth-sessions"])
     _invitation_token_open = invitation_token_open or _open_invitation_token
@@ -771,12 +790,59 @@ def create_auth_sessions_router(
         )
         return response
 
+    def _installation_wide_methods() -> list[str]:
+        if not callable(installation_wide_methods):
+            return []
+        try:
+            return sorted({str(kind) for kind in installation_wide_methods() or () if kind})
+        except Exception:
+            return []
+
+    def _installation_wide_session(
+        bl: Any, request: Request, auth_user: dict[str, Any], methods: list[str]
+    ) -> bool:
+        """The session was issued by an installation-wide sign-in method (ADR 0083
+        amendment of 2026-11-27): the person's own sign-in, which may move between
+        their companies. A session of one company's sign-in source never does."""
+        if not methods:
+            return False
+        token = str(request.cookies.get(_AUTH_COOKIE_NAME) or "").strip()
+        if not token:
+            return False
+        from core.application.auth.external_sign_in_repository import session_identity_method
+
+        try:
+            with bl.conn.cursor() as cur:
+                method = session_identity_method(
+                    cur, _session_token_hash(token), str(auth_user.get("id") or "")
+                )
+        except Exception:
+            return False
+        return method in methods
+
+    def _external_switch_refusal(bl: Any, auth_user: dict[str, Any], account_id: str) -> str | None:
+        """Why an installation-wide session may not move into ``account_id``: never into
+        the installation account (administered with a local password), and never for
+        a person an external identity may not sign in as there."""
+        from core.application.auth.external_sign_in_repository import external_person_refusal
+        from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+        if account_id == str(INSTALLATION_ACCOUNT_ID):
+            return EXTERNAL_SESSION_INSTALLATION_CODE
+        try:
+            with bl.conn.cursor() as cur:
+                return external_person_refusal(
+                    cur,
+                    user_id=str(auth_user.get("id") or ""),
+                    account_id=account_id,
+                    allow_account_admin=True,
+                )
+        except Exception:
+            return "switch_check_failed"
+
     @router.post("/api/auth/switch-account")
     async def api_auth_switch_account(request: Request):
         """Switch the active account for the current auth session."""
-        if not _local_auth_enabled():
-            return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
-
         bl = _get_logger_only()
         if not bl:
             return JSONResponse({"error": ERR_DATABASE_NOT_CONFIGURED}, status_code=503)
@@ -789,8 +855,15 @@ def create_auth_sessions_router(
         auth_source = str(
             getattr(request.state, "auth_source", "") or auth_user.get("auth_source") or ""
         )
-        if auth_source.strip().lower() == "external":
-            # ADR 0083: an external session is pinned to the account that issued it.
+        external = auth_source.strip().lower() == "external"
+        if not external and not _local_auth_enabled():
+            return JSONResponse({"error": ERR_LOCAL_AUTH_DISABLED}, status_code=400)
+        wide_methods: list[str] = []
+        if external:
+            wide_methods = _installation_wide_methods()
+        if external and not _installation_wide_session(bl, request, auth_user, wide_methods):
+            # ADR 0083: a session of one company's sign-in source is pinned to the
+            # account that issued it; only an installation-wide one moves.
             _log_auth_audit_event(
                 bl,
                 action="switch_account",
@@ -858,6 +931,24 @@ def create_auth_sessions_router(
                 {"error": NO_ROLE_IN_ACCOUNT_MESSAGE, "code": NO_ROLE_IN_ACCOUNT_CODE},
                 status_code=403,
             )
+        if external:
+            refusal = _external_switch_refusal(bl, auth_user, selected_account_id)
+            if refusal:
+                _log_auth_audit_event(
+                    bl,
+                    action="switch_account",
+                    username=str(auth_user.get("username") or ""),
+                    actor=_resolve_actor_username(request, "", default="auth"),
+                    status="rejected",
+                    detail={"reason": refusal, "account_id": selected_account_id},
+                )
+                return JSONResponse(
+                    {
+                        "error": "Sign in with your password to open this company.",
+                        "code": refusal,
+                    },
+                    status_code=403,
+                )
 
         session_has_account_id = False
         try:
@@ -872,16 +963,23 @@ def create_auth_sessions_router(
 
         try:
             with bl.conn.cursor() as cur:
-                cur.execute(
-                    _SWITCH_LOCAL_SESSION_ACCOUNT_SQL
-                    if session_auth_method_available(bl)
-                    else _SWITCH_SESSION_ACCOUNT_SQL,
-                    (
-                        selected_account_id,
-                        _session_token_hash(session_token),
-                        str(auth_user.get("id") or "").strip(),
-                    ),
+                switch_params: tuple[Any, ...] = (
+                    selected_account_id,
+                    _session_token_hash(session_token),
+                    str(auth_user.get("id") or "").strip(),
                 )
+                if external:
+                    cur.execute(
+                        _SWITCH_INSTALLATION_WIDE_SESSION_ACCOUNT_SQL,
+                        (*switch_params, wide_methods),
+                    )
+                else:
+                    cur.execute(
+                        _SWITCH_LOCAL_SESSION_ACCOUNT_SQL
+                        if session_auth_method_available(bl)
+                        else _SWITCH_SESSION_ACCOUNT_SQL,
+                        switch_params,
+                    )
                 if int(getattr(cur, "rowcount", 0) or 0) <= 0:
                     return JSONResponse({"error": "Session not found"}, status_code=401)
             _conn_commit(bl.conn)

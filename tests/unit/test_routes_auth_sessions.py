@@ -68,6 +68,7 @@ def _client_with_state(
     session_columns: frozenset[str] = frozenset({"account_id"}),
     audit_events: list[dict[str, Any]] | None = None,
     open_invitation_tokens: frozenset[str] = frozenset(),
+    installation_wide_methods: Any = None,
 ) -> tuple[TestClient, _Cursor]:
     cursor = _Cursor(membership_rows=membership_rows)
     bl = SimpleNamespace(
@@ -116,6 +117,7 @@ def _client_with_state(
         auth_csrf_cookie_name="fs_csrf",
         first_admin_service_factory=lambda _bl: None,
         invitation_token_open=lambda _bl, token: token in open_invitation_tokens,
+        installation_wide_methods=installation_wide_methods,
     )
     app = FastAPI()
 
@@ -267,6 +269,78 @@ def test_switch_account_refuses_a_session_from_external_sign_in() -> None:
     assert [
         (event["action"], event["status"], event["detail"]["reason"]) for event in audit_events
     ] == [("switch_account", "rejected", "external_session_account_pinned")]
+
+
+def _external_client(
+    monkeypatch, method: str, *, refusal: str | None = None, rows: Any = None
+) -> tuple[TestClient, _Cursor, list[dict[str, Any]]]:
+    from core.application.auth import external_sign_in_repository
+
+    monkeypatch.setattr(external_sign_in_repository, "session_identity_method", lambda *_a: method)
+    monkeypatch.setattr(
+        external_sign_in_repository, "external_person_refusal", lambda *_a, **_k: refusal
+    )
+    audit_events: list[dict[str, Any]] = []
+    client, cursor = _client_with_state(
+        audit_events=audit_events,
+        auth_user={
+            "id": 7,
+            "username": "dev@example.com",
+            "account_id": "acc_alpha",
+            "auth_source": "external",
+            "account_memberships": rows or _TWO_ACCOUNTS,
+        },
+        membership_rows=rows or _TWO_ACCOUNTS,
+        installation_wide_methods=lambda: ["wide"],
+    )
+    client.cookies.set("fs_session", "session-token")
+    return client, cursor, audit_events
+
+
+def test_an_installation_wide_session_switches_between_its_companies(monkeypatch) -> None:
+    client, cursor, _audit = _external_client(monkeypatch, "wide")
+
+    response = client.post("/api/auth/switch-account", json={"account_id": "acc_beta"})
+
+    assert response.status_code == 200, response.text
+    update = next(q for q in cursor.executed_queries if "UPDATE auth_sessions" in q)
+    assert "auth_method = 'external'" in update and "ei.method = ANY(%s)" in update
+
+
+def test_a_session_of_one_companys_sign_in_stays_pinned(monkeypatch) -> None:
+    client, cursor, _audit = _external_client(monkeypatch, "acme-ticket")
+
+    response = client.post("/api/auth/switch-account", json={"account_id": "acc_beta"})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "external_session_account_pinned"
+    assert not any("UPDATE auth_sessions" in q for q in cursor.executed_queries)
+
+
+def test_an_installation_wide_session_never_enters_the_installation_account(monkeypatch) -> None:
+    from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+    rows = [*_TWO_ACCOUNTS, {**_TWO_ACCOUNTS[1], "account_id": str(INSTALLATION_ACCOUNT_ID)}]
+    client, cursor, _audit = _external_client(monkeypatch, "wide", rows=rows)
+
+    response = client.post(
+        "/api/auth/switch-account", json={"account_id": str(INSTALLATION_ACCOUNT_ID)}
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "external_session_installation_account"
+    assert not any("UPDATE auth_sessions" in q for q in cursor.executed_queries)
+
+
+def test_an_installation_wide_session_never_reaches_an_administrator_it_may_not_sign_in(
+    monkeypatch,
+) -> None:
+    client, _cursor, _audit = _external_client(monkeypatch, "wide", refusal="admin_not_external")
+
+    response = client.post("/api/auth/switch-account", json={"account_id": "acc_beta"})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "admin_not_external"
 
 
 def test_switch_account_refuses_an_account_where_the_person_has_no_role() -> None:

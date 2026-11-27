@@ -306,6 +306,14 @@ def create_api_app_bootstrap_router(
             )
             auth_boundary_enabled = local_enabled or external_enabled or bootstrap_required
             include_authenticated_metadata = authenticated or not auth_boundary_enabled
+            # ADR 0085 P5: a person with no role in the session's account (signed in only
+            # to answer an invitation) sees nothing of that account: no features,
+            # pages or permissions.
+            role_less = authenticated and not _normalized_roles(auth_user)
+            if role_less:
+                include_authenticated_metadata = False
+                feature_flags = {}
+                permissions = []
             client_feature_flags = feature_flags if include_authenticated_metadata else {}
             # ADR 0082: where a module-delivered feature's API lives, for entitled
             # features only; an absent endpoint keeps Core's control hidden.

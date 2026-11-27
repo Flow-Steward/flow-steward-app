@@ -19,8 +19,21 @@ UNUSABLE_PASSWORD_MARKER = "!external-sign-in"
 EXTERNAL_AUTH_METHOD = "external"
 
 
+#: The same, for a person created only to answer an invitation who has not accepted
+#: yet (no company, no role). Accepting turns it into :data:`UNUSABLE_PASSWORD_MARKER`;
+#: a password the person sets with Forgot password replaces it like any other.
+AWAITING_INVITATION_MARKER = "!external-sign-in:awaiting-invitation"
+#: Every password hash that never verifies.
+UNUSABLE_PASSWORD_MARKERS = (UNUSABLE_PASSWORD_MARKER, AWAITING_INVITATION_MARKER)
+
+
 def is_unusable_password(password_hash: Any) -> bool:
-    return str(password_hash or "") == UNUSABLE_PASSWORD_MARKER
+    return str(password_hash or "") in UNUSABLE_PASSWORD_MARKERS
+
+
+def is_awaiting_invitation(password_hash: Any) -> bool:
+    """A person created only to answer an invitation, who has not accepted it yet."""
+    return str(password_hash or "") == AWAITING_INVITATION_MARKER
 
 
 def _rows(cur: Any) -> list[dict[str, Any]]:
@@ -310,8 +323,41 @@ def user_holds_admin_role(cur: Any, user_id: str) -> bool:
     return _flag(cur.fetchone())
 
 
+def user_holds_installation_admin_role(cur: Any, user_id: str) -> bool:
+    """The person is an administrator of the installation account, or holds a scoped
+    administrator role anywhere."""
+    if not is_uuid(user_id):
+        return False
+    from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM user_account_memberships m JOIN roles r ON r.id = m.role_id
+            WHERE m.user_id = %s AND CAST(m.account_id AS TEXT) = %s AND r.key = ANY(%s)
+        ) OR EXISTS (
+            SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = %s AND r.key = ANY(%s)
+        )
+        """,
+        (
+            user_id,
+            str(INSTALLATION_ACCOUNT_ID),
+            list(ADMIN_ROLE_KEYS),
+            user_id,
+            list(ADMIN_ROLE_KEYS),
+        ),
+    )
+    return _flag(cur.fetchone())
+
+
 def external_person_refusal(
-    cur: Any, *, user_id: str, account_id: str, allow_admin: bool = False
+    cur: Any,
+    *,
+    user_id: str,
+    account_id: str,
+    allow_admin: bool = False,
+    allow_account_admin: bool = False,
 ) -> str | None:
     """Why an identity of ``account_id`` may not sign in as, or be linked to, a person.
 
@@ -321,10 +367,18 @@ def external_person_refusal(
     no longer matter (ADR 0083 amendment of 2026-11-27). ``None`` unless the person
     is an administrator of any account, the installation account included, or holds
     a scoped administrator role; ``allow_admin`` (a role grant, which never removes
-    or raises an administrator) waives that check.
+    or raises an administrator) waives that check. ``allow_account_admin`` (an
+    identity of an installation-wide sign-in method: the person's own sign-in, set up
+    by the installation and not by one account) waives it for administrators of
+    ordinary accounts; an administrator of the installation account, or a scoped
+    administrator, is still refused.
     """
     del account_id
-    if not allow_admin and user_holds_admin_role(cur, user_id):
+    if allow_admin:
+        return None
+    if allow_account_admin:
+        return REFUSED_ADMIN if user_holds_installation_admin_role(cur, user_id) else None
+    if user_holds_admin_role(cur, user_id):
         return REFUSED_ADMIN
     return None
 
@@ -375,3 +429,60 @@ def insert_session(
             external_identity_id,
         ),
     )
+
+
+def session_is_recent(cur: Any, token_hash: str, max_age_seconds: int) -> bool:
+    """The local session ``token_hash`` names is live and was started (by entering
+    the password) at most ``max_age_seconds`` ago."""
+    cur.execute(
+        """
+        SELECT created_at > now() - make_interval(secs => %s)
+          FROM auth_sessions
+         WHERE session_token_hash = %s AND revoked = false AND expires_at > now()
+        """,
+        (int(max_age_seconds), str(token_hash or "")),
+    )
+    return _flag(cur.fetchone())
+
+
+def session_identity_method(cur: Any, token_hash: str, user_id: str) -> str:
+    """The sign-in method kind of the identity a live external session was issued for,
+    or ``""``."""
+    cur.execute(
+        """
+        SELECT ei.method
+          FROM auth_sessions s
+          JOIN external_identities ei ON ei.id = s.external_identity_id
+         WHERE s.session_token_hash = %s AND CAST(s.user_id AS TEXT) = %s
+           AND s.revoked = false AND s.expires_at > now()
+           AND s.auth_method = 'external'
+        """,
+        (str(token_hash or ""), str(user_id or "")),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return ""
+    value = row.get("method") if isinstance(row, Mapping) else row[0]
+    return str(value or "")
+
+
+def companies_with_role(cur: Any, user_id: str) -> list[str]:
+    """The active accounts, the installation account aside, where the person holds a
+    role: the companies an installation-wide session may choose between."""
+    from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+    cur.execute(
+        """
+        SELECT CAST(m.account_id AS TEXT)
+          FROM user_account_memberships m
+          JOIN accounts a ON a.id = m.account_id AND a.is_active
+         WHERE CAST(m.user_id AS TEXT) = %s AND m.role_id IS NOT NULL
+           AND CAST(m.account_id AS TEXT) <> %s
+         ORDER BY m.is_default DESC, m.account_id
+        """,
+        (str(user_id or ""), str(INSTALLATION_ACCOUNT_ID)),
+    )
+    rows = cur.fetchall() or []
+    return [
+        str(row[0] if not isinstance(row, Mapping) else next(iter(row.values()))) for row in rows
+    ]

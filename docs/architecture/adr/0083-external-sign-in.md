@@ -290,3 +290,146 @@ the person or the account, still revokes their external sessions and, for a pers
 who signs in externally, their personal tokens. Adding someone as an administrator
 of another account revokes them too, because such a person may no longer sign in
 externally.
+
+## Amendment 2026-11-27 (2): installation-wide sign-in methods
+
+A hosted installation offers one set of sign-in buttons to every visitor, set up once
+by the installation administrator and owned by no account. Three neutral additions
+to the seam let a platform module provide them; Core still implements no protocol.
+
+- **`installation_wide = True` on a sign-in method.** Its options belong to no account
+  (Core ignores an option's `account_id`), its identities name none (Core sets
+  `account_id` to empty), and Core marks each identity `installation_wide`. An
+  option's feature is checked for the installation account, on the sign-in page, at
+  start and at the callback; the session's own account needs no feature. The resolver
+  still chooses the user and the account, and Core's checks (membership, active
+  person and account, session guards, link uniqueness per account) are unchanged.
+- **The person rule for such an identity** (`external_person_refusal(...,
+  allow_account_admin=True)`): it may sign in, or be linked by the signed-in person,
+  as an administrator of an ordinary account, because it is the person's own sign-in
+  and no account's administrator configured it. An administrator of the installation
+  account, or a holder of a scoped administrator role, is still refused
+  (`admin_not_external`). Identities of account methods keep the rule above.
+- **Invitation answers.** When the attempt returns to an invitation link
+  (`/invitations/<token>`), Core reads the open invitation and passes its account to
+  the resolver as `VerifiedExternalIdentity.invitation_account_id` (empty otherwise).
+  The invitation is still accepted only by the person on the invitation page
+  (ADR 0085 C1); the resolver may only use it to decide where a new person lands.
+- **The resolver's sentence.** `ExternalIdentityRefused(..., public_message=...)`
+  (at most 240 characters, no personal data) replaces Core's generic text on the
+  sign-in page.
+- **Own account (self-service sign-up).** `ExternalSignInPort.create_own_account(email,
+  display_name, account_name, created_by)` creates, in one transaction under the
+  account lifecycle lock, a new account within the installation's `accounts` limit
+  (`AccountLimitError` 409/503 as for an administrator), a person without a local
+  password and their membership with the administrator role, and audits
+  `account_create` with `source: self_service`. A taken address is refused
+  (`ValueError`); the port never links or moves an existing person. Whether a module
+  calls it is the module's decision (an installation setting, off by default).
+
+Sessions stay pinned to the account they were issued for. A person who belongs to
+several accounts reaches the one the resolver chose; letting installation-wide
+sessions switch accounts is open.
+
+### Review fixes (2026-11-27)
+
+- **No password for external-only people.** An administrator cannot set the password
+  of a person whose password is the external-only marker (`PUT /api/auth/users/{id}`
+  with `password` answers 403). Otherwise an administrator who manages every account
+  of such a person could set one, sign in as them and link another sign-in. The person
+  sets a password themselves with Forgot password.
+- **Undo and after-session.** `ExternalIdentityResolution` may carry `undo` (called
+  when Core refuses the sign-in after resolving: inactive person, entitlement, session
+  guard, link) and `after_session` (called once the session exists). The port's
+  `discard_new_person(user_id, account_id, reason)` removes a person created in the
+  last hour who never had a password or a session, with their links and memberships,
+  and the account they alone belonged to (disabled when it cannot be removed);
+  audited as `external_person_discard`.
+- **Client address.** A method that declares `wants_client_address = True` gets
+  `client_address` in `begin` and `complete` (the address Core's routes resolve), so it
+  can count its limits per client.
+- **Invitation limit policies.** `core.application.auth.invitation_policies.register_invitation_limits(policy)`:
+  a policy returns `(key, max_attempts, window_seconds)` triples for an account, and
+  Core counts each invitation against them with its own limits in the shared store; a
+  failing policy refuses the invitation. The registry is rolled back with a module that
+  fails to load.
+- **The installation account is joined with a password.** Accepting an invitation to
+  the installation account from an external session is refused.
+- **Linking needs a fresh password sign-in.** `start?intent=link` needs a local
+  session started at most ten minutes ago. Open: the link start is still a GET from a
+  link; a POST with CSRF from a profile button and an email to the person after a link
+  is added need frontend and email-template work.
+- **Privacy note.** Company administrators list the identity links stored in their
+  account (`/api/settings/external-sign-in/identities`), which for an installation-wide
+  method include the provider's subject of their members. Not hidden yet.
+
+### Second review (2026-11-27)
+
+- **Client address.** Unchanged here: deriving the client address correctly per
+  ingress mode is a separate Core task. Methods that count limits per client
+  (`wants_client_address`) are only as precise as that address on the deployment.
+- **Waiting newcomers.** A person who signs in only externally and waits in the
+  installation account (no role) to answer an invitation is left out of user lists
+  and can get no role there; accepting moves them into the company they joined (home
+  and default) and removes the placeholder membership. Core passes
+  `invitation_id` with `invitation_account_id`.
+- **Discard is one-shot.** `discard_new_person` removes only what `create_user` or
+  `create_own_account` of the same process created in the last hour, once, and an
+  account only with the person it was created with.
+- **A session without a role** gets no features, pages or permissions of the account
+  from `/api/app/bootstrap`.
+
+### Final review (2026-11-27)
+
+- **Waiting newcomers are marked.** `create_user(..., awaiting_invitation=True)` gives a
+  person created only to answer an invitation the password marker
+  `!external-sign-in:awaiting-invitation` (it never verifies, like `!external-sign-in`).
+  Only such people are left out of user lists and refused a role in the installation
+  account; people a company sign-in provisioned there keep every role change.
+- **Accepting settles the person.** A person whose home is the installation account
+  and who has no role there (waiting, or who set a password with Forgot password
+  meanwhile) moves into the company they joined: home and default change, their
+  identity links move there, what they held in the installation account is revoked
+  and the role-less membership goes; the awaiting marker becomes the ordinary one.
+- **Invitation references follow the link.** `invitation_id` changes when the link
+  is renewed, so a module's "one newcomer per link" starts again with the new link.
+- **Own-account hooks.** `create_own_account(..., before=, after=)` runs a module's
+  check (`before(cursor)`, after Core's checks, under the account lifecycle lock) and
+  record (`after(cursor, created)`) in Core's transaction.
+
+### Round 4 (2026-11-27)
+
+- Settling on acceptance applies only to newcomers: people still carrying the
+  awaiting marker, or recorded as such by a module that registered a
+  `NewcomerSource` (`core.application.auth.invitation_policies.register_newcomer_source`,
+  rolled back with a failed module). Only links of the source's `identity_methods`
+  move; a newcomer with a role in another company keeps home and default. Anybody
+  else homed role-less in the installation account is left alone.
+- `decide` answers `sign_in_again: true` after a settle (the accepting session was
+  revoked); the invitation page sends the person to sign in again with a message.
+
+### Choosing and switching companies (2026-11-27)
+
+A session issued by an **installation-wide** method is the person's own sign-in, not
+one company's, so it is no longer pinned:
+
+- After the sign-in, a person with a role in more than one active company (the
+  installation account aside) is sent to `/login?choose_account=1&next=<path>`; the
+  sign-in page shows the same company chooser as after a password sign-in, with the
+  default company preselected (the session starts there), and switches on Continue.
+- `POST /api/auth/switch-account` moves such a session between the person's
+  companies (`auth_method = 'external'` and the session's identity of an
+  installation-wide method kind, which Core reads from the registered methods). Kept:
+  never into a company without a role (`no_role_in_account`), never into the
+  installation account (`external_session_installation_account`), never for a person
+  an external identity may not sign in as (`external_person_refusal` with
+  `allow_account_admin`), and a session of a per-account method stays pinned
+  (`external_session_account_pinned`).
+- Everything else reads the session's current account, as for a local session:
+  roles, the installation-administrator predicate (never true, the installation
+  account being out of reach), the account an OAuth grant is made in and which grants
+  are listed, and revocation: removing the person from the company the session acts
+  in revokes it (`revoke_account_access` matches the session's account).
+- Residual: the session's identity link stays in the company where it was made, so
+  that company's administrator can still list the link and, by unlinking it, end the
+  person's session wherever it acts.

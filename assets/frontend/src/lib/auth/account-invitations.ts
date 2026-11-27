@@ -17,6 +17,8 @@ export type InvitationDecision = {
   accountId: string;
   accountName: string;
   role: string;
+  /** Accepting moved the person out of the account their session was in: sign in again. */
+  signInAgain: boolean;
 };
 
 const INVITATION_PATH = /^\/invitations\/([^/?#]+)\/?$/;
@@ -60,6 +62,7 @@ async function decide(path: "accept" | "decline", body: Record<string, string>):
     accountId: text(payload?.account_id),
     accountName: text(payload?.account_name),
     role: text(payload?.role),
+    signInAgain: payload?.sign_in_again === true,
   };
 }
 

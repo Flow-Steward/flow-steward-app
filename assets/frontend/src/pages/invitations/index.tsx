@@ -79,6 +79,18 @@ function InvitationAnswer({ invitation, token }: Readonly<{ invitation: Invitati
         return;
       }
       const joined = await acceptInvitation(token, invitation.role);
+      if (joined.signInAgain) {
+        // Joining moved the person out of the account this session was in, so the
+        // session ended: say so on the sign-in page instead of failing later.
+        const message = t("react.invitations.sign_in_again", "You joined {company}. Sign in again to open it.", { company });
+        try {
+          await auth.refresh();
+        } catch {
+          // The session is gone; the sign-in page follows either way.
+        }
+        await navigate(`/login?flash=${encodeURIComponent(message)}`, { replace: true });
+        return;
+      }
       try {
         // Land in the company just joined; a session pinned to its account by an
         // external sign-in stays where it is.

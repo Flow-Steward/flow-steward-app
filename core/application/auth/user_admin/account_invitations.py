@@ -29,6 +29,11 @@ from typing import Any
 
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.email import normalize_email_address
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+from core.application.auth.invitation_policies import (
+    InvitationPolicyUnavailable,
+    extra_invitation_limits,
+)
 from core.application.auth.membership_roles import (
     INVITER_IS_ADMIN_PREDICATE,
     cancel_invitations_of_former_admins,
@@ -53,6 +58,8 @@ from core.application.management.errors import (
 )
 from core.infrastructure.db.db_pool import transaction_connection
 
+#: Refusal of an invitation to the installation account answered from an external session.
+INSTALLATION_INVITATION_NEEDS_PASSWORD_MESSAGE = "Sign in with your password to join this company."
 #: Days an invitation stays open.
 INVITATION_LIFETIME_DAYS = 14
 #: The one answer to an invitation, whether or not the person exists.
@@ -297,6 +304,134 @@ def _open_invitation(cur: Any, token_hash: str, *, lock: bool) -> dict[str, str]
     }
 
 
+def _is_invitation_newcomer(user_id: str, password_hash: str) -> tuple[bool, tuple[str, ...]]:
+    """Whether the person was created only to answer an invitation, and the identity
+    methods whose links move with them. The awaiting marker says so; a person who
+    has set a password since counts only when a module's durable record says so."""
+    from core.application.auth.external_sign_in_repository import AWAITING_INVITATION_MARKER
+    from core.application.auth.invitation_policies import newcomer_sources
+
+    awaiting = password_hash == AWAITING_INVITATION_MARKER
+    methods: list[str] = []
+    recorded = False
+    for source in newcomer_sources():
+        methods.extend(str(kind) for kind in source.identity_methods if kind)
+        if not awaiting and not recorded:
+            try:
+                recorded = bool(source.is_newcomer(user_id))
+            except Exception:
+                recorded = False  # unknown: not a newcomer, nothing moves
+    return awaiting or recorded, tuple(dict.fromkeys(methods))
+
+
+def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> bool:
+    """Accepting moves a person created only to answer an invitation into the company
+    they joined (ADR 0083 amendment, review fixes); returns whether it did.
+
+    Only a newcomer: homed in the installation account with no role there, and either
+    still carrying the awaiting marker or recorded as a newcomer by the module that
+    created them (when they set a password meanwhile). Anybody else, for example a
+    person a company sign-in provisioned there or one with a local password, is left
+    as they are. For a newcomer: the awaiting marker becomes the ordinary one; when
+    they already hold a role in another company nothing else changes; otherwise the
+    joined one becomes their home and default; their links of the newcomer's identity methods move there (a link the
+    company already has for that identity is dropped; other links stay); what they
+    held in the installation account is revoked and the role-less membership goes.
+    """
+    from core.application.auth.external_sign_in_repository import (
+        AWAITING_INVITATION_MARKER,
+        UNUSABLE_PASSWORD_MARKER,
+    )
+    from core.application.auth.membership_roles import revoke_account_access
+
+    installation = _text(INSTALLATION_ACCOUNT_ID)
+    if not _text(user_id) or _text(account_id) == installation:
+        return False
+    cur.execute(
+        """
+        SELECT u.password_hash,
+               EXISTS (
+                   SELECT 1 FROM user_account_memberships o
+                    WHERE o.user_id = u.id AND o.role_id IS NOT NULL
+                      AND o.account_id::text NOT IN (%s, %s)) AS has_roles_elsewhere
+          FROM users u
+         WHERE u.id::text = %s AND u.account_id::text = %s
+           AND NOT EXISTS (
+               SELECT 1 FROM user_account_memberships m
+                WHERE m.user_id = u.id AND m.account_id::text = %s
+                  AND m.role_id IS NOT NULL)
+           FOR UPDATE OF u
+        """,
+        (installation, account_id, user_id, installation, installation),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return False
+    password_hash = _text(_value(row, "password_hash", 0))
+    roles_elsewhere = bool(_value(row, "has_roles_elsewhere", 1))
+    newcomer, methods = _is_invitation_newcomer(user_id, password_hash)
+    if not newcomer:
+        return False
+    cur.execute(
+        "UPDATE users SET password_hash = %s, updated_at = now() "
+        "WHERE id::text = %s AND password_hash = %s",
+        (UNUSABLE_PASSWORD_MARKER, user_id, AWAITING_INVITATION_MARKER),
+    )
+    if roles_elsewhere:
+        # A company already holds them: their home, default and links stay.
+        return False
+    cur.execute(
+        "UPDATE users SET account_id = %s::uuid, updated_at = now() WHERE id::text = %s",
+        (account_id, user_id),
+    )
+    cur.execute(
+        "UPDATE user_account_memberships SET is_default = (account_id::text = %s) "
+        "WHERE user_id::text = %s",
+        (account_id, user_id),
+    )
+    if methods:
+        cur.execute(
+            """
+            UPDATE external_identities e SET account_id = %s::uuid
+             WHERE e.user_id::text = %s AND e.account_id::text = %s
+               AND e.method = ANY(%s)
+               AND NOT EXISTS (
+                   SELECT 1 FROM external_identities o
+                    WHERE o.account_id::text = %s AND o.issuer = e.issuer
+                      AND o.subject = e.subject)
+            """,
+            (account_id, user_id, installation, list(methods), account_id),
+        )
+        cur.execute(
+            "DELETE FROM external_identities "
+            "WHERE user_id::text = %s AND account_id::text = %s AND method = ANY(%s)",
+            (user_id, installation, list(methods)),
+        )
+    revoke_account_access(
+        cur, user_id=user_id, account_id=installation, reason="invitation_accepted"
+    )
+    cur.execute(
+        "DELETE FROM user_account_memberships "
+        "WHERE user_id::text = %s AND account_id::text = %s AND role_id IS NULL",
+        (user_id, installation),
+    )
+    return True
+
+
+def open_invitation_ref(cur: Any, token: str) -> tuple[str, str]:
+    """``(invitation id, account)`` of the open invitation ``token`` names, or empty
+    strings (ADR 0083 amendment: an external sign-in that returns to an invitation
+    link)."""
+    if not _text(token):
+        return "", ""
+    token_hash = invitation_token_hash(token)
+    found = _open_invitation(cur, token_hash, lock=False)
+    if not found:
+        return "", ""
+    # The link, not only the invitation: renewing the link (P1) gives a new one.
+    return f"{found['id']}:{token_hash[:16]}", found["account_id"]
+
+
 def preview(cur: Any, token_hash: str) -> dict[str, str]:
     """What the person is invited to: company, role, inviter and expiry."""
     found = _open_invitation(cur, token_hash, lock=False)
@@ -317,6 +452,7 @@ def decide(
     user_id: str,
     accept: bool,
     expected_role: str = "",
+    external_session: bool = False,
 ) -> dict[str, Any]:
     """Accept or decline the invitation the token names, as ``user_id``.
 
@@ -333,6 +469,10 @@ def decide(
     role = found["role"]
     if accept and _text(expected_role).lower() != role:
         raise ServiceConflictError(INVITATION_CHANGED_MESSAGE)
+    if accept and external_session and found["account_id"] == _text(INSTALLATION_ACCOUNT_ID):
+        # The installation account is administered with a local password only.
+        raise ServiceForbiddenError(INSTALLATION_INVITATION_NEEDS_PASSWORD_MESSAGE)
+    settled = False
     if accept:
         # Already a member (added meanwhile): the invitation is simply done.
         with contextlib.suppress(ServiceConflictError):
@@ -343,6 +483,7 @@ def decide(
                 role=role,
                 managed_account_ids=None,
             )
+        settled = _settle_newcomer(cur, user_id=_text(user_id), account_id=found["account_id"])
     # The person who answered is recorded on the invitation.
     cur.execute(
         "UPDATE account_invitations SET status = %s, user_id = %s::uuid WHERE id::text = %s",
@@ -354,6 +495,9 @@ def decide(
         "account_id": found["account_id"],
         "account_name": found["account_name"],
         "role": role,
+        # The person was moved out of the account their session is in: the session
+        # is revoked, so the page asks them to sign in again.
+        **({"sign_in_again": True} if settled else {}),
     }
 
 
@@ -413,12 +557,19 @@ class AccountInvitationService:
         typed, address = invited_address(email)
         token = self._new_token()
         bl = self._logger()
+        try:
+            extra = extra_invitation_limits(account)
+        except InvitationPolicyUnavailable as exc:
+            raise ServiceUnavailableError("Invitations are unavailable right now") from exc
         with transaction_connection(bl.conn) as conn, conn.cursor() as cur:
             self._throttle(
                 cur,
-                invitation_limits(
-                    admin_user_id=admin_user_id, account_id=account, recipient=address
-                ),
+                [
+                    *invitation_limits(
+                        admin_user_id=admin_user_id, account_id=account, recipient=address
+                    ),
+                    *extra,
+                ],
             )
             expired = delete_expired(cur, account)
             stored = invite(
@@ -538,6 +689,7 @@ class AccountInvitationService:
         username: str,
         accept: bool,
         role: str = "",
+        external_session: bool = False,
     ) -> dict[str, Any]:
         """Accept (with the role shown) or decline the invitation the link names."""
         if not _text(token) or not _text(user_id):
@@ -550,6 +702,7 @@ class AccountInvitationService:
                 user_id=user_id,
                 accept=accept,
                 expected_role=role,
+                external_session=external_session,
             )
         self._audit(
             bl,

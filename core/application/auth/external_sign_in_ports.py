@@ -41,6 +41,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -84,6 +85,19 @@ class VerifiedExternalIdentity:
     claims: Mapping[str, Any] = field(default_factory=dict)
     #: The entitlement the identity's source needs; empty when none.
     feature: str = ""
+    #: Set by Core, never by the method: the identity comes from a method declared
+    #: ``installation_wide`` (its options belong to no account). Such an identity is
+    #: the person's own sign-in, so it may sign in an administrator of an ordinary
+    #: account (never of the installation account), and its feature is checked for
+    #: the installation account.
+    installation_wide: bool = False
+    #: Set by Core, never by the method: the account of the open invitation the
+    #: person is answering, when the sign-in returns to an invitation link
+    #: (``/invitations/<token>``, ADR 0085 C1); empty otherwise.
+    invitation_account_id: str = ""
+    #: Set by Core with ``invitation_account_id``: which invitation link it is (a link
+    #: the administrator renews gets a new value).
+    invitation_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -98,6 +112,11 @@ class ExternalIdentityResolution:
 
     user_id: str
     account_id: str
+    #: What the resolver created for this sign-in, undone when Core refuses the
+    #: sign-in after resolving (inactive person, entitlement, session guard, link).
+    undo: Callable[[], None] | None = field(default=None, compare=False, repr=False)
+    #: Called once after the session is issued (e.g. to tell other modules).
+    after_session: Callable[[], None] | None = field(default=None, compare=False, repr=False)
 
 
 class ExternalSignInError(Exception):
@@ -138,7 +157,14 @@ class BeginResult:
 
 @runtime_checkable
 class SignInMethod(Protocol):
-    """A kind of sign-in. ``complete`` raises :class:`ExternalSignInError` on failure."""
+    """A kind of sign-in. ``complete`` raises :class:`ExternalSignInError` on failure.
+
+    A method may declare ``installation_wide = True``: it is set up once for the
+    whole installation, its options belong to no account (Core ignores an option's
+    ``account_id``) and its identities name none. Core then marks each identity
+    ``installation_wide`` (see :class:`VerifiedExternalIdentity`) and checks an
+    option's feature for the installation account.
+    """
 
     kind: str
 
@@ -160,11 +186,17 @@ class SignInMethod(Protocol):
 
 
 class ExternalIdentityRefused(Exception):
-    """The identity may not sign in. ``reason`` is a stable code for the audit log."""
+    """The identity may not sign in. ``reason`` is a stable code for the audit log.
 
-    def __init__(self, reason: str, message: str = "") -> None:
+    ``public_message`` is an optional plain-language sentence for the person (at most
+    240 characters, no personal data); Core shows it on the sign-in page instead of
+    its generic text.
+    """
+
+    def __init__(self, reason: str, message: str = "", *, public_message: str = "") -> None:
         super().__init__(message or reason)
         self.reason = reason
+        self.public_message = str(public_message or "").strip()[:240]
 
 
 @runtime_checkable
@@ -222,13 +254,20 @@ class LinkedIdentityResolver:
 class ExternalSignInPort:
     """``container.external_sign_in``: what a platform module may plug into sign-in."""
 
-    def __init__(self, connection: ConnectionFactory) -> None:
+    def __init__(
+        self,
+        connection: ConnectionFactory,
+        entitlement_service: Callable[[], Any] | None = None,
+    ) -> None:
         self._connection = connection
+        self._entitlement_service = entitlement_service
         self._lock = threading.Lock()
         self._default_resolver = LinkedIdentityResolver(connection)
         self._resolver: ExternalIdentityResolver | None = None
         self._header_source: ExternalSignInHeaderSource | None = None
         self._methods: dict[str, SignInMethod] = {}
+        #: What this process created for sign-ins, discardable once: user -> account.
+        self._created: dict[str, tuple[str, float]] = {}
 
     # --- registration -----------------------------------------------------------------
 
@@ -403,15 +442,27 @@ class ExternalSignInPort:
         display_name: str = "",
         roles: Iterable[str] = ("viewer",),
         active: bool = True,
+        awaiting_invitation: bool = False,
     ) -> str:
         """Create a user of ``account_id`` without a local password; returns its id.
 
         The user can sign in only externally (its password hash never verifies).
+        ``awaiting_invitation`` marks a person created only to answer an invitation:
+        they take no role (``roles`` must be empty), are left out of user lists and
+        get no role in the installation account until accepting moves them into the
+        company they joined.
         Refused with :class:`ValueError` for an unknown or inactive account, a taken
         username, an installation without users (the first user is an administrator
         created locally) or a role other than :data:`GRANTABLE_ROLES`.
         """
         granted = _grantable(roles)
+        if awaiting_invitation and granted:
+            raise ValueError("A person awaiting an invitation takes no role")
+        marker = (
+            repository.AWAITING_INVITATION_MARKER
+            if awaiting_invitation
+            else repository.UNUSABLE_PASSWORD_MARKER
+        )
         username = str(email or "").strip().lower()
         if not username or "@" not in username or len(username) > 320:
             raise ValueError("A user needs an email address")
@@ -432,7 +483,7 @@ class ExternalSignInPort:
                 """,
                 (
                     username,
-                    repository.UNUSABLE_PASSWORD_MARKER,
+                    marker,
                     str(display_name or "").strip() or username,
                     bool(active),
                     account_id,
@@ -447,7 +498,204 @@ class ExternalSignInPort:
                 (user_id, account_id),
             )
             _grant(cur, user_id=user_id, account_id=account_id, roles=granted)
+        self._remember_created(user_id, "")
         return user_id
+
+    def create_own_account(
+        self,
+        *,
+        email: str,
+        display_name: str = "",
+        account_name: str = "",
+        created_by: str,
+        before: Callable[[Any], None] | None = None,
+        after: Callable[[Any, Mapping[str, str]], None] | None = None,
+    ) -> dict[str, str]:
+        """Self-service sign-up: a new account with a new person as its administrator.
+
+        For a method that verified a person nobody invited and that an installation
+        setting lets create their own account. In one transaction under the account
+        lifecycle lock: the ``accounts`` limit of the installation is checked (as for
+        an installation administrator creating an account), the account is created,
+        the person is created without a local password, made a member with the
+        administrator role, and ``account_create`` is audited (``source``
+        ``self_service``, actor ``created_by``). Returns ``{"account_id", "user_id"}``.
+
+        Refused with :class:`~core.application.auth.account_limit.AccountLimitError`
+        when the limit is reached (409) or unreadable (503), and :class:`ValueError`
+        for a taken email address, an installation without users, or no limit source.
+
+        ``before(cursor)`` runs in the same transaction, under the lock, after Core's
+        checks and before anything is written: a module checks its own quota there
+        and raises to refuse. ``after(cursor, created)`` runs before the commit: a
+        module records the new account there, so both commit or neither does.
+        """
+        import uuid
+
+        from core.application.auth.account_limit import (
+            account_limit_unavailable,
+            require_account_creation_allowed,
+        )
+        from core.application.auth.membership_roles import set_membership_role
+        from core.application.auth.permissions import ADMIN_ROLE
+        from core.application.auth.scoped_role_ports import record_scope_limit_audit
+        from core.infrastructure.db.logger_extensions_accounts_accounts_mixin import (
+            ACCOUNT_LIFECYCLE_LOCK_KEY,
+        )
+
+        username = str(email or "").strip().lower()
+        if not username or "@" not in username or len(username) > 320:
+            raise ValueError("A user needs an email address")
+        actor = str(created_by or "").strip()
+        if not actor:
+            raise ValueError("created_by is required")
+        service = self._entitlement_service() if callable(self._entitlement_service) else None
+        if service is None:
+            raise account_limit_unavailable("no entitlement service")
+        name = str(display_name or "").strip() or username
+        company = (str(account_name or "").strip() or name)[:200]
+        account_id = str(uuid.uuid4())
+        with self._connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (ACCOUNT_LIFECYCLE_LOCK_KEY,))
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (_USER_LIFECYCLE_LOCK,))
+            cur.execute("SELECT EXISTS (SELECT 1 FROM users)")
+            if not _first_value(cur.fetchone()):
+                raise ValueError("The first user is created locally")
+            cur.execute("SELECT 1 FROM users WHERE lower(username) = %s", (username,))
+            if cur.fetchone():
+                raise ValueError("A user with this email already exists")
+
+            def count_active() -> int:
+                cur.execute("SELECT count(*) FROM accounts WHERE is_active")
+                return int(_first_value(cur.fetchone()) or 0)
+
+            require_account_creation_allowed(service, count_active)
+            if before is not None:
+                before(cur)
+            cur.execute(
+                """
+                INSERT INTO accounts (id, account_key, display_name, is_active)
+                VALUES (%s, %s, %s, true)
+                """,
+                (account_id, account_id, company),
+            )
+            cur.execute(
+                """
+                INSERT INTO users (username, password_hash, display_name, is_active, account_id)
+                VALUES (%s, %s, %s, true, %s)
+                RETURNING id::text
+                """,
+                (username, repository.UNUSABLE_PASSWORD_MARKER, name, account_id),
+            )
+            user_id = str(_first_value(cur.fetchone()) or "")
+            cur.execute(
+                """
+                INSERT INTO user_account_memberships (user_id, account_id, is_default)
+                VALUES (%s, %s, true)
+                """,
+                (user_id, account_id),
+            )
+            set_membership_role(cur, user_id=user_id, account_id=account_id, role=ADMIN_ROLE)
+            record_scope_limit_audit(
+                cur,
+                action="account_create",
+                actor=actor,
+                username=account_id,
+                detail={
+                    "account_id": account_id,
+                    "is_active": True,
+                    "source": "self_service",
+                    "user_id": user_id,
+                },
+            )
+            if after is not None:
+                after(cur, {"account_id": account_id, "user_id": user_id})
+        self._remember_created(user_id, account_id)
+        return {"account_id": account_id, "user_id": user_id}
+
+    def _remember_created(self, user_id: str, account_id: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            for key in [k for k, (_a, at) in self._created.items() if now - at > 3600]:
+                del self._created[key]
+            self._created[user_id] = (account_id, now)
+
+    def discard_new_person(self, *, user_id: str, account_id: str = "", reason: str) -> bool:
+        """Undo :meth:`create_user` or :meth:`create_own_account` of a sign-in Core then
+        refused, so neither the address nor the account limit stays taken.
+
+        Only a person who never had a local password, signed in no session and was
+        created in the last hour is removed (with their memberships and links);
+        ``account_id``, when given, goes too if that person was its only member and
+        it was created in the last hour (otherwise it is disabled, so it no longer
+        counts against the limit). Audited as ``external_person_discard``. Returns
+        whether the person was removed.
+
+        Only what :meth:`create_user` or :meth:`create_own_account` of this process
+        created can be discarded, once, and an account only with the person it was
+        created with: a module cannot name anybody else.
+        """
+        with self._lock:
+            created = self._created.pop(user_id, None)
+            if created is None or created[0] != str(account_id or ""):
+                return False
+        if not repository.is_uuid(user_id):
+            return False
+        with self._connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (_USER_LIFECYCLE_LOCK,))
+            cur.execute(
+                """
+                SELECT 1 FROM users u
+                 WHERE u.id = %s AND u.password_hash = ANY(%s)
+                   AND u.created_at > now() - interval '1 hour'
+                   AND NOT EXISTS (SELECT 1 FROM auth_sessions s WHERE s.user_id = u.id)
+                """,
+                (user_id, list(repository.UNUSABLE_PASSWORD_MARKERS)),
+            )
+            if cur.fetchone() is None:
+                return False
+            cur.execute("DELETE FROM external_identities WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM user_account_memberships WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            account_removed = False
+            if repository.is_uuid(account_id):
+                cur.execute(
+                    """
+                    SELECT 1 FROM accounts a
+                     WHERE a.id = %s AND a.created_at > now() - interval '1 hour'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM user_account_memberships m WHERE m.account_id = a.id)
+                    """,
+                    (account_id,),
+                )
+                if cur.fetchone() is not None:
+                    cur.execute("SAVEPOINT discard_account")
+                    try:
+                        cur.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
+                        account_removed = True
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT discard_account")
+                    if not account_removed:
+                        cur.execute(
+                            "UPDATE accounts SET is_active = false, updated_at = now() "
+                            "WHERE id = %s",
+                            (account_id,),
+                        )
+            from core.application.auth.scoped_role_ports import record_scope_limit_audit
+
+            record_scope_limit_audit(
+                cur,
+                action="external_person_discard",
+                actor="external-sign-in",
+                username="",
+                detail={
+                    "user_id": user_id,
+                    "account_id": str(account_id or ""),
+                    "account_removed": account_removed,
+                    "reason": str(reason or ""),
+                },
+            )
+        return True
 
     def grant_roles(self, *, account_id: str, user_id: str, roles: Iterable[str]) -> list[str]:
         """Add operator or viewer to a user of ``account_id``; never removes a role.
