@@ -1186,9 +1186,9 @@ class TestSearchPostgresSources:
         assert "Group: Planning" in item["snippet"]
         sql, params = conn.cursor_impl.calls[0]
         assert "FROM project_workflows pw" in sql
-        assert "JOIN registry_workflow_steps s ON s.owner_workflow_id = w.workflow_id" in sql
+        assert "ON s.owner_workflow_id = w.workflow_id AND s.account_id = w.account_id" in sql
         assert "LEFT JOIN registry_workflow_groups g ON g.id = s.group_id" in sql
-        assert "JOIN registry_workflow_groups g ON g.workflow_id = w.workflow_id" in sql
+        assert "ON g.workflow_id = w.workflow_id AND g.account_id = w.account_id" in sql
         assert "CONCAT(w.workflow_id, ':step:', s.step_id) AS id" in sql
         assert "'group' AS match_scope" in sql
         assert "registry_workflow_phases" not in sql

@@ -111,8 +111,13 @@ class RegistryDB:
         row = self.workflows.get(workflow_id)
         return copy.deepcopy(row) if row else None
 
-    def list_workflows(self, enabled_only=False, include_definitions=False):
-        rows = [copy.deepcopy(row) for row in self.workflows.values()]
+    def list_workflows(self, enabled_only=False, include_definitions=False, *, account_id=None):
+        # The real store lists one account's workflows (ADR 0084, C4b).
+        rows = [
+            copy.deepcopy(row)
+            for row in self.workflows.values()
+            if account_id is None or row.get("account_id", account_id) == account_id
+        ]
         return [row for row in rows if row.get("enabled")] if enabled_only else rows
 
 

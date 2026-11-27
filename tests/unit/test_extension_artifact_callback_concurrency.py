@@ -12,11 +12,21 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
+from core.entrypoints.api import reactions_extensions
 from core.entrypoints.api.reactions_extensions import create_reactions_extensions_router
 
 
 @pytest.mark.parametrize("route", ["action", "invoke"])
-def test_direct_execution_allows_concurrent_artifact_callback(route):
+def test_direct_execution_allows_concurrent_artifact_callback(route, monkeypatch):
+    # The scope here is a plain mapping; record the project permission check the
+    # action route makes instead of evaluating it (covered by the guard tests).
+    permission_checks = []
+    monkeypatch.setattr(
+        reactions_extensions,
+        "require_permission_for_optional_project",
+        lambda scope, project_id, permission: permission_checks.append((project_id, permission)),
+    )
+
     async def exercise():
         app = FastAPI()
         loop = asyncio.get_running_loop()
@@ -90,6 +100,7 @@ def test_direct_execution_allows_concurrent_artifact_callback(route):
             assert observed["kwargs"]["scope"] == {"project_id": "project-1"}
             if route == "action":
                 assert observed["kwargs"]["idempotency_key"] == "key-1"
+                assert permission_checks == [("project-1", "extensions.use")]
 
     async def with_restored_limiter():
         limiter = anyio.to_thread.current_default_thread_limiter()

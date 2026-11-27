@@ -410,6 +410,8 @@ def test_workflow_diff_http_routes_apply_the_same_redaction(history_diff_client,
                 "entity_id": "orders",
                 "from_entry_id": "entry-1",
                 "to_entry_id": "entry-2",
+                # Both routes read the history in the caller's account (ADR 0084).
+                "account_id": DEFAULT_ACCOUNT_ID,
             }
         ]
         * 2

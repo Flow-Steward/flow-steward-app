@@ -46,7 +46,7 @@ def test_changelog_entity_history_endpoint_returns_entries(registry_client):
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
     mock_db.get_entity_history.assert_called_once_with(
-        entity_type="agent", entity_id="proofreader", limit=50
+        entity_type="agent", entity_id="proofreader", limit=50, account_id=DEFAULT_ACCOUNT_ID
     )
 
 
@@ -566,6 +566,8 @@ def test_workflow_restore_endpoint_rolls_back_when_validation_fails(registry_cli
     assert body["detail"]["messages"] == [
         "This entry does not record the workflow definition and cannot be restored"
     ]
-    mock_db.get_changelog_entry.assert_called_with("3", entity_type="workflow", entity_id="wf_bad")
+    mock_db.get_changelog_entry.assert_called_with(
+        "3", entity_type="workflow", entity_id="wf_bad", account_id=DEFAULT_ACCOUNT_ID
+    )
     mock_db.restore_entity_revision.assert_not_called()
     mock_registry.reload_all.assert_not_called()

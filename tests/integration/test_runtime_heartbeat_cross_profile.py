@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.monitoring.contracts import (
     RuntimeInstallationContext,
     build_observation_reports,
@@ -111,7 +112,11 @@ class AcceptanceStack:
             create_api_system_monitoring_router(
                 local_auth_enabled=lambda: True,
                 external_auth_enabled=False,
-                require_authenticated_user=lambda *_a, **_k: {"roles": ["admin"]},
+                # The monitoring summary is the installation administrator's (ADR 0084).
+                require_authenticated_user=lambda *_a, **_k: {
+                    "roles": ["admin"],
+                    "account_id": INSTALLATION_ACCOUNT_ID,
+                },
                 auth_admin_roles={"admin"},
             )
         )

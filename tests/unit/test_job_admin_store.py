@@ -53,7 +53,7 @@ def test_get_job_joins_registry_workflow_display_name() -> None:
     assert result is not None
     assert result["selected_workflow_display_name"] == "Inventory Import"
     sql = cur.execute.call_args.args[0]
-    assert "LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow" in sql
+    assert "ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id" in sql
     assert "rw.display_name AS selected_workflow_display_name" in sql
 
 

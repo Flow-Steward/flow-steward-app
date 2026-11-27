@@ -83,6 +83,13 @@ def _extension_app(reader):
 def _bootstrap_app(reader, monkeypatch):
     monkeypatch.setattr(app_bootstrap, "system_email_available", lambda: False)
     app = FastAPI()
+
+    @app.middleware("http")
+    async def _signed_in(request, call_next):
+        # The entitlement read runs for a signed-in account only (ADR 0084).
+        request.state.auth_user = {"id": "user-1", "account_id": DEFAULT_ACCOUNT_ID}
+        return await call_next(request)
+
     app.include_router(
         app_bootstrap.create_api_app_bootstrap_router(
             request_principal=lambda _request: None,

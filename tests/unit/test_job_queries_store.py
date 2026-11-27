@@ -120,7 +120,7 @@ def test_list_jobs_for_attention_builds_acknowledged_filters_and_bounds() -> Non
     assert "j.deleted_at IS NULL" in sql
     assert "p.deleted_at IS NULL" in sql
     assert "p.account_id = %s" in sql
-    assert "LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow" in sql
+    assert "ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id" in sql
     assert "rw.display_name AS selected_workflow_display_name" in sql
     assert "j.meta ->> 'task_summary_key' AS task_summary_key" in sql
     assert "j.meta -> 'task_summary_params' AS task_summary_params" in sql
@@ -229,7 +229,7 @@ def test_attention_queries_apply_workflow_and_text_search_to_rows_and_total() ->
     list_sql, list_params = conn.calls[0]
     count_sql, count_params = conn.calls[1]
     for sql in (list_sql, count_sql):
-        assert "LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow" in sql
+        assert "ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id" in sql
         assert "j.selected_workflow = %s" in sql
         assert "COALESCE(j.task_summary, '') ILIKE %s" in sql
         assert "COALESCE(rw.display_name, '') ILIKE %s" in sql

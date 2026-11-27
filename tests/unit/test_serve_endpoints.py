@@ -3069,6 +3069,9 @@ class TestLocalAuthEndpoints:
                     "display_name": "Ops",
                     "is_active": True,
                     "roles": ["operator"],
+                    # Roles are held on the account membership (ADR 0085).
+                    "account_id": DEFAULT_ACCOUNT_ID,
+                    "account_memberships": [{"account_id": DEFAULT_ACCOUNT_ID, "role": "operator"}],
                 },
             ),
             patch.object(api_routes, "_password_hash", return_value="hashed-pass"),

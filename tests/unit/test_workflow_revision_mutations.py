@@ -89,12 +89,13 @@ class _WorkflowStore(RegistryDBStoreWorkflowsMixin):
 def test_toggle_bumps_revision_in_the_same_successful_update() -> None:
     store = _WorkflowStore({"enabled": True})
 
-    assert store.toggle_workflow("wf-demo") is True
+    assert store.toggle_workflow("wf-demo", account_id="account-1") is True
 
+    # The toggle writes only the named account's workflow (ADR 0084, C4b).
     assert store.cursor.executions == [
         (
-            "UPDATE registry_workflows SET enabled = NOT enabled, revision = revision + 1 WHERE workflow_id = %s RETURNING enabled",
-            ("wf-demo",),
+            "UPDATE registry_workflows SET enabled = NOT enabled, revision = revision + 1 WHERE account_id = %s AND workflow_id = %s RETURNING enabled",
+            ("account-1", "wf-demo"),
         )
     ]
 

@@ -3503,6 +3503,8 @@ class TestEventQueryEndpoints:
         # The caller's right to install, update and remove (ADR 0020, C6) is added
         # to the service's availability, which is returned unchanged.
         assert isinstance(body.pop("can_manage_installs"), bool)
+        # A company account's administrator may ask for an install instead (ADR 0084).
+        assert isinstance(body.pop("can_request_installs"), bool)
         assert body == payload.dump.return_value
         mock_service.archive_lifecycle_availability.assert_called_once_with()
 

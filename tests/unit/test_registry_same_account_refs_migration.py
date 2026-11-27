@@ -108,13 +108,19 @@ def test_the_migration_makes_the_change_of_the_baseline() -> None:
         statement.replace("CREATE OR REPLACE FUNCTION ", "CREATE FUNCTION ", 1)
         for statement in _statements(_migration_sql())
     }
+    # The baseline redefines the step trigger function later (CREATE OR REPLACE) for
+    # account-scoped block keys; that redefinition is the change of the later
+    # 20261127150000_account_scoped_block_keys migration, not of this one.
     block = [
         statement
         for statement in baseline
-        if "registry_workflow_steps_same_account" in statement
-        or "registry_workflow_hook_bindings_project_account_fkey" in statement
-        or "registry_workflow_hook_bindings_id_scope_key" in statement
-        or "registry_workflow_hook_binding_revisions_scope_fkey" in statement
+        if not statement.startswith("CREATE OR REPLACE FUNCTION ")
+        and (
+            "registry_workflow_steps_same_account" in statement
+            or "registry_workflow_hook_bindings_project_account_fkey" in statement
+            or "registry_workflow_hook_bindings_id_scope_key" in statement
+            or "registry_workflow_hook_binding_revisions_scope_fkey" in statement
+        )
     ]
     assert len(block) == 5
     missing = [statement for statement in block if statement not in as_baseline]
