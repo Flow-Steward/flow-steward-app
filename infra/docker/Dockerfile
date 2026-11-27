@@ -201,6 +201,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/auth/account_memberships.py \
     core/application/auth/audit.py \
     core/application/auth/local_credentials.py \
+    core/application/auth/membership_roles.py \
     core/application/auth/password.py \
     core/application/auth/password_policy.py \
     core/application/auth/principal.py \
