@@ -159,7 +159,7 @@ class _Conn:
                 for user in self.users.values()
                 if user["account_id"] == params[0] and user.get("active", True)
             ]
-        if "SELECT id::text AS user_id FROM public.users" in sql:
+        if "AS user_id FROM public.user_account_memberships AS m" in sql:
             ids, account = params
             return [
                 {"user_id": user_id}

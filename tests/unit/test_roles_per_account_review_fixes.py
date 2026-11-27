@@ -107,6 +107,11 @@ def test_removing_a_membership_ends_that_accounts_oauth_grants(
     assert grants == [("account_membership_removed", USER, ACCOUNT_B)]
     sessions = [params for sql, params in cur.calls if sql.startswith("UPDATE auth_sessions")]
     assert sessions == [(USER, ACCOUNT_B)]
+    # The person is taken off that account's approval steps, and only that account's.
+    approvers = [
+        params for sql, params in cur.calls if sql.startswith("DELETE FROM approval_step_approvers")
+    ]
+    assert approvers == [(USER, ACCOUNT_B)]
 
 
 def test_adding_an_administrator_revokes_external_sign_in_of_that_account_only(

@@ -419,6 +419,32 @@ schema contract. Verified with psql on PostgreSQL 17
 2635b86f3d (migration applied twice) give the same columns, constraints and indexes;
 a duplicate, short or missing token hash is refused.
 
+## Leaving a company (2026-11-27, scenario tests)
+
+`tests/db/test_people_in_several_companies_postgres.py` and
+`tests/db/test_people_who_move_companies_postgres.py` run a person through several
+companies and a move from one to another. They led to three changes:
+
+- **Approver assignments go with the membership.** Removing a membership deletes the
+  person's `approval_step_approvers` rows of that account, and deleting a person (a
+  soft delete, so the row's `ON DELETE CASCADE` never fires) deletes all of theirs.
+  Before, a step assigned only to a person who left waited for nobody, and a later
+  membership brought the old assignment back. A step left without approvers is decided
+  as an unrestricted step again, as after a hard delete; the removal's audit entry
+  (`account_member_remove`) lists the steps in `released_approval_steps` so the
+  account's administrators can assign someone else.
+- **Approvers are listed by membership.** `ApprovalAssignmentsPort.list_approvers` with
+  an account kept only people whose home account it was; an approver who lives in
+  another company and works here too is listed now, and one who left is not.
+- **The next home has a role.** When a person leaves their home company, the new home
+  is an active company where they have a role, before the default and the oldest
+  membership.
+
+What stays: workflows, runs, history and schedules the person made remain the
+account's (a due scheduled run is started by its schedule, never with the authority of
+whoever set it up), and service accounts and machine tokens belong to the account, not
+to the person who created them (§4), so they are not revoked.
+
 ## Not in this stage
 
 - A `user_roles.account_id` column naming a scoped row's account explicitly (today

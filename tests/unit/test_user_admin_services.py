@@ -310,6 +310,8 @@ def test_delete_repository_soft_deletes_and_revokes_auth_material() -> None:
     assert "UPDATE auth_sessions" in sql
     assert "UPDATE personal_access_tokens" in sql
     assert "UPDATE users SET is_active = false, deleted_at = now()" in sql
+    # Soft deletion never fires the row's ON DELETE CASCADE: the assignments go here.
+    assert "DELETE FROM approval_step_approvers WHERE user_id::text = %s" in sql
 
 
 def test_user_update_input_rejects_blank_display_name() -> None:

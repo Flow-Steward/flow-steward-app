@@ -204,6 +204,57 @@ def add_member(
     return person
 
 
+def _next_home(cur: Any, user_id: str, leaving_account_id: str) -> str:
+    """The membership that becomes the home of a person leaving their home account.
+
+    An active account where the person has a role comes first, so the home never
+    points at a company they cannot work in while they have one they can; then the
+    default membership and the oldest. ``""`` when no other membership exists.
+    """
+    cur.execute(
+        """
+        SELECT m.account_id::text AS account_id
+          FROM user_account_memberships AS m
+          LEFT JOIN accounts AS a ON a.id = m.account_id
+         WHERE m.user_id::text = %s AND m.account_id::text <> %s
+         ORDER BY (m.role_id IS NOT NULL AND COALESCE(a.is_active, false)) DESC,
+                  m.is_default DESC, m.created_at, m.account_id
+         LIMIT 1
+        """,
+        (user_id, leaving_account_id),
+    )
+    return _text(_value(cur.fetchone(), "account_id", 0))
+
+
+def _release_approval_steps(cur: Any, user_id: str, account_id: str) -> list[dict[str, str]]:
+    """Take the person off the approval steps of the account they leave.
+
+    An assigned approver (``approval_step_approvers``) who is no member any more can
+    never decide, so a step that names them would wait for nobody; and a later
+    membership must not bring an old assignment back. The rows go with the membership,
+    as they go with the person when the person is deleted (the table's comment in
+    ``db/schema``). Returns the steps the person was taken off, for the audit, so the
+    account's administrators can assign someone else where it matters.
+    """
+    cur.execute(
+        """DELETE FROM approval_step_approvers
+            WHERE user_id::text = %s AND account_id::text = %s
+        RETURNING workflow_id, step_id""",
+        (user_id, account_id),
+    )
+    released: list[dict[str, str]] = []
+    rows = cur.fetchall()
+    for row in rows if isinstance(rows, (list, tuple)) else ():
+        if isinstance(row, Mapping):
+            workflow, step = row.get("workflow_id"), row.get("step_id")
+        elif isinstance(row, (list, tuple)) and len(row) >= 2:
+            workflow, step = row[0], row[1]
+        else:
+            continue
+        released.append({"workflow_id": _text(workflow), "step_id": _text(step)})
+    return released
+
+
 def remove_member(
     cur: Any,
     *,
@@ -217,7 +268,10 @@ def remove_member(
     administrator and for the person's only membership (the person is deleted
     instead). The
     person's scope limit there, their sessions, personal tokens and OAuth grants of
-    that account go with the membership; a home account moves to another membership.
+    that account and their assignments as an approver there go with the membership; a
+    home account moves to another membership where the person has a role, if any.
+    What the person made in the account (workflows, runs, schedules, history) stays the
+    account's.
     """
     if _text(actor_user_id).casefold() == _text(user_id).casefold():
         raise ServiceForbiddenError("You cannot remove yourself from this company")
@@ -239,14 +293,15 @@ def remove_member(
     if not remaining:
         raise ServiceConflictError("This is the person's only company: delete the person instead")
     if person["account_id"] == account_id:
+        home = _next_home(cur, user_id, account_id) or remaining[0]
         cur.execute(
             "UPDATE users SET account_id = %s, updated_at = now() WHERE id::text = %s",
-            (remaining[0], user_id),
+            (home, user_id),
         )
         cur.execute(
             """UPDATE user_account_memberships SET is_default = (account_id::text = %s)
                 WHERE user_id::text = %s""",
-            (remaining[0], user_id),
+            (home, user_id),
         )
     cur.execute(
         "DELETE FROM user_account_memberships WHERE user_id::text = %s AND account_id::text = %s",
@@ -267,6 +322,7 @@ def remove_member(
         "DELETE FROM external_identities WHERE user_id::text = %s AND account_id::text = %s",
         (user_id, account_id),
     )
+    person["released_approval_steps"] = _release_approval_steps(cur, user_id, account_id)
     # An administrator removed from the account no longer invites to it (ADR 0085, C4).
     person["cancelled_invitations"] = cancel_invitations_of_former_admins(cur, user_id)
     return person
@@ -377,7 +433,15 @@ class AccountMemberService:
             username=person["username"],
             actor=actor,
             status="ok",
-            detail={"user_id": person["id"], "account_id": account},
+            detail={
+                "user_id": person["id"],
+                "account_id": account,
+                **(
+                    {"released_approval_steps": person["released_approval_steps"]}
+                    if person.get("released_approval_steps")
+                    else {}
+                ),
+            },
         )
         for item in person.get("cancelled_invitations") or ():
             self._audit(

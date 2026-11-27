@@ -367,12 +367,20 @@ _JOURNAL_FILTERS = frozenset(
 
 
 def _account_user_ids(conn: Any, account_id: str, user_ids: list[str]) -> set[str]:
+    """Which of ``user_ids`` are members of the account, whatever their home account.
+
+    A person belongs to an account by membership (ADR 0085 §6), not by
+    ``users.account_id``: an approver who lives in another company and works here too
+    is a person of this account, and one who was removed from it is not.
+    """
     if not user_ids:
         return set()
     with conn.cursor() as cur:
         cur.execute(
-            """SELECT id::text AS user_id FROM public.users
-                WHERE id::text = ANY(%s::text[]) AND CAST(account_id AS TEXT) = %s""",
+            """SELECT DISTINCT m.user_id::text AS user_id
+                 FROM public.user_account_memberships AS m
+                WHERE m.user_id::text = ANY(%s::text[])
+                  AND CAST(m.account_id AS TEXT) = %s""",
             (user_ids, account_id),
         )
         return {_text(row.get("user_id")) for row in _rows(cur)}
