@@ -177,7 +177,7 @@ test("a company administrator sends a request with an optional note", async () =
   await waitFor(() => expect(actions?.canRequest).toBe(true));
   expect(screen.queryByTestId("extension-install-requests")).not.toBeInTheDocument();
   act(() => actions?.onRequest(entry("install")));
-  const dialog = await screen.findByRole("dialog");
+  const dialog = await screen.findByRole("alertdialog");
   expect(within(dialog).getByText("Request installation of Acme CRM?")).toBeInTheDocument();
   fireEvent.change(within(dialog).getByTestId("install-request-text"), { target: { value: "For orders" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Send request" }));
