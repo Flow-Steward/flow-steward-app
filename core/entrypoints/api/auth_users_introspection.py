@@ -36,6 +36,17 @@ def introspection_payload(request: Request, principal: dict[str, Any]) -> dict[s
         else:
             scopes = ["read:*"]
 
+    # ADR 0076 §4: the auth middleware puts the permissions of the principal's role in
+    # its acting account (ADR 0085) on a person and a person's token. Service accounts,
+    # extension runtime and system actors have none and get no key: their callers keep
+    # their own rules. The MCP server reads them to list only the tools the role allows.
+    computed = principal.get("permissions")
+    permissions = (
+        {"permissions": sorted({str(key) for key in computed if str(key).strip()})}
+        if isinstance(computed, (list, tuple, set, frozenset))
+        else {}
+    )
+
     return {
         "active": bool(principal.get("is_active", True)),
         "principal": {
@@ -50,6 +61,7 @@ def introspection_payload(request: Request, principal: dict[str, Any]) -> dict[s
             "allowed_project_ids": list(principal.get("allowed_project_ids") or []),
             "allowed_workflow_ids": list(principal.get("allowed_workflow_ids") or []),
             "expires_at": expires_at,
+            **permissions,
             **oauth_introspection_fields(principal, auth_source),
         },
     }
