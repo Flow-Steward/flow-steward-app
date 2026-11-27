@@ -96,7 +96,7 @@ def create_external_sign_in_router(
         return str(getattr(client, "host", "") or "") or "unknown"
 
     def _hint_throttled(client_ip: str) -> tuple[bool, int]:
-        limits = {
+        limits: dict[str, Any] = {
             "action": _HINT_THROTTLE_ACTION,
             "attempts_store": hint_attempts,
             "attempts_lock": hint_lock,

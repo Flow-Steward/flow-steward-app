@@ -633,7 +633,7 @@ async def local_auth_middleware(
             refusal = scope_limit_route_refusal(
                 method,
                 path,
-                permission,
+                permission if isinstance(permission, str) else None,
                 places.project_permissions,
                 places.workflow_permissions,
                 places.project_workflow_ids,

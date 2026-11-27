@@ -206,13 +206,17 @@ class PlatformModuleViews:
             with _environment_module_container(container) as same_container:
                 yield same_container
             return
-        shared_routes = container.registries.get(MODULE_ROUTE_PERMISSIONS_KEY)
-        has_routes = isinstance(shared_routes, ModuleRoutePermissionRegistry)
+        found_routes = container.registries.get(MODULE_ROUTE_PERMISSIONS_KEY)
+        shared_routes = (
+            found_routes if isinstance(found_routes, ModuleRoutePermissionRegistry) else None
+        )
         view = _module_container(
             container,
             identity=module.identity(),
             route_registrar=(
-                ModuleRouteRuleRegistrar(shared_routes, module.module_id) if has_routes else None
+                ModuleRouteRuleRegistrar(shared_routes, module.module_id)
+                if shared_routes is not None
+                else None
             ),
             requires=tuple(str(item) for item in getattr(module, "requires", ()) or ()),
         )
@@ -227,7 +231,9 @@ class PlatformModuleViews:
                 "id": module.module_id,
                 "version": module.version,
                 "pages": list(scope.page_keys),
-                "route_rules": shared_routes.rule_count(module.module_id) if has_routes else 0,
+                "route_rules": (
+                    shared_routes.rule_count(module.module_id) if shared_routes is not None else 0
+                ),
             }
         )
 

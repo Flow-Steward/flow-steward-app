@@ -103,7 +103,7 @@ def _db_dependency_loader(bl: Any) -> DependencyLoader:
         if conn is None:
             raise RuntimeError("database connection unavailable")
         with conn.cursor() as cur:
-            return cursor_dependency_loader(cur)(account_id, workflow_ids)
+            return list(cursor_dependency_loader(cur)(account_id, workflow_ids))
 
     return load
 

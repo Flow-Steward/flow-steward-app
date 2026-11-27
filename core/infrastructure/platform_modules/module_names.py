@@ -31,6 +31,13 @@ if TYPE_CHECKING:
     from core.infrastructure.platform_modules.loader import _ModuleEntry
 
 
+def _metadata_value(metadata: importlib.metadata.PackageMetadata | None, key: str) -> str | None:
+    """One header of a distribution's metadata, or ``None`` when it is missing."""
+    if not metadata or key not in metadata:
+        return None
+    return metadata[key]
+
+
 def _normalize_distribution_name(name: str) -> str:
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -57,8 +64,8 @@ def _check_distributions(
         return
     for dist_info in sorted(site_root.glob("*.dist-info")):
         metadata = importlib.metadata.PathDistribution(dist_info).metadata
-        name = metadata.get("Name") if metadata else None
-        version = metadata.get("Version") if metadata else None
+        name = _metadata_value(metadata, "Name")
+        version = _metadata_value(metadata, "Version")
         if not name or not version:
             raise PlatformModuleIntegrityError(
                 f"platform module '{entry.module_id}' has unreadable metadata in "
@@ -214,8 +221,8 @@ def _module_top_level_names(module_dir: Path, entry: _ModuleEntry) -> _ModuleNam
             names = _distribution_top_level_names(dist_info, entry)
             metadata = importlib.metadata.PathDistribution(dist_info).metadata
             distribution = _BundledDistribution(
-                name=str(metadata.get("Name") or ""),
-                version=str(metadata.get("Version") or ""),
+                name=str(_metadata_value(metadata, "Name") or ""),
+                version=str(_metadata_value(metadata, "Version") or ""),
                 files=_distribution_files(entry, dist_info, names),
             )
             for name in names:

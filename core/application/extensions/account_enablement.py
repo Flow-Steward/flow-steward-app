@@ -126,7 +126,7 @@ class DBExtensionAccountEnablementStore:
 
     def get(self, *, account_id: str, extension_id: str) -> ExtensionAccountEnablement | None:
         rows = self._rows(
-            f"SELECT {_COLUMNS} FROM extension_account_enablements"
+            f"SELECT {_COLUMNS} FROM extension_account_enablements"  # nosec B608 - constant column list
             " WHERE account_id = %s AND extension_id = %s",
             (account_id, extension_id),
         )
@@ -134,7 +134,7 @@ class DBExtensionAccountEnablementStore:
 
     def list_for_account(self, account_id: str) -> list[ExtensionAccountEnablement]:
         rows = self._rows(
-            f"SELECT {_COLUMNS} FROM extension_account_enablements"
+            f"SELECT {_COLUMNS} FROM extension_account_enablements"  # nosec B608 - constant column list
             " WHERE account_id = %s ORDER BY extension_id",
             (account_id,),
         )
@@ -178,7 +178,7 @@ class DBExtensionAccountEnablementStore:
                 updated_at = now(),
                 updated_by = EXCLUDED.updated_by
             RETURNING {_COLUMNS}
-            """,
+            """,  # nosec B608 - constant column list; values are bound parameters
             (
                 row.account_id,
                 row.extension_id,

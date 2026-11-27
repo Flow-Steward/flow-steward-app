@@ -437,7 +437,8 @@ def _item_workflow_in_scope_limit(
     group = str(item.get("group") or "").strip().lower()
     if restricted is None or group not in _WORKFLOW_BOUND_RESULT_GROUPS:
         return True
-    meta = item.get("meta") if isinstance(item.get("meta"), Mapping) else {}
+    raw_meta = item.get("meta")
+    meta: Mapping[str, Any] = raw_meta if isinstance(raw_meta, Mapping) else {}
     workflow_id = str(
         item.get("workflow_id") or meta.get("selected_workflow") or meta.get("workflow_id") or ""
     ).strip()

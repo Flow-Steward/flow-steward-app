@@ -217,7 +217,7 @@ def _normalize_registered_pages(payload: Any) -> list[dict[str, Any]]:
         )
         if not page_key or not path.startswith("/") or not (component_key or host_rendered):
             continue
-        if host_rendered:
+        if host_rendered and isinstance(control_surface, Mapping):
             record["control_surface"] = dict(control_surface)
         record["key"] = str(record.get("key") or page_key)
         record["page_key"] = page_key
@@ -286,7 +286,11 @@ def create_api_app_bootstrap_router(
             auth_source = str(getattr(request.state, "auth_source", "") or "").strip().lower()
 
             # The browser sees the features of the signed-in account only.
-            account_id = str(auth_user.get("account_id") or "").strip() if authenticated else ""
+            account_id = (
+                str(auth_user.get("account_id") or "").strip()
+                if authenticated and auth_user is not None
+                else ""
+            )
             entitlement_service = platform_contract("entitlement_service")
             snapshot_fn = getattr(entitlement_service, "snapshot", None)
             feature_flags = (
