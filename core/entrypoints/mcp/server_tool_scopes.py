@@ -9,7 +9,7 @@ tenant, project, and workflow policy remains the authoritative enforcement
 boundary.
 
 This module maps every tool to the same scope taxonomy the HTTP
-surface uses (`core/application/auth/auth_http_runtime.py::_required_http_scopes`),
+surface uses (`core/application/auth/auth_http_scopes.py::_required_http_scopes`),
 so one token means the same thing on both transports.
 
 Requirements are **any-of**: holding any listed scope is enough. `scope_granted`

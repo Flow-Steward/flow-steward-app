@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
-import core.entrypoints.api.auth_users as auth_users_routes
+import core.entrypoints.api.auth_users_email_change_routes as auth_users_routes
 from core.entrypoints.api.auth_users import create_auth_users_router
 
 
