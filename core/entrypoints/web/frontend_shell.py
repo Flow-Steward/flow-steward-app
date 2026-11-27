@@ -193,6 +193,7 @@ def create_frontend_shell_router(
         @router.get("/settings/account", include_in_schema=False)
         @router.get("/settings/users", include_in_schema=False)
         @router.get("/settings/providers", include_in_schema=False)
+        @router.get("/settings/secret-storage", include_in_schema=False)
         @router.get("/settings/service-accounts", include_in_schema=False)
         @router.get("/settings/security", include_in_schema=False)
         @router.get("/settings/email", include_in_schema=False)
