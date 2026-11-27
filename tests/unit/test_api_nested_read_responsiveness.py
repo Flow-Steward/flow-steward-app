@@ -18,7 +18,13 @@ from core.application.management.query_models import (
 from core.application.management.scope import ScopeContext
 from core.entrypoints.admin.project_history import create_project_history_router
 from core.entrypoints.admin.settings_retention import create_settings_retention_router
-from core.entrypoints.api import auth_users, health, security, workload
+from core.entrypoints.api import (
+    auth_users,
+    auth_users_email_change_routes,
+    health,
+    security,
+    workload,
+)
 from core.entrypoints.api.auth_tokens_accounts import create_auth_tokens_accounts_router
 from core.entrypoints.api.events import create_api_events_router
 from core.entrypoints.api.integrations_connectors import create_integrations_connectors_router
@@ -217,7 +223,9 @@ def _users(reader, monkeypatch):
     user = {"id": "admin", "account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}
     store = object()
     monkeypatch.setattr(auth_users._preferences, "session_preferences", reader.returning({}))
-    monkeypatch.setattr(auth_users, "_auth_email_change_tables_available", lambda _store: True)
+    monkeypatch.setattr(
+        auth_users_email_change_routes, "_auth_email_change_tables_available", lambda _store: True
+    )
     monkeypatch.setattr(
         auth_users.user_profile_repository, "get_pending_email_change", reader.returning(None)
     )

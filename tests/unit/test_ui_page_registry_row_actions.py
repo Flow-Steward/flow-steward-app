@@ -135,13 +135,14 @@ def test_malformed_row_action_lists_are_refused(row_actions) -> None:
 
 
 def test_row_action_texts_with_a_catalogue_key_are_translated(monkeypatch) -> None:
-    from core.application.reports import ui_page_registry
+    from core.application.reports import ui_page_registry, ui_page_surfaces
 
-    monkeypatch.setattr(
-        ui_page_registry,
-        "translate_ui_text",
-        lambda key, *, locale, default="": f"{locale}:{key}",
-    )
+    for module in (ui_page_registry, ui_page_surfaces):
+        monkeypatch.setattr(
+            module,
+            "translate_ui_text",
+            lambda key, *, locale, default="": f"{locale}:{key}",
+        )
     registries = _registries()
     _register(
         registries,

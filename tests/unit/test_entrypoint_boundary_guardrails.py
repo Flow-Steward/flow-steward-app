@@ -11,6 +11,8 @@ TARGET_ENTRYPOINTS = (
     ROOT / "core" / "entrypoints" / "api" / "workflow_entrypoints.py",
     ROOT / "core" / "entrypoints" / "api" / "security.py",
     ROOT / "core" / "entrypoints" / "api" / "auth_users.py",
+    ROOT / "core" / "entrypoints" / "api" / "auth_users_email_change_routes.py",
+    ROOT / "core" / "entrypoints" / "api" / "auth_users_timezone_locale_routes.py",
 )
 LLM_PROVIDER_ENTRYPOINT = ROOT / "core" / "entrypoints" / "api" / "llm_provider_extensions.py"
 LLM_PROVIDER_APPLICATION_REPOSITORY = (
