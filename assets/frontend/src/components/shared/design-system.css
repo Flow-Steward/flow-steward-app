@@ -1293,12 +1293,15 @@ body:has(.fs-dialog-layer) :is(.fs-filter-menu, .fs-filter-tooltip) { z-index: v
 .fs-selected-row:last-child { border-bottom: 0; }
 .fs-selected-row-icon { width: 16px; height: 16px; color: var(--fs-text-tertiary); }
 .fs-selected-row-text { display: grid; min-width: 0; }
+
 .fs-selected-row-label,
 .fs-selected-row-description { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fs-selected-row-description { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); }
+
 /* The borderless remove X of a chip, in the row's quiet colour. */
 .fs-selected-row .fs-multi-chip-remove { color: var(--fs-text-tertiary); }
 .fs-selected-row .fs-multi-chip-remove:disabled { cursor: not-allowed; opacity: 0.6; }
+
 /* List layout: the search field, then the chosen values under it. */
 .fs-multi[data-selection-layout="list"] { display: grid; gap: var(--fs-space-100); min-width: 0; }
 .fs-multi-menu-layer { position: fixed; z-index: var(--fs-z-modal-popup); inset: 0 auto auto 0; }
