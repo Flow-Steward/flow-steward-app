@@ -162,7 +162,7 @@ test("Decline asks for an optional reason and sends it", async () => {
   renderHarness({ canAnswer: true, install: vi.fn() });
 
   fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
-  const dialog = await screen.findByRole("dialog");
+  const dialog = await screen.findByRole("alertdialog");
   fireEvent.change(within(dialog).getByTestId("install-request-text"), { target: { value: "We use another tool" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Decline request" }));
 

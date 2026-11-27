@@ -323,6 +323,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/infrastructure/db/logger_scheduled_providers_common.py \
     core/infrastructure/db/logger_scheduled_providers_mixin.py \
     core/infrastructure/db/logger_trace_mixin.py \
+    core/infrastructure/db/membership_role_reader.py \
     core/infrastructure/db/platform_logger.py \
     core/infrastructure/db/platform_logger_action_audit_mixin.py \
     core/infrastructure/db/platform_logger_activity_mixin.py \
