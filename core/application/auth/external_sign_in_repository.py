@@ -399,3 +399,17 @@ def insert_session(
             external_identity_id,
         ),
     )
+
+
+def session_is_recent(cur: Any, token_hash: str, max_age_seconds: int) -> bool:
+    """The local session ``token_hash`` names is live and was started (by entering
+    the password) at most ``max_age_seconds`` ago."""
+    cur.execute(
+        """
+        SELECT created_at > now() - make_interval(secs => %s)
+          FROM auth_sessions
+         WHERE session_token_hash = %s AND revoked = false AND expires_at > now()
+        """,
+        (int(max_age_seconds), str(token_hash or "")),
+    )
+    return _flag(cur.fetchone())

@@ -776,6 +776,7 @@ def test_the_signed_in_person_opens_and_accepts_the_link(roles: list[str]) -> No
         "username": "someone@else.test",
         "accept": True,
         "role": "viewer",
+        "external_session": False,
     }
     assert service.calls[2][1]["accept"] is False
 

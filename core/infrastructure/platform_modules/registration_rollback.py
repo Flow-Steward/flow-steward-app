@@ -115,6 +115,7 @@ _CORE_GLOBAL_REGISTRY_MODULES = (
     "core.application.auth.serve_auth_runtime",
     "core.application.auth.user_lifecycle_events",
     "core.infrastructure.security.secret_backends",
+    "core.application.auth.invitation_policies",
 )
 #: The container dictionaries a module may add top-level entries to.
 _CONTAINER_DICTS = ("registries", "service_factories", "auth_helpers", "metadata")

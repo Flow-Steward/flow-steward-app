@@ -330,3 +330,35 @@ to the seam let a platform module provide them; Core still implements no protoco
 Sessions stay pinned to the account they were issued for. A person who belongs to
 several accounts reaches the one the resolver chose; letting installation-wide
 sessions switch accounts is open.
+
+### Review fixes (2026-11-27)
+
+- **No password for external-only people.** An administrator cannot set the password
+  of a person whose password is the external-only marker (`PUT /api/auth/users/{id}`
+  with `password` answers 403). Otherwise an administrator who manages every account
+  of such a person could set one, sign in as them and link another sign-in. The person
+  sets a password themselves with Forgot password.
+- **Undo and after-session.** `ExternalIdentityResolution` may carry `undo` (called
+  when Core refuses the sign-in after resolving: inactive person, entitlement, session
+  guard, link) and `after_session` (called once the session exists). The port's
+  `discard_new_person(user_id, account_id, reason)` removes a person created in the
+  last hour who never had a password or a session, with their links and memberships,
+  and the account they alone belonged to (disabled when it cannot be removed);
+  audited as `external_person_discard`.
+- **Client address.** A method that declares `wants_client_address = True` gets
+  `client_address` in `begin` and `complete` (the address Core's routes resolve), so it
+  can count its limits per client.
+- **Invitation limit policies.** `core.application.auth.invitation_policies.register_invitation_limits(policy)`:
+  a policy returns `(key, max_attempts, window_seconds)` triples for an account, and
+  Core counts each invitation against them with its own limits in the shared store; a
+  failing policy refuses the invitation. The registry is rolled back with a module that
+  fails to load.
+- **The installation account is joined with a password.** Accepting an invitation to
+  the installation account from an external session is refused.
+- **Linking needs a fresh password sign-in.** `start?intent=link` needs a local
+  session started at most ten minutes ago. Open: the link start is still a GET from a
+  link; a POST with CSRF from a profile button and an email to the person after a link
+  is added need frontend and email-template work.
+- **Privacy note.** Company administrators list the identity links stored in their
+  account (`/api/settings/external-sign-in/identities`), which for an installation-wide
+  method include the provider's subject of their members. Not hidden yet.

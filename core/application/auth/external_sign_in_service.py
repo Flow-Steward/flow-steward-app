@@ -147,6 +147,23 @@ def _installation_wide(method: Any) -> bool:
     return getattr(method, "installation_wide", False) is True
 
 
+def _client_kwargs(method: Any, client_address: str) -> dict[str, str]:
+    """The client's address for a method that asks for it (``wants_client_address``),
+    to count its own limits per client; other methods get nothing new."""
+    if getattr(method, "wants_client_address", False) is True:
+        return {"client_address": str(client_address or "")}
+    return {}
+
+
+def _call_quietly(callback: Any, name: str) -> None:
+    if not callable(callback):
+        return
+    try:
+        callback()
+    except Exception:
+        logger.exception("The resolver's %s callback failed", name)
+
+
 SessionGuard = Callable[[Mapping[str, Any], str, str], str | None]
 AuditFn = Callable[..., None]
 EntitledFn = Callable[[str, str], bool]
@@ -279,6 +296,7 @@ class ExternalSignInService:
         callback_url: str,
         headers: Mapping[str, str] | None = None,
         link_user_id: str | None = None,
+        client_address: str = "",
     ) -> StartResult | SignInResult:
         return_path = safe_return_path(next_path)
         kind = str(method or "").strip()
@@ -297,7 +315,12 @@ class ExternalSignInService:
             self._refuse("option_unavailable", option=f"{kind}:{option_key}", path=return_path)
         state = new_secret_value()
         try:
-            begun = sign_in.begin(option_key, callback_url=callback_url, state=state)
+            begun = sign_in.begin(
+                option_key,
+                callback_url=callback_url,
+                state=state,
+                **_client_kwargs(sign_in, client_address),
+            )
         except ExternalSignInError as exc:
             self._refuse(exc.reason, option=f"{kind}:{option_key}", path=return_path)
         if not begun.redirect_url:
@@ -309,6 +332,7 @@ class ExternalSignInService:
                 data=begun.data,
                 callback_url=callback_url,
                 path=return_path,
+                client_address=client_address,
             )
             return self._finish(identity, link_user_id=link_user_id, return_path=return_path)
         if not callback_url:
@@ -334,6 +358,7 @@ class ExternalSignInService:
         params: Mapping[str, str],
         browser_binding: str,
         headers: Mapping[str, str] | None = None,
+        client_address: str = "",
     ) -> SignInResult:
         state = str(params.get("state") or "")
         if not state:
@@ -364,6 +389,7 @@ class ExternalSignInService:
             data=data if isinstance(data, dict) else {},
             callback_url=str(attempt.get("redirect_uri") or ""),
             path=return_path,
+            client_address=client_address,
         )
         return self._finish(
             identity,
@@ -381,6 +407,7 @@ class ExternalSignInService:
         data: Mapping[str, Any],
         callback_url: str,
         path: str,
+        client_address: str = "",
     ) -> VerifiedExternalIdentity:
         label = f"{sign_in.kind}:{option_key}"
         try:
@@ -392,7 +419,12 @@ class ExternalSignInService:
             self._refuse("option_unavailable", option=label, path=path)
         try:
             identity = sign_in.complete(
-                option_key, params=params, headers=headers, data=data, callback_url=callback_url
+                option_key,
+                params=params,
+                headers=headers,
+                data=data,
+                callback_url=callback_url,
+                **_client_kwargs(sign_in, client_address),
             )
         except ExternalSignInError as exc:
             self._refuse(exc.reason, option=label, path=path)
@@ -463,6 +495,23 @@ class ExternalSignInService:
         except Exception:
             logger.exception("The external identity resolver failed")
             self._refuse("resolver_failed", identity=identity, path=return_path)
+        try:
+            result = self._issue(identity, resolution, return_path=return_path)
+        except BaseException:
+            # What the resolver created for this sign-in goes again when Core
+            # refuses it afterwards (inactive, entitlement, session guard, link).
+            _call_quietly(getattr(resolution, "undo", None), "undo")
+            raise
+        _call_quietly(getattr(resolution, "after_session", None), "after_session")
+        return result
+
+    def _issue(
+        self,
+        identity: VerifiedExternalIdentity,
+        resolution: Any,
+        *,
+        return_path: str,
+    ) -> SignInResult:
         user_id = str(resolution.user_id or "")
         account_id = str(resolution.account_id or "")
         if not account_id:

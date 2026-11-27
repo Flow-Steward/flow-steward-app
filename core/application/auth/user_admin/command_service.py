@@ -11,6 +11,7 @@ from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
 from core.application.auth.enforce import normalize_requested_roles
+from core.application.auth.external_sign_in_repository import is_unusable_password
 from core.application.auth.local_credentials import (
     authenticator_policy_available,
     authenticator_storage_available,
@@ -139,6 +140,14 @@ class UserAdminCommandRepository(Protocol):
         user_id: Any,
         deleted_by: str,
     ) -> int: ...
+
+
+#: Refusal of an administrator setting the password of a person who signs in only
+#: externally (ADR 0083 amendment of 2026-11-27).
+EXTERNAL_ONLY_PASSWORD_MESSAGE = (
+    "This person signs in only with an external sign-in. They can set a password "
+    "themselves with Forgot password."
+)
 
 
 def _require_update_access(
@@ -552,6 +561,11 @@ class UserAdminCommandService:
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
         role_account_id = str(command.role_account_id or "").strip() or None
         _require_update_access(user, command, role_account_id, allowed_account_ids)
+        if command.password is not None and is_unusable_password(user.get("password_hash")):
+            # A person who signs in only externally has no local password. Setting one
+            # would let whoever sets it in as that person, in every account they
+            # belong to; they set one themselves with Forgot password.
+            raise ServiceForbiddenError(EXTERNAL_ONLY_PASSWORD_MESSAGE)
         if all(
             value is None
             for value in (

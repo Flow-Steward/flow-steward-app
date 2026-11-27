@@ -29,6 +29,11 @@ from typing import Any
 
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.email import normalize_email_address
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+from core.application.auth.invitation_policies import (
+    InvitationPolicyUnavailable,
+    extra_invitation_limits,
+)
 from core.application.auth.membership_roles import (
     INVITER_IS_ADMIN_PREDICATE,
     cancel_invitations_of_former_admins,
@@ -53,6 +58,8 @@ from core.application.management.errors import (
 )
 from core.infrastructure.db.db_pool import transaction_connection
 
+#: Refusal of an invitation to the installation account answered from an external session.
+INSTALLATION_INVITATION_NEEDS_PASSWORD_MESSAGE = "Sign in with your password to join this company."
 #: Days an invitation stays open.
 INVITATION_LIFETIME_DAYS = 14
 #: The one answer to an invitation, whether or not the person exists.
@@ -326,6 +333,7 @@ def decide(
     user_id: str,
     accept: bool,
     expected_role: str = "",
+    external_session: bool = False,
 ) -> dict[str, Any]:
     """Accept or decline the invitation the token names, as ``user_id``.
 
@@ -342,6 +350,9 @@ def decide(
     role = found["role"]
     if accept and _text(expected_role).lower() != role:
         raise ServiceConflictError(INVITATION_CHANGED_MESSAGE)
+    if accept and external_session and found["account_id"] == _text(INSTALLATION_ACCOUNT_ID):
+        # The installation account is administered with a local password only.
+        raise ServiceForbiddenError(INSTALLATION_INVITATION_NEEDS_PASSWORD_MESSAGE)
     if accept:
         # Already a member (added meanwhile): the invitation is simply done.
         with contextlib.suppress(ServiceConflictError):
@@ -422,12 +433,19 @@ class AccountInvitationService:
         typed, address = invited_address(email)
         token = self._new_token()
         bl = self._logger()
+        try:
+            extra = extra_invitation_limits(account)
+        except InvitationPolicyUnavailable as exc:
+            raise ServiceUnavailableError("Invitations are unavailable right now") from exc
         with transaction_connection(bl.conn) as conn, conn.cursor() as cur:
             self._throttle(
                 cur,
-                invitation_limits(
-                    admin_user_id=admin_user_id, account_id=account, recipient=address
-                ),
+                [
+                    *invitation_limits(
+                        admin_user_id=admin_user_id, account_id=account, recipient=address
+                    ),
+                    *extra,
+                ],
             )
             expired = delete_expired(cur, account)
             stored = invite(
@@ -547,6 +565,7 @@ class AccountInvitationService:
         username: str,
         accept: bool,
         role: str = "",
+        external_session: bool = False,
     ) -> dict[str, Any]:
         """Accept (with the role shown) or decline the invitation the link names."""
         if not _text(token) or not _text(user_id):
@@ -559,6 +578,7 @@ class AccountInvitationService:
                 user_id=user_id,
                 accept=accept,
                 expected_role=role,
+                external_session=external_session,
             )
         self._audit(
             bl,

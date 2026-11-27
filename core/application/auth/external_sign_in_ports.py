@@ -108,6 +108,11 @@ class ExternalIdentityResolution:
 
     user_id: str
     account_id: str
+    #: What the resolver created for this sign-in, undone when Core refuses the
+    #: sign-in after resolving (inactive person, entitlement, session guard, link).
+    undo: Callable[[], None] | None = field(default=None, compare=False, repr=False)
+    #: Called once after the session is issued (e.g. to tell other modules).
+    after_session: Callable[[], None] | None = field(default=None, compare=False, repr=False)
 
 
 class ExternalSignInError(Exception):
@@ -576,6 +581,75 @@ class ExternalSignInPort:
                 },
             )
         return {"account_id": account_id, "user_id": user_id}
+
+    def discard_new_person(self, *, user_id: str, account_id: str = "", reason: str) -> bool:
+        """Undo :meth:`create_user` or :meth:`create_own_account` of a sign-in Core then
+        refused, so neither the address nor the account limit stays taken.
+
+        Only a person who never had a local password, signed in no session and was
+        created in the last hour is removed (with their memberships and links);
+        ``account_id``, when given, goes too if that person was its only member and
+        it was created in the last hour (otherwise it is disabled, so it no longer
+        counts against the limit). Audited as ``external_person_discard``. Returns
+        whether the person was removed.
+        """
+        if not repository.is_uuid(user_id):
+            return False
+        with self._connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (_USER_LIFECYCLE_LOCK,))
+            cur.execute(
+                """
+                SELECT 1 FROM users u
+                 WHERE u.id = %s AND u.password_hash = %s
+                   AND u.created_at > now() - interval '1 hour'
+                   AND NOT EXISTS (SELECT 1 FROM auth_sessions s WHERE s.user_id = u.id)
+                """,
+                (user_id, repository.UNUSABLE_PASSWORD_MARKER),
+            )
+            if cur.fetchone() is None:
+                return False
+            cur.execute("DELETE FROM external_identities WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM user_account_memberships WHERE user_id = %s", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            account_removed = False
+            if repository.is_uuid(account_id):
+                cur.execute(
+                    """
+                    SELECT 1 FROM accounts a
+                     WHERE a.id = %s AND a.created_at > now() - interval '1 hour'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM user_account_memberships m WHERE m.account_id = a.id)
+                    """,
+                    (account_id,),
+                )
+                if cur.fetchone() is not None:
+                    cur.execute("SAVEPOINT discard_account")
+                    try:
+                        cur.execute("DELETE FROM accounts WHERE id = %s", (account_id,))
+                        account_removed = True
+                    except Exception:
+                        cur.execute("ROLLBACK TO SAVEPOINT discard_account")
+                    if not account_removed:
+                        cur.execute(
+                            "UPDATE accounts SET is_active = false, updated_at = now() "
+                            "WHERE id = %s",
+                            (account_id,),
+                        )
+            from core.application.auth.scoped_role_ports import record_scope_limit_audit
+
+            record_scope_limit_audit(
+                cur,
+                action="external_person_discard",
+                actor="external-sign-in",
+                username="",
+                detail={
+                    "user_id": user_id,
+                    "account_id": str(account_id or ""),
+                    "account_removed": account_removed,
+                    "reason": str(reason or ""),
+                },
+            )
+        return True
 
     def grant_roles(self, *, account_id: str, user_id: str, roles: Iterable[str]) -> list[str]:
         """Add operator or viewer to a user of ``account_id``; never removes a role.
