@@ -9,13 +9,14 @@ import psycopg
 import pytest
 from psycopg.conninfo import conninfo_to_dict
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.registry.db_store import RegistryDBStore
 from core.application.registry.db_store_workflows_mixin import WorkflowRevisionConflictError
 from tests._xdist_isolation import audit_database_name
 
 
 @pytest.fixture
-def workflow_fixture():
+def workflow_fixture(installation_account):
     # Writes are allowed only against lint.sh's own disposable, canonical audit
     # database. Never fall back to a developer or product database.
     assert os.environ.get("FS_AUDIT_ISOLATED") == "1"
@@ -52,6 +53,9 @@ def _loop(group_id: str, entry: str) -> dict:
 def _definition(workflow_id: str, steps: list, groups: list | None = None) -> dict:
     return {
         "workflow_id": workflow_id,
+        # The disposable row is the installation account's (the column default); a
+        # writer thread has no bound account, so the payload names it (ADR 0084, C3).
+        "account_id": DEFAULT_ACCOUNT_ID,
         "display_name": workflow_id,
         "enabled": False,
         "steps": steps,

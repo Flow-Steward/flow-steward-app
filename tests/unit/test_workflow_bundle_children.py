@@ -27,11 +27,18 @@ from core.application.workflows.workflow_template_catalog_create import _assert_
 from tests._workflow_definitions import linear_workflow
 from tests.unit.test_workflow_portability import _PortabilityDB
 
-# These tests call the registry store outside a request or a job; they act for
-# the installation account (ADR 0020, C5).
-pytestmark = pytest.mark.usefixtures("installation_account")
-
 ACCOUNT = "acc-1"
+
+
+@pytest.fixture(autouse=True)
+def _acting_account():
+    """These tests call the registry store outside a request or a job; they act for
+    the account that owns their workflows, as a request of that account does
+    (ADR 0084, C3 and C4b)."""
+    from core.application.registry.workflow_account import workflow_account_scope
+
+    with workflow_account_scope(ACCOUNT) as account_id:
+        yield account_id
 
 
 def _workflow(workflow_id: str, *, calls: tuple[str, ...] = (), account: str = ACCOUNT) -> dict:

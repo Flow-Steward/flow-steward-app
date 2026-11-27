@@ -49,7 +49,9 @@ class RecordingModel:
 
 
 @pytest.fixture
-def authored_runtime(audit_db, monkeypatch):
+def authored_runtime(audit_db, monkeypatch, installation_account):
+    # The authored rows are the installation account's; the runtime acts for it the
+    # way a job of that account binds it (ADR 0084, C3).
     store, conn, _workflow_id, project_id = audit_db
     suffix = uuid4().hex
     skill_id = f"summary_{suffix}"

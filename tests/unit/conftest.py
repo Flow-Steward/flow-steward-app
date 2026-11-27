@@ -528,8 +528,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-def audit_db():
+def audit_db(installation_account):
     """A store on lint.sh's disposable audit database, with one fresh project.
+
+    The test acts for the installation account (see ``installation_account``):
+    it calls the registry store outside a request or a job, and the project row
+    belongs to the installation account.
 
     Yields ``(store, conn, workflow_id, project_id)``: a registry store and an
     autocommit connection on that database, an unused workflow id, and a

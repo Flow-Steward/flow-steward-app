@@ -332,13 +332,33 @@ def test_scope_command_rejects_unsupported_or_missing_scope(scoped_workflow, kin
 
 
 def test_scope_replacement_preserves_other_account_rules(scoped_workflow):
-    _, reactions, observer, workflow_id = scoped_workflow
+    registry, reactions, observer, workflow_id = scoped_workflow
     other_account = str(uuid.uuid4())
     observer.execute(
         "INSERT INTO accounts (id, account_key) VALUES (%s, %s)",
         (other_account, "scope_atomicity_" + other_account),
     )
     try:
+        # Workflow identity is account-qualified (ADR 0084, C4b): the other account
+        # holds rules only on its own workflow with the same id.
+        registry.save_workflow(
+            {
+                "workflow_id": workflow_id,
+                "scope_kind": "account",
+                "enabled": False,
+                "steps": [{"step_id": "done", "step_kind": "stop_success"}],
+                "groups": [],
+                "for_each": [],
+                "settings": {
+                    "execution_graph": {
+                        "schema_version": 1,
+                        "entry": node("done"),
+                        "edges": [],
+                    }
+                },
+            },
+            account_id=other_account,
+        )
         reactions.save_workflow_reactions(
             workflow_id, [_submitted_rule("other account")], account_id=other_account
         )
@@ -355,6 +375,7 @@ def test_scope_replacement_preserves_other_account_rules(scoped_workflow):
         ] == ["group"]
     finally:
         observer.execute("DELETE FROM workflow_reactions WHERE account_id = %s", (other_account,))
+        observer.execute("DELETE FROM registry_workflows WHERE account_id = %s", (other_account,))
         observer.execute("DELETE FROM accounts WHERE id = %s", (other_account,))
 
 

@@ -18,6 +18,9 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.scope import normalize_scope
 from core.entrypoints.api.workflow_entrypoints import (
@@ -26,8 +29,6 @@ from core.entrypoints.api.workflow_entrypoints import (
     _normalize_response_mode,
 )
 from core.infrastructure.db.schema_state import read_canonical_schema_sql
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 
 def test_expired_application_outcome_maps_to_http_410() -> None:
@@ -326,6 +327,9 @@ def _build_entrypoint_client(
         "entry_key": "inventory_sync",
         "workflow_id": "wf.inventory.sync",
         "project_id": "7",
+        # The stored row always carries its account (NOT NULL column); the route
+        # binds it before any workflow read (ADR 0084, C3).
+        "account_id": DEFAULT_ACCOUNT_ID,
         "enabled": True,
         "auth_mode": "bearer_token",
         "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -504,7 +508,8 @@ def _build_entrypoint_client(
 
         def execute(self, query, params):
             assert "registry_workflows" in str(query)
-            assert tuple(params) == ("wf.inventory.sync",)
+            # The owner read is account-qualified with the entrypoint row's account.
+            assert tuple(params) == ("wf.inventory.sync", entrypoint["account_id"])
             state["workflow_reads"].append(tuple(params))
             if workflow_lookup_error is not None:
                 raise workflow_lookup_error
@@ -916,10 +921,11 @@ def test_workflow_owner_multipart_admission_and_cleanup(
 
 
 def test_cancelled_owner_lookup_closes_signed_body_and_releases_capacity(monkeypatch):
+    from starlette.requests import Request
+
     from core.application.jobs.submission_admission import SubmissionAdmissionController
     from core.application.workflows.workflow_entrypoint_models import WorkflowEntrypointPreparation
     from core.entrypoints.api import workflow_entrypoints_routes_execute as execute_routes
-    from starlette.requests import Request
 
     spools = []
     original_spool = execute_routes._stage_request_body_with_cap
@@ -1322,6 +1328,7 @@ def test_workflow_entrypoint_accepts_valid_shared_secret_header(monkeypatch):
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "shared_secret_header",
             "auth_config_jsonb": {
@@ -1361,6 +1368,7 @@ def test_workflow_entrypoint_accepts_valid_basic_auth(monkeypatch):
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "basic_auth",
             "auth_config_jsonb": {
@@ -1401,6 +1409,7 @@ def test_workflow_entrypoint_accepts_valid_hmac_signature(monkeypatch):
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "hmac_sha256",
             "auth_config_jsonb": {
@@ -2369,6 +2378,7 @@ def test_workflow_entrypoint_rejects_source_ip_outside_allowlist(monkeypatch):
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -2405,6 +2415,7 @@ def test_workflow_entrypoint_allows_source_ip_inside_cidr_allowlist(monkeypatch)
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -2442,6 +2453,7 @@ def test_workflow_entrypoint_source_ip_ignores_forwarded_headers_by_default(monk
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -2482,6 +2494,7 @@ def test_workflow_entrypoint_partial_mapping_keeps_automap_for_other_expected_in
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -2521,6 +2534,7 @@ def test_workflow_entrypoint_header_mapping_is_case_insensitive(monkeypatch):
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {"secret_ref": "workflow_entrypoint.inventory_sync.secret"},
@@ -2773,9 +2787,10 @@ def test_workflow_entrypoint_applies_configured_limits_during_multipart_parse(mo
 
 
 def test_workflow_entrypoint_holds_shared_admission_through_multipart_lifecycle(monkeypatch):
+    from starlette.requests import Request
+
     from core.application.jobs.submission_admission import SubmissionAdmissionController
     from core.entrypoints.api import workflow_entrypoints_routes_execute as execute_routes
-    from starlette.requests import Request
 
     controller = SubmissionAdmissionController(capacity=1)
     original_form = Request.form
@@ -3721,6 +3736,7 @@ def test_update_workflow_webhook_trigger_rotates_secret_and_persists_updated_fie
             "entry_key": "inventory_sync",
             "workflow_id": "sample_incoming_webhook_router",
             "project_id": "proj-demo",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "enabled": True,
             "auth_mode": "bearer_token",
             "auth_config_jsonb": {
@@ -3903,6 +3919,7 @@ def test_rotate_workflow_webhook_secret_preserves_schema_project_binding(monkeyp
             "entrypoint_id": "ep-1",
             "entry_key": "inventory_sync",
             "workflow_id": "sample_incoming_webhook_router",
+            "account_id": DEFAULT_ACCOUNT_ID,
             "project_id": "proj-demo",
             "enabled": True,
             "auth_mode": "bearer_token",
