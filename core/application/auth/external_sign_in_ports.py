@@ -41,6 +41,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
+import time
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
@@ -94,6 +95,8 @@ class VerifiedExternalIdentity:
     #: person is answering, when the sign-in returns to an invitation link
     #: (``/invitations/<token>``, ADR 0085 C1); empty otherwise.
     invitation_account_id: str = ""
+    #: Set by Core with ``invitation_account_id``: which invitation it is.
+    invitation_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -262,6 +265,8 @@ class ExternalSignInPort:
         self._resolver: ExternalIdentityResolver | None = None
         self._header_source: ExternalSignInHeaderSource | None = None
         self._methods: dict[str, SignInMethod] = {}
+        #: What this process created for sign-ins, discardable once: user -> account.
+        self._created: dict[str, tuple[str, float]] = {}
 
     # --- registration -----------------------------------------------------------------
 
@@ -480,6 +485,7 @@ class ExternalSignInPort:
                 (user_id, account_id),
             )
             _grant(cur, user_id=user_id, account_id=account_id, roles=granted)
+        self._remember_created(user_id, "")
         return user_id
 
     def create_own_account(
@@ -580,7 +586,15 @@ class ExternalSignInPort:
                     "user_id": user_id,
                 },
             )
+        self._remember_created(user_id, account_id)
         return {"account_id": account_id, "user_id": user_id}
+
+    def _remember_created(self, user_id: str, account_id: str) -> None:
+        now = time.monotonic()
+        with self._lock:
+            for key in [k for k, (_a, at) in self._created.items() if now - at > 3600]:
+                del self._created[key]
+            self._created[user_id] = (account_id, now)
 
     def discard_new_person(self, *, user_id: str, account_id: str = "", reason: str) -> bool:
         """Undo :meth:`create_user` or :meth:`create_own_account` of a sign-in Core then
@@ -592,7 +606,15 @@ class ExternalSignInPort:
         it was created in the last hour (otherwise it is disabled, so it no longer
         counts against the limit). Audited as ``external_person_discard``. Returns
         whether the person was removed.
+
+        Only what :meth:`create_user` or :meth:`create_own_account` of this process
+        created can be discarded, once, and an account only with the person it was
+        created with: a module cannot name anybody else.
         """
+        with self._lock:
+            created = self._created.pop(user_id, None)
+            if created is None or created[0] != str(account_id or ""):
+                return False
         if not repository.is_uuid(user_id):
             return False
         with self._connection() as conn, conn.cursor() as cur:

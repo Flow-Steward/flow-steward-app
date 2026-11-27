@@ -193,11 +193,11 @@ def test_the_resolver_learns_the_account_of_an_open_invitation(
 ) -> None:
     asked: list[str] = []
 
-    def open_invitation_account(_cur, token):
+    def open_invitation_ref(_cur, token):
         asked.append(token)
-        return "invited-account" if token == "t" * 43 else ""
+        return ("inv-1", "invited-account") if token == "t" * 43 else ("", "")
 
-    monkeypatch.setattr(account_invitations, "open_invitation_account", open_invitation_account)
+    monkeypatch.setattr(account_invitations, "open_invitation_ref", open_invitation_ref)
     resolver = Recorder()
     service = _service({(INSTALLATION_ACCOUNT_ID, FEATURE)}, resolver)
     _sign_in(service, next_path="/invitations/" + "t" * 43)
@@ -209,6 +209,7 @@ def test_the_resolver_learns_the_account_of_an_open_invitation(
         "",
     ]
     assert asked == ["t" * 43, "u" * 43]
+    assert resolver.seen[0].invitation_id == "inv-1"
 
 
 def test_a_resolver_sentence_reaches_the_sign_in_page(wide_store: FakeStore) -> None:

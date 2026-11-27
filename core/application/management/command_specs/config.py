@@ -264,7 +264,12 @@ CONFIG_COMMAND_SPECS: tuple[CommandSpec, ...] = (
                 option_name="--proxy-trusted-ips",
                 advanced=True,
                 examples=("127.0.0.1/32,::1/128",),
-                description="Comma-separated immediate proxy CIDRs; wildcard networks are rejected.",
+                description=(
+                    "Comma-separated addresses or networks of the reverse proxies in front of "
+                    "Flow Steward; only they (and the bundled proxy) may name the client address, "
+                    "which sign-in limits count. Set it behind a hosting platform proxy. Wildcard "
+                    "networks are rejected."
+                ),
             ),
             FieldSpec(
                 key="traefik_network",

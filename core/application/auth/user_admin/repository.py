@@ -13,6 +13,8 @@ from core.application.auth.external_session_revocation import (
     revoke_external_sign_in_grants,
     roles_changed,
 )
+from core.application.auth.external_sign_in_repository import UNUSABLE_PASSWORD_MARKER
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.auth.local_credentials import authenticator_policy_available
 from core.application.auth.membership_roles import (
     LastAccountAdminError,
@@ -210,8 +212,20 @@ def list_auth_users(
     normalized_offset = max(0, int(offset or 0))
     normalized_search = str(search or "").strip()
     normalized_role = str(role or "").strip().lower()
-    conditions: list[str] = []
-    params: list[Any] = []
+    conditions: list[str] = [
+        # People who sign in only externally and wait, with no company and no role,
+        # in the installation account to answer an invitation are nobody's users yet.
+        """
+        AND NOT (
+            u.password_hash = %s AND u.account_id::text = %s
+            AND NOT EXISTS (
+                SELECT 1 FROM user_account_memberships m_wait
+                WHERE m_wait.user_id = u.id AND m_wait.role_id IS NOT NULL
+            )
+        )
+        """
+    ]
+    params: list[Any] = [UNUSABLE_PASSWORD_MARKER, str(INSTALLATION_ACCOUNT_ID)]
 
     if not include_deleted:
         conditions.append("AND u.deleted_at IS NULL")

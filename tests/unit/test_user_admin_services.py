@@ -667,7 +667,8 @@ def test_user_query_service_uses_canonical_projection_and_membership_scope(
     assert "u.account_id AS account_id" in sql
     assert "u.account_id = ANY(%s)" in sql
     assert "FROM user_account_memberships uam_scope" in sql
-    assert logger.cursor_obj.calls[0][1] == (["acc.prod"], ["acc.prod"])
+    # The first two parameters leave out people waiting for an invitation.
+    assert logger.cursor_obj.calls[0][1][2:] == (["acc.prod"], ["acc.prod"])
 
 
 def test_user_query_service_lists_only_members_of_the_named_account(
@@ -686,7 +687,7 @@ def test_user_query_service_lists_only_members_of_the_named_account(
 
     count_sql, count_params = logger.cursor_obj.calls[0]
     assert "uam_member.account_id::text = %s" in count_sql
-    assert count_params == (["acc.prod"], ["acc.prod"], "acc.prod")
+    assert count_params[2:] == (["acc.prod"], ["acc.prod"], "acc.prod")
 
 
 def test_user_command_service_uses_fixed_canonical_repository_contract() -> None:

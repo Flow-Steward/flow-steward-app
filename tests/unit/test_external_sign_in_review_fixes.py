@@ -315,18 +315,25 @@ def _discard_port(cursor: _DiscardCursor) -> ExternalSignInPort:
 def test_discarding_removes_only_a_fresh_person_without_a_password() -> None:
     cursor = _DiscardCursor(eligible=True, account_free=True)
     account = str(uuid.uuid4())
-    assert _discard_port(cursor).discard_new_person(
-        user_id=str(uuid.uuid4()), account_id=account, reason="refused"
-    )
+    port = _discard_port(cursor)
+    person = str(uuid.uuid4())
+    # Only what this port created, once, and only with its own account.
+    assert not port.discard_new_person(user_id=person, account_id=account, reason="x")
+    port._remember_created(person, account)
+    assert not port.discard_new_person(user_id=person, account_id="", reason="x")
+    port._remember_created(person, account)
+    assert port.discard_new_person(user_id=person, account_id=account, reason="refused")
+    assert not port.discard_new_person(user_id=person, account_id=account, reason="again")
     joined = "\n".join(cursor.executed)
     assert "password_hash = %s" in joined and "NOT EXISTS (SELECT 1 FROM auth_sessions" in joined
     assert "DELETE FROM users" in joined and "DELETE FROM accounts" in joined
     assert "platform_action_log" in joined
 
     kept = _DiscardCursor(eligible=False, account_free=True)
-    assert not _discard_port(kept).discard_new_person(
-        user_id=str(uuid.uuid4()), account_id=account, reason="refused"
-    )
+    kept_port = _discard_port(kept)
+    other = str(uuid.uuid4())
+    kept_port._remember_created(other, account)
+    assert not kept_port.discard_new_person(user_id=other, account_id=account, reason="refused")
     assert not any(sql.startswith("DELETE") for sql in kept.executed)
 
 
@@ -506,3 +513,63 @@ def test_the_inviting_administrator_does_not_manage_a_person_before_acceptance()
     }
     with pytest.raises(ServiceForbiddenError):
         require_user_access(invitee, ["00000000-0000-0000-0000-00000000000b"])
+
+
+# --- second review: waiting newcomers -------------------------------------------------
+
+
+def test_an_installation_account_role_is_never_given_to_an_external_only_person() -> None:
+    from core.application.auth.user_admin.command_service import (
+        EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE,
+    )
+
+    service = _users_service(repository.UNUSABLE_PASSWORD_MARKER)
+    with pytest.raises(ServiceForbiddenError) as refused:
+        service.update_user(
+            UserUpdateInput(user_id=PERSON, role="viewer", actor_user_id="someone-else"),
+            allowed_account_ids=[INSTALLATION_ACCOUNT_ID],
+        )
+    assert refused.value.message == EXTERNAL_ONLY_INSTALLATION_ROLE_MESSAGE
+
+
+def test_accepting_moves_a_waiting_newcomer_into_the_company(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    other = "00000000-0000-0000-0000-00000000000b"
+    # The open invitation, then the newcomer found waiting in the installation account.
+    cur = _Cursor(rows=[_open_row(other), (PERSON,)])
+    decide(
+        cur,
+        token_hash="h" * 64,
+        user_id=PERSON,
+        accept=True,
+        expected_role="operator",
+        external_session=True,
+    )
+    statements = [sql for sql, _ in cur.executed]
+    moved = next(i for i, sql in enumerate(statements) if sql.startswith("UPDATE users"))
+    assert statements[moved + 1].startswith("DELETE FROM user_account_memberships")
+    assert "role_id IS NULL" in statements[moved + 1]
+    assert statements[-1].startswith("UPDATE account_invitations")
+    params = cur.executed[moved][1]
+    assert params[0] == other and params[2] == repository.UNUSABLE_PASSWORD_MARKER
+
+
+def test_waiting_newcomers_are_left_out_of_user_lists() -> None:
+    import inspect
+
+    from core.application.auth.user_admin import repository as users_repository
+
+    source = inspect.getsource(users_repository)
+    assert "m_wait.role_id IS NOT NULL" in source
+
+
+def test_a_session_without_a_role_sees_nothing_of_the_account() -> None:
+    import inspect
+
+    from core.entrypoints.api import app_bootstrap
+
+    source = inspect.getsource(app_bootstrap.create_api_app_bootstrap_router)
+    assert "role_less = authenticated and not _normalized_roles(auth_user)" in source
+    assert "feature_flags = {}" in source

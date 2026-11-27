@@ -362,3 +362,24 @@ sessions switch accounts is open.
 - **Privacy note.** Company administrators list the identity links stored in their
   account (`/api/settings/external-sign-in/identities`), which for an installation-wide
   method include the provider's subject of their members. Not hidden yet.
+
+### Second review (2026-11-27)
+
+- **Trusted proxies are explicit.** The client address that sign-in limits count comes
+  from forwarded headers only when the peer is the bundled proxy (the `traefik`
+  service), loopback, or listed in `FS_PROXY_TRUSTED_IPS` (`proxy_trusted_ips`: the
+  operator's addresses or networks, the list uvicorn already trusts). The container's
+  default gateway and Docker's host aliases are no longer trusted implicitly: with a
+  port published straight from the container every client looks like the gateway, and
+  trusting it let any client name its own address. Behind a hosting platform's proxy,
+  or a host proxy reaching a published port, the operator lists it.
+- **Waiting newcomers.** A person who signs in only externally and waits in the
+  installation account (no role) to answer an invitation is left out of user lists
+  and can get no role there; accepting moves them into the company they joined (home
+  and default) and removes the placeholder membership. Core passes
+  `invitation_id` with `invitation_account_id`.
+- **Discard is one-shot.** `discard_new_person` removes only what `create_user` or
+  `create_own_account` of the same process created in the last hour, once, and an
+  account only with the person it was created with.
+- **A session without a role** gets no features, pages or permissions of the account
+  from `/api/app/bootstrap`.

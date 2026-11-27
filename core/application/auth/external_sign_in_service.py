@@ -437,6 +437,7 @@ class ExternalSignInService:
         issuer = str(identity.issuer or "").strip()
         if not subject or not issuer or len(subject) > 255:
             self._refuse("identity_invalid", option=label, path=path)
+        invitation = self._invitation(path)
         installation_wide = _installation_wide(sign_in)
         # Core, not the method, names the method and the issuer namespace, and
         # whether the identity is installation-wide (then it names no account).
@@ -450,24 +451,24 @@ class ExternalSignInService:
             claims=identity.claims,
             feature=str(identity.feature or option.feature or ""),
             installation_wide=installation_wide,
-            invitation_account_id=self._invitation_account(path),
+            invitation_account_id=invitation[1],
+            invitation_id=invitation[0],
         )
 
-    def _invitation_account(self, return_path: str) -> str:
-        """The account of the open invitation the sign-in returns to, or ``""``."""
+    def _invitation(self, return_path: str) -> tuple[str, str]:
+        """``(invitation id, account)`` of the open invitation the sign-in returns to,
+        or empty strings."""
         match = _INVITATION_PATH.match(str(return_path or ""))
         if match is None:
-            return ""
-        from core.application.auth.user_admin.account_invitations import (
-            open_invitation_account,
-        )
+            return "", ""
+        from core.application.auth.user_admin.account_invitations import open_invitation_ref
 
         try:
             with self._connection() as conn, conn.cursor() as cur:
-                return open_invitation_account(cur, match.group(1))
+                return open_invitation_ref(cur, match.group(1))
         except Exception:
             logger.warning("The invitation of an external sign-in could not be read")
-            return ""
+            return "", ""
 
     # --- the common end ---------------------------------------------------------------
 

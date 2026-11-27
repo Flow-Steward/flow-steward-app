@@ -179,7 +179,7 @@ def test_bootstrap_request_allowed_rejects_trusted_proxy_without_explicit_opt_in
     assert denied == (False, "Bootstrap is restricted to localhost requests")
 
 
-def test_trusted_local_proxy_hosts_includes_exact_compose_reverse_proxy(monkeypatch) -> None:
+def test_trusted_proxies_are_the_bundled_proxy_and_the_operators_list_only(monkeypatch) -> None:
     resolved = {
         "host.docker.internal": "192.168.65.254",
         "gateway.docker.internal": "192.168.65.1",
@@ -190,15 +190,34 @@ def test_trusted_local_proxy_hosts_includes_exact_compose_reverse_proxy(monkeypa
         "gethostbyname",
         lambda hostname: resolved[hostname],
     )
-    monkeypatch.setattr(serve_auth_runtime, "_default_gateway_host", lambda: "172.19.0.1")
+    monkeypatch.setattr(
+        serve_auth_runtime,
+        "_runtime_env",
+        {"FS_PROXY_TRUSTED_IPS": "10.0.0.5, 10.1.0.0/16, 0.0.0.0/0, not-an-ip"},
+    )
     serve_auth_runtime.trusted_local_proxy_hosts.cache_clear()
+    serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
+    try:
+        # Neither Docker's host aliases nor the default gateway: a port published
+        # straight from the container makes every client look like the gateway.
+        assert serve_auth_runtime.trusted_local_proxy_hosts() == {"172.19.0.7", "10.0.0.5"}
+        assert [str(n) for n in serve_auth_runtime.trusted_local_proxy_networks()] == [
+            "10.1.0.0/16"
+        ]
+        trusted = serve_auth_runtime._client_host_in_trusted_local_proxy_scope
+        assert trusted("10.1.2.3") and trusted("172.19.0.7")
+        assert not trusted("172.19.0.1") and not trusted("192.168.65.1")
 
-    assert serve_auth_runtime.trusted_local_proxy_hosts() == {
-        "172.19.0.1",
-        "172.19.0.7",
-        "192.168.65.1",
-        "192.168.65.254",
-    }
+        def forwarded(peer: str) -> str:
+            return serve_auth_runtime.request_client_ip(
+                _FakeRequest(headers={"x-forwarded-for": "203.0.113.9"}, client_host=peer)
+            )
+
+        assert forwarded("10.1.2.3") == "203.0.113.9"
+        assert forwarded("172.19.0.1") == "172.19.0.1"  # the gateway names nobody
+    finally:
+        serve_auth_runtime.trusted_local_proxy_hosts.cache_clear()
+        serve_auth_runtime.trusted_local_proxy_networks.cache_clear()
 
     serve_auth_runtime.trusted_bootstrap_proxy_hosts.cache_clear()
     assert serve_auth_runtime.trusted_bootstrap_proxy_hosts() == {"172.19.0.7"}

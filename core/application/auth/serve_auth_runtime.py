@@ -617,36 +617,45 @@ def _is_loopback_hostname(value: str) -> bool:
         return False
 
 
-def _default_gateway_host() -> str:
-    try:
-        with open("/proc/net/route", encoding="utf-8") as route_file:
-            next(route_file, None)
-            for raw_line in route_file:
-                fields = raw_line.strip().split()
-                if len(fields) < 3 or fields[1] != "00000000":
-                    continue
-                gateway_hex = fields[2]
-                gateway_bytes = bytes.fromhex(gateway_hex)
-                return str(ipaddress.ip_address(int.from_bytes(gateway_bytes, "little")))
-    except (OSError, ValueError):
-        return ""
-    return ""
+def _configured_proxy_networks() -> list[ipaddress._BaseNetwork]:
+    """The proxies the operator configured (``FS_PROXY_TRUSTED_IPS``: addresses or
+    networks, comma separated; the same list uvicorn trusts for forwarded headers).
+    A wildcard network or an unreadable entry is ignored here (the server refuses to
+    start with one)."""
+    networks: list[ipaddress._BaseNetwork] = []
+    for entry in str(_runtime_env.get("FS_PROXY_TRUSTED_IPS", "") or "").split(","):
+        text = entry.strip()
+        if not text:
+            continue
+        try:
+            network = ipaddress.ip_network(text, strict=False)
+        except ValueError:
+            continue
+        if network.prefixlen:
+            networks.append(network)
+    return networks
 
 
 @lru_cache(maxsize=1)
 def trusted_local_proxy_hosts() -> set[str]:
+    """The exact proxies whose forwarded headers name the client: the bundled reverse
+    proxy (the ``traefik`` service) and the single addresses the operator configured.
+
+    Nothing is trusted implicitly: not the container's default gateway, nor Docker's
+    host aliases. A port published straight from the container makes every client look
+    like the gateway, and trusting it would let any client name its own address.
+    """
     hosts: set[str] = set()
-    for host_name in ("host.docker.internal", "gateway.docker.internal", "traefik"):
-        try:
-            resolved = socket.gethostbyname(host_name)
-        except OSError:
-            continue
-        normalized = _normalized_hostname(resolved)
-        if normalized:
-            hosts.add(normalized)
-    default_gateway = _normalized_hostname(_default_gateway_host())
-    if default_gateway:
-        hosts.add(default_gateway)
+    try:
+        resolved = socket.gethostbyname("traefik")
+    except OSError:
+        resolved = ""
+    normalized = _normalized_hostname(resolved)
+    if normalized:
+        hosts.add(normalized)
+    for network in _configured_proxy_networks():
+        if network.num_addresses == 1:
+            hosts.add(str(network.network_address))
     return hosts
 
 
@@ -662,19 +671,23 @@ def trusted_bootstrap_proxy_hosts() -> set[str]:
 
 @lru_cache(maxsize=1)
 def trusted_local_proxy_networks() -> tuple[ipaddress._BaseNetwork, ...]:
-    """Return the trusted local proxy network set.
-
-    Bootstrap trust stays bound to exact local proxy hosts, not adjacent subnet
-    peers, so this intentionally returns an empty tuple.
-    """
-    return ()
+    """The proxy networks the operator configured (``FS_PROXY_TRUSTED_IPS`` entries
+    wider than one address). Bootstrap trust never uses them: it stays bound to the
+    bundled proxy host (:func:`trusted_bootstrap_proxy_hosts`)."""
+    return tuple(network for network in _configured_proxy_networks() if network.num_addresses > 1)
 
 
 def _client_host_in_trusted_local_proxy_scope(client_host: str) -> bool:
     normalized_client = _normalized_hostname(client_host)
     if not normalized_client:
         return False
-    return normalized_client in trusted_local_proxy_hosts()
+    if normalized_client in trusted_local_proxy_hosts():
+        return True
+    try:
+        address = ipaddress.ip_address(normalized_client)
+    except ValueError:
+        return False
+    return any(address in network for network in trusted_local_proxy_networks())
 
 
 def _request_trusts_forwarded_headers(request: Any) -> bool:
@@ -684,7 +697,7 @@ def _request_trusts_forwarded_headers(request: Any) -> bool:
         return False
     if client_host in {"127.0.0.1", "::1", "localhost"}:
         return True
-    return client_host in trusted_local_proxy_hosts()
+    return _client_host_in_trusted_local_proxy_scope(client_host)
 
 
 def _valid_ip_literal(value: str) -> str:

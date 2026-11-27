@@ -304,13 +304,50 @@ def _open_invitation(cur: Any, token_hash: str, *, lock: bool) -> dict[str, str]
     }
 
 
-def open_invitation_account(cur: Any, token: str) -> str:
-    """The account of the open invitation ``token`` names, or ``""`` (ADR 0083
-    amendment: an external sign-in that returns to an invitation link)."""
+def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
+    """A person who signs in only externally and was waiting, without a company, in the
+    installation account (no role) to answer this invitation moves into the company
+    they joined: it becomes their home and default, and the placeholder membership
+    goes. Nobody else is touched (ADR 0083 amendment, review fixes)."""
+    from core.application.auth.external_sign_in_repository import UNUSABLE_PASSWORD_MARKER
+
+    installation = _text(INSTALLATION_ACCOUNT_ID)
+    if not _text(user_id) or _text(account_id) == installation:
+        return
+    cur.execute(
+        """
+        UPDATE users SET account_id = %s::uuid, updated_at = now()
+         WHERE id::text = %s AND password_hash = %s AND account_id::text = %s
+           AND NOT EXISTS (
+               SELECT 1 FROM user_account_memberships m
+                WHERE m.user_id = users.id AND m.account_id::text = %s
+                  AND m.role_id IS NOT NULL)
+        RETURNING id
+        """,
+        (account_id, user_id, UNUSABLE_PASSWORD_MARKER, installation, installation),
+    )
+    if cur.fetchone() is None:
+        return
+    cur.execute(
+        "DELETE FROM user_account_memberships "
+        "WHERE user_id::text = %s AND account_id::text = %s AND role_id IS NULL",
+        (user_id, installation),
+    )
+    cur.execute(
+        "UPDATE user_account_memberships SET is_default = (account_id::text = %s) "
+        "WHERE user_id::text = %s",
+        (account_id, user_id),
+    )
+
+
+def open_invitation_ref(cur: Any, token: str) -> tuple[str, str]:
+    """``(invitation id, account)`` of the open invitation ``token`` names, or empty
+    strings (ADR 0083 amendment: an external sign-in that returns to an invitation
+    link)."""
     if not _text(token):
-        return ""
+        return "", ""
     found = _open_invitation(cur, invitation_token_hash(token), lock=False)
-    return found["account_id"] if found else ""
+    return (found["id"], found["account_id"]) if found else ("", "")
 
 
 def preview(cur: Any, token_hash: str) -> dict[str, str]:
@@ -363,6 +400,7 @@ def decide(
                 role=role,
                 managed_account_ids=None,
             )
+        _settle_newcomer(cur, user_id=_text(user_id), account_id=found["account_id"])
     # The person who answered is recorded on the invitation.
     cur.execute(
         "UPDATE account_invitations SET status = %s, user_id = %s::uuid WHERE id::text = %s",

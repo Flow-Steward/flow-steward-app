@@ -243,7 +243,7 @@ Existing reverse-proxy implementation.
 
 ### `proxy_trusted_ips`
 
-Comma-separated immediate proxy CIDRs; wildcard networks are rejected.
+Comma-separated addresses or networks of the reverse proxies in front of Flow Steward; only they (and the bundled proxy) may name the client address, which sign-in limits count. Set it behind a hosting platform proxy. Wildcard networks are rejected.
 
 - Default: `127.0.0.1/32, ::1/128`
 - Accepts: text
