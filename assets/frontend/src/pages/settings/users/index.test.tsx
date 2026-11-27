@@ -755,18 +755,15 @@ describe("SettingsUsersPage", () => {
     const freelancer = { ...mayaRecord, id: "admin-self", display_name: "Fred Freelancer", roles: ["admin"] };
 
     it("marks the owner and offers nobody else the actions refused for them", async () => {
-      const user = userEvent.setup();
       mockedFetchAccountOwner.mockResolvedValue(ownerState({ owner_user_id: "owner-1", owner_name: "Olivia Owner" }));
       mockedFetchUsersCollection.mockResolvedValue(userPage([owner, freelancer]));
       renderUsersPage();
 
       await waitFor(() => expect(within(screen.getByRole("row", { name: /Olivia Owner/ })).getByTestId("user-owner-badge")).toHaveTextContent("Owner"));
       expect(within(screen.getByRole("row", { name: /Fred Freelancer/ })).queryByTestId("user-owner-badge")).not.toBeInTheDocument();
-      await user.click(screen.getByRole("button", { name: "Actions for Olivia Owner" }));
-      for (const name of ["Edit access", "Set temporary password", "Require password reset", "Reset authenticator", "Deactivate user", "Remove from this company", "Delete user", "Transfer ownership"]) {
-        expect(screen.queryByRole("menuitem", { name })).not.toBeInTheDocument();
-      }
-      expect(screen.getByRole("menuitem", { name: "Clear sign-in lockout" })).toBeInTheDocument();
+      // Nothing is offered on the owner's row: no role, name, sign-in or status change.
+      expect(screen.queryByRole("button", { name: "Actions for Olivia Owner" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Actions for Fred Freelancer" })).toBeInTheDocument();
     });
 
     it("lets the owner offer ownership to another administrator, who must accept", async () => {

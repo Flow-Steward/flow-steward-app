@@ -46,7 +46,9 @@ from tests.db._companies import (
 )
 
 #: A password Fred would like to give Olivia.
-NEW_PASSWORD = "a new password nobody knows"  # pragma: allowlist secret - a test value
+NEW_PASSWORD = "Fred-Wants-In-2026!"  # pragma: allowlist secret - a test value
+#: A password the policy refuses: the owner rule answers first.
+WEAK_PASSWORD = "short"  # pragma: allowlist secret - a test value
 MIGRATION = (
     Path(__file__).resolve().parents[2] / "db" / "migrations" / "20261127220000_account_owner.sql"
 )
@@ -181,7 +183,12 @@ def test_a_freelancer_administrator_cannot_touch_the_owner(world: World, people:
             json={"password": NEW_PASSWORD, "must_change_password": False},
         )
     )
+    # Refused before the password is even looked at: no policy hint to someone who may
+    # not set it.
+    _refused(freds.put(f"/api/auth/users/{people.olivia}", json={"password": WEAK_PASSWORD}))
+    _refused(freds.put(f"/api/auth/users/{people.olivia}", json={"display_name": "Former owner"}))
     _refused(freds.post(f"/api/auth/users/{people.olivia}/force-password-reset"))
+    _refused(freds.post(f"/api/auth/users/{people.olivia}/unlock"))
     _refused(freds.post(f"/api/auth/users/{people.olivia}/authenticator", json={"action": "reset"}))
     _refused(freds.delete(f"/api/auth/users/{people.olivia}"))
     # Nor can he give the company to himself.
@@ -196,11 +203,13 @@ def test_a_freelancer_administrator_cannot_touch_the_owner(world: World, people:
     # Olivia is untouched: owner, admin, active, signed in, same password.
     assert owner_of(world, world.a.id) == people.olivia
     assert _role(world, people.olivia, world.a.id) == "admin"
-    active, password_hash, must_change = world.conn.execute(
-        "SELECT is_active, password_hash, must_change_password FROM users WHERE id = %s",
+    active, password_hash, must_change, name = world.conn.execute(
+        """SELECT is_active, password_hash, must_change_password, display_name
+             FROM users WHERE id = %s""",
         (people.olivia,),
     ).fetchone()
     assert (active, password_hash, must_change) == (True, "x", False)
+    assert name != "Former owner"
     assert olivias.get("/api/projects").status_code == 200
 
 

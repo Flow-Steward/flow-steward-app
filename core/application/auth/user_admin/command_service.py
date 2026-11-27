@@ -7,7 +7,7 @@ from typing import Any, Protocol, TypeAlias
 
 from core.application.auth import mfa_repository
 from core.application.auth.account_memberships import normalize_membership_account_ids
-from core.application.auth.account_owner import require_owner_consent
+from core.application.auth.account_owner import require_owner_consent, require_owner_kept
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.email import normalize_email_address
@@ -188,6 +188,32 @@ def _require_update_access(
         require_account_access([role_account_id], allowed_account_ids)
 
 
+def _owner_rules_first(
+    bl: Any,
+    *,
+    user_id: str,
+    actor_user_id: str | None = None,
+    consent: bool = False,
+    kept: bool = False,
+    account_ids: list[str] | None = None,
+) -> None:
+    """Refuse a change to a company owner before anything about the request is checked.
+
+    A person who may not touch the owner (ADR 0085, "Company owner") is told so whatever
+    they sent: no password-policy or input hint first. The repository checks the same
+    rules again in the transaction that writes.
+    """
+    conn = getattr(bl, "conn", None)
+    cursor = getattr(conn, "cursor", None)
+    if not callable(cursor):
+        return
+    with cursor() as cur:
+        if consent:
+            require_owner_consent(cur, user_id=user_id, actor_user_id=actor_user_id or "")
+        if kept:
+            require_owner_kept(cur, user_id=user_id, account_ids=account_ids)
+
+
 class UserAdminCommandService:
     def __init__(
         self,
@@ -353,6 +379,7 @@ class UserAdminCommandService:
         if not actor_user_id or actor_user_id.casefold() == user_id.casefold():
             raise ServiceForbiddenError("An administrator must manage another user's authenticator")
         bl = self._logger()
+        _owner_rules_first(bl, user_id=user_id, actor_user_id=actor_user_id, consent=True)
         if not (authenticator_storage_available(bl) and authenticator_policy_available(bl)):
             raise ServiceUnavailableError("Authenticator storage is unavailable")
 
@@ -410,6 +437,7 @@ class UserAdminCommandService:
         bl = self._logger()
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
         require_user_access(user, allowed_account_ids)
+        _owner_rules_first(bl, user_id=str(user["id"]), actor_user_id=actor_user_id, consent=True)
 
         revoked_sessions = self._repository.force_password_reset(
             bl,
@@ -441,10 +469,13 @@ class UserAdminCommandService:
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView:
+        """Clear the sign-in lockout; a company owner's only by the owner (ADR 0085)."""
         bl = self._logger()
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
         require_user_access(user, allowed_account_ids)
+        _owner_rules_first(bl, user_id=str(user["id"]), actor_user_id=actor_user_id, consent=True)
         username = str(user.get("username") or "")
         context = resolve_audit_context(command.actor, audit_context)
         self._clear_login_failures(username, bl=bl)
@@ -478,6 +509,7 @@ class UserAdminCommandService:
         user_id = str(user["id"])
         if user_id == command.actor_user_id:
             raise ServiceConflictError("You cannot delete your own user account")
+        _owner_rules_first(bl, user_id=user_id, kept=True)
 
         context = resolve_audit_context(command.actor, audit_context)
         revoked_sessions = self._repository.delete_auth_user(
@@ -590,6 +622,33 @@ class UserAdminCommandService:
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
         role_account_id = str(command.role_account_id or "").strip() or None
         _require_update_access(user, command, role_account_id, allowed_account_ids)
+        actor_user_id = str(command.actor_user_id or "").strip() or None
+        _owner_rules_first(
+            bl,
+            user_id=str(user["id"]),
+            actor_user_id=actor_user_id,
+            consent=any(
+                value is not None
+                for value in (
+                    command.display_name,
+                    command.password,
+                    command.must_change_password,
+                    command.account_ids,
+                    command.account_id,
+                )
+            ),
+        )
+        if command.is_active is False or command.role is not None:
+            _owner_rules_first(
+                bl,
+                user_id=str(user["id"]),
+                kept=True,
+                account_ids=(
+                    None
+                    if command.is_active is False
+                    else [role_account_id or str(user.get("account_id") or "").strip()]
+                ),
+            )
         if all(
             value is None
             for value in (

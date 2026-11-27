@@ -143,8 +143,8 @@ function UserInventoryRow({
   const statusLabel = userStatusLabel(user, busyUserId, t);
   const requirementAction = user.authenticator_required ? "unrequire" : "require";
   const isOwner = Boolean(owner.userId) && user.id === owner.userId;
-  // Nobody but the owner changes the owner's role or sign-in, and nobody removes,
-  // deactivates or deletes the owner (ADR 0085): those actions are not offered.
+  // Nobody but the owner changes the owner's role, name or sign-in, and nobody removes,
+  // deactivates or deletes the owner (ADR 0085): no action is offered on their row.
   const protectedOwner = isOwner && user.id !== authUserId;
   const canManageAuthenticator = Boolean(authUserId && user.id !== authUserId && !user.deleted_at) && !isOwner;
   const canReceiveOwnership = owner.viewerIsOwner && !isOwner && user.is_active && user.roles.includes("admin");
@@ -181,43 +181,36 @@ function UserInventoryRow({
       {projectAccess ? <td data-testid="user-project-access-cell">{projectAccessLabel(user, projectAccess.data, t)}</td> : null}
       <td>{user.must_change_password ? t("react.settings.change_required", "Change required") : t("monitoring.table.current", "Current")}</td>
       <td className="fs-table-action-cell">
+        {protectedOwner ? null : (
         <RowActionMenu
           label={t("react.settings.actions_for_value1", "Actions for {value1}", { value1: String(userLabel(user)) })}
           onOpenChange={(open) => setRowMenu(open ? user : null)}
           open={rowMenu?.id === user.id}
         >
-          {protectedOwner ? null : (
-            <>
-              <div className="fs-row-menu-group">
-                <span className="fs-row-menu-label">{t("settings.access.keys.columns.access", "Access")}</span>
-                <button onClick={() => onEdit(user)} role="menuitem" type="button">
-                  {t("react.settings.edit_access", "Edit access")} </button>
-                {canReceiveOwnership ? (
-                  <button onClick={() => onTransfer(user)} role="menuitem" type="button">
-                    {t("react.settings.transfer_ownership", "Transfer ownership")} </button>
-                ) : null}
-              </div>
-              <div className="fs-row-menu-separator" />
-            </>
-          )}
+          <div className="fs-row-menu-group">
+            <span className="fs-row-menu-label">{t("settings.access.keys.columns.access", "Access")}</span>
+            <button onClick={() => onEdit(user)} role="menuitem" type="button">
+              {t("react.settings.edit_access", "Edit access")} </button>
+            {canReceiveOwnership ? (
+              <button onClick={() => onTransfer(user)} role="menuitem" type="button">
+                {t("react.settings.transfer_ownership", "Transfer ownership")} </button>
+            ) : null}
+          </div>
+          <div className="fs-row-menu-separator" />
           <div className="fs-row-menu-group">
             <span className="fs-row-menu-label">{t("react.settings.sign_in", "Sign-in")}</span>
-            {protectedOwner ? null : (
-              <>
-                <button
-                  onClick={() => onPassword(user)}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t("react.settings.set_temporary_password", "Set temporary password")} </button>
-                <button
-                  onClick={() => onConfirmAction("reset-password", user)}
-                  role="menuitem"
-                  type="button"
-                >
-                  {t("react.settings.require_password_reset", "Require password reset")} </button>
-              </>
-            )}
+            <button
+              onClick={() => onPassword(user)}
+              role="menuitem"
+              type="button"
+            >
+              {t("react.settings.set_temporary_password", "Set temporary password")} </button>
+            <button
+              onClick={() => onConfirmAction("reset-password", user)}
+              role="menuitem"
+              type="button"
+            >
+              {t("react.settings.require_password_reset", "Require password reset")} </button>
             <button
               onClick={() => onImmediateAction("unlock", user)}
               role="menuitem"
@@ -278,6 +271,7 @@ function UserInventoryRow({
             </>
           )}
         </RowActionMenu>
+        )}
       </td>
     </tr>
   );

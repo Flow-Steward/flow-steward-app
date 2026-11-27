@@ -409,3 +409,52 @@ def test_only_the_installation_administrator_reassigns_an_owner() -> None:
             "actor": "2222@x.test",
         }
     ]
+
+
+# --- the owner is refused first, whatever the request says --------------------------------
+
+
+def _command_service(cur: _Cursor, cleared: list[str]) -> Any:
+    from core.application.auth.user_admin.command_service import UserAdminCommandService
+
+    owner = {"id": OWNER, "username": "o@x.test", "account_id": COMPANY, "account_ids": [COMPANY]}
+    bl = SimpleNamespace(conn=SimpleNamespace(cursor=lambda: cur))
+    return UserAdminCommandService(
+        get_logger=lambda: bl,
+        auth_tables_available_fn=lambda _bl: True,
+        get_user_by_id_fn=lambda *_args: dict(owner),
+        log_auth_audit_event_fn=lambda *_args, **_kwargs: None,
+        auth_login_clear_user_failures_fn=lambda username, *, bl=None: cleared.append(username),
+        repository=SimpleNamespace(),  # never reached
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"password": "short"},  # pragma: allowlist secret
+        {"display_name": "Former owner"},
+        {"must_change_password": True},
+        {"is_active": False},
+        {"role": "viewer", "role_account_id": COMPANY},
+    ],
+)
+def test_a_change_to_the_owner_is_refused_before_its_input_is_checked(
+    change: dict[str, Any],
+) -> None:
+    from core.application.auth.user_admin.contracts import UserUpdateInput
+
+    service = _command_service(_Cursor({COMPANY: OWNER}), [])
+    with pytest.raises(AccountOwnerProtectedError):
+        service.update_user(UserUpdateInput(user_id=OWNER, actor_user_id=FREELANCER, **change))
+
+
+def test_only_the_owner_clears_their_own_sign_in_lockout() -> None:
+    from core.application.auth.user_admin.contracts import UserSelectorInput
+
+    cleared: list[str] = []
+    service = _command_service(_Cursor({COMPANY: OWNER}), cleared)
+    for actor in (FREELANCER, None):
+        with pytest.raises(AccountOwnerProtectedError):
+            service.unlock_user(UserSelectorInput(user_id=OWNER), actor_user_id=actor)
+    assert cleared == []

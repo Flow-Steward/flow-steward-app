@@ -71,6 +71,15 @@ def _seed_temp_auth_tables(conn: Any, *, reject_delete: bool = False) -> None:
             """
         )
         cur.execute(
+            # The company owner (ADR 0085): nobody here owns an account.
+            """
+            CREATE TEMP TABLE accounts (
+                id text PRIMARY KEY,
+                owner_user_id text
+            ) ON COMMIT PRESERVE ROWS
+            """
+        )
+        cur.execute(
             """
             CREATE TEMP TABLE auth_sessions (
                 user_id text NOT NULL,

@@ -98,6 +98,7 @@ class UserCommandServiceProtocol(Protocol):
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView: ...
 
     def unlock_user(
@@ -106,6 +107,7 @@ class UserCommandServiceProtocol(Protocol):
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView: ...
 
     def set_active(

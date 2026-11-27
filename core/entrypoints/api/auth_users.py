@@ -833,6 +833,7 @@ def create_auth_users_router(
                     actor=str(admin_user.get("username") or "admin"),
                     source="api",
                 ),
+                actor_user_id=str(admin_user.get("id") or "").strip() or None,
             )
         except Exception as e:
             return _user_service_error(e)

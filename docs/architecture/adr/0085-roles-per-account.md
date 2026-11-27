@@ -511,13 +511,17 @@ writes, refusing with `AccountOwnerProtectedError` (403, code `account_owner_pro
   grants), `revoke_account_access` (what a removal or a role change ends, and
   `ExternalSignInRevocationPort.revoke_access_in_account`), `remove_member`,
   `update_auth_user` (deactivation, role change, memberships set) and `delete_auth_user`.
-  It runs after the last-administrator rule, whose refusal wins when both apply.
+  The user commands (`UserAdminCommandService`) check it first, before the request's
+  input is looked at; `remove_member` checks it after the last-administrator rule.
 - **Only the owner touches their own sign-in** (`require_owner_consent`). No one but
   the owner sets or resets the owner's password, requires a password change, changes
-  their memberships (which ends every session), revokes their sessions, personal tokens
-  or OAuth grants, unlinks their external sign-in identities or changes their
-  authenticator. Checked by `update_auth_user`, `force_password_reset`,
-  `UserAdminCommandService.update_authenticator` and `ExternalSignInAdmin.unlink_identity`.
+  their display name or memberships (which ends every session), clears their sign-in
+  lockout, revokes their sessions, personal tokens or OAuth grants, unlinks their
+  external sign-in identities or changes their authenticator. Checked by
+  `UserAdminCommandService` (update, force reset, unlock, authenticator) before any
+  input validation, so a person who may not act learns nothing such as a
+  password-policy hint; again by `update_auth_user` and `force_password_reset` in the
+  writing transaction; and by `ExternalSignInAdmin.unlink_identity`.
   The command line and platform modules name no person, so they are never the owner.
 
 The rules hold for every company the person owns, whichever company the acting
@@ -540,8 +544,8 @@ remove them from B. The owner removes and demotes any other administrator.
 - `POST /api/auth/users/owner/transfer/cancel`: the owner withdraws the offer.
 - `GET /api/auth/users/owner`: the owner, whether the caller is the owner, the open offer
   and whether it is for the caller.
-- Settings → Users shows "Owner" on the owner's row and does not offer the refused
-  actions on it; the owner has "Transfer ownership" on the rows of active
+- Settings → Users shows "Owner" on the owner's row and offers no action on it to
+  anyone else; the owner has "Transfer ownership" on the rows of active
   administrators; the recipient sees the offer with Accept and Decline, the owner sees
   whom it waits for with Cancel.
 

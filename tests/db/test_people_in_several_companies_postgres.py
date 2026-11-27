@@ -312,6 +312,9 @@ def test_the_last_admin_rule_is_per_company(world: World) -> None:
     # Carol owns B (ADR 0085, "Company owner"): Alice, its first administrator, would
     # otherwise be its owner, whom nobody demotes.
     make_owner(world, world.b.id, carol)
+    # A keeps no owner here, so the last-administrator rule is what refuses below (an
+    # owner is refused first: tests/db/test_company_owner_postgres.py).
+    world.conn.execute("UPDATE accounts SET owner_user_id = NULL WHERE id = %s", (world.a.id,))
 
     # A has no other administrator: the CLI (no acting person) is refused.
     service = UserAdminCommandService(get_logger=lambda: world.store)

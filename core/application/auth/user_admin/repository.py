@@ -483,7 +483,8 @@ def update_auth_user(
             role_account=None,
             kept_accounts=None,
             sign_in_changed=(
-                password is not None
+                display_name is not None
+                or password is not None
                 or must_change_password is not None
                 or requested_account_ids is not None
             ),
