@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar, Protocol
 
@@ -87,6 +87,17 @@ class StoredSecretUnavailable(StoredSecretError):
     safe_message = "Secret storage is temporarily unavailable."
 
 
+class StoredSecretStorageRefused(StoredSecretError):
+    """The store that keeps the value cannot serve it here: it is not installed in this
+    process, its configuration is turned off, or it refused this installation's own
+    credentials. Retrying does not help; an administrator must act. There is no
+    fallback to another store."""
+
+    code = "secret_store_unavailable"
+    failure_class = "platform_blocker"
+    safe_message = "Secret storage is unavailable."
+
+
 class StoredSecretReader(Protocol):
     """Return the plaintext behind one authorized reference, or raise `StoredSecretError`."""
 
@@ -94,10 +105,19 @@ class StoredSecretReader(Protocol):
 
 
 class LocalStoredSecretReader:
-    """Values encrypted with the installation key in `secret_refs`."""
+    """Values encrypted with the installation key in `secret_refs`.
 
-    def __init__(self, conn: Any) -> None:
+    `prefetched_ciphertexts` maps a reference to the ciphertext the caller already
+    read account-scoped in its own statement (``None`` when that statement found no
+    row), so a pointer and its value stay one atomic read. A reference it does not
+    name is looked up through `conn`.
+    """
+
+    def __init__(
+        self, conn: Any, *, prefetched_ciphertexts: Mapping[str, str | None] | None = None
+    ) -> None:
         self._conn = conn
+        self._prefetched = dict(prefetched_ciphertexts or {})
 
     def read(self, context: SecretReadContext, ref_key: str) -> str:
         import psycopg
@@ -109,15 +129,22 @@ class LocalStoredSecretReader:
         if not key:
             raise StoredSecretMissing(key)
         remaining_seconds = context.remaining_seconds()
-        if (remaining_seconds is not None and remaining_seconds <= 0) or self._conn is None:
+        prefetched = key in self._prefetched
+        if (remaining_seconds is not None and remaining_seconds <= 0) or (
+            self._conn is None and not prefetched
+        ):
             raise StoredSecretUnavailable(key)
         if not context.account_id:
             # No trusted account: nothing to look up, and the query would fail
             # on the empty uuid with an error that names no store fact.
             raise StoredSecretMissing(key)
         try:
-            ciphertext = get_secret_ref_ciphertext(
-                self._conn, account_id=context.account_id, ref_key=key
+            ciphertext = (
+                self._prefetched[key]
+                if prefetched
+                else get_secret_ref_ciphertext(
+                    self._conn, account_id=context.account_id, ref_key=key
+                )
             )
         except (psycopg.OperationalError, psycopg.InterfaceError) as exc:
             # The driver's text can carry the statement and connection details;
@@ -136,9 +163,23 @@ class LocalStoredSecretReader:
 StoredSecretReaderFactory = Callable[[Any], StoredSecretReader]
 
 
-def stored_secret_reader(conn: Any) -> StoredSecretReader:
-    """The host-selected reader for values persisted through `conn`'s database."""
-    return LocalStoredSecretReader(conn)
+def stored_secret_reader(
+    conn: Any, *, prefetched_ciphertexts: Mapping[str, str | None] | None = None
+) -> StoredSecretReader:
+    """The host-selected reader for values persisted through `conn`'s database.
+
+    Local by default. When a platform module registered a secret backend in this
+    process, the reader first asks whether the reference has a remote locator and
+    then reads it from that backend, never falling back to a local value
+    (:mod:`core.infrastructure.security.secret_backends`).
+    `prefetched_ciphertexts`: see :class:`LocalStoredSecretReader`.
+    """
+    local = LocalStoredSecretReader(conn, prefetched_ciphertexts=prefetched_ciphertexts)
+    from core.infrastructure.security import secret_backends
+
+    if not secret_backends.has_registered_backends():
+        return local
+    return secret_backends.RoutedStoredSecretReader(conn, local=local)
 
 
 class _DeferredStoredSecretReader:
@@ -167,6 +208,7 @@ __all__ = [
     "StoredSecretMissing",
     "StoredSecretReader",
     "StoredSecretReaderFactory",
+    "StoredSecretStorageRefused",
     "StoredSecretUnavailable",
     "StoredSecretUndecryptable",
     "deferred_stored_secret_reader",

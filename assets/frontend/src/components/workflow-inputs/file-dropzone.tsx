@@ -139,13 +139,13 @@ export function FileDropzone({
               </button>
             </div>
           ) : null}
-          <ul aria-label={listLabel} className="fs-dropzone-files">
+          <ul aria-label={listLabel} className="fs-selected-list">
             {files.map((file, index) => {
               const { head, tail } = nameParts(file.name);
               const Icon = file.type.startsWith("image/") ? ImageIcon : FileText;
               return (
-                <li className="fs-dropzone-file" key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
-                  <Icon aria-hidden="true" className="fs-dropzone-file-icon" />
+                <li className="fs-selected-row fs-dropzone-file" key={`${file.name}-${file.size}-${file.lastModified}-${index}`}>
+                  <Icon aria-hidden="true" className="fs-selected-row-icon" />
                   <span className="fs-dropzone-file-name" title={file.name}>
                     <span className="fs-dropzone-file-head">{head}</span>
                     {tail ? <span className="fs-dropzone-file-tail">{tail}</span> : null}

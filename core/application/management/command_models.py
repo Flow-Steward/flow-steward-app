@@ -92,6 +92,27 @@ from .command_models_api_inputs import (
     ApprovalResumeAcceptedView as ApprovalResumeAcceptedView,
 )
 from .command_models_api_inputs import (
+    AuthAccountInvitationCancelledView as AuthAccountInvitationCancelledView,
+)
+from .command_models_api_inputs import (
+    AuthAccountInvitationDecisionView as AuthAccountInvitationDecisionView,
+)
+from .command_models_api_inputs import (
+    AuthAccountInvitationPreviewView as AuthAccountInvitationPreviewView,
+)
+from .command_models_api_inputs import (
+    AuthAccountInvitationSentView as AuthAccountInvitationSentView,
+)
+from .command_models_api_inputs import (
+    AuthAccountMemberCandidatesView as AuthAccountMemberCandidatesView,
+)
+from .command_models_api_inputs import (
+    AuthAccountMemberResultView as AuthAccountMemberResultView,
+)
+from .command_models_api_inputs import (
+    AuthAccountSentInvitationsView as AuthAccountSentInvitationsView,
+)
+from .command_models_api_inputs import (
     AuthAccountStatusResultView as AuthAccountStatusResultView,
 )
 from .command_models_api_inputs import (
@@ -231,6 +252,9 @@ from .command_models_extensions import (
 )
 from .command_models_extensions import (
     DataContractMutationResultView as DataContractMutationResultView,
+)
+from .command_models_extensions import (
+    ExtensionAccountEnablementView as ExtensionAccountEnablementView,
 )
 from .command_models_extensions import (
     ExtensionBuildResultView as ExtensionBuildResultView,

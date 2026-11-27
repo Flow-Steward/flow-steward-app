@@ -147,7 +147,6 @@ def _raise_workflow_revision_conflict(exc: WorkflowRevisionConflictError) -> Non
 def create_workflow(body: WorkflowSave, request: Request):
     """Create a workflow's metadata; its steps, groups and graph come through /changes."""
     scope = _request_scope(request)
-    require_default_registry_account(scope)
     db = _get_db()
     try:
         workflow_id = body.workflow_id
@@ -547,8 +546,6 @@ def delete_workflow(workflow_id: str, request: Request):
 )
 def clone_workflow(workflow_id: str, body: WorkflowCloneRequest, request: Request):
     """Clone an existing workflow (including phases and steps)."""
-    request_account_scope = _request_scope(request)
-    require_default_registry_account(request_account_scope)
     db = _get_db()
     scoped_workflow, scope = _resolve_workflow_scope_target(db, request, workflow_id)
     if scoped_workflow is None:

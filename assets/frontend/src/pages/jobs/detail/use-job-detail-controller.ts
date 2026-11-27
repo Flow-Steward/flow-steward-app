@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
-import { sessionPermissions } from "@/lib/auth/permissions";
+import { sessionWorkflowPermissions } from "@/lib/auth/project-permissions";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useRememberProject } from "@/lib/utils/use-remember-project";
 import { queryKeys } from "@/lib/query/keys";
@@ -36,6 +36,7 @@ import {
 import {
   buildCanonicalJobDetailView,
   detailLifecycleApproval,
+  detailSelectedWorkflowId,
   finiteNumberOrNull,
   jobUsageTotals,
   projectIdFromPayload,
@@ -75,8 +76,6 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   const [jobActionMessage, setJobActionMessage] = useState("");
   const [jobActionError, setJobActionError] = useState("");
 
-  const canMutate = canMutateJob(sessionPermissions(auth.session));
-
   const detailQuery = useJobDetailQuery(jobId, detailQueryEnabled);
   const detail = detailForApprovalGate(
     detailQuery.data,
@@ -85,6 +84,14 @@ export function useJobDetailController(jobIdOverride = "", detailQueryEnabled = 
   );
   const detailEntity = objectOrEmpty(detail);
   const runtimeEntity = objectOrEmpty(detailEntity.runtime);
+  // ADR 0076 §8b: a limited person acts on a job as its workflow's place allows.
+  const canMutate = canMutateJob(
+    sessionWorkflowPermissions(
+      auth.session,
+      projectIdFromPayload(detail),
+      detailSelectedWorkflowId(detailEntity, runtimeEntity),
+    ),
+  );
   const canonicalDetail = buildCanonicalJobDetailView({
     detail,
     detailEntity,

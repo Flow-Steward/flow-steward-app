@@ -3,8 +3,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from core.application.registry.workflow_contract import WorkflowInterface
 from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 
 def test_workflow_interface_normalizes_legacy_types_and_derives_output_mode():

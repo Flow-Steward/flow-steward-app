@@ -21,7 +21,9 @@ from core.application.monitoring.queries import (
     RuntimeStatusQueryService,
 )
 from core.application.monitoring.readiness_projection import (
+    PLATFORM_MODULES_CHECK,
     operations_readiness_checks,
+    platform_module_failures_check,
     workflow_knowledge_storage_status,
 )
 from core.application.monitoring.repository import RuntimeStatusRepository
@@ -104,14 +106,74 @@ def build_monitoring_meta(
     return meta
 
 
+#: Background roles whose heartbeats carry their own module failures.
+_MODULE_REPORTING_ROLES = frozenset({"worker", "control"})
+
+
+def background_module_failures(components: ComponentsProjection | None) -> list[dict[str, str]]:
+    """Platform modules the worker and control roles skipped, from their heartbeats.
+
+    Only current reports count: a superseded or stale process no longer says what
+    the running role loaded. One record per role, module and version, however many
+    replicas report it.
+    """
+    if components is None or not components.available:
+        return []
+    seen: set[tuple[str, str, str]] = set()
+    records: list[dict[str, str]] = []
+    for row in components.rows:
+        if (
+            row.service_type not in _MODULE_REPORTING_ROLES
+            or row.observation_kind != "process"
+            or row.superseded
+            or row.freshness != "fresh"
+        ):
+            continue
+        for failure in row.platform_module_failures:
+            key = (row.service_type, failure.id, failure.version)
+            if key in seen:
+                continue
+            seen.add(key)
+            record = {
+                "role": row.service_type,
+                "id": failure.id,
+                "version": failure.version,
+                "load_error": failure.load_error,
+            }
+            if failure.status != "failed":
+                record["status"] = failure.status
+            records.append(record)
+    return records
+
+
 def build_monitoring_summary_payload(
     *,
     readiness: dict[str, Any],
     meta: dict[str, Any],
     components: ComponentsProjection | None = None,
+    platform_module_failures: Any = None,
 ) -> dict[str, Any]:
-    checks = operations_readiness_checks(readiness.get("checks"))
+    """The admin monitoring summary.
+
+    Platform modules that failed to load in the app, or in a worker or control role
+    whose heartbeat reports them (ADR 0082 §5), appear as one degraded
+    ``platform_modules`` check: counted, but neither ok nor failed, and readiness is
+    unchanged because the roles keep running without them.
+    """
+    checks: dict[str, dict[str, Any]] = operations_readiness_checks(readiness.get("checks"))
     failed_checks = [name for name, payload in checks.items() if not payload["ok"]]
+    degraded_checks: list[str] = []
+    app_failures = (
+        list(platform_module_failures)
+        if isinstance(platform_module_failures, (list, tuple))
+        else []
+    )
+    module_check = platform_module_failures_check(
+        [*app_failures, *background_module_failures(components)]
+    )
+    if module_check is not None:
+        checks[PLATFORM_MODULES_CHECK] = module_check
+        degraded_checks.append(PLATFORM_MODULES_CHECK)
     ready = bool(readiness.get("ready"))
     payload: dict[str, Any] = {
         "status": "ready" if ready else "not_ready",
@@ -120,12 +182,16 @@ def build_monitoring_summary_payload(
         "meta": meta,
         "summary": {
             "checks_total": len(checks),
-            "checks_ok": len(checks) - len(failed_checks),
+            "checks_ok": len(checks) - len(failed_checks) - len(degraded_checks),
             "checks_failed": len(failed_checks),
             "failed_checks": failed_checks,
         },
         "time": datetime.now(UTC).isoformat(),
     }
+    if degraded_checks:
+        payload["degraded"] = True
+        payload["summary"]["checks_degraded"] = len(degraded_checks)
+        payload["summary"]["degraded_checks"] = degraded_checks
     if components is not None:
         payload["components"] = components.model_dump(mode="json")
     return payload
@@ -452,6 +518,7 @@ def cleanup_orphan_storage_scope(
 
 __all__ = [
     "ORPHAN_STORAGE_CLEANUP_CONFIRM",
+    "background_module_failures",
     "build_monitoring_meta",
     "build_monitoring_summary_payload",
     "build_storage_monitoring_payload",

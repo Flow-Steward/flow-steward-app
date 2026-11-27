@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from threading import Event, Lock, Thread
 from typing import Literal
@@ -153,6 +153,9 @@ class RuntimeObservationSource:
         stale_seconds: float = 180,
         monotonic: Callable[[], float] = time.monotonic,
         utcnow: Callable[[], datetime] = lambda: datetime.now(UTC),
+        platform_module_failures: (
+            Sequence[Mapping[str, str]] | Callable[[], Sequence[Mapping[str, str]]]
+        ) = (),
     ) -> None:
         if stale_seconds <= 0:
             raise ValueError("source freshness budget must be positive")
@@ -173,6 +176,9 @@ class RuntimeObservationSource:
         self._stopped = False
         self._started_at = utcnow()
         self._notify: Callable[[], None] = lambda: None
+        # What the role's loader skipped at start (ADR 0082 §5), fixed for the process,
+        # or a callable that also names modules whose background jobs are failing now.
+        self._module_failures_source = platform_module_failures
 
     def set_notification(self, notify: Callable[[], None]) -> None:
         with self._lock:
@@ -240,7 +246,26 @@ class RuntimeObservationSource:
                 consumer_state=self._state,
                 lifecycle=lifecycle,
                 started_at=self._started_at,
+                platform_module_failures=self._module_failures(),
             )
+
+    def _module_failures(self) -> tuple[tuple[str, str, str, str], ...]:
+        source = self._module_failures_source
+        try:
+            records = source() if callable(source) else source
+            return tuple(
+                (
+                    str(record.get("id") or ""),
+                    str(record.get("version") or ""),
+                    str(record.get("load_error") or ""),
+                    str(record.get("status") or "failed"),
+                )
+                for record in records or ()
+                if str(record.get("id") or "").strip()
+            )
+        except Exception:
+            # A report must never fail because a failure list could not be read.
+            return ()
 
     def mark_stopped(self) -> None:
         """The process is shutting down: its last report says so."""

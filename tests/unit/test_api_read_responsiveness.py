@@ -116,7 +116,10 @@ def _v2_app(reader, monkeypatch):
             job_query_service=lambda: service,
             job_command_service=lambda: None,
             project_query_service=lambda: service,
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             local_auth_enabled=lambda: True,
             external_auth_enabled=False,
             auth_admin_roles={"admin"},
@@ -155,7 +158,10 @@ def _legacy_projects_app(reader):
             ),
             project_command_service=lambda: None,
             request_scope=_scope,
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             local_auth_enabled=lambda: True,
             external_auth_enabled=False,
             auth_admin_roles={"admin"},
@@ -193,7 +199,10 @@ def _monitoring_app(reader, monkeypatch):
         system_monitoring.create_api_system_monitoring_router(
             local_auth_enabled=lambda: True,
             external_auth_enabled=False,
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             auth_admin_roles={"admin"},
         )
     )
@@ -204,7 +213,10 @@ def _trash_app(reader):
     app = FastAPI()
     app.include_router(
         create_api_trash_router(
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             auth_admin_roles={"admin"},
             get_logger_only=reader.returning(None),
             real_dict_cursor_kwargs=dict,

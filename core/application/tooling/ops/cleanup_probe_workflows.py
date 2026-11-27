@@ -27,6 +27,12 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.application.tooling.ops.account_option import (  # noqa: E402
+    add_account_argument,
+    report_command_account,
+    resolve_command_account,
+)
+
 #: Curated allowlist of throwaway workflow-id prefixes produced by audit / e2e /
 #: probe runs. ONLY these prefixes are ever eligible for cleanup — a prefix outside
 #: this set is refused so a real/built-in workflow (demo_*, …) can
@@ -50,19 +56,33 @@ def _like_pattern(prefix: str) -> str:
     return prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
-def _select_sql(prefixes: tuple[str, ...]) -> tuple[str, tuple[Any, ...]]:
+def _account(account_id: str = "") -> str:
+    """The one account a cleanup works on, as the command passes it.
+
+    A workflow id names one workflow per account (ADR 0020), so the cleanup never
+    selects or deletes across accounts, and never picks an account by itself (C5):
+    ``main`` resolves ``--account`` (the installation account when omitted, stated
+    in the output).
+    """
+    from core.application.tooling.ops.account_option import require_account
+
+    return require_account(account_id, operation="probe workflow cleanup")
+
+
+def _select_sql(prefixes: tuple[str, ...], *, account_id: str = "") -> tuple[str, tuple[Any, ...]]:
     like_clauses = " OR ".join("w.workflow_id LIKE %s ESCAPE '\\'" for _ in prefixes)
     sql = (
         "SELECT DISTINCT w.workflow_id "
         "FROM registry_workflows w "
         f"WHERE ({like_clauses}) AND w.deleted_at IS NULL "
+        "AND w.account_id::text = %s "
         "ORDER BY w.workflow_id"
     )
-    return sql, tuple(_like_pattern(prefix) for prefix in prefixes)
+    return sql, (*(_like_pattern(prefix) for prefix in prefixes), _account(account_id))
 
 
-def _matched_workflow_ids(db: Any, prefixes: tuple[str, ...]) -> list[str]:
-    sql, params = _select_sql(prefixes)
+def _matched_workflow_ids(db: Any, prefixes: tuple[str, ...], *, account_id: str = "") -> list[str]:
+    sql, params = _select_sql(prefixes, account_id=account_id)
     cursor_factory = getattr(db, "_cursor", None)
     if not callable(cursor_factory):
         raise RuntimeError("Registry DB backend does not expose a SQL cursor for probe cleanup")
@@ -83,7 +103,7 @@ def _matched_workflow_ids(db: Any, prefixes: tuple[str, ...]) -> list[str]:
     return sorted(dict.fromkeys(ids))
 
 
-def _delete_entrypoints(db: Any, workflow_ids: list[str]) -> int:
+def _delete_entrypoints(db: Any, workflow_ids: list[str], *, account_id: str = "") -> int:
     """Remove webhook entrypoints for the cleaned-up workflows so no dangling public
     trigger remains (mirrors the safety concern behind the PD-2 default-binding fix)."""
     if not workflow_ids:
@@ -93,8 +113,8 @@ def _delete_entrypoints(db: Any, workflow_ids: list[str]) -> int:
         return 0
     with transaction_factory() as cur:
         cur.execute(
-            "DELETE FROM workflow_entrypoints WHERE workflow_id = ANY(%s)",
-            (workflow_ids,),
+            "DELETE FROM workflow_entrypoints WHERE account_id = %s AND workflow_id = ANY(%s)",
+            (_account(account_id), workflow_ids),
         )
         return int(getattr(cur, "rowcount", 0) or 0)
 
@@ -105,15 +125,17 @@ def cleanup_probe_workflows(
     apply: bool,
     author: str,
     prefixes: tuple[str, ...] = PROBE_WORKFLOW_PREFIXES,
+    account_id: str = "",
 ) -> dict[str, Any]:
-    workflow_ids = _matched_workflow_ids(db, prefixes)
+    account = _account(account_id)
+    workflow_ids = _matched_workflow_ids(db, prefixes, account_id=account)
     deleted: list[str] = []
     entrypoints_removed = 0
     if apply:
         for workflow_id in workflow_ids:
-            db.delete_workflow(workflow_id, author=author)
+            db.delete_workflow(workflow_id, author=author, account_id=account)
             deleted.append(workflow_id)
-        entrypoints_removed = _delete_entrypoints(db, workflow_ids)
+        entrypoints_removed = _delete_entrypoints(db, workflow_ids, account_id=account)
     return {
         "dry_run": not apply,
         "matched_count": len(workflow_ids),
@@ -121,6 +143,7 @@ def cleanup_probe_workflows(
         "entrypoints_removed": entrypoints_removed,
         "matched_workflow_ids": workflow_ids,
         "prefixes": list(prefixes),
+        "account_id": account,
     }
 
 
@@ -156,6 +179,7 @@ def _parse_args() -> argparse.Namespace:
             f"Allowed: {', '.join(PROBE_WORKFLOW_PREFIXES)}"
         ),
     )
+    add_account_argument(parser, purpose="whose probe workflows are cleaned up")
     return parser.parse_args()
 
 
@@ -175,13 +199,17 @@ def main() -> int:
     else:
         prefixes = PROBE_WORKFLOW_PREFIXES
 
+    account = resolve_command_account(args)
+    report_command_account(account)
     apply_cleanup = bool(args.apply) and not bool(args.dry_run)
     payload = cleanup_probe_workflows(
         rm.db_store,
         apply=apply_cleanup,
         author=str(args.author or "probe_cleanup").strip() or "probe_cleanup",
         prefixes=prefixes,
+        account_id=account.account_id,
     )
+    payload.update(account.as_payload())
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))
     return 0
 

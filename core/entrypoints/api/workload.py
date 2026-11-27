@@ -55,5 +55,7 @@ def workload_signal(request: Request):
         bl,
         get_ready_queue_depth_fn=get_ready_queue_depth_fn,
         account_id=account_id,
+        # A caller limited to chosen projects counts only those projects' jobs.
+        project_ids=sorted(scope.allowed_project_ids) or None,
     )
     return JSONResponse(signal)

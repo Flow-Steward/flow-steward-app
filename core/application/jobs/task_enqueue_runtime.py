@@ -384,7 +384,10 @@ def _enqueue_job_unadmitted(
 
 def enqueue_job(**kwargs) -> int:
     """Enqueue a job after the one public-submission lifecycle boundary."""
-    from core.application.workflows.workflow_start_runtime import safe_workflow_job_metadata
+    from core.application.workflows.workflow_start_runtime import (
+        safe_workflow_job_metadata,
+        stamp_run_started_by,
+    )
 
     task_source = str(kwargs.get("task_source") or "")
     raw_meta = kwargs.get("meta")
@@ -425,9 +428,13 @@ def enqueue_job(**kwargs) -> int:
         meta = pinned
         kwargs = {**kwargs, "meta": meta}
     titled = _stamp_run_title(meta, extra_state, workflow_id=workflow_id, account_id=account_id)
-    if meta is not None or titled:
-        meta = titled
-        kwargs = {**kwargs, "meta": meta}
+    # Every job names who or what started it: the caller's actor, else its source.
+    meta = stamp_run_started_by(
+        titled,
+        task_source=task_source,
+        extra_state=extra_state if isinstance(extra_state, dict) else None,
+    )
+    kwargs = {**kwargs, "meta": meta}
     with admit_public_submission(task_source=task_source, meta=meta):
         return _enqueue_job_unadmitted(**kwargs)
 

@@ -40,12 +40,13 @@ def retire_workflow(
 ) -> None:
     """Caller owns commit/rollback and projection refresh; all SQL uses its cursor."""
     owner = lock_workflow_owner(cursor, workflow_id, account_id=account_id)
+    owner_account = str(owner.get("account_id") or "")
     assert_workflow_has_no_nonterminal_jobs(
-        store, workflow_id=workflow_id, account_id=str(owner.get("account_id") or ""), cursor=cursor
+        store, workflow_id=workflow_id, account_id=owner_account, cursor=cursor
     )
-    definition = load_workflow_definition_rows(_DefinitionCursor(cursor), [workflow_id])[
-        workflow_id
-    ]
+    definition = load_workflow_definition_rows(
+        _DefinitionCursor(cursor), [workflow_id], account_id=owner_account
+    )[workflow_id]
     snapshot = history_snapshot(
         {
             **owner,
@@ -55,33 +56,39 @@ def retire_workflow(
         }
     )
     cursor.execute(
-        "SELECT * FROM workflow_entrypoints WHERE workflow_id=%s ORDER BY entrypoint_id FOR UPDATE",
-        (workflow_id,),
+        "SELECT * FROM workflow_entrypoints WHERE account_id=%s AND workflow_id=%s "
+        "ORDER BY entrypoint_id FOR UPDATE",
+        (owner_account, workflow_id),
     )
     entrypoints = [_row_to_dict(cursor, row) for row in cursor.fetchall()]
     retire_entrypoint_credentials(cursor, entrypoints, retired_workflow=workflow_id)
     if "deleted_by" in owner:
         cursor.execute(
-            "UPDATE registry_workflows SET deleted_at=now(),deleted_by=%s,revision=revision+1 WHERE workflow_id=%s",
-            (author, workflow_id),
+            "UPDATE registry_workflows SET deleted_at=now(),deleted_by=%s,revision=revision+1 "
+            "WHERE account_id=%s AND workflow_id=%s",
+            (author, owner_account, workflow_id),
         )
     else:
         cursor.execute(
-            "UPDATE registry_workflows SET deleted_at=now(),revision=revision+1 WHERE workflow_id=%s",
-            (workflow_id,),
+            "UPDATE registry_workflows SET deleted_at=now(),revision=revision+1 "
+            "WHERE account_id=%s AND workflow_id=%s",
+            (owner_account, workflow_id),
         )
     if cursor.rowcount != 1:
         raise ServiceNotFoundError("Workflow tombstone was not written")
     cursor.execute(
-        "UPDATE workflow_entrypoints SET enabled=false,updated_at=now() WHERE workflow_id=%s",
-        (workflow_id,),
+        "UPDATE workflow_entrypoints SET enabled=false,updated_at=now() "
+        "WHERE account_id=%s AND workflow_id=%s",
+        (owner_account, workflow_id),
     )
     cursor.execute(
-        "UPDATE workflow_provider_triggers SET enabled=false,updated_at=now() WHERE workflow_id=%s",
-        (workflow_id,),
+        "UPDATE workflow_provider_triggers SET enabled=false,updated_at=now() "
+        "WHERE account_id=%s AND workflow_id=%s",
+        (owner_account, workflow_id),
     )
     cursor.execute(
-        "UPDATE scheduled_jobs SET enabled=false,status='paused' WHERE workflow_id=%s",
-        (workflow_id,),
+        "UPDATE scheduled_jobs SET enabled=false,status='paused' "
+        "WHERE account_id=%s AND workflow_id=%s",
+        (owner_account, workflow_id),
     )
     record_change(cursor, snapshot)

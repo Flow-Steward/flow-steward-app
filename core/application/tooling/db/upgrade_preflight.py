@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -317,8 +318,44 @@ def _ledger(conn: Any) -> bool:
         return _table_exists(cur, "platform_schema_migrations")
 
 
+def _module_issues(
+    conn: Any, module_sources: Iterable[Any]
+) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    """Blocking issues and pending ids of prepared platform modules (ADR 0082)."""
+    try:
+        report = migration_runner.inspect_module_migrations(conn, module_sources)
+    except migration_runner.MigrationError as error:
+        return [_issue("module_migration_invalid", f"Platform module migrations: {error}")], {}
+    issues: list[dict[str, Any]] = []
+    for module_id, entry in sorted(report.items()):
+        if entry["drifted"]:
+            issues.append(
+                _issue(
+                    "module_migration_drift",
+                    f"Applied migrations of platform module {module_id} differ from its files.",
+                    module_id=module_id,
+                    migrations=entry["drifted"][:_LISTED],
+                )
+            )
+        if entry["unknown"]:
+            issues.append(
+                _issue(
+                    "module_downgrade",
+                    f"A newer version of platform module {module_id} upgraded this database; "
+                    "prepare that version again or restore the backup taken before it.",
+                    module_id=module_id,
+                    migrations=entry["unknown"][:_LISTED],
+                )
+            )
+    return issues, {module_id: entry["pending"] for module_id, entry in sorted(report.items())}
+
+
 def preflight(
-    conn: Any, *, allow_unlabeled_sessions: bool = False, root: Path | None = None
+    conn: Any,
+    *,
+    allow_unlabeled_sessions: bool = False,
+    root: Path | None = None,
+    module_sources: Iterable[Any] = (),
 ) -> dict[str, Any]:
     repo_root = Path(root) if root is not None else _ROOT
     artifact_issues = _artifact_issues(repo_root)
@@ -337,7 +374,10 @@ def preflight(
     move_blocking, move_warnings = _catalog_move_issues(conn)
     blocking.extend(move_blocking)
     warnings.extend(move_warnings)
-    return {
+    sources = tuple(module_sources)
+    module_blocking, module_pending = _module_issues(conn, sources) if sources else ([], {})
+    blocking.extend(module_blocking)
+    report = {
         "blocking": blocking,
         "warnings": warnings,
         "pending_migrations": migration_runner.pending_migration_ids(conn, root=repo_root)
@@ -349,6 +389,9 @@ def preflight(
             if phase.phase_id not in upgrade_phases.recorded_phases(conn)
         ],
     }
+    if sources:
+        report["pending_module_migrations"] = module_pending
+    return report
 
 
 __all__ = ["ledger_gaps", "preflight", "validate_release_artifacts"]

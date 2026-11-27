@@ -5,6 +5,7 @@ from __future__ import annotations
 from core.application.workflows.workflow_action_contract import action_invoke_dependencies
 
 from .db_store_common import *  # NOSONAR
+from .workflow_account import workflow_account_scope, workflow_owner
 
 
 class RegistryDBStoreConnectionMixin:
@@ -411,6 +412,7 @@ class RegistryDBStoreConnectionMixin:
         workflow_id: str,
         *,
         workflow_payload: dict[str, Any] | None = None,
+        account_id: str | None = None,
     ) -> None:
         normalized_workflow_id = str(workflow_id or "").strip()
         if not normalized_workflow_id:
@@ -420,11 +422,13 @@ class RegistryDBStoreConnectionMixin:
 
         workflow_row = workflow_payload if isinstance(workflow_payload, dict) else None
         if workflow_row is None:
-            workflow_row = self.get_workflow(normalized_workflow_id) or {}
+            with workflow_account_scope(workflow_owner(account_id)):
+                workflow_row = self.get_workflow(normalized_workflow_id) or {}
         if not workflow_row:
             return
 
-        account_id = _system_registry_account_id(workflow_row)
+        # Dependencies belong to the workflow's owning account (ADR 0020, C4b).
+        account_id = workflow_owner(account_id or workflow_row.get("account_id"))
         scope_kind = str(workflow_row.get("scope_kind") or "system").strip() or "system"
         source_install_id = str(workflow_row.get("source_install_id") or "").strip() or None
 
@@ -443,6 +447,7 @@ class RegistryDBStoreConnectionMixin:
             dependency_ref: str,
             install_id: str | None = None,
             block_key: str | None = None,
+            block_owner: str | None = None,
         ) -> None:
             dep_kind = str(dependency_kind or "").strip()
             dep_ref = str(dependency_ref or "").strip()
@@ -463,6 +468,7 @@ class RegistryDBStoreConnectionMixin:
                     "dependency_ref": dep_ref,
                     "install_id": str(install_id or "").strip() or None,
                     "block_key": str(block_key or "").strip() or None,
+                    "block_owner": block_owner if str(block_key or "").strip() else None,
                     "required_for_builder": True,
                     "required_for_execution": True,
                 }
@@ -487,17 +493,16 @@ class RegistryDBStoreConnectionMixin:
 
             block_key = str(step.get("block_key") or "").strip()
             if block_key:
-                persisted_block_key = (
-                    block_key
-                    if self._exists("registry_published_block_contracts", "block_key", block_key)
-                    else None
-                )
+                # The block the key resolves to in the workflow's account: its own,
+                # else a platform block (ADR 0020); the link names both columns.
+                block = self.get_published_block_contract(block_key, account_id=account_id)
                 _push_dependency(
                     group_id=group_id,
                     step_id=step_id,
                     dependency_kind="published_block",
                     dependency_ref=block_key,
-                    block_key=persisted_block_key,
+                    block_key=block_key if block else None,
+                    block_owner=str((block or {}).get("account_id") or "").strip(),
                 )
 
             child_workflow_id = _workflow_step_child_workflow_id(step)
@@ -576,8 +581,8 @@ class RegistryDBStoreConnectionMixin:
 
         with self._transaction() as cur:
             cur.execute(
-                "DELETE FROM workflow_runtime_dependencies WHERE workflow_id = %s",
-                (normalized_workflow_id,),
+                "DELETE FROM workflow_runtime_dependencies WHERE account_id = %s AND workflow_id = %s",
+                (account_id, normalized_workflow_id),
             )
             for row in dependency_rows:
                 cur.execute(
@@ -592,11 +597,12 @@ class RegistryDBStoreConnectionMixin:
                         dependency_ref,
                         install_id,
                         block_key,
+                        block_owner,
                         required_for_builder,
                         required_for_execution
                     ) VALUES (%(account_id)s, %(scope_kind)s, %(workflow_id)s, %(group_id)s, %(step_id)s,
                               %(dependency_kind)s, %(dependency_ref)s, %(install_id)s, %(block_key)s,
-                              %(required_for_builder)s, %(required_for_execution)s)
+                              %(block_owner)s, %(required_for_builder)s, %(required_for_execution)s)
                     """,
                     row,
                 )

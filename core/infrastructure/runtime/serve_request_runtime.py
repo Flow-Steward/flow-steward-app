@@ -486,8 +486,14 @@ async def ws_authenticate(
     resolved_principal_type,
     err_authentication_required: str,
     sleep_fn=asyncio.sleep,
+    limit_principal_projects_fn=None,
 ) -> dict | None:
-    """Authenticate a WebSocket connection using cookie or bearer token."""
+    """Authenticate a WebSocket connection using cookie or bearer token.
+
+    ``limit_principal_projects_fn(user, logger)`` narrows the projects of a person
+    limited to chosen projects (ADR 0076 section 8), as the HTTP middleware does; a
+    limit that cannot be read refuses the connection.
+    """
     if not (local_auth_enabled_fn() or external_auth_enabled):
         return None
     await sleep_fn(0)
@@ -508,7 +514,13 @@ async def ws_authenticate(
     )
     if not isinstance(principal, resolved_principal_type) or not bool(principal.is_active):
         raise PermissionError("Invalid or expired session")
-    return principal.model_dump()
+    user = principal.model_dump()
+    if limit_principal_projects_fn is not None:
+        try:
+            limit_principal_projects_fn(user, logger_ref)
+        except Exception as exc:
+            raise PermissionError("Project access limits are unavailable") from exc
+    return user
 
 
 async def build_runtime_payload_for_api(

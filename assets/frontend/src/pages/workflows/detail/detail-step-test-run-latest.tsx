@@ -4,6 +4,7 @@ import { DsBadge } from "@/components/shared/design-system-primitives";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { Button } from "@/components/ui/button";
+import { approvalWaitingForText } from "@/lib/auth/approval-assignment";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { stepKindKeepsOutput } from "@/pages/workflows/shared/kept-test-output-api";
@@ -38,7 +39,9 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
   };
   useEffect(() => { if (focusRequest) requestRef.current?.focus(); }, [approval.identity, focusRequest]);
   return <section aria-labelledby={titleId} className="workflow-approval-decision" data-testid="workflow-approval-decision">
-    <p className="workflow-approval-decision-title" id={titleId}>{t("react.workflows.approval_waiting_for_decision", "Waiting for your decision")}</p>
+    <p className="workflow-approval-decision-title" id={titleId}>{approval.waitingFor
+      ? t("react.workflows.approval_waiting_for_assigned", "Waiting for a decision")
+      : t("react.workflows.approval_waiting_for_decision", "Waiting for your decision")}</p>
     <p className="workflow-approval-request" ref={requestRef} tabIndex={-1}>{approval.message
       || t("react.workflows.approval_asks_nothing", "This step asks no question. Write one under Settings › Message.")}</p>
     <div className="workflow-run-results-section">
@@ -54,6 +57,7 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
         {allowedActions.includes("abort") ? <li><b>{t("react.jobs.cancel_run", "Cancel run")}</b> → {t("react.workflows.approval_run_cancelled", "the run is cancelled")}</li> : null}
       </ul>
     </div>
+    {approval.waitingFor ? <p className="workflow-step-run-sub" data-testid="workflow-approval-waiting-for">{approvalWaitingForText(approval.waitingFor, t)}</p> : <>
     <div className="fs-field">
       <label className="fs-field-label" htmlFor={commentId}>{allowedActions.includes("reject") ? t("jobs.detail.review.comment_for_rejection", "Comment for rejection") : t("jobs.detail.review.comment", "Comment")}</label>
       <textarea className="fs-textarea" id={commentId} aria-describedby={`${commentId}-help`} onChange={(event) => setComment(event.target.value)} rows={2} value={comment} />
@@ -66,6 +70,7 @@ export function ApprovalDecision({ approval, commentDraft, focusRequest = true }
       {allowedActions.includes("approve") ? <Button busy={pendingAction === "approve"} busyLabel={t("react.settings.sending", "Sending…")} onClick={() => { if (approval.pending) return; setPressed("approve"); approval.decide(true, comment); }} type="button" variant="primary">
         {t("react.workflows.approval_approve", "Approve")}</Button> : null}
     </div>
+    </>}
   </section>;
 }
 

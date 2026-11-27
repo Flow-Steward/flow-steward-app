@@ -15,6 +15,10 @@ from core.application.workflows.workflow_definition_service import (
 )
 from core.application.workflows.workflow_portability import WorkflowPortabilityService
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class _Cursor:
     def __init__(self, store: _Store) -> None:

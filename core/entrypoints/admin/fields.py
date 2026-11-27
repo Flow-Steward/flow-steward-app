@@ -1,5 +1,8 @@
 """
 Admin API routes — Field catalog CRUD for workflow-visible public fields.
+
+Every field belongs to the caller's account (ADR 0020, C4a): a field key is unique
+within an account, and a field of another account is answered with 404.
 """
 
 from __future__ import annotations
@@ -10,10 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from core.entrypoints.admin._registry_scope import (
-    request_scope,
-    require_default_registry_account,
-)
+from core.entrypoints.admin._registry_scope import registry_catalog_account, request_scope
 
 router = APIRouter(prefix="/api/fields", tags=["fields"])
 _FIELD_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]*$")
@@ -109,12 +109,13 @@ def list_fields(
     value_type: Annotated[str | None, Query()] = None,
     search: Annotated[str | None, Query()] = None,
 ):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     return db.list_fields(
         enabled_only=enabled_only,
         value_type=value_type,
         search=search,
+        account_id=account_id,
     )
 
 
@@ -128,9 +129,9 @@ def list_fields(
     },
 )
 def get_field(field_key: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    row = db.get_field(field_key)
+    row = db.get_field(field_key, account_id=account_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Field '{field_key}' not found")
     return row
@@ -146,14 +147,14 @@ def get_field(field_key: str, request: Request):
     },
 )
 def create_field(body: FieldSave, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    if db.get_field(body.field_key):
+    if db.get_field(body.field_key, account_id=account_id):
         raise HTTPException(status_code=409, detail=f"Field '{body.field_key}' already exists")
     payload = body.model_dump()
     _validate_field_payload(payload)
     try:
-        db.save_field(payload, author=request_scope(request).actor_name)
+        db.save_field(payload, author=request_scope(request).actor_name, account_id=account_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "created", "field_key": body.field_key}
@@ -169,13 +170,13 @@ def create_field(body: FieldSave, request: Request):
     },
 )
 def update_field(field_key: str, body: FieldSave, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     payload = body.model_dump()
     payload["field_key"] = field_key
     _validate_field_payload(payload)
     try:
-        db.save_field(payload, author=request_scope(request).actor_name)
+        db.save_field(payload, author=request_scope(request).actor_name, account_id=account_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "updated", "field_key": field_key}
@@ -191,16 +192,16 @@ def update_field(field_key: str, body: FieldSave, request: Request):
     },
 )
 def patch_field(field_key: str, body: FieldPatch, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    existing = db.get_field(field_key)
+    existing = db.get_field(field_key, account_id=account_id)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Field '{field_key}' not found")
     updates = body.model_dump(exclude_none=True)
     merged = {**existing, **updates, "field_key": field_key}
     _validate_field_payload(merged)
     try:
-        db.save_field(merged, author=request_scope(request).actor_name)
+        db.save_field(merged, author=request_scope(request).actor_name, account_id=account_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"status": "updated", "field_key": field_key}
@@ -216,10 +217,10 @@ def patch_field(field_key: str, body: FieldPatch, request: Request):
     },
 )
 def toggle_field(field_key: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     try:
-        enabled = db.toggle_field(field_key)
+        enabled = db.toggle_field(field_key, account_id=account_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "updated", "field_key": field_key, "enabled": enabled}
@@ -235,10 +236,10 @@ def toggle_field(field_key: str, request: Request):
     },
 )
 def delete_field(field_key: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     try:
-        db.delete_field(field_key, author=request_scope(request).actor_name)
+        db.delete_field(field_key, author=request_scope(request).actor_name, account_id=account_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "deleted", "field_key": field_key}

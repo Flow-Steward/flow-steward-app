@@ -11,6 +11,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
+import pytest
+
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.orchestration.agents.common_runtime_structured_utils import (
     _draft_response_satisfies_phase_result_schema,
 )
@@ -21,6 +24,10 @@ from core.application.registry.public_contract_projection import (
 from core.application.registry.step_output_contract import resolve_step_output_contract
 from core.application.registry.workflow_contract import WorkflowInterface
 from core.application.registry.workflow_contract_service import WorkflowInterfaceService
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 ITEMS = "catalog.meeting_action_items.v1"
 ITEM_SCHEMA = {
@@ -67,22 +74,26 @@ class ProjectionStore:
     def list_tools(self, enabled_only=False):
         return []
 
-    def list_workflows(self, enabled_only=False):
+    def list_workflows(self, enabled_only=False, account_id=None):
         return self.workflows
 
-    def list_data_contracts(self, enabled_only=False, ensure_projection=False):
+    def list_data_contracts(self, enabled_only=False, ensure_projection=False, account_id=None):
         return [{"contract_id": ITEMS, "projection_mode": "manual", "schema_json": ITEM_SCHEMA}]
 
 
 def test_a_contractless_workflow_output_keeps_the_skill_contract_on_the_shared_field():
-    state = _build_desired_projection_state(ProjectionStore(), now=datetime.now(UTC))
+    state = _build_desired_projection_state(
+        ProjectionStore(), now=datetime.now(UTC), account_id=DEFAULT_ACCOUNT_ID
+    )
     assert state["fields"]["action_items"]["data_contract_id"] == ITEMS
 
 
 def test_a_workflow_output_with_its_own_contract_links_it():
     store = ProjectionStore(workflow_contract_id="catalog.other_items.v1")
     store.skills = []
-    state = _build_desired_projection_state(store, now=datetime.now(UTC))
+    state = _build_desired_projection_state(
+        store, now=datetime.now(UTC), account_id=DEFAULT_ACCOUNT_ID
+    )
     assert state["fields"]["action_items"]["data_contract_id"] == "catalog.other_items.v1"
 
 

@@ -127,9 +127,11 @@ def list_user_account_memberships(bl: Any, user_id: Any) -> list[dict[str, Any]]
                 uam.account_id,
                 COALESCE(a.display_name, '') AS display_name,
                 COALESCE(a.is_active, true) AS is_active,
-                COALESCE(uam.is_default, false) AS is_default
+                COALESCE(uam.is_default, false) AS is_default,
+                COALESCE(r.key, '') AS role
             FROM user_account_memberships uam
             JOIN accounts a ON {account_expr} = uam.account_id
+            LEFT JOIN roles r ON r.id = uam.role_id
             WHERE uam.user_id = %s
             ORDER BY uam.is_default DESC, uam.account_id
             """,
@@ -139,14 +141,17 @@ def list_user_account_memberships(bl: Any, user_id: Any) -> list[dict[str, Any]]
     normalized_rows: list[dict[str, Any]] = []
     for row in rows:
         payload = dict(row or {})
-        normalized_rows.append(
-            {
-                "account_id": str(payload.get("account_id") or "").strip(),
-                "display_name": str(payload.get("display_name") or "").strip(),
-                "is_active": bool(payload.get("is_active", True)),
-                "is_default": bool(payload.get("is_default", False)),
-            }
-        )
+        membership = {
+            "account_id": str(payload.get("account_id") or "").strip(),
+            "display_name": str(payload.get("display_name") or "").strip(),
+            "is_active": bool(payload.get("is_active", True)),
+            "is_default": bool(payload.get("is_default", False)),
+        }
+        # The role of the membership (ADR 0085); "" is no role there. A row without
+        # the column says nothing about roles and carries no "role" key.
+        if "role" in payload:
+            membership["role"] = str(payload.get("role") or "").strip()
+        normalized_rows.append(membership)
     return normalized_rows
 
 
@@ -168,9 +173,11 @@ def get_user_membership_map(
                 uam.account_id,
                 COALESCE(a.display_name, '') AS display_name,
                 COALESCE(a.is_active, true) AS is_active,
-                COALESCE(uam.is_default, false) AS is_default
+                COALESCE(uam.is_default, false) AS is_default,
+                COALESCE(r.key, '') AS role
             FROM user_account_memberships uam
             JOIN accounts a ON {account_expr} = uam.account_id
+            LEFT JOIN roles r ON r.id = uam.role_id
             WHERE uam.user_id = ANY(%s)
             ORDER BY uam.user_id, uam.is_default DESC, uam.account_id
             """,
@@ -186,6 +193,7 @@ def get_user_membership_map(
                 "display_name": str(payload.get("display_name") or "").strip(),
                 "is_active": bool(payload.get("is_active", True)),
                 "is_default": bool(payload.get("is_default", False)),
+                "role": str(payload.get("role") or "").strip(),
             }
         )
     return mapping
@@ -241,13 +249,36 @@ def resolve_login_account_memberships(
     return [dict(item or {}) for item in memberships if isinstance(item, dict)]
 
 
+def memberships_with_role(
+    memberships: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], bool]:
+    """The memberships a sign-in may land in, and whether sign-in must be refused.
+
+    A membership without a role grants nothing (ADR 0085): a sign-in lands only in
+    an account where the person has a role, and is refused when there is none. A
+    payload that does not carry roles at all (storage before roles per account) is
+    returned as it is.
+    """
+    if not any("role" in item for item in memberships):
+        return list(memberships), False
+    usable = [item for item in memberships if str(item.get("role") or "").strip()]
+    return usable, bool(memberships) and not usable
+
+
 def sync_user_account_memberships(
     bl: Any,
     *,
     user_id: Any,
     account_ids: list[str] | tuple[str, ...] | set[str] | None,
     primary_account_id: str | None = None,
+    new_membership_role: str | None = "viewer",
 ) -> list[str]:
+    """Make the person's memberships exactly ``account_ids`` (plus the primary one).
+
+    A membership that is added gets ``new_membership_role`` (ADR 0085: the role is
+    held per account; ``None`` adds it without a role, which grants nothing). A
+    membership that stays keeps its role; one that goes takes its role with it.
+    """
     normalized_primary = str(primary_account_id or "").strip()
     normalized_accounts = normalize_membership_account_ids(
         account_ids,
@@ -273,12 +304,17 @@ def sync_user_account_memberships(
         for account_id in normalized_accounts:
             cur.execute(
                 """
-                INSERT INTO user_account_memberships (user_id, account_id, is_default)
-                VALUES (%s, %s, %s)
+                INSERT INTO user_account_memberships (user_id, account_id, is_default, role_id)
+                VALUES (%s, %s, %s, (SELECT id FROM roles WHERE key = %s))
                 ON CONFLICT (user_id, account_id) DO UPDATE
                 SET is_default = EXCLUDED.is_default,
                     updated_at = now()
                 """,
-                (str(user_id or "").strip(), account_id, account_id == active_primary),
+                (
+                    str(user_id or "").strip(),
+                    account_id,
+                    account_id == active_primary,
+                    str(new_membership_role or "").strip().lower() or None,
+                ),
             )
     return normalized_accounts

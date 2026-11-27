@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -343,10 +344,21 @@ def test_email_change_request_and_verify_flow(monkeypatch) -> None:
 
 
 def test_viewer_can_request_own_email_change_and_get_value_specific_errors(monkeypatch) -> None:
+    verifications: list[str] = []
+    in_use_notices: list[str] = []
     monkeypatch.setattr(
         auth_users_routes,
         "send_email_change_verification_email",
-        lambda **_kwargs: {"ok": True, "reason": "sent"},
+        lambda **kwargs: (
+            verifications.append(kwargs["recipient"]) or {"ok": True, "reason": "sent"}
+        ),
+    )
+    monkeypatch.setattr(
+        auth_users_routes,
+        "send_email_address_in_use_email",
+        lambda **kwargs: (
+            in_use_notices.append(kwargs["recipient"]) or {"ok": True, "reason": "sent"}
+        ),
     )
     cursor = _EmailChangeCursor()
     client, _cleared = _client(
@@ -368,10 +380,32 @@ def test_viewer_can_request_own_email_change_and_get_value_specific_errors(monke
     assert "valid email" in invalid.json()["error"].lower()
     assert same.status_code == 400
     assert "different" in same.json()["error"].lower()
-    assert duplicate.status_code == 409
-    assert duplicate.json()["error"] == "Email already exists"
-    assert accepted.status_code == 200
-    assert accepted.json()["status"] == "verification_sent"
+    # ADR 0085, C2: a taken address gets the same answer as a free one; its owner gets
+    # a notice that it is in use, never a verification link.
+    assert duplicate.status_code == accepted.status_code == 200
+    assert duplicate.json()["status"] == accepted.json()["status"] == "verification_sent"
+    assert set(duplicate.json()) == set(accepted.json())
+    assert in_use_notices == ["taken@example.com"]
+    assert verifications == ["viewer-new@example.com"]
+
+
+@pytest.mark.parametrize("address", ["taken@example.com", "free@example.com"])
+def test_without_email_a_taken_and_a_free_address_are_refused_alike(
+    monkeypatch, address: str
+) -> None:
+    unconfigured = {"ok": False, "reason": "disabled_or_unconfigured"}
+    monkeypatch.setattr(
+        auth_users_routes, "send_email_change_verification_email", lambda **_k: unconfigured
+    )
+    monkeypatch.setattr(
+        auth_users_routes, "send_email_address_in_use_email", lambda **_k: unconfigured
+    )
+    client, _cleared = _client(_EmailChangeCursor(), duplicate_email="taken@example.com")
+
+    answer = client.post("/api/users/me/email-change/request", json={"email": address})
+
+    assert answer.status_code == 503
+    assert answer.json() == {"error": auth_users_routes._ERR_EMAIL_NOT_SET_UP}
 
 
 def test_external_sign_in_user_cannot_request_local_email_change() -> None:

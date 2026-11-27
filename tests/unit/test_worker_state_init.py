@@ -638,6 +638,8 @@ def test_execute_task_routes_workflow_resume_message_to_worker_resume_handler():
             return {
                 "id": "job-42",
                 "project_id": "project-42",
+                # A job row always carries its account (ADR 0020, C3/C5).
+                "account_id": "acc-1",
                 "status": "resume_pending",
                 "meta": {
                     "workflow_resume": {
@@ -1048,6 +1050,8 @@ def test_workflow_resume_defers_without_completing_when_graph_resume_never_start
             return {
                 "id": "job-42",
                 "project_id": "project-42",
+                # A job row always carries its account (ADR 0020, C3/C5).
+                "account_id": "acc-1",
                 "status": "resume_pending",
                 "meta": {
                     "workflow_resume": {

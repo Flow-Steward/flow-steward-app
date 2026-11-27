@@ -161,5 +161,18 @@ def test_database_status_reports_the_migration_as_pending_despite_a_stamped_fing
         "20261122130000_connection_poll_delivery.sql",
         "20261122140000_system_email_sender.sql",
         "20261122150000_connection_credentials_from.sql",
+        "20261125120000_approval_assignees_journal.sql",
+        "20261126120000_scoped_role_users.sql",
+        "20261126150000_external_sign_in.sql",
+        "20261126170000_registry_account_ownership.sql",
+        "20261126180000_workflow_account_identity.sql",
+        "20261126190000_registry_same_account_refs.sql",
+        "20261126200000_secret_backends.sql",
+        "20261126210000_multilevel_scoped_roles.sql",
+        "20261127090000_account_scoped_registry_ops.sql",
+        "20261127130000_extensions_per_account.sql",
+        "20261127150000_account_scoped_block_keys.sql",
+        "20261127170000_roles_per_account.sql",
+        "20261127190000_account_invitations.sql",
     ]
     assert status["needs_upgrade"] is True

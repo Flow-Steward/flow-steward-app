@@ -60,6 +60,8 @@ export function MonitoringStatusStrip({
     ? unknown
     : `${checksOk} / ${checksTotal}`;
   const failedLabel = summaryUnavailable ? unknown : failedCount ?? unknown;
+  // Degraded but up, such as a platform module that failed to load: shown only when present.
+  const degradedCount = summaryUnavailable ? null : measuredCount(totals.checks_degraded);
   const counts = components?.available ? components.counts : null;
   const servicesLabel = counts?.roles_total ?? unknown;
   const version = firstStringFromUnknownValue([meta.version, meta.app_version, meta.release, unknown]);
@@ -73,6 +75,11 @@ export function MonitoringStatusStrip({
       <DsBadge tone={!summaryUnavailable && failedCount !== null && failedCount > 0 ? "danger" : "neutral"}>
         {t("react.monitoring.failed_checks", "Failed checks:")} {failedLabel}
       </DsBadge>
+      {degradedCount ? (
+        <DsBadge tone="orange">
+          {t("react.monitoring.checks_to_review", "Checks to review:")} {degradedCount}
+        </DsBadge>
+      ) : null}
       <DsBadge>{t("react.monitoring.services", "Services:")} {servicesLabel}</DsBadge>
       <DsBadge>{t("react.monitoring.running_instances", "Running instances:")} {counts?.instances_fresh ?? unknown}</DsBadge>
       <DsBadge tone={counts && counts.instances_stale > 0 ? "orange" : "neutral"}>

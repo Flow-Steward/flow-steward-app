@@ -128,6 +128,12 @@ def create_frontend_shell_router(
         async def public_auth_shell():
             return _shell_response()
 
+        # ADR 0085: the page of an invitation link; signing in comes first.
+        @router.get("/invitations/{token}", include_in_schema=False)
+        async def invitation_shell(token: str = ""):
+            _ = token
+            return _shell_response()
+
     if "dashboard" in enabled_public_groups:
 
         @router.get("/dashboard", include_in_schema=False)

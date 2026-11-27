@@ -11,7 +11,6 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from core.application.auth.secrets import decrypt_secret
 from core.application.extensions.projected_dataset_bridge import projection_bridge_id
 from core.application.management.scope import normalize_scope
 from core.application.orchestration.state_paths import resolve_state_path
@@ -141,35 +140,36 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+class _RegistryCursorConnection:
+    """The registry store's cursor, offered as the ``conn.cursor()`` the stored-secret reader uses."""
+
+    def __init__(self, db: Any) -> None:
+        self._db = db
+
+    def cursor(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        return self._db._cursor()
+
+
 def _resolve_secret_ref_value(db: Any, *, account_id: str, ref_key: str) -> str:
+    """The value behind one data-connection reference, through the host-selected reader.
+
+    A value that cannot be read is left out (``""``); the query then runs without it.
+    """
     if not account_id or not ref_key or not hasattr(db, "_cursor"):
         return ""
+    from core.infrastructure.security.stored_secrets import (
+        SecretReadContext,
+        stored_secret_reader,
+    )
+
     try:
-        with db._cursor() as cur:
-            cur.execute(
-                """
-                SELECT encrypted_value
-                  FROM secret_refs
-                 WHERE account_id::text = %s
-                   AND ref_key = %s
-                 LIMIT 1
-                """,
-                (str(account_id), str(ref_key)),
-            )
-            row = cur.fetchone()
+        value = stored_secret_reader(_RegistryCursorConnection(db)).read(
+            SecretReadContext.for_account(account_id), str(ref_key)
+        )
     except Exception:
         return ""
-    encrypted = ""
-    if isinstance(row, dict):
-        encrypted = str(row.get("encrypted_value") or "").strip()
-    elif isinstance(row, (tuple, list)) and row:
-        encrypted = str(row[0] or "").strip()
-    if not encrypted:
-        return ""
-    try:
-        return str(decrypt_secret(encrypted) or "")
-    except Exception:
-        return ""
+    return str(value or "")
 
 
 def _resolved_secret_refs(db: Any, connection: dict[str, Any]) -> dict[str, Any]:

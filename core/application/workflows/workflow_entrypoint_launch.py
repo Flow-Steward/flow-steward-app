@@ -38,6 +38,7 @@ class WorkflowEntrypointLaunchService:
         idempotency_identities: list[dict[str, str]],
         primary_idempotency_identity: dict[str, str],
         entry_label: str = "",
+        entrypoint_id: str = "",
     ) -> WorkflowEntrypointLaunchResult:
         clean_entry_key = str(entry_key or "").strip()
         inputs = dict(workflow_inputs or {})
@@ -81,6 +82,9 @@ class WorkflowEntrypointLaunchService:
         if str(entry_label or "").strip():
             # The webhook's description titles its runs (see workflow_run_title).
             job_meta["run_label"] = str(entry_label).strip()
+        if str(entrypoint_id or "").strip():
+            # Names the webhook as the run's starter without its entry key.
+            job_meta["entrypoint_id"] = str(entrypoint_id).strip()
         identities = [dict(identity) for identity in idempotency_identities]
         if identities:
             job_meta["request_idempotency_identities"] = identities

@@ -106,6 +106,7 @@ class PlatformLoggerEventsJobReactionsMixin:
                         UPDATE job_reaction_events
                         SET
                             job_id = %s,
+                            account_id = (SELECT j.account_id FROM jobs j WHERE j.id = %s),
                             workflow_id = %s,
                             event_type = %s,
                             source = %s,
@@ -129,6 +130,7 @@ class PlatformLoggerEventsJobReactionsMixin:
                         """,
                         (
                             job_id,
+                            job_id,
                             normalized_workflow_id,
                             normalized_event_type,
                             normalized_source,
@@ -146,6 +148,7 @@ class PlatformLoggerEventsJobReactionsMixin:
                     """
                     INSERT INTO job_reaction_events (
                         job_id,
+                        account_id,
                         workflow_id,
                         event_type,
                         source,
@@ -154,7 +157,10 @@ class PlatformLoggerEventsJobReactionsMixin:
                         payload_jsonb,
                         dedupe_key,
                         processed
-                    ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    ) VALUES (
+                        %s, (SELECT j.account_id FROM jobs j WHERE j.id = %s),
+                        %s,%s,%s,%s,%s,%s,%s,%s
+                    )
                     RETURNING
                         id,
                         job_id,
@@ -169,6 +175,8 @@ class PlatformLoggerEventsJobReactionsMixin:
                         created_at
                     """,
                     (
+                        job_id,
+                        # The event names the workflow of its job's account (ADR 0020, C4b).
                         job_id,
                         normalized_workflow_id,
                         normalized_event_type,

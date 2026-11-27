@@ -16,10 +16,13 @@ import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
 from core.application.auth.local_credentials import (
+    apply_session_auth_source,
     authenticator_policy_available,
     local_session_credential_filter,
     password_age_available,
+    session_auth_method_select,
 )
+from core.application.auth.membership_roles import account_role_keys
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 
 _AUTH_SESSION_ISSUE_GUARDS: list[Any] = []
@@ -28,6 +31,22 @@ _AUTH_SESSION_ISSUE_GUARDS: list[Any] = []
 def register_auth_session_issue_guard(callback: Any) -> None:
     if callable(callback) and callback not in _AUTH_SESSION_ISSUE_GUARDS:
         _AUTH_SESSION_ISSUE_GUARDS.append(callback)
+
+
+def loading_checkpoint() -> tuple[Any, ...]:
+    """The registered session issue guards, for the platform module rollback (ADR 0082)."""
+    return tuple(_AUTH_SESSION_ISSUE_GUARDS)
+
+
+def restore_loading_checkpoint(checkpoint: tuple[Any, ...] | None) -> None:
+    """Drop every guard registered after ``checkpoint``; ``None`` drops them all.
+
+    Only Core's platform module loader calls it, when a module fails to load.
+    """
+    kept = tuple(checkpoint or ())
+    _AUTH_SESSION_ISSUE_GUARDS[:] = [
+        guard for guard in _AUTH_SESSION_ISSUE_GUARDS if any(guard is old for old in kept)
+    ]
 
 
 def auth_session_issue_guard_response(
@@ -190,24 +209,9 @@ def seed_default_roles(bl: Any) -> None:
         )
 
 
-def get_user_roles(bl: Any, user_id: Any) -> list[str]:
-    normalized_user_id = str(user_id or "").strip()
-    if not normalized_user_id:
-        return []
-    with bl.conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT r.key
-            FROM user_roles ur
-            JOIN roles r ON r.id = ur.role_id
-            WHERE ur.user_id = %s
-              AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
-            ORDER BY r.key
-            """,
-            (normalized_user_id,),
-        )
-        rows = cur.fetchall()
-    return [str(row[0]) for row in rows if row and row[0]]
+def get_user_roles(bl: Any, user_id: Any, account_id: Any = None) -> list[str]:
+    """The person's roles in ``account_id`` (ADR 0085); none without an account."""
+    return account_role_keys(bl, user_id, account_id)
 
 
 def real_dict_cursor_kwargs() -> dict[str, Any]:
@@ -233,7 +237,7 @@ def _load_user_payload(
     if not row:
         return None
     payload = dict(row)
-    payload["roles"] = get_user_roles_fn(bl, str(payload["id"]))
+    payload["roles"] = get_user_roles_fn(bl, str(payload["id"]), payload.get("account_id"))
     return enrich_user_payload_with_account_memberships(bl, payload)
 
 
@@ -350,6 +354,9 @@ def get_user_by_session_token(
             "    ",
             account_select,
             ",",
+            "    ",
+            session_auth_method_select(bl),
+            ",",
             "    s.id AS session_id,",
             "    s.expires_at",
             "FROM auth_sessions s",
@@ -372,10 +379,10 @@ def get_user_by_session_token(
             "UPDATE auth_sessions SET last_seen_at = now() WHERE session_token_hash = %s",
             (token_hash,),
         )
-    payload = dict(row)
+    payload = apply_session_auth_source(dict(row))
     if not str(payload.get("account_id") or "").strip():
         return None
-    payload["roles"] = get_user_roles_fn(bl, str(payload["id"]))
+    payload["roles"] = get_user_roles_fn(bl, str(payload["id"]), payload.get("account_id"))
     return enrich_user_payload_with_account_memberships(bl, payload)
 
 

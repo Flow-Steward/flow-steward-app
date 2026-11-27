@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -65,5 +65,60 @@ describe("installation mode bootstrap projection", () => {
       edition: environment?.edition || "community",
       mode: expectedMode,
     });
+  });
+});
+
+describe("account switch", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function SwitchProbe() {
+    const auth = useAuth();
+    if (auth.status === "loading") return null;
+    return (
+      <>
+        <output aria-label="Acting role">{(auth.session?.user?.roles || []).join(",")}</output>
+        <button onClick={() => void auth.switchAccount("acct-b")} type="button">Switch</button>
+      </>
+    );
+  }
+
+  it("reloads the bootstrap and drops the old account's answers (ADR 0085)", async () => {
+    let account = "acct-a";
+    const bootstrap = () => ({
+      auth: {
+        authenticated: true,
+        local_auth_enabled: true,
+        user: {
+          id: "u1", email: "p@example.com", username: "p", display_name: "P",
+          roles: account === "acct-a" ? ["admin"] : ["viewer"],
+          account_id: account, account_ids: ["acct-a", "acct-b"], account_memberships: [],
+        },
+      },
+    });
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/switch-account") {
+        account = "acct-b";
+        return new Response(JSON.stringify({ status: "ok", account_id: "acct-b" }), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify(bootstrap()), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    queryClient.setQueryData(["settings", "users", {}], { users: [{ id: "from-a" }] });
+
+    render(<QueryClientProvider client={queryClient}><AuthProvider><SwitchProbe /></AuthProvider></QueryClientProvider>);
+    await waitFor(() => expect(screen.getByLabelText("Acting role")).toHaveTextContent("admin"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+    await waitFor(() => expect(screen.getByLabelText("Acting role")).toHaveTextContent("viewer"));
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls).toEqual(["/api/app/bootstrap", "/api/auth/switch-account", "/api/app/bootstrap"]);
+    expect(queryClient.getQueryData(["settings", "users", {}])).toBeUndefined();
   });
 });

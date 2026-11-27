@@ -216,6 +216,12 @@ export function useExtensionsHubState() {
   const archiveLifecycleUnavailable = archiveLifecycleQuery.isSuccess
     && !archiveLifecycleAvailable;
   const archiveLifecycleVerificationFailed = archiveLifecycleQuery.isError;
+  // Another account's administrator enables what the installation installed;
+  // only the installation administrator installs, updates and removes. The
+  // install affordances stay hidden until the server confirms the capability:
+  // while it loads or when it cannot be read, nobody is offered them.
+  const canManageInstalls = archiveLifecycleQuery.isSuccess
+    && archiveLifecycleQuery.data?.can_manage_installs !== false;
 
   const extensions = useMemo(() => extensionsQuery.data || [], [extensionsQuery.data]);
   const stateFilteredExtensions = useMemo(() => {
@@ -930,6 +936,7 @@ export function useExtensionsHubState() {
     hasCatalogFilters,
     disabledExtensionCount,
     canAdministerPlatform,
+    canManageInstalls,
     catalogInstallById,
     uninstallError,
     browserApprovalError,

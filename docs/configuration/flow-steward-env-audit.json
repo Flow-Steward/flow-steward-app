@@ -5457,6 +5457,7 @@
       "core/application/extensions/url_safety.py",
       "core/entrypoints/cli/compact_container_cli.py",
       "core/entrypoints/cli/doctor.py",
+      "core/entrypoints/cli/ops/platform_modules.py",
       "core/infrastructure/monitoring/docker_containers.py",
       "core/infrastructure/runtime/app_lifecycle_runtime.py",
       "core/infrastructure/runtime_containers.py",
@@ -8750,6 +8751,69 @@
     "variable_name": "FS_PIP_AUDIT_REQUIREMENTS_SEMGREP"
   },
   {
+    "canonical_name": "FS_PLATFORM_MODULES_ROOT",
+    "code_read_locations": [
+      "core/infrastructure/platform_modules/loader.py"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Overrides the directory of prepared platform modules (ADR 0082). Unset uses /run/flow-steward-runtime/platform-modules, which every runtime role reads; Compact child processes do not receive this override.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_PLATFORM_MODULES_ROOT"
+  },
+  {
+    "canonical_name": "FS_PLATFORM_MODULE_SETTINGS",
+    "code_read_locations": [
+      "infra/docker/docker-compose.compact.yaml",
+      "infra/docker/docker-compose.prod.yaml",
+      "infra/docker/docker-compose.yaml"
+    ],
+    "conditional_groups": [
+      "core_runtime"
+    ],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "Rendered by flow-steward config apply and ./install.sh --setting from the FS_MODULE_* settings the operator set (ADR 0082): base64: followed by the base64 of a JSON object of name to value. The app, worker and control roles publish the names their active platform modules declare. Never edit it by hand; set a module setting with flow-steward config set FS_MODULE_NAME=VALUE.; used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_PLATFORM_MODULE_SETTINGS"
+  },
+  {
+    "canonical_name": "FS_PLATFORM_MODULE_STATUS_DIR",
+    "code_read_locations": [
+      "core/infrastructure/platform_modules/role_status.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": false,
+    "variable_name": "FS_PLATFORM_MODULE_STATUS_DIR"
+  },
+  {
     "canonical_name": "FS_PROCESS_METRICS_HOST",
     "code_read_locations": [
       "core/infrastructure/config/runtime_config.py",
@@ -10422,6 +10486,44 @@
     "variable_name": "FS_SCRIPTS_DIR"
   },
   {
+    "canonical_name": "FS_SECRET_BACKEND_POLICY",
+    "code_read_locations": [
+      "core/infrastructure/security/secret_backend_policy.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_SECRET_BACKEND_POLICY"
+  },
+  {
+    "canonical_name": "FS_SECRET_BACKEND_POLICY_FILE",
+    "code_read_locations": [
+      "core/infrastructure/security/secret_backend_policy.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_SECRET_BACKEND_POLICY_FILE"
+  },
+  {
     "canonical_name": "FS_SECRET_KEY",
     "code_read_locations": [
       "core/application/auth/oauth_client.py",
@@ -10454,6 +10556,44 @@
     "retired_alias_names": [],
     "secret": true,
     "variable_name": "FS_SECRET_KEY"
+  },
+  {
+    "canonical_name": "FS_SECRET_STORAGE_PROBE_MAX_ATTEMPTS",
+    "code_read_locations": [
+      "core/application/secrets/backend_service.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_SECRET_STORAGE_PROBE_MAX_ATTEMPTS"
+  },
+  {
+    "canonical_name": "FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS",
+    "code_read_locations": [
+      "core/application/secrets/backend_service.py"
+    ],
+    "conditional_groups": [],
+    "default_example_value": "",
+    "documented_sources": [],
+    "environments": [
+      "production",
+      "local_development"
+    ],
+    "notes": "used but undocumented in .env.example surfaces",
+    "owning_subsystem": "runtime",
+    "required": false,
+    "retired_alias_names": [],
+    "secret": true,
+    "variable_name": "FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS"
   },
   {
     "canonical_name": "FS_SECURITY_POSTURE_ENABLED",

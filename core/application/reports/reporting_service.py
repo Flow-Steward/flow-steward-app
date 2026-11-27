@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from core.application.auth.principal import coerce_optional_project_id
+from core.application.jobs.workflow_identity import resolve_job_workflow_id
 from core.application.management.errors import (
     ACCESS_DENIED_MESSAGE,
     ServiceError,
@@ -17,7 +18,12 @@ from core.application.management.errors import (
     ServiceUnavailableError,
     ServiceValidationError,
 )
-from core.application.management.guards import require_project_access
+from core.application.management.guards import (
+    require_permission_for_optional_project,
+    require_project_access,
+    require_project_permission,
+    workflow_in_scope_limit,
+)
 from core.application.management.scope import ScopeContext, normalize_scope
 from core.application.reports.analytics_service import AnalyticsService
 from core.application.reports.dashboard_metric_values import (
@@ -94,6 +100,10 @@ _LEGACY_ACCOUNTING_REPORT_TYPES = frozenset(
 )
 
 
+#: Generating a report; a limited person needs it in the report's project.
+_REPORT_WRITE_PERMISSION = "reports.write"
+
+
 def _contains_retired_accounting_fields(value: Any) -> bool:
     if isinstance(value, dict):
         return any(
@@ -104,6 +114,19 @@ def _contains_retired_accounting_fields(value: Any) -> bool:
     if isinstance(value, list):
         return any(_contains_retired_accounting_fields(item) for item in value)
     return False
+
+
+def _require_report_workflow_in_scope(
+    scope: ScopeContext, project_id: Any, workflow_id: Any, *, not_found: bool
+) -> None:
+    """A project report of a project reached only through workflow grants (ADR 0076
+    section 8b) must be cut to one granted workflow: a whole-project report would
+    count the runs of every other workflow."""
+    if workflow_in_scope_limit(scope, project_id, str(workflow_id or "").strip() or None):
+        return
+    if not_found:
+        raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
+    raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
 
 
 class ReportingService:
@@ -841,6 +864,7 @@ class ReportingService:
     ) -> dict[str, Any]:
         resolved_scope = self._scope(scope)
         normalized_params = self._normalize_params(report_type, params)
+        self._require_report_permission(resolved_scope, report_type, normalized_params)
         result = self._build_report(report_type, normalized_params, scope=resolved_scope)
         created_at = datetime.now(UTC).isoformat()
         report_id = None
@@ -875,6 +899,43 @@ class ReportingService:
             "created_at": created_at,
         }
 
+    def _require_report_permission(
+        self, scope: ScopeContext, report_type: str, params: dict[str, Any]
+    ) -> None:
+        """A person limited to chosen projects generates reports where their role may.
+
+        A job report needs ``reports.write`` in the job's project, a project report in
+        that project, and a report across projects in every project the person
+        reaches (ADR 0076 section 8). Everybody else was checked by the route.
+        """
+        if scope.project_permissions is None:
+            return
+        normalized_type = str(report_type or "").strip().lower()
+        if normalized_type in {"job_summary", "job_usage_breakdown"}:
+            bl = self._logger_or_raise()
+            getter = getattr(bl, "get_job", None)
+            job = getter(str(params.get("job_id") or "")) if callable(getter) else None
+            project_id = (job or {}).get("project_id") if isinstance(job, dict) else None
+            # The run's workflow decides: a workflow grant, then the project's.
+            workflow_id = resolve_job_workflow_id(job) if isinstance(job, dict) else ""
+            require_project_permission(
+                scope,
+                str(project_id or ""),
+                _REPORT_WRITE_PERMISSION,
+                workflow_id=workflow_id or None,
+            )
+            return
+        require_permission_for_optional_project(
+            scope,
+            params.get("project_id"),
+            _REPORT_WRITE_PERMISSION,
+            workflow_id=str(params.get("workflow_id") or "").strip() or None,
+        )
+        if coerce_optional_project_id(params.get("project_id")) is not None:
+            _require_report_workflow_in_scope(
+                scope, params.get("project_id"), params.get("workflow_id"), not_found=False
+            )
+
     def _enforce_report_scope(self, scope: ScopeContext, row: dict[str, Any]) -> None:
         if str(row.get("account_id") or "").strip() != scope.account_id:
             raise ServiceNotFoundError(REPORT_NOT_FOUND_MESSAGE)
@@ -894,7 +955,17 @@ class ReportingService:
             return
         if project_id is not None:
             require_project_access(scope, {"id": project_id, "account_id": scope.account_id})
+            _require_report_workflow_in_scope(
+                scope,
+                project_id,
+                params.get("workflow_id") or _json_obj(row.get("payload_jsonb")).get("workflow_id"),
+                not_found=True,
+            )
         if report_type not in {"activity_daily", "project_summary", "project_stats"}:
+            if project_id is None and scope.allowed_project_ids:
+                # An account-wide report (core health) counts every project; a
+                # caller limited to chosen projects may not read it.
+                raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
             return
         workspace_id = None
         if project_id is not None and (scope.allowed_workspace_ids or scope.workspace_id):

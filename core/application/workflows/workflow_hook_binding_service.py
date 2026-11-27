@@ -620,15 +620,18 @@ class WorkflowHookBindingService:
         request: that revision is returned and no second child is created.
         An existing workflow the binding does not name is never taken over.
         """
+        from core.application.registry.workflow_account import workflow_account_scope
         from core.application.workflows.workflow_definition_service import (
             create_workflow_with_definition,
         )
 
-        with self.db._transaction() as cur:
+        # The child, its project link and its binding are the binding account's
+        # (ADR 0020, C4c), whatever account the caller's context has bound.
+        with self.db._transaction() as cur, workflow_account_scope(self.account_id):
             author = self._author(owner_workflow_id)
             owner = self._owner(author, project_id)
             _step_id, hook = find_hook(author, hook_id)
-            existing = self.db.get_workflow(child_workflow_id)
+            existing = self._workflow(child_workflow_id)
             if isinstance(existing, Mapping):
                 current = WorkflowHookBindingRepository(cur.connection).binding(owner, hook_id)
                 if current is not None and current.target_workflow_id == child_workflow_id:

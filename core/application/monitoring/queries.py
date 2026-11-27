@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from core.application.monitoring.contracts import (
     CheckStatus,
+    PlatformModuleFailure,
     RuntimeInstallationContext,
     StatusRecord,
     utc_time,
@@ -55,6 +56,8 @@ class ComponentRow(_Projection):
     #: A newer start of the same role and source replaced this one, or it said
     #: it stopped. History: kept for diagnosis, left out of current counts.
     superseded: bool = False
+    #: Platform modules this process skipped at start (ADR 0082 §5).
+    platform_module_failures: tuple[PlatformModuleFailure, ...] = ()
 
 
 class ComponentCounts(_Projection):
@@ -196,6 +199,7 @@ def _row(record: StatusRecord, *, now: datetime, config: MonitoringRuntimeConfig
             stale_seconds=config.stale_seconds,
         ),
         started_at=payload.started_at,
+        platform_module_failures=payload.platform_module_failures,
     )
 
 

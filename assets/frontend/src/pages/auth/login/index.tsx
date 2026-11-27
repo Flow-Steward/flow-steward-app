@@ -31,6 +31,7 @@ import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
 import { useAuth } from "@/lib/auth/useAuth";
+import { invitationTokenFromPath } from "@/lib/auth/account-invitations";
 import { fetchJson } from "@/lib/http/client";
 import { HttpError } from "@/lib/http/errors";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -95,10 +96,53 @@ type ExternalSignInProvider = {
 };
 
 type ExternalSignInState = {
+  /** The company identifier the options were asked for; empty for the first list. */
+  account: string;
+  /** Some options belong to one company and are listed only once it is named. */
+  accountHintSupported: boolean;
   providers: ExternalSignInProvider[];
   requestedPath: string;
   status: "idle" | "loading" | "ready" | "unavailable";
 };
+
+type ExternalSignInOptionsPayload = ExternalSignInProvider[] | {
+  account_hint_supported?: unknown;
+  options?: unknown;
+};
+
+/** Safe buttons and whether a company identifier can list more (ADR 0083). */
+function readExternalSignInOptions(payload: ExternalSignInOptionsPayload | null | undefined) {
+  const record = payload && !Array.isArray(payload) && typeof payload === "object" ? payload : null;
+  const raw: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray(record?.options) ? record.options : [];
+  const providers = raw
+    .map((item) => {
+      const provider = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+      return {
+        provider_key: firstStringFromUnknownValue([provider.provider_key, ""]).trim(),
+        display_name: firstStringFromUnknownValue([
+          provider.display_name,
+          provider.provider_key,
+          "",
+        ]).trim(),
+        login_path: firstStringFromUnknownValue([provider.login_path, ""]).trim(),
+      };
+    })
+    .filter((provider) => (
+      provider.provider_key
+      && provider.display_name
+      && provider.login_path
+      && isSafeLocalPath(provider.login_path)
+    ));
+  return { accountHintSupported: record?.account_hint_supported === true, providers };
+}
+
+function externalSignInOptionsPath(path: string, account: string) {
+  if (!account) return path;
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}account=${encodeURIComponent(account)}`;
+}
 
 type PasswordChange = { minLength: number; expired: boolean };
 
@@ -283,15 +327,69 @@ function placeCaretAfterAutofilledPassword(event: FocusEvent<HTMLInputElement>) 
   });
 }
 
+function CompanySignInStep({
+  account,
+  onSubmit,
+  providersFound,
+}: Readonly<{
+  account: string;
+  onSubmit: (account: string) => void;
+  providersFound: boolean;
+}>) {
+  const { t } = useI18n();
+  const [value, setValue] = useState(account);
+  const notFound = Boolean(account) && !providersFound;
+  return (
+    <form
+      aria-label={t("react.auth.company_sign_in", "Company sign-in")}
+      className="fs-public-auth__form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const trimmed = value.trim();
+        if (trimmed) onSubmit(trimmed);
+      }}
+    >
+      <div className="fs-public-auth__field">
+        <label className="fs-public-auth__field-label" htmlFor="company-identifier">{t("react.auth.company_identifier", "Company identifier")}</label>
+        <input
+          aria-describedby="company-identifier-help"
+          autoCapitalize="none"
+          autoComplete="organization"
+          className="fs-public-auth__input"
+          id="company-identifier"
+          onChange={(event) => setValue(event.target.value)}
+          spellCheck={false}
+          type="text"
+          value={value}
+        />
+        <span className={notFound ? "fs-public-auth__field-helper fs-public-auth__field-helper--error" : "fs-public-auth__field-helper"} id="company-identifier-help">
+          {notFound
+            ? t("react.auth.company_sign_in_not_found", "No sign-in options were found for this company.")
+            : t("react.auth.company_identifier_help", "Enter the identifier your company gave you to see its sign-in options.")}
+        </span>
+      </div>
+      <MotionButton {...AUTH_BUTTON_MOTION} className="fs-public-auth__button" size="lg" type="submit" variant="secondary">
+        {t("react.auth.company_sign_in", "Company sign-in")}
+      </MotionButton>
+    </form>
+  );
+}
+
 function ExternalProviderSection({
+  account,
+  accountHintSupported,
   localAuthEnabled,
   nextPath,
+  onCompanySubmit,
   providers,
   status,
   visible,
 }: Readonly<{
+  account: string;
+  accountHintSupported: boolean;
   localAuthEnabled: boolean;
   nextPath: string;
+  onCompanySubmit: (account: string) => void;
   providers: ExternalSignInProvider[];
   status: ExternalSignInState["status"];
   visible: boolean;
@@ -311,6 +409,9 @@ function ExternalProviderSection({
             </MotionButton>
           ))}
         </div>
+      ) : null}
+      {status === "ready" && accountHintSupported ? (
+        <CompanySignInStep account={account} key={account} onSubmit={onCompanySubmit} providersFound={providers.length > 0} />
       ) : null}
       {status === "unavailable" ? (
         <Notice notice={{ copy: localAuthEnabled ? t("react.auth.you_can_still_use_your_email_and_password", "You can still use your email and password.") : t("react.auth.contact_your_workspace_administrator_or_try_again_later", "Contact your workspace administrator or try again later."), title: t("react.auth.no_external_providers_are_available", "No external providers are available."), tone: "neutral" }} role="status" />
@@ -518,10 +619,13 @@ export function LoginPage() {
   const [flashDismissed, setFlashDismissed] = useState(false);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [externalSignIn, setExternalSignIn] = useState<ExternalSignInState>({
+    account: "",
+    accountHintSupported: false,
     providers: [],
     requestedPath: "",
     status: "idle",
   });
+  const [companyAccount, setCompanyAccount] = useState("");
   const accountSelectRef = useRef<HTMLSelectElement | null>(null);
   const flashMessage = flashDismissed ? "" : normalizeFlashMessage(searchParams.get("flash"));
   const localAuthEnabled = auth.session ? auth.session.local_auth_enabled : true;
@@ -556,34 +660,25 @@ export function LoginPage() {
       };
     }
 
-    fetchJson<ExternalSignInProvider[]>(externalSignInProvidersPath)
-      .then((providers) => {
+    fetchJson<ExternalSignInOptionsPayload>(
+      externalSignInOptionsPath(externalSignInProvidersPath, companyAccount),
+    )
+      .then((payload) => {
         if (!active) return;
-        const validProviders = (Array.isArray(providers) ? providers : [])
-          .map((provider) => ({
-            provider_key: firstStringFromUnknownValue([provider?.provider_key, ""]).trim(),
-            display_name: firstStringFromUnknownValue([
-              provider?.display_name,
-              provider?.provider_key,
-              "",
-            ]).trim(),
-            login_path: firstStringFromUnknownValue([provider?.login_path, ""]).trim(),
-          }))
-          .filter((provider) => (
-            provider.provider_key
-            && provider.display_name
-            && provider.login_path
-            && isSafeLocalPath(provider.login_path)
-          ));
+        const { accountHintSupported, providers } = readExternalSignInOptions(payload);
         setExternalSignIn({
-          providers: validProviders,
+          account: companyAccount,
+          accountHintSupported,
+          providers,
           requestedPath: externalSignInProvidersPath,
-          status: validProviders.length > 0 ? "ready" : "unavailable",
+          status: providers.length > 0 || accountHintSupported ? "ready" : "unavailable",
         });
       })
       .catch(() => {
         if (active) {
           setExternalSignIn({
+            account: companyAccount,
+            accountHintSupported: false,
             providers: [],
             requestedPath: externalSignInProvidersPath,
             status: "unavailable",
@@ -594,7 +689,7 @@ export function LoginPage() {
     return () => {
       active = false;
     };
-  }, [externalSignInProvidersPath, shouldLoadExternalSignIn]);
+  }, [companyAccount, externalSignInProvidersPath, shouldLoadExternalSignIn]);
 
   if (auth.isAuthenticated && !recovery && !form.formState.isSubmitting) {
     return <Navigate replace to={nextPath} />;
@@ -710,6 +805,9 @@ export function LoginPage() {
           new_password: passwordChange ? values.newPassword : undefined,
           mfa_code: mfaRequired ? mfaCode : undefined,
           authenticator_enrollment_token: enrollment?.token,
+          // ADR 0085: signing in to answer an invitation link. A person with a role
+          // nowhere yet may then sign in, to answer that invitation only.
+          invitation_token: invitationTokenFromPath(nextPath) || undefined,
         }),
       });
       const activePassword = passwordChange ? values.newPassword : values.password;
@@ -810,7 +908,8 @@ export function LoginPage() {
     : null);
   const providersVisible = shouldLoadExternalSignIn;
   const externalSignInStatus = providersVisible
-    && externalSignIn.requestedPath !== externalSignInProvidersPath
+    && (externalSignIn.requestedPath !== externalSignInProvidersPath
+      || externalSignIn.account !== companyAccount)
     ? "loading"
     : externalSignIn.status;
   const showPasswordDivider = providersVisible && localAuthEnabled;
@@ -863,8 +962,11 @@ export function LoginPage() {
                 </header>
 
                 <ExternalProviderSection
+                  account={externalSignIn.account}
+                  accountHintSupported={externalSignIn.accountHintSupported}
                   localAuthEnabled={localAuthEnabled}
                   nextPath={nextPath}
+                  onCompanySubmit={setCompanyAccount}
                   providers={externalSignIn.providers}
                   status={externalSignInStatus}
                   visible={providersVisible}

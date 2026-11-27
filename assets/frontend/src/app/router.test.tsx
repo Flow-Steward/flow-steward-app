@@ -4,6 +4,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import type { AuthSession } from "@/lib/auth/AuthProvider";
+import type * as AuthGuards from "@/lib/auth/guards";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AppRouter, HomeGate } from "@/app/router";
 import { I18nContext, fallbackContext } from "@/lib/i18n/context";
@@ -19,6 +20,8 @@ vi.mock("@/lib/auth/guards", async () => {
     RequireAuth: ({ children }: { children: ReactNode }) => React.createElement(React.Fragment, null, children),
     RequireAdmin: ({ children }: { children: ReactNode }) => React.createElement(React.Fragment, null, children),
     RequireCapability: ({ children }: { children: ReactNode }) => React.createElement(React.Fragment, null, children),
+    // The real gate: a module settings page opens by its own declared permission.
+    RequireSettingsPage: (await vi.importActual<typeof AuthGuards>("@/lib/auth/guards")).RequireSettingsPage,
   };
 });
 
@@ -53,6 +56,9 @@ vi.mock("@/pages/operator/section-page", () => ({
 
 vi.mock("@/pages/settings/hub", () => ({
   SettingsHubPage: () => <div>Settings hub</div>,
+  RegisteredSettingsResourceAdminPage: ({ page }: Readonly<{ page: { title: string } }>) => (
+    <div>Resource admin: {page.title}</div>
+  ),
 }));
 
 const mockedUseAuth = vi.mocked(useAuth);
@@ -172,7 +178,7 @@ describe("AppRouter", () => {
         logout: vi.fn(async () => undefined),
         refresh: vi.fn(async () => undefined),
         switchAccount: vi.fn(async () => undefined),
-        session: createSession({ authenticated: true }),
+        session: createSession({ authenticated: true, user: sessionUser("admin") }),
         status: "authenticated",
       });
 
@@ -214,6 +220,7 @@ describe("AppRouter", () => {
       switchAccount: vi.fn(async () => undefined),
       session: createSession({
         authenticated: true,
+        user: sessionUser("admin"),
         settings_pages: [{
           page_key: "custom_module",
           title: "Custom Module",
@@ -374,6 +381,7 @@ describe("AppRouter", () => {
       switchAccount: vi.fn(async () => undefined),
       session: createSession({
         authenticated: true,
+        user: sessionUser("admin"),
         registered_pages: [
           {
             key: "private_fixture",
@@ -400,5 +408,183 @@ describe("AppRouter", () => {
 
     expect(screen.getByText("Registered page: Private Fixture")).toBeInTheDocument();
     expect(screen.queryByText("Settings hub")).not.toBeInTheDocument();
+  });
+
+  describe("host-rendered registered pages", () => {
+    const resourceAdminSurface = {
+      kind: "resource_admin",
+      resources: [{
+        key: "records",
+        title: "Records",
+        list_path: "/api/modules/fixture/records",
+        id_field: "id",
+        fields: [{ key: "name", label: "Name", type: "text" }],
+      }],
+    };
+
+    function renderAt(path: string, overrides: Partial<AuthSession>) {
+      globalThis.history.pushState({}, "", path);
+      mockedUseAuth.mockReturnValue({
+        error: null,
+        isAuthenticated: true,
+        logout: vi.fn(async () => undefined),
+        refresh: vi.fn(async () => undefined),
+        switchAccount: vi.fn(async () => undefined),
+        session: createSession({ authenticated: true, user: sessionUser("admin"), ...overrides }),
+        status: "authenticated",
+      });
+      render(createElement(AppRouter));
+    }
+
+    it("renders a keyless resource_admin page outside settings with the host renderer", async () => {
+      renderAt("/modules/records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/modules/records",
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      await waitFor(() => expect(screen.getByText("Resource admin: Module Records")).toBeInTheDocument());
+      expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
+    });
+
+    it("renders a keyless resource_report page with the host renderer", async () => {
+      renderAt("/modules/journal", {
+        registered_pages: [{
+          key: "module_journal",
+          page_key: "module_journal",
+          label: "Module Journal",
+          title: "Module Journal",
+          path: "/modules/journal",
+          control_surface: {
+            kind: "resource_report",
+            list_path: "/api/modules/fixture/journal",
+            columns: [{ key: "action", label: "Action", type: "text" }],
+          },
+        }],
+      });
+
+      await waitFor(() => expect(screen.getByText("Resource admin: Module Journal")).toBeInTheDocument());
+      expect(screen.queryByRole("heading", { name: "This page is not available." })).not.toBeInTheDocument();
+    });
+
+    it("keeps the placeholder for a keyless page with an unknown surface kind", () => {
+      renderAt("/modules/dashboard", {
+        registered_pages: [{
+          key: "module_dashboard",
+          page_key: "module_dashboard",
+          label: "Module Dashboard",
+          title: "Module Dashboard",
+          path: "/modules/dashboard",
+          control_surface: { kind: "dashboard" },
+        }],
+      });
+
+      expect(screen.getByRole("heading", { name: "This page is not available." })).toBeInTheDocument();
+      expect(screen.getByText("The registered screen is not included in this frontend build.")).toBeInTheDocument();
+      expect(screen.queryByText("Resource admin: Module Dashboard")).not.toBeInTheDocument();
+    });
+
+    it("prefers a compiled component over the host renderer", () => {
+      renderAt("/modules/records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/modules/records",
+          component_key: "private.fixture",
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      expect(screen.getByText("Registered page: Module Records")).toBeInTheDocument();
+      expect(screen.queryByText("Resource admin: Module Records")).not.toBeInTheDocument();
+    });
+
+    it("keeps a keyless resource_admin settings tab inside the settings hub", async () => {
+      renderAt("/settings/module-records", {
+        registered_pages: [{
+          key: "module_records",
+          page_key: "module_records",
+          label: "Module Records",
+          title: "Module Records",
+          path: "/settings/module-records",
+          control_surface: resourceAdminSurface,
+        }],
+        settings_pages: [{
+          page_key: "module_records",
+          title: "Module Records",
+          path: "/settings/module-records",
+          settings_tab: true,
+          control_surface: resourceAdminSurface,
+        }],
+      });
+
+      await waitFor(() => expect(screen.getByText("Settings hub")).toBeInTheDocument());
+      expect(screen.queryByText("Resource admin: Module Records")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("module settings pages and their declared permission", () => {
+    const reportSurface = {
+      kind: "resource_report",
+      list_path: "/api/modules/fixture/journal",
+      columns: [{ key: "action", label: "Action", type: "text" }],
+    };
+
+    function modulePage(pageKey: string, path: string, requiredPermission: string) {
+      return {
+        page_key: pageKey,
+        title: pageKey,
+        path,
+        settings_tab: true,
+        required_permission: requiredPermission,
+        control_surface: reportSurface,
+      };
+    }
+
+    function renderAs(role: SystemRole, path: string, settingsPages: AuthSession["settings_pages"]) {
+      globalThis.history.pushState({}, "", path);
+      mockedUseAuth.mockReturnValue({
+        error: null,
+        isAuthenticated: true,
+        logout: vi.fn(async () => undefined),
+        refresh: vi.fn(async () => undefined),
+        switchAccount: vi.fn(async () => undefined),
+        session: createSession({ authenticated: true, roles: [role], user: sessionUser(role), settings_pages: settingsPages }),
+        status: "authenticated",
+      });
+      render(createElement(AppRouter));
+    }
+
+    it("lets an operator open a viewer-level module page the bootstrap lists", async () => {
+      renderAs("operator", "/settings/journal", [modulePage("journal", "/settings/journal", "viewer")]);
+
+      await waitFor(() => expect(screen.getByText("Settings hub")).toBeInTheDocument());
+      expect(screen.queryByRole("heading", { name: "Access denied" })).not.toBeInTheDocument();
+    });
+
+    it("refuses an operator an admin-level module page", () => {
+      renderAs("operator", "/settings/admin-records", [modulePage("admin_records", "/settings/admin-records", "admin")]);
+      expect(screen.getByRole("heading", { name: "Access denied" })).toBeInTheDocument();
+      expect(screen.queryByText("Settings hub")).not.toBeInTheDocument();
+    });
+
+    it("refuses an operator a module page the bootstrap does not list", () => {
+      renderAs("operator", "/settings/journal", []);
+      expect(screen.getByRole("heading", { name: "Access denied" })).toBeInTheDocument();
+    });
+
+    it("keeps every settings page open to an administrator", async () => {
+      renderAs("admin", "/settings/admin-records", [modulePage("admin_records", "/settings/admin-records", "admin")]);
+
+      await waitFor(() => expect(screen.getByText("Settings hub")).toBeInTheDocument());
+      expect(screen.queryByRole("heading", { name: "Access denied" })).not.toBeInTheDocument();
+    });
   });
 });

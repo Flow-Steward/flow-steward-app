@@ -65,7 +65,65 @@ def password_age_available(bl: Any) -> bool:
         return False
 
 
-def local_session_credential_filter(bl: Any) -> str:
+def session_auth_method_available(bl: Any) -> bool:
+    try:
+        return bl._column_exists("auth_sessions", "auth_method") is True
+    except AttributeError:
+        return False
+
+
+#: The value of ``auth_sessions.auth_method`` for a session issued by a local password.
+LOCAL_AUTH_METHOD = "local"
+
+
+def local_session_credential_filter(bl: Any, *, session_alias: str = "s") -> str:
+    """SQL conditions a session must meet for its user's local credentials.
+
+    Password age and the local authenticator rules belong to the local password:
+    a session issued by external sign-in (ADR 0083) is not held to them. The
+    sign-in method authenticated that person; the user and account checks of
+    the session lookup still apply.
+    """
+    if not session_alias.isidentifier():
+        raise ValueError("session_alias must be an SQL identifier")
+    local = _local_credential_conditions(bl)
+    if not local or not session_auth_method_available(bl):
+        return local
+    return f" AND ({session_alias}.auth_method <> '{LOCAL_AUTH_METHOD}' OR (TRUE{local}))"
+
+
+#: ``auth_sessions.auth_method`` of a session issued by external sign-in (ADR 0083).
+EXTERNAL_AUTH_METHOD = "external"
+
+
+def session_auth_method_select(bl: Any, *, session_alias: str = "s") -> str:
+    """SELECT fragment naming how a session was issued, ``auth_method``.
+
+    Before the column exists every session is local.
+    """
+    if not session_alias.isidentifier():
+        raise ValueError("session_alias must be an SQL identifier")
+    if session_auth_method_available(bl):
+        return f"{session_alias}.auth_method AS auth_method"
+    return f"'{LOCAL_AUTH_METHOD}'::text AS auth_method"
+
+
+def apply_session_auth_source(payload: dict[str, Any]) -> dict[str, Any]:
+    """Mark a session issued by external sign-in as ``auth_source`` 'external'.
+
+    A session lookup selects ``auth_method``; this replaces it with the principal's
+    ``auth_source``. A local session keeps the caller's default ('local'), so the
+    local-only checks (linking a sign-in, changing the email address, managing the
+    authenticator, the local password rules) never apply to an external session as
+    if it were local (ADR 0083).
+    """
+    method = str(payload.pop("auth_method", "") or "").strip().lower()
+    if method == EXTERNAL_AUTH_METHOD:
+        payload["auth_source"] = "external"
+    return payload
+
+
+def _local_credential_conditions(bl: Any) -> str:
     conditions = []
     if password_age_available(bl):
         conditions.append(

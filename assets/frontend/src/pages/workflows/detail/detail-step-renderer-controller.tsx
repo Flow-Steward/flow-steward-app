@@ -325,6 +325,8 @@ export function useWorkflowStepRendererController(ctx: Record<string, any>) {
     // The workflow's last validation issues and this step's id, so an editor
     // can show an issue next to the part of the step it names.
     stepAuthoredId,
+    // The server already has this step (not one added in the unapplied structure).
+    stepOnServer: Boolean(selectedStep && !selectedStep.local),
     stepValidationErrors: ctx.stepValidationErrors,
     agentDrafts: ctx.agentDrafts, agentWorkflowRecord: ctx.agentWorkflowRecord,
     stepOverrideDraft, setStepOverrideDraft,

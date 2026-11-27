@@ -220,6 +220,7 @@ def register_api_routes(
     registered_pages_resolver,
     shell_navigation_resolver,
     external_sign_in_resolver=None,
+    feature_endpoints_resolver=None,
     project_create_input_cls,
     project_update_input_cls,
     service_error_cls,
@@ -266,6 +267,7 @@ def register_api_routes(
         registered_pages_resolver=registered_pages_resolver,
         shell_navigation_resolver=shell_navigation_resolver,
         external_sign_in_resolver=external_sign_in_resolver,
+        feature_endpoints_resolver=feature_endpoints_resolver,
         date_time_format_reader=lambda user: session_date_time_format(
             dict(user), get_identity_store
         ),

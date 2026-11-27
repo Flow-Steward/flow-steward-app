@@ -72,7 +72,6 @@ def test_postgres_repository_locks_before_count_inside_default_pool_transaction(
                 (
                     (0,),
                     ("1", "admin@example.com", "Admin"),
-                    ("role-1",),
                     ("account-1",),
                 )
             )
@@ -133,10 +132,15 @@ def test_postgres_repository_locks_before_count_inside_default_pool_transaction(
     assert result is not None
     assert "pg_advisory_xact_lock" in cursor.queries[0][0]
     assert cursor.queries[1][0] == "SELECT COUNT(*) FROM users"
+    # The role is held on the installation account membership (ADR 0085).
     assert any(
-        "INSERT INTO user_account_memberships" in query and params == ("1", "account-1")
+        "INSERT INTO user_account_memberships" in query
+        and "role_id" in query
+        and "key = 'admin'" in query
+        and params == ("1", "account-1")
         for query, params in cursor.queries
     )
+    assert not any("user_roles" in query for query, _ in cursor.queries)
     assert connection.commits == 1
     assert connection.rollbacks == 0
 

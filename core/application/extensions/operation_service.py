@@ -123,7 +123,7 @@ class ExtensionOperationService:
         *,
         get_logger: Callable[[], Any],
         get_operation_store: Callable[[], Any],
-        resolve_extension_runtime_record: Callable[[str], tuple[dict[str, Any] | None, Any]],
+        resolve_extension_runtime_record: Callable[..., tuple[dict[str, Any] | None, Any]],
         extension_operation_handler_mode: ExtensionOperationHandlerMode,
         extension_operation_failure_status: Callable[[dict[str, Any] | None], int],
         get_project_by_id: Callable[[str], Any] | None = None,
@@ -140,9 +140,11 @@ class ExtensionOperationService:
         #: `project_connection_storage_unavailable` in production.
         self._get_operation_store: Callable[[], Any] = get_operation_store
         self._get_project_by_id = get_project_by_id
-        self._resolve_extension_runtime_record: Callable[
-            [str], tuple[dict[str, Any] | None, Any]
-        ] = resolve_extension_runtime_record
+        #: Called as ``(extension_id, *, account_id)``: the record of the
+        #: caller's account, never the default account's.
+        self._resolve_extension_runtime_record: Callable[..., tuple[dict[str, Any] | None, Any]] = (
+            resolve_extension_runtime_record
+        )
         self._extension_operation_handler_mode: ExtensionOperationHandlerMode = (
             extension_operation_handler_mode
         )
@@ -188,7 +190,9 @@ class ExtensionOperationService:
         idempotency_key: str = "",
     ) -> _ActionExecutionContext:
         resolved_scope = normalize_scope(scope)
-        extension, bl = self._resolve_extension_runtime_record(extension_id)
+        extension, bl = self._resolve_extension_runtime_record(
+            extension_id, account_id=resolved_scope.account_id
+        )
         if not extension:
             raise ServiceNotFoundError(ERR_EXTENSION_NOT_FOUND)
         self._assert_operation_within_extension_scope(

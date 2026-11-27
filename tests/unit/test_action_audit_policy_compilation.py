@@ -278,7 +278,7 @@ def test_sensitive_values_are_absent_from_the_persisted_audit_after_a_compiled_r
     service = ExtensionBindingService(
         get_logger=lambda: bl,
         get_operation_store=lambda: bl,
-        resolve_extension_runtime_record=lambda extension_id: (compiled, bl),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: (compiled, bl),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *args, **kwargs: "extension",
         extension_operation_failure_status=lambda invocation: 502,
@@ -372,7 +372,7 @@ def test_the_same_run_without_the_policy_keeps_host_safe_identifiers(
     service = ExtensionBindingService(
         get_logger=lambda: bl,
         get_operation_store=lambda: bl,
-        resolve_extension_runtime_record=lambda extension_id: (compiled, bl),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: (compiled, bl),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *args, **kwargs: "extension",
         extension_operation_failure_status=lambda invocation: 502,
@@ -497,7 +497,7 @@ def test_a_damaged_policy_keeps_the_payload_out_of_the_audit_record(
     service = ExtensionBindingService(
         get_logger=lambda: bl,
         get_operation_store=lambda: bl,
-        resolve_extension_runtime_record=lambda extension_id: (compiled, bl),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: (compiled, bl),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *args, **kwargs: "extension",
         extension_operation_failure_status=lambda invocation: 502,

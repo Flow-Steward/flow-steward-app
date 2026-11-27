@@ -22,7 +22,11 @@ from core.application.management.errors import (
     ServiceValidationError,
 )
 from core.application.management.scope import ScopeContext
-from core.application.secrets import repository
+from core.application.projects.workflow_only_connections import (
+    connections_for_scope,
+    cursor_dependency_loader,
+)
+from core.application.secrets import backend_repository, repository
 from core.application.secrets.authority import (
     actor_identity,
     require_approval_authority,
@@ -37,6 +41,7 @@ from core.application.secrets.projection import (
     projection_fingerprint,
 )
 from core.application.secrets.service_workflows import WorkflowSecretInputsMixin
+from core.infrastructure.security.secret_backends import invalidate_cached_secret
 
 _MAX_NAME = 200
 _MAX_DESCRIPTION = 2000
@@ -159,9 +164,12 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
         get_logger: Callable[[], Any],
         *,
         encrypt: Callable[[str], str] | None = None,
+        entitlement_service: Callable[[], Any] | None = None,
     ) -> None:
         self._get_logger = get_logger
         self._encrypt = encrypt
+        # Asked only when a new value goes to an external secret backend.
+        self._entitlement_service = entitlement_service
 
     # -- plumbing ------------------------------------------------------------
 
@@ -331,16 +339,36 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
         _kind, actor = actor_identity(scope)
         with self._transaction() as (conn, cur):
             secret = self._secret_in_scope(cur, scope, secret_id, lock=True)
-            self._store_value(
-                conn,
-                account_id=scope.account_id,
-                storage_ref_key=secret["storage_ref_key"],
-                value=validated_value,
+            located = backend_repository.get_locator(
+                cur, account_id=scope.account_id, ref_key=secret["storage_ref_key"]
             )
+            if located:
+                # The value is kept by an external secret backend: it is written there,
+                # never copied here (ADR 0066 amendment 2026-11-26).
+                from core.application.secrets.backend_service import SecretBackendAdminService
+
+                SecretBackendAdminService(
+                    self._get_logger, entitlement_service=self._entitlement_service
+                ).replace_remote_value(
+                    cur,
+                    scope,
+                    ref_key=secret["storage_ref_key"],
+                    located=located,
+                    value=validated_value,
+                )
+            else:
+                self._store_value(
+                    conn,
+                    account_id=scope.account_id,
+                    storage_ref_key=secret["storage_ref_key"],
+                    value=validated_value,
+                )
             repository.touch_value(
                 cur, account_id=scope.account_id, secret_id=secret["id"], actor=actor
             )
             self._audit(cur, scope, "replace_value", {"secret_id": secret["id"]})
+        if located:
+            invalidate_cached_secret(scope.account_id, secret["storage_ref_key"])
         return public_secret(secret)
 
     def delete_secret(
@@ -376,9 +404,14 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
                 secret_id=secret["id"],
                 storage_ref_key=secret["storage_ref_key"],
             )
+            # Forget where an external backend keeps it; the remote secret is not deleted.
+            backend_repository.delete_locator(
+                cur, account_id=scope.account_id, ref_key=secret["storage_ref_key"]
+            )
             self._audit(
                 cur, scope, "delete", {"secret_id": secret["id"], "removed_bindings": len(usages)}
             )
+        invalidate_cached_secret(scope.account_id, secret["storage_ref_key"])
         return {"deleted": True, "id": str(secret["id"]), "removed_bindings": len(usages)}
 
     def _remove_bindings(self, cur: Any, scope: ScopeContext, usages: list[dict[str, Any]]) -> None:
@@ -675,6 +708,14 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
         require_secret_read_metadata(scope)
         with self._transaction() as (_conn, cur):
             connection = self._locked_connection(cur, scope, connection_id, project_id=project_id)
+            if not connections_for_scope(
+                None,
+                scope,
+                connection.get("project_id"),
+                [connection],
+                load_dependencies=cursor_dependency_loader(cur),
+            ):
+                raise ServiceNotFoundError("Connection not found")
             return self._status_view(cur, connection)
 
     def project_approval_statuses(
@@ -701,9 +742,21 @@ class SecretCatalogService(WorkflowSecretInputsMixin):
                 ),
             )
             connection_ids = [str(row[0]) for row in cur.fetchall() or []]
+            connections = [
+                self._locked_connection(cur, scope, connection_id)
+                for connection_id in connection_ids
+            ]
+            # A project reached only through workflow grants shows only the
+            # connections a granted workflow needs (ADR 0076 section 8b).
+            connections = connections_for_scope(
+                None,
+                scope,
+                project_id,
+                connections,
+                load_dependencies=cursor_dependency_loader(cur),
+            )
             views = []
-            for connection_id in connection_ids:
-                connection = self._locked_connection(cur, scope, connection_id)
+            for connection in connections:
                 view = self._status_view(cur, connection)
                 view["display_name"] = connection.get("display_name") or ""
                 view["extension_install_id"] = connection.get("extension_install_id") or ""

@@ -59,7 +59,8 @@ def workflow_consumers(cur: Any, *, account_id: Any, workflow_id: str) -> list[W
     cur.execute(
         """SELECT d.workflow_id, d.step_id, COALESCE(w.enabled, false) AS enabled
              FROM workflow_runtime_dependencies d
-             JOIN registry_workflows w ON w.workflow_id = d.workflow_id
+             JOIN registry_workflows w
+               ON w.workflow_id = d.workflow_id AND w.account_id = d.account_id
             WHERE d.dependency_kind = 'child_workflow'
               AND d.dependency_ref = %s
               AND d.account_id::text = %s

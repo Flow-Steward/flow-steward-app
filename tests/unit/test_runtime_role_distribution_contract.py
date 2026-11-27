@@ -103,6 +103,9 @@ COMMON_ROLE_ENV_KEYS = {
 }
 # Optional OpenTelemetry export settings ride the common role anchor.
 COMMON_ROLE_ENV_KEYS = COMMON_ROLE_ENV_KEYS | (SUPPORTED_ENV_NAMES - {SEMCONV_STABILITY_ENV})
+# ADR 0082: the carrier of the operator's platform-module settings rides it too; the
+# roles that load modules (app, worker, control) publish the FS_MODULE_* names.
+COMMON_ROLE_ENV_KEYS = COMMON_ROLE_ENV_KEYS | {"FS_PLATFORM_MODULE_SETTINGS"}
 APP_WORKER_ENV_KEYS = {
     "ENCRYPTION_KEY",
     # local credential policy (5687946e), read wherever local passwords are checked

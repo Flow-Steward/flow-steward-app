@@ -3499,7 +3499,11 @@ class TestEventQueryEndpoints:
             response = client.get("/api/extensions/capabilities/archive-lifecycle")
 
         assert response.status_code == 200
-        assert response.json() == payload.dump.return_value
+        body = response.json()
+        # The caller's right to install, update and remove (ADR 0020, C6) is added
+        # to the service's availability, which is returned unchanged.
+        assert isinstance(body.pop("can_manage_installs"), bool)
+        assert body == payload.dump.return_value
         mock_service.archive_lifecycle_availability.assert_called_once_with()
 
     def test_api_extension_install_checks_capability_before_reading_upload(self, client):
@@ -4290,6 +4294,7 @@ class TestEventQueryEndpoints:
         mock_service = MagicMock()
         mock_service.bulk_delete_project_jobs.return_value = payload
         session_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "id": 18,
             "username": "admin@example.com",
             "display_name": "Admin",
@@ -4343,6 +4348,7 @@ class TestEventQueryEndpoints:
         mock_service = MagicMock()
         mock_service.bulk_delete_project_jobs.side_effect = RuntimeError("bulk delete boom")
         session_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "id": 18,
             "username": "admin@example.com",
             "display_name": "Admin",
@@ -5956,7 +5962,9 @@ class TestUIProjection:
 
         assert user_role_from_auth(None) == "viewer"
         assert user_role_from_auth("broken") == "viewer"
-        assert user_role_from_auth({"roles": ["admin"]}) == "admin"
+        assert (
+            user_role_from_auth({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}) == "admin"
+        )
         assert user_role_from_auth({"roles": ["operator"]}) == "operator"
         assert user_role_from_auth({"roles": ["viewer"]}) == "viewer"
         assert user_role_from_auth({"roles": []}) == "viewer"

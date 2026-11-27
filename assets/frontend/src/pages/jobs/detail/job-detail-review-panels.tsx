@@ -21,6 +21,7 @@ import {
 import type { CanonicalJobDetailView } from "@/pages/jobs/detail/job-detail-view-model";
 import { firstStringFromUnknownValue, isTruthy, stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { ignoreAsyncResult } from "@/lib/utils/async";
+import { approvalAssignment, approvalDecisionErrorMessage, approvalWaitingForText } from "@/lib/auth/approval-assignment";
 import { ReadableDataFields } from "./readable-data-fields";
 import { archivedApprovalDestinations } from "./job-definition-graph";
 
@@ -53,6 +54,13 @@ export function approvalGateFromResponse(value: unknown): Entity {
     if (candidate !== null && candidate !== undefined && stringFromUnknownValue(candidate).trim() !== "") {
       gate[key] = candidate;
     }
+  }
+  // Who may decide (assigned approvers): the response may state it beside the payload.
+  if (typeof gate.can_decide !== "boolean" && typeof record.can_decide === "boolean") {
+    gate.can_decide = record.can_decide;
+  }
+  if (!Array.isArray(gate.approvers) && Array.isArray(record.approvers)) {
+    gate.approvers = record.approvers;
   }
   return gate;
 }
@@ -775,8 +783,11 @@ function StatefulReviewWorkspacePanel({
     workspace.approval_id,
     approvalGate.approval_id,
   );
+  const assignment = approvalAssignment(approvalGate, workspace);
+  const unavailableReason = decisionUnavailableReason
+    || (assignment.canDecide ? "" : approvalWaitingForText(assignment.approvers, t));
   const canDecide =
-    canMutate && !decisionUnavailableReason && !workspace.read_only;
+    canMutate && !unavailableReason && !workspace.read_only;
   const rejectRequiresComment = Boolean(
     workspace.comment_required_on_reject,
   );
@@ -801,7 +812,7 @@ function StatefulReviewWorkspacePanel({
     }
     if (!canDecide) {
       setError(
-        decisionUnavailableReason ||
+        unavailableReason ||
           t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate."),
       );
       return;
@@ -827,11 +838,7 @@ function StatefulReviewWorkspacePanel({
     try {
       await onSubmit(threadId, result.payload);
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : t("react.jobs.approval_request_failed", "Approval request failed."),
-      );
+      setError(approvalDecisionErrorMessage(submitError, t));
     } finally {
       setPendingMode(null);
     }
@@ -858,13 +865,15 @@ function StatefulReviewWorkspacePanel({
       data-testid="job-review-workspace-body"
     >
       <ReviewWorkspaceHeader intro={intro} stage={stage} title={title} />
-      <ReviewLoadingNotice isLoading={isLoading && !threadId} />
+      <ReviewLoadingNotice isLoading={isLoading} />
       <ReviewWorkspaceContent kind={kind} workspace={workspace} />
-      <ReviewDecisionControls
+      {/* Who may decide arrives with the gate: no controls until it has loaded,
+          or a person the step is not assigned to sees them flash. */}
+      {isLoading ? null : <ReviewDecisionControls
         answer={answer}
         canDecide={canDecide}
         comment={comment}
-        decisionUnavailableReason={decisionUnavailableReason}
+        decisionUnavailableReason={unavailableReason}
         error={error}
         kind={kind}
         overrideContent={overrideContent}
@@ -877,7 +886,7 @@ function StatefulReviewWorkspacePanel({
         setOverrideContent={setOverrideContent}
         submit={submit}
         workspace={workspace}
-      />
+      />}
     </div>
   );
 }

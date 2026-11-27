@@ -32,11 +32,13 @@ except ModuleNotFoundError:  # pragma: no cover - lightweight unit env without p
                 "trash_days": 30,
                 "terminal_job_checkpoints_days": 30,
                 "revisions_keep": 5,
+                "approval_journal_retention_days": 0,
             }
 
             def _bounded(key: str, value: Any) -> int:
                 upper = 100 if key == "revisions_keep" else 3650
-                return max(1, min(upper, int(value)))
+                lower = 0 if key == "approval_journal_retention_days" else 1
+                return max(lower, min(upper, int(value)))
 
             for key, value in (defaults or {}).items():
                 with suppress(TypeError, ValueError):

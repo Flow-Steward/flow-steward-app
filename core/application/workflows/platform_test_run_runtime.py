@@ -418,6 +418,7 @@ def run_workflow_test_run_ephemeral(
     project_config: dict[str, Any],
     extra_state: dict[str, Any] | None = None,
     bl: Any = None,
+    started_by: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     registry = _reload_registry_for_test_run()
     thread_id = f"test-run-{uuid.uuid4().hex}"
@@ -477,6 +478,7 @@ def run_workflow_test_run_ephemeral(
         task_id=task_id,
         task_summary=task_summary,
         state_approval_id=state_approval_id,
+        started_by=started_by,
     )
     if job_id:
         payload["job_id"] = job_id
@@ -495,6 +497,7 @@ def anchor_test_run_awaiting_approval(
     task_id: str,
     task_summary: str,
     state_approval_id: str = "",
+    started_by: Mapping[str, Any] | None = None,
 ) -> str:
     """Give a Test Run parked at an approval gate a durable job row.
 
@@ -520,6 +523,10 @@ def anchor_test_run_awaiting_approval(
     Returns the job id, or "" when no anchor was needed or one could not be
     created. Failing to anchor must not fail the run itself: the caller still
     gets its result, it is simply not decidable until the run is re-driven.
+
+    ``started_by`` is who started the test run (``{"id", "kind"}`` from the
+    authenticated scope, see :func:`run_started_by`); without it the anchor is
+    named by its source, ``automation:workflow_test_run``.
     """
     if bl is None:
         return ""
@@ -539,6 +546,16 @@ def anchor_test_run_awaiting_approval(
         # projection, so persist the current gate identity regardless of whether
         # it came from a real interrupt or the state-based fallback.
         meta[STATE_APPROVAL_ID_META_KEY] = durable_approval_id
+    from core.application.workflows.workflow_start_runtime import (
+        STARTED_BY_META_KEY,
+        stamp_run_started_by,
+    )
+
+    # The person or service account that started the test run, when the caller
+    # knows it; otherwise the anchor is named by its source.
+    if isinstance(started_by, Mapping) and _text(started_by.get("id")):
+        meta[STARTED_BY_META_KEY] = dict(started_by)
+    meta = stamp_run_started_by(meta, task_source="workflow_test_run")
     try:
         return (
             _text(

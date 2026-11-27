@@ -1,0 +1,6 @@
+{
+  "id": "acme.reference-entitlements",
+  "import": "fs_reference_entitlements",
+  "provides": ["entitlement_source"],
+  "version": "1.0.0"
+}

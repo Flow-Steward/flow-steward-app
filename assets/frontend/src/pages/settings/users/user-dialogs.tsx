@@ -8,6 +8,7 @@ import type { UserRecord } from "@/pages/settings/shared/types";
 import {
   ROLE_OPTIONS,
   isUserAuthenticatorAction,
+  roleLabel,
   userAuthenticatorActionLabel,
   userLabel,
   type ConfirmAction,
@@ -15,18 +16,12 @@ import {
   type EditorMode,
   type EditorState,
 } from "./user-form-model";
+import { UserProjectAccess } from "./user-project-access";
 
 function userEditorSubmitLabel(addingUser: boolean, t: I18nContextValue["t"] = fallbackContext.t): string {
   return addingUser ? t("react.settings.add_user", "Add user") : t("react.settings.save_changes", "Save changes");
 }
 
-/** The role's name in the user form. */
-function roleLabel(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
-  if (role === "admin") return t("react.settings.role_admin", "Admin");
-  if (role === "operator") return t("react.settings.role_operator", "Operator");
-  if (role === "viewer") return t("react.settings.role_viewer", "Viewer");
-  return role;
-}
 
 /** What a role can do, in one line: a higher role includes everything below it. */
 function roleDescription(role: string, t: I18nContextValue["t"] = fallbackContext.t): string {
@@ -36,9 +31,35 @@ function roleDescription(role: string, t: I18nContextValue["t"] = fallbackContex
   return "";
 }
 
+/** One role among the system roles, each with what it can do. */
+export function UserRoleField({
+  name,
+  onChange,
+  role,
+}: Readonly<{ name: string; onChange: (role: string) => void; role: string }>) {
+  const { t } = useI18n();
+  return (
+    <div className="fs-role-grid">
+      {ROLE_OPTIONS.map((option) => (
+        <DsRadio
+          checked={role === option}
+          key={option}
+          name={name}
+          onChange={() => onChange(option)}
+          value={option}
+        >
+          <strong>{roleLabel(option, t)}</strong>
+          <small>{roleDescription(option, t)}</small>
+        </DsRadio>
+      ))}
+    </div>
+  );
+}
+
 function confirmUserActionLabel(kind: ConfirmActionKind, t: I18nContextValue["t"] = fallbackContext.t): string {
   if (isUserAuthenticatorAction(kind)) return userAuthenticatorActionLabel(kind, t);
   if (kind === "reset-password") return t("react.settings.require_reset", "Require reset");
+  if (kind === "remove") return t("react.settings.remove_from_this_company", "Remove from this company");
   return kind === "delete" ? t("react.settings.delete_user", "Delete user") : t("react.settings.deactivate_user", "Deactivate user");
 }
 
@@ -199,25 +220,21 @@ export function UserEditorDialog({
           <legend className="fs-field-label fs-required-label">
             {t("react.settings.role", "Role")}<span aria-hidden="true" className="fs-required">*</span>
           </legend>
-          <div className="fs-role-grid">
-            {ROLE_OPTIONS.map((role) => (
-              <DsRadio
-                checked={editor.role === role}
-                key={role}
-                name="user-role"
-                onChange={() => setEditor((value) => ({ ...value, role }))}
-                value={role}
-              >
-                <strong>{roleLabel(role, t)}</strong>
-                <small>{roleDescription(role, t)}</small>
-              </DsRadio>
-            ))}
-          </div>
+          <UserRoleField
+            name="user-role"
+            onChange={(role) => setEditor((value) => ({ ...value, role }))}
+            role={editor.role}
+          />
+          {addingUser ? null : (
+            <span className="fs-field-helper">
+              {t("react.settings.the_role_applies_in_this_company_only", "The role applies in this company only.")} </span>
+          )}
           {editingUser?.id === authUserId ? (
             <span className="fs-field-helper">
               {t("react.settings.changing_your_own_administrator_role_can_remove_access_to_this_page", "Changing your own administrator role can remove access to this page.")} </span>
           ) : null}
         </fieldset>
+        {addingUser ? null : <UserProjectAccess role={editor.role} user={editingUser} />}
         <fieldset className="fs-field">
           <legend className="fs-field-label">{t("react.settings.initial_controls", "Initial controls")}</legend>
           <div className="fs-control-grid">
@@ -375,6 +392,7 @@ export function ConfirmUserActionDialog({
   const { t } = useI18n();
   const reset = confirmAction?.kind === "reset-password";
   const deleting = confirmAction?.kind === "delete";
+  const removing = confirmAction?.kind === "remove";
   const label = confirmAction ? userLabel(confirmAction.user) : "user";
   const firstName = confirmAction ? label.split(" ")[0] : "The user";
   const authenticator = confirmAction ? authenticatorConfirmation(confirmAction.kind, label, t) : null;
@@ -383,7 +401,7 @@ export function ConfirmUserActionDialog({
     <DsDialog
       busy={saving}
       closeLabel={
-        authenticator
+        authenticator || removing
           ? t("react.settings.close_confirmation", "Close confirmation")
           : reset
             ? t("react.settings.close_password_reset_confirmation", "Close password reset confirmation")
@@ -392,13 +410,15 @@ export function ConfirmUserActionDialog({
               : t("react.settings.close_deactivate_user_confirmation", "Close deactivate user confirmation")
       }
       description={
-        authenticator?.description ?? (reset
+        removing
+          ? t("react.settings.value1_keeps_their_other_companies", "{value1} loses access to this company only and keeps their other companies, password and history.", { value1: String(firstName) })
+          : authenticator?.description ?? (reset
           ? t("react.settings.value1_must_choose_a_new_password_at_next_sign_in_other_active_sessions_will_be_revoked", "{value1} must choose a new password at next sign-in. Other active sessions will be revoked.", { value1: String(firstName) })
           : deleting
             ? t("react.settings.value1_will_be_removed_from_the_user_inventory_historical_workflow_job_and_audit_records_are_retained", "{value1} will be removed from the user inventory. Historical workflow, job, and audit records are retained.", { value1: String(firstName) })
             : t("react.settings.value1_will_no_longer_be_able_to_sign_in_existing_roles_are_retained", "{value1} will no longer be able to sign in. Existing roles are retained.", { value1: String(firstName) }))
       }
-      eyebrow={authenticator || reset ? t("react.settings.sign_in", "Sign-in") : deleting ? t("react.settings.delete_user", "Delete user") : t("react.settings.user_status", "User status")}
+      eyebrow={removing ? t("react.settings.users_access", "Users & access") : authenticator || reset ? t("react.settings.sign_in", "Sign-in") : deleting ? t("react.settings.delete_user", "Delete user") : t("react.settings.user_status", "User status")}
       footer={
         <>
           <button
@@ -421,13 +441,13 @@ export function ConfirmUserActionDialog({
       }
       onClose={onClose}
       open={Boolean(confirmAction)}
-      title={authenticator?.title ?? (reset ? t("react.settings.require_a_password_reset_for_value1", "Require a password reset for {value1}?", { value1: String(label) }) : deleting ? t("react.settings.delete_value1", "Delete {value1}?", { value1: String(label) }) : t("react.settings.deactivate_value1", "Deactivate {value1}?", { value1: String(label) }))}
+      title={removing ? t("react.settings.remove_value1_from_this_company", "Remove {value1} from this company?", { value1: String(label) }) : authenticator?.title ?? (reset ? t("react.settings.require_a_password_reset_for_value1", "Require a password reset for {value1}?", { value1: String(label) }) : deleting ? t("react.settings.delete_value1", "Delete {value1}?", { value1: String(label) }) : t("react.settings.deactivate_value1", "Deactivate {value1}?", { value1: String(label) }))}
       variant="confirm"
     >
       {resetAuthenticator ? (
         <DsAlert tone="warning" title={t("react.settings.authenticator_reset_effects", "The existing authenticator and recovery codes will stop working. All active sessions will end.")} />
       ) : null}
-      {authenticator ? null : (
+      {authenticator || removing ? null : (
         <DsAlert
           tone={reset ? "warning" : "danger"}
           title={

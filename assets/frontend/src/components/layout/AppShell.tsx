@@ -63,6 +63,7 @@ import {
   approvalJobPath,
   dedupeEntries,
   defaultSearchRoute,
+  normalizeAccountMemberships,
   normalizeNavigationEntries,
   normalizeThemeMode,
   normalizeWorkspaceOptions,
@@ -283,6 +284,15 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     staleTime: 60_000,
   });
   const currentAccountId = firstStringFromUnknownValue([auth.session?.user?.account_id, auth.session?.account_memberships?.[0]?.account_id, ""]).trim();
+  const accountOptions = useMemo(
+    () =>
+      normalizeAccountMemberships(auth.session?.user?.account_memberships)
+        // ADR 0085: an account where the person has no role grants nothing, so it is
+        // not offered; the current account stays listed whatever its role.
+        .filter((membership) => membership.isActive && (!membership.withoutRole || membership.accountId === currentAccountId))
+        .map((membership) => ({ id: membership.accountId, displayName: membership.accountName, role: membership.role || undefined })),
+    [auth.session?.user?.account_memberships, currentAccountId],
+  );
   const canReadApprovals = Boolean(
     auth.session?.authenticated || auth.session?.user,
   );
@@ -602,6 +612,21 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
     ignoreAsyncResult(navigate(approvalJobPath(job, sectionsView ? sectionNavigationQuery.data : undefined)));
   }
 
+  async function handleAccountChange(accountId: string) {
+    // The server moves the session; the bootstrap and every account-scoped
+    // cache are reloaded, and the person lands on the new account's home.
+    try {
+      await auth.switchAccount(accountId);
+    } catch (error) {
+      // Refused (no role there any more, say): reload the session so the menu shows
+      // the accounts the person can switch into now.
+      await auth.refresh();
+      throw error;
+    }
+    ignoreAsyncResult(loadWorkspaces());
+    ignoreAsyncResult(navigate("/", { replace: true }));
+  }
+
   async function handleLogout() {
     setLoggingOut(true);
     try {
@@ -674,8 +699,11 @@ export function AppShell({ children }: Readonly<PropsWithChildren>) {
   ) : null;
   const sidebar = (
     <AppShellSidebar
+      accountOptions={accountOptions}
       canManageUsers={hasCapability(permissions, "manage_users")}
+      currentAccountId={currentAccountId}
       loggingOut={loggingOut}
+      onAccountChange={(accountId) => ignoreAsyncResult(handleAccountChange(accountId))}
       onExpandRail={expandRail}
       onLogout={handleLogout}
       onRetryWorkspaces={() => ignoreAsyncResult(loadWorkspaces())}

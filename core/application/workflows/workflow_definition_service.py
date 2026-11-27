@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.application.registry.workflow_account import workflow_owner
 from core.application.workflows.execution_graph import (
     EXECUTION_GRAPH_SCHEMA_VERSION,
     EXECUTION_GRAPH_SETTING,
@@ -354,8 +355,8 @@ def locked_workflow_definition(
     with db._transaction() as cur:
         cur.execute(
             "SELECT revision FROM registry_workflows"
-            " WHERE workflow_id = %s AND deleted_at IS NULL FOR UPDATE",
-            (workflow_id,),
+            " WHERE workflow_id = %s AND account_id = %s AND deleted_at IS NULL FOR UPDATE",
+            (workflow_id, workflow_owner()),
         )
         locked = cur.fetchone()
         if locked is None:

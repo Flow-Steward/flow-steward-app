@@ -66,6 +66,24 @@ PUBLIC_ROUTE_EXCEPTIONS = frozenset(
     }
 )
 
+#: Own-account self-service writes a service account (``machine``) reached as a viewer
+#: only because its bearer credential resolved through the local token path and was
+#: taken for a person's session. The rule now reads the principal's own source
+#: (ADR 0083 re-review, c63d3175f9), so a viewer service account is held to the
+#: write-role rule like an external viewer already was ('ao'). Intended: a service
+#: account has no password or e-mail, must not mint personal tokens, has no cookie
+#: session to log out, and revokes its machine tokens through
+#: /api/auth/service-accounts/{key}/tokens/{id}/revoke, not the personal-token route.
+MACHINE_SELF_SERVICE_TIGHTENED = frozenset(
+    {
+        ("POST", "/api/auth/change-password"),
+        ("POST", "/api/auth/logout"),
+        ("POST", "/api/auth/tokens"),
+        ("POST", "/api/auth/tokens/{token_id}/revoke"),
+        ("POST", "/api/users/me/email-change/request"),
+    }
+)
+
 _ROUTE_TABLE = """
 import json
 from core.entrypoints.api import app_factory
@@ -155,9 +173,20 @@ def middleware_decision(
     recorded: list | None = None,
     stored: dict | None = None,
     loader=None,
+    contributed: tuple = (),
+    check_scopes: bool = False,
+    cookie_session: bool = False,
+    real_normalize: bool = False,
+    active_accounts: frozenset[str] | None = None,
 ) -> tuple[bool, object]:
-    """Run the real middleware once; ``recorded`` collects the token scopes it required."""
-    external = user.get("auth_source") == "external"
+    """Run the real middleware once; ``recorded`` collects the token scopes it required.
+
+    ``contributed`` are module route rules (ADR 0082) the middleware reads per request.
+    ``check_scopes`` keeps the real token scope check instead of recording and passing.
+    """
+    # ``cookie_session``: the principal arrives through the session cookie lookup (an
+    # external sign-in's session included), not through the request resolver.
+    external = user.get("auth_source") == "external" and not cookie_session
     bearer = user.get("auth_source") in {"pat", "machine"}
     seen: dict = {}
 
@@ -170,8 +199,22 @@ def middleware_decision(
             recorded.append(sorted(str(item) for item in required))
         return True
 
+    normalize = (
+        (lambda raw, **kwargs: _real_normalize_live_principal(raw, **kwargs))
+        if real_normalize
+        else (lambda raw, **_kwargs: ResolvedPrincipal(**raw) if isinstance(raw, dict) else None)
+    )
+    bl: object = object()
+    if active_accounts is not None:
+        bl = type(
+            "_AccountsBl",
+            (),
+            {"is_account_active": staticmethod(lambda account_id: account_id in active_accounts)},
+        )()
+
     original = auth_http_runtime.principal_has_required_scopes
-    auth_http_runtime.principal_has_required_scopes = _record
+    if not check_scopes:
+        auth_http_runtime.principal_has_required_scopes = _record
     try:
         response = asyncio.run(
             auth_http_runtime.local_auth_middleware(
@@ -182,14 +225,12 @@ def middleware_decision(
                 is_public_auth_path_fn=lambda _path: public,
                 route_registered_fn=lambda _path, _method: True,
                 request_principal_resolver_fn=lambda _request, _bl: dict(user),
-                normalize_live_principal_fn=lambda raw, **_kwargs: (
-                    ResolvedPrincipal(**raw) if isinstance(raw, dict) else None
-                ),
-                get_logger_only_fn=lambda: object(),
+                normalize_live_principal_fn=normalize,
+                get_logger_only_fn=lambda: bl,
                 auth_tables_available_fn=lambda _bl: True,
                 get_user_by_session_token_fn=lambda _bl, _token: dict(user),
                 local_auth_bootstrap_required_fn=lambda _bl=None: False,
-                auth_account_tables_available_fn=lambda _bl: False,
+                auth_account_tables_available_fn=lambda _bl: active_accounts is not None,
                 roles_intersect_fn=roles_intersect,
                 is_registry_read_route_fn=lambda candidate: bool(
                     _is_registry_read_route(candidate)
@@ -210,11 +251,24 @@ def middleware_decision(
                 path_login="/login",
                 load_role_permissions_fn=loader
                 or (lambda _bl: SYSTEM_ROLE_PERMISSIONS if stored is None else stored),
+                contributed_route_rules_fn=lambda: contributed,
             )
         )
     finally:
         auth_http_runtime.principal_has_required_scopes = original
     return response.status_code == 204, seen.get("state")
+
+
+def _real_normalize_live_principal(raw, *, default_auth_source: str):
+    from core.application.auth.request_principal_runtime import normalize_live_principal
+    from core.application.auth.resolve import normalize_principal
+
+    return normalize_live_principal(
+        raw,
+        default_auth_source=default_auth_source,
+        normalize_principal_fn=normalize_principal,
+        resolved_principal_type=ResolvedPrincipal,
+    )
 
 
 def _decisions(row: dict, kind: str) -> tuple[str, list[str] | None]:
@@ -250,6 +304,9 @@ def test_every_principal_kind_gets_the_frozen_answer_on_every_route(kind) -> Non
     for row in _compared_routes():
         key = f"{row['method']} {row['path']}"
         expected = snapshot[key][kind]
+        if kind == "machine" and (row["method"], row["path"]) in MACHINE_SELF_SERVICE_TIGHTENED:
+            assert expected == "aov", key  # the frozen answer this set documents
+            expected = "ao"
         allowed, scopes = _decisions(row, kind)
         if (row["method"], row["path"]) in PUBLIC_ROUTE_EXCEPTIONS and kind != "machine":
             # The documented exceptions: every role reaches the public handler.
@@ -407,6 +464,28 @@ def test_a_write_an_edition_contributes_as_own_account_needs_account_self() -> N
         )
         == "account.profile.write"
     )
+
+
+@pytest.mark.parametrize("path", ["/api/auth/tokens", "/api/auth/agent-access/tokens"])
+def test_an_external_viewer_session_cookie_needs_the_external_own_account_permission(
+    path: str,
+) -> None:
+    """The session an external sign-in issued resolves through the cookie lookup; its
+    principal's ``external`` source, not the lookup's ``local``, picks the rule."""
+    external_viewer = {"id": "v-1", "username": "v", "roles": ["viewer"]}
+    external_viewer["auth_source"] = "external"
+
+    allowed, _state = middleware_decision(
+        path, "POST", external_viewer, public=False, cookie_session=True
+    )
+
+    assert allowed is False
+    # A local viewer keeps account.self; an external operator holds the profile write.
+    assert middleware_decision(path, "POST", _principal("session", "viewer"), public=False)[0]
+    external_operator = {**external_viewer, "roles": ["operator"]}
+    assert middleware_decision(path, "POST", external_operator, public=False, cookie_session=True)[
+        0
+    ]
 
 
 def test_every_route_of_the_application_is_mapped() -> None:

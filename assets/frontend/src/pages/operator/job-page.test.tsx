@@ -345,6 +345,30 @@ describe("OperatorJobPage review", () => {
     expect(screen.getByTestId("review-original")).toBeInTheDocument();
   });
 
+  it("shows no decision buttons while the gate is loading, nor after it says another person decides", async () => {
+    let resolveReview!: (value: JobReview) => void;
+    const pendingReview = new Promise<JobReview>((resolve) => {
+      resolveReview = resolve;
+    });
+    const served = mockedFetchJson.getMockImplementation();
+    mockedFetchJson.mockImplementation((input, init) =>
+      new URL(String(input), "https://example.test").pathname === "/api/v2/jobs/j3/review"
+        ? (pendingReview as never)
+        : served!(input, init),
+    );
+    renderPage();
+    await waitFor(() => expect(mockedFetchJson.mock.calls.some(([input]) => String(input).startsWith("/api/v2/jobs/j3/review"))).toBe(true));
+    expect(screen.queryByTestId("review-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("review-reject")).not.toBeInTheDocument();
+    const assigned = review("j3");
+    assigned.gate = { ...assigned.gate!, can_decide: false, approvers: [{ username: "ann", display_name: "Ann Example" }] };
+    resolveReview(assigned);
+    await screen.findByTestId("operator-review");
+    expect(screen.queryByTestId("review-approve")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("review-reject")).not.toBeInTheDocument();
+    expect(screen.getByTestId("review-waiting-for")).toHaveTextContent("Waiting for Ann Example to decide.");
+  });
+
   it("tells someone without access to the deep review only that it waits", async () => {
     reviews.j3 = review("j3", "none", { review_job_id: null, gate: null });
     renderPage();

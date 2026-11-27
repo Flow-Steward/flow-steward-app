@@ -79,7 +79,7 @@ def _service(get_artifact_plane=None, extension=None):
         get_logger=_Store,
         get_operation_store=_Store,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store()),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, _Store()),
         extension_identifier=lambda _extension: "fixture.files",
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
@@ -360,7 +360,7 @@ def test_direct_action_defers_presentation_until_external_effect_confirmation(
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, object()),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, object()),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
         artifact_plane=plane,
@@ -481,7 +481,7 @@ def test_direct_action_suppresses_success_when_confirmed_presentation_commit_fai
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, object()),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, object()),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
         artifact_plane=plane,

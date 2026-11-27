@@ -69,13 +69,21 @@ from core.application.lifecycle.contracts import (
     LifecycleOperationStatus,
 )
 from core.application.lifecycle.errors import LifecycleError
+from core.application.lifecycle.module_settings import (
+    ModuleSettingSource,
+    check_module_settings,
+    module_setting_names,
+    module_setting_rows,
+)
 from core.application.lifecycle.operation_service import LifecycleOperationRunner
+from core.application.lifecycle.operator_settings import OperatorSettingError
 from core.application.lifecycle.ports import (
     LifecycleState,
     ProgressSink,
     TechnicalSink,
 )
 from core.application.management.errors import ServicePreconditionError
+from core.infrastructure.platform_modules.module_settings import ModuleSettingDeclaration
 
 _MESSAGE_RETRY_FROM_THE_INSTALLED_FLOW_STEWARD_CLI_RUNTIME = (
     "Retry from the installed Flow Steward CLI runtime."
@@ -92,10 +100,14 @@ class ConfigurationService(ConfigurationRenderingMixin):
         gateway: ConfigurationApplyGateway | None = None,
         lifecycle_state: LifecycleState | None = None,
         docker_host_project_root: Path | None = None,
+        module_settings: ModuleSettingSource | None = None,
     ) -> None:
         self.store = store
         self.gateway = gateway
         self.lifecycle_state = lifecycle_state
+        # ADR 0082: reads the settings the active platform-module set declares. None
+        # where this process cannot see the module set; a module setting is refused.
+        self.module_settings = module_settings
         self.docker_host_project_root = (
             Path(docker_host_project_root).resolve()
             if docker_host_project_root is not None
@@ -236,7 +248,55 @@ class ConfigurationService(ConfigurationRenderingMixin):
                 )
                 for name, configured in sorted(statuses.items())
             ),
+            module_settings=module_setting_rows(
+                active.operator_settings, self._declared_module_settings_or_none(active)
+            ),
         )
+
+    def declared_module_settings(
+        self, config: DeploymentConfig
+    ) -> tuple[ModuleSettingDeclaration, ...]:
+        """The settings the active platform-module set declares (ADR 0082).
+
+        Raises ``OperatorSettingError`` when this process cannot read the module set,
+        so a module setting is refused rather than accepted unchecked.
+        """
+        if self.module_settings is None:
+            raise OperatorSettingError(
+                "Platform-module settings cannot be checked here: this process cannot read "
+                "the active platform-module set. Run the command from the installed "
+                "Flow Steward CLI."
+            )
+        try:
+            return tuple(self.module_settings(config))
+        except OperatorSettingError:
+            raise
+        except Exception as exc:
+            raise OperatorSettingError(
+                "The active platform-module set cannot be read, so its settings cannot be "
+                f"checked: {str(exc).strip() or type(exc).__name__}"
+            ) from exc
+
+    def check_module_settings(
+        self, config: DeploymentConfig, changes: Mapping[str, str]
+    ) -> dict[str, str]:
+        """Refuse module settings no active module declares; others pass unchanged."""
+        requested = module_setting_names(changes)
+        if requested:
+            check_module_settings(
+                requested,
+                self.declared_module_settings(config),
+                active=config.operator_settings,
+            )
+        return dict(changes)
+
+    def _declared_module_settings_or_none(
+        self, config: DeploymentConfig
+    ) -> tuple[ModuleSettingDeclaration, ...] | None:
+        try:
+            return self.declared_module_settings(config)
+        except OperatorSettingError:
+            return None
 
     def set(self, patch: ConfigurationPatch) -> ConfigSetResult:
         """Atomically replace the pending typed patch without runtime effects."""
@@ -265,6 +325,19 @@ class ConfigurationService(ConfigurationRenderingMixin):
                 )
             active = self.read_active()
             assert active is not None
+            if patch.operator_settings:
+                try:
+                    self.check_module_settings(active, patch.operator_settings)
+                except OperatorSettingError as exc:
+                    raise LifecycleError.stable_failure(
+                        code="configuration_setting_invalid",
+                        cause=str(exc),
+                        remediation=(
+                            "Run flow-steward config show for the module settings the "
+                            "active platform modules declare, then set one of them."
+                        ),
+                        step="configuration",
+                    ) from exc
             self._candidate(active, patch)
             self.store.write_pending(patch)
         return ConfigSetResult(pending=patch)

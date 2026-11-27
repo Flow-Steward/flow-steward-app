@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 # Minimal stub for core.entrypoints.admin.deps to avoid import failures.
 # Use module-level save/restore so we don't pollute the global for other tests.
 import core.entrypoints.admin.deps as _deps
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.errors import ServiceForbiddenError
 
 _orig_require_auth = getattr(_deps, "_require_authenticated_user_fn", None)
@@ -612,7 +613,6 @@ class TestObservabilityEndpoints:
         """FS-AUDIT-007 defense-in-depth: an admin principal without account_id
         must not reach the unfiltered global snapshot query — the route falls
         back to the default account rather than passing account_id=None."""
-        from core.application.auth.config import DEFAULT_ACCOUNT_ID
 
         app = FastAPI()
         app.include_router(router)
@@ -620,6 +620,7 @@ class TestObservabilityEndpoints:
         @app.middleware("http")
         async def mock_auth(request, call_next):
             request.state.auth_user = {
+                "account_id": DEFAULT_ACCOUNT_ID,
                 "id": 9,
                 "username": "admin",
                 "roles": ["admin"],

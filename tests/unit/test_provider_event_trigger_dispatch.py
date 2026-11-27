@@ -263,3 +263,52 @@ def test_inside_an_open_transaction_starts_wait_for_its_commit(monkeypatch):
     [after_commit] = registered
     assert [item["status"] for item in after_commit()] == ["accepted"]
     assert len(harness.enqueued) == 1
+
+
+def test_the_start_runs_in_the_events_account(monkeypatch):
+    """No request or job is bound on the poll, sweep or public webhook path: the
+    event's account must name the registry reads of the start (ADR 0020, C5)."""
+    from core.application.registry import workflow_contract_service
+    from core.application.registry.workflow_account import bound_workflow_account
+
+    harness, run = _start([_row()], monkeypatch)
+    monkeypatch.setattr(
+        delivery,
+        "_load_record",
+        lambda _bl, key: {**harness.records[key], "account_id": "acct-event"},
+    )
+    bound: list[str | None] = []
+
+    class _Service:
+        def validate_inputs_for_workflow_id(self, _workflow_id, inputs, *, channel=""):
+            bound.append(bound_workflow_account())
+            return SimpleNamespace(ok=True, errors=[], inputs=inputs, interface={})
+
+    monkeypatch.setattr(workflow_contract_service, "WorkflowInterfaceService", _Service)
+
+    assert [item["status"] for item in run()] == ["accepted"]
+    assert bound == ["acct-event"]
+
+
+def test_the_dispatch_record_carries_the_events_account():
+    executed: list[str] = []
+
+    class _Cursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+        def execute(self, sql, _params=None):
+            executed.append(sql)
+
+        def fetchone(self):
+            return tuple(f"v-{column}" for column in delivery._RECORD_COLUMNS)
+
+    bl = SimpleNamespace(conn=SimpleNamespace(cursor=lambda: _Cursor()))
+    record = delivery._load_record(bl, "key-1")
+
+    assert "i.account_id" in executed[0]
+    assert record["account_id"] == "v-account_id"
+    assert record["trigger_type_id"] == "v-trigger_type_id"

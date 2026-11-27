@@ -10,6 +10,10 @@ import pytest
 from core.application.registry.contract_validation import validate_workflow_readiness
 from tests._workflow_definitions import edge, linear_workflow, node
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class _WorkflowOnlyDB:
     def __init__(self, workflow: dict[str, Any]) -> None:

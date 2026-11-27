@@ -41,6 +41,10 @@ export type ReviewGate = {
   allowed_actions?: string[];
   payload?: Record<string, unknown>;
   review?: ApprovalReview | null;
+  /** Whether this person may decide (ADR 0082, assigned approvers); absent means true. */
+  can_decide?: boolean;
+  /** The step's assigned approvers; empty when anyone who may decide approvals may. */
+  approvers?: Array<{ username?: string; display_name?: string }>;
 };
 
 /** `GET /api/v2/jobs/{id}/review`: the approval this job waits for and the caller's access. */

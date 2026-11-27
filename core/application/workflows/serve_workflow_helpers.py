@@ -4,7 +4,6 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.project_policy_validation import project_policy_numbers_from_form
 from core.application.observability.job_trace_context import TRACE_LINK_KEY, retry_link
 from core.application.settings.timezone_service import resolve_effective_project_tz
@@ -154,10 +153,15 @@ def list_workflow_choices(
     account_id: str | None = None,
     registry_manager_factory=None,
 ) -> list[dict]:
-    """Load workflow choices from the registry store on a best-effort basis."""
-    normalized_account_id = str(account_id or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
-    if normalized_account_id != DEFAULT_ACCOUNT_ID:
-        return []
+    """Load one account's workflow choices from the registry store on a best-effort basis.
+
+    The account is the given one, else the one bound to the request or job; with
+    neither the call is refused (ADR 0020, C5). Every account sees its own
+    workflows; the earlier default-account-only fence is gone.
+    """
+    from core.application.registry.workflow_account import workflow_owner
+
+    normalized_account_id = workflow_owner(account_id)
     try:
         if registry_manager_factory is None:
             from core.application.registry.registry_manager import RegistryManager
@@ -172,6 +176,7 @@ def list_workflow_choices(
             db_store.list_workflows(
                 enabled_only=enabled_only,
                 include_definitions=False,
+                account_id=normalized_account_id,
             )
             or []
         )

@@ -477,11 +477,10 @@ def resolve_access_token(conn: Any, token_hash: str, now: datetime) -> dict | No
               ON s.account_id = g.account_id AND s.setting_key = %s
              AND s.setting_value_jsonb @> '{"enabled": true}'::jsonb
             LEFT JOIN LATERAL (
+                -- The person's role in the grant's account (ADR 0085), read on use.
                 SELECT array_agg(ro.key ORDER BY ro.key) AS roles
-                FROM user_roles ur JOIN roles ro ON ro.id = ur.role_id
-                WHERE ur.user_id = g.user_id
-                  AND ur.workspace_id IS NULL AND ur.project_id IS NULL
-                  AND ur.workflow_id IS NULL
+                FROM user_account_memberships rm JOIN roles ro ON ro.id = rm.role_id
+                WHERE rm.user_id = g.user_id AND rm.account_id = g.account_id
             ) r ON true
             WHERE t.token_hash = %s
               AND t.expires_at > %s
@@ -505,22 +504,31 @@ def resolve_access_token(conn: Any, token_hash: str, now: datetime) -> dict | No
     return row
 
 
-def list_user_grants(conn: Any, user_id: str) -> list[dict[str, Any]]:
+def list_user_grants(
+    conn: Any, user_id: str, *, account_id: str | None = None
+) -> list[dict[str, Any]]:
+    """The person's grants; with ``account_id`` only that account's (ADR 0085)."""
+    account_sql = "AND g.account_id::text = %s " if account_id else ""
+    params: tuple[Any, ...] = (user_id, account_id) if account_id else (user_id,)
     with conn.cursor() as cur:
         cur.execute(
             f"SELECT {_GRANT_COLUMNS} FROM oauth_grants g "  # nosec B608
-            "WHERE g.user_id = %s ORDER BY g.created_at DESC LIMIT 500",
-            (user_id,),
+            f"WHERE g.user_id = %s {account_sql}ORDER BY g.created_at DESC LIMIT 500",
+            params,
         )
         return _rows(cur)
 
 
-def get_user_grant(conn: Any, grant_id: str, user_id: str) -> dict | None:
+def get_user_grant(
+    conn: Any, grant_id: str, user_id: str, *, account_id: str | None = None
+) -> dict | None:
+    account_sql = " AND g.account_id::text = %s" if account_id else ""
+    params: tuple[Any, ...] = (grant_id, user_id, account_id) if account_id else (grant_id, user_id)
     with conn.cursor() as cur:
         cur.execute(
             f"SELECT {_GRANT_COLUMNS} FROM oauth_grants g "  # nosec B608
-            "WHERE g.id = %s AND g.user_id = %s FOR UPDATE",
-            (grant_id, user_id),
+            f"WHERE g.id = %s AND g.user_id = %s{account_sql} FOR UPDATE",
+            params,
         )
         return _row(cur)
 

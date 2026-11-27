@@ -279,7 +279,10 @@ export function ExtensionMarketplaceCatalog({
         icon={<Package aria-hidden="true" className="fs-catalog-state-icon" />}
         title={t("react.extensions.the_extension_catalog_isn_t_set_up_on_this_server", "The extension catalog isn't set up on this server.")}
       >
-        {t("react.extensions.extensions_can_still_be_installed_from_a_file_with_install_extension_from_file_at_the_top_of_this_page", "Extensions can still be installed from a file with Install extension from file, at the top of this page.")}</CatalogStateBlock>
+        {/* The file install button exists only for whoever may install code. */}
+        {canAdminister
+          ? t("react.extensions.extensions_can_still_be_installed_from_a_file_with_install_extension_from_file_at_the_top_of_this_page", "Extensions can still be installed from a file with Install extension from file, at the top of this page.")
+          : null}</CatalogStateBlock>
     );
   }
   if (catalogQuery.isError || availability?.available === false) {

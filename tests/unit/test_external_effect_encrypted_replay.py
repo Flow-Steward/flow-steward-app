@@ -1807,7 +1807,7 @@ def test_direct_action_consumer_never_returns_success_when_replay_persist_fails(
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
     )
@@ -1899,7 +1899,7 @@ def test_direct_replay_persist_failure_cleans_outputs_only_after_proven_rollback
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
         artifact_plane=plane,
@@ -1945,7 +1945,7 @@ def test_direct_action_duplicate_returns_hydrated_result_without_provider_spawn(
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
     )
@@ -2026,7 +2026,7 @@ def test_direct_action_duplicate_typed_replay_failure_never_spawns(
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
     )
@@ -2074,7 +2074,7 @@ def test_direct_action_idempotency_key_distinguishes_intent_and_replays_retry(
     service = ExtensionOperationService(
         get_logger=lambda: object(),
         get_operation_store=lambda: object(),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
     )
@@ -2376,7 +2376,7 @@ def test_prepare_action_execution_rejects_caller_supplied_runtime_material(
     service = ExtensionOperationService(
         get_logger=lambda: MagicMock(),
         get_operation_store=lambda: MagicMock(),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             _direct_effect_extension(),
             MagicMock(),
         ),
@@ -2420,7 +2420,7 @@ def test_direct_action_pre_spawn_setup_failure_never_marks_running_or_invokes_pr
     service = ExtensionOperationService(
         get_logger=lambda: MagicMock(),
         get_operation_store=lambda: MagicMock(),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             _direct_effect_extension(),
             object(),
         ),
@@ -2502,7 +2502,7 @@ def test_direct_action_running_lease_failure_cleans_prepared_grants_before_exit(
     service = ExtensionOperationService(
         get_logger=lambda: MagicMock(),
         get_operation_store=lambda: MagicMock(),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             _direct_effect_extension(),
             object(),
         ),
@@ -2627,7 +2627,7 @@ def test_direct_reflected_secret_is_confirmed_as_timeout_unknown(monkeypatch) ->
     service = ExtensionOperationService(
         get_logger=lambda: MagicMock(),
         get_operation_store=lambda: MagicMock(),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             _direct_effect_extension(),
             object(),
         ),
@@ -2692,7 +2692,7 @@ def test_direct_output_finalizer_exception_cleans_and_confirms_timeout(monkeypat
     service = ExtensionOperationService(
         get_logger=lambda: MagicMock(),
         get_operation_store=lambda: MagicMock(),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             _direct_effect_extension(),
             object(),
         ),

@@ -19,6 +19,7 @@ import {
 } from "./job-detail-core";
 import { queryKeys } from "@/lib/query/keys";
 import { isHttpError } from "@/lib/http/errors";
+import { approvalDecisionErrorMessage, isApprovalNotAssigned } from "@/lib/auth/approval-assignment";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 
 type MessageSetter = Dispatch<SetStateAction<string>>;
@@ -41,10 +42,9 @@ export function useJobDetailActions(
       payload: ApprovalDecisionPayload;
     }) => submitApprovalDecision(threadId, payload),
     onError: (error, submitted) => {
-      setError(
-        error instanceof Error ? error.message : t("react.jobs.approval_request_failed", "Approval request failed."),
-      );
-      if (isHttpError(error) && error.status === 409) {
+      setError(approvalDecisionErrorMessage(error, t));
+      // A refused decision means the gate the page shows is out of date: who may decide, or the gate itself.
+      if ((isHttpError(error) && error.status === 409) || isApprovalNotAssigned(error)) {
         ignoreAsyncResult(
           queryClient.invalidateQueries({ queryKey: queryKeys.jobDetail(submitted.jobId) }),
         );

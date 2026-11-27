@@ -15,6 +15,7 @@ import {
 import { SHELL_NAVIGATION_ID } from "@/components/layout/app-shell-layout";
 import { AppShellSearchTrigger } from "@/components/layout/app-shell-search-trigger";
 import { DsLoader } from "@/components/shared/ds-loader";
+import { approvalAssignment, approvalWaitingForText } from "@/lib/auth/approval-assignment";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { IconButton } from "@/components/ui/icon-button";
 
@@ -159,19 +160,28 @@ export function AppShellHeader({
             approvalJobs.length === 0 ? (
               <p>{t("react.shared.no_approvals_are_waiting", "No approvals are waiting.")}</p>
             ) : null}
-            {approvalJobs.map((job) => (
-              <button
-                data-testid="approval-job-link"
-                key={approvalJobId(job)}
-                onClick={() => onOpenApprovalJob(job)}
-                type="button"
-              >
-                <span>{approvalJobTitle(job, t)}</span>
-                {approvalJobSubtitle(job, t) ? (
-                  <span>{approvalJobSubtitle(job, t)}</span>
-                ) : null}
-              </button>
-            ))}
+            {approvalJobs.map((job) => {
+              // A step assigned to other people opens for reading; the row says who decides it.
+              const assignment = approvalAssignment(job);
+              return (
+                <button
+                  data-testid="approval-job-link"
+                  key={approvalJobId(job)}
+                  onClick={() => onOpenApprovalJob(job)}
+                  type="button"
+                >
+                  <span>{approvalJobTitle(job, t)}</span>
+                  {approvalJobSubtitle(job, t) ? (
+                    <span>{approvalJobSubtitle(job, t)}</span>
+                  ) : null}
+                  {assignment.canDecide ? null : (
+                    <span data-testid="approval-job-waiting-for">
+                      {approvalWaitingForText(assignment.approvers, t)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </dialog>
         ) : null}
       </div>

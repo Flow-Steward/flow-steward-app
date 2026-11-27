@@ -41,6 +41,8 @@ class UserAdminQueryRepository(Protocol):
         role: str,
         active_filter: bool | None,
         managed_account_ids: list[str] | None,
+        role_account_id: str | None = None,
+        member_account_id: str | None = None,
     ) -> tuple[list[dict[str, Any]], int, int, int]: ...
 
 
@@ -90,6 +92,8 @@ class UserAdminQueryService:
         role: str = "",
         active_filter: bool | None = None,
         managed_account_ids: list[str] | None = None,
+        role_account_id: str | None = None,
+        member_account_id: str | None = None,
     ) -> UserListView:
         bl = self._logger()
         rows, total, normalized_limit, normalized_offset = self._repository.list_auth_users(
@@ -102,6 +106,8 @@ class UserAdminQueryService:
             role=role,
             active_filter=active_filter,
             managed_account_ids=managed_account_ids,
+            role_account_id=role_account_id,
+            member_account_id=member_account_id,
         )
         membership_map = get_user_membership_map(
             bl,

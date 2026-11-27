@@ -21,6 +21,10 @@ from core.application.workflows.workflow_definition_service import (
 from core.application.workflows.workflow_edit_session_contract import authoring_content
 from tests.unit.test_workflow_definition_service import _Store, edge, ref, step, workflow
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 REPORT_OUTPUTS = [{"name": "sales_report", "type": "object", "required": True}]
 
 

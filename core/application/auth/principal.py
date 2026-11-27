@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime
 from typing import Any
 
@@ -278,6 +279,18 @@ def _caller_is_scope_restricted(caller: dict | None) -> bool:
     return is_token_scoped_principal(caller)
 
 
+def _caller_has_project_limit(caller: dict | None) -> bool:
+    """Whether the caller is a person (not a token) whose projects a stored limit sets.
+
+    The auth middleware puts ``project_permissions`` on such a person only.
+    """
+    return (
+        isinstance(caller, dict)
+        and isinstance(caller.get("project_permissions"), dict)
+        and not _caller_is_scope_restricted(caller)
+    )
+
+
 def _caller_role_scope_ceiling(caller: dict | None) -> set[str]:
     if not isinstance(caller, dict):
         return set()
@@ -347,7 +360,14 @@ def enforce_token_scope_within_caller_authority(
             )
             if normalized is not None
         }
-        if not requested_projects or not requested_projects.issubset(caller_projects):
+        # A person limited to chosen projects (ADR 0076 section 8) may mint a token
+        # without a project list: every request it makes reaches only the projects
+        # both it and its owner reach, read again on each request, so it follows the
+        # owner's limit as the limit changes. A list it names must stay inside.
+        follows_owner_limit = not requested_projects and _caller_has_project_limit(caller)
+        if not follows_owner_limit and (
+            not requested_projects or not requested_projects.issubset(caller_projects)
+        ):
             raise TokenAuthorityError("Requested project allowlist exceeds the caller's authority")
 
     caller_workflows = principal_allowed_workflow_ids(caller)
@@ -395,6 +415,34 @@ def enforce_token_lifetime_within_caller(
     requested = _aware_datetime(requested_expires_at)
     if requested is None or requested > caller_expires_at:
         raise TokenAuthorityError("Requested expiry exceeds the caller's token lifetime")
+
+
+#: Auth sources that never speak for one person, whatever ``id`` they carry.
+_NON_PERSONAL_AUTH_SOURCES: frozenset[str] = frozenset(
+    {"machine", "mcp_dev", "project_connection", "oauth_callback"}
+)
+_NON_PERSONAL_PRINCIPAL_TYPES: frozenset[str] = frozenset({"service_account", "system_actor"})
+
+
+def principal_user_id(user: dict | None) -> str | None:
+    """The ``users.id`` of the person behind a principal, or ``None``.
+
+    A session, a personal access token and an OAuth grant of a person carry the
+    person's id. A service account, a machine token, the system actor and a
+    callback or connection identity never do, whatever ``id`` they hold. An id that
+    is not a UUID is not a user id.
+    """
+    if not isinstance(user, dict):
+        return None
+    if str(user.get("principal_type") or "").strip().lower() in _NON_PERSONAL_PRINCIPAL_TYPES:
+        return None
+    if str(user.get("auth_source") or "").strip().lower() in _NON_PERSONAL_AUTH_SOURCES:
+        return None
+    raw_id = str(user.get("id") or "").strip()
+    try:
+        return str(uuid.UUID(raw_id)) if raw_id else None
+    except ValueError:
+        return None
 
 
 def is_machine_principal(user: dict | None) -> bool:

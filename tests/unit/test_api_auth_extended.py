@@ -22,6 +22,8 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.unit._sql_debug import composable_to_debug_sql
@@ -1366,6 +1368,7 @@ class TestUserManagement:
         bl = _make_mock_bl()
         rows = [
             {
+                "account_id": DEFAULT_ACCOUNT_ID,
                 "id": 1,
                 "username": "admin",
                 "display_name": "Admin",
@@ -1574,7 +1577,7 @@ class TestUserManagement:
             auth_client.cookies.set("fs_session", "fake-token")
             r = auth_client.put(
                 f"/api/auth/users/{_USER_2}",
-                json={"roles": ["admin", "operator"]},
+                json={"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin", "operator"]},
             )
         assert r.status_code == 200
         data = r.json()
@@ -1928,7 +1931,7 @@ class TestTokenAuthorityIntersection:
     def test_admin_caller_may_grant_anything(self):
         # Privileged carve-out: admin role provisions freely.
         self._enforce(
-            caller={"roles": ["admin"]},
+            caller={"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]},
             requested_scopes=["admin:all"],
             requested_project_ids=["1"],
             requested_workflow_ids=["wf"],

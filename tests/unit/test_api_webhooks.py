@@ -2045,7 +2045,11 @@ class TestWorkflowEntrypoints:
             WorkflowInterfaceService,
         )
 
-        registry_owners = {"wf.inventory.sync": {"enabled": True}}
+        # The owner row is keyed by (workflow_id, account_id): the admission read
+        # names the entrypoint's own account (ADR 0020, C5), so a workflow of the
+        # same id in another account is not this entrypoint's owner.
+        registry_owners = {("wf.inventory.sync", DEFAULT_ACCOUNT_ID): {"enabled": True}}
+        admission_reads: list[tuple[object, ...]] = []
         cursor = mock_bl.conn.cursor.return_value.__enter__.return_value
         default_row = cursor.fetchone.return_value
         selected_owner = None
@@ -2054,8 +2058,8 @@ class TestWorkflowEntrypoints:
             nonlocal selected_owner
             selected_owner = None
             if "FROM registry_workflows" in str(query):
-                assert tuple(params) == ("wf.inventory.sync",)
-                selected_owner = registry_owners.get(params[0])
+                admission_reads.append(tuple(params))
+                selected_owner = registry_owners.get(tuple(params), {})
 
         cursor.execute.side_effect = execute
         cursor.fetchone.side_effect = lambda: (
@@ -2106,10 +2110,15 @@ class TestWorkflowEntrypoints:
             ),
             RegistryManager.process_instance_override(registry),
         ):
-            yield SimpleNamespace(validated_inputs=validated_inputs)
+            yield SimpleNamespace(
+                validated_inputs=validated_inputs, admission_reads=admission_reads
+            )
 
-    def test_canonical_public_workflow_entrypoint_route_is_available(self, client, mock_bl):
+    def test_canonical_public_workflow_entrypoint_route_is_available(
+        self, client, mock_bl, _workflow_contract_service
+    ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2143,6 +2152,47 @@ class TestWorkflowEntrypoints:
 
         assert resp.status_code == 202, resp.text
         assert resp.json()["job_id"] == "654"
+        # Checked before the reservation and again at submission, both in the
+        # entrypoint's account.
+        assert _workflow_contract_service.admission_reads
+        assert set(_workflow_contract_service.admission_reads) == {
+            ("wf.inventory.sync", DEFAULT_ACCOUNT_ID)
+        }
+
+    def test_public_entrypoint_admission_reads_the_entrypoint_account_not_another(
+        self, client, mock_bl, _workflow_contract_service
+    ):
+        # The route binds the entrypoint's account on the event loop and checks
+        # admission in a threadpool worker: the account must reach that read, and a
+        # workflow of the same id owned by another account must not admit it.
+        other_account = "00000000-0000-0000-0000-0000000000b2"
+        entrypoint = {
+            "account_id": other_account,
+            "entry_key": "inventory_sync",
+            "workflow_id": "wf.inventory.sync",
+            "project_id": "7",
+            "enabled": True,
+            "idempotency_mode": "none",
+            "input_mapping_jsonb": {},
+            "secret_ref": "",
+        }
+        with (
+            _patch_app_db(client, mock_bl),
+            patch(
+                "core.entrypoints.api.workflow_entrypoints_routes_execute._load_workflow_entrypoint",
+                return_value=entrypoint,
+            ),
+            patch(
+                "core.entrypoints.api.workflow_entrypoints_routes_execute.workflow_entrypoint_repository.resolve_project_run_config_for_workflow_project",
+                return_value=(7, {"project_name": "Storefront", "project_root": "/target"}),
+            ),
+            patch("core.entrypoints.api.route_registration._enqueue_task", return_value=654),
+        ):
+            resp = client.post("/webhook/workflows/inventory_sync", json={"title": "Sync"})
+
+        assert resp.status_code == 404, resp.text
+        assert resp.json()["code"] == "workflow_not_found"
+        assert _workflow_contract_service.admission_reads == [("wf.inventory.sync", other_account)]
 
     def test_unknown_workflow_entrypoint_returns_404(self, client, mock_bl):
         with (
@@ -2171,6 +2221,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_enqueues_direct_input_run(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2229,6 +2280,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_rejects_invalid_workflow_inputs(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2275,6 +2327,7 @@ class TestWorkflowEntrypoints:
         self, client, mock_bl, _workflow_contract_service
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2334,6 +2387,7 @@ class TestWorkflowEntrypoints:
         self, client, mock_bl
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2387,6 +2441,7 @@ class TestWorkflowEntrypoints:
         self, client, mock_bl
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2450,6 +2505,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_rejects_mismatched_idempotency_payload(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2488,6 +2544,7 @@ class TestWorkflowEntrypoints:
         self, client, mock_bl
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2528,6 +2585,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_multipart_includes_file_refs(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2611,6 +2669,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_public_route_is_post_only(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2649,6 +2708,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_idempotency_header_rejects_whitespace_key(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2685,6 +2745,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_returns_404_when_no_enabled_project_linked(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2729,6 +2790,7 @@ class TestWorkflowEntrypoints:
         secret_headers,
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2765,6 +2827,7 @@ class TestWorkflowEntrypoints:
         self, client, mock_bl
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2808,6 +2871,7 @@ class TestWorkflowEntrypoints:
 
     def test_secondary_replay_mismatch_releases_owned_header_reservation(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2860,6 +2924,7 @@ class TestWorkflowEntrypoints:
 
     def test_workflow_entrypoint_json_array_body_is_forwarded_under_body_key(self, client, mock_bl):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -2908,6 +2973,7 @@ class TestWorkflowEntrypoints:
         mock_bl,
     ):
         entrypoint = {
+            "account_id": DEFAULT_ACCOUNT_ID,
             "entry_key": "inventory_sync",
             "workflow_id": "wf.inventory.sync",
             "project_id": "7",
@@ -3598,3 +3664,40 @@ def test_provider_trigger_match_fails_closed_when_event_name_is_missing():
         )
         is False
     )
+
+
+def test_provider_trigger_webhook_reads_the_registry_in_the_triggers_account(monkeypatch):
+    """A public provider webhook binds no principal: the matched trigger's account
+    names the registry reads of the start (ADR 0020, C5), never the installation's."""
+    from core.application.registry.workflow_account import bound_workflow_account
+    from core.entrypoints.api import provider_webhooks as mod
+
+    client, _service, _state = _provider_trigger_client(
+        monkeypatch,
+        trigger_rows=[
+            {
+                "trigger_id": "trig-1",
+                "workflow_id": "wf-1",
+                "project_id": "proj-1",
+                "account_id": "acct-trigger",
+                "provider_key": "sample_tasks",
+                "trigger_type_id": "sample_tasks_task_events",
+                "display_name": "Sample Tasks Task Events",
+                "enabled": True,
+                "event_name": "taskStatusUpdated",
+                "trigger_config_jsonb": {"list_id": "lst-9"},
+            }
+        ],
+    )
+    bound: list[str | None] = []
+
+    def _validate(self, workflow_id, payload, channel=""):
+        bound.append(bound_workflow_account())
+        return SimpleNamespace(ok=True, errors=[], inputs=payload, interface={"enabled": True})
+
+    monkeypatch.setattr(mod.WorkflowInterfaceService, "validate_inputs_for_workflow_id", _validate)
+
+    response = client.post("/webhook/providers/sample_tasks", json=_sample_tasks_task_payload())
+
+    assert response.status_code == 200, response.text
+    assert bound == ["acct-trigger"]

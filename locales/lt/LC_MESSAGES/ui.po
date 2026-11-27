@@ -3556,6 +3556,18 @@ msgstr ""
 msgid "react.auth.choose_the_workspace_account_you_want_to_enter"
 msgstr "Pasirinkite darbo srities paskyrą, prie kurios norite prisijungti."
 
+msgid "react.auth.company_identifier"
+msgstr "Įmonės identifikatorius"
+
+msgid "react.auth.company_identifier_help"
+msgstr "Įveskite įmonės suteiktą identifikatorių, kad pamatytumėte jos prisijungimo būdus."
+
+msgid "react.auth.company_sign_in"
+msgstr "Prisijungimas per įmonę"
+
+msgid "react.auth.company_sign_in_not_found"
+msgstr "Šiai įmonei prisijungimo būdų nerasta."
+
 msgid "react.auth.confirm_password"
 msgstr "Patvirtinti slaptažodį"
 
@@ -4117,6 +4129,9 @@ msgstr "Plėtinių: {count}"
 msgid "react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file"
 msgstr "Pakeiskite filtrą arba įdiekite plėtinį iš `.zip` failo."
 
+msgid "react.extensions.change_the_filter_to_see_other_extensions"
+msgstr "Pakeiskite filtrą, kad matytumėte kitus plėtinius."
+
 msgid "react.extensions.check_again"
 msgstr "Tikrinti dar kartą"
 
@@ -4401,6 +4416,9 @@ msgid "react.extensions.display_extension_visible_count"
 msgstr ""
 "Rodoma {visible} iš {total} · numeskite .zip failą čia, kad įdiegtumėte"
 
+msgid "react.extensions.display_extension_visible_count_plain"
+msgstr "Rodoma {visible} iš {total}"
+
 msgid "react.extensions.display_extensions_hub"
 msgstr "Plėtinių centras"
 
@@ -4578,6 +4596,9 @@ msgstr ""
 
 msgid "react.extensions.enable_before_checking_connection"
 msgstr "Prieš tikrindami ryšį įjunkite šį plėtinį."
+
+msgid "react.extensions.enable_for_this_company"
+msgstr "Įjungti šiai įmonei"
 
 msgid "react.extensions.enable_this_extension_to_configure_its_project_scoped_ui"
 msgstr "Įjunkite šį plėtinį jo projekto sąsajai konfigūruoti."
@@ -4923,6 +4944,14 @@ msgstr "Aktyvių plėtinių nėra"
 
 msgid "react.extensions.no_extensions_in_this_view"
 msgstr "Šiame rodinyje plėtinių nėra"
+
+msgid "react.extensions.no_extensions_installed_ask_installation_administrator"
+msgstr ""
+"Šiame diegime dar neįdiegta jokių plėtinių. Paprašykite diegimo "
+"administratoriaus įdiegti plėtinį; tada galėsite jį įjungti savo įmonei."
+
+msgid "react.extensions.no_extensions_installed_yet"
+msgstr "Plėtinių dar neįdiegta"
 
 msgid "react.extensions.no_extensions_match"
 msgstr "Atitinkančių plėtinių nėra."
@@ -6354,6 +6383,9 @@ msgstr "Patikros:"
 msgid "react.monitoring.checks_behind_the_readiness_endpoint"
 msgstr "Parengties prieigos taško patikros."
 
+msgid "react.monitoring.checks_to_review"
+msgstr "Peržiūrėtinos patikros:"
+
 msgid "react.monitoring.clean_orphan_data"
 msgstr "Išvalyti apleistus duomenis"
 
@@ -6973,6 +7005,9 @@ msgstr "Nestebėta"
 
 msgid "react.monitoring.state_not_ready"
 msgstr "Neparuošta"
+
+msgid "react.monitoring.state_platform_modules"
+msgstr "Platformos moduliai"
 
 msgid "react.monitoring.state_process"
 msgstr "Procesas"
@@ -12776,6 +12811,36 @@ msgstr "Įrašas"
 msgid "react.settings.record_created"
 msgstr "Įrašas sukurtas."
 
+msgid "react.settings.advanced_settings"
+msgstr "Išplėstiniai nustatymai"
+
+msgid "react.settings.choose_option"
+msgstr "Pasirinkite…"
+
+msgid "react.settings.choose_options"
+msgstr "Pasirinkite vieną ar kelis…"
+
+msgid "react.settings.reference_options_missing"
+msgstr "Laukui {field} kol kas nėra ką pasirinkti."
+
+msgid "react.settings.secret_keep_blank"
+msgstr "Palikite tuščią, kad liktų išsaugota reikšmė"
+
+msgid "react.settings.summary_disabled"
+msgstr "išjungta"
+
+msgid "react.settings.summary_enabled"
+msgstr "įjungta"
+
+msgid "react.settings.row_action_done"
+msgstr "Atlikta."
+
+msgid "react.settings.row_action_failed"
+msgstr "Veiksmas nepavyko."
+
+msgid "react.settings.close_action_confirmation"
+msgstr "Uždaryti patvirtinimą"
+
 msgid "react.settings.record_deleted"
 msgstr "Įrašas ištrintas."
 
@@ -13140,6 +13205,36 @@ msgstr "Naudotojo {value1} prisijungimo blokavimas panaikintas."
 msgid "react.settings.snapshot"
 msgstr "Momentinė kopija"
 
+msgid "react.settings.status_document_choose_file"
+msgstr "Pasirinkti failą"
+
+msgid "react.settings.status_document_document"
+msgstr "Dokumentas"
+
+msgid "react.settings.status_document_empty"
+msgstr "Pirmiausia įklijuokite dokumentą arba pasirinkite failą."
+
+msgid "react.settings.status_document_no_status"
+msgstr "Būsenos dar nėra."
+
+msgid "react.settings.status_document_read_failed"
+msgstr "Nepavyko perskaityti failo."
+
+msgid "react.settings.status_document_saved"
+msgstr "Dokumentas įkeltas."
+
+msgid "react.settings.status_document_too_large"
+msgstr "Dokumentas didesnis nei {limit}."
+
+msgid "react.settings.status_document_upload"
+msgstr "Įkelti"
+
+msgid "react.settings.status_document_upload_failed"
+msgstr "Dokumentas nepriimtas."
+
+msgid "react.settings.status_document_uploading"
+msgstr "Įkeliama…"
+
 msgid "react.settings.store_this_value_in_a_secure_credential_manager"
 msgstr "Laikykite šią reikšmę saugioje prisijungimo duomenų tvarkyklėje."
 
@@ -13479,6 +13574,9 @@ msgstr "Paskyros meniu"
 
 msgid "react.shared.account_profile"
 msgstr "Paskyros profilis"
+
+msgid "react.shared.accounts"
+msgstr "Paskyros"
 
 msgid "react.shared.active_child_projects"
 msgstr "Aktyvūs antriniai projektai:"
@@ -14101,6 +14199,9 @@ msgstr "Išsaugoti duomenų rinkinių sąsajas"
 
 msgid "react.settings.records_count"
 msgstr "Įrašų: {count}"
+
+msgid "react.settings.records_count_one"
+msgstr "1 įrašas"
 
 msgid "react.monitoring.download_diagnostics"
 msgstr "Atsisiųsti diagnostiką"
@@ -32972,3 +33073,451 @@ msgstr "Keisti diegimo nustatymus, saugumo politiką, modelių teikėjus ir atna
 
 msgid "react.permissions.platform_manage"
 msgstr "Vykdyti bendrąsias komandas, atkurti ar išvalyti šiukšlinę ir priimti agentų bei reakcijų užklausas"
+
+msgid "react.approvals.not_assigned"
+msgstr "Šį žingsnį gali spręsti tik jam priskirti tvirtintojai."
+
+msgid "react.approvals.waiting_for_approvers"
+msgstr "Laukiama, kol nuspręs {approvers}."
+
+msgid "react.approvals.waiting_for_assigned_approvers"
+msgstr "Laukiama, kol nuspręs šiam žingsniui priskirti tvirtintojai."
+
+msgid "react.workflows.approval_waiting_for_assigned"
+msgstr "Laukiama sprendimo"
+
+msgid "react.workflows.approvers"
+msgstr "Tvirtintojai"
+
+msgid "react.workflows.approvers_after_save"
+msgstr "Išsaugokite darbo eigą su šiuo žingsniu, kad galėtumėte pasirinkti, kas gali jį spręsti."
+
+msgid "react.workflows.approvers_anyone_help"
+msgstr "Niekas nepasirinktas: šį žingsnį gali spręsti kiekvienas, kuris gali spręsti patvirtinimus."
+
+msgid "react.workflows.approvers_load_failed"
+msgstr "Nepavyko įkelti tvirtintojų. Atidarykite žingsnį iš naujo ir bandykite dar kartą."
+
+msgid "react.workflows.approvers_placeholder"
+msgstr "Ieškoti žmonių"
+
+msgid "react.workflows.approvers_restricted_help"
+msgstr "Šį žingsnį gali spręsti tik čia pasirinkti žmonės."
+
+msgid "react.workflows.approvers_save"
+msgstr "Išsaugoti tvirtintojus"
+
+msgid "react.workflows.approvers_save_failed"
+msgstr "Tvirtintojai neišsaugoti."
+
+msgid "react.workflows.approvers_save_failed_reason"
+msgstr "Tvirtintojai neišsaugoti: {reason}"
+
+msgid "react.workflows.approvers_saved"
+msgstr "Tvirtintojai išsaugoti."
+
+msgid "react.workflows.approvers_saved_separately"
+msgstr "Tvirtintojai išsaugomi atskirai ir įsigalioja iš karto; „Išsaugoti parametrus“ jų neapima."
+
+msgid "react.workflows.approvers_saving"
+msgstr "Išsaugomi tvirtintojai…"
+
+msgid "react.workflows.loading_people"
+msgstr "Įkeliami žmonės…"
+
+msgid "react.auth.project_action_not_allowed"
+msgstr "Jūsų prieiga prie šio projekto neapima šio veiksmo."
+
+msgid "react.settings.project_access"
+msgstr "Prieiga prie projektų"
+
+msgid "react.settings.project_access_all"
+msgstr "Visi projektai"
+
+msgid "react.settings.project_access_one"
+msgstr "1 projektas"
+
+msgid "react.settings.project_access_count"
+msgstr "Projektų: {count}"
+
+msgid "react.settings.project_access_admin"
+msgstr "Administratoriai pasiekia visus projektus."
+
+msgid "react.settings.project_access_no_access"
+msgstr "Be prieigos"
+
+msgid "react.settings.project_access_all_help"
+msgstr "Šis asmuo pasiekia visus projektus, kuriuos pasiekia jo vaidmuo."
+
+msgid "react.settings.project_access_role_for"
+msgstr "Vaidmuo projekte {project}"
+
+msgid "react.settings.project_access_load_failed"
+msgstr "Nepavyko įkelti prieigos prie projektų. Atidarykite langą iš naujo ir bandykite dar kartą."
+
+msgid "react.settings.project_access_not_saved"
+msgstr "Prieiga prie projektų neišsaugota"
+
+msgid "react.settings.project_access_save"
+msgstr "Išsaugoti prieigą prie projektų"
+
+msgid "react.settings.project_access_saved"
+msgstr "Prieiga prie projektų išsaugota."
+
+msgid "react.settings.project_access_limit_places"
+msgstr "Apriboti pasirinktomis vietomis"
+
+msgid "react.settings.project_access_places_help"
+msgstr "Šis asmuo pasiekia tik čia pasirinktas vietas. Darbo sritis apima visus savo projektus, projektas – visas savo darbo eigas; taikomas tiksliausias pasirinkimas, bet niekada ne aukštesnis už jo paties vaidmenį."
+
+msgid "react.settings.project_access_inherited"
+msgstr "Kaip aukščiau ({role})"
+
+msgid "react.settings.project_access_whole_workspace"
+msgstr "Visa darbo sritis, įskaitant vėliau pridėtus projektus"
+
+msgid "react.settings.project_access_projects_of"
+msgstr "Darbo srities {workspace} projektai"
+
+msgid "react.settings.project_access_workflows_of"
+msgstr "Projekto {project} darbo eigos"
+
+msgid "react.settings.project_access_workspace_named"
+msgstr "{name} (darbo sritis)"
+
+msgid "react.settings.project_access_workspace_count"
+msgstr "Darbo sričių: {count}"
+
+msgid "react.settings.project_access_workflow_one"
+msgstr "1 darbo eiga"
+
+msgid "react.settings.project_access_workflow_count"
+msgstr "Darbo eigų: {count}"
+
+msgid "react.settings.secret_storage.name"
+msgstr "Pavadinimas"
+
+msgid "react.settings.secret_storage.name_help"
+msgstr "Kaip ši saugykla vadinama sąrašuose, pavyzdžiui, Gamybinė saugykla."
+
+msgid "react.settings.secret_storage.kind"
+msgstr "Saugyklos rūšis"
+
+msgid "react.settings.secret_storage.turned_on"
+msgstr "Įjungta"
+
+msgid "react.settings.secret_storage.turned_on_help"
+msgstr "Kol ji išjungta, joje laikomų paslapčių perskaityti negalima."
+
+msgid "react.settings.secret_storage.health_unknown"
+msgstr "Netikrinta"
+
+msgid "react.settings.secret_storage.health_ok"
+msgstr "Prisijungta"
+
+msgid "react.settings.secret_storage.health_off"
+msgstr "Išjungta"
+
+msgid "react.settings.secret_storage.health_not_installed"
+msgstr "Priedas neįdiegtas"
+
+msgid "react.settings.secret_storage.health_failed"
+msgstr "Nepavyksta prisijungti"
+
+msgid "react.settings.secret_storage.updated"
+msgstr "{value0} išsaugota."
+
+msgid "react.settings.secret_storage.created"
+msgstr "{value0} pridėta."
+
+msgid "react.settings.secret_storage.edit_title"
+msgstr "Redaguoti {value0}"
+
+msgid "react.settings.secret_storage.add"
+msgstr "Pridėti saugyklą"
+
+msgid "react.settings.secret_storage.not_saved"
+msgstr "Neišsaugota"
+
+msgid "react.settings.secret_storage.description"
+msgstr "Paslapčių reikšmės laikomos užšifruotos šiame diegime. Priedas gali jas laikyti išorinėje paslapčių tvarkyklėje; nustatykite ją čia, tada perkelkite paslaptis ten iš Registras → Paslaptys."
+
+msgid "react.settings.secret_storage.loading"
+msgstr "Įkeliama paslapčių saugykla…"
+
+msgid "react.settings.secret_storage.load_failed"
+msgstr "Nepavyko įkelti paslapčių saugyklos"
+
+msgid "react.settings.secret_storage.add_on_only"
+msgstr "Paslapčių reikšmės laikomos užšifruotos šio diegimo duomenų bazėje. Laikyti jas išorinėje paslapčių tvarkyklėje galima su priedu: jį įdiegus, saugyklą galėsite nustatyti čia."
+
+msgid "react.settings.secret_storage.title"
+msgstr "Paslapčių saugykla"
+
+msgid "react.settings.secret_storage.state"
+msgstr "Būsena"
+
+msgid "react.settings.secret_storage.on"
+msgstr "Įjungta"
+
+msgid "react.settings.secret_storage.off"
+msgstr "Išjungta"
+
+msgid "react.settings.secret_storage.connection"
+msgstr "Ryšys"
+
+msgid "react.settings.secret_storage.checking"
+msgstr "Tikrinama…"
+
+msgid "react.settings.secret_storage.check"
+msgstr "Tikrinti ryšį"
+
+msgid "react.settings.secret_storage.count"
+msgstr "Nustatytos saugyklos: {value0}"
+
+msgid "react.settings.secret_storage.not_entitled"
+msgstr "Įdiegtas paslapčių saugyklos priedas šiai paskyrai neprieinamas."
+
+msgid "react.settings.secret_storage.empty"
+msgstr "Išorinė saugykla nenustatyta. Reikšmės lieka šiame diegime."
+
+msgid "react.registry.secrets.storage.move_local"
+msgstr "Perkelti atgal į šį diegimą"
+
+msgid "react.registry.secrets.storage.move_to"
+msgstr "Perkelti į {value0}"
+
+msgid "react.registry.secrets.storage.kept_in"
+msgstr "Laikoma: {value0}"
+
+msgid "react.registry.secrets.storage.kept_external"
+msgstr "Laikoma išorinėje saugykloje"
+
+msgid "react.registry.secrets.storage.moved"
+msgstr "{value0} dabar laikoma: {value1}."
+
+msgid "react.registry.secrets.storage.moved_local"
+msgstr "{value0} vėl laikoma šiame diegime."
+
+msgid "react.registry.secrets.storage.adopt_from"
+msgstr "Naudoti esamą paslaptį iš {value0}"
+
+msgid "react.registry.secrets.storage.adopt_title"
+msgstr "Naudoti esamą paslaptį"
+
+msgid "react.registry.secrets.storage.move_description"
+msgstr "Reikšmė įrašoma į {value0} ir pašalinama iš šio diegimo. Viskas, kas naudoja paslaptį, veikia toliau."
+
+msgid "react.registry.secrets.storage.moving"
+msgstr "Perkeliama…"
+
+msgid "react.registry.secrets.storage.move"
+msgstr "Perkelti"
+
+msgid "react.registry.secrets.storage.move_title"
+msgstr "Perkelti {value0} į {value1}"
+
+msgid "react.registry.secrets.storage.not_moved"
+msgstr "Neperkelta"
+
+msgid "react.registry.secrets.storage.name_in"
+msgstr "Pavadinimas saugykloje {value0}"
+
+msgid "react.registry.secrets.storage.target_exists"
+msgstr "Saugykloje {value0} jau yra paslaptis tokiu pavadinimu. Pasirinkite kitą pavadinimą arba ją pakeiskite."
+
+msgid "react.registry.secrets.storage.replace_existing"
+msgstr "Pakeisti esamą paslaptį saugykloje {value0}"
+
+msgid "react.registry.secrets.storage.replace_warning_title"
+msgstr "Esama paslaptis perrašoma"
+
+msgid "react.registry.secrets.storage.replace_warning"
+msgstr "Jei saugykloje {value0} jau yra paslaptis tokiu pavadinimu, jos reikšmė pakeičiama ir iš čia jos atkurti nebus galima. Visa, kas ją skaito, gaus šią reikšmę."
+
+msgid "react.registry.secrets.storage.external"
+msgstr "išorinė saugykla"
+
+msgid "react.registry.secrets.storage.move_local_description"
+msgstr "Reikšmė perskaitoma iš {value0} ir vėl laikoma užšifruota šiame diegime. Kopija saugykloje {value0} neištrinama."
+
+msgid "react.registry.secrets.storage.move_back"
+msgstr "Perkelti atgal"
+
+msgid "react.registry.secrets.storage.move_local_title"
+msgstr "Perkelti {value0} atgal į šį diegimą?"
+
+msgid "react.registry.secrets.storage.adopt_description"
+msgstr "Paslaptis lieka ten, kur yra. Jos reikšmė vieną kartą patikrinama ir niekada čia nekopijuojama; įsimenama tik tai, kur ji laikoma."
+
+msgid "react.registry.secrets.storage.adopt"
+msgstr "Naudoti šią paslaptį"
+
+msgid "react.registry.secrets.storage.storage"
+msgstr "Saugykla"
+
+msgid "react.registry.secrets.storage.name_helper"
+msgstr "Kaip ji vadinama čia. Palikite tuščią, kad būtų naudojamas pavadinimas saugykloje."
+
+msgid "react.settings.role_here"
+msgstr "Vaidmuo čia"
+
+msgid "react.settings.no_role_here"
+msgstr "Čia vaidmens nėra"
+
+msgid "react.settings.remove_from_this_company"
+msgstr "Pašalinti iš šios įmonės"
+
+msgid "react.settings.value1_was_removed_from_this_company"
+msgstr "{value1} pašalintas (-a) iš šios įmonės."
+
+msgid "react.settings.remove_value1_from_this_company"
+msgstr "Pašalinti {value1} iš šios įmonės?"
+
+msgid "react.settings.value1_keeps_their_other_companies"
+msgstr "{value1} netenka prieigos tik prie šios įmonės ir išlaiko kitas savo įmones, slaptažodį ir istoriją."
+
+msgid "react.settings.the_role_applies_in_this_company_only"
+msgstr "Vaidmuo galioja tik šioje įmonėje."
+
+msgid "react.settings.add_an_existing_person"
+msgstr "Pridėti esamą asmenį"
+
+msgid "react.settings.value1_was_added_to_this_company"
+msgstr "{value1} pridėtas (-a) prie šios įmonės."
+
+msgid "react.settings.close_add_existing_person_dialog"
+msgstr "Uždaryti esamo asmens pridėjimo langą"
+
+msgid "react.settings.add_or_invite_person_description"
+msgstr "Raskite savo valdomų įmonių žmones pagal vardą arba el. pašto adresą. Kiti kviečiami pagal visą el. pašto adresą ir prisijungia, kai sutinka."
+
+msgid "react.settings.add_to_this_company"
+msgstr "Pridėti prie šios įmonės"
+
+msgid "react.settings.person"
+msgstr "Asmuo"
+
+msgid "react.settings.find_a_person"
+msgstr "Rasti asmenį"
+
+msgid "react.settings.name_or_email"
+msgstr "Vardas arba el. pašto adresas"
+
+msgid "react.settings.no_one_found_type_full_email_to_invite"
+msgstr "Nieko nerasta. Įveskite visą asmens el. pašto adresą, kad jį pakviestumėte, arba pridėkite jį kaip naują naudotoją."
+
+msgid "react.settings.matching_people"
+msgstr "Rasti asmenys"
+
+msgid "react.settings.role_in_this_company"
+msgstr "Vaidmuo šioje įmonėje"
+
+msgid "react.settings.choose_a_person"
+msgstr "Pasirinkite asmenį."
+
+msgid "react.settings.the_person_could_not_be_added"
+msgstr "Asmens pridėti nepavyko."
+
+msgid "react.settings.invite_by_email_helper"
+msgstr "Nė vienas jūsų įmonių asmuo neturi šio adreso. Išsiųskite kvietimą: asmuo prisijungs, kai sutiks."
+
+msgid "react.settings.send_invitation"
+msgstr "Siųsti kvietimą"
+
+msgid "react.settings.if_this_person_exists_they_will_get_an_invitation"
+msgstr "Jei toks asmuo yra, jis gaus kvietimą."
+
+
+
+
+
+msgid "react.settings.pending_invitations"
+msgstr "Laukiantys kvietimai"
+
+msgid "react.settings.pending_invitations_description"
+msgstr "Žmonės prisijungia prie šios įmonės tik tada, kai priima kvietimą. Kvietimas adresu, kurio niekas nenaudoja, lieka čia, kol baigsis jo galiojimas."
+
+msgid "react.settings.invited_by"
+msgstr "Pakvietė"
+
+msgid "react.settings.cancel_the_invitation_to_value1"
+msgstr "Atšaukti kvietimą adresu {value1}"
+
+msgid "react.settings.the_invitation_could_not_be_cancelled"
+msgstr "Kvietimo atšaukti nepavyko."
+
+msgid "react.settings.invitation_to_value1_was_cancelled"
+msgstr "Kvietimas adresu {value1} atšauktas."
+
+msgid "react.invitations.eyebrow"
+msgstr "Kvietimas"
+
+msgid "react.invitations.title"
+msgstr "Prisijungti prie {company}?"
+
+msgid "react.invitations.description"
+msgstr "Prisijungsite tik jei priimsite. Galite ir atmesti."
+
+msgid "react.invitations.details_title"
+msgstr "Kvietimas"
+
+msgid "react.invitations.company"
+msgstr "Įmonė"
+
+msgid "react.invitations.role"
+msgstr "Jūsų vaidmuo joje"
+
+msgid "react.invitations.invited_by"
+msgstr "Pakvietė"
+
+msgid "react.invitations.valid_until"
+msgstr "Galioja iki"
+
+msgid "react.invitations.accept"
+msgstr "Prisijungti prie {company} kaip {role}"
+
+msgid "react.invitations.decline"
+msgstr "Atmesti"
+
+msgid "react.invitations.loading"
+msgstr "Atveriamas kvietimas"
+
+msgid "react.invitations.continue"
+msgstr "Tęsti"
+
+msgid "react.invitations.declined_title"
+msgstr "Kvietimas atmestas"
+
+msgid "react.invitations.declined_description"
+msgstr "Neprisijungėte prie {company}."
+
+msgid "react.invitations.changed_title"
+msgstr "Šis kvietimas pasikeitė"
+
+msgid "react.invitations.changed_copy"
+msgstr "Įmonė pakeitė kvietimą. Atverkite naujausią gautą nuorodą."
+
+msgid "react.invitations.invalid_title"
+msgstr "Šis kvietimas nebegalioja"
+
+msgid "react.invitations.invalid_copy"
+msgstr "Į jį jau atsakyta, jis atšauktas arba baigėsi jo galiojimas. Paprašykite įmonės administratoriaus naujo kvietimo."
+
+msgid "react.invitations.failed_title"
+msgstr "Kvietimo atverti nepavyko"
+
+msgid "react.invitations.failed_copy"
+msgstr "Patikrinkite ryšį ir bandykite dar kartą."
+
+msgid "react.settings.invitation_link"
+msgstr "Kvietimo nuoroda"
+
+msgid "react.settings.copy_invitation_link"
+msgstr "Kopijuoti kvietimo nuorodą"
+
+msgid "react.settings.invitation_link_copied"
+msgstr "Kvietimo nuoroda nukopijuota."
+
+msgid "react.settings.invitation_link_shown_once"
+msgstr "El. paštas nenustatytas, todėl šią nuorodą asmeniui nusiųskite patys. Ji rodoma tik dabar ir veikia vieną kartą."

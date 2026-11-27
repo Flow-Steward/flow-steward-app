@@ -20,6 +20,21 @@ from core.application.management.requests import AuthPersonalTokenCreateRequest
 CURRENT_ACCOUNT_NOT_FOUND_MESSAGE = "Current account not found"
 
 
+def pinned_account_id(request: Request, auth_user: dict[str, Any]) -> str | None:
+    """The account a session of external sign-in is pinned to (ADR 0083), else ``None``.
+
+    Such a session sees and revokes only the personal tokens of that account; a
+    password session manages all of the person's tokens (ADR 0085, F).
+    """
+    sources = {
+        str(getattr(request.state, "auth_source", "") or "").strip().lower(),
+        str(auth_user.get("auth_source") or "").strip().lower(),
+    }
+    if "external" not in sources:
+        return None
+    return str(auth_user.get("account_id") or "").strip() or "-"
+
+
 @dataclass(frozen=True, slots=True)
 class PersonalTokenRouteDependencies:
     local_auth_enabled: Callable[[], bool]
@@ -78,17 +93,20 @@ def register_personal_token_routes(
         normalized_per_page = max(1, min(int(per_page or 25), 200))
         offset = (normalized_page - 1) * normalized_per_page
         user_id = str(auth_user.get("id") or "").strip()
+        pinned = pinned_account_id(request, auth_user)
+        scope: dict[str, Any] = {"account_id": pinned} if pinned else {}
 
         try:
-            total = bl.count_user_pats(user_id) if hasattr(bl, "count_user_pats") else 0
+            total = bl.count_user_pats(user_id, **scope) if hasattr(bl, "count_user_pats") else 0
             if hasattr(bl, "list_user_pats_paginated"):
                 tokens = bl.list_user_pats_paginated(
                     user_id,
                     limit=normalized_per_page,
                     offset=offset,
+                    **scope,
                 )
             else:
-                tokens = bl.list_user_pats(user_id)
+                tokens = bl.list_user_pats(user_id, **scope)
                 total = len(tokens)
                 tokens = tokens[offset : offset + normalized_per_page]
         except Exception as e:
@@ -200,8 +218,13 @@ def register_personal_token_routes(
         if not user_id:
             return JSONResponse({"error": ERR_AUTHENTICATION_REQUIRED}, status_code=401)
 
+        pinned = pinned_account_id(request, auth_user)
         try:
-            revoked = bl.revoke_pat(str(token_id), user_id)
+            revoked = (
+                bl.revoke_pat(str(token_id), user_id, account_id=pinned)
+                if pinned
+                else bl.revoke_pat(str(token_id), user_id)
+            )
         except Exception as e:
             return _api_error_response(e)
         if not revoked:

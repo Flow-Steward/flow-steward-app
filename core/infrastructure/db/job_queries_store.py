@@ -421,9 +421,11 @@ def list_jobs_for_attention(
                 j.acknowledged_by
             FROM jobs j
             JOIN projects p ON p.id = j.project_id
-            LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow
+            LEFT JOIN registry_workflows rw
+                ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id
             LEFT JOIN registry_workflows aw
                 ON aw.workflow_id = rw.settings -> 'hook_storage' ->> 'author_workflow_id'
+               AND aw.account_id = rw.account_id
             {where_sql}
             ORDER BY COALESCE(j.started_at, j.queued_at) DESC NULLS LAST, j.id DESC
             LIMIT %s
@@ -478,7 +480,8 @@ def count_jobs_for_attention(
             SELECT COUNT(*)
             FROM jobs j
             JOIN projects p ON p.id = j.project_id
-            LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow
+            LEFT JOIN registry_workflows rw
+                ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id
             {where_sql}
             """,
             tuple(params),
@@ -492,7 +495,8 @@ _LIST_SORT_KEY = "COALESCE(j.started_at, j.queued_at, '-infinity'::timestamptz)"
 _LIST_FROM = """
             FROM jobs j
             JOIN projects p ON p.id = j.project_id
-            LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow
+            LEFT JOIN registry_workflows rw
+                ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id
 """
 
 

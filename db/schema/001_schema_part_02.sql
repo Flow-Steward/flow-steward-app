@@ -212,7 +212,8 @@ CREATE TABLE public.job_reaction_events (
     payload_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
     dedupe_key text,
     processed boolean DEFAULT false NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    account_id uuid
 );
 
 

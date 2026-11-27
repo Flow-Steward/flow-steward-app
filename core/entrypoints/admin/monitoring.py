@@ -10,6 +10,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from core.application.auth.enforce import require_roles
+from core.application.auth.principal import principal_allowed_project_ids
 from core.application.monitoring.runs import MonitoringRunsService
 
 logger = logging.getLogger(__name__)
@@ -147,10 +148,15 @@ def list_runs(
     limit: Annotated[int, Query()] = 20,
 ):
     """List recent job runs from the database."""
+    auth_user = getattr(request.state, "auth_user", None)
     try:
-        require_roles(getattr(request.state, "auth_user", None), {"admin", "operator"})
+        require_roles(auth_user, {"admin", "operator"})
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc)) from exc
+    if principal_allowed_project_ids(auth_user):
+        # The run list is not cut to projects: a caller limited to chosen projects
+        # is refused rather than shown every project's runs.
+        raise HTTPException(status_code=403, detail="Access denied")
     try:
         return MonitoringRunsService().list_runs(
             project_name=project_name,

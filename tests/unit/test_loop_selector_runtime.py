@@ -28,6 +28,10 @@ from tests.unit.test_loop_selector_contract import (
     template_workflow,
 )
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def batch_state(wf):
     from core.application.orchestration.control_flow_step_node import control_flow_step_node

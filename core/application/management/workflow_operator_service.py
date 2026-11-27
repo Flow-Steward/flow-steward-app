@@ -13,6 +13,7 @@ from core.application.workflows import workflow_entrypoint_repository
 from core.application.workflows.workflow_availability_service import WorkflowAvailabilityService
 
 from .errors import ServiceNotFoundError, ServiceScopeNotFoundError, ServiceUnavailableError
+from .guards import workflow_in_scope_limit
 from .query_models import (
     ProjectWorkflowCatalogView,
     ProjectWorkflowEntrypointsView,
@@ -569,6 +570,9 @@ class WorkflowOperatorService(
             if not workflow_id or (
                 workflow_scope_restricted and workflow_id not in linked_workflow_ids
             ):
+                continue
+            # A project reached only through workflow grants shows only their entrypoints.
+            if scope is not None and not workflow_in_scope_limit(scope, project_id, workflow_id):
                 continue
             allowed_methods = ["POST"]
             mapping = row.get("input_mapping_jsonb")

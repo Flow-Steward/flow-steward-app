@@ -1,7 +1,7 @@
 """Application-owned ingestion, receiver evidence and retention composition."""
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
@@ -107,9 +107,20 @@ def start_status_publisher(
 
 
 def start_optional_process_reporting(
-    *, runtime_values: Mapping[str, str], service_type: str
+    *,
+    runtime_values: Mapping[str, str],
+    service_type: str,
+    platform_module_failures: (
+        Sequence[Mapping[str, str]] | Callable[[], Sequence[Mapping[str, str]]]
+    ) = (),
 ) -> MonitoringRuntimeHandle | None:
-    """Monitoring cannot prevent product startup or expose driver credentials."""
+    """Monitoring cannot prevent product startup or expose driver credentials.
+
+    ``platform_module_failures`` are the loader's records of the platform modules this
+    process skipped at start (ADR 0082 §5), or a callable read at every report that
+    adds the modules whose background jobs are failing; every report carries them, so
+    administrators see a background role's failed modules on the monitoring page.
+    """
     stage = "installation_scope"
     try:
         context = resolve_projected_runtime_installation_context(runtime_values)
@@ -117,7 +128,9 @@ def start_optional_process_reporting(
         config = load_monitoring_runtime_config(runtime_values)
         stage = "publisher_initialization"
         source = RuntimeObservationSource(
-            service_type=service_type, stale_seconds=config.stale_seconds
+            service_type=service_type,
+            stale_seconds=config.stale_seconds,
+            platform_module_failures=platform_module_failures,
         )
         handle = start_status_publisher(
             context=context,
@@ -156,7 +169,11 @@ def start_optional_compact_reporting(
 
 
 def start_optional_worker_reporting(
-    *, runtime_values: Mapping[str, str], worker_id: str, inherited_sink: ConsumerStateSink | None
+    *,
+    runtime_values: Mapping[str, str],
+    worker_id: str,
+    inherited_sink: ConsumerStateSink | None,
+    platform_module_failures: Sequence[Mapping[str, str]] = (),
 ) -> tuple[ConsumerStateSink | None, MonitoringRuntimeHandle | None]:
     stage = "installation_scope"
     try:
@@ -165,7 +182,10 @@ def start_optional_worker_reporting(
         config = load_monitoring_runtime_config(runtime_values)
         stage = "publisher_initialization"
         source = RuntimeObservationSource(
-            service_type="worker", original_process_id=worker_id, stale_seconds=config.stale_seconds
+            service_type="worker",
+            original_process_id=worker_id,
+            stale_seconds=config.stale_seconds,
+            platform_module_failures=platform_module_failures,
         )
         handle = start_status_publisher(
             context=context,

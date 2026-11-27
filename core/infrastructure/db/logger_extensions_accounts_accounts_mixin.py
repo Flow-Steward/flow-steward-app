@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
+from core.infrastructure.db.db_pool import transaction_connection
 from core.infrastructure.db.logger_extensions_accounts_common import (
     ACCOUNT_ID_IS_REQUIRED_MESSAGE,
     SQL_AND,
@@ -14,8 +17,52 @@ from core.infrastructure.db.logger_extensions_accounts_common import (
     _default_account_id,
 )
 
+#: Advisory lock key that serializes account creation and activation.
+ACCOUNT_LIFECYCLE_LOCK_KEY = "flow-steward:account-lifecycle"
+
 
 class PlatformLoggerAccountsMixin:
+    @contextmanager
+    def account_lifecycle_transaction(self) -> Iterator[Any]:
+        """One transaction holding the account lifecycle lock until it ends.
+
+        Account calls made on this store inside the block run on the pinned
+        connection, so counting the active accounts and inserting or enabling one
+        is one decision: a concurrent create or enable waits for the commit.
+        """
+        with transaction_connection(self) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext(%s))",
+                    (ACCOUNT_LIFECYCLE_LOCK_KEY,),
+                )
+            yield conn
+
+    def count_users_by_account(self) -> dict[str, int]:
+        """``account_id -> number of people`` who are members of it (deleted ones excluded)."""
+        if self._table_exists("user_account_memberships"):
+            sql = """
+                SELECT CAST(m.account_id AS TEXT) AS account_id, COUNT(DISTINCT m.user_id) AS users
+                  FROM user_account_memberships m
+                  JOIN users u ON u.id = m.user_id
+                 WHERE u.deleted_at IS NULL
+                 GROUP BY m.account_id
+            """
+        else:
+            sql = """
+                SELECT CAST(account_id AS TEXT) AS account_id, COUNT(*) AS users
+                  FROM users
+                 WHERE deleted_at IS NULL
+                 GROUP BY account_id
+            """
+        with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            rows = cur.fetchall() or []
+        return {
+            str(_as_dict(row).get("account_id") or ""): int(_as_dict(row).get("users") or 0)
+            for row in rows
+        }
+
     def list_accounts(
         self,
         *,

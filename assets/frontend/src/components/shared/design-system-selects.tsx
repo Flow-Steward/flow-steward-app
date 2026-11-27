@@ -16,10 +16,11 @@ export type DsFilterField = {
   options: DsOption[];
   multiple?: boolean;
   /**
-   * A typed value instead of a choice: `text` holds the text, and a range holds
-   * `from..to` (either side may be empty). `options` is then unused.
+   * A typed value instead of a choice: `text` holds the text, `date` one
+   * calendar day (YYYY-MM-DD), and a range holds `from..to` (either side may be
+   * empty). `options` is then unused.
    */
-  input?: "text" | "number_range" | "date_range";
+  input?: "text" | "date" | "number_range" | "date_range";
 };
 
 const FILTER_SEARCH_MIN = 8;
@@ -39,9 +40,14 @@ function FilterMenuText({ option, descriptionId }: Readonly<{ option: Pick<DsOpt
   );
 }
 
-/** How an applied typed filter reads in its chip: the text, `a – b`, `≥ a` or `≤ b`. */
+/** A typed filter that holds one value in one box rather than a from/to pair. */
+function isSingleValueInput(field: DsFilterField): boolean {
+  return field.input === "text" || field.input === "date";
+}
+
+/** How an applied typed filter reads in its chip: the value, `a – b`, `≥ a` or `≤ b`. */
 function typedFilterLabel(field: DsFilterField, value: string): string {
-  if (field.input === "text") return value;
+  if (isSingleValueInput(field)) return value;
   const [from, to] = filterRangeParts(value);
   if (from && to) return `${from} – ${to}`;
   return from ? `≥ ${from}` : `≤ ${to}`;
@@ -57,11 +63,12 @@ function FilterInputStage({
   onApply,
 }: Readonly<{ field: DsFilterField; value: string; onApply: (value: string) => void }>) {
   const { t } = useI18n();
-  const [initialFrom, initialTo] = field.input === "text" ? [value, ""] : filterRangeParts(value);
+  const single = isSingleValueInput(field);
+  const [initialFrom, initialTo] = single ? [value, ""] : filterRangeParts(value);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
-  const inputType = field.input === "date_range" ? "date" : field.input === "number_range" ? "number" : "search";
-  const apply = () => onApply(field.input === "text" ? from.trim() : filterRangeValue(from, to));
+  const inputType = field.input === "date_range" || field.input === "date" ? "date" : field.input === "number_range" ? "number" : "search";
+  const apply = () => onApply(single ? from.trim() : filterRangeValue(from, to));
   return (
     <form
       className="fs-filter-menu-input"
@@ -70,7 +77,7 @@ function FilterInputStage({
         apply();
       }}
     >
-      {field.input === "text" ? (
+      {single ? (
         <input
           aria-label={field.label}
           autoComplete="off"
@@ -78,7 +85,7 @@ function FilterInputStage({
           data-filter-nav=""
           data-filter-value=""
           onChange={(event) => setFrom(event.target.value)}
-          type="search"
+          type={inputType}
           value={from}
         />
       ) : (

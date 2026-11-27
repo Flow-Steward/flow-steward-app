@@ -296,19 +296,26 @@ def _resolve_named_provider(
                 f"model_provider_id '{normalized_provider_id}' account mismatch"
             )
 
-        # Decrypt API key if ref exists
+        # The key is read through the host-selected stored-secret reader. The local
+        # value came with the pointer in the statement above, so both stay one read.
         ref_key = str(result.get("api_key_ref") or "").strip()
+        ciphertext = result.pop("api_key_ciphertext", None)
         if ref_key:
-            from core.application.auth.secrets import decrypt_secret
+            from core.infrastructure.security.stored_secrets import (
+                SecretReadContext,
+                StoredSecretMissing,
+                stored_secret_reader,
+            )
 
-            ciphertext = result.pop("api_key_ciphertext", None)
-            if not ciphertext:
+            reader = stored_secret_reader(bl.conn, prefetched_ciphertexts={ref_key: ciphertext})
+            try:
+                result["_decrypted_api_key"] = reader.read(
+                    SecretReadContext.for_account(normalized_account_id), ref_key
+                )
+            except StoredSecretMissing as exc:
                 raise ModelProviderResolutionError(
                     f"model_provider_id '{normalized_provider_id}' secret reference is missing"
-                )
-            result["_decrypted_api_key"] = decrypt_secret(ciphertext)
-        else:
-            result.pop("api_key_ciphertext", None)
+                ) from exc
         return result
     except ModelProviderResolutionError:
         raise

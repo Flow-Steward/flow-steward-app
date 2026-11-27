@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 
+from core.application.auth.installation_admin import is_installation_admin
 from core.application.extensions.browser_assets import resolve_authorized_browser_asset
 from core.application.extensions.direct_effect_recovery_models import DirectEffectDecisionRequest
 from core.application.management import ServiceError
@@ -18,6 +19,7 @@ from core.application.management.command_models import (
     ReactionEventIngestInput,
     WorkflowReactionsUpdateInput,
 )
+from core.application.management.guards import require_permission_for_optional_project
 from core.application.management.requests import (
     CommandBatchRequest,
     CommandDispatchRequest,
@@ -217,12 +219,15 @@ def create_reactions_extensions_router(
     @router.get("/api/extensions/capabilities/archive-lifecycle")
     def api_extension_archive_lifecycle_capability(request: Request):
         try:
-            payload = extension_binding_service().archive_lifecycle_availability()
+            body = dict(extension_binding_service().archive_lifecycle_availability().dump())
+            # Installing, updating and removing code is the installation administrator's
+            # (ADR 0020, C6); another account's administrator enables what is installed.
+            body["can_manage_installs"] = is_installation_admin(request_scope(request))
         except ServiceError as e:
             return service_error_response(e, request)
         except Exception as e:
             return api_error_response(e, request=request)
-        return payload.dump()
+        return body
 
     @router.post("/api/extensions/scan")
     async def api_extensions_scan(request: Request, body: ExtensionScanRequest):
@@ -385,7 +390,10 @@ def create_reactions_extensions_router(
         request: Request, extension_id: str, query_id: str, body: ExtensionQueryRequest
     ):
         try:
-            scope = request_scope(request, project_id=_extension_request_project_id(body))
+            project_id = _extension_request_project_id(body)
+            scope = request_scope(request, project_id=project_id)
+            # A person limited to chosen projects uses extensions where their role may.
+            require_permission_for_optional_project(scope, project_id, "extensions.use")
 
             def execute_query():
                 return extension_binding_service().execute_query(
@@ -406,7 +414,10 @@ def create_reactions_extensions_router(
         request: Request, extension_id: str, action_id: str, body: ExtensionActionRequest
     ):
         try:
-            scope = request_scope(request, project_id=_extension_request_project_id(body))
+            project_id = _extension_request_project_id(body)
+            scope = request_scope(request, project_id=project_id)
+            # A person limited to chosen projects uses extensions where their role may.
+            require_permission_for_optional_project(scope, project_id, "extensions.use")
             idempotency_key = str(request.headers.get("Idempotency-Key") or "")
 
             def execute_action():

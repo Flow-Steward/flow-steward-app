@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.jobs.enqueue_task_handler import create_enqueue_task_handler
 from core.application.management.command_service_runtime import create_event_command_service
 from core.application.orchestration.agents.common import sanitize_external_input
@@ -60,14 +59,7 @@ def _event_command_service_factory(
                 if hasattr(bl, "get_project_run_config")
                 else {}
             ),
-            resolve_domain_event_by_ref=lambda store, event_ref, **kwargs: (
-                domain_event_runtime.resolve_domain_event_by_ref(
-                    store,
-                    event_ref,
-                    default_account_id=DEFAULT_ACCOUNT_ID,
-                    **kwargs,
-                )
-            ),
+            resolve_domain_event_by_ref=domain_event_runtime.resolve_domain_event_by_ref,
             to_json_obj=_to_json_obj,
             serialize_domain_event_datetime=domain_event_runtime.serialize_domain_event_datetime,
             sanitize_external_input=sanitize_external_input,

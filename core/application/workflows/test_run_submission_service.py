@@ -83,6 +83,21 @@ def _bounded_caller_meta(caller: Mapping[str, Any] | None) -> dict[str, Any]:
     return result
 
 
+def _caller_started_by(caller: Mapping[str, Any] | None) -> dict[str, str] | None:
+    """Who started the test run, from the authenticated caller context only."""
+    from types import SimpleNamespace
+
+    from core.application.workflows.workflow_start_runtime import run_started_by
+
+    source = dict(caller or {})
+    return run_started_by(
+        SimpleNamespace(
+            actor_id=_text(source.get("actor_id"))[:512],
+            principal_type=_text(source.get("principal_type")),
+        )
+    )
+
+
 def _missing(value: Any) -> bool:
     return value is None or value == "" or value == {} or value == []
 
@@ -304,6 +319,11 @@ def submit_test_run(
         "step_kind": _text(step_payload.get("step_kind")) or None,
         **_bounded_caller_meta(caller),
     }
+    started_by = _caller_started_by(caller)
+    if started_by is not None:
+        # The authenticated caller started this test run; without one the job is
+        # named by its source when it is enqueued (stamp_run_started_by).
+        meta["submitted_by"] = started_by
     if normalized_kind == "workflow" and kept_test_outputs:
         meta["kept_test_outputs"] = {
             str(step_id): dict(outputs)

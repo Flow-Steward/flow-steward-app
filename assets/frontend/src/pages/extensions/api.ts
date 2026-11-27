@@ -24,6 +24,12 @@ export type ExtensionRecord = {
   /** The bundle's icon.png: whether it has one, and the URL Flow Steward serves it from. */
   has_icon?: boolean;
   icon_url?: string;
+  /**
+   * An extension the installation installed, seen from another account: that
+   * account's own `enabled`, `disabled` or `not_enabled`. Empty for the
+   * installation account, which owns the install.
+   */
+  account_enablement?: string;
   [key: string]: unknown;
 };
 
@@ -34,6 +40,8 @@ export type ExtensionInstallResult = {
 
 export type ExtensionArchiveLifecycleAvailability = {
   available: boolean;
+  /** Install, update and remove are the installation administrator's. */
+  can_manage_installs?: boolean;
   reason_code: string;
   message: string;
   remediation: {
@@ -225,6 +233,7 @@ export async function fetchExtensionArchiveLifecycleAvailability(): Promise<Exte
   const remediation = asEntity(payload.remediation);
   return {
     available: payload.available === true,
+    can_manage_installs: payload.can_manage_installs !== false,
     reason_code: firstStringFromUnknownValue([payload.reason_code, "unavailable"]),
     message: firstStringFromUnknownValue([payload.message, ""]),
     remediation: {
@@ -264,6 +273,15 @@ export async function setExtensionEnabled(
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+/** Turn an extension the installation installed on or off for this company only. */
+export async function setExtensionAccountEnabled(extensionId: string, enabled: boolean) {
+  const action = enabled ? "enable" : "disable";
+  return fetchJson<unknown>(
+    `/api/extensions/${encodeURIComponent(extensionId)}/account-enablement/${action}`,
+    { method: "POST" },
+  );
 }
 
 export async function installExtensionFromFile(

@@ -221,7 +221,9 @@ _get_user_by_username = lambda bl, username: _serve_auth_runtime.get_user_by_use
         alias=alias,
     ),
     real_dict_cursor_kwargs_fn=lambda: _real_dict_cursor_kwargs(),
-    get_user_roles_fn=lambda current_bl, user_id: _get_user_roles(current_bl, user_id),
+    get_user_roles_fn=lambda current_bl, user_id, account_id=None: _get_user_roles(
+        current_bl, user_id, account_id
+    ),
     sql_from_users=SQL_FROM_USERS,
     sql_limit_1=SQL_LIMIT_1,
 )
@@ -245,9 +247,10 @@ _get_user_by_id = lambda bl, user_id: _serve_auth_runtime.get_user_by_id(  # noq
         alias=alias,
     ),
     real_dict_cursor_kwargs_fn=lambda: _real_dict_cursor_kwargs(),
-    get_user_roles_fn=lambda current_bl, current_user_id: _get_user_roles(
+    get_user_roles_fn=lambda current_bl, current_user_id, account_id=None: _get_user_roles(
         current_bl,
         current_user_id,
+        account_id,
     ),
     sql_from_users=SQL_FROM_USERS,
     sql_limit_1=SQL_LIMIT_1,
@@ -269,7 +272,9 @@ _get_user_by_session_token = lambda bl, token: _serve_auth_runtime.get_user_by_s
         alias=alias,
     ),
     real_dict_cursor_kwargs_fn=lambda: _real_dict_cursor_kwargs(),
-    get_user_roles_fn=lambda current_bl, user_id: _get_user_roles(current_bl, user_id),
+    get_user_roles_fn=lambda current_bl, user_id, account_id=None: _get_user_roles(
+        current_bl, user_id, account_id
+    ),
     sql_user_username_column=SQL_USER_USERNAME_COLUMN,
     sql_limit_1=SQL_LIMIT_1,
 )

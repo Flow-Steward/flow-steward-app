@@ -60,9 +60,11 @@ def get_job(conn, *, job_id: str) -> dict | None:
                 aw.display_name AS hook_author_workflow_display_name
             FROM jobs j
             LEFT JOIN projects p ON p.id = j.project_id
-            LEFT JOIN registry_workflows rw ON rw.workflow_id = j.selected_workflow
+            LEFT JOIN registry_workflows rw
+                ON rw.workflow_id = j.selected_workflow AND rw.account_id = j.account_id
             LEFT JOIN registry_workflows aw
                 ON aw.workflow_id = rw.settings -> 'hook_storage' ->> 'author_workflow_id'
+               AND aw.account_id = rw.account_id
             WHERE j.id = %s
             """,
             (normalized_job_id,),
@@ -132,6 +134,20 @@ def get_awaiting_approval_jobs(
                 j.account_id,
                 p.name AS project_name,
                 j.selected_workflow,
+                j.selected_workflow_key,
+                j.meta ->> 'selected_workflow_id' AS meta_selected_workflow_id,
+                -- The waiting step: the durable pause projection names it; the
+                -- runtime column is the fallback for a run without one.
+                COALESCE(
+                    CASE
+                        WHEN j.meta #>> '{{public_progress_v1,snapshot,status}}'
+                             = 'awaiting_approval'
+                        THEN NULLIF(
+                            j.meta #>> '{{public_progress_v1,snapshot,approval,step_id}}', ''
+                        )
+                    END,
+                    NULLIF(j.current_step_id, '')
+                ) AS approval_step_id,
                 j.started_at,
                 j.thread_id
               FROM jobs j

@@ -242,6 +242,162 @@ configuration writes yet, so the split ships directly, without a compatibility
 mode or a transition period. Release notes describe the role model once. The
 change needs denial tests for every moved route in addition to the allowlist.
 
+## Amendment (2026-11-25, proposed with ADR 0082): parts that Core carries for a module
+
+Status: Proposed together with
+[ADR 0082](0082-platform-modules-and-feature-entitlements.md). Until it is
+accepted, the two paragraphs it narrows stay in force.
+
+Section 3a of ADR 0082 lets a table that Core's own check reads, the check itself
+and a control inside Core's screens enter Core before Core has a way to write
+that table. This narrows two rules above:
+
+1. "Do not add unused policy registries, membership tables, configuration
+   switches or user-facing controls in anticipation of that work." Such a part may
+   now enter Core when, in the same change, a module that uses it is built and a
+   reference module exercises it in Core's tests. Parts without that consumer are
+   still not added.
+2. "They contain no [...] licensing checks [...] or placeholders for separately
+   distributed functionality." Core may check whether a named feature is
+   available to an account through its entitlement service and hide a control
+   when it is not. The open-source code and documentation still use neutral
+   capability names, show no upgrade prompts, and never name a product edition.
+
+The first part built under this amendment is the approver list of an approval
+step (`approval_step_approvers`). It narrows who may decide a step and never
+widens access: with no rows, or without a module, every decision behaves as
+before. The decision journal (`approval_decision_journal`) is written by Core for
+every installation; a module may read it through Core's port, and Core keeps rows
+past their job only for an account entitled to that.
+
+## Amendment (2026-11-26, proposed with ADR 0082): pluggable secret backends
+
+Status: Proposed. Narrows "Persistence and delivery boundary" above: the first
+remote adapter is delivered by a platform module, and Core now carries the seam,
+its tables and its admin API, exercised in Core's tests by a reference backend.
+
+**Every consumer reads through the seam.** LLM provider keys (including the
+custom-provider verification probe), data connection secrets and typed MCP
+connector header values used to decrypt `secret_refs` themselves. They now hand the
+reference to `stored_secret_reader(conn)`. The local reader accepts the ciphertext a
+consumer already read in its own scoped statement (`prefetched_ciphertexts`), so a
+pointer and its value stay one atomic read and a project-scoped statement stays the
+scope check. Local by design, never through the seam: OAuth grants, refresh tokens
+and client secrets; authenticator, session and sign-in state; and a run's sealed
+dispatch envelope (`run_authority.dispatch_extra_state`). Stored references a run
+carries are resolved through the seam when a step uses them.
+
+**Port.** `core/infrastructure/security/secret_backends.py`. A backend is
+`kind` (lowercase id, never `local`), `feature` (the entitlement new values need),
+`capabilities` ⊆ {`write`, `delete`, `rotate`}, `read(context, locator) -> str`
+and `health(context) -> SecretBackendHealth(healthy, code)`; optionally
+`write(context, locator, value) -> locator`, `delete`, `rotate`,
+`validate_config(config)` and `validate_locator(locator)`. `SecretBackendContext`
+carries the account, the configuration id, its non-secret settings (read-only) and
+a monotonic deadline bounded to 5 s. A backend raises the existing
+`StoredSecretMissing`, `StoredSecretUnavailable` (retryable) or the new
+`StoredSecretStorageRefused` (code `secret_store_unavailable`, platform blocker:
+not installed, turned off or refused); anything else counts as unavailable, and no
+backend text reaches an error or a log. Backend credentials come from the
+deployment (environment, mounted file, workload identity), never from Core's store.
+
+**Registration.** A module declares `"provides": ["secret_backend"]` and calls
+`register_secret_backend(backend)` on `container.secret_backends` (app) or
+`context["secret_backends"]` (worker, control). The port is scoped by the loader to
+the loading module, refuses an undeclared or identity-less module, a duplicate kind
+and any call after the role seals it. The registry is process-wide and rolled back
+with a failed module like the other Core global registries. A module must register
+in every role that reads values: app, worker and control.
+
+**Tables** (Core schema, empty without a module; migration
+`20261126200000_secret_backends.sql`): `secret_backend_configs` (per account:
+backend kind, name, non-secret settings, enabled) and `secret_backend_locators`
+(account + `ref_key` → configuration, kind, backend locator; the composite foreign
+key keeps a locator on a configuration of the same account and kind). A remote
+value has no `secret_refs` row; `encrypted_value` never holds a locator.
+
+**Routing.** Without a registered backend the reader is the local reader,
+unchanged. With one, a reference that has a locator is read from that backend and
+any other reference locally; there is no fallback in either direction. A failed
+locator lookup is unavailable, never "local". Without its module in the process, a
+moved value cannot be read (fail closed). Values read remotely are cached per
+process for 60 s, keyed by account, reference, configuration and locator, never
+persisted, and dropped when the admin service changes them. Each remote read is
+logged with reference, backend kind and outcome only.
+
+**Entitlement** (owner decision, ADR 0082 §4). The reader never asks it: when a
+backend's feature ends, values already kept there stay readable. Creating a
+configuration, turning one on or changing its settings, adopting, moving a value to
+a backend and writing a new value there need the module's feature; renaming,
+turning off, health and moving a value back do not.
+
+**Admin API** (account admin: an interactive person with the admin role, route
+permission `settings.manage`, admin-only): `GET /api/secret-backends`;
+`POST /api/secret-backends/configs`; `PATCH /api/secret-backends/configs/{id}`;
+`GET /api/secret-backends/configs/{id}/health`; `POST /api/secret-backends/adopt`
+(the backend must read the value now; it is discarded, a catalog secret and a
+locator are created); `POST /api/secret-backends/secrets/{id}/move` (backend with
+`write` only); `POST /api/secret-backends/secrets/{id}/move-local` (writes the value
+locally and forgets the locator; the remote secret is never deleted). Replacing the
+value of a remote catalog secret writes it to its backend or is refused; deleting
+one forgets its locator. A remote write that succeeds before the database
+transaction fails leaves the remote value in place; it is never cleaned up
+automatically. Settings never hold a credential: keys that name one are refused.
+
+Examples of backends a module may provide (documentation only, not Core code):
+a cloud key vault, a cloud secrets manager, a self-hosted vault.
+
+## Amendment (2026-11-27): deployment policy per account, no silent overwrite, probe limits
+
+Status: Proposed. Narrows the secret backend amendment above after an independent
+review.
+
+**Cross-account isolation: a deployment-operator allowlist.** A backend's
+credentials come from the deployment and are shared by every account, so an account
+administrator could otherwise point a configuration at another account's vault
+path, key vault or project. The installation's operator states, outside every
+account's reach, which configuration values each account may use:
+`FS_SECRET_BACKEND_POLICY` (JSON) or `FS_SECRET_BACKEND_POLICY_FILE` (a path to the
+same JSON; the variable wins). Shape:
+`{"<account id>": {"<backend kind>": {"allowed_values": {"<config field>": [values]}}}}`.
+Rules, all fail closed (`core/infrastructure/security/secret_backend_policy.py`):
+
+- a listed account may use only the kinds listed under it; every field named in
+  `allowed_values` must be present and each of its values (a list item by item) must
+  be listed; other fields are left to the backend;
+- an account that is not listed: the installation account is unrestricted, so a
+  single-account installation is unaffected; any other account may use no external
+  backend (a multi-account installation without a policy refuses them);
+- a policy that cannot be read or parsed refuses every external configuration.
+
+Core checks it when a configuration is created, changed or turned on, before every
+adoption, move, value write and health check, and in the reader: a configuration
+outside the policy is never read, whoever saved it (audit outcome
+`policy_refused`). The per-kind entry (`None` when unrestricted) is also passed to
+the backend as `validate_config(config, policy)` for rules Core cannot express, for
+example path prefixes; a backend whose `validate_config` takes one argument keeps
+working unchanged.
+
+**No silent overwrite.** A move refuses (409) a name another catalog secret of the
+account is already kept at in the same configuration (a stored locator that
+contains the requested one). A first write never overwrites a secret that already
+exists in the storage unless the administrator explicitly chose `replace` (default
+`false`): a backend with the new optional capability `create_only` (requires
+`write`) receives `write(context, locator, value, create_only=True)` and raises
+`SecretBackendTargetExists` when the name is taken; otherwise Core asks the optional
+`exists(context, locator) -> bool`, or, without it, reads the name and treats
+`StoredSecretMissing` as free. When the storage cannot tell, the move is refused.
+Adopting refuses a name another catalog secret is already kept at.
+
+**Probe limits and audit.** Adopting and the health check answer whether something
+exists in, or is reachable through, the storage. Each is limited per account by the
+shared sliding-window limiter (`FS_SECRET_STORAGE_PROBE_MAX_ATTEMPTS`, default 20,
+per `FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS`, default 300; 429 with `retry_after`;
+the limiter fails closed). Every attempt is audited with its outcome
+(`secret.storage_adopt`, `secret.storage_health`), a refused one in its own
+transaction so the row survives the refusal. Messages stay as they are: the callers
+are administrators of the account.
+
 ## References
 
 - [Security standard](../../standards/security-standard.md)

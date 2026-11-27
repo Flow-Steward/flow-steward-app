@@ -12,7 +12,15 @@ import {
   updateCatalogSecret,
 } from "@/pages/registry/secrets/api";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { HttpError } from "@/lib/http/errors";
 import { RegistrySecretsPage } from "@/pages/registry/secrets";
+import {
+  adoptStoredSecret,
+  fetchSecretStorage,
+  moveSecretToLocal,
+  moveSecretToStorage,
+} from "@/pages/settings/secret-storage/api";
+import type * as StorageApi from "@/pages/settings/secret-storage/api";
 
 vi.mock("@/lib/auth/capabilities", () => ({ useHasCapability: vi.fn() }));
 
@@ -25,6 +33,36 @@ vi.mock("@/pages/registry/secrets/api", () => ({
   replaceCatalogSecretValue: vi.fn(),
   deleteCatalogSecret: vi.fn(),
 }));
+
+vi.mock("@/pages/settings/secret-storage/api", async (importOriginal) => {
+  const actual = await importOriginal<typeof StorageApi>();
+  return {
+    ...actual,
+    fetchSecretStorage: vi.fn(),
+    adoptStoredSecret: vi.fn(),
+    moveSecretToStorage: vi.fn(),
+    moveSecretToLocal: vi.fn(),
+  };
+});
+
+const vaultKind = {
+  kind: "acme.vault",
+  label: "Company vault",
+  config_fields: [],
+  feature: "acme.vault",
+  capabilities: ["write"],
+  entitled: true,
+};
+const mainVault = {
+  id: "c1",
+  backend: "acme.vault",
+  backend_label: "Company vault",
+  name: "Main vault",
+  config: {},
+  enabled: true,
+  installed: true,
+};
+const NO_STORAGE = { backends: [], configs: [], secrets: [] };
 
 const shopToken = {
   id: "s1",
@@ -64,6 +102,10 @@ describe("RegistrySecretsPage", () => {
     vi.mocked(updateCatalogSecret).mockResolvedValue(shopToken);
     vi.mocked(replaceCatalogSecretValue).mockResolvedValue(shopToken);
     vi.mocked(deleteCatalogSecret).mockResolvedValue({ deleted: true });
+    vi.mocked(fetchSecretStorage).mockResolvedValue(NO_STORAGE);
+    vi.mocked(moveSecretToStorage).mockResolvedValue({ secret_id: "s2" });
+    vi.mocked(moveSecretToLocal).mockResolvedValue({ secret_id: "s1" });
+    vi.mocked(adoptStoredSecret).mockResolvedValue({ id: "s3", name: "DB password" });
   });
 
   it("lists every secret of the installation with its use, and filters by use and search", async () => {
@@ -209,5 +251,135 @@ describe("RegistrySecretsPage", () => {
     await user.click(await screen.findByRole("button", { name: "Actions for Shop token" }));
     expect(screen.getByRole("menuitem", { name: "Replace value" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("offers no storage action without an external storage", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Actions for Mail key" }));
+    expect(screen.queryByRole("menuitem", { name: /Move/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Use an existing secret/ })).not.toBeInTheDocument();
+  });
+
+  it("moves a local value to a storage under a name the admin confirms", async () => {
+    vi.mocked(fetchSecretStorage).mockResolvedValue({ backends: [vaultKind], configs: [mainVault], secrets: [] });
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(fetchSecretStorage).toHaveBeenCalled());
+    await openRowAction(user, "Mail key", "Move to Main vault");
+    const dialog = await screen.findByRole("dialog", { name: "Move Mail key to Main vault" });
+    const name = within(dialog).getByRole("textbox", { name: /Name in Main vault/ });
+    expect(name).toHaveValue("Mail key");
+    await user.clear(name);
+    await user.type(name, "mail-key");
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(moveSecretToStorage).toHaveBeenCalledWith("s2", "c1", "mail-key", false));
+    await waitFor(() => expect(screen.getByText("Mail key is now kept in Main vault.")).toBeInTheDocument());
+  });
+
+  it("says in plain words that the name is taken and replaces only when the admin ticks it", async () => {
+    vi.mocked(fetchSecretStorage).mockResolvedValue({ backends: [vaultKind], configs: [mainVault], secrets: [] });
+    vi.mocked(moveSecretToStorage).mockRejectedValueOnce(
+      new HttpError({
+        status: 409,
+        url: "/api/secret-backends/secrets/s2/move",
+        payload: {
+          error: "A secret already exists at that name in the secret storage. Adopt it instead, or move again and choose to replace it",
+        },
+      }),
+    );
+    // The styled checkbox hides its native input from the pointer; it is clicked like a person would.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    renderPage();
+    await waitFor(() => expect(fetchSecretStorage).toHaveBeenCalled());
+    await openRowAction(user, "Mail key", "Move to Main vault");
+    const dialog = await screen.findByRole("dialog", { name: "Move Mail key to Main vault" });
+    const replace = within(dialog).getByRole("checkbox", { name: "Replace the existing secret in Main vault" });
+    // Off by default: a first move never overwrites what the storage already keeps.
+    expect(replace).not.toBeChecked();
+    expect(within(dialog).queryByText("The existing secret is overwritten")).not.toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(moveSecretToStorage).toHaveBeenCalledWith("s2", "c1", "Mail key", false));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("A secret with this name already exists in Main vault. Choose another name or replace it."),
+      ).toBeInTheDocument(),
+    );
+
+    await user.click(replace);
+    expect(replace).toBeChecked();
+    expect(within(dialog).getByText("The existing secret is overwritten")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() => expect(moveSecretToStorage).toHaveBeenLastCalledWith("s2", "c1", "Mail key", true));
+    await waitFor(() => expect(screen.getByText("Mail key is now kept in Main vault.")).toBeInTheDocument());
+  });
+
+  it("shows any other refusal of a move as the server words it", async () => {
+    vi.mocked(fetchSecretStorage).mockResolvedValue({ backends: [vaultKind], configs: [mainVault], secrets: [] });
+    vi.mocked(moveSecretToStorage).mockRejectedValueOnce(
+      new HttpError({
+        status: 409,
+        url: "/api/secret-backends/secrets/s2/move",
+        payload: { error: "Another catalog secret is already kept at that name in this secret storage" },
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await waitFor(() => expect(fetchSecretStorage).toHaveBeenCalled());
+    await openRowAction(user, "Mail key", "Move to Main vault");
+    const dialog = await screen.findByRole("dialog", { name: "Move Mail key to Main vault" });
+    await user.click(within(dialog).getByRole("button", { name: "Move" }));
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText("Another catalog secret is already kept at that name in this secret storage"),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  it("shows where a remote value is kept and moves it back after a confirmation", async () => {
+    vi.mocked(fetchSecretStorage).mockResolvedValue({
+      backends: [vaultKind],
+      configs: [mainVault],
+      secrets: [{ secret_id: "s1", config_id: "c1", backend: "acme.vault" }],
+    });
+    const user = userEvent.setup();
+    renderPage();
+    const table = await screen.findByRole("table", { name: "Secrets" });
+    await waitFor(() => expect(within(table).getByText("Kept in Main vault")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Actions for Shop token" }));
+    // A remote value only comes back; it never moves to another storage from here.
+    expect(screen.queryByRole("menuitem", { name: "Move to Main vault" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("menuitem", { name: "Move back to this installation" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Move Shop token back to this installation?" });
+    expect(within(dialog).getByText(/The copy in Main vault is not deleted/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Move back" }));
+    await waitFor(() => expect(moveSecretToLocal).toHaveBeenCalledWith("s1"));
+  });
+
+  it("uses an existing secret of the one storage without asking which storage", async () => {
+    vi.mocked(fetchSecretStorage).mockResolvedValue({ backends: [vaultKind], configs: [mainVault], secrets: [] });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Use an existing secret from Main vault" }));
+    const dialog = await screen.findByRole("dialog", { name: "Use an existing secret from Main vault" });
+    expect(within(dialog).queryByRole("combobox")).not.toBeInTheDocument();
+    await user.type(within(dialog).getByRole("textbox", { name: /Name in Main vault/ }), "db-password");
+    await user.click(within(dialog).getByRole("button", { name: "Use this secret" }));
+    await waitFor(() =>
+      expect(adoptStoredSecret).toHaveBeenCalledWith({
+        configId: "c1",
+        nameInStorage: "db-password",
+        name: "db-password",
+        description: "",
+      }),
+    );
+  });
+
+  it("asks nothing about storage of someone who does not administer it", async () => {
+    vi.mocked(useHasCapability).mockReturnValue(false);
+    renderPage();
+    await screen.findByRole("table", { name: "Secrets" });
+    expect(fetchSecretStorage).not.toHaveBeenCalled();
   });
 });

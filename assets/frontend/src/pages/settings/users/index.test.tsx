@@ -10,10 +10,16 @@ import { permissionsForRoles } from "@/test/role-permissions";
 import { SettingsUsersPage } from "@/pages/settings/users";
 import type { UserRecord } from "@/pages/settings/shared/types";
 import {
+  addAccountMember,
+  cancelAccountInvitation,
+  fetchSentAccountInvitations,
   createUser,
   deleteUser,
   fetchAccountsCollection,
   fetchUsersCollection,
+  inviteAccountMember,
+  removeAccountMember,
+  searchAccountMemberCandidates,
   unlockUser,
   updateUser,
   updateUserAuthenticator,
@@ -21,6 +27,13 @@ import {
 
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/pages/settings/shared/api", () => ({
+  addAccountMember: vi.fn(),
+  cancelAccountInvitation: vi.fn(),
+  fetchSentAccountInvitations: vi.fn(),
+  SENT_INVITATIONS_QUERY_KEY: ["settings", "users", "invitations"],
+  inviteAccountMember: vi.fn(),
+  removeAccountMember: vi.fn(),
+  searchAccountMemberCandidates: vi.fn(),
   createUser: vi.fn(),
   deleteUser: vi.fn(),
   fetchAccountsCollection: vi.fn(),
@@ -40,6 +53,12 @@ const mockedFetchUsersCollection = vi.mocked(fetchUsersCollection);
 const mockedUnlockUser = vi.mocked(unlockUser);
 const mockedUpdateUser = vi.mocked(updateUser);
 const mockedUpdateUserAuthenticator = vi.mocked(updateUserAuthenticator);
+const mockedAddAccountMember = vi.mocked(addAccountMember);
+const mockedRemoveAccountMember = vi.mocked(removeAccountMember);
+const mockedSearchCandidates = vi.mocked(searchAccountMemberCandidates);
+const mockedInviteAccountMember = vi.mocked(inviteAccountMember);
+const mockedFetchSentInvitations = vi.mocked(fetchSentAccountInvitations);
+const mockedCancelInvitation = vi.mocked(cancelAccountInvitation);
 
 const mayaRecord = { id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] };
 
@@ -85,7 +104,53 @@ describe("SettingsUsersPage", () => {
     mockedUseAuth.mockReturnValue(authValue());
     mockedFetchAccountsCollection.mockResolvedValue([{ id: "acc-1", name: "Flow Steward" }]);
     mockedFetchUsersCollection.mockResolvedValue(userPage());
+    mockedFetchSentInvitations.mockResolvedValue([]);
     mockedUpdateUserAuthenticator.mockReset();
+  });
+
+  it("lists pending invitations with the email as typed and cancels one (ADR 0085)", async () => {
+    const user = userEvent.setup();
+    let open = [
+      { id: "inv-1", email: "Sam@Other.example", role: "operator", invited_by: "Admin", expires_at: "2026-12-11T10:00:00Z" },
+    ];
+    mockedFetchSentInvitations.mockImplementation(async () => open);
+    mockedCancelInvitation.mockImplementation(async () => {
+      open = [];
+      return { id: "inv-1", status: "cancelled" };
+    });
+    renderUsersPage();
+
+    const section = await screen.findByRole("table", { name: "Pending invitations" });
+    expect(within(section).getByText("Sam@Other.example")).toBeInTheDocument();
+    expect(within(section).getByText("Operator")).toBeInTheDocument();
+    expect(within(section).getByText("Admin")).toBeInTheDocument();
+    await user.click(within(section).getByRole("button", { name: "Cancel the invitation to Sam@Other.example" }));
+
+    await waitFor(() => expect(mockedCancelInvitation).toHaveBeenCalledWith("inv-1"));
+    await waitFor(() => expect(screen.getByText("The invitation to Sam@Other.example was cancelled.")).toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByTestId("pending-invitations")).not.toBeInTheDocument());
+  });
+
+  it("shows no pending invitations section when nothing waits", async () => {
+    renderUsersPage();
+    await screen.findByText("Maya Chen");
+    await waitFor(() => expect(mockedFetchSentInvitations).toHaveBeenCalled());
+    expect(screen.queryByTestId("pending-invitations")).not.toBeInTheDocument();
+  });
+
+  it("refreshes the pending invitations after sending one", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([]);
+    mockedInviteAccountMember.mockResolvedValue({ status: "ok", message: "If this person exists, they will get an invitation" });
+    renderUsersPage();
+    await waitFor(() => expect(mockedFetchSentInvitations).toHaveBeenCalledTimes(1));
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "nobody@x.example");
+    await user.click(await within(dialog).findByRole("button", { name: "Send invitation" }));
+
+    await waitFor(() => expect(mockedFetchSentInvitations).toHaveBeenCalledTimes(2));
   });
 
   it("localizes the settled user count without changing owner profile values", async () => {
@@ -102,6 +167,7 @@ describe("SettingsUsersPage", () => {
     await waitFor(() => expect(screen.getByText("Administrator access required")).toBeInTheDocument());
     expect(mockedFetchUsersCollection).not.toHaveBeenCalled();
     expect(mockedFetchAccountsCollection).not.toHaveBeenCalled();
+    expect(mockedFetchSentInvitations).not.toHaveBeenCalled();
   });
 
   it("serializes server-owned search state through the filter-complete query", async () => {
@@ -178,6 +244,30 @@ describe("SettingsUsersPage", () => {
     }));
 
     await waitFor(() => expect(screen.getByText("Mail warning user was added. User created, but the welcome email was not delivered. Check the email extension's connection.")).toBeInTheDocument());
+  });
+
+  it("invites instead of creating when the address is taken, and shows the link once (ADR 0085, C2)", async () => {
+    const user = userEvent.setup();
+    mockedCreateUser.mockResolvedValue({
+      status: "ok",
+      message: "If this person exists, they will get an invitation",
+      delivery: "link",
+      invitation_link: "https://fs.example/invitations/tok-1",
+    });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add user" }));
+    const dialog = screen.getByRole("dialog", { name: "Add user" });
+    await user.type(within(dialog).getByPlaceholderText("e.g. Alex Morgan"), "Someone");
+    await user.type(within(dialog).getByRole("textbox", { name: "Email address" }), "taken@example.com");
+    await user.type(within(dialog).getByLabelText("Temporary password"), "temporary-pass");
+    await user.click(within(dialog).getByRole("button", { name: "Add user" }));
+
+    await waitFor(() => expect(screen.getByText("If this person exists, they will get an invitation.")).toBeInTheDocument());
+    expect(screen.queryByText("Someone was added.")).not.toBeInTheDocument();
+    expect(screen.getByText("https://fs.example/invitations/tok-1")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByText("https://fs.example/invitations/tok-1")).not.toBeInTheDocument();
   });
 
   it("keeps password-change policy explicit in the set-password dialog", async () => {
@@ -460,5 +550,176 @@ describe("SettingsUsersPage", () => {
 
     expect(within(dialog).getByRole("radio", { name: /Operator/ })).toBeChecked();
     expect(within(dialog).getByRole("radio", { name: /Viewer/ })).not.toBeChecked();
+  });
+  it("lists each person with their role in this company", async () => {
+    renderUsersPage();
+    const table = await screen.findByRole("table", { name: "Users and access" });
+    expect(within(table).getByRole("columnheader", { name: "Role here" })).toBeInTheDocument();
+    await waitFor(() => expect(within(table).getByText("Operator")).toBeInTheDocument());
+  });
+
+  it("says when a listed person has no role in this company", async () => {
+    mockedFetchUsersCollection.mockResolvedValue(userPage([{ ...mayaRecord, roles: [] }]));
+    renderUsersPage();
+    const table = await screen.findByRole("table", { name: "Users and access" });
+    await waitFor(() => expect(within(table).getByText("No role here")).toBeInTheDocument());
+  });
+
+  it("adds an existing person to this company with the chosen role", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([{ id: "u9", email: "lina@example.com", display_name: "Lina Park" }]);
+    mockedAddAccountMember.mockResolvedValue({ user_id: "u9", account_id: "acc-1", role: "operator" });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "lina");
+
+    // One match is the person: there is nothing to pick between.
+    await waitFor(() => expect(within(dialog).getByTestId("existing-person-match")).toHaveTextContent("Lina Park"));
+    expect(mockedSearchCandidates).toHaveBeenLastCalledWith("lina");
+    expect(within(dialog).queryByRole("radio", { name: /Lina Park/ })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("radio", { name: /Viewer/ })).toBeChecked();
+    await user.click(within(dialog).getByText("Operator"));
+    await user.click(within(dialog).getByRole("button", { name: "Add to this company" }));
+
+    await waitFor(() => expect(mockedAddAccountMember).toHaveBeenCalledWith("u9", "operator"));
+    await waitFor(() => expect(screen.getByText("Lina Park was added to this company.")).toBeInTheDocument());
+  });
+
+  it("adds a chosen person of the managed companies by their role only", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([
+      { id: "u9", email: "lina@example.com", display_name: "Lina Park" },
+      { id: "u8", email: "lina.k@example.com", display_name: "Lina Kim" },
+    ]);
+    mockedAddAccountMember.mockResolvedValue({ user_id: "u9", account_id: "acc-1", role: "viewer" });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "lina@example.com");
+    await waitFor(() => expect(within(dialog).getByRole("radio", { name: /Lina Park/ })).toBeInTheDocument());
+    await user.click(within(dialog).getByText("Lina Park"));
+    await user.click(within(dialog).getByRole("button", { name: "Add to this company" }));
+
+    await waitFor(() => expect(mockedAddAccountMember).toHaveBeenCalledWith("u9", "viewer"));
+    expect(mockedInviteAccountMember).not.toHaveBeenCalled();
+  });
+
+  it("invites a full email address nobody of the managed companies has (ADR 0085)", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([]);
+    mockedInviteAccountMember.mockResolvedValue({
+      status: "ok",
+      message: "If this person exists, they will get an invitation",
+    });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "sam@other.example");
+    const send = await within(dialog).findByRole("button", { name: "Send invitation" });
+    await user.click(within(dialog).getByText("Operator"));
+    await user.click(send);
+
+    await waitFor(() => expect(mockedInviteAccountMember).toHaveBeenCalledWith("sam@other.example", "operator"));
+    expect(mockedAddAccountMember).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByText("If this person exists, they will get an invitation")).toBeInTheDocument());
+  });
+
+  it("shows the invitation link once when no email could send it (ADR 0085, C1)", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([]);
+    mockedInviteAccountMember.mockResolvedValue({
+      status: "ok",
+      message: "If this person exists, they will get an invitation",
+      delivery: "link",
+      invitation_link: "https://fs.example/invitations/tok-9",
+    });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "sam@other.example");
+    await user.click(await within(dialog).findByRole("button", { name: "Send invitation" }));
+
+    await waitFor(() => expect(screen.getByText("https://fs.example/invitations/tok-9")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Copy invitation link" })).toBeInTheDocument();
+    expect(screen.getByText(/It is shown only now and works once\./)).toBeInTheDocument();
+    // The pending list never carries the link: it is shown only in this answer.
+    await user.click(screen.getByRole("button", { name: "Hide" }));
+    expect(screen.queryByText("https://fs.example/invitations/tok-9")).not.toBeInTheDocument();
+  });
+
+  it("shows no link when the invitation was emailed", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([]);
+    mockedInviteAccountMember.mockResolvedValue({
+      status: "ok",
+      message: "If this person exists, they will get an invitation",
+      delivery: "email",
+    });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "sam@other.example");
+    await user.click(await within(dialog).findByRole("button", { name: "Send invitation" }));
+
+    await waitFor(() => expect(screen.getByText("If this person exists, they will get an invitation")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Copy invitation link" })).not.toBeInTheDocument();
+  });
+
+  it("offers no invitation for a name that is not an email address", async () => {
+    const user = userEvent.setup();
+    mockedSearchCandidates.mockResolvedValue([]);
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Add an existing person" }));
+    const dialog = screen.getByRole("dialog", { name: "Add an existing person" });
+    await user.type(within(dialog).getByRole("searchbox", { name: "Find a person" }), "sam");
+    await waitFor(() => expect(within(dialog).getByText(/No one found/)).toBeInTheDocument());
+    expect(within(dialog).queryByRole("button", { name: "Send invitation" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Add to this company" })).toBeDisabled();
+  });
+
+  it("removes a person from this company only after confirmation", async () => {
+    const user = userEvent.setup();
+    mockedRemoveAccountMember.mockResolvedValue({ user_id: "u1", account_id: "acc-1" });
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from this company" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Remove Maya Chen from this company?" });
+    expect(mockedRemoveAccountMember).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Remove from this company" }));
+
+    await waitFor(() => expect(mockedRemoveAccountMember).toHaveBeenCalledWith("u1"));
+    await waitFor(() => expect(screen.getByText("Maya Chen was removed from this company.")).toBeInTheDocument());
+    expect(mockedDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("shows why a removal was refused", async () => {
+    const user = userEvent.setup();
+    mockedRemoveAccountMember.mockRejectedValue(new Error("The last active administrator of this company cannot be removed: give another person the admin role here first"));
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Remove from this company" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "Remove Maya Chen from this company?" });
+    await user.click(within(dialog).getByRole("button", { name: "Remove from this company" }));
+
+    await waitFor(() => expect(screen.getByText(/last active administrator of this company/)).toBeInTheDocument());
+  });
+
+  it("does not offer to remove yourself from this company", async () => {
+    const user = userEvent.setup();
+    mockedFetchUsersCollection.mockResolvedValue(userPage([{ ...mayaRecord, id: "admin-self", display_name: "Current Admin", roles: ["admin"] }]));
+    renderUsersPage();
+
+    await user.click(await screen.findByRole("button", { name: "Actions for Current Admin" }));
+
+    expect(screen.queryByRole("menuitem", { name: "Remove from this company" })).not.toBeInTheDocument();
   });
 });

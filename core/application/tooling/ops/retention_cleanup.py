@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
@@ -22,6 +24,7 @@ from core.application.tooling.ops.retention_cleanup_common import (
 from core.application.tooling.ops.retention_repository import (
     _TERMINAL_JOB_STATUSES,
     _TRASH_ENTITY_TABLES,
+    _compact_or_count_terminal_job_checkpoint_history,
     _delete_checkpoint_rows_for_thread,
     _delete_or_count,
     _delete_or_count_action_log,
@@ -30,7 +33,6 @@ from core.application.tooling.ops.retention_repository import (
     _delete_or_count_inbound_oauth,
     _delete_or_count_project_settings_revisions,
     _delete_or_count_registry_changelog,
-    _compact_or_count_terminal_job_checkpoint_history,
     _delete_or_count_terminal_job_checkpoints,
     _delete_or_count_unreferenced_definition_snapshots,
     _delete_trashed_row,
@@ -91,6 +93,10 @@ class AccountRetentionPolicy:
     trash_days: int
     terminal_job_checkpoints_days: int
     revisions_keep: int = 5
+    #: 0 (the default): approval journal rows go when their job is purged. A
+    #: positive value keeps them that many days instead, but only for an account
+    #: entitled to the approval journal (ADR 0082).
+    approval_journal_retention_days: int = 0
 
 
 @dataclass
@@ -109,6 +115,11 @@ class RetentionConfig:
     action_logs_days_override: int | None = None
     trash_days_override: int | None = None
     terminal_job_checkpoints_days_override: int | None = None
+    #: Whether an account is entitled to the approval journal: ``True`` or
+    #: ``False`` when that is known, ``None`` when it could not be established.
+    #: ``None`` here (no entitlement service) means it is never known, so an account
+    #: with a positive journal retention keeps every journal row in that pass.
+    journal_entitled: Callable[[str], bool | None] | None = None
 
 
 def _connect_psycopg_runtime(dsn: str):
@@ -310,6 +321,7 @@ def _cleanup_trashed_entities(
                             table=table,
                             id_col=id_col,
                             entity_id=entity_id,
+                            account_id=policy.account_id,
                         )
                     if rowcount > 0:
                         deleted += rowcount
@@ -400,9 +412,86 @@ def _resolve_account_retention_policies(
                     if cfg.revisions_keep_override is not None
                     else int(settings["revisions_keep"])
                 ),
+                approval_journal_retention_days=_journal_days(settings),
             )
         )
     return policies
+
+
+def _journal_days(settings: dict[str, Any]) -> int:
+    try:
+        return max(0, int(settings.get("approval_journal_retention_days") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _journal_entitled(cfg: RetentionConfig, account_id: str) -> bool | None:
+    """``True``/``False`` when the entitlement is known, ``None`` when it is not.
+
+    Unknown covers no entitlement service, a check that raised, a source that
+    failed and a role where a platform module failed to load (the service answers
+    ``None``); anything but a definite bool is unknown.
+    """
+    check = cfg.journal_entitled
+    if check is None:
+        return None
+    try:
+        answer = check(account_id)
+    except Exception:
+        logger.exception("Approval journal entitlement check failed for account %s", account_id)
+        return None
+    return answer if isinstance(answer, bool) else None
+
+
+def _purge_approval_journal(
+    conn,
+    cur,
+    *,
+    cache: dict[str, bool],
+    policies: list[AccountRetentionPolicy],
+    cfg: RetentionConfig,
+    now: datetime | None = None,
+) -> int:
+    """Purge approval journal rows by each account's rule.
+
+    - ``approval_journal_retention_days`` is 0: rows go when their job is gone (the
+      job retention and trash purge above, or any other deletion of the job).
+    - Days > 0 and the account is entitled to the approval journal: rows are kept
+      that many days past their decision, whether or not the job still exists.
+    - Days > 0 and the account is definitely not entitled: the default rule (rows
+      go with their jobs).
+    - Days > 0 and the entitlement is unknown (no entitlement service, the check
+      raised, a source failed, a platform module failed to load in this role so a
+      "not entitled" is not definite): nothing of that account is purged in this pass, so
+      a passing failure never deletes rows the account keeps on purpose.
+    """
+    if not policies or not _table_exists(cur, cache, "approval_decision_journal"):
+        return 0
+    from core.application.management.approval_journal import ApprovalJournalRepository
+
+    repository = ApprovalJournalRepository(conn)
+    moment = now or datetime.now(UTC)
+    deleted = 0
+    for policy in policies:
+        days = int(policy.approval_journal_retention_days or 0)
+        entitled = _journal_entitled(cfg, policy.account_id) if days > 0 else False
+        if entitled is None:
+            logger.warning(
+                "Approval journal entitlement of account %s is unknown and it keeps journal "
+                "rows for %s days; no journal rows of that account are purged in this pass",
+                policy.account_id,
+                days,
+            )
+            continue
+        if entitled:
+            deleted += repository.purge(
+                policy.account_id,
+                older_than=moment - timedelta(days=days),
+                only_orphaned=False,
+            )
+        else:
+            deleted += repository.purge(policy.account_id, older_than=None, only_orphaned=True)
+    return deleted
 
 
 def resolve_retention_config(dsn: str, args: argparse.Namespace) -> RetentionConfig:
@@ -506,6 +595,7 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
         "artifact_cleanup_failed": 0,
         "workflow_definition_snapshots": 0,
         "inbound_oauth": 0,
+        "approval_journal": 0,
     }
 
     artifact_storage = resolve_artifact_storage_adapter_from_env(environ=_runtime_env)
@@ -552,13 +642,11 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
                     days=policy.terminal_job_checkpoints_days,
                     dry_run=cfg.dry_run,
                 )
-                stats["checkpoint_history"] += (
-                    _compact_or_count_terminal_job_checkpoint_history(
-                        cur,
-                        cache=table_exists_cache,
-                        account_id=policy.account_id,
-                        dry_run=cfg.dry_run,
-                    )
+                stats["checkpoint_history"] += _compact_or_count_terminal_job_checkpoint_history(
+                    cur,
+                    cache=table_exists_cache,
+                    account_id=policy.account_id,
+                    dry_run=cfg.dry_run,
                 )
                 stats["registry_changelog"] += _delete_or_count_registry_changelog(
                     cur,
@@ -627,6 +715,15 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
                 artifact_purges_after_commit=artifact_purges_after_commit,
             )
 
+            # After job deletion, so journal rows of the purged jobs go with them.
+            stats["approval_journal"] = _purge_approval_journal(
+                conn,
+                cur,
+                cache=table_exists_cache,
+                policies=account_policies,
+                cfg=cfg,
+            )
+
             # After job deletion, so archive rows those jobs alone held go too.
             stats["workflow_definition_snapshots"] = (
                 _delete_or_count_unreferenced_definition_snapshots(
@@ -654,11 +751,19 @@ def run_cleanup(dsn: str, cfg: RetentionConfig) -> dict[str, int]:
 run_retention_cleanup = run_cleanup
 
 
-def run_scheduled_retention(dsn: str = "") -> dict[str, int]:
+def run_scheduled_retention(
+    dsn: str = "",
+    *,
+    entitlement_service: Any = None,
+) -> dict[str, int]:
     """One pass of the control-plane retention loop, with each account's own settings.
 
     Equivalent to running the module with no overrides; the loop owns the
     schedule, so a host cron is no longer needed for retention.
+    ``entitlement_service`` answers whether an account keeps approval journal rows
+    past their jobs. Without one (or one without ``entitlement_status``) the answer
+    is unknown, and an account with a positive journal retention keeps every
+    journal row in that pass.
     """
     resolved_dsn = resolve_observability_dsn(dsn)
     defaults = argparse.Namespace(
@@ -672,7 +777,11 @@ def run_scheduled_retention(dsn: str = "") -> dict[str, int]:
         revisions_keep=None,
         dry_run=False,
     )
-    stats = run_cleanup(resolved_dsn, resolve_retention_config(resolved_dsn, defaults))
+    cfg = resolve_retention_config(resolved_dsn, defaults)
+    entitlement_status = getattr(entitlement_service, "entitlement_status", None)
+    if callable(entitlement_status):
+        cfg.journal_entitled = lambda account_id: entitlement_status(account_id, "approval_journal")
+    stats = run_cleanup(resolved_dsn, cfg)
     logger.info(
         "Retention pass removed %s",
         ", ".join(f"{key}={value}" for key, value in stats.items() if value) or "nothing",
@@ -736,6 +845,7 @@ def main() -> int:
     print(f"[retention] artifacts_expired={stats['artifacts_expired']}")
     print(f"[retention] datasets_expired={stats['datasets_expired']}")
     print(f"[retention] artifact_cleanup_failed={stats['artifact_cleanup_failed']}")
+    print(f"[retention] approval_journal={stats['approval_journal']}")
     return 0
 
 

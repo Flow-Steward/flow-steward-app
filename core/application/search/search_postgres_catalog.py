@@ -124,12 +124,18 @@ def _catalog_query(
               FROM extension_installs ei
          LEFT JOIN extension_releases er ON er.release_id = ei.release_id
              WHERE ei.state = 'active'
-               AND (CAST(ei.account_id AS TEXT) = %s OR ei.visibility = 'global')
+               AND (CAST(ei.account_id AS TEXT) = %s OR ei.visibility = 'global'
+                    OR EXISTS (
+                        SELECT 1 FROM extension_account_enablements ae
+                         WHERE ae.install_id = ei.install_id
+                           AND ae.extension_id = ei.extension_id
+                           AND CAST(ae.account_id AS TEXT) = %s
+                           AND ae.state = 'enabled'))
                AND (ei.extension_id ILIKE %s ESCAPE '\\'
                     OR COALESCE(er.descriptor_jsonb->>'display_name', '') ILIKE %s ESCAPE '\\'
                     OR COALESCE(er.descriptor_jsonb->>'description', '') ILIKE %s ESCAPE '\\')
             """,
-            [account_id, contains, contains, contains],
+            [account_id, account_id, contains, contains, contains],
             "/extensions",
         )
 
@@ -180,6 +186,7 @@ def _catalog_query(
               FROM {table} r
              WHERE r.enabled = true
                AND r.sync_status = 'active'
+               AND CAST(r.account_id AS TEXT) = %s
                AND (CAST(r.{id_column} AS TEXT) ILIKE %s ESCAPE '\\'
                     OR r.display_name ILIKE %s ESCAPE '\\'
                     OR COALESCE(r.description, '') ILIKE %s ESCAPE '\\')
@@ -188,7 +195,8 @@ def _catalog_query(
             sql = sql.replace(
                 "WHERE r.enabled = true", "WHERE r.enabled = true AND r.deleted_at IS NULL"
             )
-        return sql, [contains, contains, contains], route
+        # Fields and data contracts belong to one account (ADR 0020, C4a).
+        return sql, [account_id, contains, contains, contains], route
 
     if group == "published_blocks":
         return (

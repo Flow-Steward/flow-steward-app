@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import AbstractContextManager, nullcontext
 from types import SimpleNamespace
 from typing import Any
 
@@ -7,6 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.entrypoints.api.auth_tokens_accounts import create_auth_tokens_accounts_router
 from core.entrypoints.api.auth_users import create_auth_users_router
 
@@ -86,6 +88,10 @@ class _Cursor:
         if "SELECT EXISTS (SELECT 1 FROM users)" in normalized:
             # The admin creating users through this router already exists.
             self._next_fetchone = (True,)
+            return
+        if "UPDATE user_account_memberships" in normalized and "RETURNING id" in normalized:
+            # The role is set on the person's membership (ADR 0085).
+            self._next_fetchone = ("membership-1",)
             return
         if "UPDATE auth_sessions" in normalized:
             self.rowcount = 2
@@ -561,7 +567,13 @@ def test_auth_users_router_error_paths() -> None:
 
     auth_client = _client_with_state(
         router,
-        auth_user={"id": 1, "username": "admin", "roles": ["admin"], "timezone": ""},
+        auth_user={
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "id": 1,
+            "username": "admin",
+            "roles": ["admin"],
+            "timezone": "",
+        },
     )
     bad_json = auth_client.patch(
         "/api/users/me/timezone",
@@ -780,6 +792,12 @@ class _NoopCursor:
     def execute(self, _query: str, _params: Any = None) -> None:
         return None
 
+    def fetchone(self) -> Any:
+        return None
+
+    def fetchall(self) -> list[Any]:
+        return []
+
 
 class _TokenBL:
     def __init__(self) -> None:
@@ -877,6 +895,9 @@ class _TokenBL:
             return None
         account["is_active"] = bool(is_active)
         return account
+
+    def account_lifecycle_transaction(self) -> AbstractContextManager[None]:
+        return nullcontext()
 
     def list_service_accounts(
         self, *, account_id: str | None = None, include_inactive: bool
@@ -1019,6 +1040,22 @@ class _TokenBL:
         return None
 
 
+class _AccountLimit:
+    """An entitlement service whose ``accounts`` limit leaves room for the tests."""
+
+    def limit(self, _account_id: str, _name: str) -> int:
+        return 10
+
+
+#: Listing, creating and disabling accounts needs an installation administrator.
+_INSTALLATION_ADMIN = {
+    "id": 1,
+    "username": "admin",
+    "roles": ["admin"],
+    "account_id": DEFAULT_ACCOUNT_ID,
+}
+
+
 def _token_router(
     bl: _TokenBL,
     *,
@@ -1069,6 +1106,7 @@ def _token_router(
         err_admin_role_required="admin-required",
         err_service_account_key_required="service-account-key-required",
         err_machine_token_tables_not_available="machine-token-tables-missing",
+        entitlement_service=_AccountLimit,
     )
 
 
@@ -1090,7 +1128,8 @@ def test_auth_tokens_accounts_router_success_paths() -> None:
     assert revoked_pat.status_code == 200
     assert revoked_pat.json()["status"] == "revoked"
 
-    accounts = client.get("/api/auth/accounts")
+    installation_client = _client_with_state(_token_router(bl, auth_user=_INSTALLATION_ADMIN))
+    accounts = installation_client.get("/api/auth/accounts")
     assert accounts.status_code == 200
     assert len(accounts.json()["accounts"]) >= 1
 
@@ -1105,12 +1144,12 @@ def test_auth_tokens_accounts_router_success_paths() -> None:
     assert updated_current_account.status_code == 200
     assert updated_current_account.json()["account"]["display_name"] == "Baltic Blues"
 
-    created_account = client.post(
+    created_account = installation_client.post(
         "/api/auth/accounts",
         json={"account_id": "acc-1", "display_name": "Team A", "is_active": True},
     )
     assert created_account.status_code == 200
-    disabled_account = client.post(
+    disabled_account = installation_client.post(
         "/api/auth/accounts/acc-1/disable", json={"reason": "maintenance"}
     )
     assert disabled_account.status_code == 200
@@ -1548,15 +1587,18 @@ def test_auth_tokens_accounts_router_error_paths() -> None:
     )
     assert client.post("/api/auth/tokens/999/revoke").status_code == 404
 
+    installation_client = _client_with_state(_token_router(bl, auth_user=_INSTALLATION_ADMIN))
     assert (
-        client.post(
+        installation_client.post(
             "/api/auth/accounts",
             json={"account_id": "acc-default", "display_name": "Duplicate", "is_active": True},
         ).status_code
         == 409
     )
     assert (
-        client.post("/api/auth/accounts/missing/disable", json={"reason": "none"}).status_code
+        installation_client.post(
+            "/api/auth/accounts/missing/disable", json={"reason": "none"}
+        ).status_code
         == 404
     )
     assert client.patch("/api/auth/accounts/current", json={"display_name": ""}).status_code == 422

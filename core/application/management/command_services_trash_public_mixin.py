@@ -114,12 +114,14 @@ class TrashLifecycleServicePublicMixin:
                 table,
                 SQL_WHERE_PREFIX,
                 id_col,
-                " = %s LIMIT 1",
+                " = %s",
+                _trash_key_sql(cfg),
+                " LIMIT 1",
             ]
         )
         with bl.conn.cursor() as cur:
             try:
-                cur.execute(query, (entity_id,))
+                cur.execute(query, _trash_key_params(cfg, entity_id, scope.account_id))
             except Exception as exc:
                 if _is_invalid_uuid_lookup_error(exc):
                     raise ServiceNotFoundError(f"{entity_type} not found or not trashed") from exc
@@ -446,6 +448,7 @@ class TrashLifecycleServicePublicMixin:
                             entity_id=str(entity_id),
                             action="trash",
                             author=resolved.actor_name,
+                            owner_account_id=str(resolved.account_id or ""),
                             snapshot={
                                 **locked_snapshot,
                                 "lifecycle_action": "trash",
@@ -499,13 +502,15 @@ class TrashLifecycleServicePublicMixin:
                             table,
                             " SET deleted_at = NOW(), deleted_by = %s WHERE ",
                             id_col,
-                            " = %s AND deleted_at IS NULL RETURNING ",
+                            " = %s",
+                            _trash_key_sql(cfg),
+                            " AND deleted_at IS NULL RETURNING ",
                             id_col,
                         ]
                     )
                     cur.execute(
                         trash_query,
-                        (deleted_by, entity_id),
+                        (deleted_by, *_trash_key_params(cfg, entity_id, resolved.account_id)),
                     )
                 else:
                     trash_query = "".join(
@@ -514,13 +519,15 @@ class TrashLifecycleServicePublicMixin:
                             table,
                             " SET deleted_at = NOW() WHERE ",
                             id_col,
-                            " = %s AND deleted_at IS NULL RETURNING ",
+                            " = %s",
+                            _trash_key_sql(cfg),
+                            " AND deleted_at IS NULL RETURNING ",
                             id_col,
                         ]
                     )
                     cur.execute(
                         trash_query,
-                        (entity_id,),
+                        _trash_key_params(cfg, entity_id, resolved.account_id),
                     )
             except Exception as exc:
                 if _is_invalid_uuid_lookup_error(exc):
@@ -623,7 +630,9 @@ class TrashLifecycleServicePublicMixin:
                 set_clause,
                 SQL_WHERE_PREFIX,
                 id_col,
-                " = %s AND deleted_at IS NOT NULL RETURNING ",
+                " = %s",
+                _trash_key_sql(cfg),
+                " AND deleted_at IS NOT NULL RETURNING ",
                 id_col,
             ]
         )
@@ -631,7 +640,7 @@ class TrashLifecycleServicePublicMixin:
             try:
                 cur.execute(
                     restore_query,
-                    (entity_id,),
+                    _trash_key_params(cfg, entity_id, resolved.account_id),
                 )
             except Exception as exc:
                 if _is_invalid_uuid_lookup_error(exc):
@@ -731,7 +740,9 @@ class TrashLifecycleServicePublicMixin:
                 table,
                 SQL_WHERE_PREFIX,
                 id_col,
-                " = %s AND deleted_at IS NOT NULL",
+                " = %s",
+                _trash_key_sql(cfg),
+                " AND deleted_at IS NOT NULL",
             ]
         )
 
@@ -740,7 +751,7 @@ class TrashLifecycleServicePublicMixin:
             try:
                 cur.execute(
                     select_query,
-                    (entity_id,),
+                    _trash_key_params(cfg, entity_id, resolved.account_id),
                 )
             except Exception as exc:
                 if _is_invalid_uuid_lookup_error(exc):
@@ -779,7 +790,9 @@ class TrashLifecycleServicePublicMixin:
                 table,
                 SQL_WHERE_PREFIX,
                 id_col,
-                " = %s AND deleted_at IS NOT NULL",
+                " = %s",
+                _trash_key_sql(cfg),
+                " AND deleted_at IS NOT NULL",
             ]
         )
         if entity_type == "job" and callable(getattr(bl, "delete_job", None)):
@@ -808,7 +821,9 @@ class TrashLifecycleServicePublicMixin:
         elif entity_type == "registry_workflow":
             from core.infrastructure.db.db_pool import transaction_connection
 
-            sample_workflow = self._workflow_with_sample_files(conn, str(entity_id))
+            sample_workflow = self._workflow_with_sample_files(
+                conn, str(entity_id), str(resolved.account_id or "")
+            )
             with transaction_connection(conn) as transaction:
                 self._purge_workflow_secrets(
                     workflow_id=str(entity_id),
@@ -819,7 +834,7 @@ class TrashLifecycleServicePublicMixin:
                     try:
                         cur.execute(
                             delete_query,
-                            (entity_id,),
+                            _trash_key_params(cfg, entity_id, resolved.account_id),
                         )
                     except Exception as exc:
                         if _is_foreign_key_violation(exc):
@@ -838,7 +853,7 @@ class TrashLifecycleServicePublicMixin:
                 try:
                     cur.execute(
                         delete_query,
-                        (entity_id,),
+                        _trash_key_params(cfg, entity_id, resolved.account_id),
                     )
                 except Exception as exc:
                     if _is_foreign_key_violation(exc):

@@ -7,6 +7,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from core.application.management.errors import ServiceNotFoundError
+from core.application.registry.workflow_account import workflow_owner
 from core.application.workflows.workflow_entrypoint_repository import _row_to_dict
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -14,11 +15,12 @@ from core.infrastructure.db.db_pool import transaction_connection
 def lock_workflow_owner(
     cursor: Any, workflow_id: str, *, account_id: str = "", include_trashed: bool = False
 ) -> dict[str, Any]:
+    # Workflow identity is account-qualified (ADR 0020, C4b): the lock is taken on
+    # the caller's account's workflow, the bound account when none is named (refused when none is bound).
     cursor.execute(
-        "SELECT * FROM registry_workflows WHERE workflow_id = %s "
-        "AND (%s = '' OR account_id IS NULL OR account_id::text = %s) "
+        "SELECT * FROM registry_workflows WHERE account_id = %s AND workflow_id = %s "
         "AND (%s OR deleted_at IS NULL) FOR UPDATE",
-        (workflow_id, account_id, account_id, include_trashed),
+        (workflow_owner(account_id), workflow_id, include_trashed),
     )
     row = _row_to_dict(cursor, cursor.fetchone())
     if not row:
@@ -53,8 +55,9 @@ def provider_trigger_admission(store: Any, trigger: dict[str, Any]) -> Iterator[
     """Hold the active owner through provider auth and deferred local effects."""
     with transaction_connection(store.conn) as connection, connection.cursor() as cursor:
         cursor.execute(
-            "SELECT workflow_id FROM registry_workflows WHERE workflow_id=%s AND deleted_at IS NULL FOR SHARE",
-            (str(trigger.get("workflow_id") or ""),),
+            "SELECT workflow_id FROM registry_workflows "
+            "WHERE workflow_id=%s AND account_id=%s AND deleted_at IS NULL FOR SHARE",
+            (str(trigger.get("workflow_id") or ""), workflow_owner(trigger.get("account_id"))),
         )
         active = cursor.fetchone() is not None
         if active:

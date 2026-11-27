@@ -19,6 +19,10 @@ from core.application.workflows.workflow_portability import WorkflowPortabilityE
 from tests._workflow_definitions import linear_graph
 from tests.unit.test_workflow_authoring_catalog import SCOPE, CatalogDB
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class DraftDB(CatalogDB):
     def __init__(self):

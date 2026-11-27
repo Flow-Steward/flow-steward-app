@@ -490,11 +490,12 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
 
     --json keeps the machine shape.
     """
+    from core.application.lifecycle.module_settings import without_module_settings
     from core.application.lifecycle.operator_settings import HOST_SETTINGS_DOCS_URL
     from core.application.lifecycle.setting_names import typed_setting_fields
 
     active = dict(payload.get("active") or {})
-    host_settings = dict(active.pop("operator_settings", None) or {})
+    host_settings = without_module_settings(dict(active.pop("operator_settings", None) or {}))
     typed = typed_setting_fields()
     changeable = [(name, _config_value(active[name])) for name in typed if name in active]
     fixed = [(name, _config_value(value)) for name, value in active.items() if name not in typed]
@@ -502,6 +503,9 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
     lines.extend(_aligned(changeable))
     lines.extend(("", "Host settings set by the operator"))
     lines.extend(_aligned(sorted(host_settings.items())) if host_settings else [_NONE_LINE])
+    lines.extend(("", "Platform module settings"))
+    module_rows = _module_setting_rows(payload.get("module_settings") or ())
+    lines.extend(_aligned(module_rows) if module_rows else [_NONE_LINE])
     lines.extend(("", "Pending changes"))
     diff = dict(payload.get("pending_diff") or {})
     pending_host = dict((diff.pop("operator_settings", None) or {}).get("pending") or {})
@@ -537,6 +541,27 @@ def _config_show_lines(payload: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _module_setting_rows(items: Any) -> list[tuple[str, str]]:
+    """ADR 0082: each module setting, its value and the module that declared it."""
+    rows: list[tuple[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        state = str(item.get("state") or "")
+        value = _config_value(item.get("value"))
+        if state == "default":
+            value = f"{value} (default)"
+        module = str(item.get("module") or "")
+        if state == "undeclared":
+            origin = "no active module declares it; reset it with an empty value"
+        else:
+            origin = f"module {module}" if module else "module unknown here"
+        allowed = item.get("allowed_values") or ()
+        choices = f"; one of {', '.join(str(choice) for choice in allowed)}" if allowed else ""
+        rows.append((str(item.get("name") or ""), f"{value}  [{origin}{choices}]"))
+    return rows
+
+
 _CONFIG_TEXT_RENDERERS: dict[str, Callable[[dict[str, Any]], list[str]]] = {
     "config.show": _config_show_lines,
 }
@@ -556,6 +581,8 @@ RENDERERS: dict[str, Renderer] = {
     "release.info": RichRenderer(),
     "release.check": RichRenderer(),
     "release.upgrade": RichRenderer(),
+    "release.modules-list": RichRenderer(),
+    "release.modules-apply": RichRenderer(),
     "maintenance.status": RichRenderer(),
     "maintenance.enable": RichRenderer(),
     "maintenance.disable": RichRenderer(),

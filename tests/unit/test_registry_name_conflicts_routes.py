@@ -13,6 +13,10 @@ from core.application.management.errors import ServiceConflictError
 from core.application.management.registry_name_conflicts import NAME_CONFLICT_CODE
 from core.application.management.scope import normalize_scope
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 VALID = {"valid": True, "errors": [], "warnings": []}
 
 

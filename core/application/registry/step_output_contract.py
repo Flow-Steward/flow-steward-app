@@ -171,6 +171,25 @@ def _get_block(db: Any, key: str, account_id: str) -> dict | None:
     return getter(key)
 
 
+def _get_data_contract(db: Any, contract_id: str, account_id: str | None) -> Any:
+    """Read a data contract of the step's account (ADR 0020, C4a).
+
+    The caller still checks the returned row's owner, so a minimal adapter whose
+    method has no account keyword cannot hand over another account's contract.
+    """
+    getter = getattr(db, "get_data_contract", None)
+    if not callable(getter):
+        return None
+    import inspect
+
+    parameters = inspect.signature(getter).parameters
+    if account_id and (
+        "account_id" in parameters or any(p.kind == p.VAR_KEYWORD for p in parameters.values())
+    ):
+        return getter(contract_id, account_id=account_id)
+    return getter(contract_id)
+
+
 def _list_blocks(db: Any) -> list[dict]:
     getter = getattr(db, "list_published_block_contracts", None)
     return getter(enabled_only=True) if callable(getter) else []
@@ -210,7 +229,10 @@ def _linked_output_schema(db: Any, row: dict, *, account_id: str) -> dict | None
     contract_id = str(row.get("data_contract_id") or row.get("contract_id") or "").strip()
     if not contract_id:
         return row.get("contract_schema")
-    contract = _read(db, "get_data_contract", contract_id, None)
+    reference_owner = str(row.get("contract_account_id") or "").strip()
+    if reference_owner and account_id and reference_owner != account_id:
+        raise OutputContractResolutionError("Selected output data contract is unavailable")
+    contract = _get_data_contract(db, contract_id, account_id)
     if (
         not isinstance(contract, dict)
         or not contract.get("enabled", True)

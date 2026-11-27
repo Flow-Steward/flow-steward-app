@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -119,12 +120,51 @@ def _dashboard_groups_payload(payload: Any) -> dict[str, list[dict[str, Any]]]:
     return {group_key: _rows(group_key) for group_key in group_order}
 
 
+def _dashboard_project_filter(project_ids: frozenset[str] | None) -> dict[str, Any]:
+    """``project_ids`` for a job query of a caller limited to chosen projects, or nothing."""
+    if not project_ids:
+        return {}
+    return {"project_ids": sorted(str(item) for item in project_ids)}
+
+
+def _dashboard_rows_in_projects(
+    rows: list[dict[str, Any]],
+    project_ids: frozenset[str] | None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
+) -> list[dict[str, Any]]:
+    """Only the rows of ``project_ids``; every row when the caller is not limited.
+
+    In a project of ``project_workflow_ids`` (reached only through workflow grants,
+    ADR 0076 section 8a) only those workflows' rows are kept.
+    """
+    if not project_ids:
+        return rows
+    allowed = {str(item) for item in project_ids}
+    restricted = project_workflow_ids or {}
+    kept: list[dict[str, Any]] = []
+    for row in rows:
+        project_id = str(row.get("project_id") or "").strip()
+        if project_id not in allowed:
+            continue
+        workflows = restricted.get(project_id)
+        if workflows is not None:
+            workflow_id = str(
+                row.get("selected_workflow") or row.get("selected_workflow_key") or ""
+            ).strip()
+            if workflow_id not in workflows:
+                continue
+        kept.append(row)
+    return kept
+
+
 def _dashboard_collect_metric_rows(
     *,
     bl: Any,
     account_id: str,
     window_start: datetime,
     window_end: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     if not bl or not hasattr(bl, "list_jobs_for_attention"):
         return [], False
@@ -143,6 +183,7 @@ def _dashboard_collect_metric_rows(
                 account_id=account_id,
                 finished_after=window_start,
                 finished_before=window_end,
+                **_dashboard_project_filter(project_ids),
             )
             or []
         )
@@ -150,7 +191,11 @@ def _dashboard_collect_metric_rows(
         if not raw_batch:
             break
 
-        batch = [dict(raw) for raw in raw_batch if isinstance(raw, dict)]
+        batch = _dashboard_rows_in_projects(
+            [dict(raw) for raw in raw_batch if isinstance(raw, dict)],
+            project_ids,
+            project_workflow_ids,
+        )
 
         if batch:
             rows.extend(batch)
@@ -641,12 +686,16 @@ def _dashboard_collect_rows_with_enrichment(
     account_id: str,
     window_start: datetime,
     window_end: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     rows, truncated = _dashboard_collect_metric_rows(
         bl=bl,
         account_id=account_id,
         window_start=window_start,
         window_end=window_end,
+        project_ids=project_ids,
+        project_workflow_ids=project_workflow_ids,
     )
     _dashboard_enrich_rows_with_usage(bl=bl, rows=rows)
     return rows, truncated
@@ -658,8 +707,17 @@ def _dashboard_collect_rollup_fact_rows(
     account_id: str,
     historical_window_start: datetime,
     historical_window_end: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
-    if not _DASHBOARD_ROLLUP_READ_ENABLED or not bl or not hasattr(bl, "list_dashboard_job_facts"):
+    if (
+        project_workflow_ids
+        or not _DASHBOARD_ROLLUP_READ_ENABLED
+        or not bl
+        or not hasattr(bl, "list_dashboard_job_facts")
+    ):
+        # Facts are not cut by workflow: a caller limited to chosen workflows of a
+        # project reads the live job rows instead.
         return [], "live"
     try:
         historical_rows = (
@@ -670,11 +728,13 @@ def _dashboard_collect_rollup_fact_rows(
             )
             or []
         )
-        historical_rows = [dict(row) for row in historical_rows if isinstance(row, dict)]
+        all_rows = [dict(row) for row in historical_rows if isinstance(row, dict)]
     except Exception:
         return [], "live"
 
-    if historical_rows:
+    # The facts carry their project: a limited caller keeps only their projects'.
+    historical_rows = _dashboard_rows_in_projects(all_rows, project_ids)
+    if all_rows:
         return historical_rows, "rollup_facts"
 
     if hasattr(bl, "get_dashboard_rollup_state"):
@@ -699,7 +759,14 @@ def _dashboard_collect_historical_rows(
     account_id: str,
     historical_window_start: datetime,
     historical_window_end: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], bool, str]:
+    """Finished jobs of the account before today.
+
+    ``project_ids`` (a caller limited to chosen projects) keeps only those projects'
+    jobs; ``None`` or empty keeps the whole account's.
+    """
     if historical_window_start >= historical_window_end:
         return [], False, "live"
 
@@ -708,6 +775,8 @@ def _dashboard_collect_historical_rows(
         account_id=account_id,
         historical_window_start=historical_window_start,
         historical_window_end=historical_window_end,
+        project_ids=project_ids,
+        project_workflow_ids=project_workflow_ids,
     )
     if historical_rows or historical_source == "rollup_facts":
         return historical_rows, False, historical_source
@@ -717,6 +786,8 @@ def _dashboard_collect_historical_rows(
         account_id=account_id,
         window_start=historical_window_start,
         window_end=historical_window_end,
+        project_ids=project_ids,
+        project_workflow_ids=project_workflow_ids,
     )
     return historical_rows, historical_truncated, historical_source
 
@@ -728,9 +799,17 @@ def _dashboard_collect_daily_rollups(
     historical_source: str,
     historical_window_start: datetime,
     historical_window_end: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> list[dict[str, Any]]:
+    """The account's daily rollups; none for a caller limited to chosen projects.
+
+    A rollup counts every project of the account and cannot be cut to some of them,
+    so a limited caller's daily series is computed from their projects' job rows.
+    """
     if (
-        historical_source != "rollup_facts"
+        project_ids
+        or historical_source != "rollup_facts"
         or not _DASHBOARD_ROLLUP_READ_ENABLED
         or not bl
         or not hasattr(bl, "list_dashboard_daily_rollups")
@@ -764,6 +843,8 @@ def _dashboard_collect_live_rows(
     account_id: str,
     live_window_start: datetime,
     now_utc: datetime,
+    project_ids: frozenset[str] | None = None,
+    project_workflow_ids: Mapping[str, frozenset[str]] | None = None,
 ) -> tuple[list[dict[str, Any]], bool]:
     if live_window_start >= now_utc:
         return [], False
@@ -772,6 +853,8 @@ def _dashboard_collect_live_rows(
         account_id=account_id,
         window_start=live_window_start,
         window_end=now_utc,
+        project_ids=project_ids,
+        project_workflow_ids=project_workflow_ids,
     )
 
 

@@ -1,11 +1,13 @@
 # ruff: noqa: F403, F405
 from __future__ import annotations
 
+from core.application.jobs.workflow_identity import resolve_job_workflow_id
 from core.application.workflows.workflow_action_contract import (
     is_installed_action_implementation,
 )
 from core.application.workflows.workflow_hook_contract import is_hook_storage
 
+from .guards import workflow_in_scope_limit
 from .query_services_common import *  # NOSONAR
 
 _HAS_JOBS_TRUE = frozenset({"yes", "true", "1", "with"})
@@ -411,6 +413,18 @@ class ProjectQueryServiceCoreMixin:
                     ]
                     if row.get("operator_default_workflow_id") not in resolved.allowed_workflow_ids:
                         row["operator_default_workflow_id"] = ""
+                limited_workflows = (resolved.project_workflow_ids or {}).get(
+                    str(row.get("id") or "")
+                )
+                if limited_workflows is not None:
+                    # A project reached only through workflow grants shows only them.
+                    row["workflow_ids"] = [
+                        workflow_id
+                        for workflow_id in row.get("workflow_ids") or []
+                        if workflow_id in limited_workflows
+                    ]
+                    if row.get("operator_default_workflow_id") not in limited_workflows:
+                        row["operator_default_workflow_id"] = ""
                 page_rows.append(ProjectGridRowView.model_validate(row))
         except Exception:
             page_rows = []
@@ -433,7 +447,10 @@ class ProjectQueryServiceCoreMixin:
             raise ServiceUnavailableError(DATABASE_NOT_CONFIGURED_MESSAGE)
         self._require_project_in_scope(bl, str(project_id), resolved)
 
-        pending_jobs = bl.get_pending_jobs(project_id)
+        # A project reached only through workflow grants shows only their runs.
+        pending_jobs = rows_in_workflow_scope_limit(
+            resolved, project_id, bl.get_pending_jobs(project_id), resolve_job_workflow_id
+        )
         queue_depth = -1
         ready_queue_depth = -1
         try:
@@ -632,6 +649,11 @@ class ProjectQueryServiceCoreMixin:
                 for item in normalized_workflows
                 if str(item.get("workflow_id") or "").strip() in resolved.allowed_workflow_ids
             ]
+        normalized_workflows = [
+            item
+            for item in normalized_workflows
+            if workflow_in_scope_limit(resolved, project_id, item.get("workflow_id"))
+        ]
         selected_workflows = [
             item for item in normalized_workflows if item.get("enabled") is not False
         ]

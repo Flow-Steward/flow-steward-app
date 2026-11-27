@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 if "psycopg_runtime" not in sys.modules:
@@ -297,9 +299,9 @@ def test_v2_compact_job_detail_and_execution_step_page(monkeypatch):
     [
         ({"roles": ["viewer"]}, "viewer"),
         ({"roles": ["operator"]}, "operator"),
-        ({"roles": ["admin"]}, "admin"),
+        ({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}, "admin"),
         ({"roles": ["viewer", "operator"]}, "operator"),
-        ({"roles": ["viewer", "operator", "admin"]}, "admin"),
+        ({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["viewer", "operator", "admin"]}, "admin"),
         (None, "viewer"),
         (
             {

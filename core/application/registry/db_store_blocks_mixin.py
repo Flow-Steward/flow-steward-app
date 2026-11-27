@@ -3,14 +3,25 @@
 from __future__ import annotations
 
 from .db_store_common import *  # NOSONAR
+from .workflow_account import bound_workflow_account, workflow_owner
+
+#: A published block key is unique within its owner (ADR 0020): an account's block,
+#: or a platform block (no account, ``owner_key`` = ''). A key resolves within an
+#: account to the account's own block, else to the platform block of that key.
+_SQL_BLOCK_VISIBLE_TO = "(account_id::text = %s OR account_id IS NULL)"
+
+
+def _block_owner(account_id: Any) -> str:
+    """The ``owner_key`` of a block owned by *account_id* ('' for a platform block)."""
+    return str(account_id or "").strip()
 
 
 class RegistryDBStoreBlocksMixin:
-    def get_field(self, field_key: str) -> dict | None:
+    def get_field(self, field_key: str, *, account_id: str | None = None) -> dict | None:
         with self._cursor() as cur:
             cur.execute(
-                "SELECT * FROM registry_fields WHERE field_key = %s",
-                (field_key,),
+                "SELECT * FROM registry_fields WHERE account_id = %s AND field_key = %s",
+                (registry_catalog_owner(account_id), field_key),
             )
             row = cur.fetchone()
             return dict(row) if row else None
@@ -22,11 +33,12 @@ class RegistryDBStoreBlocksMixin:
         search: str | None = None,
         *,
         ensure_projection: bool = True,
+        account_id: str | None = None,
     ) -> list[dict]:
         if ensure_projection:
             self._ensure_public_contract_projection()
-        clauses: list[str] = []
-        params: list[Any] = []
+        clauses: list[str] = ["account_id = %s"]
+        params: list[Any] = [registry_catalog_owner(account_id)]
         if enabled_only:
             clauses.append(SQL_ENABLED_TRUE)
         if value_type:
@@ -36,7 +48,7 @@ class RegistryDBStoreBlocksMixin:
             needle = f"%{str(search).strip()}%"
             clauses.append("(field_key ILIKE %s OR display_name ILIKE %s)")
             params.extend([needle, needle])
-        where_sql = f"WHERE {SQL_AND.join(clauses)}" if clauses else ""
+        where_sql = f"WHERE {SQL_AND.join(clauses)}"
         with self._cursor() as cur:
             cur.execute(
                 f"""SELECT *
@@ -47,15 +59,19 @@ class RegistryDBStoreBlocksMixin:
             )
             return [dict(r) for r in cur.fetchall()]
 
-    def save_field(self, data: dict, author: str = "admin") -> None:
+    def save_field(
+        self, data: dict, author: str = "admin", *, account_id: str | None = None
+    ) -> None:
         field_key = str(data.get("field_key") or "").strip()
         if not field_key:
             raise ValueError("field_key is required")
-        is_new = not self._exists("registry_fields", "field_key", field_key)
-        existing = self.get_field(field_key) if not is_new else {}
+        owner = registry_catalog_owner(account_id)
+        existing = self.get_field(field_key, account_id=owner)
+        is_new = existing is None
         existing_map: dict[str, Any] = existing if isinstance(existing, dict) else {}
         last_sync_error = data.get("last_sync_error", existing_map.get("last_sync_error"))
         snapshot = {
+            "account_id": owner,
             "field_key": field_key,
             "display_name": str(data.get("display_name") or field_key).strip(),
             "description": str(data.get("description") or "").strip(),
@@ -106,25 +122,26 @@ class RegistryDBStoreBlocksMixin:
             snapshot["last_synced_at"] = datetime.now(UTC)
         with self._transaction() as cur:
             if snapshot["data_contract_id"]:
+                # A field may only name a data contract of its own account.
                 cur.execute(
                     "SELECT contract_id FROM registry_data_contracts "
-                    "WHERE contract_id = %s FOR KEY SHARE",
-                    (snapshot["data_contract_id"],),
+                    "WHERE account_id = %s AND contract_id = %s FOR KEY SHARE",
+                    (owner, snapshot["data_contract_id"]),
                 )
                 if cur.fetchone() is None:
                     raise ValueError("Referenced data contract does not exist")
             cur.execute(
                 """INSERT INTO registry_fields
-                   (field_key, display_name, description, value_type, data_contract_id,
+                   (account_id, field_key, display_name, description, value_type, data_contract_id,
                     created_from_kind, created_from_ref, source_hints_json, manual_allowed, enabled,
                     projection_mode, derived_from_kind, derived_from_ref, derived_hash,
                     sync_status, last_synced_at, last_sync_error)
                    VALUES
-                   (%(field_key)s, %(display_name)s, %(description)s, %(value_type)s, %(data_contract_id)s,
+                   (%(account_id)s, %(field_key)s, %(display_name)s, %(description)s, %(value_type)s, %(data_contract_id)s,
                     %(created_from_kind)s, %(created_from_ref)s, %(source_hints_json)s, %(manual_allowed)s, %(enabled)s,
                     %(projection_mode)s, %(derived_from_kind)s, %(derived_from_ref)s, %(derived_hash)s,
                     %(sync_status)s, %(last_synced_at)s, %(last_sync_error)s)
-                   ON CONFLICT (field_key) DO UPDATE SET
+                   ON CONFLICT (account_id, field_key) DO UPDATE SET
                       display_name = EXCLUDED.display_name,
                       description = EXCLUDED.description,
                       value_type = EXCLUDED.value_type,
@@ -153,38 +170,53 @@ class RegistryDBStoreBlocksMixin:
                 "create" if is_new else "update",
                 snapshot,
                 author,
+                owner_account_id=owner,
             )
 
-    def toggle_field(self, field_key: str) -> bool:
+    def toggle_field(self, field_key: str, *, account_id: str | None = None) -> bool:
         with self._cursor() as cur:
             cur.execute(
-                "UPDATE registry_fields SET enabled = NOT enabled WHERE field_key = %s RETURNING enabled",
-                (field_key,),
+                "UPDATE registry_fields SET enabled = NOT enabled "
+                "WHERE account_id = %s AND field_key = %s RETURNING enabled",
+                (registry_catalog_owner(account_id), field_key),
             )
             row = cur.fetchone()
             if not row:
                 raise KeyError(f"Field '{field_key}' not found")
             return bool(row["enabled"])
 
-    def delete_field(self, field_key: str, author: str = "admin") -> None:
-        snapshot = self.get_field(field_key)
+    def delete_field(
+        self, field_key: str, author: str = "admin", *, account_id: str | None = None
+    ) -> None:
+        owner = registry_catalog_owner(account_id)
+        snapshot = self.get_field(field_key, account_id=owner)
         if not snapshot:
             raise KeyError(f"Field '{field_key}' not found")
         with self._transaction() as cur:
-            cur.execute("DELETE FROM registry_fields WHERE field_key = %s", (field_key,))
-            self._log_change_cur(cur, "field", field_key, "delete", snapshot, author)
+            cur.execute(
+                "DELETE FROM registry_fields WHERE account_id = %s AND field_key = %s",
+                (owner, field_key),
+            )
+            self._log_change_cur(
+                cur, "field", field_key, "delete", snapshot, author, owner_account_id=owner
+            )
 
-    def _field_id_for_key_cur(self, cur, field_key: str) -> str | None:
+    def _field_id_for_key_cur(
+        self, cur, field_key: str, account_id: str | None = None
+    ) -> str | None:
         normalized = str(field_key or "").strip()
         if not normalized:
             return None
-        cur.execute("SELECT field_id FROM registry_fields WHERE field_key = %s", (normalized,))
+        cur.execute(
+            "SELECT field_id FROM registry_fields WHERE account_id = %s AND field_key = %s",
+            (registry_catalog_owner(account_id), normalized),
+        )
         row = cur.fetchone()
         if not row:
             return None
         return str(row["field_id"]).strip()
 
-    def _block_inputs_cur(self, cur, block_key: str) -> list[dict]:
+    def _block_inputs_cur(self, cur, block_key: str, block_owner: str = "") -> list[dict]:
         cur.execute(
             """SELECT bi.id, bi.block_key, bi.field_id, bi.required, bi.multiple_allowed,
                       bi.manual_allowed_override, bi.default_source_hint, bi.notes, bi.sort_order,
@@ -192,13 +224,13 @@ class RegistryDBStoreBlocksMixin:
                       f.value_type, f.data_contract_id
                FROM registry_published_block_inputs bi
                JOIN registry_fields f ON f.field_id = bi.field_id
-               WHERE bi.block_key = %s
+               WHERE bi.block_key = %s AND bi.block_owner = %s
                ORDER BY bi.sort_order, bi.id""",
-            (block_key,),
+            (block_key, block_owner),
         )
         return [dict(r) for r in cur.fetchall()]
 
-    def _block_outputs_cur(self, cur, block_key: str) -> list[dict]:
+    def _block_outputs_cur(self, cur, block_key: str, block_owner: str = "") -> list[dict]:
         cur.execute(
             """SELECT bo.id, bo.block_key, bo.field_id, bo.required_by_default, bo.exposed_by_default,
                       bo.notes, bo.sort_order,
@@ -206,18 +238,20 @@ class RegistryDBStoreBlocksMixin:
                       f.value_type, f.data_contract_id
                FROM registry_published_block_outputs bo
                JOIN registry_fields f ON f.field_id = bo.field_id
-               WHERE bo.block_key = %s
+               WHERE bo.block_key = %s AND bo.block_owner = %s
                ORDER BY bo.sort_order, bo.id""",
-            (block_key,),
+            (block_key, block_owner),
         )
         return [dict(r) for r in cur.fetchall()]
 
-    def _published_block_source_binding_cur(self, cur, block_key: str) -> tuple[str, str] | None:
+    def _published_block_source_binding_cur(
+        self, cur, block_key: str, block_owner: str = ""
+    ) -> tuple[str, str] | None:
         cur.execute(
             """SELECT source_kind, source_ref
                FROM registry_published_block_contracts
-               WHERE block_key = %s""",
-            (block_key,),
+               WHERE block_key = %s AND owner_key = %s""",
+            (block_key, block_owner),
         )
         row = cur.fetchone()
         if not row:
@@ -227,16 +261,24 @@ class RegistryDBStoreBlocksMixin:
             str(row.get("source_ref") or "").strip(),
         )
 
-    def _published_block_step_bindings_cur(self, cur, block_key: str) -> list[dict]:
-        """Return workflow steps that reference this block via override keys."""
+    def _published_block_step_bindings_cur(
+        self, cur, block_key: str, block_owner: str = ""
+    ) -> list[dict]:
+        """Return workflow steps that reference this block via override keys.
+
+        An account's block is referenced only by that account's steps; a platform
+        block (``block_owner`` '') by the steps of any account.
+        """
         cur.execute(
             """SELECT w.workflow_id, s.step_id
                FROM registry_workflow_steps s
-               JOIN registry_workflows w ON w.workflow_id = s.owner_workflow_id
-               WHERE COALESCE(s.override->>'published_block_key', '') = %s
-                  OR COALESCE(s.override->>'block_key', '') = %s
+               JOIN registry_workflows w
+                 ON w.workflow_id = s.owner_workflow_id AND w.account_id = s.account_id
+               WHERE (COALESCE(s.override->>'published_block_key', '') = %s
+                      OR COALESCE(s.override->>'block_key', '') = %s)
+                 AND (%s = '' OR s.account_id::text = %s)
                ORDER BY w.workflow_id, s.sort_order, s.step_id""",
-            (block_key, block_key),
+            (block_key, block_key, block_owner, block_owner),
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -293,7 +335,10 @@ class RegistryDBStoreBlocksMixin:
             )
 
         if kind == "workflow":
-            cur.execute("SELECT 1 AS ok FROM registry_workflows WHERE workflow_id = %s", (ref,))
+            cur.execute(
+                "SELECT 1 AS ok FROM registry_workflows WHERE workflow_id = %s AND account_id = %s",
+                (ref, workflow_owner()),
+            )
             if cur.fetchone():
                 return
             raise ValueError(f"source_ref references unknown workflow '{ref}'")
@@ -309,34 +354,54 @@ class RegistryDBStoreBlocksMixin:
     def get_published_block_contract(
         self, block_key: str, *, account_id: str | None = None
     ) -> dict | None:
-        """Fetch a published-block contract by key.
+        """Fetch a published-block contract by key, resolved within an account.
 
-        When ``account_id`` is provided, an account-owned block (a row with a
-        non-empty ``account_id``) is only returned to a caller in that same
-        account; platform-global blocks (NULL ``account_id``, ``scope_kind`` =
-        'system') remain visible to everyone. Callers that already hold the
-        request scope should pass it so cross-account block contracts are not
-        resolved. Fails closed: a mismatched owner yields ``None``.
+        A key is unique within its owner (ADR 0020): the account's own block is
+        returned, else the platform block (NULL ``account_id``) of that key, which
+        every account may read; another account's block is never returned. The
+        account is ``account_id``, else the one bound to the request or job. A read
+        with neither (installation tooling) prefers the platform block, then the
+        installation account's.
         """
+        scope_account_id = (
+            str(account_id or "").strip() or str(bound_workflow_account() or "").strip()
+        )
         with self._cursor() as cur:
-            cur.execute(
-                "SELECT * FROM registry_published_block_contracts WHERE block_key = %s",
-                (block_key,),
-            )
+            if scope_account_id:
+                cur.execute(
+                    "SELECT * FROM registry_published_block_contracts "
+                    f"WHERE block_key = %s AND {_SQL_BLOCK_VISIBLE_TO} "
+                    "ORDER BY (account_id IS NULL) LIMIT 1",
+                    (block_key, scope_account_id),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM registry_published_block_contracts WHERE block_key = %s "
+                    "ORDER BY (account_id IS NOT NULL), (account_id::text <> %s) LIMIT 1",
+                    (block_key, DEFAULT_ACCOUNT_ID),
+                )
             row = cur.fetchone()
             if not row:
                 return None
             contract = dict(row)
-            scope_account_id = str(account_id or "").strip()
-            if scope_account_id:
-                row_account_id = str(contract.get("account_id") or "").strip()
-                if row_account_id and row_account_id != scope_account_id:
-                    return None
-            contract["_inputs"] = self._block_inputs_cur(cur, block_key)
+            owner = _block_owner(contract.get("account_id"))
+            if scope_account_id and owner not in {"", scope_account_id}:
+                return None  # another account's block is never resolved
+            contract["_inputs"] = self._block_inputs_cur(cur, block_key, owner)
             contract["inputs"] = contract["_inputs"]
-            contract["_outputs"] = self._block_outputs_cur(cur, block_key)
+            contract["_outputs"] = self._block_outputs_cur(cur, block_key, owner)
             contract["outputs"] = contract["_outputs"]
             return contract
+
+    def _published_block_row_cur(self, cur, block_key: str, block_owner: str) -> dict | None:
+        """The block of exactly this owner ('' for a platform block), if any."""
+        cur.execute(
+            "SELECT * FROM registry_published_block_contracts "
+            "WHERE block_key = %s AND owner_key = %s",
+            (block_key, block_owner),
+        )
+        row = cur.fetchone()
+        return dict(row) if row else None
 
     def list_published_block_contracts(
         self,
@@ -345,11 +410,22 @@ class RegistryDBStoreBlocksMixin:
         source_kind: str | None = None,
         *,
         ensure_projection: bool = True,
+        account_id: str | None = None,
     ) -> list[dict]:
+        """List published blocks visible to an account: its own and platform ones.
+
+        The account is *account_id*, else the one bound to the request or job; a
+        block key is unique only within its owner, so another account's blocks are
+        never mixed in (ADR 0020). Installation tooling with neither lists all.
+        """
         if ensure_projection:
             self._ensure_public_contract_projection()
         clauses: list[str] = []
         params: list[Any] = []
+        visible_to = str(account_id or "").strip() or str(bound_workflow_account() or "").strip()
+        if visible_to:
+            clauses.append(_SQL_BLOCK_VISIBLE_TO)
+            params.append(visible_to)
         if enabled_only:
             clauses.append(SQL_ENABLED_TRUE)
         if block_type:
@@ -364,7 +440,7 @@ class RegistryDBStoreBlocksMixin:
                 f"""SELECT *
                     FROM registry_published_block_contracts
                     {where_sql}
-                    ORDER BY block_key""",
+                    ORDER BY block_key, owner_key""",
                 tuple(params),
             )
             return [dict(r) for r in cur.fetchall()]
@@ -373,8 +449,19 @@ class RegistryDBStoreBlocksMixin:
         block_key = str(data.get("block_key") or "").strip()
         if not block_key:
             raise ValueError("block_key is required")
-        is_new = not self._exists("registry_published_block_contracts", "block_key", block_key)
-        existing = self.get_published_block_contract(block_key) if not is_new else {}
+        # The block this save changes: the one of the account the data names (else
+        # the bound account), or the platform block of that key (ADR 0020).
+        existing = self.get_published_block_contract(
+            block_key, account_id=str(data.get("account_id") or "").strip() or None
+        )
+        named_owner = str(data.get("account_id") or "").strip()
+        if (
+            isinstance(existing, dict)
+            and named_owner
+            and _block_owner(existing.get("account_id")) not in {"", named_owner}
+        ):
+            existing = None
+        is_new = not existing
         existing_map: dict[str, Any] = existing if isinstance(existing, dict) else {}
         last_sync_error = data.get("last_sync_error", existing_map.get("last_sync_error"))
         scope_payload = dict(existing_map)
@@ -465,8 +552,9 @@ class RegistryDBStoreBlocksMixin:
         raw_inputs = list(data.get("inputs") or [])
         raw_outputs = list(data.get("outputs") or [])
 
+        block_owner = _block_owner(snapshot.get("account_id"))
         with self._transaction() as cur:
-            existing_binding = self._published_block_source_binding_cur(cur, block_key)
+            existing_binding = self._published_block_source_binding_cur(cur, block_key, block_owner)
             if existing_binding:
                 prev_source_kind, prev_source_ref = existing_binding
                 source_binding_changed = (
@@ -474,7 +562,9 @@ class RegistryDBStoreBlocksMixin:
                     or prev_source_ref != snapshot["source_ref"]
                 )
                 if source_binding_changed:
-                    step_bindings = self._published_block_step_bindings_cur(cur, block_key)
+                    step_bindings = self._published_block_step_bindings_cur(
+                        cur, block_key, block_owner
+                    )
                     if step_bindings:
                         preview = ", ".join(
                             f"{str(item.get('workflow_id') or '').strip()}#"
@@ -548,15 +638,20 @@ class RegistryDBStoreBlocksMixin:
                 if not self._column_exists("registry_published_block_contracts", column_name):
                     continue
                 columns.append(column_name)
-                updates.append(f"{column_name} = EXCLUDED.{column_name}")
+                if column_name != "account_id":
+                    # The owner is part of the key: an upsert never moves a block.
+                    updates.append(f"{column_name} = EXCLUDED.{column_name}")
             cur.execute(
                 f"""INSERT INTO registry_published_block_contracts ({", ".join(columns)})
                    VALUES ({", ".join(f"%({column})s" for column in columns)})
-                   ON CONFLICT (block_key) DO UPDATE SET
+                   ON CONFLICT (owner_key, block_key) DO UPDATE SET
                       {", ".join(updates)}""",
                 snapshot,
             )
 
+            # Inputs and outputs may only name fields of the block's own account; a
+            # field of another account is reported as unknown.
+            field_owner = platform_catalog_owner(snapshot.get("account_id"))
             normalized_inputs: list[dict] = []
             seen_input_ids: set[str] = set()
             for idx, item in enumerate(raw_inputs):
@@ -565,7 +660,7 @@ class RegistryDBStoreBlocksMixin:
                 field_key = str(item.get("field_key") or "").strip()
                 field_id = str(item.get("field_id") or "").strip() or None
                 resolved_field_id = (
-                    self._field_id_for_key_cur(cur, field_key) if field_key else None
+                    self._field_id_for_key_cur(cur, field_key, field_owner) if field_key else None
                 )
                 if (
                     field_id is not None
@@ -579,7 +674,9 @@ class RegistryDBStoreBlocksMixin:
                     field_id = resolved_field_id
                 elif field_id is not None:
                     cur.execute(
-                        "SELECT 1 AS ok FROM registry_fields WHERE field_id::text = %s", (field_id,)
+                        "SELECT 1 AS ok FROM registry_fields "
+                        "WHERE field_id::text = %s AND account_id = %s",
+                        (field_id, field_owner),
                     )
                     if not cur.fetchone():
                         raise ValueError(f"inputs[{idx}] references unknown field_id '{field_id}'")
@@ -588,7 +685,7 @@ class RegistryDBStoreBlocksMixin:
                         raise ValueError(
                             f"inputs[{idx}] references unknown field_key '{field_key}'"
                         )
-                    field_id = self._field_id_for_key_cur(cur, field_key)
+                    field_id = self._field_id_for_key_cur(cur, field_key, field_owner)
                     if field_id is None:
                         raise ValueError(
                             f"inputs[{idx}] references unknown field_key '{field_key}'"
@@ -618,7 +715,7 @@ class RegistryDBStoreBlocksMixin:
                 field_key = str(item.get("field_key") or "").strip()
                 field_id = str(item.get("field_id") or "").strip() or None
                 resolved_field_id = (
-                    self._field_id_for_key_cur(cur, field_key) if field_key else None
+                    self._field_id_for_key_cur(cur, field_key, field_owner) if field_key else None
                 )
                 if (
                     field_id is not None
@@ -632,7 +729,9 @@ class RegistryDBStoreBlocksMixin:
                     field_id = resolved_field_id
                 elif field_id is not None:
                     cur.execute(
-                        "SELECT 1 AS ok FROM registry_fields WHERE field_id::text = %s", (field_id,)
+                        "SELECT 1 AS ok FROM registry_fields "
+                        "WHERE field_id::text = %s AND account_id = %s",
+                        (field_id, field_owner),
                     )
                     if not cur.fetchone():
                         raise ValueError(f"outputs[{idx}] references unknown field_id '{field_id}'")
@@ -641,7 +740,7 @@ class RegistryDBStoreBlocksMixin:
                         raise ValueError(
                             f"outputs[{idx}] references unknown field_key '{field_key}'"
                         )
-                    field_id = self._field_id_for_key_cur(cur, field_key)
+                    field_id = self._field_id_for_key_cur(cur, field_key, field_owner)
                     if field_id is None:
                         raise ValueError(
                             f"outputs[{idx}] references unknown field_key '{field_key}'"
@@ -662,16 +761,17 @@ class RegistryDBStoreBlocksMixin:
                 )
 
             cur.execute(
-                "DELETE FROM registry_published_block_inputs WHERE block_key = %s",
-                (block_key,),
+                "DELETE FROM registry_published_block_inputs "
+                "WHERE block_key = %s AND block_owner = %s",
+                (block_key, block_owner),
             )
             for row in normalized_inputs:
                 cur.execute(
                     """INSERT INTO registry_published_block_inputs
-                       (block_key, field_id, required, multiple_allowed, manual_allowed_override,
-                        default_source_hint, notes, sort_order)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (block_key, field_id) DO UPDATE SET
+                       (block_owner, block_key, field_id, required, multiple_allowed,
+                        manual_allowed_override, default_source_hint, notes, sort_order)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (block_owner, block_key, field_id) DO UPDATE SET
                           required = EXCLUDED.required,
                           multiple_allowed = EXCLUDED.multiple_allowed,
                           manual_allowed_override = EXCLUDED.manual_allowed_override,
@@ -679,6 +779,7 @@ class RegistryDBStoreBlocksMixin:
                           notes = EXCLUDED.notes,
                           sort_order = EXCLUDED.sort_order""",
                     (
+                        block_owner,
                         block_key,
                         row["field_id"],
                         row["required"],
@@ -691,20 +792,23 @@ class RegistryDBStoreBlocksMixin:
                 )
 
             cur.execute(
-                "DELETE FROM registry_published_block_outputs WHERE block_key = %s",
-                (block_key,),
+                "DELETE FROM registry_published_block_outputs "
+                "WHERE block_key = %s AND block_owner = %s",
+                (block_key, block_owner),
             )
             for row in normalized_outputs:
                 cur.execute(
                     """INSERT INTO registry_published_block_outputs
-                       (block_key, field_id, required_by_default, exposed_by_default, notes, sort_order)
-                       VALUES (%s, %s, %s, %s, %s, %s)
-                       ON CONFLICT (block_key, field_id) DO UPDATE SET
+                       (block_owner, block_key, field_id, required_by_default, exposed_by_default,
+                        notes, sort_order)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (block_owner, block_key, field_id) DO UPDATE SET
                           required_by_default = EXCLUDED.required_by_default,
                           exposed_by_default = EXCLUDED.exposed_by_default,
                           notes = EXCLUDED.notes,
                           sort_order = EXCLUDED.sort_order""",
                     (
+                        block_owner,
                         block_key,
                         row["field_id"],
                         row["required_by_default"],
@@ -727,28 +831,38 @@ class RegistryDBStoreBlocksMixin:
                 author,
             )
 
-    def toggle_published_block_contract(self, block_key: str) -> bool:
+    def toggle_published_block_contract(
+        self, block_key: str, *, account_id: str | None = None
+    ) -> bool:
+        """Toggle the block *block_key* resolves to within the account (ADR 0020)."""
+        target = self.get_published_block_contract(block_key, account_id=account_id)
+        if not target:
+            raise KeyError(f"Published block '{block_key}' not found")
         with self._cursor() as cur:
             cur.execute(
                 """UPDATE registry_published_block_contracts
                    SET enabled = NOT enabled
-                   WHERE block_key = %s
+                   WHERE block_key = %s AND owner_key = %s
                    RETURNING enabled""",
-                (block_key,),
+                (block_key, _block_owner(target.get("account_id"))),
             )
             row = cur.fetchone()
             if not row:
                 raise KeyError(f"Published block '{block_key}' not found")
             return bool(row["enabled"])
 
-    def delete_published_block_contract(self, block_key: str, author: str = "admin") -> None:
-        snapshot = self.get_published_block_contract(block_key)
+    def delete_published_block_contract(
+        self, block_key: str, author: str = "admin", *, account_id: str | None = None
+    ) -> None:
+        """Delete the block *block_key* resolves to within the account (ADR 0020)."""
+        snapshot = self.get_published_block_contract(block_key, account_id=account_id)
         if not snapshot:
             raise KeyError(f"Published block '{block_key}' not found")
         with self._transaction() as cur:
             cur.execute(
-                "DELETE FROM registry_published_block_contracts WHERE block_key = %s",
-                (block_key,),
+                "DELETE FROM registry_published_block_contracts "
+                "WHERE block_key = %s AND owner_key = %s",
+                (block_key, _block_owner(snapshot.get("account_id"))),
             )
             self._log_change_cur(cur, "published_block", block_key, "delete", snapshot, author)
 

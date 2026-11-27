@@ -112,7 +112,8 @@ class PlatformLoggerScheduledJobsMixin:
                     rw.revision AS current_workflow_revision,
                     j.status AS last_job_status
                 FROM scheduled_jobs sj
-                LEFT JOIN registry_workflows rw ON rw.workflow_id = sj.workflow_id
+                LEFT JOIN registry_workflows rw
+                  ON rw.workflow_id = sj.workflow_id AND rw.account_id = sj.account_id
                 LEFT JOIN jobs j ON j.id = sj.last_job_id
                 WHERE {SQL_AND.join(where)}
                 ORDER BY
@@ -145,7 +146,8 @@ class PlatformLoggerScheduledJobsMixin:
                     rw.revision AS current_workflow_revision,
                     j.status AS last_job_status
                 FROM scheduled_jobs sj
-                LEFT JOIN registry_workflows rw ON rw.workflow_id = sj.workflow_id
+                LEFT JOIN registry_workflows rw
+                  ON rw.workflow_id = sj.workflow_id AND rw.account_id = sj.account_id
                 LEFT JOIN jobs j ON j.id = sj.last_job_id
                 WHERE sj.project_id = %s
                   AND sj.id = %s
@@ -181,7 +183,8 @@ class PlatformLoggerScheduledJobsMixin:
                     j.status AS last_job_status,
                     p.schedule_timezone AS project_schedule_timezone
                 FROM scheduled_jobs sj
-                LEFT JOIN registry_workflows rw ON rw.workflow_id = sj.workflow_id
+                LEFT JOIN registry_workflows rw
+                  ON rw.workflow_id = sj.workflow_id AND rw.account_id = sj.account_id
                 LEFT JOIN jobs j ON j.id = sj.last_job_id
                 LEFT JOIN projects p ON p.id = sj.project_id
                 WHERE sj.enabled = true
@@ -229,7 +232,7 @@ class PlatformLoggerScheduledJobsMixin:
                       AND next_run_at = %s
                       AND next_run_at <= %s
                       AND EXISTS (SELECT 1 FROM registry_workflows w
-                          WHERE w.workflow_id = scheduled_jobs.workflow_id AND w.deleted_at IS NULL)
+                          WHERE w.workflow_id = scheduled_jobs.workflow_id AND w.account_id = scheduled_jobs.account_id AND w.deleted_at IS NULL)
                     RETURNING *
                 )
                 SELECT
@@ -238,7 +241,8 @@ class PlatformLoggerScheduledJobsMixin:
                     j.status AS last_job_status,
                     p.schedule_timezone AS project_schedule_timezone
                 FROM claimed
-                LEFT JOIN registry_workflows rw ON rw.workflow_id = claimed.workflow_id
+                LEFT JOIN registry_workflows rw
+                  ON rw.workflow_id = claimed.workflow_id AND rw.account_id = claimed.account_id
                 LEFT JOIN jobs j ON j.id = claimed.last_job_id
                 LEFT JOIN projects p ON p.id = claimed.project_id
                 """,

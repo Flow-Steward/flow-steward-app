@@ -84,7 +84,9 @@ def test_enrich_user_payload_uses_accounts_table_when_membership_table_missing()
     ]
 
 
-def test_list_user_account_memberships_joins_accounts_by_id_when_account_id_column_missing() -> None:
+def test_list_user_account_memberships_joins_accounts_by_id_when_account_id_column_missing() -> (
+    None
+):
     account_id = "00000000-0000-0000-0000-000000000002"
     cursor = _Cursor(
         membership_rows=[
@@ -93,6 +95,8 @@ def test_list_user_account_memberships_joins_accounts_by_id_when_account_id_colu
                 "display_name": "Main account",
                 "is_active": True,
                 "is_default": True,
+                # The query reads the membership's role; NULL is no role (ADR 0085).
+                "role": None,
             }
         ]
     )
@@ -110,11 +114,12 @@ def test_list_user_account_memberships_joins_accounts_by_id_when_account_id_colu
             "display_name": "Main account",
             "is_active": True,
             "is_default": True,
+            # No role on the row: the membership grants nothing (ADR 0085).
+            "role": "",
         }
     ]
     assert any(
-        "JOIN accounts a ON a.id = uam.account_id" in query
-        for query in cursor.executed_queries
+        "JOIN accounts a ON a.id = uam.account_id" in query for query in cursor.executed_queries
     )
 
 
@@ -127,6 +132,8 @@ def test_list_user_account_memberships_normalizes_uuid_account_ids() -> None:
                 "display_name": "Main account",
                 "is_active": True,
                 "is_default": True,
+                # The query reads the membership's role; NULL is no role (ADR 0085).
+                "role": None,
             }
         ]
     )
@@ -144,5 +151,6 @@ def test_list_user_account_memberships_normalizes_uuid_account_ids() -> None:
             "display_name": "Main account",
             "is_active": True,
             "is_default": True,
+            "role": "",
         }
     ]

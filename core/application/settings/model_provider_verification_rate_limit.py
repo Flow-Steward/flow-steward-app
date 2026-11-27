@@ -36,21 +36,23 @@ def _row_attempts(row: Any) -> list[Any]:
     return list(value or [])
 
 
-def consume_model_provider_verification_limit(
+def consume_attempt_window(
     conn: Any,
     *,
-    account_id: str,
-    provider_id: str,
+    keys: tuple[str, ...] | list[str],
+    max_attempts: int,
+    window_seconds: float,
     now: float | None = None,
+    unavailable_message: str = "Rate limit is unavailable",
 ) -> tuple[bool, int]:
-    """Atomically consume account/provider verification capacity.
+    """Atomically consume one attempt of every key's sliding window; ``(allowed, retry)``.
 
-    The limiter deliberately fails closed when its shared store is unavailable:
-    an infrastructure fault must not turn into unlimited paid upstream calls.
+    The windows live in ``public.auth_rate_limits``, shared by every process. The
+    limiter fails closed (``ServiceUnavailableError``) when its store is unavailable:
+    an infrastructure fault must not turn into unlimited attempts.
     """
     observed_at = float(time.time() if now is None else now)
-    cutoff = observed_at - MODEL_PROVIDER_VERIFY_RATE_WINDOW_SECONDS
-    keys = _rate_limit_keys(account_id=account_id, provider_id=provider_id)
+    cutoff = observed_at - float(window_seconds)
     try:
         with (
             transaction_connection(conn) as transaction_conn,
@@ -67,18 +69,11 @@ def consume_model_provider_verification_limit(
                 row = cur.fetchone()
                 attempts = [float(value) for value in _row_attempts(row) if float(value) > cutoff]
                 states[key] = attempts
-                if len(attempts) >= MODEL_PROVIDER_VERIFY_MAX_ATTEMPTS:
+                if len(attempts) >= max_attempts:
                     oldest = min(attempts)
                     retry_after = max(
                         retry_after,
-                        int(
-                            max(
-                                1,
-                                math.ceil(
-                                    oldest + MODEL_PROVIDER_VERIFY_RATE_WINDOW_SECONDS - observed_at
-                                ),
-                            )
-                        ),
+                        int(max(1, math.ceil(oldest + float(window_seconds) - observed_at))),
                     )
             if retry_after:
                 return False, retry_after
@@ -98,10 +93,38 @@ def consume_model_provider_verification_limit(
                 )
     except Exception as exc:
         raise ServiceUnavailableError(
+            unavailable_message,
+            payload={"code": "rate_limit_unavailable", "message": unavailable_message},
+        ) from exc
+    return True, 0
+
+
+def consume_model_provider_verification_limit(
+    conn: Any,
+    *,
+    account_id: str,
+    provider_id: str,
+    now: float | None = None,
+) -> tuple[bool, int]:
+    """Atomically consume account/provider verification capacity.
+
+    The limiter deliberately fails closed when its shared store is unavailable:
+    an infrastructure fault must not turn into unlimited paid upstream calls.
+    """
+    try:
+        return consume_attempt_window(
+            conn,
+            keys=_rate_limit_keys(account_id=account_id, provider_id=provider_id),
+            max_attempts=MODEL_PROVIDER_VERIFY_MAX_ATTEMPTS,
+            window_seconds=MODEL_PROVIDER_VERIFY_RATE_WINDOW_SECONDS,
+            now=now,
+            unavailable_message="Model provider verification rate limit is unavailable",
+        )
+    except ServiceUnavailableError as exc:
+        raise ServiceUnavailableError(
             "Model provider verification rate limit is unavailable",
             payload={
                 "code": "rate_limit_unavailable",
                 "message": "Model provider verification is temporarily unavailable",
             },
-        ) from exc
-    return True, 0
+        ) from exc.__cause__

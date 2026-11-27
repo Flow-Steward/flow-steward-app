@@ -14,7 +14,13 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Sync or inspect the workflow knowledge catalog index."
     )
-    parser.add_argument("--account-id", required=True, help="Account scope to sync.")
+    parser.add_argument(
+        "--account",
+        "--account-id",
+        dest="account",
+        default="",
+        help="Account scope to sync (default: the installation account, stated in the output).",
+    )
     parser.add_argument(
         "--tenant-id",
         default="",
@@ -55,6 +61,10 @@ def main() -> int:
 
     from core.application.auth.config import DEFAULT_TENANT_ID
     from core.application.registry.registry_manager import RegistryManager
+    from core.application.tooling.ops.account_option import (
+        report_command_account,
+        resolve_command_account,
+    )
     from core.application.workflows.workflow_knowledge_sync import (
         summarize_scope_status,
         sync_workflow_knowledge_catalog,
@@ -71,12 +81,14 @@ def main() -> int:
     # to the canonical tenant so status, sync, and discovery all agree on one scope.
     tenant_id = (args.tenant_id or "").strip() or DEFAULT_TENANT_ID
 
+    account = resolve_command_account(args)
+    report_command_account(account)
     store = PostgresAgeWorkflowKnowledgeStore(dsn=getattr(rm.db_store, "dsn", None))
     if args.status_only:
         payload = workflow_knowledge_scope_status(
             store=store,
             db=rm.db_store,
-            account_id=args.account_id,
+            account_id=account.account_id,
             tenant_id=tenant_id,
             project_id=args.project_id,
             ensure_indexes=bool(args.ensure_indexes),
@@ -85,7 +97,7 @@ def main() -> int:
         payload = sync_workflow_knowledge_catalog_if_stale(
             store=store,
             db=rm.db_store,
-            account_id=args.account_id,
+            account_id=account.account_id,
             tenant_id=tenant_id,
             project_id=args.project_id,
             dry_run=bool(args.dry_run),
@@ -96,7 +108,7 @@ def main() -> int:
         payload = sync_workflow_knowledge_catalog(
             store=store,
             db=rm.db_store,
-            account_id=args.account_id,
+            account_id=account.account_id,
             tenant_id=tenant_id,
             project_id=args.project_id,
             dry_run=bool(args.dry_run),

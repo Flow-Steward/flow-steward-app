@@ -92,8 +92,10 @@ class UserActiveUpdateInput(_ExistingUserInput):
 
 
 class UserRolesUpdateInput(_ExistingUserInput):
-    #: The user's one system role (ADR 0076 §7).
+    #: The user's one system role (ADR 0076 §7) in ``role_account_id``.
     role: str
+    #: The account whose membership role changes (ADR 0085); empty: the home account.
+    role_account_id: str | None = None
 
     @field_validator("role")
     @classmethod
@@ -106,8 +108,13 @@ class UserUpdateInput(_ExistingUserInput):
     password: str | None = None
     is_active: bool | None = None
     must_change_password: bool | None = None
-    #: The user's one system role (ADR 0076 §7); ``None`` keeps it.
+    #: The user's one system role (ADR 0076 §7) in ``role_account_id``; ``None`` keeps it.
     role: str | None = None
+    #: The account whose membership role ``role`` sets (ADR 0085); empty: the user's
+    #: home account.
+    role_account_id: str | None = None
+    #: The person making the change; a person never changes their own role.
+    actor_user_id: str | None = None
     account_id: str | None = None
     account_ids: list[str] | None = None
 

@@ -34,7 +34,7 @@ ALTER TABLE ONLY public.scheduled_jobs
 --
 
 ALTER TABLE ONLY public.scheduled_jobs
-    ADD CONSTRAINT scheduled_jobs_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE RESTRICT;
+    ADD CONSTRAINT scheduled_jobs_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE RESTRICT;
 
 
 --
@@ -138,7 +138,7 @@ ALTER TABLE ONLY public.workflow_entrypoints
 --
 
 ALTER TABLE ONLY public.workflow_entrypoints
-    ADD CONSTRAINT workflow_entrypoints_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT workflow_entrypoints_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -186,7 +186,7 @@ ALTER TABLE ONLY public.workflow_reactions
 --
 
 ALTER TABLE ONLY public.workflow_reactions
-    ADD CONSTRAINT workflow_reactions_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT workflow_reactions_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -218,7 +218,7 @@ ALTER TABLE ONLY public.workflow_runtime_dependencies
 --
 
 ALTER TABLE ONLY public.workflow_runtime_dependencies
-    ADD CONSTRAINT workflow_runtime_dependencies_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT workflow_runtime_dependencies_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --

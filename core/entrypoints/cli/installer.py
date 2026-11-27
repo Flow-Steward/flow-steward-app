@@ -549,6 +549,19 @@ def _create_service(*, progress_sink: Any = None, stream_output: bool = False) -
     configuration_service = ConfigurationService(
         store=LifecycleConfigurationStore(_ROOT, state_root=state.root)
     )
+    from core.entrypoints.cli.module_settings_source import module_settings_source
+
+    host_root = str(_runtime_env.get("FS_DOCKER_HOST_PROJECT_ROOT") or "").strip()
+    # ADR 0082: `--setting FS_MODULE_*` is checked against the installed module set,
+    # which on Compact only the runtime image can read.
+    configuration_service.module_settings = module_settings_source(
+        configuration_service,
+        docker=lambda: DockerLifecycleGateway(
+            project_root=_ROOT,
+            docker_host_project_root=Path(host_root) if host_root else None,
+        ),
+        compact_from_host=True,
+    )
     technical_output_sink: Callable[[str], None] | None = None
     if stream_output:
 

@@ -331,8 +331,11 @@ class ExtensionUninstallCleanupQueries:
             return
         if getattr(bl, "_table_exists", lambda *_args: False)("project_workflows"):
             cur.execute(
-                "DELETE FROM project_workflows WHERE workflow_id IN (SELECT 'extension.' || regexp_replace(trim(install_id), '[^A-Za-z0-9_.-]+', '-', 'g') || '.' || regexp_replace(trim(artifact_id), '[^A-Za-z0-9_.-]+', '-', 'g') FROM extension_registry_projections WHERE install_id = %s AND artifact_kind = 'workflow')",
-                (install_id,),
+                # A workflow id names one workflow per account (ADR 0020): only the
+                # bindings in the install's own account are its projections'.
+                "DELETE FROM project_workflows WHERE workflow_id IN (SELECT 'extension.' || regexp_replace(trim(install_id), '[^A-Za-z0-9_.-]+', '-', 'g') || '.' || regexp_replace(trim(artifact_id), '[^A-Za-z0-9_.-]+', '-', 'g') FROM extension_registry_projections WHERE install_id = %s AND artifact_kind = 'workflow')"
+                " AND account_id IN (SELECT account_id FROM extension_installs WHERE install_id = %s)",
+                (install_id, install_id),
             )
             self._record_removed(cur, removed_data, "project_workflow_assignments")
         if getattr(bl, "_table_exists", lambda *_args: False)("registry_workflows"):

@@ -10,13 +10,13 @@ from core.application.lifecycle.contracts import DeploymentConfig
 from core.application.monitoring.contracts import RuntimeInstallationContext
 
 
-def resolve_runtime_installation_context(
+def _installation_identity(
     *,
     runtime_values: Mapping[str, str],
     installed_identity: str | None,
     journal_identity: str | None,
-) -> RuntimeInstallationContext:
-    """Preserve journal-backed Compose identity or require a persisted platform UUID."""
+) -> str:
+    """The installation id: the installed Compose identity or a persisted platform UUID."""
     explicit = runtime_values.get("FS_INSTALLATION_ID", "").strip()
     compose = runtime_values.get("FS_COMPOSE_PROJECT_NAME", "").strip()
     if installed_identity:
@@ -36,6 +36,21 @@ def resolve_runtime_installation_context(
             raise ValueError("platform installation identity must be a UUID") from exc
         if journal_identity and journal_identity != identity:
             raise ValueError("platform and journal identities conflict")
+    return identity
+
+
+def resolve_runtime_installation_context(
+    *,
+    runtime_values: Mapping[str, str],
+    installed_identity: str | None,
+    journal_identity: str | None,
+) -> RuntimeInstallationContext:
+    """Preserve journal-backed Compose identity or require a persisted platform UUID."""
+    identity = _installation_identity(
+        runtime_values=runtime_values,
+        installed_identity=installed_identity,
+        journal_identity=journal_identity,
+    )
     raw = runtime_values.get("FS_MONITORING_EXPECTATIONS", "").strip() or "{}"
     if len(raw.encode()) > 16384:
         raise ValueError("monitoring expectations exceed size limit")
@@ -102,3 +117,21 @@ def resolve_projected_runtime_installation_context(
         installed_identity=runtime_values.get("FS_COMPOSE_PROJECT_NAME", "").strip() or None,
         journal_identity=journal_identity,
     )
+
+
+def projected_installation_id(runtime_values: Mapping[str, str]) -> str | None:
+    """The installation id the deployment projected into this role, or ``None``.
+
+    The same identity monitoring uses (:func:`resolve_projected_runtime_installation_context`)
+    without its monitoring settings, so a monitoring misconfiguration cannot hide it.
+    ``None`` when the deployment projects none or its values conflict; Core hands it
+    to platform modules read only (ADR 0082).
+    """
+    try:
+        return _installation_identity(
+            runtime_values=runtime_values,
+            installed_identity=runtime_values.get("FS_COMPOSE_PROJECT_NAME", "").strip() or None,
+            journal_identity=None,
+        )
+    except ValueError:
+        return None

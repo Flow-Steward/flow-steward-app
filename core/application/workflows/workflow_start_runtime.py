@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from datetime import UTC, datetime
@@ -25,6 +26,19 @@ _REDACT_KEYS = {
 }
 
 
+def run_account_scope(account_id: Any):
+    """Bind the account a run is started for while the start is prepared.
+
+    Code outside a request (the scheduler sweep, a "run now" of a schedule) resolves
+    the workflow, its interface and its secrets through the account bound here, so
+    a schedule of one account never starts or validates against another account's
+    workflow with the same id (ADR 0020, C4c).
+    """
+    from core.application.registry.workflow_account import workflow_account_scope
+
+    return workflow_account_scope(account_id)
+
+
 def workflow_run_summary(workflow_id: str) -> str:
     """Describe a direct workflow launch using its canonical workflow identity."""
     return f"Workflow run: {str(workflow_id or '').strip()}"
@@ -36,6 +50,117 @@ def workflow_run_summary_metadata(workflow_id: str) -> dict[str, Any]:
         "task_summary_key": WORKFLOW_RUN_SUMMARY_KEY,
         "task_summary_params": {"workflow_id": str(workflow_id or "").strip()},
     }
+
+
+#: Job metadata key naming who or what started a run (``{"id", "kind"[, "display_name"]}``).
+STARTED_BY_META_KEY = "submitted_by"
+#: Key of a schedule row copy that names who asked to run the schedule now.
+SCHEDULED_RUN_REQUESTED_BY_KEY = "run_requested_by"
+#: Principal types that are no person and no service account: nobody to name.
+_UNNAMED_PRINCIPAL_TYPES = frozenset({"", "system_actor"})
+
+
+def _clean_text(value: Any) -> str:
+    return " ".join(str(value or "").split())
+
+
+def run_started_by(scope: Any) -> dict[str, str] | None:
+    """Who started a run, from an authenticated scope only (ADR 0075).
+
+    A person, also through a personal token (the token's owner), is named by the
+    username, a service account by its name. ``None`` for the system actor and other
+    internal callers, whose runs are named by their source instead
+    (:func:`stamp_run_started_by`). A form field or a caller-sent name never fills it.
+    """
+    if scope is None:
+        return None
+    principal_type = _clean_text(getattr(scope, "principal_type", "")).lower()
+    actor = _clean_text(getattr(scope, "actor_id", ""))
+    if not actor or principal_type in _UNNAMED_PRINCIPAL_TYPES:
+        return None
+    kind = "service_account" if principal_type == "service_account" else "person"
+    return {"id": actor, "kind": kind}
+
+
+def _webhook_starter_key(values: dict[str, Any], state: dict[str, Any]) -> str:
+    """The entrypoint row id, else a short digest of the entry key; never the key."""
+    entrypoint_id = _clean_text(values.get("entrypoint_id") or state.get("entrypoint_id"))
+    if entrypoint_id:
+        return entrypoint_id
+    entry_key = _clean_text(values.get("entry_key") or state.get("entry_key"))
+    if not entry_key:
+        return ""
+    return "key-" + hashlib.sha256(entry_key.encode("utf-8")).hexdigest()[:12]
+
+
+def _started_by_source(kind: str, key: str, label: str = "") -> dict[str, str]:
+    actor_id = f"{kind}:{key}" if key else kind
+    return {"id": actor_id, "kind": kind, "display_name": label or actor_id}
+
+
+def automated_run_started_by(
+    meta: dict[str, Any] | None,
+    *,
+    task_source: str,
+    extra_state: dict[str, Any] | None = None,
+) -> dict[str, str]:
+    """The source that started a run no authenticated caller started.
+
+    A schedule is ``schedule:<schedule id>`` titled by the schedule's name, an
+    incoming webhook ``webhook:<entrypoint id>`` titled by its description (never
+    its entry key, which is part of the webhook's URL and must not reach the people
+    who read a run's history; without an entrypoint id a short digest of the key
+    stands in), a provider
+    event ``provider:<provider key>``, a child workflow without a named starter
+    ``workflow:<parent workflow id>``, and any other source
+    ``automation:<task source>``.
+    """
+    values = dict(meta or {})
+    state = dict(extra_state or {}) if isinstance(extra_state, dict) else {}
+    source = _clean_text(task_source).lower()
+    label = _clean_text(values.get("run_label"))
+    schedule_id = _clean_text(values.get("scheduled_job_id") or state.get("scheduled_job_id"))
+    if schedule_id or source in {"schedule", "scheduled"}:
+        return _started_by_source("schedule", schedule_id, label)
+    if source == "webhook":
+        return _started_by_source("webhook", _webhook_starter_key(values, state), label)
+    if source == "provider":
+        provider = _clean_text(
+            values.get("provider_key")
+            or state.get("provider_key")
+            or state.get("external_provider_key")
+            or values.get("source_system")
+        )
+        return _started_by_source("provider", provider, provider)
+    if source == "invoke_workflow":
+        parent = _clean_text(
+            values.get("invoke_parent_workflow_id") or values.get("parent_workflow_id")
+        )
+        return _started_by_source("workflow", parent)
+    return _started_by_source("automation", source or "system")
+
+
+def stamp_run_started_by(
+    meta: dict[str, Any] | None,
+    *,
+    task_source: str,
+    extra_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """``meta`` with who started the run; an existing named starter is kept.
+
+    Every new job passes here (task enqueue, scheduled enqueue and the test-run
+    approval anchor), so the run's ``submitted_by`` is never empty: callers that
+    know an authenticated actor set it first (:func:`run_started_by`), every other
+    start is named by its source (:func:`automated_run_started_by`).
+    """
+    stamped = dict(meta or {})
+    current = stamped.get(STARTED_BY_META_KEY)
+    if isinstance(current, dict) and _clean_text(current.get("id")):
+        return stamped
+    stamped[STARTED_BY_META_KEY] = automated_run_started_by(
+        stamped, task_source=task_source, extra_state=extra_state
+    )
+    return stamped
 
 
 def _now_iso() -> str:

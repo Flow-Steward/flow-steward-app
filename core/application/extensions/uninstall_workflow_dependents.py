@@ -87,7 +87,7 @@ def _exact_dependency_rows(
                COALESCE(w.display_name, d.workflow_id) AS display_name,
                d.dependency_ref
           FROM workflow_runtime_dependencies d
-          JOIN registry_workflows w ON w.workflow_id = d.workflow_id
+          JOIN registry_workflows w ON w.workflow_id = d.workflow_id AND w.account_id = d.account_id
          WHERE (%s OR d.account_id::text = %s)
            AND d.install_id = %s
            AND d.dependency_kind = 'extension_action'
@@ -119,7 +119,8 @@ def _legacy_dependency_rows(
                    'saved_extension_action'
                ) AS dependency_ref
           FROM registry_workflow_steps s
-          JOIN registry_workflows w ON w.workflow_id = s.owner_workflow_id
+          JOIN registry_workflows w
+            ON w.workflow_id = s.owner_workflow_id AND w.account_id = s.account_id
           JOIN project_connections c
             ON c.connection_id = COALESCE(
                 s.connection_binding_jsonb->>'connection_id',
@@ -132,7 +133,8 @@ def _legacy_dependency_rows(
            AND NOT EXISTS (
                SELECT 1
                  FROM workflow_runtime_dependencies d
-                WHERE d.workflow_id = s.owner_workflow_id
+                WHERE d.account_id = s.account_id
+                  AND d.workflow_id = s.owner_workflow_id
                   AND d.step_id = s.step_id
                   AND d.dependency_kind = 'extension_action'
                   AND d.install_id = c.extension_install_id

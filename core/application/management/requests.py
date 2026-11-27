@@ -229,6 +229,9 @@ class AuthLoginRequest(BaseModel):
     new_password: str = ""
     mfa_code: str = Field(default="", max_length=128)
     authenticator_enrollment_token: str = Field(default="", max_length=64)
+    # The token of the invitation link the person is signing in to answer: a person
+    # with a role nowhere may then sign in, to answer it only (ADR 0085, P5).
+    invitation_token: str = Field(default="", max_length=128)
 
     @property
     def username(self) -> str:
@@ -426,6 +429,39 @@ class AuthUserUpdateRequest(_UserRoleFields):
     must_change_password: bool | None = None
     account_ids: list[str] | None = None
     primary_account_id: str | None = None
+    #: The account whose role ``role`` sets (ADR 0085); empty: the acting account.
+    role_account_id: str | None = None
+
+
+class AuthAccountMemberAddRequest(BaseModel):
+    """Add an existing person to the acting account with one role (ADR 0085)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: str = Field(min_length=1, max_length=32)
+
+
+class AuthAccountInvitationRequest(BaseModel):
+    """Invite a person to the acting account by their exact email address (ADR 0085)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=320)
+    role: str = Field(min_length=1, max_length=32)
+
+
+class AuthInvitationTokenRequest(BaseModel):
+    """The token of an invitation link, opened by the signed-in person (ADR 0085)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=128)
+
+
+class AuthInvitationAcceptRequest(AuthInvitationTokenRequest):
+    """Accept an invitation with the role the person was shown (ADR 0085, P1)."""
+
+    role: str = Field(min_length=1, max_length=32)
 
 
 class AuthUserProfileUpdateRequest(BaseModel):
@@ -437,6 +473,14 @@ class AuthUserProfileUpdateRequest(BaseModel):
 
 class ExtensionScanRequest(BaseModel):
     root: str = ""
+
+
+class ExtensionAccountSettingsRequest(BaseModel):
+    """This account's non-secret settings of an enabled extension (ADR 0020, C6)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    settings: dict[str, Any] = Field(default_factory=dict)
 
 
 class ExtensionEnableRequest(BaseModel):

@@ -251,6 +251,8 @@ export function OperatorJobPage() {
         }}
         onDecided={refreshAfterDecision}
         onSkip={openNext}
+        projectId={projectId}
+        workflowId={workflowId}
         review={data}
       />
     );

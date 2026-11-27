@@ -20,6 +20,7 @@ from core.application.management.guards import (
     require_account_access,
     require_project_access,
     require_workflow_access,
+    workflow_in_scope_limit,
 )
 from core.application.management.scope import ScopeContext
 from core.application.registry.workflow_operator_form import (
@@ -198,6 +199,8 @@ def operator_sections(
         workflow_id = str(binding.get("workflow_id") or "").strip()
         if not workflow_id or not _project_visible(scope, project):
             continue
+        if not workflow_in_scope_limit(scope, binding.get("project_id"), workflow_id):
+            continue
         if workflow_id not in cache:
             loaded = loader(workflow_id)
             if loaded is None or not _workflow_visible(scope, loaded):
@@ -229,6 +232,8 @@ def operator_section_detail(
     }
     workflow_id = str(binding.get("workflow_id") or "").strip()
     if not workflow_id or not _project_visible(scope, project):
+        return None
+    if not workflow_in_scope_limit(scope, project.get("id"), workflow_id):
         return None
     loaded = loader(workflow_id)
     if loaded is None or not _workflow_visible(scope, loaded):

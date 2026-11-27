@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { vi } from "vitest";
@@ -47,6 +47,17 @@ function SelectHarness() {
 function ComboboxHarness() {
   const [selected, setSelected] = useState<string[]>([]);
   return <section aria-label="Combobox host"><MultiCombobox ariaLabel="Account memberships" onChange={setSelected} options={options} placeholder="Search accounts" required selected={selected} /></section>;
+}
+
+const people = [
+  { value: "ann", label: "Ann Example", description: "ann@example.test" },
+  { value: "bob", label: "Bob Example", description: "bob@example.test" },
+  { value: "cy", label: "Cy Example" },
+];
+
+function ListComboboxHarness() {
+  const [selected, setSelected] = useState<string[]>([]);
+  return <MultiCombobox ariaLabel="Approvers" onChange={setSelected} options={people} placeholder="Search people" selected={selected} selectionLayout="list" />;
 }
 
 function SingleComboboxHarness() {
@@ -241,6 +252,30 @@ describe("shared design-system adapters", () => {
     });
   });
 
+  it("applies a single-day date filter from one date box", async () => {
+    const onChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AdvancedTableFilters
+        fields={[{ key: "date_from", label: "Date from", options: [], input: "date" }]}
+        onChange={onChange}
+        onClear={() => undefined}
+        values={{}}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Add filter" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Date from" }));
+    const menu = await screen.findByRole("menu", { name: "Choose a filter" });
+    const day = within(menu).getByLabelText("Date from") as HTMLInputElement;
+    expect(day.type).toBe("date");
+    expect(within(menu).queryByLabelText("To")).not.toBeInTheDocument();
+
+    fireEvent.change(day, { target: { value: "2026-11-25" } });
+    await user.click(within(menu).getByRole("button", { name: "Apply" }));
+
+    expect(onChange).toHaveBeenCalledWith("date_from", "2026-11-25");
+  });
+
   describe("filter menu with many options", () => {
     const manyOptions = (count: number) => Array.from({ length: count }, (_, index) => ({
       value: `wf-${index + 1}`,
@@ -402,6 +437,107 @@ describe("shared design-system adapters", () => {
     expect(screen.getByText("1 selected")).toBeInTheDocument();
     await user.keyboard("{Backspace}");
     expect(screen.getByText("0 selected")).toBeInTheDocument();
+  });
+
+  it("lists chosen values under a multi-Combobox in list layout and keeps the search usable", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<ListComboboxHarness />);
+    const input = screen.getByRole("combobox", { name: "Approvers" });
+    // Empty list renders nothing.
+    expect(screen.queryByRole("list", { name: "Approvers" })).not.toBeInTheDocument();
+
+    await user.click(input);
+    await user.click(await screen.findByRole("option", { name: /Ann Example/ }));
+    await user.click(screen.getByRole("option", { name: /Bob Example/ }));
+    expect(screen.getByRole("option", { name: /Ann Example/ })).toHaveAttribute("aria-selected", "true");
+
+    // The field holds no chips and no Clear; the input stays empty with its placeholder.
+    expect(screen.queryByRole("button", { name: /Clear/ })).not.toBeInTheDocument();
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", "Search people");
+
+    const list = screen.getByRole("list", { name: "Approvers" });
+    expect(list).toHaveClass("fs-selected-list");
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    // Every remove button sits in the Selected list: the field itself holds no chips.
+    expect(screen.getAllByRole("button", { name: /^Remove / })).toHaveLength(2);
+    expect(rows[0]).toHaveClass("fs-selected-row");
+    expect(within(rows[0]).getByText("Ann Example")).toHaveClass("fs-selected-row-label");
+    expect(within(rows[0]).getByText("ann@example.test")).toHaveClass("fs-selected-row-description");
+    expect(within(rows[0]).getByTitle("Ann Example · ann@example.test")).toBeInTheDocument();
+    expect(within(rows[0]).getByRole("button", { name: "Remove Ann Example" })).toHaveClass("fs-multi-chip-remove");
+
+    // A third choice is still possible: the search is not crowded out.
+    await user.type(input, "Cy");
+    await user.click(screen.getByRole("option", { name: /Cy Example/ }));
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+
+    // Backspace in the empty search does not remove anything.
+    await user.clear(input);
+    await user.keyboard("{Backspace}");
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("3 selected")).toBeInTheDocument();
+
+    // Removing one returns focus to the search.
+    await user.click(screen.getByRole("button", { name: "Remove Bob Example" }));
+    expect(within(list).queryByText("Bob Example")).not.toBeInTheDocument();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(input).toHaveFocus();
+  });
+
+  it("removes two people in a row from the Selected list without toggling anyone else", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const onChange = vi.fn();
+    function Harness() {
+      const [selected, setSelected] = useState<string[]>(["ann", "bob", "cy"]);
+      return <MultiCombobox ariaLabel="Approvers" onChange={(values) => { onChange(values); setSelected(values); }} options={people} placeholder="Search people" selected={selected} selectionLayout="list" />;
+    }
+    render(<Harness />);
+    const input = screen.getByRole("combobox", { name: "Approvers" });
+    const list = screen.getByRole("list", { name: "Approvers" });
+
+    await user.click(within(list).getByRole("button", { name: "Remove Ann Example" }));
+    // Focus returns to the search, but the menu stays shut over the Selected list.
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox", { name: "Approvers options" })).not.toBeInTheDocument();
+
+    await user.click(within(list).getByRole("button", { name: "Remove Bob Example" }));
+
+    expect(onChange.mock.calls.map(([values]) => values)).toEqual([["bob", "cy"], ["cy"]]);
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByText("Cy Example")).toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Approvers options" })).not.toBeInTheDocument();
+
+    // The next deliberate focus of the search opens the menu as before.
+    await user.click(document.body);
+    await user.click(input);
+    await waitFor(() => expect(screen.getByRole("listbox", { name: "Approvers options" })).toBeInTheDocument());
+  });
+
+  it("closes an open menu when a person is removed from the Selected list", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    render(<ListComboboxHarness />);
+    const input = screen.getByRole("combobox", { name: "Approvers" });
+    await user.click(input);
+    await user.click(await screen.findByRole("option", { name: /Ann Example/ }));
+    await user.click(screen.getByRole("option", { name: /Bob Example/ }));
+    expect(screen.getByRole("listbox", { name: "Approvers options" })).toBeInTheDocument();
+
+    const list = screen.getByRole("list", { name: "Approvers" });
+    await user.click(within(list).getByRole("button", { name: "Remove Ann Example" }));
+    await user.click(within(list).getByRole("button", { name: "Remove Bob Example" }));
+
+    expect(screen.queryByRole("list", { name: "Approvers" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("listbox", { name: "Approvers options" })).not.toBeInTheDocument();
+    expect(input).toHaveFocus();
+  });
+
+  it("styles the Selected list rows to shrink with an ellipsis rather than overflow", () => {
+    expect(settingsStyles).toMatch(/\.fs-selected-row \{[^}]*grid-template-columns:\s*20px minmax\(0, 1fr\) auto;/);
+    expect(settingsStyles).toMatch(/\.fs-selected-row-description \{[^}]*text-overflow:\s*ellipsis;/);
+    expect(settingsStyles).toMatch(/\.fs-selected-row-text \{[^}]*min-width:\s*0;/);
   });
 
   it("anchors an above-opening multi-Combobox to its field on the first open", async () => {

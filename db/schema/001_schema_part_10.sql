@@ -6,14 +6,6 @@ ALTER TABLE ONLY public.scheduled_job_runs
 
 
 --
--- Name: scheduled_jobs fk_scheduled_jobs_workflow; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.scheduled_jobs
-    ADD CONSTRAINT fk_scheduled_jobs_workflow FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE RESTRICT;
-
-
---
 -- Name: generated_extension_jobs generated_extension_jobs_account_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -146,7 +138,7 @@ ALTER TABLE ONLY public.job_reaction_events
 --
 
 ALTER TABLE ONLY public.job_reaction_events
-    ADD CONSTRAINT job_reaction_events_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE SET NULL;
+    ADD CONSTRAINT job_reaction_events_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE SET NULL (workflow_id);
 
 
 --
@@ -283,7 +275,7 @@ ALTER TABLE ONLY public.notification_routes
 --
 
 ALTER TABLE ONLY public.notification_routes
-    ADD CONSTRAINT notification_routes_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT notification_routes_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -621,7 +613,7 @@ ALTER TABLE ONLY public.project_workflows
 --
 
 ALTER TABLE ONLY public.project_workflows
-    ADD CONSTRAINT project_workflows_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT project_workflows_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -741,7 +733,7 @@ ALTER TABLE ONLY public.registry_agent_tools
 --
 
 ALTER TABLE ONLY public.registry_fields
-    ADD CONSTRAINT registry_fields_data_contract_id_fkey FOREIGN KEY (data_contract_id) REFERENCES public.registry_data_contracts(contract_id) ON DELETE SET NULL;
+    ADD CONSTRAINT registry_fields_data_contract_id_fkey FOREIGN KEY (account_id, data_contract_id) REFERENCES public.registry_data_contracts(account_id, contract_id) ON DELETE SET NULL (data_contract_id);
 
 
 --
@@ -816,7 +808,7 @@ ALTER TABLE ONLY public.registry_published_block_outputs
 --
 
 ALTER TABLE ONLY public.registry_skill_inputs
-    ADD CONSTRAINT registry_skill_inputs_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.registry_data_contracts(contract_id) ON DELETE SET NULL;
+    ADD CONSTRAINT registry_skill_inputs_contract_id_fkey FOREIGN KEY (contract_account_id, contract_id) REFERENCES public.registry_data_contracts(account_id, contract_id) ON DELETE SET NULL (contract_account_id, contract_id);
 
 
 --
@@ -832,7 +824,7 @@ ALTER TABLE ONLY public.registry_skill_inputs
 --
 
 ALTER TABLE ONLY public.registry_skill_outputs
-    ADD CONSTRAINT registry_skill_outputs_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.registry_data_contracts(contract_id) ON DELETE SET NULL;
+    ADD CONSTRAINT registry_skill_outputs_contract_id_fkey FOREIGN KEY (contract_account_id, contract_id) REFERENCES public.registry_data_contracts(account_id, contract_id) ON DELETE SET NULL (contract_account_id, contract_id);
 
 
 --
@@ -848,7 +840,7 @@ ALTER TABLE ONLY public.registry_skill_outputs
 --
 
 ALTER TABLE ONLY public.registry_workflow_for_each
-    ADD CONSTRAINT registry_workflow_for_each_group_fkey FOREIGN KEY (workflow_id, group_id) REFERENCES public.registry_workflow_groups(workflow_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_for_each_group_fkey FOREIGN KEY (account_id, workflow_id, group_id) REFERENCES public.registry_workflow_groups(account_id, workflow_id, id) ON DELETE CASCADE;
 
 
 --
@@ -856,7 +848,7 @@ ALTER TABLE ONLY public.registry_workflow_for_each
 --
 
 ALTER TABLE ONLY public.registry_workflow_for_each
-    ADD CONSTRAINT registry_workflow_for_each_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_for_each_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -912,7 +904,7 @@ ALTER TABLE ONLY public.registry_workflow_hook_bindings
 --
 
 ALTER TABLE ONLY public.registry_workflow_groups
-    ADD CONSTRAINT registry_workflow_groups_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_groups_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -920,7 +912,7 @@ ALTER TABLE ONLY public.registry_workflow_groups
 --
 
 ALTER TABLE ONLY public.registry_workflow_steps
-    ADD CONSTRAINT registry_workflow_steps_for_each_fkey FOREIGN KEY (owner_workflow_id, for_each_id) REFERENCES public.registry_workflow_for_each(workflow_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_steps_for_each_fkey FOREIGN KEY (account_id, owner_workflow_id, for_each_id) REFERENCES public.registry_workflow_for_each(account_id, workflow_id, id) ON DELETE CASCADE;
 
 
 --
@@ -928,7 +920,7 @@ ALTER TABLE ONLY public.registry_workflow_steps
 --
 
 ALTER TABLE ONLY public.registry_workflow_steps
-    ADD CONSTRAINT registry_workflow_steps_group_fkey FOREIGN KEY (owner_workflow_id, group_id) REFERENCES public.registry_workflow_groups(workflow_id, id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_steps_group_fkey FOREIGN KEY (account_id, owner_workflow_id, group_id) REFERENCES public.registry_workflow_groups(account_id, workflow_id, id) ON DELETE CASCADE;
 
 
 --
@@ -936,7 +928,7 @@ ALTER TABLE ONLY public.registry_workflow_steps
 --
 
 ALTER TABLE ONLY public.registry_workflow_steps
-    ADD CONSTRAINT registry_workflow_steps_owner_workflow_id_fkey FOREIGN KEY (owner_workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT registry_workflow_steps_owner_workflow_id_fkey FOREIGN KEY (account_id, owner_workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 
 --
@@ -952,7 +944,7 @@ ALTER TABLE ONLY public.registry_workflow_steps
 --
 
 ALTER TABLE ONLY public.registry_workflows
-    ADD CONSTRAINT registry_workflows_source_install_account_fkey FOREIGN KEY (source_install_id, account_id) REFERENCES public.extension_installs(install_id, account_id) ON DELETE SET NULL;
+    ADD CONSTRAINT registry_workflows_source_install_account_fkey FOREIGN KEY (source_install_id, account_id) REFERENCES public.extension_installs(install_id, account_id) ON DELETE SET NULL (source_install_id);
 
 
 --

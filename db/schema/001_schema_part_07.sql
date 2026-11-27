@@ -98,11 +98,11 @@ ALTER TABLE ONLY public.workflow_runtime_dependencies
 
 
 --
--- Name: workflow_runtime_dependencies workflow_runtime_dependencies_workflow_id_step_id_kind_ref_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: workflow_runtime_dependencies workflow_runtime_dependencies_account_step_ref_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.workflow_runtime_dependencies
-    ADD CONSTRAINT workflow_runtime_dependencies_workflow_id_step_id_kind_ref_key UNIQUE (workflow_id, step_id, dependency_kind, dependency_ref);
+    ADD CONSTRAINT workflow_runtime_dependencies_account_step_ref_key UNIQUE (account_id, workflow_id, step_id, dependency_kind, dependency_ref);
 
 
 --

@@ -117,7 +117,7 @@ def test_operations_receive_the_operation_store_not_the_lifecycle_one() -> None:
     service = create_extension_binding_service(
         get_logger=lambda: lifecycle_store,
         get_operation_store=lambda: operation_store,
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda _extension: "",
         extension_operation_handler_mode=lambda *_a, **_k: "extension",
         extension_operation_failure_status=lambda _extension: 500,

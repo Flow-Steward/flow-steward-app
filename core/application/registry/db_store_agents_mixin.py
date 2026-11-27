@@ -368,7 +368,10 @@ class RegistryDBStoreAgentsMixin(RegistryDBStoreAgentContractMixin):
                 if not self._column_exists("registry_agents", column_name):
                     continue
                 columns.append(column_name)
-                updates.append(f"{column_name} = EXCLUDED.{column_name}")
+                if column_name != "account_id":
+                    # The live row keeps its owner: an upsert never moves an
+                    # agent into another account (ADR 0020).
+                    updates.append(f"{column_name} = EXCLUDED.{column_name}")
                 payload[column_name] = column_value
             conflict_sql = (
                 "DO NOTHING RETURNING agent_id"

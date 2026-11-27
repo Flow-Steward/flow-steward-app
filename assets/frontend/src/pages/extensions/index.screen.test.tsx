@@ -2407,6 +2407,86 @@ describe("ExtensionsHubPage", () => {
     expect(screen.queryByTestId("extensions-show-disabled")).not.toBeInTheDocument();
   });
 
+  it("offers the installation administrator the drop zone and the file install", async () => {
+    mockedFetchExtensions.mockResolvedValue([]);
+    mockedFetchExtensionArchiveLifecycleAvailability.mockResolvedValue({
+      available: true,
+      can_manage_installs: true,
+      reason_code: "available",
+      message: "",
+      remediation: { install_update: [], uninstall: [] },
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText("0 of 0 · drop a .zip here to install")).toBeInTheDocument());
+    expect(screen.getByTestId("extension-install-dropzone")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Install extension from file" })).toBeInTheDocument();
+    expect(screen.queryByText(/Ask your installation administrator/u)).not.toBeInTheDocument();
+  });
+
+  it("tells an account administrator who installs extensions, without any install affordance", async () => {
+    // Since installing code became the installation administrator's alone, an
+    // account administrator of another company saw "0 of 0 · drop a .zip here
+    // to install" and a drop zone that only produces a refusal.
+    mockedFetchExtensions.mockResolvedValue([]);
+    mockedFetchExtensionArchiveLifecycleAvailability.mockResolvedValue({
+      available: true,
+      can_manage_installs: false,
+      reason_code: "available",
+      message: "",
+      remediation: { install_update: [], uninstall: [] },
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByText(
+      "No extensions are installed for this installation yet. Ask your installation administrator to install one; you can then enable it for your company.",
+    )).toBeInTheDocument());
+    expect(screen.getByText("No extensions installed yet")).toBeInTheDocument();
+    expect(screen.getByText("0 of 0")).toBeInTheDocument();
+    expect(screen.queryByText(/drop a \.zip/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\.zip/u)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-install-dropzone")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Install extension from file" })).not.toBeInTheDocument();
+
+    fireEvent.drop(screen.getByTestId("extensions-installed-list"), {
+      dataTransfer: { files: [new File(["zip"], "acme.zip", { type: "application/zip" })] },
+    });
+    expect(mockedInstallExtensionFromFile).not.toHaveBeenCalled();
+  });
+
+  it("lets an account administrator enable an installed extension for the company", async () => {
+    mockedFetchExtensions.mockResolvedValue([
+      {
+        extension_id: "acme.documents",
+        display_name: "Acme Documents",
+        version: "1.0.0",
+        state: "disabled",
+        active: false,
+        account_enablement: "not_enabled",
+      },
+    ]);
+    mockedFetchExtensionArchiveLifecycleAvailability.mockResolvedValue({
+      available: true,
+      can_manage_installs: false,
+      reason_code: "available",
+      message: "",
+      remediation: { install_update: [], uninstall: [] },
+    });
+
+    renderPage();
+
+    fireEvent.click(await screen.findByTestId("extensions-show-disabled"));
+    await screen.findByText("Acme Documents");
+
+    expect(screen.getByRole("button", { name: "Enable for this company" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Uninstall" })).not.toBeInTheDocument();
+    expect(screen.getByText("1 of 1")).toBeInTheDocument();
+    expect(screen.queryByText(/drop a \.zip/u)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ask your installation administrator/u)).not.toBeInTheDocument();
+  });
+
   it("keeps OAuth callback guidance independent of the extension catalog record", async () => {
     mockedFetchExtensions.mockResolvedValue([
       {
@@ -2709,12 +2789,13 @@ describe("ExtensionsHubPage", () => {
 
     renderPage();
     await screen.findByText("Smoke Guardrail Enforcement");
+    await screen.findByText("Could not verify whether extension archive changes are available.");
 
-    expect(screen.getByRole("button", { name: "Install extension from file" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Uninstall" })).toBeDisabled();
-    expect(
-      screen.getByText("Could not verify whether extension archive changes are available."),
-    ).toBeInTheDocument();
+    // Who may install is part of the same capability: unverified, nobody is
+    // offered the install affordances.
+    expect(screen.queryByRole("button", { name: "Install extension from file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Uninstall" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-install-dropzone")).not.toBeInTheDocument();
     expect(screen.queryByText(/extensions install --archive/u)).not.toBeInTheDocument();
   });
 
@@ -2736,8 +2817,8 @@ describe("ExtensionsHubPage", () => {
       "Could not verify whether extension archive changes are available.",
     );
 
-    expect(screen.getByRole("button", { name: "Install extension from file" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Uninstall" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Install extension from file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Uninstall" })).not.toBeInTheDocument();
   });
 
   it("keeps archive controls disabled while capability verification is loading", async () => {
@@ -2748,8 +2829,10 @@ describe("ExtensionsHubPage", () => {
     renderPage();
     await screen.findByText("Smoke Guardrail Enforcement");
 
-    expect(screen.getByRole("button", { name: "Install extension from file" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Uninstall" })).toBeDisabled();
+    // Until the server confirms who may install, nobody is offered it.
+    expect(screen.queryByRole("button", { name: "Install extension from file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Uninstall" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("extension-install-dropzone")).not.toBeInTheDocument();
     expect(
       screen.getByText("Checking extension archive lifecycle availability…"),
     ).toBeInTheDocument();

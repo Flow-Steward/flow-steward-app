@@ -25,9 +25,13 @@ class WorkflowDefinitionRows(NamedTuple):
 
 
 def load_workflow_definition_rows(
-    cur, workflow_ids: list[str], *, derive_skill=None
+    cur, workflow_ids: list[str], *, derive_skill=None, account_id: str | None = None
 ) -> dict[str, WorkflowDefinitionRows]:
-    """Steps, Groups and For each containers per workflow, read through *cur*.
+    """Steps, Groups and For each containers per workflow of one account, read through *cur*.
+
+    Workflow identity is account-qualified (ADR 0020, C4b): the rows read are those
+    of *account_id*, the bound account when none is given
+    (refused when none is bound, ADR 0020 C5).
 
     A step's ``group_id``/``for_each_id`` and a For each's parent ``group_id``
     are business ids, never the row UUIDs the foreign keys use, so every
@@ -42,14 +46,17 @@ def load_workflow_definition_rows(
     ]
     if not normalized_ids:
         return {}
+    from core.application.registry.workflow_account import workflow_owner
+
+    owner = workflow_owner(account_id)
     definitions: dict[str, WorkflowDefinitionRows] = {
         workflow_id: WorkflowDefinitionRows.empty() for workflow_id in normalized_ids
     }
     cur.execute(
         """SELECT * FROM registry_workflow_groups
-           WHERE workflow_id = ANY(%s)
+           WHERE account_id = %s AND workflow_id = ANY(%s)
            ORDER BY workflow_id, sort_order, group_id""",
-        (normalized_ids,),
+        (owner, normalized_ids),
     )
     for row in cur.fetchall():
         group = dict(row)
@@ -61,9 +68,9 @@ def load_workflow_definition_rows(
         """SELECT f.*, g.group_id AS group_key
            FROM registry_workflow_for_each f
            LEFT JOIN registry_workflow_groups g ON g.id = f.group_id
-           WHERE f.workflow_id = ANY(%s)
+           WHERE f.account_id = %s AND f.workflow_id = ANY(%s)
            ORDER BY f.workflow_id, f.sort_order, f.for_each_id""",
-        (normalized_ids,),
+        (owner, normalized_ids),
     )
     for row in cur.fetchall():
         item = dict(row)
@@ -81,9 +88,9 @@ def load_workflow_definition_rows(
            LEFT JOIN registry_workflow_for_each f ON f.id = s.for_each_id
            LEFT JOIN registry_agents a ON a.agent_id = s.agent_id
            LEFT JOIN registry_skills c ON c.skill_id = s.skill_id
-           WHERE s.owner_workflow_id = ANY(%s)
+           WHERE s.account_id = %s AND s.owner_workflow_id = ANY(%s)
            ORDER BY s.owner_workflow_id, s.sort_order, s.step_id""",
-        (normalized_ids,),
+        (owner, normalized_ids),
     )
     for row in cur.fetchall():
         step = dict(row)

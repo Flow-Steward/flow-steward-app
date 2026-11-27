@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.workflows.canvas_graph_common import _step_config_summary
 from core.application.workflows.extension_connection_validation import step_extension_id
 from core.application.workflows.workflow_action_contract import action_invoke_dependencies
@@ -15,6 +16,10 @@ from core.application.workflows.workflow_action_release import (
 )
 from core.application.workflows.workflow_portability_common import _step_child_workflow_ref
 from core.application.workflows.workflow_portability_rewrite import WorkflowPortabilityRewriteMixin
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 BASE = "acme.amazon"
 ADDON = "acme.amazon-pro"
@@ -348,7 +353,8 @@ def test_an_install_gives_each_implementation_the_anchor_a_run_pins() -> None:
             snapshot("draft", marked, publish=False),
             snapshot("create_full", marked, kind="tool"),
         ],
-        install_record=SimpleNamespace(install_id="pi_addon"),
+        # An install always names its account (ADR 0020, C5).
+        install_record=SimpleNamespace(install_id="pi_addon", account_id=DEFAULT_ACCOUNT_ID),
     )
 
     assert saved == [

@@ -15,15 +15,16 @@ def select_notification_install(
 
     if connection is None:
         raise RuntimeError("Notification install store is not available")
-    records = DBExtensionInstallStore(connection).list_for_account(
-        account_id, include_global=True, include_inactive_owned=False
-    )
+    from .account_enablement import install_reaches_account
+
+    store = DBExtensionInstallStore(connection)
+    records = store.list_for_account(account_id, include_global=True, include_inactive_owned=False)
     candidates = [
         record
         for record in records
         if record.extension_id == extension_id
         and record.state == "active"
-        and (record.account_id == account_id or record.visibility == "global")
+        and install_reaches_account(record, account_id, store.account_enablements)
     ]
     if len(candidates) != 1:
         raise ValueError("Notification provider requires one active visible install")

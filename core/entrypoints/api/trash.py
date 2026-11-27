@@ -9,9 +9,10 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.application.auth.installation_admin import is_installation_account
 from core.application.management import ServiceConflictError, ServiceError
+from core.application.management.trash_account_scope import trash_account_predicate
 from core.application.management.trash_tool_scope import tool_trash_scope_predicates
-from core.entrypoints.admin._registry_scope import require_default_registry_account
 
 
 class TrashLifecyclePlanRequest(BaseModel):
@@ -51,6 +52,15 @@ class WorkspaceDeleteExecuteRequest(BaseModel):
     connection_actions: list[WorkspaceDeleteDataConnectionActionRequest] = Field(
         default_factory=list
     )
+
+
+def _has_column(column_exists: Any, table: str, column: str) -> bool:
+    if not callable(column_exists):
+        return False
+    try:
+        return bool(column_exists(table, column))
+    except Exception:
+        return False
 
 
 def create_api_trash_router(
@@ -139,7 +149,10 @@ def create_api_trash_router(
         except PermissionError:
             return JSONResponse({"error": err_admin_role_required}, status_code=403)
         resolved_scope = _request_scope(request, project_id)
-        require_default_registry_account(resolved_scope)
+        account_id = str(getattr(resolved_scope, "account_id", "") or "").strip()
+        if not account_id:
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        installation_account = is_installation_account(account_id)
         bl = get_logger_only()
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
@@ -197,13 +210,19 @@ def create_api_trash_router(
                         )
                     where_clauses = ["deleted_at IS NOT NULL"]
                     query_params: list[Any] = []
-                    if callable(column_exists):
-                        try:
-                            if bool(column_exists(table, "account_id")):
-                                where_clauses.append("(account_id = %s OR account_id IS NULL)")
-                                query_params.append(str(getattr(resolved_scope, "account_id", "")))
-                        except Exception:
-                            pass
+                    # Every trashed row is listed for its own account only
+                    # (ADR 0020, C5). A row the account owns through a project or
+                    # workspace is found through it; a platform row without an
+                    # owner is the installation account's.
+                    account_clause, account_params = trash_account_predicate(
+                        has_account_id=_has_column(column_exists, table, "account_id"),
+                        has_project_id=has_project_id,
+                        has_workspace_id=_has_column(column_exists, table, "workspace_id"),
+                        account_id=account_id,
+                        installation_account=installation_account,
+                    )
+                    where_clauses.append(account_clause)
+                    query_params.extend(account_params)
                     resolved_tenant_id = str(getattr(resolved_scope, "tenant_id", "") or "").strip()
                     resolved_project_id = getattr(resolved_scope, "project_id", None)
                     allowed_project_ids = frozenset(

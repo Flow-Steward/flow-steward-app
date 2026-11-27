@@ -221,7 +221,9 @@ export async function fetchUsersCollection(filters: UserFilters): Promise<UserPa
 }
 
 export async function createUser(payload: CreateUserInput) {
-  return fetchJson<{ status?: string; user?: SettingsEntity; warnings?: string[] }>("/api/auth/users", {
+  // An address someone already has is invited instead (ADR 0085): the answer is then
+  // the invitation's, without a user.
+  return fetchJson<{ status?: string; user?: SettingsEntity; warnings?: string[] } & Partial<InvitationSent>>("/api/auth/users", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -260,6 +262,89 @@ export async function unlockUser(id: string) {
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+/** A person who may be added to the account the administrator acts in (ADR 0085). */
+export type AccountMemberCandidate = { id: string; email: string; display_name: string };
+
+export async function searchAccountMemberCandidates(query: string): Promise<AccountMemberCandidate[]> {
+  const params = new URLSearchParams({ q: query.trim() });
+  const payload = await fetchJson<{ people?: unknown }>(`/api/auth/users/candidates?${params.toString()}`);
+  return listFromPayload(payload, "people").map((person) => ({
+    id: firstStringFromUnknownValue([person.id, ""]).trim(),
+    email: firstStringFromUnknownValue([person.email, ""]).trim(),
+    display_name: firstStringFromUnknownValue([person.display_name, person.email, ""]).trim(),
+  })).filter((person) => Boolean(person.id));
+}
+
+/** Add a person of an account the administrator manages to the acting account. */
+export async function addAccountMember(userId: string, role: string) {
+  return fetchJson<{ user_id: string; account_id: string; role: string }>(
+    `/api/auth/users/${encodeURIComponent(userId)}/membership`,
+    { method: "POST", body: JSON.stringify({ role }) },
+  );
+}
+
+/**
+ * Invite anyone else by their exact email address (ADR 0085). The answer is the
+ * same whether or not the person exists; they join only if they accept.
+ */
+export type InvitationSent = {
+  status: string;
+  message: string;
+  /** "email" when the link was emailed; "link" when it is returned once, below. */
+  delivery?: string;
+  /** The single-use link when no system email could send it; never shown again. */
+  invitation_link?: string;
+};
+
+export async function inviteAccountMember(email: string, role: string) {
+  return fetchJson<InvitationSent>("/api/auth/users/invitations", {
+    method: "POST",
+    body: JSON.stringify({ email: email.trim(), role }),
+  });
+}
+
+export const SENT_INVITATIONS_QUERY_KEY = ["settings", "users", "invitations"] as const;
+
+/** An open invitation of the acting account, the email as the administrator typed it. */
+export type SentAccountInvitation = {
+  id: string;
+  email: string;
+  role: string;
+  invited_by: string;
+  expires_at: string;
+};
+
+/**
+ * The acting account's open invitations (ADR 0085). Every invitation sent is listed,
+ * whether or not anyone has the address; expired ones are not.
+ */
+export async function fetchSentAccountInvitations(): Promise<SentAccountInvitation[]> {
+  const payload = await fetchJson<{ invitations?: unknown }>("/api/auth/users/invitations");
+  return listFromPayload(payload, "invitations").map((row) => ({
+    id: firstStringFromUnknownValue([row.id, ""]).trim(),
+    email: firstStringFromUnknownValue([row.email, ""]).trim(),
+    role: firstStringFromUnknownValue([row.role, ""]).trim(),
+    invited_by: firstStringFromUnknownValue([row.invited_by, ""]).trim(),
+    expires_at: firstStringFromUnknownValue([row.expires_at, ""]).trim(),
+  })).filter((invitation) => Boolean(invitation.id));
+}
+
+/** Cancel an open invitation of the acting account. */
+export async function cancelAccountInvitation(id: string) {
+  return fetchJson<{ id: string; status: string }>(
+    `/api/auth/users/invitations/${encodeURIComponent(id)}/cancel`,
+    { method: "POST", body: JSON.stringify({}) },
+  );
+}
+
+/** Remove a person from the acting account; they keep their other accounts. */
+export async function removeAccountMember(userId: string) {
+  return fetchJson<{ user_id: string; account_id: string }>(
+    `/api/auth/users/${encodeURIComponent(userId)}/membership`,
+    { method: "DELETE" },
+  );
 }
 
 export async function setTemporaryUserPassword(

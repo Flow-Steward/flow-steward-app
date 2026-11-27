@@ -6,9 +6,10 @@ import { holdForLoader } from "@/components/shared/loader-clock";
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { PagePlaceholder } from "@/components/shared/page-placeholder";
 import { registeredPageComponents } from "@/app/extensions";
-import { RequireAdmin, RequireAuth, RequireCapability } from "@/lib/auth/guards";
+import { RequireAdmin, RequireAuth, RequireCapability, RequireSettingsPage } from "@/lib/auth/guards";
 import { hasCapability } from "@/lib/auth/capabilities";
 import { sessionPermissions } from "@/lib/auth/permissions";
+import type { RegisteredPageRecord } from "@/lib/auth/AuthProvider";
 import { useAuth } from "@/lib/auth/useAuth";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { BootstrapPage } from "@/pages/auth/bootstrap";
@@ -111,6 +112,7 @@ const RegistryWorkspacesDetailPage = lazyNamed(
   "RegistryWorkspacesDetailPage",
 );
 const OAuthConsentPage = lazyNamed(() => import("@/pages/oauth/consent"), "OAuthConsentPage");
+const InvitationPage = lazyNamed(() => import("@/pages/invitations"), "InvitationPage");
 const SettingsAccountPage = lazyNamed(() => import("@/pages/settings/account"), "SettingsAccountPage");
 const SettingsHubPage = lazyNamed(() => import("@/pages/settings/hub"), "SettingsHubPage");
 const SettingsSecurityPage = lazyNamed(() => import("@/pages/settings/security"), "SettingsSecurityPage");
@@ -130,6 +132,13 @@ const WorkflowsProjectsPage = lazyNamed(
 const WorkflowsBuilderPageLazy = lazy(async () => {
   const module = await holdForLoader(import("@/pages/workflows/builder"));
   return { default: module.WorkflowsBuilderPage };
+});
+
+// Host renderer for module pages declared without a compiled component (ADR 0082).
+const HOST_RENDERED_SURFACE_KINDS = new Set(["resource_admin", "resource_report", "status_document"]);
+const RegisteredSettingsResourceAdminPageLazy = lazy(async () => {
+  const module = await holdForLoader(import("@/pages/settings/hub"));
+  return { default: module.RegisteredSettingsResourceAdminPage };
 });
 
 export function HomeGate() {
@@ -182,6 +191,14 @@ function normalizeRoutePath(path: string) {
   return normalized === "/" ? "/" : normalized;
 }
 
+function registeredPageSurfaceKind(page: RegisteredPageRecord): string {
+  const surface = page.control_surface;
+  if (!surface || typeof surface !== "object" || Array.isArray(surface)) {
+    return "";
+  }
+  return firstStringFromUnknownValue([surface.kind, ""]).trim();
+}
+
 function RegisteredPageRoute() {
   const auth = useAuth();
   const { t } = useI18n();
@@ -197,6 +214,9 @@ function RegisteredPageRoute() {
 
   const componentKey = firstStringFromUnknownValue([page.component_key, ""]).trim();
   const Component = componentKey ? registeredPageComponents[componentKey] : undefined;
+  if (!Component && HOST_RENDERED_SURFACE_KINDS.has(registeredPageSurfaceKind(page))) {
+    return <RegisteredSettingsResourceAdminPageLazy page={page} />;
+  }
   if (!Component) {
     return (
       <PagePlaceholder
@@ -215,17 +235,18 @@ function SettingsDynamicRoute() {
   const auth = useAuth();
   const location = useLocation();
   const currentPath = normalizeRoutePath(location.pathname);
-  const hasRegisteredPage = (auth.session?.registered_pages || []).some(
+  const registeredPage = (auth.session?.registered_pages || []).find(
     (candidate) => normalizeRoutePath(candidate.path) === currentPath,
   );
-
-  if (hasRegisteredPage) {
+  const settingsPage = (auth.session?.settings_pages || []).find(
+    (candidate) => normalizeRoutePath(candidate.path) === currentPath,
+  );
+  // A compiled page wins; a host-rendered settings tab stays inside the hub.
+  const registeredComponentKey = firstStringFromUnknownValue([registeredPage?.component_key, ""]).trim();
+  if (registeredPage && (registeredComponentKey || !settingsPage?.settings_tab)) {
     return <RegisteredPageRoute />;
   }
-  const hasSettingsPage = (auth.session?.settings_pages || []).some(
-    (candidate) => normalizeRoutePath(candidate.path) === currentPath,
-  );
-  return hasSettingsPage ? <SettingsHubPage /> : <ShellNotFound />;
+  return settingsPage ? <SettingsHubPage /> : <ShellNotFound />;
 }
 
 export function AppRouter() {
@@ -260,6 +281,17 @@ function AppRoutes() {
           element={
             <Suspense fallback={<PageLoadingState label={t("react.routing.preparing_page", "Preparing this page")} standalone />}>
               <OAuthConsentPage />
+            </Suspense>
+          }
+        />
+
+        {/* ADR 0085: an invitation link, answered by the signed-in person; outside the
+            app shell, since a person with a role nowhere yet may open it. */}
+        <Route
+          path="invitations/:token"
+          element={
+            <Suspense fallback={<PageLoadingState label={t("react.routing.preparing_page", "Preparing this page")} standalone />}>
+              <InvitationPage />
             </Suspense>
           }
         />
@@ -315,10 +347,12 @@ function AppRoutes() {
               <Route path="email" />
               <Route path="retention" />
               <Route path="notifications" />
+              <Route path="secret-storage" />
             </Route>
             <Route path="account" element={<SettingsAccountPage />} />
             <Route path="users" element={<RequireCapability capability="manage_users"><SettingsUsersPage /></RequireCapability>} />
-            <Route path=":settingsPageKey" element={<RequireCapability capability="administer_platform"><SettingsDynamicRoute /></RequireCapability>} />
+            {/* A module page declares its own permission; built-in tabs stay admin-only. */}
+            <Route path=":settingsPageKey" element={<RequireSettingsPage><SettingsDynamicRoute /></RequireSettingsPage>} />
           </Route>
 
           <Route path="monitoring" element={<RequireCapability capability="administer_platform"><MonitoringPage /></RequireCapability>} />

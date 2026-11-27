@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import shlex
 import shutil
 import subprocess
@@ -188,3 +189,105 @@ assert response_field_json_schema("number") == {"type": "number"}
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+# ADR 0082: the management process imports these at startup or on the upgrade and
+# platform-module switch paths. ``lifecycle_click_app --help`` above never imports
+# them (the runtime is built lazily), so their closure is checked statically.
+_MANAGEMENT_RELEASE_MODULES = (
+    "core.entrypoints.cli.platform_runtime",
+    "core.entrypoints.cli.compact_platform_runtime",
+    "core.entrypoints.cli.lifecycle_runtime",
+    "core.infrastructure.release.platform_module_activator",
+    "core.infrastructure.platform_modules.loader",
+    "core.application.release.platform_modules",
+    "core.application.release.upgrade_workflow",
+    "core.application.release.service",
+)
+
+
+def _module_source(root: Path, module: str) -> Path | None:
+    base = root.joinpath(*module.split("."))
+    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _executed_imports(body: list[ast.stmt]):
+    """Yield import statements that run on import: not in functions or TYPE_CHECKING."""
+    for statement in body:
+        if isinstance(statement, (ast.Import, ast.ImportFrom)):
+            yield statement
+        elif isinstance(statement, ast.ClassDef):
+            yield from _executed_imports(statement.body)
+        elif isinstance(statement, ast.If):
+            test = statement.test
+            type_checking = (isinstance(test, ast.Name) and test.id == "TYPE_CHECKING") or (
+                isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING"
+            )
+            if not type_checking:
+                yield from _executed_imports(statement.body)
+            yield from _executed_imports(statement.orelse)
+        elif isinstance(statement, ast.Try):
+            for block in (statement.body, statement.orelse, statement.finalbody):
+                yield from _executed_imports(block)
+            for handler in statement.handlers:
+                yield from _executed_imports(handler.body)
+        elif isinstance(statement, (ast.With, ast.For, ast.While)):
+            yield from _executed_imports(statement.body)
+
+
+def _first_party_targets(statement: ast.stmt, module: str, is_package: bool) -> list[str]:
+    if isinstance(statement, ast.Import):
+        return [alias.name for alias in statement.names if alias.name.startswith("core.")]
+    assert isinstance(statement, ast.ImportFrom)
+    base = statement.module or ""
+    if statement.level:
+        package = module if is_package else module.rpartition(".")[0]
+        for _ in range(statement.level - 1):
+            package = package.rpartition(".")[0]
+        base = f"{package}.{base}" if base else package
+    if not base.startswith("core."):
+        return []
+    return [base] + [
+        f"{base}.{alias.name}"
+        for alias in statement.names
+        if _module_source(ROOT, f"{base}.{alias.name}") is not None
+    ]
+
+
+def test_cli_copy_context_carries_module_level_imports_of_release_modules(
+    tmp_path: Path,
+) -> None:
+    context = tmp_path / "cli"
+    context.mkdir()
+    _materialize_cli_copy_context(context)
+    missing: dict[str, str] = {}
+    seen: set[str] = set()
+    pending = [(module, "start") for module in _MANAGEMENT_RELEASE_MODULES]
+    while pending:
+        module, importer = pending.pop()
+        if module in seen:
+            continue
+        seen.add(module)
+        parts = module.split(".")
+        pending.extend((".".join(parts[:index]), importer) for index in range(2, len(parts)))
+        source = _module_source(context, module)
+        if source is None:
+            if _module_source(ROOT, module) is not None and not (
+                context.joinpath(*parts).is_dir()
+                and (ROOT.joinpath(*parts) / "__init__.py").is_file()
+            ):
+                missing[module] = importer
+            continue
+        is_package = source.name == "__init__.py"
+        tree = ast.parse(source.read_text(encoding="utf-8"), str(source))
+        for statement in _executed_imports(tree.body):
+            for target in _first_party_targets(statement, module, is_package):
+                pending.append((target, f"{module}:{statement.lineno}"))
+    assert {"core.application.release.service", "core.entrypoints.cli.lifecycle_runtime"} <= seen
+    assert not missing, (
+        "the cli stage of infra/docker/Dockerfile does not copy modules the management "
+        f"process imports at module level: {dict(sorted(missing.items()))}"
+    )

@@ -206,7 +206,7 @@ CREATE TABLE public.catalog_secret_bindings (
     secret_id uuid NOT NULL,
     consumer_kind text NOT NULL,
     project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
-    workflow_id text REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE,
+    workflow_id text,
     consumer_project_id uuid REFERENCES public.projects(id) ON DELETE CASCADE,
     data_connection_id text REFERENCES public.workspace_data_connections(connection_id) ON DELETE CASCADE,
     mcp_connector_id text REFERENCES public.mcp_connectors(connector_id) ON DELETE CASCADE,
@@ -230,7 +230,7 @@ CREATE TABLE public.catalog_secret_bindings (
           OR (consumer_kind = 'mcp_connector' AND mcp_connector_id IS NOT NULL)
           OR (consumer_kind = 'llm_provider' AND llm_provider_install_id IS NOT NULL))),
     CONSTRAINT catalog_secret_bindings_connection_field_key UNIQUE (project_connection_id, field_name),
-    CONSTRAINT catalog_secret_bindings_workflow_field_key UNIQUE (workflow_id, field_name),
+    CONSTRAINT catalog_secret_bindings_workflow_field_key UNIQUE (account_id, workflow_id, field_name),
     CONSTRAINT catalog_secret_bindings_data_connection_field_key UNIQUE (data_connection_id, field_name),
     CONSTRAINT catalog_secret_bindings_mcp_connector_field_key UNIQUE (mcp_connector_id, field_name),
     CONSTRAINT catalog_secret_bindings_llm_provider_field_key UNIQUE (llm_provider_install_id, field_name)
@@ -242,7 +242,7 @@ CREATE TABLE public.catalog_secret_approvals (
     consumer_kind text NOT NULL
         CHECK (consumer_kind = ANY (ARRAY['project_connection'::text, 'workflow'::text])),
     project_connection_id text REFERENCES public.project_connections(connection_id) ON DELETE CASCADE,
-    workflow_id text REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE,
+    workflow_id text,
     fingerprint text NOT NULL CHECK (fingerprint ~ '^sha256:[0-9a-f]{64}$'),
     projection_jsonb jsonb NOT NULL CHECK (jsonb_typeof(projection_jsonb) = 'object'),
     approved_by text NOT NULL CHECK (char_length(btrim(approved_by)) > 0),
@@ -254,8 +254,17 @@ CREATE TABLE public.catalog_secret_approvals (
         OR (consumer_kind = 'workflow' AND workflow_id IS NOT NULL
             AND project_connection_id IS NULL)),
     CONSTRAINT catalog_secret_approvals_connection_key UNIQUE (project_connection_id),
-    CONSTRAINT catalog_secret_approvals_workflow_key UNIQUE (workflow_id)
+    CONSTRAINT catalog_secret_approvals_workflow_key UNIQUE (account_id, workflow_id)
 );
+
+-- A workflow consumer names a workflow of its own account (ADR 0020, step C4b).
+-- Migration 20261126180000_workflow_account_identity.sql makes the same change.
+ALTER TABLE ONLY public.catalog_secret_bindings
+    ADD CONSTRAINT catalog_secret_bindings_workflow_id_fkey FOREIGN KEY (account_id, workflow_id)
+    REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.catalog_secret_approvals
+    ADD CONSTRAINT catalog_secret_approvals_workflow_id_fkey FOREIGN KEY (account_id, workflow_id)
+    REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
 
 CREATE TABLE public.platform_upgrade_phases (
     phase_id text PRIMARY KEY CHECK (phase_id ~ '^[a-z][a-z0-9_]{2,127}$'),
@@ -598,9 +607,15 @@ ALTER TABLE ONLY public.user_roles
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_project_id_fkey FOREIGN KEY (project_id)
         REFERENCES public.projects(id) ON DELETE CASCADE;
+-- A workflow-scoped assignment names a workflow of its project's account; the trigger
+-- below fills workflow_account_id (ADR 0020, step C4b; migration
+-- 20261126180000_workflow_account_identity.sql makes the same change).
 ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_id)
-        REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_account_id, workflow_id)
+    REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_workflow_account_check
+    CHECK (((workflow_id IS NULL) OR (workflow_account_id IS NOT NULL)));
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_role_is_system_fkey FOREIGN KEY (role_id, role_is_system)
         REFERENCES public.roles(id, is_system) ON UPDATE CASCADE ON DELETE CASCADE;
@@ -622,9 +637,49 @@ CREATE TRIGGER trg_user_roles_role_is_system
     BEFORE INSERT OR UPDATE OF role_id ON public.user_roles
     FOR EACH ROW EXECUTE FUNCTION public.user_roles_copy_role_is_system();
 
+CREATE FUNCTION public.user_roles_copy_workflow_account() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.workflow_id IS NULL THEN
+        NEW.workflow_account_id := NULL;
+    ELSE
+        SELECT p.account_id INTO NEW.workflow_account_id
+          FROM public.projects AS p WHERE p.id = NEW.project_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_user_roles_workflow_account
+    BEFORE INSERT OR UPDATE OF project_id, workflow_id, workflow_account_id ON public.user_roles
+    FOR EACH ROW EXECUTE FUNCTION public.user_roles_copy_workflow_account();
+
+-- A project binding takes its project's account when the writer names none, and
+-- names a workflow of that account (ADR 0020, step C4b).
+CREATE FUNCTION public.project_workflows_copy_account() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.account_id IS NULL THEN
+        SELECT p.account_id INTO NEW.account_id FROM public.projects AS p WHERE p.id = NEW.project_id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_project_workflows_account
+    BEFORE INSERT OR UPDATE OF project_id, account_id ON public.project_workflows
+    FOR EACH ROW EXECUTE FUNCTION public.project_workflows_copy_account();
+
+ALTER TABLE ONLY public.project_workflows
+    ADD CONSTRAINT project_workflows_project_account_fkey FOREIGN KEY (project_id, account_id)
+    REFERENCES public.projects(id, account_id) ON DELETE CASCADE;
+
 CREATE UNIQUE INDEX ux_user_roles_one_system_role_per_scope
     ON public.user_roles (user_id, workspace_id, project_id, workflow_id) NULLS NOT DISTINCT
     WHERE role_is_system;
+-- End of block: migration 20261120090000_role_permissions.sql.
 
 -- When the owner was reminded that an AI agent connection is about to stop working
 -- (ADR 0076 §5): one email per personal agent token or OAuth grant, seven days before
@@ -634,3 +689,563 @@ ALTER TABLE ONLY public.personal_access_tokens
     ADD COLUMN expiry_reminder_sent_at timestamp with time zone;
 ALTER TABLE ONLY public.oauth_grants
     ADD COLUMN expiry_reminder_sent_at timestamp with time zone;
+
+-- Approvers assigned to an Approval step (ADR 0082 section 3a). Core's approval
+-- check reads it; only a platform module writes it. No rows for a step means anyone
+-- with approvals.decide decides, as before. Rows keep applying after the feature's
+-- entitlement ends (ADR 0082 section 4). Removing a user removes their assignment.
+-- Migration 20261125120000_approval_assignees_journal.sql adds the same tables.
+CREATE TABLE public.approval_step_approvers (
+    workflow_id text NOT NULL,
+    step_id text NOT NULL,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
+    CONSTRAINT approval_step_approvers_pkey PRIMARY KEY (account_id, workflow_id, step_id, user_id)
+);
+
+CREATE INDEX idx_approval_step_approvers_user
+    ON public.approval_step_approvers USING btree (user_id);
+
+-- One append-only row per applied approval decision. It has no foreign key to the
+-- job or the account: by default its rows are purged with their job, an account
+-- entitled to a longer journal retention keeps them past the job, and rows outlive
+-- the deletion of their account. Core never updates a row. decided_by_kind
+-- 'automation' is a reaction, dispatched command or other caller with no person.
+CREATE TABLE public.approval_decision_journal (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    workflow_id text,
+    workflow_name text,
+    project_id text,
+    step_id text,
+    step_label text,
+    started_by text,
+    started_by_display_name text,
+    started_at timestamp with time zone,
+    decided_by text NOT NULL,
+    decided_by_display_name text,
+    decided_by_user_id uuid,
+    decided_by_kind text NOT NULL
+        CHECK (decided_by_kind = ANY (ARRAY['user'::text, 'service_account'::text, 'external'::text, 'automation'::text])),
+    external_actor jsonb,
+    action text NOT NULL,
+    comment text,
+    reviewed_values jsonb DEFAULT '{}'::jsonb NOT NULL,
+    changed_values jsonb DEFAULT '{}'::jsonb NOT NULL,
+    decided_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX idx_approval_decision_journal_account_decided
+    ON public.approval_decision_journal USING btree (account_id, decided_at DESC);
+CREATE INDEX idx_approval_decision_journal_account_workflow
+    ON public.approval_decision_journal USING btree (account_id, workflow_id);
+
+-- Project-scoped role limits (ADR 0076 section 8, ADR 0082). A row marks a person
+-- whose access is limited to the projects that have a project-scoped user_roles
+-- row; in each, the effective role is the lower of the global and the scoped role.
+-- The marker is durable: deleting the last listed project removes the scoped
+-- user_roles rows by cascade but keeps the person limited. Only a platform module
+-- writes it; rows keep applying after the feature's entitlement ends.
+-- Migration 20261126120000_scoped_role_users.sql makes the same change.
+CREATE TABLE public.scoped_role_users (
+    user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    account_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now(),
+    created_by text DEFAULT ''::text NOT NULL
+);
+
+CREATE INDEX idx_user_roles_project
+    ON public.user_roles USING btree (project_id)
+    WHERE (project_id IS NOT NULL);
+-- End of block: migration 20261126120000_scoped_role_users.sql.
+
+-- External sign-in (ADR 0083). Core implements no sign-in protocol; platform
+-- modules register sign-in methods. An external identity is keyed by issuer and
+-- subject within the account it was linked in (one account can never block another
+-- account's link), never by an email address, records the sign-in method that
+-- verified it and names the one user it signs in. A
+-- sign-in attempt of any redirecting method is a single-use state row bound to the
+-- browser that started it, with the method's own data encrypted. A session records
+-- whether it was issued locally or by external sign-in: the local password and
+-- authenticator rules apply only to sessions with auth_method 'local'. Unlinking an
+-- identity deletes the sessions it issued.
+-- Migration 20261126150000_external_sign_in.sql makes the same change.
+CREATE TABLE public.external_identities (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    method text NOT NULL,
+    option_key text DEFAULT ''::text NOT NULL,
+    issuer text NOT NULL,
+    subject text NOT NULL,
+    user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    last_login_at timestamp with time zone,
+    CONSTRAINT external_identities_account_issuer_subject_key
+        UNIQUE (account_id, issuer, subject)
+);
+
+CREATE INDEX idx_external_identities_user
+    ON public.external_identities USING btree (user_id);
+
+CREATE INDEX idx_external_identities_account
+    ON public.external_identities USING btree (account_id);
+
+CREATE TABLE public.external_sign_in_states (
+    state_hash text PRIMARY KEY,
+    method text NOT NULL,
+    option_key text NOT NULL,
+    browser_binding_hash text NOT NULL,
+    method_data_encrypted text DEFAULT ''::text NOT NULL,
+    redirect_uri text NOT NULL,
+    return_path text DEFAULT '/'::text NOT NULL,
+    link_user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
+    expires_at timestamp with time zone NOT NULL,
+    consumed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+CREATE INDEX idx_external_sign_in_states_expires
+    ON public.external_sign_in_states USING btree (expires_at);
+
+ALTER TABLE ONLY public.auth_sessions
+    ADD COLUMN auth_method text DEFAULT 'local'::text NOT NULL
+        CONSTRAINT auth_sessions_auth_method_check
+        CHECK (auth_method = ANY (ARRAY['local'::text, 'external'::text]));
+
+ALTER TABLE ONLY public.auth_sessions
+    ADD COLUMN external_identity_id uuid
+        REFERENCES public.external_identities(id) ON DELETE CASCADE;
+
+CREATE INDEX idx_auth_sessions_external_identity
+    ON public.auth_sessions USING btree (external_identity_id)
+    WHERE (external_identity_id IS NOT NULL);
+-- End of block: migration 20261126150000_external_sign_in.sql.
+
+-- A step names agents, skills and published blocks of its own account or platform
+-- ones (no account); a hook binding and its revisions belong to one project of one
+-- account (ADR 0020, step C4c). Migration
+-- 20261126190000_registry_same_account_refs.sql makes the same change.
+CREATE FUNCTION public.registry_workflow_steps_same_account() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    block text;
+BEGIN
+    IF COALESCE(NEW.agent_id, '') <> '' AND EXISTS (
+        SELECT 1 FROM public.registry_agents AS a
+         WHERE a.agent_id = NEW.agent_id
+           AND a.account_id IS NOT NULL AND a.account_id <> NEW.account_id
+    ) THEN
+        RAISE EXCEPTION 'step % names an agent of another account', NEW.step_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    IF COALESCE(NEW.skill_id, '') <> '' AND EXISTS (
+        SELECT 1 FROM public.registry_skills AS s
+         WHERE s.skill_id = NEW.skill_id
+           AND s.account_id IS NOT NULL AND s.account_id <> NEW.account_id
+    ) THEN
+        RAISE EXCEPTION 'step % names a skill of another account', NEW.step_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    FOREACH block IN ARRAY ARRAY[
+        NEW.block_key,
+        NEW.override ->> 'published_block_key',
+        NEW.override ->> 'block_key'
+    ] LOOP
+        IF COALESCE(block, '') <> '' AND EXISTS (
+            SELECT 1 FROM public.registry_published_block_contracts AS b
+             WHERE b.block_key = block
+               AND b.account_id IS NOT NULL AND b.account_id <> NEW.account_id
+        ) THEN
+            RAISE EXCEPTION 'step % names a published block of another account', NEW.step_id
+                USING ERRCODE = 'foreign_key_violation';
+        END IF;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_registry_workflow_steps_same_account
+    BEFORE INSERT OR UPDATE OF account_id, agent_id, skill_id, block_key, override
+    ON public.registry_workflow_steps
+    FOR EACH ROW EXECUTE FUNCTION public.registry_workflow_steps_same_account();
+
+ALTER TABLE ONLY public.registry_workflow_hook_bindings
+    ADD CONSTRAINT registry_workflow_hook_bindings_project_account_fkey FOREIGN KEY (project_id, account_id)
+    REFERENCES public.projects(id, account_id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.registry_workflow_hook_bindings
+    ADD CONSTRAINT registry_workflow_hook_bindings_id_scope_key UNIQUE (id, account_id, project_id);
+ALTER TABLE ONLY public.registry_workflow_hook_binding_revisions
+    ADD CONSTRAINT registry_workflow_hook_binding_revisions_scope_fkey FOREIGN KEY (binding_id, account_id, project_id)
+    REFERENCES public.registry_workflow_hook_bindings(id, account_id, project_id) ON DELETE CASCADE;
+-- End of block: migration 20261126190000_registry_same_account_refs.sql.
+
+-- Secret backends (ADR 0066 amendment 2026-11-26). A platform module may
+-- keep stored-secret values in an external store. A configuration names the
+-- backend kind a module registered and its non-secret settings for one account;
+-- the backend's credentials never come from this database. A locator maps an
+-- account-qualified secret_refs reference to the configuration that keeps its value
+-- and the backend's own locator; a reference without one is read locally. A remote
+-- value has no secret_refs row and moving it back never deletes it remotely.
+-- Migration 20261126200000_secret_backends.sql makes the same change.
+CREATE TABLE public.secret_backend_configs (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    backend_kind text NOT NULL CHECK (backend_kind ~ '^[a-z][a-z0-9_.-]{0,63}$' AND backend_kind <> 'local'),
+    name text NOT NULL CHECK (char_length(btrim(name)) BETWEEN 1 AND 200),
+    non_secret_config jsonb DEFAULT '{}'::jsonb NOT NULL CHECK (jsonb_typeof(non_secret_config) = 'object'),
+    enabled boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text DEFAULT ''::text NOT NULL,
+    CONSTRAINT secret_backend_configs_account_name_key UNIQUE (account_id, name),
+    CONSTRAINT secret_backend_configs_id_account_kind_key UNIQUE (id, account_id, backend_kind)
+);
+
+CREATE TABLE public.secret_backend_locators (
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    ref_key text NOT NULL CHECK (char_length(ref_key) BETWEEN 1 AND 512),
+    backend_config_id uuid NOT NULL,
+    backend_kind text NOT NULL,
+    locator jsonb NOT NULL CHECK (jsonb_typeof(locator) = 'object'),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by text DEFAULT ''::text NOT NULL,
+    CONSTRAINT secret_backend_locators_pkey PRIMARY KEY (account_id, ref_key),
+    CONSTRAINT secret_backend_locators_config_fkey FOREIGN KEY (backend_config_id, account_id, backend_kind)
+        REFERENCES public.secret_backend_configs(id, account_id, backend_kind)
+);
+
+CREATE INDEX idx_secret_backend_locators_config
+    ON public.secret_backend_locators USING btree (backend_config_id);
+-- End of block: migration 20261126200000_secret_backends.sql.
+
+-- Scoped role limits on workspaces, projects and workflows (ADR 0076 section 8a).
+-- A limited person's grants are user_roles rows with workspace_id (a whole
+-- workspace, its future projects included), project_id (one project) or
+-- project_id + workflow_id (chosen workflows of a project). Deleting a workspace
+-- or a workflow removes its rows by cascade: both foreign keys get an index.
+-- Migration 20261126210000_multilevel_scoped_roles.sql makes the same change.
+CREATE INDEX idx_user_roles_workspace
+    ON public.user_roles USING btree (workspace_id)
+    WHERE (workspace_id IS NOT NULL);
+
+CREATE INDEX idx_user_roles_workflow
+    ON public.user_roles USING btree (workflow_account_id, workflow_id)
+    WHERE (workflow_id IS NOT NULL);
+-- End of block: migration 20261126210000_multilevel_scoped_roles.sql.
+
+-- A workflow, a field and a data contract have a key that is unique only within an
+-- account, so every history entry of one names its account (ADR 0020, C5).
+-- Migration 20261127090000_account_scoped_registry_ops.sql makes the same change.
+ALTER TABLE ONLY public.registry_changelog
+    ADD CONSTRAINT registry_changelog_account_keyed_owner_check CHECK (((entity_type <> ALL (ARRAY['workflow'::text, 'field'::text, 'data_contract'::text])) OR (account_id IS NOT NULL)));
+-- End of block: migration 20261127090000_account_scoped_registry_ops.sql.
+
+-- Extensions per account (ADR 0020, step C6). An extension's code is installed once
+-- per installation: one extension_installs row, in the installation account. Any
+-- other account uses that install only after its own administrator enabled it there;
+-- the row also keeps that account's non-secret settings. Disabling keeps the row and
+-- its settings; uninstalling the code removes every account's row.
+-- Migration 20261127130000_extensions_per_account.sql makes the same change.
+CREATE UNIQUE INDEX ux_extension_installs_install_extension
+    ON public.extension_installs USING btree (install_id, extension_id);
+
+CREATE TABLE public.extension_account_enablements (
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    extension_id text NOT NULL,
+    install_id text NOT NULL,
+    state text DEFAULT 'enabled'::text NOT NULL CHECK (state IN ('enabled', 'disabled')),
+    settings_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL CHECK (jsonb_typeof(settings_jsonb) = 'object'),
+    enabled_at timestamp with time zone,
+    enabled_by text DEFAULT ''::text NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_by text DEFAULT ''::text NOT NULL,
+    CONSTRAINT extension_account_enablements_pkey PRIMARY KEY (account_id, extension_id),
+    CONSTRAINT extension_account_enablements_install_fkey FOREIGN KEY (install_id, extension_id)
+        REFERENCES public.extension_installs(install_id, extension_id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE INDEX idx_extension_account_enablements_install
+    ON public.extension_account_enablements USING btree (install_id, account_id)
+    WHERE (state = 'enabled'::text);
+-- End of block: migration 20261127130000_extensions_per_account.sql.
+
+-- Published block keys per account (ADR 0020): (owner_key, block_key) is the key, so
+-- two accounts may each publish a block with the same key; a platform block (no
+-- account) keeps a key no account block uses. Inputs, outputs and runtime
+-- dependencies name the block by (block_owner, block_key). Migration
+-- 20261127150000_account_scoped_block_keys.sql makes the same change.
+ALTER TABLE ONLY public.registry_published_block_contracts
+    ADD COLUMN IF NOT EXISTS owner_key text GENERATED ALWAYS AS (COALESCE((account_id)::text, ''::text)) STORED;
+
+ALTER TABLE ONLY public.registry_published_block_inputs
+    ADD COLUMN IF NOT EXISTS block_owner text DEFAULT ''::text NOT NULL;
+
+ALTER TABLE ONLY public.registry_published_block_outputs
+    ADD COLUMN IF NOT EXISTS block_owner text DEFAULT ''::text NOT NULL;
+
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    ADD COLUMN IF NOT EXISTS block_owner text;
+
+UPDATE public.registry_published_block_inputs AS i
+   SET block_owner = b.owner_key
+  FROM public.registry_published_block_contracts AS b
+ WHERE b.block_key = i.block_key
+   AND NOT EXISTS (
+       SELECT 1 FROM public.registry_published_block_contracts AS own
+        WHERE own.block_key = i.block_key AND own.owner_key = i.block_owner);
+
+UPDATE public.registry_published_block_outputs AS o
+   SET block_owner = b.owner_key
+  FROM public.registry_published_block_contracts AS b
+ WHERE b.block_key = o.block_key
+   AND NOT EXISTS (
+       SELECT 1 FROM public.registry_published_block_contracts AS own
+        WHERE own.block_key = o.block_key AND own.owner_key = o.block_owner);
+
+UPDATE public.workflow_runtime_dependencies AS d
+   SET block_owner = b.owner_key
+  FROM public.registry_published_block_contracts AS b
+ WHERE d.block_key IS NOT NULL
+   AND d.block_owner IS NULL
+   AND b.block_key = d.block_key
+   AND (b.account_id IS NULL OR b.account_id = d.account_id);
+
+UPDATE public.workflow_runtime_dependencies
+   SET block_key = NULL
+ WHERE block_key IS NOT NULL
+   AND block_owner IS NULL;
+
+ALTER TABLE ONLY public.registry_published_block_inputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_inputs_block_key_fkey;
+ALTER TABLE ONLY public.registry_published_block_inputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_inputs_block_fkey;
+ALTER TABLE ONLY public.registry_published_block_outputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_outputs_block_key_fkey;
+ALTER TABLE ONLY public.registry_published_block_outputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_outputs_block_fkey;
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    DROP CONSTRAINT IF EXISTS workflow_runtime_dependencies_block_key_fkey;
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    DROP CONSTRAINT IF EXISTS workflow_runtime_dependencies_block_fkey;
+ALTER TABLE ONLY public.registry_published_block_inputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_inputs_block_key_field_id_key;
+ALTER TABLE ONLY public.registry_published_block_inputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_inputs_block_field_key;
+ALTER TABLE ONLY public.registry_published_block_outputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_outputs_block_key_field_id_key;
+ALTER TABLE ONLY public.registry_published_block_outputs
+    DROP CONSTRAINT IF EXISTS registry_published_block_outputs_block_field_key;
+ALTER TABLE ONLY public.registry_published_block_contracts
+    DROP CONSTRAINT IF EXISTS registry_published_block_contracts_pkey;
+
+ALTER TABLE ONLY public.registry_published_block_contracts
+    ADD CONSTRAINT registry_published_block_contracts_pkey PRIMARY KEY (owner_key, block_key);
+ALTER TABLE ONLY public.registry_published_block_inputs
+    ADD CONSTRAINT registry_published_block_inputs_block_field_key UNIQUE (block_owner, block_key, field_id);
+ALTER TABLE ONLY public.registry_published_block_outputs
+    ADD CONSTRAINT registry_published_block_outputs_block_field_key UNIQUE (block_owner, block_key, field_id);
+ALTER TABLE ONLY public.registry_published_block_inputs
+    ADD CONSTRAINT registry_published_block_inputs_block_fkey FOREIGN KEY (block_owner, block_key) REFERENCES public.registry_published_block_contracts(owner_key, block_key) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public.registry_published_block_outputs
+    ADD CONSTRAINT registry_published_block_outputs_block_fkey FOREIGN KEY (block_owner, block_key) REFERENCES public.registry_published_block_contracts(owner_key, block_key) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    ADD CONSTRAINT workflow_runtime_dependencies_block_fkey FOREIGN KEY (block_owner, block_key) REFERENCES public.registry_published_block_contracts(owner_key, block_key) ON UPDATE CASCADE ON DELETE CASCADE;
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    DROP CONSTRAINT IF EXISTS workflow_runtime_dependencies_block_owner_check;
+ALTER TABLE ONLY public.workflow_runtime_dependencies
+    ADD CONSTRAINT workflow_runtime_dependencies_block_owner_check CHECK (((block_key IS NULL) OR (block_owner IS NOT NULL)));
+
+CREATE OR REPLACE FUNCTION public.registry_published_block_key_scope() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Writers of one key queue on a transaction lock, so the second one checks
+    -- after the first committed (READ COMMITTED: each statement sees the commits
+    -- before it) and two concurrent writers cannot both pass.
+    PERFORM pg_advisory_xact_lock(
+        hashtextextended('flow-steward:published-block-key:' || NEW.block_key, 0));
+    IF EXISTS (
+        SELECT 1 FROM public.registry_published_block_contracts AS b
+         WHERE b.block_key = NEW.block_key AND b.account_id IS NULL
+    ) AND EXISTS (
+        SELECT 1 FROM public.registry_published_block_contracts AS b
+         WHERE b.block_key = NEW.block_key AND b.account_id IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'published block key % is used by a platform block and an account block', NEW.block_key
+            USING ERRCODE = 'unique_violation';
+    END IF;
+    RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_registry_published_block_key_scope ON public.registry_published_block_contracts;
+CREATE TRIGGER trg_registry_published_block_key_scope
+    AFTER INSERT OR UPDATE OF account_id, block_key
+    ON public.registry_published_block_contracts
+    FOR EACH ROW EXECUTE FUNCTION public.registry_published_block_key_scope();
+
+CREATE OR REPLACE FUNCTION public.registry_workflow_steps_same_account() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    block text;
+BEGIN
+    IF COALESCE(NEW.agent_id, '') <> '' AND EXISTS (
+        SELECT 1 FROM public.registry_agents AS a
+         WHERE a.agent_id = NEW.agent_id
+           AND a.account_id IS NOT NULL AND a.account_id <> NEW.account_id
+    ) THEN
+        RAISE EXCEPTION 'step % names an agent of another account', NEW.step_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    IF COALESCE(NEW.skill_id, '') <> '' AND EXISTS (
+        SELECT 1 FROM public.registry_skills AS s
+         WHERE s.skill_id = NEW.skill_id
+           AND s.account_id IS NOT NULL AND s.account_id <> NEW.account_id
+    ) THEN
+        RAISE EXCEPTION 'step % names a skill of another account', NEW.step_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    FOREACH block IN ARRAY ARRAY[
+        NEW.block_key,
+        NEW.override ->> 'published_block_key',
+        NEW.override ->> 'block_key'
+    ] LOOP
+        IF COALESCE(block, '') <> '' AND EXISTS (
+            SELECT 1 FROM public.registry_published_block_contracts AS b
+             WHERE b.block_key = block
+        ) AND NOT EXISTS (
+            SELECT 1 FROM public.registry_published_block_contracts AS b
+             WHERE b.block_key = block
+               AND (b.account_id IS NULL OR b.account_id = NEW.account_id)
+        ) THEN
+            RAISE EXCEPTION 'step % names a published block of another account', NEW.step_id
+                USING ERRCODE = 'foreign_key_violation';
+        END IF;
+    END LOOP;
+    RETURN NEW;
+END;
+$$;
+-- End of block: migration 20261127150000_account_scoped_block_keys.sql.
+
+-- Roles per account (ADR 0085): the membership carries the person's role in that
+-- account, user_roles keeps scoped rows only, and a scope limit is per account.
+-- Migration 20261127170000_roles_per_account.sql makes the same change.
+ALTER TABLE ONLY public.user_account_memberships
+    ADD COLUMN IF NOT EXISTS role_id uuid;
+
+ALTER TABLE ONLY public.user_account_memberships
+    DROP CONSTRAINT IF EXISTS user_account_memberships_role_id_fkey;
+ALTER TABLE ONLY public.user_account_memberships
+    ADD CONSTRAINT user_account_memberships_role_id_fkey FOREIGN KEY (role_id)
+        REFERENCES public.roles(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_user_account_memberships_role
+    ON public.user_account_memberships USING btree (account_id, role_id);
+
+INSERT INTO public.user_account_memberships (user_id, account_id, is_default)
+SELECT u.id,
+       u.account_id,
+       NOT EXISTS (
+           SELECT 1 FROM public.user_account_memberships AS d
+            WHERE d.user_id = u.id AND d.is_default)
+  FROM public.users AS u
+  JOIN public.accounts AS a ON a.id = u.account_id
+ WHERE u.deleted_at IS NULL
+   AND NOT EXISTS (
+       SELECT 1 FROM public.user_account_memberships AS m
+        WHERE m.user_id = u.id AND m.account_id = u.account_id)
+ON CONFLICT (user_id, account_id) DO NOTHING;
+
+UPDATE public.user_account_memberships AS m
+   SET role_id = best.role_id
+  FROM (
+      SELECT DISTINCT ON (ur.user_id) ur.user_id, ur.role_id
+        FROM public.user_roles AS ur
+        JOIN public.roles AS r ON r.id = ur.role_id
+       WHERE ur.workspace_id IS NULL
+         AND ur.project_id IS NULL
+         AND ur.workflow_id IS NULL
+         AND r.key IN ('admin', 'operator', 'viewer')
+       ORDER BY ur.user_id,
+                CASE r.key WHEN 'admin' THEN 3 WHEN 'operator' THEN 2 ELSE 1 END DESC
+  ) AS best
+ WHERE best.user_id = m.user_id
+   AND m.role_id IS NULL;
+
+DO $$
+DECLARE
+    without_role bigint;
+    other_global bigint;
+BEGIN
+    SELECT count(*) INTO without_role
+      FROM public.user_account_memberships AS m
+      JOIN public.users AS u ON u.id = m.user_id
+     WHERE m.role_id IS NULL
+       AND u.deleted_at IS NULL;
+    SELECT count(*) INTO other_global
+      FROM public.user_roles AS ur
+      JOIN public.roles AS r ON r.id = ur.role_id
+     WHERE ur.workspace_id IS NULL
+       AND ur.project_id IS NULL
+       AND ur.workflow_id IS NULL
+       AND r.key NOT IN ('admin', 'operator', 'viewer');
+    RAISE NOTICE 'roles_per_account: % membership(s) of live people have no role (no access); % global row(s) of other roles removed',
+        without_role, other_global;
+END;
+$$;
+
+DELETE FROM public.user_roles AS ur
+ WHERE ur.workspace_id IS NULL
+   AND ur.project_id IS NULL
+   AND ur.workflow_id IS NULL;
+
+ALTER TABLE ONLY public.user_roles
+    DROP CONSTRAINT IF EXISTS user_roles_scoped_only_check;
+ALTER TABLE ONLY public.user_roles
+    ADD CONSTRAINT user_roles_scoped_only_check
+        CHECK (((workspace_id IS NOT NULL) OR (project_id IS NOT NULL) OR (workflow_id IS NOT NULL)));
+
+ALTER TABLE ONLY public.scoped_role_users
+    DROP CONSTRAINT IF EXISTS scoped_role_users_pkey;
+ALTER TABLE ONLY public.scoped_role_users
+    ADD CONSTRAINT scoped_role_users_pkey PRIMARY KEY (user_id, account_id);
+-- End of block: migration 20261127170000_roles_per_account.sql.
+
+-- Invitations to join an account (ADR 0085, consent): a person outside the accounts
+-- an administrator manages becomes a member only when they accept with the single-use
+-- link of the invitation (token_hash is its SHA-256). invited_email is the address as
+-- typed, for the administrators' list; user_id is the person who answered it.
+-- Migration 20261127190000_account_invitations.sql makes the same change.
+CREATE TABLE IF NOT EXISTS public.account_invitations (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+    invited_email text NOT NULL,
+    user_id uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    role text NOT NULL,
+    invited_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+    token_hash text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    CONSTRAINT account_invitations_token_hash_key UNIQUE (token_hash),
+    CONSTRAINT account_invitations_email_check
+        CHECK (invited_email <> '' AND length(invited_email) <= 320),
+    CONSTRAINT account_invitations_token_hash_check CHECK (length(token_hash) = 64),
+    CONSTRAINT account_invitations_role_check
+        CHECK (role IN ('admin', 'operator', 'viewer')),
+    CONSTRAINT account_invitations_status_check
+        CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+    CONSTRAINT account_invitations_lifetime_check CHECK (expires_at > created_at)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS account_invitations_pending_key
+    ON public.account_invitations USING btree (account_id, lower(invited_email))
+    WHERE status = 'pending';
+-- End of block: migration 20261127190000_account_invitations.sql.

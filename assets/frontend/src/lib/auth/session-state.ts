@@ -25,6 +25,18 @@ function isAuthSessionQuery(queryKey: readonly unknown[]): boolean {
   );
 }
 
+/**
+ * Forget every cached answer except the session itself. Used when the session
+ * moves to another account: what the old account's queries returned must not
+ * show in the new one.
+ */
+export async function dropAccountScopedQueries(queryClient: QueryClient): Promise<void> {
+  const isAccountQuery = (query: { queryKey: readonly unknown[] }) =>
+    !isAuthSessionQuery(query.queryKey);
+  await queryClient.cancelQueries({ predicate: isAccountQuery });
+  queryClient.removeQueries({ predicate: isAccountQuery });
+}
+
 /** The browser database of workflow builder edit sessions (local copies and Undo histories). */
 export const WORKFLOW_EDIT_SESSION_DATABASE = "fs-workflow-edit-sessions";
 /** This tab's reference to its edit session, per account, user and workflow. */

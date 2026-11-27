@@ -31,7 +31,8 @@ CREATE TABLE public.project_workflows (
     enabled boolean DEFAULT true NOT NULL,
     deleted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    account_id uuid NOT NULL
 );
 
 
@@ -616,7 +617,8 @@ CREATE TABLE public.registry_data_contracts (
     sync_status text DEFAULT 'active'::text NOT NULL,
     last_synced_at timestamp with time zone,
     last_sync_error text,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL
 );
 
 

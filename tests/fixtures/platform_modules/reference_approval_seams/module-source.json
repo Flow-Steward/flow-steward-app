@@ -1,0 +1,5 @@
+{
+  "id": "acme.reference-approval-seams",
+  "import": "fs_reference_approval_seams",
+  "version": "1.0.0"
+}

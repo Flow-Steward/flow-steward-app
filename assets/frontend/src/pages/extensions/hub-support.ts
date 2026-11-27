@@ -263,12 +263,33 @@ export function extensionsViewFilterLabel(filter: ExtensionsViewFilter, t: I18nC
   return t("users.filter.all_states", "All");
 }
 
+/**
+ * Who is looking at the installed list. Installing extension code belongs to the
+ * installation administrator; an account administrator of another company only
+ * enables what the installation already has, so nothing tells them to install.
+ */
+export interface ExtensionsEmptyScope {
+  canManageInstalls: boolean;
+  installedCount: number;
+}
+
+const INSTALLER_SCOPE: ExtensionsEmptyScope = { canManageInstalls: true, installedCount: 0 };
+
+function nothingInstalledForAccount(hasCatalogFilters: boolean, scope: ExtensionsEmptyScope): boolean {
+  return !hasCatalogFilters && !scope.canManageInstalls && scope.installedCount === 0;
+}
+
 export function emptyExtensionsTitle(
   hasCatalogFilters: boolean,
   viewFilter: ExtensionsViewFilter,
-  disabledCount = 0, t: I18nContextValue["t"] = fallbackContext.t
+  disabledCount = 0,
+  scope: ExtensionsEmptyScope = INSTALLER_SCOPE,
+  t: I18nContextValue["t"] = fallbackContext.t,
 ): string {
   if (hasCatalogFilters) return t("react.extensions.no_matching_extensions", "No matching extensions");
+  if (nothingInstalledForAccount(hasCatalogFilters, scope)) {
+    return t("react.extensions.no_extensions_installed_yet", "No extensions installed yet");
+  }
   if (viewFilter === "active") {
     return disabledCount > 0 ? t("react.extensions.nothing_enabled_yet", "Nothing enabled yet") : t("react.extensions.no_active_extensions", "No active extensions");
   }
@@ -278,9 +299,17 @@ export function emptyExtensionsTitle(
 export function emptyExtensionsDescription(
   hasCatalogFilters: boolean,
   viewFilter: ExtensionsViewFilter,
-  disabledCount = 0, t: I18nContextValue["t"] = fallbackContext.t
+  disabledCount = 0,
+  scope: ExtensionsEmptyScope = INSTALLER_SCOPE,
+  t: I18nContextValue["t"] = fallbackContext.t,
 ): string {
   if (hasCatalogFilters) return t("react.extensions.no_extensions_match_the_current_filters", "No extensions match the current filters.");
+  if (nothingInstalledForAccount(hasCatalogFilters, scope)) {
+    return t(
+      "react.extensions.no_extensions_installed_ask_installation_administrator",
+      "No extensions are installed for this installation yet. Ask your installation administrator to install one; you can then enable it for your company.",
+    );
+  }
   if (viewFilter === "active") {
     // AC17-R66: a fresh install arrives with its extensions already installed and every one
     // of them disabled, and this view opens on Active. The old wording told the operator to
@@ -293,6 +322,9 @@ export function emptyExtensionsDescription(
         : t("react.extensions.oauth_final_disabled_count", "{count} extensions are installed but disabled. Enable the ones you need — no download needed.", { count: disabledCount });
     }
     return t("react.extensions.enable_an_extension_or_choose_disabled_or_all_to_review_installed_extensions", "Enable an extension or choose Disabled or All to review installed extensions.");
+  }
+  if (!scope.canManageInstalls) {
+    return t("react.extensions.change_the_filter_to_see_other_extensions", "Change the filter to see the other extensions.");
   }
   return t("react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file", "Change the filter or install an extension from a `.zip` file.");
 }

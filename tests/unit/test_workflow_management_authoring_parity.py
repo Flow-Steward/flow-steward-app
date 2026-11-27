@@ -46,6 +46,10 @@ from core.entrypoints.cli.platform.service_registry import SERVICE_FACTORIES
 from core.entrypoints.mcp.server_api_client import MCP_TOOL_ROUTES
 from tests._workflow_definitions import linear_workflow, node
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 PROJECT_ID = "6b0f8a8e-4c1e-4a43-9c1e-2b8a3f0d1c11"
 WORKFLOW_ID = "wf_parity"
 

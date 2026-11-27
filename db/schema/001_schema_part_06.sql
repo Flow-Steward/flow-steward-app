@@ -589,7 +589,7 @@ ALTER TABLE ONLY public.registry_changelog
 --
 
 ALTER TABLE ONLY public.registry_data_contracts
-    ADD CONSTRAINT registry_data_contracts_pkey PRIMARY KEY (contract_id);
+    ADD CONSTRAINT registry_data_contracts_pkey PRIMARY KEY (account_id, contract_id);
 
 
 --
@@ -633,11 +633,11 @@ ALTER TABLE ONLY public.project_datasets
 
 
 --
--- Name: registry_fields registry_fields_field_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_fields registry_fields_account_id_field_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_fields
-    ADD CONSTRAINT registry_fields_field_key_key UNIQUE (field_key);
+    ADD CONSTRAINT registry_fields_account_id_field_key_key UNIQUE (account_id, field_key);
 
 
 --
@@ -753,19 +753,19 @@ ALTER TABLE ONLY public.registry_workflow_for_each
 
 
 --
--- Name: registry_workflow_for_each registry_workflow_for_each_workflow_id_for_each_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflow_for_each registry_workflow_for_each_account_workflow_for_each_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflow_for_each
-    ADD CONSTRAINT registry_workflow_for_each_workflow_id_for_each_id_key UNIQUE (workflow_id, for_each_id);
+    ADD CONSTRAINT registry_workflow_for_each_account_workflow_for_each_key UNIQUE (account_id, workflow_id, for_each_id);
 
 
 --
--- Name: registry_workflow_for_each registry_workflow_for_each_workflow_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflow_for_each registry_workflow_for_each_account_id_workflow_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflow_for_each
-    ADD CONSTRAINT registry_workflow_for_each_workflow_id_id_key UNIQUE (workflow_id, id);
+    ADD CONSTRAINT registry_workflow_for_each_account_id_workflow_id_id_key UNIQUE (account_id, workflow_id, id);
 
 
 --
@@ -809,19 +809,19 @@ ALTER TABLE ONLY public.registry_workflow_groups
 
 
 --
--- Name: registry_workflow_groups registry_workflow_groups_workflow_id_group_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflow_groups registry_workflow_groups_account_id_workflow_id_group_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflow_groups
-    ADD CONSTRAINT registry_workflow_groups_workflow_id_group_id_key UNIQUE (workflow_id, group_id);
+    ADD CONSTRAINT registry_workflow_groups_account_id_workflow_id_group_id_key UNIQUE (account_id, workflow_id, group_id);
 
 
 --
--- Name: registry_workflow_groups registry_workflow_groups_workflow_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflow_groups registry_workflow_groups_account_id_workflow_id_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflow_groups
-    ADD CONSTRAINT registry_workflow_groups_workflow_id_id_key UNIQUE (workflow_id, id);
+    ADD CONSTRAINT registry_workflow_groups_account_id_workflow_id_id_key UNIQUE (account_id, workflow_id, id);
 
 
 --
@@ -833,11 +833,11 @@ ALTER TABLE ONLY public.registry_workflow_steps
 
 
 --
--- Name: registry_workflow_steps registry_workflow_steps_owner_workflow_id_step_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflow_steps registry_workflow_steps_account_owner_workflow_step_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflow_steps
-    ADD CONSTRAINT registry_workflow_steps_owner_workflow_id_step_id_key UNIQUE (owner_workflow_id, step_id);
+    ADD CONSTRAINT registry_workflow_steps_account_owner_workflow_step_key UNIQUE (account_id, owner_workflow_id, step_id);
 
 
 --
@@ -849,19 +849,19 @@ ALTER TABLE ONLY public.registry_workflows
 
 
 --
--- Name: registry_workflows registry_workflows_workflow_key_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflows registry_workflows_account_id_workflow_key_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflows
-    ADD CONSTRAINT registry_workflows_workflow_key_key UNIQUE (workflow_key);
+    ADD CONSTRAINT registry_workflows_account_id_workflow_key_key UNIQUE (account_id, workflow_key);
 
 
 --
--- Name: registry_workflows registry_workflows_workflow_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: registry_workflows registry_workflows_account_id_workflow_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.registry_workflows
-    ADD CONSTRAINT registry_workflows_workflow_id_key UNIQUE (workflow_id);
+    ADD CONSTRAINT registry_workflows_account_id_workflow_id_key UNIQUE (account_id, workflow_id);
 
 
 --

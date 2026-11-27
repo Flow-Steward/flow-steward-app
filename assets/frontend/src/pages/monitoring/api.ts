@@ -6,6 +6,8 @@ export type MonitoringSummary = {
     checks_total?: number;
     checks_ok?: number;
     checks_failed?: number;
+    checks_degraded?: number;
+    degraded_checks?: string[];
   };
   meta?: Record<string, unknown>;
   checks?: Record<string, unknown>;

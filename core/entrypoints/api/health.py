@@ -16,6 +16,8 @@ from core.application.auth.enforce import require_roles
 from core.application.monitoring.health_query import HealthCountsQueryService
 from core.application.monitoring.readiness_projection import (
     operations_readiness_checks,
+    platform_module_failures_check,
+    public_platform_module_status,
     public_readiness_checks,
 )
 from core.entrypoints.admin import deps
@@ -67,6 +69,11 @@ def _operations_request_authorized(request: Request) -> bool:
     return True
 
 
+def _platform_module_failures(request: Request) -> Any:
+    """Platform modules that failed to load in this app (ADR 0082 §5)."""
+    return getattr(request.app.state, "platform_module_failures", None)
+
+
 def _live_health_payload() -> dict[str, str]:
     return {
         "status": "ok",
@@ -87,7 +94,7 @@ async def health_live():
 
 
 @router.get("/health/ready")
-def health_ready():
+def health_ready(request: Request):
     bl = deps.get_logger_only()
     if not bl:
         return JSONResponse(
@@ -107,6 +114,13 @@ def health_ready():
         "checks": public_readiness_checks(readiness.get("checks")),
         "time": datetime.now(UTC).isoformat(),
     }
+    # Degraded but up: a platform module that failed to load is skipped and the app
+    # keeps serving, so readiness and the status code stay as they are. The public
+    # probe says only how many modules failed, never which or why.
+    module_status = public_platform_module_status(_platform_module_failures(request))
+    if module_status is not None:
+        payload["degraded"] = True
+        payload["platform_modules"] = module_status
     return JSONResponse(payload, status_code=200 if payload["ready"] else 503)
 
 
@@ -150,6 +164,10 @@ def health_deep(request: Request):
         "meta": meta,
         "time": datetime.now(UTC).isoformat(),
     }
+    module_check = platform_module_failures_check(_platform_module_failures(request))
+    if module_check is not None:
+        payload["degraded"] = True
+        payload["platform_modules"] = module_check
     return JSONResponse(payload, status_code=200 if payload["ready"] else 503)
 
 

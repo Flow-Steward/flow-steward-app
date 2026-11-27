@@ -10,7 +10,6 @@ from core.application.extensions.provider_runtime import (
     DEFAULT_MIME_TYPE,
     _as_dict,
     _as_str,
-    _default_account_id,
     _guess_attachment_filename,
     _process_provider_project_state_updates,
     resolve_extension_runtime_config,
@@ -142,7 +141,6 @@ def fetch_provider_attachments(
             or _as_str(project_connection.get("account_id"))
             or _as_str(resolved_config.get("account_id"))
             or _as_str(extension.get("account_id"))
-            or _default_account_id()
         ),
         project_id=(
             _as_str(getattr(scope, "project_id", None))

@@ -439,15 +439,15 @@ def list_candidates(bl: Any) -> list[dict[str, Any]]:
 
 
 def is_platform_admin(scope: Any) -> bool:
-    """A platform administrator: the admin role, and ``admin:all`` for a token."""
-    from core.application.auth.principal import principal_type_has_minimum_role
+    """An installation administrator: the admin role in the installation account.
 
-    if scope is None or not principal_type_has_minimum_role(
-        _text(getattr(scope, "principal_type", "")), "admin"
-    ):
-        return False
-    token_scopes = frozenset(getattr(scope, "token_scopes", frozenset()) or frozenset())
-    return not token_scopes or "admin:all" in token_scopes
+    The admin role, ``admin:all`` for a token, and the installation account as the
+    acting account; an administrator of another account is refused. The rule lives
+    in :func:`core.application.auth.installation_admin.is_installation_admin`.
+    """
+    from core.application.auth.installation_admin import is_installation_admin
+
+    return is_installation_admin(scope)
 
 
 def _require_platform_admin(scope: Any) -> None:
@@ -455,7 +455,7 @@ def _require_platform_admin(scope: Any) -> None:
 
     if not is_platform_admin(scope):
         raise ServiceForbiddenError(
-            "Only a platform administrator can choose the system email sender",
+            "Only an installation administrator can choose the system email sender",
             payload={"error": "platform_admin_required", "code": "platform_admin_required"},
         )
 

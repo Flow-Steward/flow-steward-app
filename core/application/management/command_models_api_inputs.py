@@ -256,6 +256,64 @@ class AuthUserUnlockResultView(ViewModel):
     username: str = ""
 
 
+class AuthAccountMemberCandidateView(ViewModel):
+    id: str = ""
+    email: str = ""
+    display_name: str = ""
+
+
+class AuthAccountMemberCandidatesView(ViewModel):
+    people: list[AuthAccountMemberCandidateView] = Field(default_factory=list)
+
+
+class AuthAccountMemberResultView(ViewModel):
+    user_id: str = ""
+    account_id: str = ""
+    role: str = ""
+
+
+class AuthAccountInvitationSentView(ViewModel):
+    status: str = "ok"
+    message: str = ""
+    #: ``email`` when the system email sent the link, ``link`` when it is returned once.
+    delivery: str = ""
+    #: The single-use link, only when it could not be emailed; never listed again.
+    invitation_link: str = ""
+
+
+class AuthAccountInvitationPreviewView(ViewModel):
+    account_name: str = ""
+    role: str = ""
+    invited_by: str = ""
+    expires_at: str = ""
+
+
+class AuthAccountSentInvitationView(ViewModel):
+    id: str = ""
+    email: str = ""
+    role: str = ""
+    invited_by: str = ""
+    created_at: str = ""
+    expires_at: str = ""
+
+
+class AuthAccountSentInvitationsView(ViewModel):
+    invitations: list[AuthAccountSentInvitationView] = Field(default_factory=list)
+
+
+class AuthAccountInvitationCancelledView(ViewModel):
+    id: str = ""
+    status: str = "cancelled"
+
+
+class AuthAccountInvitationDecisionView(ViewModel):
+    id: str = ""
+    status: str = ""
+    account_id: str = ""
+    account_name: str = ""
+    role: str = ""
+
+
 class AuthUserForcePasswordResetResultView(ViewModel):
     status: str = "password_reset_required"
     user_id: str = ""

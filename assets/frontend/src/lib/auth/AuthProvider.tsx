@@ -3,9 +3,11 @@ import { useCallback, useMemo, type PropsWithChildren } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
+import { holdsAnyEntitlement } from "@/lib/auth/features";
 import {
   AUTH_SESSION_RETRIES,
   AUTH_SESSION_RETRY_DELAY_MS,
+  dropAccountScopedQueries,
   purgeAuthenticatedClientState,
   sessionErrorIsTransient,
 } from "@/lib/auth/session-state";
@@ -28,6 +30,27 @@ export type AuthUser = {
    * shows menus and buttons from these. `null` for a principal that is not role-based.
    */
   permissions?: string[] | null;
+  /**
+   * ADR 0076 §8: for a person limited to chosen projects, the keys they hold in
+   * each of them; a project absent from the map is not theirs. `null` or absent:
+   * no limit, `permissions` applies in every project.
+   */
+  project_permissions?: Record<string, string[]> | null;
+  /**
+   * ADR 0076 §8b: the keys a limited person holds in each visible workspace;
+   * `null` or absent without a limit.
+   */
+  workspace_permissions?: Record<string, string[]> | null;
+  /**
+   * ADR 0076 §8b: `{ project id: { workflow id: keys } }` of a limited person's
+   * workflow grants. A workflow not listed takes its project's keys.
+   */
+  workflow_permissions?: Record<string, Record<string, string[]>> | null;
+  /**
+   * ADR 0076 §8b: projects a limited person reaches only through workflow grants,
+   * with those workflows; any other workflow there is out of reach.
+   */
+  project_workflow_ids?: Record<string, string[]> | null;
   account_id: string;
   account_ids: string[];
   account_memberships: Array<Record<string, unknown>>;
@@ -82,7 +105,10 @@ export type RegisteredPageRecord = {
   label: string;
   title: string;
   path: string;
-  component_key: string;
+  /** Vite-compiled page component; absent when a host renderer draws the page. */
+  component_key?: string;
+  /** Declared surface; a host-renderer kind renders without a component_key (ADR 0082). */
+  control_surface?: Record<string, unknown>;
   nav_section?: string;
   nav_order?: number;
   nav_label?: string;
@@ -121,6 +147,11 @@ export type AuthSession = {
   user?: AuthUser;
   i18n: I18nBootstrap;
   feature_flags: Record<string, boolean>;
+  /**
+   * Where an entitled feature's API lives (ADR 0082): feature name → base URL.
+   * A feature without an endpoint is not offered, whatever its flag says.
+   */
+  feature_endpoints?: Record<string, string>;
   external_sign_in?: ExternalSignInBootstrap;
   environment: AppEnvironmentBootstrap;
   settings_pages: SettingsPageRecord[];
@@ -147,6 +178,7 @@ type AppBootstrapResponse = {
   };
   i18n?: I18nBootstrap;
   feature_flags?: Record<string, boolean>;
+  feature_endpoints?: unknown;
   environment?: AppEnvironmentBootstrap;
   limits?: { run_upload?: unknown; file_preview?: unknown };
   settings_pages?: unknown;
@@ -164,6 +196,17 @@ function normalizeRunUploadLimits(payload: unknown): RunUploadLimits | undefined
     max_total_bytes: count(record.max_total_bytes),
     max_files: count(record.max_files),
   };
+}
+
+/** Feature name → base URL; only non-empty same-origin paths are kept. */
+function normalizeFeatureEndpoints(payload: unknown): Record<string, string> {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+  const endpoints: Record<string, string> = {};
+  for (const [name, value] of Object.entries(payload as Record<string, unknown>)) {
+    const path = typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
+    if (name && path.startsWith("/") && !path.startsWith("//")) endpoints[name] = path;
+  }
+  return endpoints;
 }
 
 function normalizeFilePreviewMaxBytes(payload: unknown): number | undefined {
@@ -201,6 +244,7 @@ const anonymousSession: AuthSession = {
   account_memberships: [],
   i18n: fallbackI18n,
   feature_flags: {},
+  feature_endpoints: {},
   external_sign_in: {},
   environment: fallbackEnvironment,
   settings_pages: [],
@@ -246,6 +290,9 @@ function normalizeSettingsPages(payload: unknown): SettingsPageRecord[] {
   return rows;
 }
 
+/** Control-surface kinds drawn by a renderer in this bundle (ADR 0082, section 6). */
+const HOST_RENDERER_KINDS = new Set(["resource_admin", "resource_report", "status_document"]);
+
 function normalizeRegisteredPages(payload: unknown): RegisteredPageRecord[] {
   if (!Array.isArray(payload)) {
     return [];
@@ -266,7 +313,15 @@ function normalizeRegisteredPages(payload: unknown): RegisteredPageRecord[] {
       record.component_key,
       "",
     ]).trim();
-    if (!pageKey || !path.startsWith("/") || !componentKey) {
+    const controlSurface = record.control_surface;
+    const hostRendered =
+      Boolean(controlSurface)
+      && typeof controlSurface === "object"
+      && !Array.isArray(controlSurface)
+      && HOST_RENDERER_KINDS.has(
+        firstStringFromUnknownValue([(controlSurface as Record<string, unknown>).kind, ""]).trim(),
+      );
+    if (!pageKey || !path.startsWith("/") || !(componentKey || hostRendered)) {
       return;
     }
     const label = firstStringFromUnknownValue([
@@ -368,7 +423,25 @@ function normalizeShellNavigation(
   return sections;
 }
 
+/** Keeps the pages whose `required_entitlement` (one feature or any of a list) the account holds. */
+function entitledPages<T extends Record<string, unknown>>(
+  pages: T[],
+  flags: Record<string, boolean>,
+): T[] {
+  return pages.filter((page) => holdsAnyEntitlement(flags, page.required_entitlement));
+}
+
+function entitledNavigation(
+  sections: Record<string, ShellNavigationItem[]>,
+  flags: Record<string, boolean>,
+): Record<string, ShellNavigationItem[]> {
+  return Object.fromEntries(
+    Object.entries(sections).map(([section, items]) => [section, entitledPages(items, flags)]),
+  );
+}
+
 function toAuthSession(payload: AppBootstrapResponse): AuthSession {
+  const featureFlags = payload.feature_flags || {};
   return {
     authenticated: Boolean(payload.auth?.authenticated),
     local_auth_enabled: Boolean(payload.auth?.local_auth_enabled),
@@ -386,15 +459,16 @@ function toAuthSession(payload: AppBootstrapResponse): AuthSession {
       ? payload.auth.account_memberships
       : [],
     i18n: payload.i18n || fallbackI18n,
-    feature_flags: payload.feature_flags || {},
+    feature_flags: featureFlags,
+    feature_endpoints: normalizeFeatureEndpoints(payload.feature_endpoints),
     external_sign_in: normalizeExternalSignIn(payload.auth?.external_sign_in),
     environment: {
       ...(payload.environment || fallbackEnvironment),
       mode: payload.environment?.mode === "development" ? "development" : "production",
     },
-    settings_pages: normalizeSettingsPages(payload.settings_pages),
-    registered_pages: normalizeRegisteredPages(payload.registered_pages),
-    shell_navigation: normalizeShellNavigation(payload.shell_navigation),
+    settings_pages: entitledPages(normalizeSettingsPages(payload.settings_pages), featureFlags),
+    registered_pages: entitledPages(normalizeRegisteredPages(payload.registered_pages), featureFlags),
+    shell_navigation: entitledNavigation(normalizeShellNavigation(payload.shell_navigation), featureFlags),
     run_upload_limits: normalizeRunUploadLimits(payload.limits?.run_upload),
     file_preview_max_bytes: normalizeFilePreviewMaxBytes(payload.limits?.file_preview),
   };
@@ -495,9 +569,10 @@ export function AuthProvider({ children }: Readonly<PropsWithChildren>) {
         method: "POST",
         body: JSON.stringify({ account_id: normalizedAccountId }),
       });
+      await dropAccountScopedQueries(queryClient);
       await refresh();
     },
-    [refresh],
+    [queryClient, refresh],
   );
 
   const session = query.data ?? null;

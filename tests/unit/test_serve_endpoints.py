@@ -2273,6 +2273,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         client.cookies.set("fs_session", "session-token")
@@ -2559,6 +2560,7 @@ class TestLocalAuthEndpoints:
             "password_hash": "hash",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -2623,6 +2625,7 @@ class TestLocalAuthEndpoints:
             "password_hash": "hash",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -2662,6 +2665,7 @@ class TestLocalAuthEndpoints:
             "is_active": True,
             "roles": ["admin"],
             "must_change_password": True,
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -2703,6 +2707,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         user_row = {
             "id": 7,
@@ -2711,6 +2716,7 @@ class TestLocalAuthEndpoints:
             "password_hash": "hash",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -2760,6 +2766,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Ops",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -2806,6 +2813,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Ops",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         monkeypatch.setenv("FS_PUBLIC_BASE_URL", "https://flow-steward.test")
@@ -2952,6 +2960,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -2995,6 +3004,8 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            # A real session lookup never returns a session without its account.
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -3035,6 +3046,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_cur = MagicMock()
         mock_cur.fetchone.return_value = (55,)
@@ -3091,6 +3103,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -3123,6 +3136,7 @@ class TestLocalAuthEndpoints:
             "is_active": True,
             "roles": ["viewer"],
             "must_change_password": True,
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         payload = MagicMock()
         payload.dump.return_value = {
@@ -3210,6 +3224,7 @@ class TestLocalAuthEndpoints:
             "is_active": True,
             "roles": ["viewer"],
             "must_change_password": True,
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         scope = {
             "type": "http",
@@ -3333,6 +3348,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.count_user_pats.return_value = 1
         mock_bl.list_user_pats_paginated.return_value = [
@@ -3384,6 +3400,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.create_pat.return_value = {
             "id": 31,
@@ -3497,6 +3514,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.revoke_pat.return_value = {"id": 31, "label": "Nightfire token", "revoked": True}
         with (
@@ -3534,6 +3552,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_accounts.return_value = [
             {
@@ -3583,12 +3602,19 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.create_account.return_value = {
             "account_id": "acc_acme",
             "display_name": "Acme Inc",
             "is_active": True,
         }
+        # The default account is the only active one; a source allows two (C2).
+        mock_bl.list_accounts.return_value = [
+            {"account_id": DEFAULT_ACCOUNT_ID, "display_name": "Default", "is_active": True}
+        ]
+        account_limit = MagicMock()
+        account_limit.limit.return_value = 2
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
             patch.dict(
@@ -3598,6 +3624,10 @@ class TestLocalAuthEndpoints:
             patch.object(api_routes, "_auth_account_tables_available", return_value=True),
             patch.object(api_routes, "_csrf_request_valid", return_value=True),
             patch.object(api_routes, "_get_user_by_session_token", return_value=admin_user),
+            patch(
+                "core.entrypoints.api.auth_route_bindings._app_entitlement_service",
+                return_value=account_limit,
+            ),
         ):
             resp = client.post(
                 "/api/auth/accounts",
@@ -3629,6 +3659,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.set_account_active.return_value = {
             "account_id": "acc_acme",
@@ -3672,6 +3703,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_accounts.return_value = [
             {
@@ -3718,6 +3750,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.create_service_account.return_value = {
             "id": 9,
@@ -3782,6 +3815,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.update_service_account.return_value = {
             "id": 9,
@@ -3860,6 +3894,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_account_tokens.return_value = [
             {
@@ -3907,6 +3942,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.create_machine_token.return_value = {
             "id": 21,
@@ -3967,6 +4003,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_account_tokens.return_value = [
             {"id": 31, "label": "CI token", "revoked": False}
@@ -4033,6 +4070,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_account_tokens.return_value = [
             {"id": 31, "label": "CI token", "revoked": False}
@@ -4078,6 +4116,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_account_tokens.return_value = [
             {"id": 32, "label": "CI token", "revoked": True}
@@ -4126,6 +4165,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl.list_service_account_tokens.return_value = [
             {"id": 99, "label": "Other token", "revoked": False}
@@ -4172,6 +4212,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4230,6 +4271,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         client.cookies.clear()
         with (
@@ -4268,6 +4310,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         client.cookies.clear()
         with (
@@ -4313,6 +4356,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         client.cookies.clear()
         with (
@@ -4354,6 +4398,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_extension_query = MagicMock()
         mock_extension_query.list_extensions.return_value = type(
@@ -4393,6 +4438,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         client.cookies.clear()
         with (
@@ -4436,6 +4482,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4466,6 +4513,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Viewer",
             "is_active": True,
             "roles": ["viewer"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4495,6 +4543,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4539,6 +4588,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4572,6 +4622,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_service = MagicMock()
         mock_payload = type(
@@ -4626,6 +4677,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -4657,6 +4709,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_service = MagicMock()
         mock_payload = type(
@@ -4990,6 +5043,7 @@ class TestLocalAuthEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -5072,6 +5126,7 @@ class TestLocalAuthEndpoints:
             "password_hash": "hash",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -5181,9 +5236,9 @@ class TestJobEndpoints:
         [
             ({"roles": ["viewer"]}, "viewer"),
             ({"roles": ["operator"]}, "operator"),
-            ({"roles": ["admin"]}, "admin"),
+            ({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}, "admin"),
             ({"roles": ["viewer", "operator"]}, "operator"),
-            ({"roles": ["viewer", "operator", "admin"]}, "admin"),
+            ({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["viewer", "operator", "admin"]}, "admin"),
             (None, "viewer"),
             (
                 {
@@ -5364,6 +5419,7 @@ class TestJobEndpoints:
             "display_name": "Operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -5398,6 +5454,7 @@ class TestJobEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -5431,6 +5488,7 @@ class TestJobEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -5456,7 +5514,13 @@ class TestJobEndpoints:
             pytest.fail(f"api_runtime not importable: {e}")
 
         # FS-DEEP-CAND-017: destructive recovery (kill) is admin-only.
-        admin_user = {"id": 7, "username": "admin", "is_active": True, "roles": ["admin"]}
+        admin_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "id": 7,
+            "username": "admin",
+            "is_active": True,
+            "roles": ["admin"],
+        }
         mock_bl = MagicMock()
         mock_bl.get_job.return_value = {
             "id": 42,
@@ -5519,6 +5583,7 @@ class TestJobEndpoints:
             "username": "operator",
             "is_active": True,
             "roles": ["operator"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
         mock_bl = MagicMock()
         with (
@@ -5546,7 +5611,13 @@ class TestJobEndpoints:
         except Exception as e:
             pytest.fail(f"api_runtime not importable: {e}")
 
-        admin_user = {"id": 7, "username": "admin", "is_active": True, "roles": ["admin"]}
+        admin_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "id": 7,
+            "username": "admin",
+            "is_active": True,
+            "roles": ["admin"],
+        }
         mock_bl = MagicMock()
         mock_bl.get_job.return_value = {
             "id": 77,
@@ -5614,7 +5685,13 @@ class TestJobEndpoints:
             ]
         )
 
-        admin_user = {"id": 7, "username": "admin", "is_active": True, "roles": ["admin"]}
+        admin_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "id": 7,
+            "username": "admin",
+            "is_active": True,
+            "roles": ["admin"],
+        }
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
             patch.object(client.app.state, "external_auth_enabled_override", return_value=False),
@@ -5706,6 +5783,7 @@ class TestJobEndpoints:
         @app.middleware("http")
         async def authenticate_admin(request: Request, call_next):
             request.state.auth_user = {
+                "account_id": DEFAULT_ACCOUNT_ID,
                 "id": 7,
                 "username": "admin",
                 "is_active": True,
@@ -5780,7 +5858,13 @@ class TestJobEndpoints:
             "project_name": "Demo",
             "project_root": "/target/demo",
         }
-        admin_user = {"id": 7, "username": "admin", "is_active": True, "roles": ["admin"]}
+        admin_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "id": 7,
+            "username": "admin",
+            "is_active": True,
+            "roles": ["admin"],
+        }
 
         with (
             patch.object(client.app.state, "local_auth_enabled_override", return_value=True),
@@ -6045,6 +6129,7 @@ class TestJobEndpoints:
             "display_name": "Alice",
             "roles": ["operator"],
             "is_active": True,
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -6814,6 +6899,7 @@ class TestJobEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -6861,6 +6947,7 @@ class TestJobEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -6917,6 +7004,7 @@ class TestJobEndpoints:
             "display_name": "Admin",
             "is_active": True,
             "roles": ["admin"],
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -7969,6 +8057,7 @@ class TestJobEndpoints:
             # (ADR 0066 amendment).
             "roles": ["admin"],
             "is_active": True,
+            "account_id": DEFAULT_ACCOUNT_ID,
         }
 
         with (
@@ -9175,7 +9264,11 @@ class TestProviderEndpoints:
             patch.object(
                 api_routes,
                 "_require_authenticated_user",
-                return_value={"username": "admin", "roles": ["admin"]},
+                return_value={
+                    "username": "admin",
+                    "roles": ["admin"],
+                    "account_id": DEFAULT_ACCOUNT_ID,
+                },
             ),
         ):
             resp = client.post(

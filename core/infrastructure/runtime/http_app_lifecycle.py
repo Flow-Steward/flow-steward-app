@@ -1,7 +1,7 @@
 # ruff: noqa: F405, I001, RUF100
 # mypy: ignore-errors
 import ipaddress
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -160,6 +160,7 @@ class _LifecycleRuntimeBindings:
     roles_intersect: Callable[[list[str], set[str]], bool]
     is_registry_read_route: Callable[[str], bool]
     is_self_service_auth_write_route: Callable[[str], bool]
+    contributed_route_rules: Callable[[], tuple[Any, ...]]
     csrf_request_valid: Callable[[Request], bool]
     start_runtime_reporting: Callable[[], Any] | None = None
 
@@ -773,8 +774,18 @@ request_validation_exception_handler = (
 )
 
 
-def _register_core_exception_handlers(app: FastAPI) -> None:
+async def service_error_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Render a raised service error as the standard service error response."""
+    return _service_error_response(exc, request)
+
+
+def _register_core_exception_handlers(
+    app: FastAPI, *, service_error_types: Iterable[type[Exception]] = ()
+) -> None:
+    """Register Core's handlers; ``service_error_types`` are composed by the entrypoint."""
     app.exception_handler(RequestValidationError)(request_validation_exception_handler)
+    for error_type in service_error_types:
+        app.exception_handler(error_type)(service_error_exception_handler)
 
 
 def _build_route_registered_resolver(app: FastAPI):
@@ -807,6 +818,7 @@ async def _local_auth_middleware(request: Request, call_next):
         roles_intersect_fn=bindings.roles_intersect,
         is_registry_read_route_fn=bindings.is_registry_read_route,
         is_self_service_auth_write_route_fn=bindings.is_self_service_auth_write_route,
+        contributed_route_rules_fn=bindings.contributed_route_rules,
         csrf_request_valid_fn=bindings.csrf_request_valid,
         auth_cookie_name=_AUTH_COOKIE_NAME,
         auth_unsafe_methods=_AUTH_UNSAFE_METHODS,
@@ -820,6 +832,8 @@ async def _local_auth_middleware(request: Request, call_next):
         err_operator_role_required=ERR_OPERATOR_ROLE_REQUIRED,
         path_bootstrap=PATH_BOOTSTRAP,
         path_login=PATH_LOGIN,
+        load_scope_limit_fn=_auth_http_runtime.read_stored_scope_limit,
+        installation_admin_fn=_is_installation_admin,
     )
     return await handler(request, call_next)
 

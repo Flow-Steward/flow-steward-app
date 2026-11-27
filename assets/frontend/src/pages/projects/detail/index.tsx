@@ -13,6 +13,7 @@ import { DsAlert, DsPageHeader, PageContainer } from "@/components/shared/design
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { useProjectLimitAllows } from "@/lib/auth/project-permissions";
 import { useRememberProject } from "@/lib/utils/use-remember-project";
 import { queryKeys } from "@/lib/query/keys";
 import { fetchProjectDetail, updateProject, type ProjectEditInput } from "@/pages/projects/detail/api";
@@ -133,7 +134,10 @@ function buildProjectEditPayload({
 export function ProjectsDetailPage() {
   const { t } = useI18n();
   const { projectId = "" } = useParams();
-  const canMutate = useHasCapability("mutate_projects");
+  const canMutateProjects = useHasCapability("mutate_projects");
+  // ADR 0076 §8: a person limited to chosen projects edits only where the project allows it.
+  const projectAllowsEdit = useProjectLimitAllows(projectId, "projects.write");
+  const canMutate = canMutateProjects && projectAllowsEdit;
   // Linking workflows to a project is admin-only on the server; an operator sees
   // the workflow secrets panel instead, never an assignment list it cannot load.
   const canManageWorkflows = useHasCapability("administer_platform");

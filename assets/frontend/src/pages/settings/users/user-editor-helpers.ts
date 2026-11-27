@@ -72,18 +72,32 @@ export function updateUserPayload(editor: EditorState, user: UserRecord): Update
   return payload;
 }
 
+/** What saving the editor said, and an invitation link to show once, if any. */
+export type PersistedUserEditor = { message: string; invitationLink: string };
+
 export async function persistUserEditor(
   mode: EditorMode,
   editor: EditorState,
   editingUser: UserRecord | null,
   t: I18nContextValue["t"],
-): Promise<string> {
+): Promise<PersistedUserEditor> {
   if (mode === "add") {
     const result = await createUser(createUserPayload(editor));
+    if (!result.user && result.message) {
+      // ADR 0085: the address was taken, so the person was invited instead; the
+      // answer never says whether they exist.
+      return {
+        message: t("react.settings.if_this_person_exists_they_will_get_an_invitation", "If this person exists, they will get an invitation."),
+        invitationLink: String(result.invitation_link || "").trim(),
+      };
+    }
     const warnings = Array.isArray(result.warnings)
       ? result.warnings.filter((warning): warning is string => typeof warning === "string" && Boolean(warning.trim()))
       : [];
-    return [t("react.settings.user_added_feedback", "{name} was added.", { name: editor.displayName.trim() }), ...warnings].join(" ");
+    return {
+      message: [t("react.settings.user_added_feedback", "{name} was added.", { name: editor.displayName.trim() }), ...warnings].join(" "),
+      invitationLink: "",
+    };
   }
   if (!editingUser) {
     throw new Error(t("react.settings.choose_user_access_save", "Choose a user before saving access changes."));
@@ -99,5 +113,8 @@ export async function persistUserEditor(
   ) {
     throw new Error(t("react.settings.saved_display_name_mismatch", "The saved display name did not match the submitted value."));
   }
-  return t("react.settings.user_access_updated", "Access for {name} was updated.", { name: userLabel(editingUser) });
+  return {
+    message: t("react.settings.user_access_updated", "Access for {name} was updated.", { name: userLabel(editingUser) }),
+    invitationLink: "",
+  };
 }

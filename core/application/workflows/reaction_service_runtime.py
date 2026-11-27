@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from core.application.management.approval_assignees import (
+    APPROVAL_NOT_ASSIGNED_CODE,
+    StepApproverRequiredError,
+    without_personal_identity,
+)
 from core.application.management.approval_outcome import approval_conflict_outcome_code
 from core.application.management.command_models import ApprovalDecisionInput
 from core.application.management.errors import ServiceConflictError
@@ -49,7 +54,9 @@ def require_worker_inbound_reaction_contract(
         ).strip()
         if not workflow_id or bl is None or not hasattr(bl, "list_workflow_reactions"):
             continue
-        rules = bl.list_workflow_reactions(workflow_id, enabled_only=True) or []
+        rules = reaction_runtime.list_account_workflow_reactions(
+            bl, workflow_id, event.get("account_id") or (job or {}).get("account_id")
+        )
         for raw_rule in rules:
             rule = to_json_obj(raw_rule)
             if str(rule.get("event_type") or "").strip() != event_type:
@@ -100,7 +107,9 @@ def resume_job_via_approval_command_service(
     try:
         accepted = approval_command_service_factory().resume_task(
             thread_id=thread_id,
-            scope=scope,
+            # A reaction never decides as a person: a step with assigned
+            # approvers refuses it whoever sent the triggering event.
+            scope=without_personal_identity(scope),
             decision=ApprovalDecisionInput(
                 approved=bool(approved),
                 action=action,
@@ -110,6 +119,8 @@ def resume_job_via_approval_command_service(
             idempotency_key=str(idempotency_key or "").strip()
             or f"reaction:{job_id}:{approval_id}:{'approve' if approved else 'reject'}",
         )
+    except StepApproverRequiredError:
+        return {"status": "ignored", "reason": APPROVAL_NOT_ASSIGNED_CODE}
     except ServiceConflictError as exc:
         code = str((exc.payload or {}).get("code") or "").strip()
         outcome_code = approval_conflict_outcome_code(code)

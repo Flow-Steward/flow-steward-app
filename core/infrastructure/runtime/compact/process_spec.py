@@ -15,6 +15,7 @@ from core.infrastructure.observability.otel_environment import (
     SEMCONV_STABILITY_ENV,
     SUPPORTED_ENV_NAMES,
 )
+from core.infrastructure.platform_modules.module_settings import MODULE_SETTINGS_ENV
 
 _COMMON_ENV = frozenset(
     {
@@ -149,6 +150,10 @@ _MONITORING_ENV = frozenset(
 _SECURITY_ENV = frozenset(
     {"FS_SECRET_KEY", "ENCRYPTION_KEY", "SECURITY_PII_SALT", "FS_MCP_AUTH_DISABLED"}
 )
+# ADR 0082: the one carrier of the operator's platform-module settings. Only the roles
+# that load platform modules (app, worker, control) receive it; each publishes the
+# FS_MODULE_* names its own modules declare, so no module name is listed here.
+_MODULE_SETTINGS_ENV = frozenset({MODULE_SETTINGS_ENV})
 # Optional OpenTelemetry export: the operator-supported names only. Each process
 # pins the conventions mode itself, so that variable is not delivered.
 _TELEMETRY_ENV = SUPPORTED_ENV_NAMES - {SEMCONV_STABILITY_ENV}
@@ -371,6 +376,7 @@ def delivered_environment_names() -> frozenset[str]:
         | _MONITORING_ENV
         | _RETENTION_ENV
         | _TELEMETRY_ENV
+        | _MODULE_SETTINGS_ENV
     )
 
 
@@ -414,7 +420,7 @@ def build_process_specs(
         | _MONITORING_ENV
         | _TELEMETRY_ENV
     )
-    control_env = worker_env | _CONTROL_LOOP_ENV | _RETENTION_ENV
+    control_env = worker_env | _CONTROL_LOOP_ENV | _RETENTION_ENV | _MODULE_SETTINGS_ENV
     # Installer owns a process reporter too; it needs the same broker projection,
     # but still must not inherit app auth bootstrap or worker bearer credentials.
     # It is not instrumented, so it gets no telemetry export settings either.
@@ -458,7 +464,7 @@ def build_process_specs(
             port=ports.app_port,
             environment=_environment(
                 parent_environment,
-                application_env | {"FS_AUTH_COOKIE_SECURE"},
+                application_env | {"FS_AUTH_COOKIE_SECURE"} | _MODULE_SETTINGS_ENV,
                 {
                     # AC17-R123: a role that runs extension steps has to be able
                     # to hand one a URL for an artifact this storage cannot
@@ -572,7 +578,7 @@ def build_process_specs(
                 port=metrics_port,
                 environment=_environment(
                     parent_environment,
-                    worker_env,
+                    worker_env | _MODULE_SETTINGS_ENV,
                     {
                         # AC17-R123: a role that runs extension steps has to be able
                         # to hand one a URL for an artifact this storage cannot

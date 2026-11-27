@@ -36,7 +36,7 @@ def _service(logger: PlatformLogger) -> ExtensionBindingService:
     return ExtensionBindingService(
         get_logger=lambda: logger,
         get_operation_store=lambda: logger,
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
@@ -777,7 +777,7 @@ def test_uninstall_of_an_oauth_extension_writes_its_audit_through_the_production
     service = ExtensionBindingService(
         get_logger=lambda: lifecycle_store,
         get_operation_store=lambda: PlatformIntegrationStore(dsn),
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,

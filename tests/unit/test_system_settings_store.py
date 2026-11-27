@@ -79,6 +79,7 @@ def test_normalize_retention_settings_merges_defaults_and_clamps_values() -> Non
         "trash_days": 3650,
         "terminal_job_checkpoints_days": 3650,
         "revisions_keep": 5,
+        "approval_journal_retention_days": 0,
     }
 
 
@@ -117,6 +118,7 @@ def test_get_retention_settings_returns_defaults_when_table_missing() -> None:
         "trash_days": 30,
         "terminal_job_checkpoints_days": 40,
         "revisions_keep": 5,
+        "approval_journal_retention_days": 0,
     }
 
 

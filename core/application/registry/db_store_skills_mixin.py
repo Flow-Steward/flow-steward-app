@@ -20,6 +20,7 @@ from core.application.registry.db_store_common import (
     _system_registry_account_id,
     json,
     normalize_builder_metadata,
+    platform_catalog_owner,
     psycopg_runtime,
 )
 
@@ -70,7 +71,8 @@ class RegistryDBStoreSkillsMixin:
                 """SELECT i.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                           dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                    FROM registry_skill_inputs i
-                   LEFT JOIN registry_data_contracts dc ON dc.contract_id = i.contract_id
+                   LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = i.contract_account_id AND dc.contract_id = i.contract_id
                    WHERE i.skill_id = %s
                    ORDER BY i.sort_order""",
                 (skill_id,),
@@ -80,7 +82,8 @@ class RegistryDBStoreSkillsMixin:
                 """SELECT o.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                           dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                    FROM registry_skill_outputs o
-                   LEFT JOIN registry_data_contracts dc ON dc.contract_id = o.contract_id
+                   LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = o.contract_account_id AND dc.contract_id = o.contract_id
                    WHERE o.skill_id = %s
                    ORDER BY o.sort_order""",
                 (skill_id,),
@@ -149,7 +152,8 @@ class RegistryDBStoreSkillsMixin:
                     """SELECT i.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                               dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                        FROM registry_skill_inputs i
-                       LEFT JOIN registry_data_contracts dc ON dc.contract_id = i.contract_id
+                       LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = i.contract_account_id AND dc.contract_id = i.contract_id
                        WHERE i.skill_id = ANY(%s)
                        ORDER BY i.skill_id, i.sort_order""",
                     (cap_ids,),
@@ -161,7 +165,8 @@ class RegistryDBStoreSkillsMixin:
                     """SELECT o.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                               dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                        FROM registry_skill_outputs o
-                       LEFT JOIN registry_data_contracts dc ON dc.contract_id = o.contract_id
+                       LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = o.contract_account_id AND dc.contract_id = o.contract_id
                        WHERE o.skill_id = ANY(%s)
                        ORDER BY o.skill_id, o.sort_order""",
                     (cap_ids,),
@@ -486,6 +491,9 @@ class RegistryDBStoreSkillsMixin:
                             "".join(
                                 f", {column} = EXCLUDED.{column}"
                                 for column in optional_column_names
+                                # The live row keeps its owner: an upsert never
+                                # moves a skill into another account (ADR 0020).
+                                if column != "account_id"
                             )
                         ),
                     ),
@@ -534,6 +542,9 @@ class RegistryDBStoreSkillsMixin:
                             "".join(
                                 f", {column} = EXCLUDED.{column}"
                                 for column in optional_column_names
+                                # The live row keeps its owner: an upsert never
+                                # moves a skill into another account (ADR 0020).
+                                if column != "account_id"
                             )
                         ),
                     ),
@@ -544,8 +555,8 @@ class RegistryDBStoreSkillsMixin:
             for i, inp in enumerate(expected_inputs):
                 cur.execute(
                     """INSERT INTO registry_skill_inputs
-                       (skill_id, name, type, description, required, sort_order, contract_id)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       (skill_id, name, type, description, required, sort_order, contract_id, contract_account_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         skill_id,
                         inp.get("name", ""),
@@ -554,6 +565,7 @@ class RegistryDBStoreSkillsMixin:
                         inp.get("required", False),
                         i,
                         inp.get("contract_id") or None,
+                        self._skill_contract_owner_cur(cur, skill_id, inp.get("contract_id")),
                     ),
                 )
             # Sync outputs
@@ -561,8 +573,8 @@ class RegistryDBStoreSkillsMixin:
             for i, out in enumerate(expected_outputs):
                 cur.execute(
                     """INSERT INTO registry_skill_outputs
-                       (skill_id, name, type, description, sort_order, required, contract_id)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       (skill_id, name, type, description, sort_order, required, contract_id, contract_account_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         skill_id,
                         out.get("name", ""),
@@ -571,6 +583,7 @@ class RegistryDBStoreSkillsMixin:
                         i,
                         out.get("required", True),
                         out.get("contract_id") or None,
+                        self._skill_contract_owner_cur(cur, skill_id, out.get("contract_id")),
                     ),
                 )
             self._log_change_cur(
@@ -668,13 +681,36 @@ class RegistryDBStoreSkillsMixin:
             )
             return [dict(row) for row in cur.fetchall()]
 
+    def _skill_contract_owner_cur(self, cur, skill_id: str, contract_id: Any) -> str | None:
+        """The account of the data contract a skill input or output names.
+
+        A skill may only name a data contract of its own account; a skill without
+        an account (a platform row) names one of the default account. A contract
+        of another account is reported as missing (ADR 0020, C4a).
+        """
+        normalized = str(contract_id or "").strip()
+        if not normalized:
+            return None
+        cur.execute("SELECT account_id FROM registry_skills WHERE skill_id = %s", (skill_id,))
+        row = cur.fetchone()
+        owner = platform_catalog_owner((row or {}).get("account_id"))
+        cur.execute(
+            "SELECT 1 AS ok FROM registry_data_contracts "
+            "WHERE account_id = %s AND contract_id = %s FOR KEY SHARE",
+            (owner, normalized),
+        )
+        if cur.fetchone() is None:
+            raise ValueError(f"Referenced data contract '{normalized}' does not exist")
+        return owner
+
     def get_skill_inputs(self, skill_id: str) -> list[dict]:
         with self._cursor() as cur:
             cur.execute(
                 """SELECT i.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                           dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                    FROM registry_skill_inputs i
-                   LEFT JOIN registry_data_contracts dc ON dc.contract_id = i.contract_id
+                   LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = i.contract_account_id AND dc.contract_id = i.contract_id
                    WHERE i.skill_id = %s
                    ORDER BY i.sort_order""",
                 (skill_id,),
@@ -692,8 +728,8 @@ class RegistryDBStoreSkillsMixin:
             for i, inp in enumerate(inputs):
                 cur.execute(
                     """INSERT INTO registry_skill_inputs
-                       (skill_id, name, type, description, required, sort_order, contract_id)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       (skill_id, name, type, description, required, sort_order, contract_id, contract_account_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         skill_id,
                         inp["name"],
@@ -702,6 +738,7 @@ class RegistryDBStoreSkillsMixin:
                         inp.get("required", False),
                         i,
                         inp.get("contract_id") or None,
+                        self._skill_contract_owner_cur(cur, skill_id, inp.get("contract_id")),
                     ),
                 )
             cur.execute(
@@ -743,7 +780,8 @@ class RegistryDBStoreSkillsMixin:
                 """SELECT o.*, dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                           dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                    FROM registry_skill_outputs o
-                   LEFT JOIN registry_data_contracts dc ON dc.contract_id = o.contract_id
+                   LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = o.contract_account_id AND dc.contract_id = o.contract_id
                    WHERE o.skill_id = %s
                    ORDER BY o.sort_order""",
                 (skill_id,),
@@ -767,7 +805,8 @@ class RegistryDBStoreSkillsMixin:
                           dc.display_name AS contract_display_name, dc.kind AS contract_kind,
                           dc.schema_json AS contract_schema, dc.enabled AS contract_enabled
                    FROM registry_skill_outputs o
-                   LEFT JOIN registry_data_contracts dc ON dc.contract_id = o.contract_id
+                   LEFT JOIN registry_data_contracts dc
+                     ON dc.account_id = o.contract_account_id AND dc.contract_id = o.contract_id
                    WHERE o.skill_id = %s
                    ORDER BY o.sort_order""",
                 (skill_id,),
@@ -792,8 +831,8 @@ class RegistryDBStoreSkillsMixin:
             for i, out in enumerate(outputs):
                 cur.execute(
                     """INSERT INTO registry_skill_outputs
-                       (skill_id, name, type, description, sort_order, required, contract_id)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       (skill_id, name, type, description, sort_order, required, contract_id, contract_account_id)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         skill_id,
                         out["name"],
@@ -802,6 +841,7 @@ class RegistryDBStoreSkillsMixin:
                         i,
                         out.get("required", True),
                         out.get("contract_id") or None,
+                        self._skill_contract_owner_cur(cur, skill_id, out.get("contract_id")),
                     ),
                 )
             cur.execute(

@@ -11,7 +11,9 @@ from core.application.jobs.public_approval_serializer import (
 from core.application.jobs.workflow_identity import resolve_job_workflow_id
 from core.application.workflows.approval_review import REVIEW_PAYLOAD_KEY
 
+from .approval_assignees import job_workflow_ids, read_step_assignment
 from .approval_decision_service import ApprovalDecisionService
+from .guards import ACCESS_DENIED_MESSAGE, workflow_in_scope_limit
 from .query_services_common import *  # NOSONAR
 
 
@@ -30,6 +32,34 @@ def job_in_section(job: dict[str, Any], *, project_id: str | None, workflow_id: 
 
 def _is_token_principal(scope: ScopeContext) -> bool:
     return is_token_scoped_principal(scope)
+
+
+def _gate_assignment(
+    bl: Any, scope: ScopeContext, job: dict[str, Any], payload: Any
+) -> dict[str, Any] | None:
+    """``can_decide`` and ``approvers`` of the gate (ADR 0082), or ``None`` if unreadable.
+
+    The step is the one the decision check reads (the gate payload's ``step_id``),
+    with the job's current step when the payload has none; the workflow ids are the
+    job's own, as in the check. A failed read is logged and leaves the fields
+    absent: the decision check still applies.
+    """
+    step_id = ""
+    if isinstance(payload, dict):
+        step_id = str(payload.get("step_id") or "").strip()
+    step_id = step_id or str(job.get("current_step_id") or "").strip()
+    try:
+        return read_step_assignment(
+            getattr(bl, "conn", None),
+            scope,
+            workflow_ids=job_workflow_ids(job),
+            step_id=step_id,
+            project_id=job.get("project_id"),
+            account_id=job.get("account_id"),
+        )
+    except Exception as exc:
+        logger.warning("Could not read the approvers of job %s: %s", job.get("id"), exc)
+        return None
 
 
 class ApprovalQueryService:
@@ -76,7 +106,10 @@ class ApprovalQueryService:
 
     @staticmethod
     def _require_job_workflow_access(scope: ScopeContext, job: dict[str, Any]) -> None:
-        require_workflow_access(scope, resolve_job_workflow_id(job))
+        workflow_id = resolve_job_workflow_id(job)
+        require_workflow_access(scope, workflow_id)
+        if not workflow_in_scope_limit(scope, job.get("project_id"), workflow_id):
+            raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
 
     def get_current_gate(
         self, job_id: str, *, scope: ScopeContext | None = None
@@ -162,6 +195,8 @@ class ApprovalQueryService:
             if isinstance(payload, dict)
             else None
         )
+        # Read before the token serializer narrows the payload: the gate's step id.
+        assignment = _gate_assignment(bl, resolved, job, payload)
         if _is_token_principal(resolved):
             payload = serialize_token_approval_payload(payload)
 
@@ -189,6 +224,7 @@ class ApprovalQueryService:
             allowed_actions=[str(item) for item in allowed_actions if str(item).strip()],
             payload=payload if isinstance(payload, dict) else {},
             review=review,
+            **(assignment or {}),
         )
 
     def get_review(

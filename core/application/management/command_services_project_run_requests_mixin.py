@@ -36,13 +36,23 @@ from core.application.management.command_services_common import (
 from core.application.management.guards import (
     require_account_access,
     require_default_workflow_catalog_account,
+    require_project_permission,
+    require_workflow_permission,
+    workflow_in_scope_limit,
 )
 from core.application.workflows.workflow_start_runtime import (
+    SCHEDULED_RUN_REQUESTED_BY_KEY,
+    run_started_by,
     workflow_run_summary,
     workflow_run_summary_metadata,
 )
 from core.application.workflows.workflow_trigger_guards import workflow_trigger_transaction
 
+#: Starting a run; a person limited to chosen projects needs it in the run's project.
+_RUN_PERMISSION = "workflows.run"
+#: Changing, pausing, deleting or starting a schedule (the route's permission), checked
+#: in the schedule's own workflow for a person limited to chosen places (ADR 0076 §8b).
+_SCHEDULE_PERMISSION = "projects.write"
 _CRON_UNAVAILABLE = "Cron scheduling is unavailable"
 _SCHEDULE_ACCOUNT_REQUIRED = "Project account context is required for scheduled jobs."
 #: A schedule's name titles the jobs it starts (see workflow_run_title).
@@ -71,6 +81,22 @@ def submitted_by(scope: ScopeContext) -> dict[str, str]:
         "id": str(scope.actor_id or "").strip(),
         "kind": "service_account" if principal_type == "service_account" else "person",
     }
+
+
+def require_schedule_workflow_permission(
+    scope: ScopeContext, project: dict[str, Any], scheduled_job: dict[str, Any]
+) -> None:
+    """The schedule's own workflow decides whether a limited person may act on it.
+
+    A schedule of a workflow out of their reach (a workflow-only project that does not
+    grant it, a token allowlist without it, or no workflow at all in such a project) is
+    not revealed; otherwise the permission is the one held in that workflow, which takes
+    precedence over the project and the workspace (ADR 0076 section 8b).
+    """
+    workflow_id = str((scheduled_job or {}).get("workflow_id") or "").strip() or None
+    if not workflow_in_scope_limit(scope, project.get("id"), workflow_id):
+        raise ServiceNotFoundError(SCHEDULED_JOB_NOT_FOUND_MESSAGE)
+    require_workflow_permission(scope, project, workflow_id, _SCHEDULE_PERMISSION)
 
 
 class ProjectCommandServiceRunRequestsMixin:
@@ -105,6 +131,7 @@ class ProjectCommandServiceRunRequestsMixin:
         require_default_workflow_catalog_account(resolved)
         bl = self._logger()
         project = self._require_project_in_scope(bl, command.project_id, resolved)
+        require_project_permission(resolved, project, _RUN_PERMISSION, workflow_id=workflow_id)
         require_workflow_access(resolved, workflow_id)
         config = self._project_run_config(bl, command.project_id, project=project)
         if not any(
@@ -208,6 +235,12 @@ class ProjectCommandServiceRunRequestsMixin:
         resolved = self._scope(
             scope, project_id=command.project_id, workflow_id=command.workflow_id
         )
+        # The account is checked when the run is admitted; a limited person is refused
+        # here, before any read, in a project where their role does not run workflows.
+        if resolved.project_permissions is not None:
+            require_project_permission(
+                resolved, command.project_id, _RUN_PERMISSION, workflow_id=command.workflow_id
+            )
         self._require_operator_publication(resolved, command.project_id, command.workflow_id)
         # The queue correlation must remain stable on an idempotent retry; a
         # random task id would change the existing admission fingerprint.
@@ -394,7 +427,9 @@ class ProjectCommandServiceRunRequestsMixin:
                 "Scheduled job requires a linked explicit workflow override."
             )
 
-        require_workflow_access(resolved, selected_workflow_id)
+        require_schedule_workflow_permission(
+            resolved, project, {"workflow_id": selected_workflow_id}
+        )
 
         workflow_inputs = dict(command.inputs) if isinstance(command.inputs, dict) else {}
         admission, workflow_inputs = self._scheduled_job_admission(
@@ -464,6 +499,7 @@ class ProjectCommandServiceRunRequestsMixin:
             or str(current.get("account_id") or "") != account_id
         ):
             raise ServiceNotFoundError(SCHEDULED_JOB_NOT_FOUND_MESSAGE)
+        require_schedule_workflow_permission(resolved, project, current)
         if str(command.workflow_id).strip() != str(current.get("workflow_id") or "").strip():
             raise ServiceValidationError("Schedule editing cannot change the owning workflow.")
         values = {
@@ -560,6 +596,7 @@ class ProjectCommandServiceRunRequestsMixin:
             str(scheduled_job_id),
             account_id=account_id or None,
         )
+        require_schedule_workflow_permission(resolved, project, scheduled_job)
 
         raw_enabled = command.enabled
         if raw_enabled is None or str(raw_enabled).strip() == "":
@@ -659,6 +696,11 @@ class ProjectCommandServiceRunRequestsMixin:
         if not hasattr(bl, "delete_scheduled_job"):
             raise ServiceUnavailableError(ERR_SCHEDULED_JOBS_SCHEMA_UNAVAILABLE)
         account_id = str(project.get("account_id") or resolved.account_id or "").strip()
+        if resolved.project_permissions is not None or resolved.allowed_workflow_ids:
+            scheduled_job = self._scheduled_job(
+                bl, str(project_id), str(scheduled_job_id), account_id=account_id or None
+            )
+            require_schedule_workflow_permission(resolved, project, scheduled_job)
         try:
             deleted = bool(
                 bl.delete_scheduled_job(
@@ -695,9 +737,8 @@ class ProjectCommandServiceRunRequestsMixin:
             str(scheduled_job_id),
             account_id=account_id or None,
         )
+        require_schedule_workflow_permission(resolved, project, scheduled_job)
         scheduled_workflow_id = str((scheduled_job or {}).get("workflow_id") or "").strip()
-        if scheduled_workflow_id:
-            require_workflow_access(resolved, scheduled_workflow_id)
         self._assert_can_start_workflow(
             workflow_id=scheduled_workflow_id,
             account_id=account_id,
@@ -722,6 +763,10 @@ class ProjectCommandServiceRunRequestsMixin:
         if not updated:
             raise ServiceNotFoundError(SCHEDULED_JOB_NOT_FOUND_MESSAGE)
         scheduled_job = {**scheduled_job, **admission}
+        started_by = run_started_by(resolved)
+        if started_by is not None:
+            # "Run now" is started by the person or service account who asked for it.
+            scheduled_job[SCHEDULED_RUN_REQUESTED_BY_KEY] = started_by
         if self._run_scheduled_job_once is None:
             raise ServiceUnavailableError("Scheduled job execution is unavailable")
         result = self._run_scheduled_job_once(

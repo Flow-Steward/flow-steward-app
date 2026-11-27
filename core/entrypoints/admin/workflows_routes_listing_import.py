@@ -245,7 +245,6 @@ def _extension_install_rows(db, account_id: str) -> list[dict] | None:
 def apply_workflow_import(body: WorkflowImportRequest, request: Request):
     """Apply a preflighted workflow YAML bundle as disabled draft workflow(s)."""
     scope = _request_scope(request)
-    require_default_registry_account(scope)
     if body.target_workflow_id:
         _enforce_workflow_scope(scope, body.target_workflow_id)
     _enforce_import_resolution_scope(_get_db(), scope, body.resolutions)

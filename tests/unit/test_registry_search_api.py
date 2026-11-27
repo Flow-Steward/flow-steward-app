@@ -21,6 +21,10 @@ except ImportError:
 from core.application.management.query_services import ToolQueryService
 from core.application.registry.db_store import RegistryDBStore
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 _OPTIONAL_TEST_DEPS = {
     "fastapi",
     "starlette",
@@ -68,9 +72,11 @@ class _SearchDBSpy:
 
         self._db._cursor = _cursor
 
-    def search_entities(self, query: str, entity_type: str | None = None):
+    def search_entities(
+        self, query: str, entity_type: str | None = None, *, account_id: str | None = None
+    ):
         self.calls.append((query, entity_type))
-        return self._db.search_entities(query, entity_type=entity_type)
+        return self._db.search_entities(query, entity_type=entity_type, account_id=account_id)
 
     def list_skills(
         self,
@@ -356,11 +362,12 @@ def test_agent_catalog_guardrail_usage_filters_by_durable_owner_without_changing
     monkeypatch, search
 ):
     """Readable projection/global rows are not necessarily writable FK targets."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
     import core.entrypoints.admin.agents as agent_routes
     from core.application.management.scope import normalize_scope
     from core.application.registry import projected_artifact_rows as projection_rows
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
 
     owner = "00000000-0000-0000-0000-000000000002"
     foreign = "00000000-0000-0000-0000-000000000099"
@@ -488,11 +495,12 @@ def test_agent_catalog_guardrail_usage_filters_by_durable_owner_without_changing
 
 
 def test_guardrail_agent_usage_resolves_default_account_without_auth_middleware(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
     import core.entrypoints.admin.agents as agent_routes
     from core.application.auth.config import DEFAULT_ACCOUNT_ID
     from core.application.registry.projected_artifact_rows import guardrail_assignable_catalog_rows
-    from fastapi import FastAPI
-    from fastapi.testclient import TestClient
 
     class DefaultAccountStore:
         dsn = ""

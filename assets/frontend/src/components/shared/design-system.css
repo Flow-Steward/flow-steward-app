@@ -1283,6 +1283,24 @@ body:has(.fs-dialog-layer) :is(.fs-filter-menu, .fs-filter-tooltip) { z-index: v
   padding-inline: 0;
 }
 .fs-multi-search { width: var(--fs-combobox-leading-icon-size); height: var(--fs-combobox-leading-icon-size); flex: none; fill: none; stroke: var(--fs-text-tertiary); stroke-width: var(--fs-combobox-leading-icon-stroke); }
+
+/* Selected list: chosen items as one bordered list under their field, a row
+   each (the files of a file field, the values of a list-layout MultiCombobox).
+   A row is icon, text, then its actions; a consumer with more columns sets its
+   own grid-template-columns. */
+.fs-selected-list { display: grid; margin: 0; padding: 0; overflow: hidden; border: 1px solid var(--fs-border-subtle); border-radius: var(--fs-radius-container); list-style: none; }
+.fs-selected-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: var(--fs-space-100); min-width: 0; min-height: 48px; padding: var(--fs-space-050) var(--fs-space-075) var(--fs-space-050) var(--fs-space-150); border-bottom: 1px solid var(--fs-border-subtle); }
+.fs-selected-row:last-child { border-bottom: 0; }
+.fs-selected-row-icon { width: 16px; height: 16px; color: var(--fs-text-tertiary); }
+.fs-selected-row-text { display: grid; min-width: 0; }
+.fs-selected-row-label,
+.fs-selected-row-description { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fs-selected-row-description { color: var(--fs-text-tertiary); font-size: var(--fs-type-caption-size); }
+/* The borderless remove X of a chip, in the row's quiet colour. */
+.fs-selected-row .fs-multi-chip-remove { color: var(--fs-text-tertiary); }
+.fs-selected-row .fs-multi-chip-remove:disabled { cursor: not-allowed; opacity: 0.6; }
+/* List layout: the search field, then the chosen values under it. */
+.fs-multi[data-selection-layout="list"] { display: grid; gap: var(--fs-space-100); min-width: 0; }
 .fs-multi-menu-layer { position: fixed; z-index: var(--fs-z-modal-popup); inset: 0 auto auto 0; }
 
 .fs-scope-grid,

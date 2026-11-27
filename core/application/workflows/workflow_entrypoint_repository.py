@@ -6,6 +6,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from core.application.registry.workflow_account import workflow_owner
 from core.infrastructure.db.db_pool import transaction_connection
 from core.infrastructure.db.psycopg_runtime import sql as psycopg_sql
 
@@ -53,7 +54,7 @@ def load_workflow_entrypoint(
             FROM workflow_entrypoints
             WHERE entry_key = %s
               AND (%s OR EXISTS (SELECT 1 FROM registry_workflows w
-                   WHERE w.workflow_id = workflow_entrypoints.workflow_id AND w.deleted_at IS NULL))
+                   WHERE w.workflow_id = workflow_entrypoints.workflow_id AND w.account_id = workflow_entrypoints.account_id AND w.deleted_at IS NULL))
             LIMIT 1
             """,
             (str(entry_key or "").strip(), include_trashed),
@@ -61,12 +62,15 @@ def load_workflow_entrypoint(
         return _row_to_dict(cur, cur.fetchone())
 
 
-def load_workflow_admission_state(bl: Any, workflow_id: str) -> dict[str, Any]:
+def load_workflow_admission_state(
+    bl: Any, workflow_id: str, *, account_id: str | None = None
+) -> dict[str, Any]:
     """Read the live owner state before authenticated webhook submission."""
     with bl.conn.cursor() as cur:
         cur.execute(
-            "SELECT enabled FROM registry_workflows WHERE workflow_id = %s AND deleted_at IS NULL",
-            (str(workflow_id or "").strip(),),
+            "SELECT enabled FROM registry_workflows "
+            "WHERE workflow_id = %s AND account_id = %s AND deleted_at IS NULL",
+            (str(workflow_id or "").strip(), workflow_owner(account_id)),
         )
         return _row_to_dict(cur, cur.fetchone())
 
@@ -74,7 +78,10 @@ def load_workflow_admission_state(bl: Any, workflow_id: str) -> dict[str, Any]:
 def list_workflow_entrypoints_for_workflow(
     bl,
     workflow_id: str,
+    *,
+    account_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    """The entrypoints of one account's workflow (the bound account by default)."""
     with bl.conn.cursor() as cur:
         cur.execute(
             """
@@ -101,10 +108,10 @@ def list_workflow_entrypoints_for_workflow(
                 created_at,
                 updated_at
             FROM workflow_entrypoints
-            WHERE workflow_id = %s
+            WHERE workflow_id = %s AND account_id = %s
             ORDER BY created_at ASC, entry_key ASC
             """,
-            (str(workflow_id or "").strip(),),
+            (str(workflow_id or "").strip(), workflow_owner(account_id)),
         )
         return [_row_to_dict(cur, row) for row in (cur.fetchall() or [])]
 
@@ -119,7 +126,7 @@ def list_project_workflow_entrypoints(
         psycopg_sql.SQL("pw.project_id = %s"),
         psycopg_sql.SQL("pw.deleted_at IS NULL"),
         psycopg_sql.SQL(
-            "EXISTS (SELECT 1 FROM registry_workflows w WHERE w.workflow_id = we.workflow_id AND w.deleted_at IS NULL)"
+            "EXISTS (SELECT 1 FROM registry_workflows w WHERE w.workflow_id = we.workflow_id AND w.account_id = we.account_id AND w.deleted_at IS NULL)"
         ),
     ]
     if enabled_only:

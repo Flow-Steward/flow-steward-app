@@ -160,14 +160,7 @@ class ProjectConnectionService(ProjectConnectionServiceReadsMixin, ProjectConnec
                     raise ServiceValidationError(
                         "extension_install_id does not reference an installed extension"
                     )
-                install_visibility = self._normalize_text(
-                    getattr(install_record, "visibility", "")
-                ).lower()
-                if (
-                    self._normalize_text(getattr(install_record, "account_id", ""))
-                    != self._normalize_text(account_id)
-                    and install_visibility != "global"
-                ):
+                if not self._install_reaches_account(bl, install_record, account_id):
                     raise ServiceValidationError(
                         "extension_install_id is not visible for this account"
                     )
@@ -195,12 +188,7 @@ class ProjectConnectionService(ProjectConnectionServiceReadsMixin, ProjectConnec
             raise ServiceValidationError(
                 "extension_install_id does not reference an installed extension"
             )
-        install_visibility = self._normalize_text(getattr(install_record, "visibility", "")).lower()
-        if (
-            self._normalize_text(getattr(install_record, "account_id", ""))
-            != self._normalize_text(account_id)
-            and install_visibility != "global"
-        ):
+        if not self._install_reaches_account(bl, install_record, account_id):
             raise ServiceValidationError("extension_install_id is not visible for this account")
 
         runtime_store = self._extension_runtime_store(bl)

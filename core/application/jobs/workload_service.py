@@ -27,15 +27,30 @@ _PAUSE_ACTIVE_JOBS = int(CONFIG.get("workload_pause_active_jobs") or 20)
 _PAUSE_QUEUE_DEPTH = int(CONFIG.get("workload_pause_queue_depth") or 100)
 
 
-def _count_active_jobs(bl, account_id: str | None = None) -> int:
+def _count_active_jobs(
+    bl, account_id: str | None = None, project_ids: list[str] | None = None
+) -> int:
     """Count jobs in active states, optionally scoped to a tenant account.
 
     When *account_id* is provided the count is restricted to jobs that belong
     to projects owned by that account, preventing cross-tenant metric leakage.
+    *project_ids* (a caller limited to chosen projects) narrows it to those projects.
     """
     try:
         with bl.conn.cursor() as cur:
-            if account_id:
+            if account_id and project_ids:
+                cur.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM jobs j
+                    JOIN projects p ON p.id = j.project_id
+                    WHERE j.status IN ('in_progress', 'queued', 'pending')
+                      AND p.account_id = %s
+                      AND j.project_id::text = ANY(%s::text[])
+                    """,
+                    (str(account_id), sorted(str(item) for item in project_ids)),
+                )
+            elif account_id:
                 cur.execute(
                     """
                     SELECT COUNT(*)
@@ -92,6 +107,7 @@ def get_workload_signal(
     get_ready_queue_depth_fn=None,
     *,
     account_id: str | None = None,
+    project_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compute the workload signal with metrics.
 
@@ -108,7 +124,7 @@ def get_workload_signal(
         are not tenant-attributable at the infrastructure level), but are
         marked with ``scope`` in the response so callers understand the semantics.
     """
-    active_jobs = _count_active_jobs(bl, account_id=account_id)
+    active_jobs = _count_active_jobs(bl, account_id=account_id, project_ids=project_ids)
 
     queue_depth = -1
     if get_ready_queue_depth_fn is not None:

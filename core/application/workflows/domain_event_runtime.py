@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date
 from typing import Any
 
 from core.application.observability_vocabulary import event_status_meta, event_type_meta
+from core.infrastructure.config.account_scope import ACCOUNT_SCOPE_MISSING_CODE
+
+logger = logging.getLogger(__name__)
 
 
 def serialize_domain_event_datetime(value: Any) -> str | None:
@@ -59,16 +63,26 @@ def project_account_id(bl: Any, project_id: Any) -> str | None:
 def event_row_matches_scope(
     row: dict | None,
     *,
-    default_account_id: str,
     account_id: str | None = None,
     allowed_project_ids: frozenset[str] | None = None,
     allowed_workflow_ids: frozenset[str] | None = None,
 ) -> bool:
+    """Match an event row to the caller's scope.
+
+    An event row carries its own account. A row without one never matches an
+    account-scoped lookup: it is not quietly treated as the default account's.
+    """
     payload = dict(row or {})
     normalized_account_id = str(account_id or "").strip()
-    row_account_id = (
-        str(payload.get("account_id") or default_account_id).strip() or default_account_id
-    )
+    row_account_id = str(payload.get("account_id") or "").strip()
+    if normalized_account_id and not row_account_id:
+        logger.warning(
+            "%s: domain event %s has no account; refused for account %s",
+            ACCOUNT_SCOPE_MISSING_CODE,
+            str(payload.get("event_id") or payload.get("id") or "").strip() or "?",
+            normalized_account_id,
+        )
+        return False
     if normalized_account_id and row_account_id != normalized_account_id:
         return False
     if allowed_project_ids:
@@ -86,7 +100,6 @@ def resolve_domain_event_by_ref(
     bl: Any,
     event_ref: str,
     *,
-    default_account_id: str,
     account_id: str | None = None,
     allowed_project_ids: frozenset[str] | None = None,
     allowed_workflow_ids: frozenset[str] | None = None,
@@ -102,7 +115,6 @@ def resolve_domain_event_by_ref(
             event_row = None
     if event_row and event_row_matches_scope(
         event_row,
-        default_account_id=default_account_id,
         account_id=account_id,
         allowed_project_ids=allowed_project_ids,
         allowed_workflow_ids=allowed_workflow_ids,
@@ -118,7 +130,6 @@ def resolve_domain_event_by_ref(
                 continue
             if not event_row_matches_scope(
                 row,
-                default_account_id=default_account_id,
                 account_id=account_id,
                 allowed_project_ids=allowed_project_ids,
                 allowed_workflow_ids=allowed_workflow_ids,

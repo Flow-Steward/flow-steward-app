@@ -211,7 +211,7 @@ def test_worker_polling_rejects_unsupported_human_decision_action_before_state_m
         def get_job(self, _job_id):
             return {"meta": {"selected_workflow_id": "workflow-1"}}
 
-        def list_workflow_reactions(self, _workflow_id, *, enabled_only):
+        def list_workflow_reactions(self, _workflow_id, *, enabled_only, account_id=None):
             assert enabled_only is True
             return [
                 {
@@ -258,7 +258,7 @@ def test_worker_polling_ignores_unsupported_rules_that_do_not_match_event(
         def get_job(self, _job_id):
             return {"meta": {"selected_workflow_id": "workflow-1"}}
 
-        def list_workflow_reactions(self, _workflow_id, *, enabled_only):
+        def list_workflow_reactions(self, _workflow_id, *, enabled_only, account_id=None):
             assert enabled_only is True
             return [
                 {

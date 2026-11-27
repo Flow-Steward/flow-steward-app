@@ -6,11 +6,18 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from core.application.auth.enforce import require_roles
+from core.application.auth.installation_admin import (
+    INSTALLATION_ADMIN_REQUIRED_MESSAGE,
+    acting_account_id,
+    is_installation_admin,
+)
+from core.application.auth.principal import principal_allowed_project_ids
 from core.application.monitoring.processes import (
     ProcessNotFoundError,
     ProcessNotTerminableError,
     ProcessTerminationPermissionError,
     list_process_payload,
+    scope_process_payload_to_account,
     terminate_process,
 )
 
@@ -42,14 +49,25 @@ class ProcessesPayload(BaseModel):
     },
 )
 def list_processes(request: Request):
-    """List active jobs with real worker subprocesses from /proc."""
+    """List active jobs with real worker subprocesses from /proc.
+
+    The installation administrator sees every account's work; anyone else sees
+    only the account they act in.
+    """
     auth_user = getattr(request.state, "auth_user", None)
     if isinstance(auth_user, dict):
         try:
             require_roles(auth_user, {"admin", "operator"})
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail="Operator role required") from exc
-    return list_process_payload()
+    if principal_allowed_project_ids(auth_user):
+        # The process list is not cut to projects: a caller limited to chosen
+        # projects is refused rather than shown every project's active jobs.
+        raise HTTPException(status_code=403, detail="Access denied")
+    payload = list_process_payload()
+    if isinstance(auth_user, dict) and not is_installation_admin(auth_user):
+        return scope_process_payload_to_account(payload, acting_account_id(auth_user))
+    return payload
 
 
 @router.post(
@@ -69,6 +87,9 @@ def kill_process(request: Request, pid: int):
         require_roles(auth_user, {"admin"})
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail="Admin role required") from exc
+    # A worker process may run any account's job: stopping one is installation-wide.
+    if not is_installation_admin(auth_user):
+        raise HTTPException(status_code=403, detail=INSTALLATION_ADMIN_REQUIRED_MESSAGE)
     try:
         return terminate_process(pid)
     except ProcessNotFoundError as exc:

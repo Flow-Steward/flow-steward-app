@@ -58,6 +58,17 @@ AUTH_PUBLIC_PATHS = {
     # The consent shell: its error variant must render before sign-in; the
     # request variant loads data only through session-authenticated /api routes.
     "/oauth/consent",
+    # ADR 0083: external sign-in. The start and callback are browser navigations that
+    # happen before a session exists; the option list feeds the sign-in page.
+    "/api/auth/external/options",
+    "/api/auth/external/start",
+    "/api/auth/external/callback",
+    # ADR 0085: an invitation link is answered by its token and the signed-in person,
+    # also one with a role nowhere yet (P5). The route itself requires a person's
+    # session and refuses tokens; the middleware still authenticates and checks CSRF.
+    "/api/auth/invitations/preview",
+    "/api/auth/invitations/accept",
+    "/api/auth/invitations/decline",
 }
 
 PUBLIC_WEBHOOK_PATH_PREFIXES = (

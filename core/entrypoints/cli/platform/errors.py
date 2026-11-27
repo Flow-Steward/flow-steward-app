@@ -28,7 +28,6 @@ from core.application.management.errors import (
     ServiceValidationError,
 )
 from core.application.readiness.contracts import ReadinessPrerequisiteMissing
-from core.entrypoints.cli.platform.operation_log import OperationLogUnavailable
 from core.entrypoints.cli.platform.redaction import RedactionContext, redact_text
 
 
@@ -122,19 +121,6 @@ def map_exception(
             "precondition_failed",
             exc,
             "Check that the referenced resource exists.",
-            False,
-            technical_detail,
-            context=context,
-        )
-    if isinstance(exc, OperationLogUnavailable):
-        return _mapped(
-            ExitCode.PRECONDITION,
-            "operation_log_unavailable",
-            exc,
-            (
-                "Make the state directory writable for the user running this command, "
-                "or point FS_INSTALLER_STATE_DIR at a writable directory."
-            ),
             False,
             technical_detail,
             context=context,

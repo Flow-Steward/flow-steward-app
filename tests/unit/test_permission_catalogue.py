@@ -322,9 +322,13 @@ def test_a_role_outside_the_ladder_adds_its_stored_permissions() -> None:
 
 
 class _Cursor:
-    def __init__(self, rows: list[Any] | None = None) -> None:
+    def __init__(self, rows: list[Any] | None = None, *, one: Any = None) -> None:
         self.rows = rows or []
+        self.one = one
         self.statements: list[tuple[str, Any]] = []
+
+    def fetchone(self) -> Any:
+        return self.one
 
     def __enter__(self) -> _Cursor:
         return self
@@ -376,38 +380,49 @@ def test_a_scoped_assignment_is_refused_before_anything_is_written(assignment) -
 
     with pytest.raises(ScopedRoleAssignmentError) as refused:
         replace_user_role_assignments(
-            cursor, user_id="u1", assignments=[RoleAssignment("viewer"), assignment]
+            cursor,
+            user_id="u1",
+            account_id="a1",
+            assignments=[RoleAssignment("viewer"), assignment],
         )
 
     assert isinstance(refused.value, ServiceValidationError)
-    assert "whole installation" in str(refused.value)
+    assert "whole account" in str(refused.value)
     assert cursor.statements == []
     with pytest.raises(ScopedRoleAssignmentError):
         require_global_assignments([assignment])
 
 
-def test_assigning_roles_keeps_the_highest_system_role_and_only_global_rows() -> None:
-    cursor = _Cursor()
+def test_assigning_roles_keeps_the_highest_system_role_on_the_membership() -> None:
+    """The role is held on the account membership (ADR 0085), never in user_roles."""
+    cursor = _Cursor(one=("membership-1",))
 
     stored = replace_user_role_assignments(
         cursor,
         user_id="u1",
+        account_id="a1",
         assignments=[RoleAssignment("viewer"), RoleAssignment("Operator"), RoleAssignment(" ")],
     )
 
     assert stored == ["operator"]
-    delete, insert = cursor.statements
-    assert delete[0].startswith("DELETE FROM user_roles AS ur WHERE ur.user_id = %s")
+    [update] = cursor.statements
+    assert update[0].startswith("UPDATE user_account_memberships SET role_id")
+    assert update[1] == ("operator", "u1", "a1")
+    assert "user_roles" not in update[0]
+
+
+def test_assigning_no_roles_leaves_the_membership_without_a_role() -> None:
+    cursor = _Cursor(one=("membership-1",))
+
     assert (
-        "ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL"
-        in (delete[0])
+        replace_user_role_assignments(cursor, user_id="u1", account_id="a1", assignments=[]) == []
     )
-    assert insert[1] == ("u1", ["operator"])
-    assert "ON CONFLICT (user_id, role_id, workspace_id, project_id, workflow_id)" in insert[0]
+    [update] = cursor.statements
+    assert update[1] == (None, "u1", "a1")
 
 
-def test_assigning_no_roles_only_removes_the_global_assignments() -> None:
-    cursor = _Cursor()
-
-    assert replace_user_role_assignments(cursor, user_id="u1", assignments=[]) == []
-    assert len(cursor.statements) == 1
+def test_assigning_a_role_without_a_membership_is_refused() -> None:
+    with pytest.raises(LookupError):
+        replace_user_role_assignments(
+            _Cursor(), user_id="u1", account_id="a1", assignments=[RoleAssignment("viewer")]
+        )

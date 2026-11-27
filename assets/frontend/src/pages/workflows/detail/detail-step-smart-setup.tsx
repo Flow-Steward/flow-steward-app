@@ -29,6 +29,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { numericDraftFromInput, numericInputValue, stepNumericFieldErrors } from "./detail-step-numeric-fields";
 import { WaitEventSetup } from "./detail-wait-event-setup";
 import { ApprovalReviewFields } from "./detail-approval-review-fields";
+import { ApprovalStepApprovers } from "./detail-approval-approvers";
 import { toggledReturnedFiles, type ReturnedFileEntry, type StepFileResult } from "./detail-returned-files";
 
 type WorkflowStepSmartSetupContext = Record<string, any>;
@@ -739,6 +740,11 @@ export function WorkflowStepKindSmartSetup({ ctx }: Readonly<{ ctx: WorkflowStep
             </label>
           </div>
           <ApprovalReviewFields ctx={ctx} />
+          <ApprovalStepApprovers
+            stepId={textOrEmpty(ctx.stepAuthoredId)}
+            stepOnServer={Boolean(ctx.stepOnServer)}
+            workflowId={textOrEmpty(ctx.workflowId)}
+          />
           <p className="text-[11px] text-[var(--fs-text-tertiary)]">
             {t("react.workflows.approval_outcomes_hint", "Connect the Approved and Rejected outcomes on the canvas or under Connections.")}
           </p>

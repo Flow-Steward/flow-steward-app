@@ -106,6 +106,28 @@ def test_workflow_test_run_is_enqueued_with_durable_identity_and_original_caller
     assert captured["meta"]["idempotency_key"] == "idem-123"
 
 
+@pytest.mark.parametrize(
+    ("principal_type", "kind"), [("user", "person"), ("service_account", "service_account")]
+)
+def test_a_test_run_names_the_authenticated_caller_as_its_starter(
+    principal_type: str, kind: str
+) -> None:
+    caller = {"actor_id": "operator-1", "principal_type": principal_type}
+
+    _result, captured = _submit(caller=caller)
+
+    assert captured["meta"]["submitted_by"] == {"id": "operator-1", "kind": kind}
+
+
+@pytest.mark.parametrize(
+    "caller", [None, {}, {"actor_id": "system", "principal_type": "system_actor"}]
+)
+def test_a_test_run_without_a_named_caller_leaves_the_starter_to_its_source(caller) -> None:
+    _result, captured = _submit(caller=caller)
+
+    assert "submitted_by" not in captured["meta"]
+
+
 def test_step_test_run_enqueues_only_the_selected_step_for_worker_execution() -> None:
     step = {
         "step_id": "compile",

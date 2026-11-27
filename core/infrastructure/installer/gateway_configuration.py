@@ -72,6 +72,12 @@ class ConfigurationOperations:
         self.start_runtime(config, log=log)
         return config
 
+    def check_module_settings(
+        self: DockerInstallerGateway, config: InstallConfig, changes: Mapping[str, str]
+    ) -> None:
+        """ADR 0082: the configuration service checks them against the active module set."""
+        self._configuration.check_module_settings(config, changes)
+
     def ensure_configuration(
         self: DockerInstallerGateway, config: InstallConfig, *, log: InstallerLog
     ) -> None:

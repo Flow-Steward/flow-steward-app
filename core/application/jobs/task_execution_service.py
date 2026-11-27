@@ -34,6 +34,7 @@ from core.application.jobs.workflow_wait_projection import (
     wait_status,
 )
 from core.application.management.mcp_connector_client import mcp_execution_scope
+from core.application.registry.workflow_account import account_scope_if_named
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +83,14 @@ class TaskExecutionService:
         if isinstance(job_row_or_result, dict) and "action" in job_row_or_result:
             return job_row_or_result
         job_row = job_row_or_result if isinstance(job_row_or_result, Mapping) else None
+        # The job runs the workflows of its own account (ADR 0020, C4b); a job
+        # without one binds nothing, so registry access inside refuses (C5).
+        with account_scope_if_named((job_row or {}).get("account_id")):
+            return self._execute_job(message, job_row)
+
+    def _execute_job(
+        self, message: dict[str, Any], job_row: Mapping[str, Any] | None
+    ) -> dict[str, object]:
         repository = self._repository
         parent_job_lookup = (
             repository.get_job if repository is not None and repository.available else None

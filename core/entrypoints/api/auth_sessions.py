@@ -10,8 +10,12 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from core.application.auth.account_memberships import resolve_login_account_memberships
+from core.application.auth.account_memberships import (
+    memberships_with_role,
+    resolve_login_account_memberships,
+)
 from core.application.auth.email import normalize_email_address, normalize_login_identifier
+from core.application.auth.external_sign_in_repository import is_unusable_password
 from core.application.auth.first_admin import FirstAdminAlreadyExists, FirstAdminService
 from core.application.auth.local_credentials import (
     UserAuthenticatorPolicy,
@@ -21,6 +25,7 @@ from core.application.auth.local_credentials import (
     lock_local_user,
     password_age_available,
     read_authenticator_policy,
+    session_auth_method_available,
 )
 from core.application.auth.mfa_service import LoginAuthenticatorCheck, check_login_authenticator
 from core.application.auth.password_history import PasswordReuseError, require_unused_password
@@ -39,6 +44,43 @@ _DUMMY_LOGIN_PASSWORD_HASH = (
     "0000000000000000000000000000000000000000000000000000000000000000"
 )
 _NO_STORE = {"Cache-Control": "no-store"}
+#: The refusal code of switching the account of a session from external sign-in.
+EXTERNAL_SESSION_ACCOUNT_PINNED_CODE = "external_session_account_pinned"
+#: The refusal of switching into an account where the person has no role (ADR 0085).
+NO_ROLE_IN_ACCOUNT_CODE = "no_role_in_account"
+NO_ROLE_IN_ACCOUNT_MESSAGE = "You have no role in this company. Ask its administrator."
+_SWITCH_SESSION_ACCOUNT_SQL = """
+UPDATE auth_sessions
+SET account_id = %s,
+    last_seen_at = now(),
+    updated_at = now()
+WHERE session_token_hash = %s
+  AND user_id = %s
+  AND revoked = false
+  AND expires_at > now()
+"""
+#: The same, where sessions record their method: only a local session moves (ADR 0083).
+_SWITCH_LOCAL_SESSION_ACCOUNT_SQL = """
+UPDATE auth_sessions
+SET account_id = %s,
+    last_seen_at = now(),
+    updated_at = now()
+WHERE session_token_hash = %s
+  AND user_id = %s
+  AND revoked = false
+  AND expires_at > now()
+  AND auth_method = 'local'
+"""
+
+
+def _open_invitation_token(bl: Any, token: str) -> bool:
+    """Whether ``token`` names an open invitation (ADR 0085, P5); ``False`` on failure."""
+    from core.application.auth.user_admin.account_invitations import AccountInvitationService
+
+    try:
+        return AccountInvitationService(get_logger=lambda: bl).token_is_open(token=token)
+    except Exception:
+        return False
 
 
 def create_auth_sessions_router(
@@ -71,8 +113,10 @@ def create_auth_sessions_router(
     auth_cookie_name: str,
     auth_csrf_cookie_name: str,
     first_admin_service_factory: Callable[[Any], FirstAdminService],
+    invitation_token_open: Callable[[Any, str], bool] | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["auth-sessions"])
+    _invitation_token_open = invitation_token_open or _open_invitation_token
 
     _get_logger_only = get_logger_only
     _session_token_hash = session_token_hash
@@ -295,6 +339,10 @@ def create_auth_sessions_router(
         password_hash_value = _DUMMY_LOGIN_PASSWORD_HASH
         if user_active and user is not None:
             password_hash_value = str(user.get("password_hash") or "")
+        if is_unusable_password(password_hash_value):
+            # A user who signs in only externally (ADR 0083) has no local password;
+            # the dummy hash keeps the answer as slow as for any wrong password.
+            password_hash_value = _DUMMY_LOGIN_PASSWORD_HASH
         password_valid = _verify_password(body.password, password_hash_value)
         if not user_active:
             throttled, retry_after = _auth_login_record_failure(email, client_ip)
@@ -388,8 +436,49 @@ def create_auth_sessions_router(
                     {"error": new_password_issue, "field": "new_password"}, status_code=400
                 )
 
-        memberships = resolve_login_account_memberships(bl, user)
+        all_memberships = resolve_login_account_memberships(bl, user)
+        memberships, refused = memberships_with_role(all_memberships)
+        invitation_only = False
+        if refused and body.invitation_token and _invitation_token_open(bl, body.invitation_token):
+            # ADR 0085, P5: a person with a role nowhere signs in only to answer the
+            # invitation link they hold. The session lands in their home account, where
+            # they have no role, so every route but the invitation's, the session's own
+            # reads, switching accounts and signing out refuses them.
+            invitation_only = True
+            refused = False
+            home = str(user.get("account_id") or "").strip()
+            memberships = sorted(
+                all_memberships,
+                key=lambda item: str(item.get("account_id") or "").strip() != home,
+            )[:1]
+        if refused:
+            # ADR 0085: the person has a role in no account; a session would be empty.
+            _log_auth_audit_event(
+                bl,
+                action="login",
+                username=email,
+                actor="auth",
+                status="rejected",
+                detail={"reason": NO_ROLE_IN_ACCOUNT_CODE, "client_ip": client_ip},
+            )
+            return JSONResponse(
+                {"error": NO_ROLE_IN_ACCOUNT_MESSAGE, "code": NO_ROLE_IN_ACCOUNT_CODE},
+                status_code=403,
+            )
         selected_account_id = str(body.account_id or "").strip()
+        if (
+            selected_account_id
+            and not any(
+                str(item.get("account_id") or "").strip() == selected_account_id
+                for item in memberships
+            )
+            and any(
+                str(item.get("account_id") or "").strip() == selected_account_id
+                for item in all_memberships
+            )
+        ):
+            # A chosen account without a role there: land where the person has one.
+            selected_account_id = ""
         if len(memberships) > 1 and not selected_account_id:
             _log_auth_audit_event(
                 bl,
@@ -595,6 +684,8 @@ def create_auth_sessions_router(
             },
             "expires_in_hours": session_ttl_hours,
         }
+        if invitation_only:
+            payload["invitation_only"] = True
         if (
             not must_change_password
             and days_until_expiry is not None
@@ -637,6 +728,7 @@ def create_auth_sessions_router(
                 "account_id": selected_account_id,
                 "session_ttl_hours": session_ttl_hours,
                 "remember_me": bool(body.remember_me),
+                **({"invitation_only": True} if invitation_only else {}),
             },
         )
         return response
@@ -694,6 +786,30 @@ def create_auth_sessions_router(
         auth_user = getattr(request.state, "auth_user", None)
         if not isinstance(auth_user, dict):
             return JSONResponse({"error": "Authentication required"}, status_code=401)
+        auth_source = str(
+            getattr(request.state, "auth_source", "") or auth_user.get("auth_source") or ""
+        )
+        if auth_source.strip().lower() == "external":
+            # ADR 0083: an external session is pinned to the account that issued it.
+            _log_auth_audit_event(
+                bl,
+                action="switch_account",
+                username=str(auth_user.get("username") or ""),
+                actor=_resolve_actor_username(request, "", default="auth"),
+                status="rejected",
+                detail={
+                    "reason": EXTERNAL_SESSION_ACCOUNT_PINNED_CODE,
+                    "account_id": str(auth_user.get("account_id") or ""),
+                },
+            )
+            return JSONResponse(
+                {
+                    "error": "A session from external sign-in stays in the account that "
+                    "issued it. Sign in to the other account instead.",
+                    "code": EXTERNAL_SESSION_ACCOUNT_PINNED_CODE,
+                },
+                status_code=403,
+            )
 
         session_token = str(request.cookies.get(_AUTH_COOKIE_NAME) or "").strip()
         if not session_token:
@@ -727,6 +843,21 @@ def create_auth_sessions_router(
             )
         if not bool(selected_membership.get("is_active", True)):
             return JSONResponse({"error": "Selected account is disabled"}, status_code=403)
+        if "role" in selected_membership and not str(selected_membership.get("role") or "").strip():
+            # ADR 0085: a membership without a role grants nothing; a session moved
+            # there would be empty. Refuse instead and say whom to ask.
+            _log_auth_audit_event(
+                bl,
+                action="switch_account",
+                username=str(auth_user.get("username") or ""),
+                actor=_resolve_actor_username(request, "", default="auth"),
+                status="rejected",
+                detail={"reason": NO_ROLE_IN_ACCOUNT_CODE, "account_id": selected_account_id},
+            )
+            return JSONResponse(
+                {"error": NO_ROLE_IN_ACCOUNT_MESSAGE, "code": NO_ROLE_IN_ACCOUNT_CODE},
+                status_code=403,
+            )
 
         session_has_account_id = False
         try:
@@ -742,16 +873,9 @@ def create_auth_sessions_router(
         try:
             with bl.conn.cursor() as cur:
                 cur.execute(
-                    """
-                    UPDATE auth_sessions
-                    SET account_id = %s,
-                        last_seen_at = now(),
-                        updated_at = now()
-                    WHERE session_token_hash = %s
-                      AND user_id = %s
-                      AND revoked = false
-                      AND expires_at > now()
-                    """,
+                    _SWITCH_LOCAL_SESSION_ACCOUNT_SQL
+                    if session_auth_method_available(bl)
+                    else _SWITCH_SESSION_ACCOUNT_SQL,
                     (
                         selected_account_id,
                         _session_token_hash(session_token),

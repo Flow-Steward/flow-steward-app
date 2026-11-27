@@ -31,6 +31,7 @@ PROJECT_POLICY_TOOL_MODES = {"registry_only", "restricted", "permissive"}
 KEEP_HOOK_STORAGE_LINKS_SQL = (
     " AND NOT EXISTS (SELECT 1 FROM registry_workflows hook_rw"
     " WHERE hook_rw.workflow_id = project_workflows.workflow_id"
+    " AND hook_rw.account_id = project_workflows.account_id"
     " AND hook_rw.settings ? 'hook_storage')"
 )
 
@@ -560,7 +561,8 @@ class PlatformLoggerPolicyProjectsMixin:
                     rw.deleted_at AS workflow_deleted_at,
                     COALESCE(rw.settings ? 'hook_storage', false) AS hook_storage
                 FROM project_workflows pw
-                JOIN registry_workflows rw ON rw.workflow_id = pw.workflow_id
+                JOIN registry_workflows rw
+                  ON rw.workflow_id = pw.workflow_id AND rw.account_id = pw.account_id
                 WHERE pw.project_id = %s
                 {where_current}
                 ORDER BY pw.is_default DESC, pw.priority DESC, pw.workflow_id
@@ -589,7 +591,8 @@ class PlatformLoggerPolicyProjectsMixin:
                     pw.workflow_id
                 FROM project_workflows pw
                 JOIN projects p ON p.id = pw.project_id
-                JOIN registry_workflows rw ON rw.workflow_id = pw.workflow_id
+                JOIN registry_workflows rw
+                  ON rw.workflow_id = pw.workflow_id AND rw.account_id = pw.account_id
                 WHERE p.account_id = %s
                   AND pw.enabled = true
                   AND pw.deleted_at IS NULL

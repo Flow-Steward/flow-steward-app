@@ -106,6 +106,10 @@ class InstallerGateway(Protocol):
         self, config: InstallConfig, *, environment: Mapping[str, str], log: InstallerLog
     ) -> InstallConfig: ...
 
+    def check_module_settings(self, config: InstallConfig, changes: Mapping[str, str]) -> None:
+        """Raise ``OperatorSettingError`` for a module setting no active module declares."""
+        ...
+
     def converge_compact_worker_processes(
         self, config: InstallConfig, *, log: InstallerLog, changed: bool = False
     ) -> str: ...

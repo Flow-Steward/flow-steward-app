@@ -20,7 +20,6 @@ from core.application.notifications.contracts import (
 from core.application.notifications.delivery import _deliver_via_provider_runtime
 from core.application.notifications.delivery_support import _dispatch_status_from_delivery
 from core.application.orchestration.models import build_event_envelope_v1
-from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +45,8 @@ def dispatch_project_notification_event(
     Deliver one normalized event through DB-configured notification routes.
 
     Returns persisted delivery rows when available; otherwise best-effort in-memory rows.
+    Raises ``MissingAccountScopeError`` (a ``ValueError``) when the event carries
+    no account and its project has none: it is never sent as the default account's.
     """
     if bl is None or not hasattr(bl, "list_notification_routes"):
         return []
@@ -136,7 +137,7 @@ def dispatch_project_notification_event(
             bl.record_domain_event(
                 event_id=str(normalized_event_id),
                 event_type=normalized_event_type,
-                account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
+                account_id=normalized_account_id,
                 severity=normalized_severity,
                 summary=_as_str(ledger_event.get("summary")) or normalized_event_type,
                 payload=_as_dict(ledger_event.get("payload")),
@@ -188,7 +189,7 @@ def dispatch_project_notification_event(
                     target_type="notification_route",
                     target_id=_route_key,
                     target_label=_as_str(_route.get("display_name")) or _route_key,
-                    account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
+                    account_id=normalized_account_id,
                     project_id=normalized_project_id,
                     workflow_id=normalized_workflow_id,
                     job_id=normalized_job_id,
@@ -247,7 +248,7 @@ def dispatch_project_notification_event(
                         target_type="notification_route",
                         target_id=route_key,
                         target_label=_as_str(route.get("display_name")) or route_key,
-                        account_id=_as_str(event.get("account_id")) or DEFAULT_ACCOUNT_ID,
+                        account_id=normalized_account_id,
                         project_id=normalized_project_id,
                         workflow_id=normalized_workflow_id,
                         job_id=normalized_job_id,

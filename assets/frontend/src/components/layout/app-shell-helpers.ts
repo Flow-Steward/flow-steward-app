@@ -46,6 +46,8 @@ export type AccountMembership = {
   accountId: string;
   accountName: string;
   role: string;
+  /** The server sent the membership's role and it is empty: no role there (ADR 0085). */
+  withoutRole: boolean;
   isActive: boolean;
   isDefault: boolean;
 };
@@ -359,10 +361,12 @@ export function normalizeAccountMemberships(value: unknown): AccountMembership[]
       return;
     }
     seen.add(accountId);
+    const role = firstStringFromUnknownValue([record.role, record.membership_role, ""]).trim();
     rows.push({
       accountId,
       accountName: firstStringFromUnknownValue([record.account_name, record.display_name, record.name, accountId]).trim(),
-      role: firstStringFromUnknownValue([record.role, record.membership_role, ""]).trim(),
+      role,
+      withoutRole: ("role" in record || "membership_role" in record) && !role,
       isActive: record.is_active !== false,
       isDefault: Boolean(record.is_default),
     });

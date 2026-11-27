@@ -208,6 +208,7 @@ class _DeleteCursor:
         self.target_admin = target_admin
         self.rowcount = 0
         self.current: dict[str, Any] | None = None
+        self.rows: list[dict[str, Any]] = []
         self.queries: list[str] = []
 
     def __enter__(self):
@@ -220,15 +221,23 @@ class _DeleteCursor:
         normalized = " ".join(sql.split())
         self.queries.append(normalized)
         self.current = None
+        self.rows = []
         self.rowcount = 0
         if "SELECT u.id::text AS id, u.is_active" in normalized:
-            self.current = {"id": "u_target", "is_active": True, "is_admin": self.target_admin}
+            self.current = {"id": "u_target", "is_active": True}
         elif "SELECT COUNT(*) AS total FROM users WHERE deleted_at IS NULL" in normalized:
             self.current = {"total": self.total_users}
-        elif "u.is_active = true" in normalized and "COUNT(*) AS total" in normalized:
-            self.current = {"total": self.active_admins}
+        elif "r.key AS role FROM user_account_memberships" in normalized:
+            # The target's role per account (ADR 0085).
+            self.rows = [{"account_id": "acc-1", "role": "admin"}] if self.target_admin else []
+        elif "COUNT(*) AS total" in normalized and "AND ar.key = 'admin'" in normalized:
+            # The other active administrators of the account.
+            self.current = {"total": self.active_admins - 1}
         elif "UPDATE auth_sessions" in normalized:
             self.rowcount = 2
+
+    def fetchall(self):
+        return list(self.rows)
 
     def fetchone(self):
         return self.current
@@ -277,7 +286,7 @@ def test_delete_repository_rejects_last_active_admin() -> None:
 
     logger = _DeleteLogger(_DeleteCursor(total_users=2, active_admins=1, target_admin=True))
 
-    with pytest.raises(ServiceConflictError, match="last active administrator"):
+    with pytest.raises(ServiceConflictError, match="last active administrator of an account"):
         delete_auth_user(logger, user_id="u_target", deleted_by="admin@example.com")
 
     assert logger.rollbacks == 1
@@ -362,6 +371,8 @@ def test_user_query_service_delegates_list_persistence_to_repository(
             "role": "",
             "active_filter": None,
             "managed_account_ids": None,
+            "role_account_id": None,
+            "member_account_id": None,
         }
     ]
 
@@ -657,6 +668,25 @@ def test_user_query_service_uses_canonical_projection_and_membership_scope(
     assert "u.account_id = ANY(%s)" in sql
     assert "FROM user_account_memberships uam_scope" in sql
     assert logger.cursor_obj.calls[0][1] == (["acc.prod"], ["acc.prod"])
+
+
+def test_user_query_service_lists_only_members_of_the_named_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR 0085: the users page lists the people of the acting account."""
+    import core.application.auth.user_admin.query_service as services
+
+    logger = _UserListLogger()
+    monkeypatch.setattr(services, "auth_tables_available", lambda _logger: True)
+    monkeypatch.setattr(services, "get_user_membership_map", lambda *_args, **_kwargs: {})
+
+    UserAdminQueryService(get_logger=lambda: logger).list_users(
+        managed_account_ids=["acc.prod"], role_account_id="acc.prod", member_account_id="acc.prod"
+    )
+
+    count_sql, count_params = logger.cursor_obj.calls[0]
+    assert "uam_member.account_id::text = %s" in count_sql
+    assert count_params == (["acc.prod"], ["acc.prod"], "acc.prod")
 
 
 def test_user_command_service_uses_fixed_canonical_repository_contract() -> None:

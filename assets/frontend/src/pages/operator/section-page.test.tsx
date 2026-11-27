@@ -13,7 +13,8 @@ import { runBuilderWorkflow } from "@/pages/workflows/shared/run-api";
 
 import { OperatorSectionPage } from "./section-page";
 import type { OperatorSectionDetail } from "./types";
-import { permissionsForRoles } from "@/test/role-permissions";
+import { permissionsForRoles, sessionUser } from "@/test/role-permissions";
+import { AuthContext, type AuthContextValue } from "@/lib/auth/context";
 
 let uploadLimits: RunUploadLimits | undefined;
 
@@ -122,17 +123,24 @@ function jobRequests(): URL[] {
     .filter((url) => url.pathname === "/api/v2/jobs");
 }
 
-function renderPage(entry = "/projects/p1/workflows/wf.contracts/work") {
+function renderPage(entry = "/projects/p1/workflows/wf.contracts/work", auth: AuthContextValue | null = null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[entry]}>
-        <Routes>
-          <Route element={<OperatorSectionPage />} path="/projects/:projectId/workflows/:workflowId/work" />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
+    <AuthContext.Provider value={auth}>
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[entry]}>
+          <Routes>
+            <Route element={<OperatorSectionPage />} path="/projects/:projectId/workflows/:workflowId/work" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    </AuthContext.Provider>,
   );
+}
+
+/** An operator limited to chosen projects (ADR 0076 §8), with these keys in project p1. */
+function limitedOperator(p1: string[]): AuthContextValue {
+  return { session: { user: sessionUser("operator", { project_permissions: { p1 } }) } } as AuthContextValue;
 }
 
 async function openForm() {
@@ -381,6 +389,25 @@ describe("OperatorSectionPage", () => {
     renderPage();
     await screen.findByText("ACME Ltd");
     expect(screen.queryByRole("button", { name: "New" })).not.toBeInTheDocument();
+  });
+
+  it("disables New with the reason where a limited person may only view the project", async () => {
+    serve(section("bulk"));
+    renderPage(undefined, limitedOperator(["jobs.read", "projects.read", "workflows.read"]));
+    await screen.findByText("ACME Ltd");
+    const button = screen.getByRole("button", { name: "New" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("title", "Your access to this project does not include this action.");
+    fireEvent.click(button);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("keeps New enabled where the limited person may run in the project", async () => {
+    serve(section("bulk"));
+    renderPage(undefined, limitedOperator(["jobs.read", "workflows.read", "workflows.run"]));
+    await screen.findByText("ACME Ltd");
+    expect(screen.getByRole("button", { name: "New" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "New" })).not.toHaveAttribute("title");
   });
 
   it("keeps the list and explains why new submissions are paused", async () => {

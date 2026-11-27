@@ -384,25 +384,23 @@ def _seed_user_via_db(creds: dict[str, str]) -> bool:
                 role_row = cur.fetchone()
                 role_id = str((role_row[0] if role_row else "") or "").strip()
                 if user_id and role_id:
-                    # Keep deterministic role mapping for the shared E2E users.
+                    # Keep deterministic role mapping for the shared E2E users: the
+                    # role is held on the home account membership (ADR 0085).
                     cur.execute(
                         """
-                        DELETE FROM user_roles
-                        WHERE user_id = %s
-                          AND role_id IN (
-                            SELECT id FROM roles WHERE key IN ('admin', 'operator', 'viewer')
-                          )
+                        INSERT INTO user_account_memberships
+                            (user_id, account_id, is_default, role_id)
+                        SELECT u.id, u.account_id,
+                               NOT EXISTS (
+                                   SELECT 1 FROM user_account_memberships d
+                                   WHERE d.user_id = u.id AND d.is_default
+                                     AND d.account_id <> u.account_id),
+                               %s
+                        FROM users u
+                        WHERE u.id = %s
+                        ON CONFLICT (user_id, account_id) DO UPDATE SET role_id = EXCLUDED.role_id
                         """,
-                        (user_id,),
-                    )
-                    cur.execute(
-                        """
-                        INSERT INTO user_roles (user_id, role_id)
-                        VALUES (%s, %s)
-                        ON CONFLICT (user_id, role_id, workspace_id, project_id, workflow_id)
-                        DO NOTHING
-                        """,
-                        (user_id, role_id),
+                        (role_id, user_id),
                     )
             conn.commit()
             try:

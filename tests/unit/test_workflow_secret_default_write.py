@@ -184,7 +184,11 @@ def _secret_route_client(monkeypatch, db, registry=None):
 
     @app.middleware("http")
     async def _inject_scope(request, call_next):
-        request.state.auth_user = {"username": "admin", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin",
+            "roles": ["admin"],
+        }
         request.state.scope_context = normalize_scope(
             account_id=DEFAULT_ACCOUNT_ID,
             actor_id="admin@example.com",

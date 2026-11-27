@@ -81,27 +81,23 @@ def assert_create_account_scope(
         raise HTTPException(status_code=403, detail="Access denied")
 
 
-def require_default_registry_account(scope: ScopeContext | None) -> None:
-    """Fail closed for deployment-global catalogs in the OSS single-tenant build.
+def registry_catalog_account(scope: ScopeContext | None) -> str:
+    """The account whose registry fields and data contracts the caller works on.
 
-    Fields and data contracts intentionally remain one deployment-wide catalog
-    in the open-source schema. Until a future account-qualified schema exists,
-    only the authoritative default account may reach that global
-    store; dormant foreign-account sessions must never read or mutate it.
+    Fields and data contracts carry an owning account (ADR 0020, C4a), so every
+    caller reaches only its own account's catalog. A scope without an account is
+    refused (C5); it never falls back to the installation account.
     """
-
-    account_id = str(getattr(scope, "account_id", "") or DEFAULT_ACCOUNT_ID).strip()
-    if (account_id or DEFAULT_ACCOUNT_ID) != DEFAULT_ACCOUNT_ID:
-        raise HTTPException(
-            status_code=403,
-            detail="Deployment-global registry catalogs are only supported for the default account",
-        )
+    account_id = str(getattr(scope, "account_id", "") or "").strip()
+    if not account_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    return account_id
 
 
 __all__ = [
     "assert_create_account_scope",
     "assert_row_in_account_scope",
+    "registry_catalog_account",
     "request_scope",
-    "require_default_registry_account",
     "row_in_account_scope",
 ]

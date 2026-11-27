@@ -221,7 +221,13 @@ _PHASE4_MAINTENANCE_IDS = [
     "maintenance.enable",
     "maintenance.disable",
 ]
-_PHASE4_RELEASE_IDS = ["release.info", "release.check", "release.upgrade"]
+_PHASE4_RELEASE_IDS = [
+    "release.info",
+    "release.check",
+    "release.upgrade",
+    "release.modules-list",
+    "release.modules-apply",
+]
 _PHASE4_BACKUP_IDS = ["backup.create", "backup.list", "backup.verify"]
 _PHASE4_CONFIG_IDS = [
     "config.show",
@@ -290,8 +296,9 @@ def test_public_command_specifications_have_unique_ids_and_paths() -> None:
     # `reports diagnostics` adds the installation report for bug reports;
     # the nine workflow authoring adapters (authoring-schema .. stats) make 118;
     # the read-only `database preflight` of ADR 0056 makes 119;
-    # `extensions install-catalog` makes 120.
-    assert len(command_ids) == 120
+    # `extensions install-catalog` makes 120;
+    # ADR 0082 `release modules-list` and `release modules-apply` make 122.
+    assert len(command_ids) == 122
     assert len(command_ids) == len(set(command_ids))
     assert len(paths) == len(set(paths))
 
@@ -390,6 +397,7 @@ def test_phase2_projects_workflows_checkpoint_contains_exact_approved_command_sp
         "environment.show",
         "release.info",
         "release.check",
+        "release.modules-list",
         "backup.list",
         "backup.verify",
         "config.show",
@@ -822,6 +830,7 @@ def test_registry_allowed_key_sets_are_exact_and_independent_of_spec_contents() 
                 "config.apply.preview",
                 "environment.switch.preview",
                 "release.upgrade.preview",
+                "release.modules-apply.preview",
                 "clone.restore.preview",
             }
         )

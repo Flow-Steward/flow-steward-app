@@ -15,9 +15,24 @@ REPO_ROOT = INFRASTRUCTURE_ROOT.parents[1]
 # splits). The SCC invariant below is the
 # authoritative cycle gate; this remains a secondary shrinking inventory.
 INFRASTRUCTURE_APPLICATION_IMPORT_BASELINE = 55
-RELEASE_APPLICATION_ADAPTERS = frozenset({"core/infrastructure/release/github.py"})
+RELEASE_APPLICATION_ADAPTERS = frozenset(
+    {
+        "core/infrastructure/release/github.py",
+        # ADR 0082 §5: the ModuleActivator port over the shared runtime directory.
+        "core/infrastructure/release/platform_module_activator.py",
+    }
+)
 RELEASE_APPLICATION_IMPORT_SURFACE = frozenset(
-    {"core.application.release.catalog.ReleaseDiscoveryError"}
+    {
+        "core.application.release.catalog.ReleaseDiscoveryError",
+        "core.application.lifecycle.errors.LifecycleError",
+        "core.application.lifecycle.stack_models.StackGatewayError",
+        "core.application.release.platform_modules.MODULE_DESCRIPTOR_KEYS",
+        "core.application.release.platform_modules.PreparedModuleRef",
+        "core.application.release.platform_modules.canonical_module_set",
+        "core.application.release.platform_modules.module_descriptor_digest",
+        "core.application.release.platform_modules.role_verification_unsupported",
+    }
 )
 # ADR 0060 owns the journal contracts in application and their native adapters
 # in infrastructure. Freeze each adapter's contract symbols, not all services
@@ -684,7 +699,10 @@ def test_platform_identity_defaults_are_owned_by_infrastructure_config() -> None
     ):
         source = path.read_text(encoding="utf-8")
         assert "core.application.auth.config" not in source
-        assert "core.infrastructure.config.platform_identity" in source
+        # A module that still uses a platform default takes it from infrastructure config;
+        # one that no longer falls back to a default (explicit accounts) needs no import.
+        if "DEFAULT_ACCOUNT_ID" in source or "DEFAULT_TENANT_ID" in source:
+            assert "core.infrastructure.config.platform_identity" in source
 
 
 def test_secret_detection_policy_is_owned_by_security_infrastructure() -> None:

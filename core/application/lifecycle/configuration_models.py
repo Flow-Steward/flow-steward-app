@@ -13,6 +13,7 @@ from core.application.lifecycle.contracts import (
     ConfigurationPatch,
     DeploymentConfig,
 )
+from core.application.lifecycle.module_settings import ConfigModuleSetting
 from core.application.lifecycle.ports import (
     TechnicalSink,
 )
@@ -54,7 +55,10 @@ class ConfigSetRequest(ConfigurationPatch):
         """``config set NAME=VALUE ...``: each name as `config show` or an error shows it.
 
         A typed setting goes to its field, a host setting to ``operator_settings``.
-        The typed options stay synonyms; the same name given both ways must agree.
+        A platform-module setting (``FS_MODULE_*``) goes there too; whether an active
+        module declares it is checked by ``ConfigurationService.set``, which can read
+        the module set. The typed options stay synonyms; the same name given both ways
+        must agree.
         """
         if not isinstance(value, dict) or "assignments" not in value:
             return value
@@ -66,6 +70,9 @@ class ConfigSetRequest(ConfigurationPatch):
         from core.application.lifecycle.setting_names import (
             typed_setting_fields,
             unknown_setting_error,
+        )
+        from core.infrastructure.platform_modules.module_settings import (
+            is_module_setting_name,
         )
 
         expanded = {key: item for key, item in value.items() if key != "assignments"}
@@ -80,7 +87,7 @@ class ConfigSetRequest(ConfigurationPatch):
                         f"{name} is given twice, as {given!r} and {setting!r}; give it once."
                     )
                 expanded[name] = setting
-            elif name in host:
+            elif name in host or is_module_setting_name(name):
                 host_changes[name] = setting
             else:
                 raise unknown_setting_error(name)
@@ -124,6 +131,8 @@ class ConfigShowResult(_ClosedModel):
     pending: ConfigurationPatch | None = None
     pending_diff: dict[str, dict[str, JsonValue]] = Field(default_factory=dict)
     protected_setting_states: tuple[ConfigSecretState, ...] = ()
+    #: Settings the active platform modules declare, each with its module (ADR 0082).
+    module_settings: tuple[ConfigModuleSetting, ...] = ()
 
 
 class ConfigSetResult(_ClosedModel):

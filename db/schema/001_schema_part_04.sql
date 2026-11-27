@@ -259,7 +259,8 @@ CREATE TABLE public.registry_fields (
     derived_hash text DEFAULT ''::text,
     sync_status text DEFAULT 'active'::text NOT NULL,
     last_synced_at timestamp with time zone,
-    last_sync_error text
+    last_sync_error text,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL
 );
 
 
@@ -406,7 +407,9 @@ CREATE TABLE public.registry_skill_inputs (
     required boolean DEFAULT false NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     type text DEFAULT 'text'::text NOT NULL,
-    contract_id text
+    contract_id text,
+    contract_account_id uuid,
+    CONSTRAINT registry_skill_inputs_contract_owner_check CHECK (((contract_id IS NULL) OR (contract_account_id IS NOT NULL)))
 );
 
 
@@ -428,7 +431,9 @@ CREATE TABLE public.registry_skill_outputs (
     sort_order integer DEFAULT 0 NOT NULL,
     type text DEFAULT 'text'::text NOT NULL,
     required boolean DEFAULT false NOT NULL,
-    contract_id text
+    contract_id text,
+    contract_account_id uuid,
+    CONSTRAINT registry_skill_outputs_contract_owner_check CHECK (((contract_id IS NULL) OR (contract_account_id IS NOT NULL)))
 );
 
 
@@ -522,6 +527,7 @@ CREATE TABLE public.registry_workflow_for_each (
     body_jsonb jsonb NOT NULL,
     error_policy_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
     boundary_contract_jsonb jsonb,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     CONSTRAINT registry_workflow_for_each_for_each_id_nonblank_check CHECK ((btrim(for_each_id) <> ''::text)),
     CONSTRAINT registry_workflow_for_each_item_name_nonblank_check CHECK ((btrim(item_name) <> ''::text))
 );
@@ -541,6 +547,7 @@ CREATE TABLE public.registry_workflow_groups (
     body_jsonb jsonb NOT NULL,
     error_policy_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
     boundary_contract_jsonb jsonb,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     CONSTRAINT registry_workflow_groups_group_id_nonblank_check CHECK ((btrim(group_id) <> ''::text))
 );
 
@@ -623,6 +630,7 @@ CREATE TABLE public.registry_workflow_steps (
     error_policy_jsonb jsonb DEFAULT '{}'::jsonb NOT NULL,
     boundary_contract_jsonb jsonb,
     connector_install_id text DEFAULT ''::text NOT NULL,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     CONSTRAINT registry_workflow_steps_lane_requires_group_check CHECK (((group_id IS NOT NULL) OR (for_each_id IS NOT NULL) OR (lane_id IS NULL))),
     CONSTRAINT registry_workflow_steps_one_owner_check CHECK (((group_id IS NULL) OR (for_each_id IS NULL))),
     CONSTRAINT registry_workflow_steps_lane_id_nonblank_check CHECK (((lane_id IS NULL) OR (btrim(lane_id) <> ''::text))),
@@ -650,7 +658,7 @@ CREATE TABLE public.registry_workflows (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     deleted_at timestamp with time zone,
-    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     scope_kind text DEFAULT 'system'::text NOT NULL,
     source_install_id text,
     source_release_id text,
@@ -816,7 +824,7 @@ CREATE TABLE public.scheduled_jobs (
     created_by text DEFAULT 'system'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    account_id uuid,
+    account_id uuid NOT NULL,
     inputs jsonb DEFAULT '{}'::jsonb NOT NULL,
     schedule_timezone text DEFAULT ''::text NOT NULL,
     admission_allowed boolean DEFAULT false NOT NULL,
@@ -1007,7 +1015,8 @@ CREATE TABLE public.user_roles (
     workspace_id uuid,
     project_id uuid,
     workflow_id text,
-    role_is_system boolean DEFAULT false NOT NULL
+    role_is_system boolean DEFAULT false NOT NULL,
+    workflow_account_id uuid
 );
 
 

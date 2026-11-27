@@ -161,14 +161,11 @@ def build_world(pg_conn, dsn: str) -> OAuthWorld:
                 "VALUES (%s, %s, 'not-a-real-hash', %s, %s)",
                 (user_id, username, f"OAuth {role}", DEFAULT_ACCOUNT_ID),
             )
+            # The role is held on the account membership (ADR 0085).
             cur.execute(
-                "INSERT INTO user_roles (user_id, role_id) SELECT %s, id FROM roles WHERE key = %s",
-                (user_id, role),
-            )
-            cur.execute(
-                "INSERT INTO user_account_memberships (user_id, account_id, is_default) "
-                "VALUES (%s, %s, true)",
-                (user_id, DEFAULT_ACCOUNT_ID),
+                "INSERT INTO user_account_memberships (user_id, account_id, is_default, role_id) "
+                "SELECT %s, %s, true, id FROM roles WHERE key = %s",
+                (user_id, DEFAULT_ACCOUNT_ID, role),
             )
             session = secrets.token_urlsafe(24)
             cur.execute(

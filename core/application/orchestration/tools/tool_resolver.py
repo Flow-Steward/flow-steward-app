@@ -135,10 +135,25 @@ def _resolve_extension_record(
     # extension_key across all accounts, letting a scoped caller execute another
     # account's extension. Pass the caller account so cross-account keys are
     # invisible (get_extension returns None -> "not found").
+    # ADR 0020, C6: an account that enabled another account's (the installation's)
+    # install uses that install; the account's enablement, not the bundle's owner,
+    # decides. An install the account has not enabled stays "not found".
     caller_account_id = str(normalized_runtime_context.get("account_id") or "").strip()
+    access: dict[str, Any] | None = None
     if hasattr(bl, "get_extension"):
         if caller_account_id:
-            extension = bl.get_extension(extension_key, account_id=caller_account_id)
+            from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+                extension_install_account,
+            )
+
+            lookup_account_id, access = extension_install_account(
+                bl, extension_key, caller_account_id
+            )
+            extension = (
+                bl.get_extension(extension_key, account_id=lookup_account_id)
+                if lookup_account_id
+                else None
+            )
         else:
             extension = bl.get_extension(extension_key)
     else:
@@ -146,6 +161,12 @@ def _resolve_extension_record(
     if not extension:
         raise RuntimeError(f"Tool '{manifest.tool_id}' extension '{extension_key}' not found")
     normalized = normalize_extension_row_for_runtime(extension)
+    if (
+        access is not None
+        and access.get("access") in {"enabled", "global"}
+        and access.get("install_state") not in {"", "active"}
+    ):
+        normalized["enabled"] = False
     if not bool(normalized.get("enabled")):
         raise RuntimeError(f"Tool '{manifest.tool_id}' extension '{extension_key}' is disabled")
     return normalized, bl

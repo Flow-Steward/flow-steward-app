@@ -870,7 +870,13 @@ class TestApprovalCommandService:
         )
 
     def test_canonical_decision_records_marker_in_its_pinned_transaction(self):
-        marker_transaction = object()
+        # The pinned transaction also answers the approver lookup: no step of the
+        # workflow is restricted, so the decision goes ahead.
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+        cursor.fetchone.return_value = None
+        marker_transaction = MagicMock()
+        marker_transaction.cursor.return_value.__enter__.return_value = cursor
         bl = SimpleNamespace(conn=MagicMock())
         service = ApprovalCommandService(
             resume_shutdown_in_progress=lambda: False,
@@ -916,9 +922,12 @@ class TestApprovalCommandService:
         )
         service._record_in_progress_marker = MagicMock()
 
+        # The pinned transaction answers the approver lookup with no restricted step.
+        transaction = MagicMock()
+        transaction.cursor.return_value.__enter__.return_value.fetchall.return_value = []
         resume_row = service._persist_canonical_decision(
             bl=bl,
-            transaction_conn=object(),
+            transaction_conn=transaction,
             row={
                 "id": "job-atomic",
                 "project_id": "project-1",
@@ -4914,7 +4923,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -4999,7 +5008,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5048,7 +5057,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5082,7 +5091,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5125,7 +5134,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5178,7 +5187,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda _extension_id: (None, None),
+            resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
             extension_operation_failure_status=lambda _invocation: 502,
@@ -5209,7 +5218,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5258,7 +5267,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5302,7 +5311,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5343,7 +5352,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5379,7 +5388,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5430,7 +5439,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5488,7 +5497,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5577,7 +5586,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5619,7 +5628,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5664,7 +5673,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5715,7 +5724,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: MagicMock(),
             get_operation_store=lambda: MagicMock(),
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5779,7 +5788,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5876,7 +5885,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -5977,7 +5986,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6084,7 +6093,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6217,7 +6226,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6320,7 +6329,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6389,7 +6398,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6518,7 +6527,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6599,7 +6608,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6653,7 +6662,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6697,7 +6706,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6743,7 +6752,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6788,7 +6797,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -6981,7 +6990,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda _: (None, None),
+            resolve_extension_runtime_record=lambda _, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda _: 502,
@@ -7104,7 +7113,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7227,7 +7236,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7323,7 +7332,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7374,7 +7383,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7423,7 +7432,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7494,7 +7503,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7599,7 +7608,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7725,7 +7734,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7820,7 +7829,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7884,7 +7893,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -7971,7 +7980,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8125,7 +8134,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8222,7 +8231,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8343,7 +8352,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8468,7 +8477,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8539,7 +8548,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8656,7 +8665,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8704,7 +8713,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8731,7 +8740,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8769,7 +8778,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8842,7 +8851,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 400,
@@ -8918,7 +8927,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8956,7 +8965,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -8995,7 +9004,10 @@ class TestExtensionCommandServices:
             get_logger=lambda: identity_store,
             get_operation_store=lambda: identity_store,
             get_project_by_id=project_getter,
-            resolve_extension_runtime_record=lambda extension_id: (extension, identity_store),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (
+                extension,
+                identity_store,
+            ),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9083,7 +9095,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9195,7 +9207,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9283,7 +9295,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9398,7 +9410,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9466,7 +9478,7 @@ class TestExtensionCommandServices:
         return ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9753,7 +9765,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9812,7 +9824,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9860,7 +9872,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9900,7 +9912,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9922,7 +9934,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9955,7 +9967,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -9997,7 +10009,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (None, None),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "extension",
             extension_operation_failure_status=lambda invocation: 502,
@@ -10035,7 +10047,7 @@ class TestExtensionCommandServices:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda extension_id: (extension, bl),
+            resolve_extension_runtime_record=lambda extension_id, **_kwargs: (extension, bl),
             extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *args, **kwargs: "platform",
             extension_operation_failure_status=lambda invocation: 502,
@@ -16365,7 +16377,7 @@ class TestExtensionAuditContextThreading:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda eid: (extension, bl),
+            resolve_extension_runtime_record=lambda eid, **_kwargs: (extension, bl),
             extension_identifier=lambda p: str((p or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *a, **kw: "extension",
             extension_operation_failure_status=lambda inv: 502,
@@ -16403,7 +16415,7 @@ class TestExtensionAuditContextThreading:
         return ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda eid: (extension, bl),
+            resolve_extension_runtime_record=lambda eid, **_kwargs: (extension, bl),
             extension_identifier=lambda p: str((p or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *a, **kw: "extension",
             extension_operation_failure_status=lambda inv: 502,
@@ -16473,7 +16485,7 @@ class TestExtensionAuditContextThreading:
         service = ExtensionBindingService(
             get_logger=lambda: bl,
             get_operation_store=lambda: bl,
-            resolve_extension_runtime_record=lambda eid: (extension, bl),
+            resolve_extension_runtime_record=lambda eid, **_kwargs: (extension, bl),
             extension_identifier=lambda p: str((p or {}).get("extension_key") or ""),
             extension_operation_handler_mode=lambda *a, **kw: "extension",
             extension_operation_failure_status=lambda inv: 502,
@@ -17219,7 +17231,7 @@ class TestModelProviderCommandService:
                 return_value={"verification_generation": "gen-1"},
             ),
             patch(
-                "core.application.auth.secrets.decrypt_secret",
+                "core.infrastructure.security.secret_codec.decrypt_secret",
                 side_effect=ValueError("malformed ciphertext"),
             ),
             patch(
@@ -17272,7 +17284,7 @@ class TestModelProviderCommandService:
                 return_value={"verification_generation": "gen-1"},
             ),
             patch(
-                "core.application.auth.secrets.decrypt_secret",
+                "core.infrastructure.security.secret_codec.decrypt_secret",
                 side_effect=KeyboardInterrupt,
             ),
             patch(
@@ -17399,7 +17411,9 @@ class TestModelProviderCommandService:
                 "core.application.management.command_services_model_provider.model_provider_store.claim_model_provider_verification",
                 return_value={"verification_generation": "gen-1"},
             ),
-            patch("core.application.auth.secrets.decrypt_secret", return_value="api-key-a"),
+            patch(
+                "core.infrastructure.security.secret_codec.decrypt_secret", return_value="api-key-a"
+            ),
             patch(
                 "core.application.management.command_services_model_provider.model_provider_store.set_model_provider_verification",
                 return_value=True,

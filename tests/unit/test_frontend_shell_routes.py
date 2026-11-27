@@ -141,6 +141,8 @@ def test_built_frontend_shell_favicon_serves_svg_instead_of_html(path: str) -> N
         "/bootstrap",
         "/forgot-password",
         "/reset-password",
+        # ADR 0085: the page of an invitation link.
+        "/invitations/AbC-dEf_123",
         "/dashboard",
         "/jobs",
         "/jobs/42",

@@ -1,0 +1,5 @@
+{
+  "id": "acme.reference-broken",
+  "import": "fs_reference_broken",
+  "version": "1.0.0"
+}

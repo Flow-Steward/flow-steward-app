@@ -94,7 +94,7 @@ class PlatformLoggerLifecycleProjectsMixin:
         with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, entity_type, entity_id, created_at, snapshot
+                SELECT id, entity_type, entity_id, created_at, snapshot, account_id::text AS account_id
                   FROM registry_changelog
                  WHERE entity_type = ANY(%s)
                  ORDER BY created_at DESC

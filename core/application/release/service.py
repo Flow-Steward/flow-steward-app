@@ -18,6 +18,14 @@ from core.application.release.installed_origin import (
     InstalledReleaseOriginPort,
     SourceInstallationOrigin,
 )
+from core.application.release.platform_modules import (
+    ModuleActivator,
+    ModuleSet,
+    NoModuleActivator,
+    PreparedModuleRef,
+    highest_staged_modules,
+    select_staged_modules,
+)
 from core.application.release.selector import (
     _INSTALLED_CONTEXT_MISMATCH_REMEDIATION,
     _TARGET_CONTEXT_MISMATCH_CAUSE,
@@ -86,12 +94,55 @@ class ReleaseUpgradeRequest(_ClosedModel):
     dry_run: bool = False
     skip_db_backup: bool = False
     timeout_seconds: int = Field(default=1800, ge=1, le=3600)
+    # ADR 0082 §5: the deployment manager's prepared platform-module set.
+    # None keeps the installed set; an empty tuple removes every module.
+    target_modules: ModuleSet | None = None
+    # ADR 0082 §5: end an unfinished module-only change by activating the
+    # journal's previous module set again and restarting the roles, without
+    # touching the database. Valid only after the operator restored the
+    # pre-upgrade backup or confirmed that no migration of the new set was
+    # applied. `flow-steward release modules-apply --restore-previous` sets it.
+    restore_previous_modules: bool = False
 
     @model_validator(mode="after")
     def validate_target_version(self) -> Self:
         if self.target_version:
             ReleaseVersion.parse(self.target_version)
         return self
+
+
+class ReleaseModulesListRequest(_ClosedModel):
+    """Read-only request for the active and staged platform modules (ADR 0082 §5)."""
+
+
+class ReleaseModulesApplyRequest(_ClosedModel):
+    """Make staged platform modules the active set through the journaled upgrade.
+
+    ``modules`` names ``id@version`` items separated by commas; empty selects the
+    highest staged version of every staged module. ``restore_previous`` instead ends an
+    unfinished module-only change by activating its previous set again.
+    """
+
+    modules: str = Field(default="", max_length=4096)
+    restore_previous: bool = False
+
+    @model_validator(mode="after")
+    def validate_choice(self) -> Self:
+        if self.restore_previous and self.modules.strip():
+            raise ValueError("restore_previous restores the journal's set; name no modules")
+        return self
+
+
+class ReleaseModulesResult(_ClosedModel):
+    """The active platform-module set next to what the deployment manager staged."""
+
+    status: Literal["listed"] = "listed"
+    deployment_profile: DeploymentProfile | None = None
+    activation_supported: bool = False
+    detail: str = ""
+    active_modules: tuple[PreparedModuleRef, ...] = ()
+    staged_modules: tuple[PreparedModuleRef, ...] = ()
+    next_steps: tuple[str, ...] = ()
 
 
 class ReleaseTransitionBinding(_ClosedModel):
@@ -137,6 +188,9 @@ class PreparedReleaseUpgrade(_ClosedModel):
     timeout_seconds: int = Field(
         default=ReleaseUpgradeRequest.model_fields["timeout_seconds"].default, ge=1, le=3600
     )
+    target_modules: ModuleSet | None = None
+    # Carried from ReleaseUpgradeRequest for one run; never a reason to resume.
+    restore_previous_modules: bool = False
 
     @model_validator(mode="after")
     def validate_origin_binding(self) -> Self:
@@ -262,6 +316,92 @@ class ReleaseService:
             ),
             step="clone_prerequisite",
         )
+
+    def modules_list(self, request: ReleaseModulesListRequest) -> ReleaseModulesResult:
+        """ADR 0082 §5: the active set and every staged artifact; changes nothing."""
+        del request
+        modules = self._module_activator()
+        if not modules.supports_activation:
+            return ReleaseModulesResult(
+                deployment_profile=self.profile,
+                detail=str(getattr(modules, "unavailable_reason", "") or "").strip()
+                or "This deployment cannot activate platform modules.",
+            )
+        active = modules.installed_set()
+        staged = modules.staged_modules()
+        highest = highest_staged_modules(staged) if staged else ()
+        return ReleaseModulesResult(
+            deployment_profile=self.profile,
+            activation_supported=True,
+            active_modules=active,
+            staged_modules=staged,
+            next_steps=(
+                ("flow-steward release modules-apply --confirm",)
+                if highest and highest != active
+                else ()
+            ),
+        )
+
+    def module_upgrade_request(self, request: ReleaseModulesApplyRequest) -> ReleaseUpgradeRequest:
+        """Translate a module change into the journaled upgrade of the installed release.
+
+        The target release is the installed one, so the workflow runs its module-only
+        path: maintenance, backup, stop the roles, write the list, database upgrade,
+        start the roles, health check, reopen (ADR 0082 §5.6).
+        """
+        origin = self._load_origin()
+        if origin.kind != "official":
+            raise LifecycleError.stable_failure(
+                code="release_modules_source_installation",
+                cause=(
+                    "A platform-module change keeps the installed official release; this "
+                    "installation was built from source and has none."
+                ),
+                remediation=(
+                    "Move this installation to an official release with flow-steward "
+                    "release upgrade first, then change its platform modules."
+                ),
+                step="release_policy",
+            )
+        installed = origin.release.version
+        if request.restore_previous:
+            return ReleaseUpgradeRequest(target_version=installed, restore_previous_modules=True)
+        modules = self._module_activator()
+        if not modules.supports_activation:
+            reason = str(getattr(modules, "unavailable_reason", "") or "").strip()
+            raise LifecycleError.stable_failure(
+                code="release_modules_unsupported",
+                cause=" ".join(
+                    part
+                    for part in ("This deployment cannot activate platform modules.", reason)
+                    if part
+                ),
+                remediation="Run this command where the deployment's runtime directory is managed.",
+                step="release_policy",
+            )
+        staged = modules.staged_modules()
+        selection = tuple(item.strip() for item in request.modules.split(",") if item.strip())
+        target = (
+            select_staged_modules(staged, selection)
+            if selection
+            else highest_staged_modules(staged)
+        )
+        if not target:
+            raise LifecycleError.stable_failure(
+                code="release_modules_none_staged",
+                cause="No platform module is staged on this deployment.",
+                remediation=(
+                    "Let the deployment manager stage the platform modules, then run "
+                    "flow-steward release modules-list."
+                ),
+                step="release_policy",
+            )
+        return ReleaseUpgradeRequest(target_version=installed, target_modules=target)
+
+    def _module_activator(self) -> ModuleActivator:
+        if self.workflow is None:
+            return NoModuleActivator(reason="This CLI has no journaled release-upgrade workflow.")
+        return self.workflow.modules
 
     def info(self, request: ReleaseInfoRequest) -> ReleaseResult:
         del request
@@ -415,6 +555,8 @@ class ReleaseService:
                 dry_run=request.dry_run,
                 skip_db_backup=request.skip_db_backup,
                 timeout_seconds=request.timeout_seconds,
+                target_modules=request.target_modules,
+                restore_previous_modules=request.restore_previous_modules,
             )
         installed, target, source = self._select_upgrade(request)
         return PreparedReleaseUpgrade(
@@ -426,6 +568,8 @@ class ReleaseService:
             dry_run=request.dry_run,
             skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
+            target_modules=request.target_modules,
+            restore_previous_modules=request.restore_previous_modules,
         )
 
     def review_upgrade(self, prepared: PreparedReleaseUpgrade) -> dict[str, object]:
@@ -634,6 +778,8 @@ class ReleaseService:
             dry_run=request.dry_run,
             skip_db_backup=request.skip_db_backup,
             timeout_seconds=request.timeout_seconds,
+            target_modules=request.target_modules,
+            restore_previous_modules=request.restore_previous_modules,
         )
 
     def _load_transition_handoff(self) -> object | None:

@@ -5,7 +5,7 @@ PUT    /api/settings/system-email          -- choose and confirm a connection ({
 POST   /api/settings/system-email/confirm  -- confirm the current selection again
 DELETE /api/settings/system-email          -- clear the selection (no system email)
 
-Only a platform administrator may read or change it; the application layer
+Only an installation administrator may read or change it; the application layer
 enforces that and audits every change.
 """
 
@@ -48,7 +48,7 @@ def create_api_system_email_settings_router(
         scope = request_scope(request)
         if not system_email_sender.is_platform_admin(scope):
             raise ServiceForbiddenError(
-                "Only a platform administrator can manage the system email sender",
+                "Only an installation administrator can manage the system email sender",
                 payload={"error": "platform_admin_required", "code": "platform_admin_required"},
             )
         return scope

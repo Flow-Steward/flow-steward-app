@@ -147,12 +147,16 @@ class ServiceRegistry:
         technical_sink: Callable[[str], None] | None = None,
         cancellation: Any = None,
     ) -> object:
+        from core.application.registry.workflow_account import installation_account_scope
         from core.entrypoints.cli.platform.service_bindings.common import (
             await_maybe,
             bind_cancellation_token,
         )
 
-        with bind_cancellation_token(cancellation):
+        # The platform CLI acts for the installation account (cli_admin_scope and
+        # cli_operator_scope name it); registry reads and writes refuse to guess an
+        # account, so the command binds it explicitly (ADR 0020, C5).
+        with bind_cancellation_token(cancellation), installation_account_scope():
             return await await_maybe(
                 self.service(key)(
                     self.runtime,

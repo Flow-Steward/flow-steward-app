@@ -223,9 +223,56 @@ def prepare_compact_volume(
         host_bound = _host_bound_trees()
         for spec in specs:
             _ensure_directory(root_fd, spec, host_bound=spec.relative_path in host_bound)
+        _return_operation_log_root_to_operator(root_fd, selected)
     finally:
         os.close(root_fd)
     return tuple(spec.relative_path for spec in specs)
+
+
+#: The CLI's default operation-log root inside the runtime container (/app/.flow-steward
+#: is a link to state/.flow-steward), relative to the volume root.
+_OPERATION_LOG_ROOT = ("state", ".flow-steward", "logs")
+
+
+def _return_operation_log_root_to_operator(root_fd: int, layout: CompactVolumeLayout) -> None:
+    """Give a root-owned CLI operation-log root back to the operator user.
+
+    Commands run in this container as root (a one-shot `database upgrade`, an
+    operator's `docker exec`) created the log root as root with mode 0700 before
+    the CLI handed new directories to their parent's owner, and `maintenance`, which
+    runs as the operator user, could then no longer write its log. Only that exact
+    state is changed: a real directory owned by root becomes the operator's, mode
+    0700, as the CLI creates it. Anything else is left alone.
+    """
+    if layout.operator_uid == layout.root_uid:
+        return
+    parent_fd = os.dup(root_fd)
+    try:
+        for part in _OPERATION_LOG_ROOT[:-1]:
+            try:
+                next_fd = _open_directory(part, directory_fd=parent_fd)
+            except OSError:
+                return
+            os.close(parent_fd)
+            parent_fd = next_fd
+        try:
+            leaf_fd = _open_directory(_OPERATION_LOG_ROOT[-1], directory_fd=parent_fd)
+        except OSError:
+            return
+        try:
+            metadata = os.fstat(leaf_fd)
+            if metadata.st_uid != layout.root_uid:
+                return
+            # A repair that cannot be made never stops the runtime: the CLI then
+            # runs without its log and says so.
+            with suppress(OSError):
+                os.fchown(leaf_fd, layout.operator_uid, layout.runtime_gid)
+                os.fchmod(leaf_fd, 0o700)
+                os.fsync(leaf_fd)
+        finally:
+            os.close(leaf_fd)
+    finally:
+        os.close(parent_fd)
 
 
 def _adopt_empty_provider_volume(

@@ -155,6 +155,18 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("POST", "/api/auth/users"): AuthUserMutationResultView,
     ("PUT", "/api/auth/users/{user_id}"): AuthUserMutationResultView,
     ("POST", "/api/auth/users/{user_id}/unlock"): AuthUserUnlockResultView,
+    ("GET", "/api/auth/users/candidates"): AuthAccountMemberCandidatesView,
+    ("POST", "/api/auth/users/{user_id}/membership"): AuthAccountMemberResultView,
+    ("DELETE", "/api/auth/users/{user_id}/membership"): AuthAccountMemberResultView,
+    ("POST", "/api/auth/users/invitations"): AuthAccountInvitationSentView,
+    ("GET", "/api/auth/users/invitations"): AuthAccountSentInvitationsView,
+    (
+        "POST",
+        "/api/auth/users/invitations/{invitation_id}/cancel",
+    ): AuthAccountInvitationCancelledView,
+    ("POST", "/api/auth/invitations/preview"): AuthAccountInvitationPreviewView,
+    ("POST", "/api/auth/invitations/accept"): AuthAccountInvitationDecisionView,
+    ("POST", "/api/auth/invitations/decline"): AuthAccountInvitationDecisionView,
     (
         "POST",
         "/api/auth/users/{user_id}/force-password-reset",
@@ -475,6 +487,19 @@ _INTERNAL_OPENAPI_SUCCESS_MODEL_OVERRIDES: dict[tuple[str, str], Any] = {
     ("POST", "/api/extensions/generated-jobs"): ExtensionGeneratedJobResultView,
     ("POST", "/api/extensions/{extension_id}/enable"): ExtensionToggleResultView,
     ("POST", "/api/extensions/{extension_id}/disable"): ExtensionToggleResultView,
+    ("GET", "/api/extensions/{extension_id}/account-enablement"): ExtensionAccountEnablementView,
+    (
+        "POST",
+        "/api/extensions/{extension_id}/account-enablement/enable",
+    ): ExtensionAccountEnablementView,
+    (
+        "POST",
+        "/api/extensions/{extension_id}/account-enablement/disable",
+    ): ExtensionAccountEnablementView,
+    (
+        "PUT",
+        "/api/extensions/{extension_id}/account-enablement/settings",
+    ): ExtensionAccountEnablementView,
     ("GET", "/api/workspaces"): WorkspacesListView,
     ("POST", "/api/workspaces"): WorkspaceRecordView,
     ("GET", "/api/workspaces/{workspace_id}"): WorkspaceRecordView,

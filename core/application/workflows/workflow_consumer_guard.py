@@ -161,9 +161,19 @@ def assert_consumers_fit(
     workflow_id: str,
     settings: Mapping[str, Any],
     definition: Mapping[str, Any] | None,
+    account_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Refuse a save that breaks an enabled consumer; return diagnostics otherwise."""
-    cur.execute("SELECT account_id FROM registry_workflows WHERE workflow_id = %s", (workflow_id,))
+    """Refuse a save that breaks an enabled consumer; return diagnostics otherwise.
+
+    The workflow is the one of *account_id* (the bound account when none is
+    given): workflow identity is account-qualified (ADR 0020, C4b).
+    """
+    from core.application.registry.workflow_account import workflow_owner
+
+    cur.execute(
+        "SELECT account_id FROM registry_workflows WHERE account_id = %s AND workflow_id = %s",
+        (workflow_owner(account_id), workflow_id),
+    )
     row = cur.fetchone()
     if row is None:
         return []

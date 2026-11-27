@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 # ---------------------------------------------------------------------------
 # Helpers — lightweight ASGI test client via httpx / starlette
 # ---------------------------------------------------------------------------
@@ -35,6 +37,7 @@ def _make_test_client():
 
 def _auth_user_dict(user_id=1, username="testuser", timezone_val=""):
     d = {
+        "account_id": DEFAULT_ACCOUNT_ID,
         "id": user_id,
         "username": username,
         "display_name": "Test User",

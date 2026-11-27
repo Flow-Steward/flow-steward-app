@@ -250,6 +250,13 @@ class ApprovalGateView(ViewModel):
     #: The typed review of an Approval step (ADR 0075): fields, captured values
     #: and the original's file summaries; absent for a gate without one.
     review: dict[str, Any] | None = None
+    #: Whether the caller may decide this gate (ADR 0082, assigned approvers):
+    #: ``False`` when the step has assigned approvers and the caller is not one of
+    #: them. ``None`` when the assignment could not be read; absent means true.
+    can_decide: bool | None = None
+    #: The step's assigned approvers, ``{"username", "display_name"}`` each; empty
+    #: when anyone with ``approvals.decide`` may decide.
+    approvers: list[dict[str, str]] = Field(default_factory=list)
 
 
 class JobReviewView(ViewModel):

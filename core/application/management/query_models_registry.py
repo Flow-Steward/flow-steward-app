@@ -235,6 +235,10 @@ class ExtensionSummaryView(ViewModel):
     #: The bundle's ``icon.png``: whether there is one, and where Core serves it.
     has_icon: bool = False
     icon_url: str = ""
+    #: For an extension installed by the installation and seen from another account
+    #: (ADR 0020, C6): ``enabled``, ``disabled`` or ``not_enabled`` for that account.
+    #: Empty for the installation account, which owns the install.
+    account_enablement: str = ""
 
 
 class ExtensionListView(ViewModel):
@@ -247,6 +251,9 @@ class ExtensionArchiveLifecycleAvailabilityView(ViewModel):
     reason_code: str = "unavailable"
     message: str = ""
     remediation: dict[str, list[str]] = Field(default_factory=dict)
+    #: Whether the caller may install, update and remove extensions: an installation
+    #: administrator (ADR 0020, C6). Account administrators enable installed ones.
+    can_manage_installs: bool = True
 
 
 class ExtensionMarketplaceFilterInput(ViewModel):

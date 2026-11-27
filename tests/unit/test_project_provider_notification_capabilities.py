@@ -19,11 +19,16 @@ from typing import Any
 import pytest
 from fastapi.responses import JSONResponse
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.extensions.external_effects import (
     DEFAULT_NOTIFICATION_TARGET_KIND,
     declared_features,
     notification_target_kind,
 )
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 RECIPIENT_EXTENSION: dict[str, Any] = {
     "extension_id": "acme.mailer",
@@ -107,7 +112,10 @@ def test_the_providers_endpoint_carries_features_and_the_target_kind(
             project_query_service=lambda: MagicMock(),
             project_command_service=lambda: MagicMock(),
             request_scope=lambda request, project_id="": MagicMock(project_id=project_id),
-            require_authenticated_user=lambda *args, **kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *args, **kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             to_json_obj=lambda value: dict(value) if isinstance(value, dict) else value,
             api_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=500),
             service_error_response=lambda exc: JSONResponse({"error": str(exc)}, status_code=400),

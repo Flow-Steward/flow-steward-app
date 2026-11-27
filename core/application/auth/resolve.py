@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import psycopg
 
 from core.application.auth.account_memberships import enrich_user_payload_with_account_memberships
-from core.application.auth.config import DEFAULT_ACCOUNT_ID, env_flag
+from core.application.auth.config import env_flag
 from core.application.auth.local_credentials import (
+    apply_session_auth_source,
     authenticator_policy_available,
     local_session_credential_filter,
     password_age_available,
+    session_auth_method_select,
 )
+from core.application.auth.membership_roles import account_role_keys
 from core.application.auth.password import session_token_hash
 from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.infrastructure.db.psycopg_runtime import sql as psycopg_sql
@@ -30,6 +34,20 @@ def _execute_with_prepare_retry(cur: Any, query: Any, params: tuple[Any, ...]) -
         cur.execute(query, params)
     except psycopg.errors.DuplicatePreparedStatement:
         cur.execute(query, params, prepare=False)
+
+
+def _row_mapping(cur: Any, row: Any) -> dict[str, Any]:
+    """The row as a mapping: as it is from a dict cursor, else by the cursor's columns.
+
+    A connection that ignores the dict cursor request (a test double, a plain
+    psycopg connection) returns tuples; the column names make them the same mapping.
+    """
+    if isinstance(row, Mapping):
+        return dict(row)
+    names = [str(column[0]) for column in getattr(cur, "description", None) or ()]
+    if len(names) != len(row):
+        return dict(row)
+    return dict(zip(names, row, strict=True))
 
 
 def _qualified_column(alias: str, column_name: str) -> Any:
@@ -239,24 +257,13 @@ def _dict_cursor(bl):
         return bl.conn.cursor()
 
 
-def get_user_roles(bl, user_id: Any) -> list[str]:
-    normalized_user_id = str(user_id or "").strip()
-    if not normalized_user_id:
-        return []
-    with bl.conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT r.key
-            FROM user_roles ur
-            JOIN roles r ON r.id = ur.role_id
-            WHERE ur.user_id = %s
-              AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
-            ORDER BY r.key
-            """,
-            (normalized_user_id,),
-        )
-        rows = cur.fetchall()
-    return [str(row[0]) for row in rows if row and row[0]]
+def get_user_roles(bl, user_id: Any, account_id: Any = None) -> list[str]:
+    """The person's roles in ``account_id``: the role of that membership (ADR 0085).
+
+    No account, no membership or a membership without a role: no roles. The
+    installation account is never substituted.
+    """
+    return account_role_keys(bl, user_id, account_id)
 
 
 def get_user_by_username(bl, username: str) -> dict | None:
@@ -301,10 +308,10 @@ def get_user_by_username(bl, username: str) -> dict | None:
             (str(username or "").strip(),),
         )
         row = cur.fetchone()
-    if not row:
+        payload = _row_mapping(cur, row) if row else None
+    if not payload:
         return None
-    payload = dict(row)
-    payload["roles"] = get_user_roles(bl, str(payload["id"]))
+    payload["roles"] = get_user_roles(bl, str(payload["id"]), payload.get("account_id"))
     return enrich_user_payload_with_account_memberships(bl, payload)
 
 
@@ -349,10 +356,10 @@ def get_user_by_id(bl, user_id: Any) -> dict | None:
             (normalized_user_id,),
         )
         row = cur.fetchone()
-    if not row:
+        payload = _row_mapping(cur, row) if row else None
+    if not payload:
         return None
-    payload = dict(row)
-    payload["roles"] = get_user_roles(bl, str(payload["id"]))
+    payload["roles"] = get_user_roles(bl, str(payload["id"]), payload.get("account_id"))
     return enrich_user_payload_with_account_memberships(bl, payload)
 
 
@@ -381,6 +388,7 @@ def get_user_by_session_token(bl, token: str) -> dict | None:
                 {tz_select},
                 {locale_select},
                 {acct_select},
+                {method_select},
                 s.id AS session_id,
                 s.expires_at
             FROM auth_sessions s
@@ -397,6 +405,7 @@ def get_user_by_session_token(bl, token: str) -> dict | None:
                 tz_select=tz_select,
                 locale_select=locale_select,
                 acct_select=acct_select,
+                method_select=psycopg_sql.SQL(session_auth_method_select(bl)),
                 active_clause=active_clause,
                 credential_filter=psycopg_sql.SQL(local_session_credential_filter(bl)),
             ),
@@ -405,17 +414,19 @@ def get_user_by_session_token(bl, token: str) -> dict | None:
         row = cur.fetchone()
         if not row:
             return None
+        # Read before the next statement replaces the cursor's column description.
+        session_row = _row_mapping(cur, row)
         _execute_with_prepare_retry(
             cur,
             "UPDATE auth_sessions SET last_seen_at = now() WHERE session_token_hash = %s",
             (token_hash,),
         )
-    payload = dict(row)
+    payload = apply_session_auth_source(session_row)
     # Fail-closed: a session without an account_id is invalid — do not assign a default.
     # Migration 089 adds account_id to users; if it's absent the session must be rejected.
     if not str(payload.get("account_id") or "").strip():
         return None
-    payload["roles"] = get_user_roles(bl, str(payload["id"]))
+    payload["roles"] = get_user_roles(bl, str(payload["id"]), payload.get("account_id"))
     return enrich_user_payload_with_account_memberships(bl, payload)
 
 
@@ -533,7 +544,9 @@ def _normalize_principal_dict(raw: dict) -> ResolvedPrincipal:
         scopes=[str(s) for s in (raw.get("scopes") or [])],
         auth_source=str(raw.get("auth_source") or "").strip(),
         principal_type=principal_type or "user",
-        account_id=str(raw.get("account_id") or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID,
+        # Fail closed: a principal that names no account gets none, never the
+        # installation account (ADR 0083, security notes).
+        account_id=str(raw.get("account_id") or "").strip(),
         account_ids=[
             str(account_id).strip()
             for account_id in (raw.get("account_ids") or [])

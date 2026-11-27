@@ -133,6 +133,15 @@ Per [ADR 0066](../architecture/adr/0066-global-roles-and-secret-provider-boundar
 - `SHOULD` preserve correlation identifiers for security investigations.
 - `SHOULD` record operator-visible security decisions where that improves reviewability.
 
+The local CLI operation log (`.flow-steward/logs`, or `FS_OPERATION_LOG_ROOT`) is a
+diagnostic record of an operator's own command, not an audit control: a mutating CLI
+command runs even when its operation log cannot be created, written or closed. The
+command then prints one warning on stderr naming the log directory and the cause, and
+its result carries the operation id but no `log_path`, so an incomplete log is never
+presented as the command's record. Security-relevant state changes that need an audit
+trail `MUST` be recorded by the application (database audit and journal rows), never
+only in the operation log.
+
 ## Security Verification
 
 - `MUST` add security-oriented verification for security-sensitive changes.

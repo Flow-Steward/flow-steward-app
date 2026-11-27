@@ -385,7 +385,7 @@ class _ReactionStore:
     def __init__(self, rules: list[dict]) -> None:
         self.rules = rules
 
-    def list_workflow_reactions(self, workflow_id, enabled_only=True):
+    def list_workflow_reactions(self, workflow_id, enabled_only=True, account_id=None):
         return [rule for rule in self.rules if rule["workflow_id"] == workflow_id]
 
     def get_job(self, job_id):
@@ -491,3 +491,41 @@ def test_a_reaction_failure_never_reaches_the_job() -> None:
 
     assert results
     assert results[0]["status"] == "failed"
+
+
+def test_an_invitation_names_the_inviter_company_role_and_link_on_one_subject_line() -> None:
+    subject, body = system_email.render_system_email(
+        "account_invitation",
+        locale="en",
+        inviter="Bob\nBcc: x@evil.test",
+        company="Northwind",
+        role="operator",
+        invitation_url="https://fs.example/invitations/tok",
+        expires_in_days=14,
+    )
+
+    assert subject == "Bob Bcc: x@evil.test invited you to Northwind"
+    assert "\n" not in subject
+    assert "invited you to Northwind as operator." in body
+    assert "https://fs.example/invitations/tok" in body
+    assert "14 days" in body
+    lt_subject, _lt_body = system_email.render_system_email(
+        "account_invitation",
+        locale="lt",
+        inviter="Bob",
+        company="Northwind",
+        role="viewer",
+        invitation_url="u",
+        expires_in_days=14,
+    )
+    assert lt_subject == "Bob pakvietė jus į Northwind"
+
+
+def test_the_address_in_use_notice_names_the_address_and_carries_no_link() -> None:
+    subject, body = system_email.render_system_email(
+        "email_address_in_use", locale="en", email="taken@example.com"
+    )
+
+    assert subject == "Your email address was entered for another sign-in"
+    assert "taken@example.com" in body
+    assert "http" not in body

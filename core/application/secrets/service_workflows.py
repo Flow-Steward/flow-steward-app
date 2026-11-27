@@ -15,7 +15,7 @@ from core.application.management.errors import (
     ServiceNotFoundError,
     ServiceValidationError,
 )
-from core.application.management.guards import require_workflow_access
+from core.application.management.guards import require_workflow_access, workflow_in_scope_limit
 from core.application.management.scope import ScopeContext
 from core.application.secrets import repository
 from core.application.secrets.authority import (
@@ -54,6 +54,9 @@ class WorkflowSecretInputsMixin:
         owner_project = self._project_in_scope(cur, scope, project_id)
         identifier = _text(workflow_id)
         require_workflow_access(scope, identifier)
+        # A project reached only through workflow grants: only those workflows.
+        if not workflow_in_scope_limit(scope, owner_project, identifier):
+            raise ServiceNotFoundError("Workflow not found")
         cur.execute(
             """
             SELECT 1 FROM project_workflows
@@ -100,7 +103,7 @@ class WorkflowSecretInputsMixin:
                 account_id, secret_id, consumer_kind, workflow_id, consumer_project_id,
                 field_name, created_by
             ) VALUES (%s, %s, 'workflow_input', %s, %s, %s, %s)
-            ON CONFLICT (workflow_id, field_name)
+            ON CONFLICT (account_id, workflow_id, field_name)
             DO UPDATE SET secret_id = EXCLUDED.secret_id,
                           consumer_project_id = EXCLUDED.consumer_project_id,
                           created_at = now(), created_by = EXCLUDED.created_by
@@ -183,8 +186,9 @@ class WorkflowSecretInputsMixin:
                 self._audit(cur, scope, "replace_value", {"secret_id": secret["id"]})
                 return self.workflow_approval_status(workflow_id, scope, project_id=project_id)
             cur.execute(
-                "SELECT display_name FROM registry_workflows WHERE workflow_id = %s",
-                (_text(workflow_id),),
+                "SELECT display_name FROM registry_workflows WHERE workflow_id = %s "
+                "AND account_id = %s",
+                (_text(workflow_id), scope.account_id),
             )
             named = cur.fetchone()
             display = named.get("display_name") if isinstance(named, dict) else (named or [""])[0]
@@ -314,7 +318,8 @@ class WorkflowSecretInputsMixin:
                 """
                 SELECT pw.workflow_id, COALESCE(w.display_name, pw.workflow_id) AS display_name
                   FROM project_workflows AS pw
-                  JOIN registry_workflows AS w ON w.workflow_id = pw.workflow_id
+                  JOIN registry_workflows AS w
+                    ON w.workflow_id = pw.workflow_id AND w.account_id = pw.account_id
                  WHERE pw.project_id::text = %s AND pw.deleted_at IS NULL
                    AND w.deleted_at IS NULL
                    AND (w.account_id IS NULL OR w.account_id::text = %s)
@@ -400,7 +405,7 @@ class WorkflowSecretInputsMixin:
                     account_id, consumer_kind, workflow_id, fingerprint, projection_jsonb,
                     approved_by, approved_by_kind
                 ) VALUES (%s, 'workflow', %s, %s, %s::jsonb, %s, 'human')
-                ON CONFLICT (workflow_id)
+                ON CONFLICT (account_id, workflow_id)
                 DO UPDATE SET fingerprint = EXCLUDED.fingerprint,
                               projection_jsonb = EXCLUDED.projection_jsonb,
                               approved_by = EXCLUDED.approved_by,

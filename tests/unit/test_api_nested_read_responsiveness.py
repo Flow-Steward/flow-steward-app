@@ -56,7 +56,10 @@ def _retention(reader, _monkeypatch):
     store = SimpleNamespace(get_retention_settings=reader.returning({"action_logs_days": 30}))
     return _app(
         create_settings_retention_router(
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             auth_admin_roles={"admin"},
             get_logger_only=lambda: store,
             request_scope=_scope,
@@ -268,7 +271,10 @@ def _project_integrations(reader, _monkeypatch):
             project_query_service=lambda: service,
             project_command_service=lambda: None,
             request_scope=_scope,
-            require_authenticated_user=lambda *_args, **_kwargs: {"roles": ["admin"]},
+            require_authenticated_user=lambda *_args, **_kwargs: {
+                "account_id": DEFAULT_ACCOUNT_ID,
+                "roles": ["admin"],
+            },
             to_json_obj=lambda value: value,
             api_error_response=_error,
             service_error_response=_error,

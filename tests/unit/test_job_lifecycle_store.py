@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
+
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID, DEFAULT_WORKSPACE_ID
 from core.application.jobs.dispatch_outbox_repository import DispatchOutboxRepository
 from core.application.jobs.job_submission_repository import JobSubmissionRepository
+from core.infrastructure.config.account_scope import MissingAccountScopeError
 from tests.support.platform_test_store import PlatformTestStore as PlatformLogger
 
 
@@ -91,17 +94,37 @@ def test_create_job_copies_scope_from_project_row() -> None:
     )
 
 
-def test_create_job_uses_default_scope_only_when_project_scope_missing() -> None:
+@pytest.mark.parametrize(
+    "project_row",
+    [{}, {"tenant_id": DEFAULT_TENANT_ID, "account_id": "", "workspace_id": DEFAULT_WORKSPACE_ID}],
+)
+def test_create_job_refuses_a_project_without_account_instead_of_the_default(
+    project_row: dict,
+) -> None:
     logger = _make_logger()
     logger.conn.fetchone_results = [
-        {},
+        project_row,
         ("00000000-0000-0000-0000-000000000124",),
     ]
 
-    logger.create_job(project_id="00000000-0000-0000-0000-000000000078", task_id="task-2")
+    with pytest.raises(MissingAccountScopeError):
+        logger.create_job(project_id="00000000-0000-0000-0000-000000000078", task_id="task-2")
+
+    assert not any("INSERT INTO jobs" in sql for sql, _params in logger.conn.calls)
+
+
+def test_create_job_keeps_a_secondary_project_account() -> None:
+    logger = _make_logger()
+    secondary_account = "22222222-2222-2222-2222-222222222222"
+    logger.conn.fetchone_results = [
+        {"tenant_id": None, "account_id": secondary_account, "workspace_id": None},
+        ("00000000-0000-0000-0000-000000000127",),
+    ]
+
+    logger.create_job(project_id="00000000-0000-0000-0000-000000000079", task_id="task-3")
 
     _sql, insert_params = logger.conn.calls[-1]
-    assert insert_params[:3] == (DEFAULT_TENANT_ID, DEFAULT_ACCOUNT_ID, DEFAULT_WORKSPACE_ID)
+    assert insert_params[:3] == (DEFAULT_TENANT_ID, secondary_account, DEFAULT_WORKSPACE_ID)
 
 
 def test_create_job_serializes_uuid_values_in_meta_snapshot() -> None:

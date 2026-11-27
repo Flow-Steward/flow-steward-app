@@ -437,7 +437,7 @@ describe("AppShell", () => {
     }
   });
 
-  it("keeps the personal menu without tenant controls even with historical multiple memberships", async () => {
+  it("lets a person in several active accounts switch the session's account", async () => {
     const switchAccount = vi.fn(async () => undefined);
     mockAuthenticatedSession({
       switchAccount,
@@ -455,24 +455,106 @@ describe("AppShell", () => {
           role: "admin",
           is_active: true,
         },
+        {
+          account_id: "acct-closed",
+          account_name: "Closed Account",
+          role: "admin",
+          is_active: false,
+        },
+      ],
+    });
+
+    await renderShell("/projects");
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    const accounts = screen.getByRole("group", { name: "Accounts" });
+    expect(within(accounts).getByRole("menuitemradio", { name: "Primary Account" })).toBeChecked();
+    expect(within(accounts).getByRole("menuitemradio", { name: "Ops Account" })).not.toBeChecked();
+    // A disabled account cannot be switched into, so it is not offered.
+    expect(screen.queryByText("Closed Account")).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Account profile" })).toHaveAttribute("href", "/settings/account");
+    expect(screen.getByRole("menuitem", { name: "Log out" })).toBeVisible();
+
+    // The current account is already active: choosing it again does nothing.
+    fireEvent.click(within(accounts).getByRole("menuitemradio", { name: "Primary Account" }));
+    expect(switchAccount).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Ops Account" }));
+    await waitFor(() => expect(switchAccount).toHaveBeenCalledWith("acct-ops"));
+    expect(switchAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers no account switch when only one membership is still active", async () => {
+    const switchAccount = vi.fn(async () => undefined);
+    mockAuthenticatedSession({
+      switchAccount,
+      userMemberships: [
+        {
+          account_id: "acct-primary",
+          account_name: "Primary Account",
+          role: "owner",
+          is_active: true,
+          is_default: true,
+        },
+        {
+          account_id: "acct-closed",
+          account_name: "Closed Account",
+          role: "admin",
+          is_active: false,
+        },
       ],
     });
 
     await renderShell();
-
     fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
 
-    expect(screen.queryByText("Account context")).not.toBeInTheDocument();
-    expect(screen.queryByText("Primary Account")).not.toBeInTheDocument();
-    expect(screen.queryByText("Ops Account")).not.toBeInTheDocument();
-    expect(screen.queryByText("acct-primary")).not.toBeInTheDocument();
-    expect(screen.queryByText("acct-ops")).not.toBeInTheDocument();
-
     expect(screen.queryByRole("group", { name: "Accounts" })).not.toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Account profile" })).toHaveAttribute("href", "/settings/account");
-    expect(screen.getByRole("menuitem", { name: "Log out" })).toBeVisible();
-    expect(screen.getByRole("menuitemradio", { name: "Dark theme" })).toBeVisible();
+    expect(screen.queryByText("Closed Account")).not.toBeInTheDocument();
     expect(switchAccount).not.toHaveBeenCalled();
+  });
+
+  it("shows the person's role in each account and hides accounts without a role", async () => {
+    const switchAccount = vi.fn(async () => undefined);
+    mockAuthenticatedSession({
+      switchAccount,
+      userMemberships: [
+        { account_id: "acct-primary", account_name: "Primary Account", role: "admin", is_active: true, is_default: true },
+        { account_id: "acct-ops", account_name: "Ops Account", role: "viewer", is_active: true },
+        { account_id: "acct-none", account_name: "Roleless Account", role: "", is_active: true },
+      ],
+    });
+
+    await renderShell("/projects");
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+
+    const accounts = screen.getByRole("group", { name: "Accounts" });
+    expect(within(within(accounts).getByRole("menuitemradio", { name: "Primary Account" })).getByText("Admin")).toBeVisible();
+    expect(within(within(accounts).getByRole("menuitemradio", { name: "Ops Account" })).getByText("Viewer")).toBeVisible();
+    // ADR 0085: no role there means nothing to do there, so it is not offered.
+    expect(screen.queryByText("Roleless Account")).not.toBeInTheDocument();
+  });
+
+  it("reloads the session when a switch is refused", async () => {
+    const switchAccount = vi.fn(async () => {
+      throw new Error("You have no role in this company. Ask its administrator.");
+    });
+    mockAuthenticatedSession({
+      switchAccount,
+      userMemberships: [
+        { account_id: "acct-primary", account_name: "Primary Account", role: "admin", is_active: true, is_default: true },
+        { account_id: "acct-ops", account_name: "Ops Account", role: "viewer", is_active: true },
+      ],
+    });
+
+    await renderShell("/projects");
+    fireEvent.click(screen.getByRole("button", { name: "Account menu" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Ops Account" }));
+
+    await waitFor(() => expect(switchAccount).toHaveBeenCalledWith("acct-ops"));
+    const auth = mockedUseAuth.mock.results.at(-1)?.value as { refresh: ReturnType<typeof vi.fn> };
+    await waitFor(() => expect(auth.refresh).toHaveBeenCalled());
   });
 
   it("does not expose the default tenant in the personal menu", async () => {

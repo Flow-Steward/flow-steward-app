@@ -386,7 +386,9 @@ class ExtensionUninstallService:
         release_id = str(getattr(current_install, "release_id", "") or "").strip()
         if not release_id:
             release_id = str(extension.get("release_id") or "").strip()
-        include_consumer_accounts = _install_visibility(current_install) == "global"
+        include_consumer_accounts = _install_serves_other_accounts(
+            current_install, self._context.install_store(context.bl)
+        )
         return UninstallTarget(
             extension=extension,
             install_id=install_id,
@@ -483,3 +485,19 @@ class ExtensionUninstallService:
 
 
 __all__ = ["ExtensionUninstallService"]
+
+
+def _install_serves_other_accounts(install: Any, install_store: Any) -> bool:
+    """Shared with every account, or enabled by another account (ADR 0020, C6)."""
+    if install is None:
+        return False
+    if _install_visibility(install) == "global":
+        return True
+    from .account_enablement import install_serves_other_accounts
+
+    try:
+        return install_serves_other_accounts(
+            install, getattr(install_store, "account_enablements", None)
+        )
+    except Exception:
+        return False

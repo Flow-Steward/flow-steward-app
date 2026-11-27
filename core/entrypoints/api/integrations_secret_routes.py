@@ -69,10 +69,17 @@ def register_secret_approval_routes(
     router: APIRouter,
     service_error_response: Callable[..., JSONResponse],
 ) -> None:
-    def _service() -> Any:
+    def _service(request: Request | None = None) -> Any:
         from core.application.secrets.service import SecretCatalogService
+        from core.entrypoints.api.secret_backend_routes import request_entitlement_service
 
-        return SecretCatalogService(get_logger)
+        if request is None:
+            return SecretCatalogService(get_logger)
+        # A value kept by an external secret backend is written there, which needs
+        # the backend's feature (ADR 0066 amendment 2026-11-26).
+        return SecretCatalogService(
+            get_logger, entitlement_service=lambda: request_entitlement_service(request)
+        )
 
     @router.get("/api/projects/{project_id}/connections/{connection_id}/secret-approval")
     def api_connection_secret_approval(request: Request, project_id: str, connection_id: str):
@@ -325,7 +332,9 @@ def register_secret_approval_routes(
     @router.put("/api/secrets/{secret_id}/value")
     async def api_secret_replace_value(request: Request, secret_id: str, body: SecretValueRequest):
         try:
-            return _service().replace_value(secret_id, _catalog_scope(request), value=body.value)
+            return _service(request).replace_value(
+                secret_id, _catalog_scope(request), value=body.value
+            )
         except ServiceError as e:
             return service_error_response(e)
         except Exception as e:

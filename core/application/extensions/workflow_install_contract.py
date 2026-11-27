@@ -332,16 +332,12 @@ def _resolve_install_contract(
     contract = resolve_release_extension_contract(
         release_id=release_id, descriptor_sha256=descriptor_sha256, descriptor=descriptor
     )
-    visibility = getattr(install, "visibility", "account")
-    visibility = getattr(visibility, "value", visibility)
     requested_account_id = str(account_id or default_account_id).strip() or default_account_id
     return {
         **contract,
-        "account_id": (
-            requested_account_id
-            if str(visibility or "").strip().lower() == "global"
-            else str(getattr(install, "account_id", "") or "").strip()
-        ),
+        # The install came from the requested account's listing: its own, shared with
+        # every account, or enabled by it (ADR 0020, C6). It runs for that account.
+        "account_id": requested_account_id,
         "install_id": install_id,
         "extension_id": install_extension_id,
         "release_id": release_id,

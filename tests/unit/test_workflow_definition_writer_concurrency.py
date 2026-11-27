@@ -17,6 +17,11 @@ from core.application.registry.db_store_workflows_mixin import (
 )
 from core.entrypoints.admin import workflows_routes_write as writes
 from core.entrypoints.api import workflow_entrypoints_registry as entrypoints
+from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 
 def test_provider_trigger_save_uses_loaded_revision_and_rejects_concurrent_edit(monkeypatch):
@@ -135,7 +140,6 @@ def test_admin_create_cannot_upsert_over_a_concurrent_create(monkeypatch, concur
     )
     monkeypatch.setattr(writes, "_get_db", lambda: db)
     monkeypatch.setattr(writes, "_request_scope", lambda request: scope)
-    monkeypatch.setattr(writes, "require_default_registry_account", lambda scope: None)
     monkeypatch.setattr(writes, "_get_workflow_portability_service", lambda db: portability)
     monkeypatch.setattr(writes, "_enforce_project_scope", lambda *args: None)
     monkeypatch.setattr(
@@ -324,8 +328,8 @@ def test_public_history_restore_cannot_introduce_new_live_hook_identity(monkeypa
         db._transaction.assert_called_once_with()
         cursor.execute.assert_any_call(
             "SELECT revision FROM registry_workflows"
-            " WHERE workflow_id = %s AND deleted_at IS NULL FOR UPDATE",
-            ("wf",),
+            " WHERE workflow_id = %s AND account_id = %s AND deleted_at IS NULL FOR UPDATE",
+            ("wf", DEFAULT_ACCOUNT_ID),
         )
         db.save_workflow.assert_called_once()
         assert db.save_workflow.call_args.kwargs == {"author": "admin", "expected_revision": 7}

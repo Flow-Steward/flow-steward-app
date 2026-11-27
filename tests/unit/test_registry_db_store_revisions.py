@@ -10,9 +10,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.registry.db_store import RegistryDBStore, RestoreValidationError
 from core.application.registry.db_store_workflows_mixin import WorkflowRevisionConflictError
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 
 def test_save_workflow_metadata_only_update_still_logs_changelog():
@@ -991,6 +996,7 @@ def test_restore_entity_revision_returns_validation_payload():
     db.apply_entity_snapshot = MagicMock(
         return_value={"tool_id": "search_tool", "display_name": "Search Tool"}
     )
+    db._live_registry_ownership = MagicMock(return_value={"account_id": "account-a"})
 
     @contextmanager
     def _tx():
@@ -1003,6 +1009,7 @@ def test_restore_entity_revision_returns_validation_payload():
         entity_id="search_tool",
         entry_id=101,
         author="unit-test",
+        account_id="account-a",
         validate_restored=lambda *_args: {"valid": True, "errors": [], "warnings": []},
     )
 
@@ -1137,12 +1144,49 @@ def test_get_published_block_contract_allows_global_block():
     assert contract["block_key"] == "blk_sys"
 
 
-def test_get_published_block_contract_unscoped_call_is_unchanged():
-    """No account_id argument => legacy global behavior (no extra filtering)."""
+def test_get_published_block_contract_without_an_argument_uses_the_bound_account():
+    """A block key is unique only within its owner (ADR 0020): a read that names no
+    account resolves the key within the account bound to the request or job."""
+    from core.application.registry.workflow_account import workflow_account_scope
+
     db = _block_store_with_row(
         {"block_key": "blk_b", "account_id": "account-B", "scope_kind": "account"}
     )
-    assert db.get_published_block_contract("blk_b") is not None
+    with workflow_account_scope("account-B"):
+        assert db.get_published_block_contract("blk_b") is not None
+    with workflow_account_scope("account-A"):
+        assert db.get_published_block_contract("blk_b") is None
+
+
+def test_published_block_reads_resolve_the_key_within_the_account():
+    executed: list[tuple[str, object]] = []
+    row = {"block_key": "blk", "account_id": "account-B"}
+
+    class _Cursor:
+        def execute(self, sql, params=None):
+            executed.append((str(sql), params))
+
+        def fetchone(self):
+            return dict(row)
+
+        def fetchall(self):
+            return []
+
+    @contextmanager
+    def _cur():
+        yield _Cursor()
+
+    db = RegistryDBStore("postgres://unused")
+    db._cursor = _cur
+    db.get_published_block_contract("blk", account_id="account-B")
+
+    block_sql, block_params = executed[0]
+    assert "(account_id::text = %s OR account_id IS NULL)" in block_sql
+    assert block_params == ("blk", "account-B")
+    # Inputs and outputs are the resolved block's own, by (block_owner, block_key).
+    for sql, params in executed[1:]:
+        assert "block_owner = %s" in sql
+        assert params == ("blk", "account-B")
 
 
 @pytest.mark.parametrize("has_revision", [True, False])
@@ -1231,7 +1275,10 @@ def test_cross_entity_changelog_leaves_out_hook_storage_workflow_revisions(entit
     assert "settings ? 'hook_storage'" in sql
     assert "COALESCE(snapshot->'settings', '{}'::jsonb) ? 'hook_storage'" in sql
     assert "entity_type = 'workflow'" in sql
-    assert params == ([entity_type, 9] if entity_type else [9])
+    # Every changelog read names its account: here the installation account the
+    # module binds (ADR 0020, C5). A cross-entity read is no installation-wide read.
+    expected = [DEFAULT_ACCOUNT_ID, 9]
+    assert params == ([entity_type, *expected] if entity_type else expected)
 
 
 def test_changelog_of_one_entity_and_other_entity_types_keep_their_filters_unchanged():

@@ -188,6 +188,75 @@ class PlatformLoggerExtensionsAccountsQueryMixin:
             row = cur.fetchone()
         return self._normalize_extension_row(dict(row)) if row is not None else None
 
+    def get_extension_account_access(self, extension_key: str, *, account_id: str) -> dict | None:
+        """How ``account_id`` reaches the install of ``extension_key`` (ADR 0020, C6).
+
+        ``None`` when no install of the extension exists for the account or for the
+        installation. Otherwise ``owner_account_id`` and ``install_state`` of the install
+        the account would use, and ``access``: ``owner`` (the account's own install),
+        ``global`` (shared with every account), ``enabled`` or ``not_enabled`` (another
+        account's install, by this account's own enablement row), with that row's
+        ``account_settings``.
+        """
+        normalized_key = str(extension_key or "").strip()
+        normalized_account_id = str(account_id or "").strip()
+        if not normalized_key or not normalized_account_id:
+            return None
+        if not (
+            self._table_exists("extension_installs")
+            and self._table_exists("extension_account_enablements")
+        ):
+            return None
+        with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT ei.account_id::text AS owner_account_id,
+                       ei.install_id,
+                       ei.state AS install_state,
+                       ei.visibility,
+                       ae.state AS enablement_state,
+                       ae.settings_jsonb AS account_settings
+                  FROM extension_installs ei
+             LEFT JOIN extension_account_enablements ae
+                    ON ae.install_id = ei.install_id
+                   AND ae.extension_id = ei.extension_id
+                   AND ae.account_id = %s
+                 WHERE ei.extension_id = %s
+                   AND (ei.account_id = %s OR ei.account_id = %s OR ei.visibility = 'global')
+              ORDER BY (ei.account_id = %s) DESC, (ei.account_id = %s) DESC
+                 LIMIT 1
+                """,
+                (
+                    normalized_account_id,
+                    normalized_key,
+                    normalized_account_id,
+                    _default_account_id(),
+                    normalized_account_id,
+                    _default_account_id(),
+                ),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        owner = str(row.get("owner_account_id") or "").strip()
+        if owner == normalized_account_id:
+            access = "owner"
+        elif str(row.get("enablement_state") or "").strip() == "enabled":
+            access = "enabled"
+        elif str(row.get("visibility") or "").strip() == "global":
+            access = "global"
+        else:
+            access = "not_enabled"
+        return {
+            "owner_account_id": owner,
+            "install_id": str(row.get("install_id") or "").strip(),
+            "install_state": str(row.get("install_state") or "").strip(),
+            "access": access,
+            "account_settings": _as_dict(row.get("account_settings"))
+            if access == "enabled"
+            else {},
+        }
+
     def get_extension_by_install_id(
         self,
         install_id: str,
@@ -252,12 +321,25 @@ class PlatformLoggerExtensionsAccountsQueryMixin:
         account_filter = ""
         params: list[str] = [normalized_install_id]
         if normalized_account_id:
-            account_filter = (
-                "AND (ei.account_id = %s OR ei.visibility = 'global')"
-                if include_global
-                else "AND ei.account_id = %s"
-            )
-            params.append(normalized_account_id)
+            if include_global and self._table_exists("extension_account_enablements"):
+                # Another account reaches the installation's install only through its
+                # own enabled row (ADR 0020, step C6).
+                account_filter = (
+                    "AND (ei.account_id = %s OR ei.visibility = 'global'"
+                    " OR (ei.state = 'active' AND EXISTS ("
+                    "SELECT 1 FROM extension_account_enablements ae"
+                    " WHERE ae.install_id = ei.install_id"
+                    " AND ae.extension_id = ei.extension_id"
+                    " AND ae.account_id = %s AND ae.state = 'enabled')))"
+                )
+                params.extend([normalized_account_id, normalized_account_id])
+            else:
+                account_filter = (
+                    "AND (ei.account_id = %s OR ei.visibility = 'global')"
+                    if include_global
+                    else "AND ei.account_id = %s"
+                )
+                params.append(normalized_account_id)
         with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             try:
                 if has_releases:

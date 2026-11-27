@@ -34,7 +34,6 @@ def _clone(
         portability = WorkflowPortabilityService(db)
     with (
         patch.object(routes, "_request_scope", return_value=scope),
-        patch.object(routes, "require_default_registry_account"),
         patch.object(routes, "_get_db", return_value=db),
         patch.object(routes, "_resolve_workflow_scope_target", return_value=(source, scope)),
         patch.object(routes, "_enforce_project_scope", return_value=None),
@@ -210,7 +209,6 @@ def test_public_clone_refuses_a_failed_declaration_guard_read(monkeypatch):
     scope = SimpleNamespace(account_id="account-1", project_id=None, actor_name="author")
     bindings = MagicMock()
     monkeypatch.setattr(routes, "_request_scope", lambda _request: scope)
-    monkeypatch.setattr(routes, "require_default_registry_account", lambda _scope: None)
     monkeypatch.setattr(routes, "_get_db", lambda: db)
     monkeypatch.setattr(
         routes, "_resolve_workflow_scope_target", lambda *_a: (deepcopy(source), scope)

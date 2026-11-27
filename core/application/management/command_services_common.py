@@ -26,6 +26,7 @@ from typing import Any, ClassVar
 from urllib.parse import unquote
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.auth.installation_admin import acts_in_installation_account
 from core.application.auth.principal import (
     ResolvedPrincipal,
     principal_has_required_scopes,
@@ -55,6 +56,7 @@ from core.application.orchestration.models import (
     ExternalAgentReportResponseV1,
     build_event_envelope_v1,
 )
+from core.application.registry.db_store_common import ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES
 from core.application.workflows.reaction_scopes import (
     merge_scoped_reaction_rules,
     serialize_scoped_reaction_rows,
@@ -66,6 +68,7 @@ from core.application.workflows.workflow_reaction_sources import (
 from core.application.workflows.workflow_start_runtime import (
     enqueue_workflow_start,
     normalize_entry_path,
+    run_started_by,
 )
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.db import model_provider_store, project_connection_store
@@ -651,11 +654,9 @@ def _require_role(scope: ScopeContext, minimum_role: str) -> None:
 
 
 def _require_global_extension_lifecycle_scope(scope: ScopeContext) -> None:
+    """Extension installs are installation-wide: only an installation administrator."""
     _require_role(scope, "admin")
-    normalized_account_id = (
-        str(scope.account_id or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
-    )
-    if normalized_account_id != DEFAULT_ACCOUNT_ID:
+    if not acts_in_installation_account(scope):
         raise ServiceValidationError(
             "Extension install/uninstall is deployment-scoped and is only supported for the default account"
         )
@@ -741,6 +742,9 @@ _TRASH_ENTITY_CONFIG: dict[str, dict[str, Any]] = {
     "registry_workflow": {
         "table": "registry_workflows",
         "id_col": "workflow_id",
+        # A workflow id is unique only within its account (ADR 0020, C4b); trash,
+        # restore and purge work on the caller's account (C5).
+        "account_keyed": True,
     },
     "registry_guardrail": {
         "table": "registry_guardrails",
@@ -750,7 +754,9 @@ _TRASH_ENTITY_CONFIG: dict[str, dict[str, Any]] = {
     "registry_data_contract": {
         "table": "registry_data_contracts",
         "id_col": "contract_id",
-        "deployment_global": True,
+        # A contract id is unique only within its account (ADR 0020, C4a); trash,
+        # restore and purge work on the caller's account (C5).
+        "account_keyed": True,
     },
     "dataset": {
         "table": "registry_datasets",
@@ -767,6 +773,28 @@ _TRASH_ENTITY_CONFIG: dict[str, dict[str, Any]] = {
 }
 
 _PROJECT_CONNECTION_LIFECYCLE_DELETED = "__lifecycle_deleted__"
+
+
+def _trash_key_sql(cfg: Mapping[str, Any]) -> str:
+    """The extra key predicate of an entity whose id is unique only per account."""
+    return " AND account_id = %s" if cfg.get("account_keyed") else ""
+
+
+def _trash_key_params(
+    cfg: Mapping[str, Any], entity_id: Any, account_id: Any = None
+) -> tuple[Any, ...]:
+    """Parameters for ``{id_col} = %s`` followed by :func:`_trash_key_sql`.
+
+    An entity whose id is unique only per account is addressed in the caller's
+    account (ADR 0020, C5); without one the operation is refused, never run for the
+    installation account.
+    """
+    if cfg.get("account_keyed"):
+        owner = str(account_id or "").strip()
+        if not owner:
+            raise ServiceForbiddenError("Access denied")
+        return (entity_id, owner)
+    return (entity_id,)
 
 
 # ---------------------------------------------------------------------------

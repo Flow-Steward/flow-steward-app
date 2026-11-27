@@ -35,6 +35,9 @@ x-otel-export-environment: &otel-export-environment
 
 x-compact-runtime-environment: &compact-runtime-environment
   <<: *otel-export-environment
+  # ADR 0082: the operator's platform-module settings (FS_MODULE_*), one JSON carrier;
+  # each module role publishes the names its own modules declare.
+  FS_PLATFORM_MODULE_SETTINGS: ${FS_PLATFORM_MODULE_SETTINGS:-}
   ARTIFACT_LOCAL_ROOT_DIR: /data/artifacts
   ARTIFACT_S3_ACCESS_KEY: ${ARTIFACT_S3_ACCESS_KEY:-}
   ARTIFACT_S3_BUCKET: ${ARTIFACT_S3_BUCKET:-}

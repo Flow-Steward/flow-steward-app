@@ -9,7 +9,17 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
+from core.application.auth.account_lifecycle import (
+    create_account_within_limit,
+    disable_account,
+)
+from core.application.auth.account_limit import AccountLimitError
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.auth.installation_admin import (
+    acting_account_id,
+    installation_admin_refusal,
+    is_installation_admin,
+)
 from core.application.auth.principal import (
     TokenAuthorityError,
     enforce_token_lifetime_within_caller,
@@ -31,6 +41,9 @@ from core.entrypoints.api.auth_personal_token_routes import (
 )
 
 _MESSAGE_SERVICE_ACCOUNT_TABLES_ARE_NOT_AVAILABLE = "Service account tables are not available"
+_MESSAGE_ACCOUNTS_ARE_INSTALLATION_WIDE = (
+    "Only an installation administrator can list, create or disable accounts"
+)
 
 
 def create_auth_tokens_accounts_router(
@@ -56,8 +69,25 @@ def create_auth_tokens_accounts_router(
     err_admin_role_required: str,
     err_service_account_key_required: str,
     err_machine_token_tables_not_available: str,
+    entitlement_service: Callable[[], Any] | None = None,
 ) -> APIRouter:
+    """Token, account and service-account routes.
+
+    Listing, creating and disabling accounts are installation-wide and need an
+    installation administrator (``core.application.auth.installation_admin``).
+    Creating an account also checks the ``accounts`` limit of
+    ``entitlement_service`` (``core.application.auth.account_limit``); without a
+    service the limit cannot be read and creation is refused.
+    """
     router = APIRouter(tags=["auth-tokens-accounts"])
+
+    def _entitlement_service() -> Any:
+        return entitlement_service() if callable(entitlement_service) else None
+
+    def _installation_admin_refusal() -> JSONResponse:
+        return JSONResponse(
+            installation_admin_refusal(_MESSAGE_ACCOUNTS_ARE_INSTALLATION_WIDE), status_code=403
+        )
 
     _local_auth_enabled = local_auth_enabled
     _get_logger_only = get_logger_only
@@ -153,9 +183,11 @@ def create_auth_tokens_accounts_router(
         if not _auth_account_tables_available(bl):
             return JSONResponse({"error": ERR_ACCOUNT_TABLES_NOT_AVAILABLE}, status_code=503)
         try:
-            _require_authenticated_user(request, required_roles=_AUTH_ADMIN_ROLES)
+            admin_user = _require_authenticated_user(request, required_roles=_AUTH_ADMIN_ROLES)
         except PermissionError:
             return JSONResponse({"error": ERR_ADMIN_ROLE_REQUIRED}, status_code=403)
+        if not is_installation_admin(admin_user):
+            return _installation_admin_refusal()
 
         try:
             accounts = (
@@ -280,19 +312,28 @@ def create_auth_tokens_accounts_router(
         except PermissionError:
             return JSONResponse({"error": ERR_ADMIN_ROLE_REQUIRED}, status_code=403)
 
+        if not is_installation_admin(admin_user):
+            return _installation_admin_refusal()
+
         normalized_account_id = str(body.account_id or "").strip()
         if not normalized_account_id:
             return JSONResponse({"error": "account_id is required"}, status_code=400)
         try:
+            # Count and insert run under one lifecycle lock (ADR 0082 section 8).
             account = (
-                bl.create_account(
+                create_account_within_limit(
+                    bl,
+                    _entitlement_service(),
                     account_id=normalized_account_id,
                     display_name=str(body.display_name or "").strip(),
                     is_active=bool(body.is_active),
+                    acting_account=acting_account_id(admin_user),
                 )
                 if hasattr(bl, "create_account")
                 else None
             )
+        except AccountLimitError as e:
+            return JSONResponse(e.payload(), status_code=e.status_code)
         except ValueError as e:
             message = str(e)
             status = 409 if "already exists" in message.lower() else 400
@@ -334,19 +375,21 @@ def create_auth_tokens_accounts_router(
         except PermissionError:
             return JSONResponse({"error": ERR_ADMIN_ROLE_REQUIRED}, status_code=403)
 
+        if not is_installation_admin(admin_user):
+            return _installation_admin_refusal()
+
         normalized_account_id = str(account_id or "").strip()
         if not normalized_account_id:
             return JSONResponse({"error": "account_id is required"}, status_code=400)
         reason = str((body.reason if body is not None else "") or "").strip()
         try:
             account = (
-                bl.set_account_active(
-                    normalized_account_id,
-                    is_active=False,
-                )
+                disable_account(bl, normalized_account_id)
                 if hasattr(bl, "set_account_active")
                 else None
             )
+        except AccountLimitError as e:
+            return JSONResponse(e.payload(), status_code=e.status_code)
         except ValueError as e:
             return JSONResponse({"error": str(e)}, status_code=400)
         except Exception as e:

@@ -102,7 +102,15 @@ def load_run_job(cur: Any, job_id: str) -> RunJob | None:
 
 
 def dispatch_extra_state(conn: Any, job_id: str) -> dict[str, Any]:
-    """The extra state of the job's own encrypted dispatch record; empty when unreadable."""
+    """The extra state of the job's own encrypted dispatch record; empty when unreadable.
+
+    Local by design (ADR 0066 amendment 2026-11-26): the dispatch envelope is the
+    platform's own run record, sealed with the installation key, not a stored secret
+    behind a reference, so it never goes through the stored-secret reader. Stored
+    references it carries are resolved through that reader when a step uses them;
+    one-run inline values stay installation-key ciphertext, like session and
+    sign-in state.
+    """
     from core.application.auth.secrets import decrypt_secret
     from core.application.jobs.dispatch_outbox_repository import DispatchOutboxRepository
 

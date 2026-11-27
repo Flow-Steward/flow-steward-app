@@ -5,6 +5,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.application.registry.account_references import (
+    shared_object_in_account,
+    workflow_in_account,
+)
 from core.application.registry.projected_artifact_rows import (
     _durable_projection_install_id,
     projection_aware_catalog_row,
@@ -313,10 +317,29 @@ class WorkflowPortabilityResolutionMixin:
         if dependency_type == "child_workflow":
             return self._workflow_exists(ref)
         if dependency_type == "published_block":
-            return _call_db_get(self.db, "get_published_block_contract", ref) is not None
+            return self._existing_row_for_dependency(dependency_type, ref) is not None
         return False
 
+    def _reference_account(self) -> str | None:
+        return _text(getattr(self, "account_id", "")) or None
+
     def _existing_row_for_dependency(self, dependency_type: str, ref: str) -> dict[str, Any] | None:
+        """The existing object an imported reference would bind to, in the import's account.
+
+        An agent, skill or published block of another account, or another account's
+        workflow, is not an existing dependency (ADR 0020, C4c): the import resolves it
+        as missing instead of binding a reference the save would refuse.
+        """
+        row = self._existing_row_in_any_account(dependency_type, ref)
+        if not isinstance(row, dict):
+            return row
+        if dependency_type in {"agent", "skill", "published_block"}:
+            return row if shared_object_in_account(row, self._reference_account()) else None
+        if dependency_type == "child_workflow":
+            return row if workflow_in_account(row, self._reference_account()) else None
+        return row
+
+    def _existing_row_in_any_account(self, dependency_type: str, ref: str) -> dict[str, Any] | None:
         if dependency_type in {"agent", "skill"}:
             manual_row = _call_db_get(self.db, f"get_{dependency_type}", ref)
             account_id = _text(getattr(self, "account_id", ""))
@@ -374,7 +397,7 @@ class WorkflowPortabilityResolutionMixin:
         )
 
     def _workflow_exists(self, workflow_id: str) -> bool:
-        return _call_db_get(self.db, "get_workflow", workflow_id) is not None
+        return self._existing_row_for_dependency("child_workflow", workflow_id) is not None
 
     def _workflow_identity_reserved(self, workflow_id: str) -> bool:
         return _call_db_get(self.db, "get_workflow", workflow_id, include_trashed=True) is not None

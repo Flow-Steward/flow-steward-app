@@ -1,9 +1,11 @@
 """A user's role assignments and their scope (ADR 0076 §7, §8).
 
-An assignment gives a user a role in the whole installation or in a part of it: a
-workspace, a project, or one workflow of a project. The schema stores all four; this
-edition is one team trust domain (ADR 0066), so it writes and reads only assignments
-without a scope and refuses one with a scope. Within one scope a user holds at most
+An assignment gives a user a role in an account or in a part of it: a workspace, a
+project, or one workflow of a project. The role in an account is stored on the
+membership (ADR 0085); ``user_roles`` stores the scoped rows only. The users API
+writes only assignments without a scope and refuses one with a scope;
+project-scoped grants are written through the scoped roles port
+(``core.application.auth.scoped_role_ports``). Within one scope a user holds at most
 one system role: the highest of those requested.
 """
 
@@ -13,17 +15,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from core.application.auth.permissions import keep_highest_system_role
+from core.application.auth.membership_roles import keep_one_role, set_membership_role
 from core.application.management.errors import ServiceValidationError
 
-#: The SQL predicate (alias ``ur`` for ``user_roles``) of an assignment without a scope.
-GLOBAL_ASSIGNMENT_PREDICATE = (
-    "ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL"
-)
-
 SCOPED_ASSIGNMENT_REFUSAL = (
-    "A role can only be assigned for the whole installation: assignments limited to a "
-    "workspace, a project or a workflow are not available in this edition"
+    "A role is assigned here for a whole account: assignments limited to a "
+    "workspace, a project or a workflow are not accepted by this endpoint"
 )
 
 
@@ -38,7 +35,7 @@ def _optional_text(value: Any) -> str | None:
 
 @dataclass(frozen=True, slots=True)
 class RoleAssignment:
-    """One role of one user, in the whole installation or in a part of it."""
+    """One role of one user, in a whole account or in a part of it."""
 
     role: str
     workspace_id: str | None = None
@@ -70,35 +67,21 @@ def require_global_assignments(assignments: Iterable[RoleAssignment]) -> list[Ro
 
 
 def replace_user_role_assignments(
-    cur: Any, *, user_id: str, assignments: Iterable[RoleAssignment]
+    cur: Any, *, user_id: str, account_id: str, assignments: Iterable[RoleAssignment]
 ) -> list[str]:
-    """Replace the user's assignments with ``assignments`` and return the stored roles.
+    """Set the user's role in ``account_id`` from ``assignments``; returns the stored roles.
 
-    The caller owns the transaction and the user-lifecycle lock. Every assignment must
-    be global; of several system roles only the highest is stored.
+    A role is held per account on the membership (ADR 0085): the membership must
+    exist. The caller owns the transaction and the user-lifecycle lock. Every
+    assignment must be without a scope; of several system roles only the highest is
+    stored, and no system role stores none (no access in that account).
     """
     checked = require_global_assignments(assignments)
-    roles = keep_highest_system_role(assignment.role for assignment in checked)
-    cur.execute(
-        f"DELETE FROM user_roles AS ur WHERE ur.user_id = %s AND {GLOBAL_ASSIGNMENT_PREDICATE}",  # nosec B608 - a constant predicate.
-        (user_id,),
-    )
-    if roles:
-        cur.execute(
-            """
-            INSERT INTO user_roles (user_id, role_id)
-            SELECT %s, id
-            FROM roles
-            WHERE key = ANY(%s)
-            ON CONFLICT (user_id, role_id, workspace_id, project_id, workflow_id) DO NOTHING
-            """,
-            (user_id, roles),
-        )
-    return roles
+    role = keep_one_role(assignment.role for assignment in checked)
+    return set_membership_role(cur, user_id=user_id, account_id=account_id, role=role)
 
 
 __all__ = [
-    "GLOBAL_ASSIGNMENT_PREDICATE",
     "SCOPED_ASSIGNMENT_REFUSAL",
     "RoleAssignment",
     "ScopedRoleAssignmentError",

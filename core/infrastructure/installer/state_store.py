@@ -156,20 +156,50 @@ class InstallerStateStore:
         # Existing maintenance/configuration guards must also observe an
         # unfinished upgrade. Once activation finishes, only healthy reopening
         # remains and MaintenanceService owns that last verification.
+        # ADR 0082 §5: a successful module rollback ended the operation as failed
+        # with the previous set running again, so it must block neither
+        # `maintenance disable` nor new work. An interrupted rollback still
+        # requires recovery, even after activation completed.
+        if journal.modules_rolled_back:
+            status = LifecycleOperationStatus.FAILED
+        elif journal.activation_completed and not journal.modules_rollback_started:
+            status = LifecycleOperationStatus.COMPLETED
+        else:
+            status = LifecycleOperationStatus.RECOVERY_REQUIRED
         projection = LifecycleOperationJournal(
             operation_id=journal.operation_id,
             kind=LifecycleOperationKind.RELEASE_UPGRADE,
-            status=LifecycleOperationStatus.COMPLETED
-            if journal.activation_completed
-            else LifecycleOperationStatus.RECOVERY_REQUIRED,
+            status=status,
+            retryable=not journal.modules_rolled_back,
+            failed_step="modules_rollback" if journal.modules_rolled_back else None,
+            last_error_code="release_modules_rolled_back"
+            if journal.modules_rolled_back
+            else "release_modules_rollback_refused"
+            if journal.modules_rollback_refused
+            else None,
             parameters={
                 "target_version": journal.prepared.target_release.version,
                 "skip_db_backup": journal.prepared.skip_db_backup,
+                # The set the roles load now: the target after success, the
+                # previous one after a rollback.
+                "platform_modules": [
+                    f"{module.id}@{module.version}" for module in journal.active_modules
+                ],
+                "platform_modules_target": [
+                    f"{module.id}@{module.version}" for module in journal.prepared_modules
+                ],
+                "platform_modules_previous": None
+                if journal.previous_modules is None
+                else [f"{module.id}@{module.version}" for module in journal.previous_modules],
+                "platform_module_roles_stopped": journal.module_roles_down,
+                "platform_modules_rollback_refused": journal.modules_rollback_refused,
             },
             current_step="maintenance_disable"
-            if journal.activation_completed
+            if status == LifecycleOperationStatus.COMPLETED
             else "release_upgrade",
-            recovery_command=f"flow-steward release upgrade --target-version {journal.prepared.target_release.version} --confirm",
+            recovery_command="flow-steward maintenance disable"
+            if journal.modules_rolled_back
+            else f"flow-steward release upgrade --target-version {journal.prepared.target_release.version} --confirm",
         )
         for lock_path in self.lifecycle_lock_paths:
             self._write_json(

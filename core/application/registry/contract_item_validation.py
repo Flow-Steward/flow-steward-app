@@ -48,8 +48,12 @@ def validate_contract_items(
     db: Any = None,
     require_structured_contract: bool = False,
     allow_secret_input: bool = False,
+    account_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Validate/normalize structured contract rows.
+
+    With *account_id*, a ``contract_id`` must name a data contract of that account;
+    one of another account is reported as missing (ADR 0020, C4a).
 
     Returns: (normalized_items, issues)
     """
@@ -151,7 +155,11 @@ def validate_contract_items(
                 continue
             normalized_item["contract_id"] = contract_id
             if db is not None and hasattr(db, "get_data_contract"):
-                contract = db.get_data_contract(contract_id)
+                contract = (
+                    db.get_data_contract(contract_id, account_id=account_id)
+                    if account_id
+                    else db.get_data_contract(contract_id)
+                )
                 if not isinstance(contract, dict):
                     issues.append(
                         _issue(

@@ -6,12 +6,34 @@ from collections.abc import Callable
 from typing import Any
 
 from core.application.auth.account_memberships import sync_user_account_memberships
+from core.application.auth.audit import log_auth_audit_event
+from core.application.auth.external_session_revocation import (
+    accounts_changed,
+    membership_account_ids,
+    revoke_external_sign_in_grants,
+    roles_changed,
+)
 from core.application.auth.local_credentials import authenticator_policy_available
+from core.application.auth.membership_roles import (
+    LastAccountAdminError,
+    cancel_invitations_of_former_admins,
+    keep_one_role,
+    membership_role_keys,
+    require_other_admins,
+    revoke_account_access,
+    roles_by_account,
+)
 from core.application.auth.password import password_hash
 from core.application.auth.password_history import require_unused_password
+from core.application.auth.permissions import ADMIN_ROLE
 from core.application.auth.role_assignments import (
     global_assignments,
     replace_user_role_assignments,
+)
+from core.application.auth.scoped_role_ports import (
+    ACCOUNT_SCOPED_ROW_PREDICATE,
+    SCOPE_LIMIT_LIFT_AUDIT_ACTION,
+    record_scope_limit_audit,
 )
 from core.application.management.errors import ServiceConflictError, ServiceNotFoundError
 from core.infrastructure.db.db_pool import transaction_connection
@@ -28,6 +50,73 @@ def _lock_user_lifecycle(cur: Any) -> None:
         "SELECT pg_advisory_xact_lock(hashtext(%s))",
         ("flow-steward:user-lifecycle",),
     )
+
+
+def _lift_scope_limit(
+    cur: Any, user_id: str, account_id: str, *, actor: str, username: str
+) -> bool:
+    """Remove the person's scope limit in the account; ``True`` if one existed.
+
+    An administrator is never limited (ADR 0076 section 8): promoting a limited person
+    to admin of an account lifts their limit there (and only there, ADR 0085), and
+    records the lift in the auth audit, in the same transaction. The caller holds the
+    user-lifecycle lock.
+    """
+    cur.execute(
+        "DELETE FROM scoped_role_users WHERE user_id = %s AND account_id = %s RETURNING user_id",
+        (user_id, account_id),
+    )
+    if cur.fetchone() is None:
+        return False
+    cur.execute(
+        f"DELETE FROM user_roles AS ur WHERE ur.user_id = %s AND {ACCOUNT_SCOPED_ROW_PREDICATE}",  # nosec B608 - a constant predicate.
+        (user_id, account_id, account_id),
+    )
+    record_scope_limit_audit(
+        cur,
+        action=SCOPE_LIMIT_LIFT_AUDIT_ACTION,
+        actor=actor,
+        username=username,
+        detail={
+            "user_id": user_id,
+            "account_id": account_id,
+            "was_limited": True,
+            "reason": "promoted_to_admin",
+        },
+    )
+    return True
+
+
+def _require_admins_kept(
+    cur: Any,
+    *,
+    user_id: str,
+    deactivated: bool,
+    role_account: str | None,
+    new_role: str | None,
+    kept_accounts: list[Any] | None,
+) -> None:
+    """Every account keeps an active administrator through the change (ADR 0085).
+
+    The person stops administering an account when they are deactivated, when their
+    role there changes to another one, or when that membership is removed.
+    """
+    admin_of = {
+        account for account, role in roles_by_account(cur, user_id).items() if role == ADMIN_ROLE
+    }
+    if not admin_of:
+        return
+    losing: set[str] = set()
+    if deactivated:
+        losing |= admin_of
+    if role_account is not None and new_role != ADMIN_ROLE:
+        losing |= admin_of & {role_account}
+    if kept_accounts is not None:
+        losing |= admin_of - {str(item or "").strip() for item in kept_accounts}
+    try:
+        require_other_admins(cur, user_id=user_id, account_ids=losing)
+    except LastAccountAdminError as exc:
+        raise ServiceConflictError(str(exc)) from exc
 
 
 #: The role every installation's first user gets, whatever the channel (CLI, API).
@@ -106,7 +195,17 @@ def list_auth_users(
     role: str,
     active_filter: bool | None,
     managed_account_ids: list[str] | None,
+    role_account_id: str | None = None,
+    member_account_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], int, int, int]:
+    """People the administrator manages, with their role in ``role_account_id``.
+
+    A role is held per account (ADR 0085): the listed role and the role filter are
+    those of the person's membership of ``role_account_id`` (the administrator's
+    acting account), or of their home account when none is given (the CLI).
+    ``member_account_id`` lists only the members of that account (the users page
+    lists the people of the acting account).
+    """
     normalized_limit = max(1, min(int(limit or 50), 200))
     normalized_offset = max(0, int(offset or 0))
     normalized_search = str(search or "").strip()
@@ -125,17 +224,22 @@ def list_auth_users(
         like = f"%{normalized_search}%"
         conditions.append("AND (u.username ILIKE %s OR COALESCE(u.display_name, '') ILIKE %s)")
         params.extend([like, like])
+    role_account = str(role_account_id or "").strip() or None
     if normalized_role:
+        # The membership role only: a project-scoped row (ADR 0076 section 8) narrows a
+        # person inside one project and is not the person's role.
         conditions.append(
             """
             AND EXISTS (
-                SELECT 1 FROM user_roles ur_scope
-                JOIN roles r_scope ON r_scope.id = ur_scope.role_id
-                WHERE ur_scope.user_id = u.id AND r_scope.key = %s
+                SELECT 1 FROM user_account_memberships m_scope
+                JOIN roles r_scope ON r_scope.id = m_scope.role_id
+                WHERE m_scope.user_id = u.id
+                  AND m_scope.account_id = COALESCE(%s::uuid, u.account_id)
+                  AND r_scope.key = %s
             )
             """
         )
-        params.append(normalized_role)
+        params.extend([role_account, normalized_role])
     if managed_account_ids is not None:
         normalized_account_ids = [
             str(account_id or "").strip()
@@ -158,6 +262,18 @@ def list_auth_users(
                 """
             )
             params.extend([normalized_account_ids, normalized_account_ids])
+    member_account = str(member_account_id or "").strip()
+    if member_account:
+        conditions.append(
+            """
+            AND EXISTS (
+                SELECT 1 FROM user_account_memberships uam_member
+                WHERE uam_member.user_id = u.id
+                  AND uam_member.account_id::text = %s
+            )
+            """
+        )
+        params.append(member_account)
 
     where_sql = " ".join(conditions)
     authenticator_required = (
@@ -184,14 +300,15 @@ def list_auth_users(
                    u.created_at, u.updated_at,
                    COALESCE(array_remove(array_agg(r.key ORDER BY r.key), NULL), ARRAY[]::text[]) AS roles
               FROM users u
-              LEFT JOIN user_roles ur ON ur.user_id = u.id
-              LEFT JOIN roles r ON r.id = ur.role_id
+              LEFT JOIN user_account_memberships rm
+                ON rm.user_id = u.id AND rm.account_id = COALESCE(%s::uuid, u.account_id)
+              LEFT JOIN roles r ON r.id = rm.role_id
              WHERE 1 = 1 {where_sql}
              GROUP BY u.id
              ORDER BY u.id
              LIMIT %s OFFSET %s
             """,  # nosec B608 - fixed projections and predicates.
-            (*params, normalized_limit, normalized_offset),
+            (role_account, *params, normalized_limit, normalized_offset),
         )
         rows = [dict(row or {}) for row in (cur.fetchall() or [])]
     return rows, total, normalized_limit, normalized_offset
@@ -253,12 +370,13 @@ def create_auth_user(
         user_id = str((row[0] if row else 0) or "").strip()
         if not user_id:
             raise RuntimeError("failed to create user")
-        replace_user_role_assignments(cur, user_id=user_id, assignments=global_assignments(roles))
+        # Every membership of the new person carries the requested role (ADR 0085).
         sync_user_account_memberships(
             bl,
             user_id=user_id,
             account_ids=requested_account_ids,
             primary_account_id=primary_account_id,
+            new_membership_role=keep_one_role(roles),
         )
     _commit_if_possible(bl)
     return user_id
@@ -278,7 +396,24 @@ def update_auth_user(
     primary_account_id: str | None,
     revoke_sessions: bool,
     password_hasher: Callable[[str], str] = password_hash,
+    on_scope_limit_lifted: Callable[[], None] | None = None,
+    actor: str = "",
+    role_account_id: str | None = None,
+    new_membership_role: str | None = "viewer",
 ) -> int:
+    """Apply the changes in one transaction; returns the number of revoked sessions.
+
+    ``roles`` sets the person's role in ``role_account_id`` (their home account when
+    empty; ADR 0085). Promoting a person to admin of an account lifts their scope
+    limit there, audited as done by ``actor``, in the same transaction;
+    ``on_scope_limit_lifted`` is then called. Added memberships get
+    ``new_membership_role``. Refused with :class:`ServiceConflictError` when an
+    account would lose its last active administrator: by a demotion, a deactivation
+    or a removed membership.
+
+    A change of the role alone revokes only what the person holds in that account:
+    its sessions, personal tokens and OAuth grants (ADR 0085, owner decision B).
+    """
     normalized_user_id = str(user_id or "").strip()
     revoke_auth_material = (
         is_active is not None
@@ -287,8 +422,23 @@ def update_auth_user(
         or roles is not None
         or requested_account_ids is not None
     )
+    role_only = roles is not None and all(
+        value is None
+        for value in (
+            display_name,
+            is_active,
+            password,
+            must_change_password,
+            requested_account_ids,
+            primary_account_id,
+        )
+    )
+    role_account = (
+        str(role_account_id or "").strip() or str(existing_user.get("account_id") or "").strip()
+    )
     with transaction_connection(bl.conn) as conn, conn.cursor() as cur:
-        if is_active is not None or roles is not None:
+        locked = is_active is not None or roles is not None or requested_account_ids is not None
+        if locked:
             _lock_user_lifecycle(cur)
         if password is not None:
             cur.execute(
@@ -327,25 +477,129 @@ def update_auth_user(
                 "UPDATE users SET must_change_password = %s WHERE id = %s",
                 (bool(must_change_password), normalized_user_id),
             )
-        if roles is not None:
-            replace_user_role_assignments(
-                cur, user_id=normalized_user_id, assignments=global_assignments(roles)
+        if locked:
+            # Checked in the same transaction as the writes above: a refusal undoes them.
+            _require_admins_kept(
+                cur,
+                user_id=normalized_user_id,
+                deactivated=is_active is False,
+                role_account=role_account if roles is not None else None,
+                new_role=keep_one_role(roles or []),
+                kept_accounts=(
+                    [*requested_account_ids, primary_account_id]
+                    if requested_account_ids is not None and primary_account_id is not None
+                    else None
+                ),
             )
+        stored_roles: list[str] = []
+        synced_accounts: list[str] | None = None
         if requested_account_ids is not None and primary_account_id is not None:
             cur.execute(
                 "UPDATE users SET account_id = %s WHERE id = %s",
                 (str(primary_account_id or "").strip(), normalized_user_id),
             )
-            sync_user_account_memberships(
-                bl,
-                user_id=normalized_user_id,
-                account_ids=requested_account_ids,
-                primary_account_id=primary_account_id,
-            )
+            synced_accounts = [
+                *sync_user_account_memberships(
+                    bl,
+                    user_id=normalized_user_id,
+                    account_ids=requested_account_ids,
+                    primary_account_id=primary_account_id,
+                    new_membership_role=keep_one_role(roles or []) or new_membership_role,
+                ),
+                str(primary_account_id or "").strip(),
+            ]
+        roles_before: list[str] | None = None
+        if roles is not None:
+            roles_before = membership_role_keys(cur, normalized_user_id, role_account)
+            try:
+                stored_roles = replace_user_role_assignments(
+                    cur,
+                    user_id=normalized_user_id,
+                    account_id=role_account,
+                    assignments=global_assignments(roles),
+                )
+            except LookupError as exc:
+                raise ServiceNotFoundError(
+                    "The person is not a member of the account whose role was to change"
+                ) from exc
+            if (
+                ADMIN_ROLE in stored_roles
+                and _lift_scope_limit(
+                    cur,
+                    normalized_user_id,
+                    role_account,
+                    actor=actor,
+                    username=str(existing_user.get("username") or ""),
+                )
+                and on_scope_limit_lifted is not None
+            ):
+                on_scope_limit_lifted()
         revoked_sessions = 0
-        if revoke_sessions and revoke_auth_material:
+        if role_only:
+            if revoke_sessions:
+                revoked_sessions = revoke_account_access(
+                    cur,
+                    user_id=normalized_user_id,
+                    account_id=role_account,
+                    reason="account_role_changed",
+                )
+            elif roles_changed(roles_before, stored_roles):
+                revoke_external_sign_in_grants(cur, [normalized_user_id], account_id=role_account)
+        elif revoke_sessions and revoke_auth_material:
             revoked_sessions = _revoke_user_auth_material(cur, bl, normalized_user_id)
+        elif _external_sign_in_rules_may_change(
+            existing_user,
+            is_active=is_active,
+            roles=stored_roles if roles is not None else None,
+            account_ids=synced_accounts,
+        ):
+            revoke_external_sign_in_grants(cur, [normalized_user_id])
+        cancelled_invitations = (
+            cancel_invitations_of_former_admins(cur, normalized_user_id)
+            if is_active is False or roles is not None or requested_account_ids is not None
+            else []
+        )
+    _audit_cancelled_invitations(bl, cancelled_invitations, actor=actor)
     return revoked_sessions
+
+
+def _audit_cancelled_invitations(bl: Any, cancelled: list[dict[str, str]], *, actor: str) -> None:
+    """Record invitations that ended with their inviter's admin role (ADR 0085, C4)."""
+    for item in cancelled:
+        log_auth_audit_event(
+            bl,
+            action="account_invitation_cancel",
+            username="",
+            actor=str(actor or "").strip() or "admin",
+            status="ok",
+            detail={
+                "account_id": item.get("account_id", ""),
+                "invitation_id": item.get("id", ""),
+                "invited_email": item.get("invited_email", ""),
+                "role": item.get("role", ""),
+                "reason": "inviter_no_longer_admin",
+            },
+        )
+
+
+def _external_sign_in_rules_may_change(
+    existing_user: dict[str, Any],
+    *,
+    is_active: bool | None,
+    roles: list[str] | None,
+    account_ids: list[str] | None,
+) -> bool:
+    """Whether the change touches what external sign-in checked (ADR 0083): the
+    person's global roles, their accounts, or whether they may sign in at all."""
+    if is_active is False:
+        return True
+    if roles is not None and roles_changed(
+        existing_user.get("roles") if "roles" in existing_user else None, roles
+    ):
+        return True
+    return account_ids is not None and accounts_changed(
+        membership_account_ids(existing_user), account_ids
+    )
 
 
 def force_password_reset(
@@ -377,13 +631,7 @@ def delete_auth_user(
         _lock_user_lifecycle(cur)
         cur.execute(
             """
-            SELECT u.id::text AS id, u.is_active,
-                   EXISTS (
-                       SELECT 1
-                       FROM user_roles ur
-                       JOIN roles r ON r.id = ur.role_id
-                       WHERE ur.user_id = u.id AND r.key = 'admin'
-                   ) AS is_admin
+            SELECT u.id::text AS id, u.is_active
             FROM users u
             WHERE u.id = %s AND u.deleted_at IS NULL
             FOR UPDATE OF u
@@ -400,29 +648,20 @@ def delete_auth_user(
         if total <= 1:
             raise ServiceConflictError("The last user cannot be deleted")
 
-        is_active = bool(target.get("is_active"))
-        is_admin = bool(target.get("is_admin"))
-        if is_active and is_admin:
-            cur.execute(
-                """
-                SELECT COUNT(*) AS total
-                FROM users u
-                WHERE u.deleted_at IS NULL
-                  AND u.is_active = true
-                  AND EXISTS (
-                           SELECT 1
-                           FROM user_roles ur
-                           JOIN roles r ON r.id = ur.role_id
-                           WHERE ur.user_id = u.id AND r.key = 'admin'
-                      )
-                """
-            )
-            admin_row = cur.fetchone() or {}
-            active_admins = int(
-                (admin_row.get("total") if isinstance(admin_row, dict) else admin_row[0]) or 0
-            )
-            if active_admins <= 1:
-                raise ServiceConflictError("The last active administrator cannot be deleted")
+        if bool(target.get("is_active")):
+            # Every account the person administers keeps another active
+            # administrator (ADR 0085: the last-administrator rule is per account).
+            admin_of = [
+                account
+                for account, role in roles_by_account(cur, normalized_user_id).items()
+                if role == ADMIN_ROLE
+            ]
+            try:
+                require_other_admins(cur, user_id=normalized_user_id, account_ids=admin_of)
+            except LastAccountAdminError as exc:
+                raise ServiceConflictError(
+                    "The last active administrator of an account cannot be deleted"
+                ) from exc
 
         revoked_sessions = _revoke_user_auth_material(cur, bl, normalized_user_id)
         cur.execute(
@@ -436,4 +675,18 @@ def delete_auth_user(
             """,
             (str(deleted_by or "").strip(), normalized_user_id),
         )
+        identities_checker = getattr(bl, "_table_exists", None)
+        if callable(identities_checker) and identities_checker("external_identities") is True:
+            # A deleted user's external identity must not sign anyone in again
+            # (ADR 0083); its sessions go with it.
+            # Compare as text: a malformed id must not abort the deletion transaction.
+            cur.execute(
+                "DELETE FROM external_identities WHERE user_id::text = %s",
+                (normalized_user_id,),
+            )
+        cancelled_invitations = cancel_invitations_of_former_admins(cur, normalized_user_id)
+    _audit_cancelled_invitations(bl, cancelled_invitations, actor=deleted_by)
+    from core.application.auth.user_lifecycle_events import notify_user_deleted
+
+    notify_user_deleted(normalized_user_id)
     return revoked_sessions

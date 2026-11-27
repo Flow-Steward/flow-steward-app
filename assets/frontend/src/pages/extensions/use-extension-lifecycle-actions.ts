@@ -3,12 +3,14 @@ import {
   type ExtensionRecord,
   type ExtensionUninstallPlan,
   setExtensionEnabled,
+  setExtensionAccountEnabled,
   installExtensionFromFile,
   fetchExtensionUninstallPlan,
   confirmExtensionUninstall,
   checkExtensionHealth,
   fetchExtension,
 } from "@/pages/extensions/api";
+import { isAccountEnablementRow } from "@/pages/extensions/account-enablement";
 import { extensionInstallWarnings } from "@/pages/extensions/extension-install-warnings";
 import { stringFrom } from "@/pages/extensions/extension-manifest-utils";
 import { invalidateModelRoutingQueries } from "@/lib/utils/model-provider-state";
@@ -148,7 +150,9 @@ export function useExtensionLifecycleActions(hubState: ReturnType<typeof useExte
       await withBusy(extensionKey, async () => {
         setToggleErrorById((current) => ({ ...current, [extensionKey]: "" }));
         setStatusById((current) => ({ ...current, [extensionKey]: "Updating active state..." }));
-        if (approvedImpactHash) {
+        if (isAccountEnablementRow(extension)) {
+          await setExtensionAccountEnabled(extensionKey, nextActive);
+        } else if (approvedImpactHash) {
           await setExtensionEnabled(extensionKey, nextActive, approvedImpactHash);
         } else {
           await setExtensionEnabled(extensionKey, nextActive);

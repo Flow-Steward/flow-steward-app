@@ -71,10 +71,15 @@ _VIEWER_OAUTH_LIFECYCLE_STATUSES = {
 }
 
 
-def _browser_connection_view(scope: Any, connection: Mapping[str, Any]) -> dict[str, Any]:
+def _browser_connection_view(
+    scope: Any, connection: Mapping[str, Any], *, read_only: bool = False
+) -> dict[str, Any]:
+    """The connection as the browser sees it; ``read_only`` always gives the viewer summary."""
     payload = dict(connection)
     payload.pop("secrets", None)
-    if principal_type_has_minimum_role(getattr(scope, "principal_type", None), "operator"):
+    if not read_only and principal_type_has_minimum_role(
+        getattr(scope, "principal_type", None), "operator"
+    ):
         return payload
     projected = {
         field: payload[field] for field in _VIEWER_CONNECTION_SUMMARY_FIELDS if field in payload

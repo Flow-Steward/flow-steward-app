@@ -16,7 +16,9 @@ from core.application.workflows.workflow_reaction_scope_repository import (
     retained_reaction_scope_issues,
 )
 
+from .account_references import foreign_shared_references
 from .db_store_common import *  # NOSONAR
+from .workflow_account import workflow_account_scope, workflow_owner
 from .workflow_definition_rows import (
     WorkflowDefinitionRows,
     _definition_for_each_payload,
@@ -47,14 +49,25 @@ class WorkflowCreateConflictError(ValueError):
 
 
 class RegistryDBStoreWorkflowsMixin:
-    def get_workflow(self, workflow_id: str, include_trashed: bool = False) -> dict | None:
+    def get_workflow(
+        self,
+        workflow_id: str,
+        include_trashed: bool = False,
+        *,
+        account_id: str | None = None,
+    ) -> dict | None:
+        """One workflow of *account_id* (the bound account when none is given).
+
+        Workflow identity is account-qualified (ADR 0020, C4b): two accounts may own
+        the same workflow id, and a caller only ever reaches its own account's row.
+        """
         with self._cursor() as cur:
-            clauses = ["workflow_id = %s"]
+            clauses = ["account_id = %s", "workflow_id = %s"]
             if not include_trashed and self._column_exists("registry_workflows", "deleted_at"):
                 clauses.append(SQL_DELETED_AT_IS_NULL)
             cur.execute(
                 f"SELECT * FROM registry_workflows WHERE {SQL_AND.join(clauses)}",
-                (workflow_id,),
+                (workflow_owner(account_id), workflow_id),
             )
             row = cur.fetchone()
             if not row:
@@ -68,15 +81,21 @@ class RegistryDBStoreWorkflowsMixin:
         enabled_only: bool = False,
         include_definitions: bool = True,
         include_trashed: bool = False,
+        *,
+        account_id: str | None = None,
     ) -> list[dict]:
+        """The workflows of one account (the bound account when none is given)."""
         with self._cursor() as cur:
-            conditions: list[str] = []
+            conditions: list[str] = ["account_id = %s"]
             if not include_trashed and self._column_exists("registry_workflows", "deleted_at"):
                 conditions.append(SQL_DELETED_AT_IS_NULL)
             if enabled_only:
                 conditions.append(SQL_ENABLED_TRUE)
-            where_sql = f"WHERE {SQL_AND.join(conditions)}" if conditions else ""
-            cur.execute(f"SELECT * FROM registry_workflows {where_sql} ORDER BY workflow_id")
+            where_sql = f"WHERE {SQL_AND.join(conditions)}"
+            cur.execute(
+                f"SELECT * FROM registry_workflows {where_sql} ORDER BY workflow_id",
+                (workflow_owner(account_id),),
+            )
             workflows = [dict(r) for r in cur.fetchall()]
             if include_definitions:
                 self._attach_workflow_definitions(cur, workflows)
@@ -107,12 +126,10 @@ class RegistryDBStoreWorkflowsMixin:
             clauses.append(W_DELETED_AT_IS_NULL_VALUE)
         if enabled_only:
             clauses.append("w.enabled = true")
-        normalized_account_id = str(account_id or "").strip()
+        normalized_account_id = workflow_owner(account_id)
         normalized_project_id = str(project_id or "").strip()
-        if has_account_id and normalized_account_id:
-            clauses.append(
-                f"({_nullable_scope_sql('w.account_id')} OR w.account_id = %(account_id)s)"
-            )
+        if has_account_id:
+            clauses.append("w.account_id = %(account_id)s")
         if has_project_id:
             if normalized_project_id:
                 clauses.append(
@@ -142,14 +159,15 @@ class RegistryDBStoreWorkflowsMixin:
                         {", COALESCE(w.builder_metadata_jsonb, '{}'::jsonb) AS builder_metadata_jsonb" if has_builder_metadata else ""}
                     FROM registry_workflows w
                     LEFT JOIN (
-                        SELECT owner_workflow_id, COUNT(*)::INT AS step_count
+                        SELECT account_id, owner_workflow_id, COUNT(*)::INT AS step_count
                         FROM registry_workflow_steps
-                        GROUP BY owner_workflow_id
+                        GROUP BY account_id, owner_workflow_id
                     ) step_counts ON step_counts.owner_workflow_id = w.workflow_id
+                                 AND step_counts.account_id = w.account_id
                     {where_sql}
                     ORDER BY w.workflow_id""",
                 {
-                    "account_id": normalized_account_id or None,
+                    "account_id": normalized_account_id,
                     "project_id": normalized_project_id or None,
                 },
             )
@@ -161,9 +179,13 @@ class RegistryDBStoreWorkflowsMixin:
         project_id: str | None = None,
         project_name: str | None = None,
         enabled_only: bool = True,
+        account_id: str | None = None,
     ) -> list[dict]:
         clauses: list[str] = []
         params: list = []
+        if account_id is not None:
+            clauses.append("pw.account_id = %s")
+            params.append(workflow_owner(account_id))
         if project_id is not None:
             clauses.append("pw.project_id = %s")
             params.append(str(project_id))
@@ -180,6 +202,7 @@ class RegistryDBStoreWorkflowsMixin:
             cur.execute(
                 f"""SELECT
                         pw.project_id,
+                        pw.account_id,
                         p.name AS project_name,
                         pw.workflow_id,
                         w.display_name AS workflow_display_name,
@@ -189,7 +212,8 @@ class RegistryDBStoreWorkflowsMixin:
                         pw.deleted_at
                     FROM project_workflows pw
                     JOIN projects p ON p.id = pw.project_id
-                    JOIN registry_workflows w ON w.workflow_id = pw.workflow_id
+                    JOIN registry_workflows w
+                      ON w.workflow_id = pw.workflow_id AND w.account_id = pw.account_id
                     {where_sql}
                     ORDER BY pw.project_id, pw.is_default DESC, pw.priority DESC, pw.workflow_id""",
                 params,
@@ -220,6 +244,7 @@ class RegistryDBStoreWorkflowsMixin:
                      AND workflow_id <> ALL(%s)
                      AND NOT EXISTS (SELECT 1 FROM registry_workflows hook_rw
                                      WHERE hook_rw.workflow_id = project_workflows.workflow_id
+                                       AND hook_rw.account_id = project_workflows.account_id
                                        AND hook_rw.settings ? 'hook_storage')""",
                 (project_id, deduped_ids),
             )
@@ -282,32 +307,43 @@ class RegistryDBStoreWorkflowsMixin:
             )
 
     def _attach_workflow_definitions(self, cur, workflows: list[dict]) -> None:
-        workflow_ids = [
-            str((wf or {}).get("workflow_id") or "").strip()
-            for wf in (workflows or [])
-            if str((wf or {}).get("workflow_id") or "").strip()
-        ]
-        definitions = self._load_workflow_definition_map(cur, workflow_ids)
+        ids_by_account: dict[str, list[str]] = {}
         for wf in workflows or []:
             workflow_id = str((wf or {}).get("workflow_id") or "").strip()
-            rows = definitions.get(workflow_id) or WorkflowDefinitionRows.empty()
+            if workflow_id:
+                owner = workflow_owner((wf or {}).get("account_id"))
+                ids_by_account.setdefault(owner, []).append(workflow_id)
+        definitions = {
+            (owner, workflow_id): rows
+            for owner, workflow_ids in ids_by_account.items()
+            for workflow_id, rows in self._load_workflow_definition_map(
+                cur, workflow_ids, account_id=owner
+            ).items()
+        }
+        for wf in workflows or []:
+            workflow_id = str((wf or {}).get("workflow_id") or "").strip()
+            owner = workflow_owner((wf or {}).get("account_id"))
+            rows = definitions.get((owner, workflow_id)) or WorkflowDefinitionRows.empty()
             wf["steps"] = rows.steps
             wf["groups"] = rows.groups
             wf["for_each"] = rows.for_each
 
     def _load_workflow_definition_map(
-        self, cur, workflow_ids: list[str]
+        self, cur, workflow_ids: list[str], *, account_id: str | None = None
     ) -> dict[str, WorkflowDefinitionRows]:
-        """Steps, Groups and For each containers per workflow, keyed by business ids."""
+        """Steps, Groups and For each containers per workflow of one account."""
         return load_workflow_definition_rows(
             cur,
             workflow_ids,
             derive_skill=lambda agent_id: agent_primary_skill_id(self, agent_id),
+            account_id=account_id,
         )
 
-    def _load_workflow_definition(self, cur, workflow_id: str) -> WorkflowDefinitionRows:
+    def _load_workflow_definition(
+        self, cur, workflow_id: str, *, account_id: str | None = None
+    ) -> WorkflowDefinitionRows:
         return (
-            self._load_workflow_definition_map(cur, [workflow_id]).get(
+            self._load_workflow_definition_map(cur, [workflow_id], account_id=account_id).get(
                 str(workflow_id or "").strip()
             )
             or WorkflowDefinitionRows.empty()
@@ -331,8 +367,8 @@ class RegistryDBStoreWorkflowsMixin:
             cur.execute(
                 "SELECT revision, settings FROM registry_workflows "
                 "WHERE workflow_id = %s AND deleted_at IS NULL "
-                "AND (account_id = %s OR account_id IS NULL) FOR UPDATE",
-                (workflow_id, account_id),
+                "AND account_id = %s FOR UPDATE",
+                (workflow_id, workflow_owner(account_id)),
             )
             current = cur.fetchone()
             if current is None or current["revision"] != expected_revision:
@@ -347,8 +383,13 @@ class RegistryDBStoreWorkflowsMixin:
                 "UPDATE registry_workflows SET settings = "
                 "jsonb_set(jsonb_set(settings, '{canvas_annotations}', %s::jsonb), "
                 "'{canvas_annotations_revision}', %s::jsonb), updated_at = NOW() "
-                "WHERE workflow_id = %s",
-                (json.dumps(annotations), json.dumps(next_revision), workflow_id),
+                "WHERE workflow_id = %s AND account_id = %s",
+                (
+                    json.dumps(annotations),
+                    json.dumps(next_revision),
+                    workflow_id,
+                    workflow_owner(account_id),
+                ),
             )
         return next_revision
 
@@ -362,8 +403,8 @@ class RegistryDBStoreWorkflowsMixin:
                 "jsonb_set(COALESCE(settings, '{}'::jsonb), '{canvas_layout}', %s::jsonb), "
                 "updated_at = NOW() "
                 "WHERE workflow_id = %s AND deleted_at IS NULL "
-                "AND (account_id = %s OR account_id IS NULL)",
-                (json.dumps(layout), workflow_id, account_id),
+                "AND account_id = %s",
+                (json.dumps(layout), workflow_id, workflow_owner(account_id)),
             )
             return bool(cur.rowcount)
 
@@ -374,13 +415,44 @@ class RegistryDBStoreWorkflowsMixin:
         *,
         expected_revision: int | None = None,
         create_only: bool = False,
+        account_id: str | None = None,
     ) -> int | None:
+        """Create or update one workflow of its owning account.
+
+        The owner is *account_id*, else the payload's ``account_id``, else the
+        account bound to the current request or job, else refused (C5); a
+        workflow is never written without an owner (ADR 0020, C4b).
+        """
         workflow_id = str(data.get("workflow_id") or data.get("workflow_key") or "").strip()
         if not workflow_id:
             raise ValueError("workflow_id is required")
         if create_only and expected_revision is not None:
             raise ValueError("create_only cannot use expected_revision")
-        is_new = create_only or not self._exists("registry_workflows", "workflow_id", workflow_id)
+        owner = workflow_owner(account_id or data.get("account_id"))
+        # Every read below (and in the helpers it calls) works on the owner's rows.
+        with workflow_account_scope(owner):
+            return self._save_owned_workflow(
+                data,
+                author,
+                workflow_id=workflow_id,
+                owner=owner,
+                expected_revision=expected_revision,
+                create_only=create_only,
+            )
+
+    def _save_owned_workflow(
+        self,
+        data: dict,
+        author: str,
+        *,
+        workflow_id: str,
+        owner: str,
+        expected_revision: int | None,
+        create_only: bool,
+    ) -> int | None:
+        is_new = create_only or not self._exists(
+            "registry_workflows", "workflow_id", workflow_id, owner
+        )
         definition_payload = _definition_payload(data)
         workflow_payload_for_dependencies = None
         if definition_payload is not None:
@@ -398,8 +470,8 @@ class RegistryDBStoreWorkflowsMixin:
                     raise WorkflowRevisionConflictError(workflow_id, expected_revision)
                 cur.execute(
                     "SELECT revision FROM registry_workflows "
-                    "WHERE workflow_id = %s AND deleted_at IS NULL FOR UPDATE",
-                    (workflow_id,),
+                    "WHERE account_id = %s AND workflow_id = %s AND deleted_at IS NULL FOR UPDATE",
+                    (owner, workflow_id),
                 )
                 locked = cur.fetchone()
                 if locked is None or int(locked["revision"]) != int(expected_revision):
@@ -419,6 +491,7 @@ class RegistryDBStoreWorkflowsMixin:
                     self,
                     cur,
                     workflow_id=workflow_id,
+                    account_id=owner,
                     settings=incoming_settings,
                     definition=(
                         {"steps": definition_payload.steps}
@@ -466,7 +539,7 @@ class RegistryDBStoreWorkflowsMixin:
             ]
             optional_columns = [
                 ("builder_metadata_jsonb", payload.get("builder_metadata_jsonb")),
-                ("account_id", _system_registry_account_id(data)),
+                ("account_id", owner),
                 ("scope_kind", str(data.get("scope_kind") or "system").strip() or "system"),
                 ("source_install_id", str(data.get("source_install_id") or "").strip() or None),
                 ("source_release_id", str(data.get("source_release_id") or "").strip() or None),
@@ -530,9 +603,9 @@ class RegistryDBStoreWorkflowsMixin:
                     revision_predicate = (
                         " WHERE registry_workflows.revision = %(expected_revision)s"
                     )
-            # Both workflow_key and its generated workflow_id are unique.
+            # Both workflow_key and its generated workflow_id are unique per account.
             # Atomic create must ignore conflicts on either identity constraint.
-            conflict_target = "" if create_only else " (workflow_key)"
+            conflict_target = "" if create_only else " (account_id, workflow_key)"
             conflict_action = (
                 "DO NOTHING" if create_only else f"DO UPDATE SET {update_sql}{revision_predicate}"  # nosec B608 -- fixed columns and predicate; payload values are bound.
             )
@@ -558,12 +631,15 @@ class RegistryDBStoreWorkflowsMixin:
                 reaction_issues = retained_reaction_scope_issues(
                     cur,
                     workflow_id,
+                    account_id=owner,
                     steps=definition_payload.steps,
                     groups=definition_payload.groups,
                 )
                 if reaction_issues:
                     raise ValueError(reaction_issues[0]["message"])
-                self._sync_workflow_definition_cur(cur, workflow_id, definition_payload)
+                self._sync_workflow_definition_cur(
+                    cur, workflow_id, definition_payload, account_id=owner
+                )
             # History records what is stored now, read back in this transaction:
             # a settings-only payload carries no definition, and its revision is
             # the one the caller loaded.
@@ -577,16 +653,23 @@ class RegistryDBStoreWorkflowsMixin:
                 "create" if is_new else "update",
                 history_snapshot(stored),
                 author,
+                owner_account_id=owner,
             )
             self._sync_workflow_runtime_dependencies(
                 workflow_id,
                 workflow_payload=workflow_payload_for_dependencies,
+                account_id=owner,
             )
         self._trigger_public_contract_projection_sync()
         return saved_revision
 
     def _sync_workflow_definition_cur(
-        self, cur, workflow_id: str, definition: WorkflowDefinitionRows
+        self,
+        cur,
+        workflow_id: str,
+        definition: WorkflowDefinitionRows,
+        *,
+        account_id: str | None = None,
     ) -> None:
         """Write the definition so it matches the payload, keeping row UUIDs.
 
@@ -595,6 +678,7 @@ class RegistryDBStoreWorkflowsMixin:
         are dropped: a step taken out of a removed container must not be
         cascaded away with it.
         """
+        owner = workflow_owner(account_id)
         group_row_ids: dict[str, Any] = {}
         for index, group in enumerate(definition.groups):
             group_id = str(group.get("group_id") or "").strip()
@@ -602,10 +686,10 @@ class RegistryDBStoreWorkflowsMixin:
                 raise ValueError("Every group needs a group_id")
             cur.execute(
                 """INSERT INTO registry_workflow_groups
-                       (workflow_id, group_id, display_name, description, sort_order,
+                       (account_id, workflow_id, group_id, display_name, description, sort_order,
                         body_jsonb, error_policy_jsonb, boundary_contract_jsonb)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (workflow_id, group_id) DO UPDATE SET
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (account_id, workflow_id, group_id) DO UPDATE SET
                        display_name = EXCLUDED.display_name,
                        description = EXCLUDED.description,
                        sort_order = EXCLUDED.sort_order,
@@ -614,6 +698,7 @@ class RegistryDBStoreWorkflowsMixin:
                        boundary_contract_jsonb = EXCLUDED.boundary_contract_jsonb
                    RETURNING id""",
                 (
+                    owner,
                     workflow_id,
                     group_id,
                     str(group.get("display_name") or group_id).strip(),
@@ -636,11 +721,11 @@ class RegistryDBStoreWorkflowsMixin:
                 raise ValueError(f"For each '{for_each_id}' names unknown group '{parent}'")
             cur.execute(
                 """INSERT INTO registry_workflow_for_each
-                       (workflow_id, for_each_id, group_id, display_name, description,
+                       (account_id, workflow_id, for_each_id, group_id, display_name, description,
                         sort_order, over_selector, item_name, index_name, body_jsonb,
                         error_policy_jsonb, boundary_contract_jsonb)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (workflow_id, for_each_id) DO UPDATE SET
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (account_id, workflow_id, for_each_id) DO UPDATE SET
                        group_id = EXCLUDED.group_id,
                        display_name = EXCLUDED.display_name,
                        description = EXCLUDED.description,
@@ -653,6 +738,7 @@ class RegistryDBStoreWorkflowsMixin:
                        boundary_contract_jsonb = EXCLUDED.boundary_contract_jsonb
                    RETURNING id""",
                 (
+                    owner,
                     workflow_id,
                     for_each_id,
                     group_row_ids.get(parent) if parent else None,
@@ -669,6 +755,12 @@ class RegistryDBStoreWorkflowsMixin:
             )
             for_each_row_ids[for_each_id] = cur.fetchone()["id"]
 
+        # A step names agents, skills and published blocks of its own account or
+        # platform ones; another account's is "not found" (ADR 0020, C4c). The
+        # database refuses it as well (trg_registry_workflow_steps_same_account).
+        foreign = foreign_shared_references(cur, account_id=owner, steps=definition.steps)
+        if foreign:
+            raise ValueError("; ".join(foreign))
         step_ids: list[str] = []
         for index, step in enumerate(definition.steps):
             step_id = str(step.get("step_id") or "").strip()
@@ -683,15 +775,15 @@ class RegistryDBStoreWorkflowsMixin:
                 raise ValueError(f"Step '{step_id}' names unknown For each '{for_each_id}'")
             cur.execute(
                 """INSERT INTO registry_workflow_steps
-                       (owner_workflow_id, group_id, for_each_id, lane_id, step_id, step_kind,
+                       (account_id, owner_workflow_id, group_id, for_each_id, lane_id, step_id, step_kind,
                         agent_id, skill_id, sort_order, optional, disabled, context_inject,
                         override, participant_key, connector_id, connector_install_id,
                         workflow_id, block_key, display_name, input_mapping_jsonb,
                         output_mapping_jsonb, connection_binding_jsonb, error_policy_jsonb,
                         boundary_contract_jsonb)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (owner_workflow_id, step_id) DO UPDATE SET
+                   ON CONFLICT (account_id, owner_workflow_id, step_id) DO UPDATE SET
                        group_id = EXCLUDED.group_id,
                        for_each_id = EXCLUDED.for_each_id,
                        lane_id = EXCLUDED.lane_id,
@@ -715,6 +807,7 @@ class RegistryDBStoreWorkflowsMixin:
                        error_policy_jsonb = EXCLUDED.error_policy_jsonb,
                        boundary_contract_jsonb = EXCLUDED.boundary_contract_jsonb""",
                 (
+                    owner,
                     workflow_id,
                     group_row_ids.get(group_id) if group_id else None,
                     for_each_row_ids.get(for_each_id) if for_each_id else None,
@@ -725,22 +818,25 @@ class RegistryDBStoreWorkflowsMixin:
             )
         cur.execute(
             "DELETE FROM registry_workflow_steps"
-            " WHERE owner_workflow_id = %s AND NOT (step_id = ANY(%s))",
-            (workflow_id, step_ids),
+            " WHERE account_id = %s AND owner_workflow_id = %s AND NOT (step_id = ANY(%s))",
+            (owner, workflow_id, step_ids),
         )
         cur.execute(
             "DELETE FROM registry_workflow_for_each"
-            " WHERE workflow_id = %s AND NOT (for_each_id = ANY(%s))",
-            (workflow_id, list(for_each_row_ids)),
+            " WHERE account_id = %s AND workflow_id = %s AND NOT (for_each_id = ANY(%s))",
+            (owner, workflow_id, list(for_each_row_ids)),
         )
         cur.execute(
             "DELETE FROM registry_workflow_groups"
-            " WHERE workflow_id = %s AND NOT (group_id = ANY(%s))",
-            (workflow_id, list(group_row_ids)),
+            " WHERE account_id = %s AND workflow_id = %s AND NOT (group_id = ANY(%s))",
+            (owner, workflow_id, list(group_row_ids)),
         )
 
-    def delete_workflow(self, workflow_id: str, author: str = "admin") -> None:
-        snapshot = self.get_workflow(workflow_id)
+    def delete_workflow(
+        self, workflow_id: str, author: str = "admin", *, account_id: str | None = None
+    ) -> None:
+        with workflow_account_scope(workflow_owner(account_id)):
+            snapshot = self.get_workflow(workflow_id)
         if not snapshot:
             raise KeyError(f"Workflow '{workflow_id}' not found")
         from core.application.management.errors import ServiceNotFoundError
@@ -752,21 +848,28 @@ class RegistryDBStoreWorkflowsMixin:
                     cur,
                     store=self,
                     workflow_id=workflow_id,
-                    account_id=str(snapshot.get("account_id") or ""),
+                    account_id=workflow_owner(snapshot.get("account_id")),
                     author=author,
                     record_change=lambda cursor, locked_snapshot: self._log_change_cur(
-                        cursor, "workflow", workflow_id, "delete", locked_snapshot, author
+                        cursor,
+                        "workflow",
+                        workflow_id,
+                        "delete",
+                        locked_snapshot,
+                        author,
+                        owner_account_id=workflow_owner(snapshot.get("account_id")),
                     ),
                 )
         except ServiceNotFoundError as exc:
             raise KeyError(f"Workflow '{workflow_id}' not found") from exc
         self._trigger_public_contract_projection_sync()
 
-    def toggle_workflow(self, workflow_id: str) -> bool:
+    def toggle_workflow(self, workflow_id: str, *, account_id: str | None = None) -> bool:
         with self._transaction() as cur:
             cur.execute(
-                "UPDATE registry_workflows SET enabled = NOT enabled, revision = revision + 1 WHERE workflow_id = %s RETURNING enabled",
-                (workflow_id,),
+                "UPDATE registry_workflows SET enabled = NOT enabled, revision = revision + 1 "
+                "WHERE account_id = %s AND workflow_id = %s RETURNING enabled",
+                (workflow_owner(account_id), workflow_id),
             )
             row = cur.fetchone()
             if not row:
@@ -793,10 +896,15 @@ class RegistryDBStoreWorkflowsMixin:
         a connection); taking the source's enabled state, it ran with no readiness check.
         Like an import it starts disabled, and its author enables it when it is ready.
         """
-        source = self.get_workflow(source_workflow_id)
+        # The source is read in the account that receives the clone: a workflow of
+        # another account is never copied (ADR 0020, C4b).
+        owner = workflow_owner(account_id)
+        with workflow_account_scope(owner):
+            source = self.get_workflow(source_workflow_id)
+            target_taken = bool(self.get_workflow(target_workflow_id))
         if not source:
             raise KeyError(f"Workflow '{source_workflow_id}' not found")
-        if self.get_workflow(target_workflow_id):
+        if target_taken:
             raise ValueError(f"Workflow '{target_workflow_id}' already exists")
 
         groups = [_definition_group_payload(group) for group in source.get("groups") or []]
@@ -826,7 +934,7 @@ class RegistryDBStoreWorkflowsMixin:
             if description is not None
             else source.get("description", ""),
             "enabled": False,
-            "account_id": account_id,
+            "account_id": owner,
             "scope_kind": scope_kind,
             "trigger": source.get("trigger") or {},
             "settings": settings,
@@ -835,7 +943,7 @@ class RegistryDBStoreWorkflowsMixin:
             "groups": groups,
             "for_each": for_each,
         }
-        self.save_workflow(clone_payload, author=author, create_only=True)
+        self.save_workflow(clone_payload, author=author, create_only=True, account_id=owner)
         return target_workflow_id
 
 

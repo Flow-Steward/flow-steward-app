@@ -113,8 +113,8 @@ class RegistryDBStoreGuardrailsMixin:
         """Restrict a guardrail query to one account when the column exists.
 
         RC7-006: guardrails were the one mutable registry root with neither an
-        account column nor the require_default_registry_account guard that
-        covers the other global roots, so a foreign-account admin could reach a
+        account column nor the installation-account guard that then covered the
+        other global roots, so a foreign-account admin could reach a
         first-party row. The column check keeps this usable on a database that
         has not yet run the additive migration; once it has, every query is
         account-qualified.

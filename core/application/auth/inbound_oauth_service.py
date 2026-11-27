@@ -383,6 +383,13 @@ class InboundOAuthService(InboundOAuthTokenEndpointMixin):
             raise ConsentError("interactive_session_required", 403)
         return user
 
+    @staticmethod
+    def _pinned_account(caller: Mapping[str, Any]) -> dict[str, str]:
+        """A session of external sign-in sees only its account's grants (ADR 0085, F)."""
+        if str(caller.get("auth_source") or "").strip().lower() != "external":
+            return {}
+        return {"account_id": str(caller.get("account_id") or "").strip() or "-"}
+
     def _pending(
         self, conn: Any, request_id: str, browser_binding: str | None, *, for_update: bool
     ) -> dict[str, Any]:
@@ -690,7 +697,9 @@ class InboundOAuthService(InboundOAuthTokenEndpointMixin):
         grants: list[dict[str, Any]] = []
         if "storage_missing" not in readiness.blockers:
             with self._transaction() as conn:
-                rows = repo.list_user_grants(conn, str(caller.get("id") or ""))
+                rows = repo.list_user_grants(
+                    conn, str(caller.get("id") or ""), **self._pinned_account(caller)
+                )
             grants = [self._grant_view(row) for row in rows]
         return {"grants": grants, "readiness": readiness.to_payload()}
 
@@ -699,12 +708,13 @@ class InboundOAuthService(InboundOAuthTokenEndpointMixin):
         if not repo.is_uuid(grant_id):
             raise ConsentError("grant_not_found", 404)
         now = self.clock()
+        pinned = self._pinned_account(caller)
         with self._transaction() as conn:
-            row = repo.get_user_grant(conn, grant_id, str(caller.get("id") or ""))
+            row = repo.get_user_grant(conn, grant_id, str(caller.get("id") or ""), **pinned)
             if row is None:
                 raise ConsentError("grant_not_found", 404)
             changed = repo.revoke_grant(conn, grant_id, reason="user_revoked", now=now)
-            row = repo.get_user_grant(conn, grant_id, str(caller.get("id") or "")) or row
+            row = repo.get_user_grant(conn, grant_id, str(caller.get("id") or ""), **pinned) or row
         if changed:
             self._audit(
                 "oauth_grant_revoke",

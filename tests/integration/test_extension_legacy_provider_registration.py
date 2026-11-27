@@ -264,7 +264,7 @@ def test_failed_health_gate_does_not_register_provider(pg_conn, scanned_notifica
     service = ExtensionBindingService(
         get_logger=lambda: fixture.store,
         get_operation_store=lambda: fixture.store,
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda row: str((row or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,

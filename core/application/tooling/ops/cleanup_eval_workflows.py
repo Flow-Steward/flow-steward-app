@@ -5,9 +5,9 @@ Usage:
   python -m core.application.tooling.ops.cleanup_eval_workflows -- --dry-run
   python -m core.application.tooling.ops.cleanup_eval_workflows -- --apply
   python -m core.application.tooling.ops.cleanup_eval_workflows -- --apply \
-    --sync-workflow-knowledge --account-id <account-id>
+    --sync-workflow-knowledge --account <account-id>
   python -m core.application.tooling.ops.cleanup_eval_workflows -- \
-    --prune-soft-deleted --apply --account-id <account-id>
+    --prune-soft-deleted --apply --account <account-id>
 """
 
 from __future__ import annotations
@@ -21,7 +21,28 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.application.tooling.ops.account_option import (  # noqa: E402
+    add_account_argument,
+    report_command_account,
+    resolve_command_account,
+)
+
 EVAL_WORKFLOW_PREFIX = "eval_"
+
+
+def _account(account_id: str = "") -> str:
+    """The one account a cleanup works on, as the command passes it.
+
+    Workflow identity is account-qualified (ADR 0020), so a workflow id alone may
+    name a workflow of every account; the cleanup never selects, deletes or prunes
+    across accounts, and never picks an account by itself (C5): ``main`` resolves
+    ``--account`` (the installation account when omitted, stated in the output).
+    """
+    from core.application.tooling.ops.account_option import require_account
+
+    return require_account(account_id, operation="eval workflow cleanup")
+
+
 EVAL_WORKFLOW_LIKE = r"eval\_%"
 
 
@@ -67,10 +88,11 @@ def _parse_args() -> argparse.Namespace:
             "requires --apply to delete."
         ),
     )
-    parser.add_argument(
-        "--account-id",
-        default="",
-        help="Account scope for --sync-workflow-knowledge.",
+    add_account_argument(
+        parser,
+        purpose=(
+            "whose eval workflows are cleaned up; also the scope of --sync-workflow-knowledge"
+        ),
     )
     parser.add_argument(
         "--tenant-id",
@@ -98,10 +120,8 @@ def _select_eval_workflow_ids_sql(
         "w.deleted_at IS NOT NULL" if only_deleted else "w.deleted_at IS NULL",
     ]
     params: list[Any] = [_escape_like_prefix(workflow_id_prefix)]
-    normalized_account_id = str(account_id or "").strip()
-    if normalized_account_id:
-        clauses.append("w.account_id::text = %s")
-        params.append(normalized_account_id)
+    clauses.append("w.account_id::text = %s")
+    params.append(_account(account_id))
     normalized_tenant_id = str(tenant_id or "").strip()
     normalized_project_id = str(project_id or "").strip()
     if normalized_project_id or normalized_tenant_id:
@@ -110,7 +130,7 @@ def _select_eval_workflow_ids_sql(
                 SELECT 1
                 FROM project_workflows pw
                 JOIN projects p ON p.id = pw.project_id
-                WHERE pw.workflow_id = w.workflow_id
+                WHERE pw.workflow_id = w.workflow_id AND pw.account_id = w.account_id
                   AND (%s = '' OR pw.project_id::text = %s)
                   AND (%s = '' OR p.tenant_id::text = %s)
             )"""
@@ -174,12 +194,13 @@ def _eval_workflow_ids(
     return _rows_to_workflow_ids(list(rows or []))
 
 
-def _hard_delete_eval_workflow_ids(db: Any, workflow_ids: list[str]) -> int:
+def _hard_delete_eval_workflow_ids(db: Any, workflow_ids: list[str], *, account_id: str) -> int:
     if not workflow_ids:
         return 0
+    account = _account(account_id)
     pruner = getattr(db, "prune_eval_workflows", None)
     if callable(pruner):
-        return int(pruner(workflow_ids) or 0)
+        return int(pruner(workflow_ids, account_id=account) or 0)
     transaction_factory = getattr(db, "_transaction", None)
     if not callable(transaction_factory):
         raise RuntimeError("Registry DB backend does not expose a SQL transaction for eval prune")
@@ -192,10 +213,17 @@ def _hard_delete_eval_workflow_ids(db: Any, workflow_ids: list[str]) -> int:
             assert_workflow_has_no_nonterminal_jobs(
                 db,
                 workflow_id=workflow_id,
+                account_id=account,
                 cursor=cur,
             )
-        cur.execute("DELETE FROM project_workflows WHERE workflow_id = ANY(%s)", (workflow_ids,))
-        cur.execute("DELETE FROM registry_workflows WHERE workflow_id = ANY(%s)", (workflow_ids,))
+        cur.execute(
+            "DELETE FROM project_workflows WHERE account_id = %s AND workflow_id = ANY(%s)",
+            (account, workflow_ids),
+        )
+        cur.execute(
+            "DELETE FROM registry_workflows WHERE account_id = %s AND workflow_id = ANY(%s)",
+            (account, workflow_ids),
+        )
         return int(getattr(cur, "rowcount", 0) or 0)
 
 
@@ -216,7 +244,9 @@ def _prune_soft_deleted_eval_workflows(
         workflow_id_prefix=workflow_id_prefix,
         only_deleted=True,
     )
-    pruned_count = _hard_delete_eval_workflow_ids(db, workflow_ids) if apply else 0
+    pruned_count = (
+        _hard_delete_eval_workflow_ids(db, workflow_ids, account_id=account_id) if apply else 0
+    )
     return {
         "dry_run": not apply,
         "prune_soft_deleted": True,
@@ -224,7 +254,7 @@ def _prune_soft_deleted_eval_workflows(
         "pruned_count": pruned_count,
         "matched_workflow_ids": workflow_ids,
         "pruned_workflow_ids": workflow_ids if apply else [],
-        "account_id": str(account_id or "").strip(),
+        "account_id": _account(account_id),
         "tenant_id": str(tenant_id or "").strip(),
         "project_id": str(project_id or "").strip(),
         "workflow_id_prefix": str(workflow_id_prefix or EVAL_WORKFLOW_PREFIX).strip(),
@@ -251,7 +281,7 @@ def _cleanup_eval_workflows(
     deleted: list[str] = []
     if apply:
         for workflow_id in workflow_ids:
-            db.delete_workflow(workflow_id, author=author)
+            db.delete_workflow(workflow_id, author=author, account_id=_account(account_id))
             deleted.append(workflow_id)
     return {
         "dry_run": not apply,
@@ -259,7 +289,7 @@ def _cleanup_eval_workflows(
         "deleted_count": len(deleted),
         "matched_workflow_ids": workflow_ids,
         "deleted_workflow_ids": deleted,
-        "account_id": str(account_id or "").strip(),
+        "account_id": _account(account_id),
         "tenant_id": str(tenant_id or "").strip(),
         "project_id": str(project_id or "").strip(),
         "workflow_id_prefix": str(workflow_id_prefix or EVAL_WORKFLOW_PREFIX).strip(),
@@ -281,7 +311,7 @@ def _sync_workflow_knowledge(
 
     normalized_account_id = str(account_id or "").strip()
     if not normalized_account_id:
-        raise ValueError("--account-id is required with --sync-workflow-knowledge")
+        raise ValueError("--account is required with --sync-workflow-knowledge")
     normalized_tenant_id = str(tenant_id or "").strip() or DEFAULT_TENANT_ID
     store = PostgresAgeWorkflowKnowledgeStore(dsn=getattr(db, "dsn", None))
     return sync_workflow_knowledge_catalog(
@@ -304,12 +334,14 @@ def main() -> int:
     if not rm.db_store:
         raise RuntimeError("Registry DB backend not configured")
 
+    account = resolve_command_account(args)
+    report_command_account(account)
     apply_cleanup = bool(args.apply) and not bool(args.dry_run)
     if bool(args.prune_soft_deleted):
         payload = _prune_soft_deleted_eval_workflows(
             rm.db_store,
             apply=apply_cleanup,
-            account_id=str(args.account_id or ""),
+            account_id=account.account_id,
             tenant_id=str(args.tenant_id or ""),
             project_id=str(args.project_id or ""),
         )
@@ -318,14 +350,14 @@ def main() -> int:
             rm.db_store,
             apply=apply_cleanup,
             author=str(args.author or "eval_cleanup").strip() or "eval_cleanup",
-            account_id=str(args.account_id or ""),
+            account_id=account.account_id,
             tenant_id=str(args.tenant_id or ""),
             project_id=str(args.project_id or ""),
         )
     if apply_cleanup and bool(args.sync_workflow_knowledge):
         payload["workflow_knowledge_sync"] = _sync_workflow_knowledge(
             db=rm.db_store,
-            account_id=str(args.account_id or ""),
+            account_id=account.account_id,
             tenant_id=str(args.tenant_id or ""),
             project_id=str(args.project_id or ""),
         )
@@ -334,6 +366,7 @@ def main() -> int:
             "skipped": True,
             "reason": "cleanup_dry_run",
         }
+    payload.update(account.as_payload())
     print(json.dumps(payload, indent=2, sort_keys=True, default=str))
     return 0
 

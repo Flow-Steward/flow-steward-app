@@ -6,7 +6,8 @@ import json
 import logging
 from typing import Any
 
-from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID, DEFAULT_WORKSPACE_ID
+from core.application.auth.config import DEFAULT_TENANT_ID, DEFAULT_WORKSPACE_ID
+from core.infrastructure.config.account_scope import require_account_id
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 
 
@@ -51,11 +52,7 @@ def create_job(
 ):
     status = _canonical_job_status(status)
     has_complexity_column = column_exists("jobs", "complexity")
-    project_scope = {
-        "tenant_id": DEFAULT_TENANT_ID,
-        "account_id": DEFAULT_ACCOUNT_ID,
-        "workspace_id": DEFAULT_WORKSPACE_ID,
-    }
+    project_scope: dict[str, str] = {}
     has_scope_columns = (
         column_exists("jobs", "tenant_id")
         and column_exists("jobs", "account_id")
@@ -73,11 +70,17 @@ def create_job(
                 (project_id,),
             )
             row = cur.fetchone() or {}
-            project_scope = {
-                "tenant_id": str(row.get("tenant_id") or DEFAULT_TENANT_ID),
-                "account_id": str(row.get("account_id") or DEFAULT_ACCOUNT_ID),
-                "workspace_id": str(row.get("workspace_id") or DEFAULT_WORKSPACE_ID),
-            }
+        # A job belongs to its project's account from the moment it is created;
+        # a project without one is refused, never filed under the default account.
+        project_scope = {
+            "tenant_id": str(row.get("tenant_id") or DEFAULT_TENANT_ID),
+            "account_id": require_account_id(
+                row.get("account_id"),
+                unit="job",
+                detail=f"project {project_id} has no account",
+            ),
+            "workspace_id": str(row.get("workspace_id") or DEFAULT_WORKSPACE_ID),
+        }
     columns = [
         "project_id",
         "task_id",

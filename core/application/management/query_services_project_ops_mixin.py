@@ -106,6 +106,14 @@ class ProjectQueryServiceOpsMixin:
                     or []
                 )
 
+        # A project reached only through workflow grants shows only their schedules
+        # and the runs of those schedules (ADR 0076 section 8b).
+        jobs = rows_in_workflow_scope_limit(
+            resolved, project.get("id") or project_id, [r for r in jobs if isinstance(r, dict)]
+        )
+        runs = rows_in_workflow_scope_limit(
+            resolved, project.get("id") or project_id, [r for r in runs if isinstance(r, dict)]
+        )
         normalized_jobs: list[dict[str, Any]] = []
         for row in jobs:
             if not isinstance(row, dict):
@@ -177,9 +185,12 @@ class ProjectQueryServiceOpsMixin:
             )
         except Exception as exc:
             raise ServiceUnavailableError("Notification route lookup failed") from exc
+        # A project reached only through workflow grants shows only their routes.
+        visible = rows_in_workflow_scope_limit(
+            resolved, project_id, [dict(row) for row in (rows or []) if isinstance(row, dict)]
+        )
         return ProjectNotificationRoutesView(
-            project_id=str(project_id),
-            notification_routes=[dict(row) for row in (rows or []) if isinstance(row, dict)],
+            project_id=str(project_id), notification_routes=visible
         )
 
     def get_notification_overview(
@@ -242,10 +253,14 @@ class ProjectQueryServiceOpsMixin:
                 rows = []
         except Exception as exc:
             raise ServiceUnavailableError("Notification delivery lookup failed") from exc
+        # A project reached only through workflow grants shows only their deliveries.
+        visible = rows_in_workflow_scope_limit(
+            resolved, project_id, [dict(row) for row in (rows or []) if isinstance(row, dict)]
+        )
         return ProjectNotificationDeliveriesView(
             project_id=str(project_id),
             job_id=normalized_job_id,
-            notification_deliveries=[dict(row) for row in (rows or []) if isinstance(row, dict)],
+            notification_deliveries=visible,
         )
 
     def get_workflow_preview(

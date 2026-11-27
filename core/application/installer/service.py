@@ -148,6 +148,35 @@ class InstallerService:
             log.close()
             raise
 
+    def _check_module_settings(
+        self, installed: InstallConfig | None, changes: dict[str, str]
+    ) -> None:
+        """Refuse ``--setting FS_MODULE_*=...`` that no active platform module declares."""
+        from core.application.lifecycle.module_settings import module_setting_names
+        from core.application.lifecycle.operator_settings import OperatorSettingError
+
+        requested = module_setting_names(changes)
+        if not requested:
+            return
+        try:
+            if installed is None:
+                raise OperatorSettingError(
+                    f"{', '.join(sorted(requested))}: platform-module settings exist only "
+                    "while an installed platform module declares them; install first."
+                )
+            self.gateway.check_module_settings(installed, requested)
+        except OperatorSettingError as exc:
+            raise InstallerFailure(
+                code="installer_setting_invalid",
+                cause=str(exc),
+                remediation=(
+                    "./install.sh --setting accepts a FS_MODULE_* name only while an active "
+                    "platform module declares it; run ./flow-steward config show for them."
+                ),
+                exit_code=3,
+                step="preflight",
+            ) from exc
+
     def _install_locked(
         self,
         requested_config: InstallConfig,
@@ -158,6 +187,12 @@ class InstallerService:
             checked_operator_settings(requested_config.operator_settings)
         evidence = self.gateway.inspect()
         classification = classify_installation(evidence)
+        if (
+            "operator_settings" in explicit_fields
+            and classification.kind is not InstallationKind.INSTALLED
+        ):
+            # No platform module is active before the installation exists.
+            self._check_module_settings(None, requested_config.operator_settings)
         operation_id = uuid4().hex
 
         try:
@@ -262,6 +297,7 @@ class InstallerService:
                     self.last_config = config
                 settings_change = ""
                 if "operator_settings" in explicit_fields:
+                    self._check_module_settings(config, requested_config.operator_settings)
                     applied = applied_operator_settings(config, requested_config.operator_settings)
                     if applied is not None:
                         candidate, environment = applied

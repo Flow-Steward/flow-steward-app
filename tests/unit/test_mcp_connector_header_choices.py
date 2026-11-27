@@ -22,7 +22,7 @@ from core.application.management.errors import (
 from core.application.management.mcp_connector_services import McpConnectorCommandService
 from core.application.management.scope import ScopeContext
 from core.application.secrets import reference_consumers
-from core.infrastructure.security import stored_secrets
+from core.infrastructure.security import secret_codec, stored_secrets
 
 CONNECTOR = "mcp_choice"
 TYPED_KEY = f"mcp_connector:{CONNECTOR}:header:gen1:0"
@@ -152,8 +152,16 @@ def _stable_dns(monkeypatch):
 @pytest.fixture
 def reader(monkeypatch) -> _Reader:
     fake = _Reader({CATALOG_KEY: "tok-123"})
-    monkeypatch.setattr(stored_secrets, "stored_secret_reader", lambda _conn: fake)
-    monkeypatch.setattr(header_secrets, "decrypt_secret", lambda value: f"plain:{value}")
+    real_reader = stored_secrets.stored_secret_reader
+
+    def host_reader(conn, *, prefetched_ciphertexts=None):
+        # A typed value comes with its scope check; the host reader decrypts it.
+        if prefetched_ciphertexts:
+            return real_reader(conn, prefetched_ciphertexts=prefetched_ciphertexts)
+        return fake
+
+    monkeypatch.setattr(stored_secrets, "stored_secret_reader", host_reader)
+    monkeypatch.setattr(secret_codec, "decrypt_secret", lambda value: f"plain:{value}")
     return fake
 
 
@@ -192,7 +200,7 @@ def test_a_key_that_is_not_a_catalog_secret_of_the_account_fails_closed(reader) 
 
 def test_a_missing_catalog_value_fails_closed(monkeypatch) -> None:
     fake = _Reader(error=stored_secrets.StoredSecretMissing(CATALOG_KEY))
-    monkeypatch.setattr(stored_secrets, "stored_secret_reader", lambda _conn: fake)
+    monkeypatch.setattr(stored_secrets, "stored_secret_reader", lambda _conn, **_kw: fake)
     conn = _Conn(catalog_keys={CATALOG_KEY})
     row = _row({"Authorization": header_secrets.catalog_ref_entry(CATALOG_KEY)})
 

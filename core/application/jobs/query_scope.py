@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from core.application.auth.config import DEFAULT_TENANT_ID
@@ -29,7 +30,36 @@ def job_scope_conditions(scope: JobQueryScope) -> tuple[list[str], list[Any]]:
         if allowed:
             conditions.append(f"{column} = ANY(%s)")
             params.append(sorted(allowed))
+    restricted = workflow_only_projects(scope)
+    if restricted:
+        # A person reaching a project only through workflow grants (ADR 0076 section
+        # 8a) sees only those workflows' runs there.
+        conditions.append(
+            "(NOT (j.project_id::text = ANY(%s::text[]))"
+            " OR (j.project_id::text || '|' || COALESCE(NULLIF(j.selected_workflow, ''), j.selected_workflow_key, ''))"
+            " = ANY(%s::text[]))"
+        )
+        params.append(sorted(restricted))
+        params.append(
+            sorted(
+                f"{project_id}|{workflow_id}"
+                for project_id, workflows in restricted.items()
+                for workflow_id in workflows
+            )
+        )
     return conditions, params
+
+
+def workflow_only_projects(scope: Any) -> dict[str, frozenset[str]]:
+    """``{project id: workflow ids}`` a limited person reaches only through workflow grants."""
+    raw = getattr(scope, "project_workflow_ids", None)
+    if not isinstance(raw, Mapping):
+        return {}
+    return {
+        str(project_id): frozenset(str(item) for item in workflows or ())
+        for project_id, workflows in raw.items()
+        if str(project_id or "").strip()
+    }
 
 
 def job_row_in_scope(scope: ScopeContext, row: dict[str, Any]) -> bool:
@@ -48,4 +78,7 @@ def job_row_in_scope(scope: ScopeContext, row: dict[str, Any]) -> bool:
             return False
         if allowed and actual not in allowed:
             return False
-    return True
+    restricted = workflow_only_projects(scope)
+    project_id = str(row.get("project_id") or "")
+    job_workflow = workflow or str(row.get("selected_workflow_key") or "")
+    return project_id not in restricted or job_workflow in restricted[project_id]

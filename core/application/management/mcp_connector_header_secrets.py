@@ -31,7 +31,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from core.application.auth.secrets import decrypt_secret, encrypt_secret
+from core.application.auth.secrets import encrypt_secret
 from core.application.management.errors import ServiceUnavailableError
 from core.infrastructure.db import model_provider_store
 
@@ -284,6 +284,48 @@ def _resolve_catalog_header(
     return f"{prefix}{value}"
 
 
+def _resolve_typed_header(
+    conn: Any,
+    *,
+    account_id: str,
+    project_id: str,
+    tenant_id: str,
+    connector_id: str,
+    name: str,
+    ref_key: str,
+) -> str:
+    """A typed value, read from the connector's own project-scoped key; fail closed.
+
+    The project-scoped statement is the scope check and reads the local value with
+    it; the host-selected stored-secret reader turns that into plaintext.
+    """
+    from core.infrastructure.security.stored_secrets import (
+        SecretReadContext,
+        StoredSecretError,
+        stored_secret_reader,
+    )
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT encrypted_value FROM secret_refs
+                WHERE account_id::text = %s AND project_id::text = %s
+                  AND tenant_id::text = %s AND ref_key = %s
+                LIMIT 1""",
+            (account_id, project_id, tenant_id, ref_key),
+        )
+        db_row = cur.fetchone()
+    encrypted_value = ""
+    if isinstance(db_row, dict):
+        encrypted_value = _text(db_row.get("encrypted_value"))
+    elif isinstance(db_row, (tuple, list)) and db_row:
+        encrypted_value = _text(db_row[0])
+    reader = stored_secret_reader(conn, prefetched_ciphertexts={ref_key: encrypted_value or None})
+    try:
+        return reader.read(SecretReadContext.for_account(account_id), ref_key)
+    except StoredSecretError as exc:
+        raise _missing_header(connector_id, name) from exc
+
+
 def resolve_connector_headers(conn: Any, row: dict[str, Any]) -> dict[str, str]:
     """Decrypt a stored connector's headers; fail closed when a secret is missing.
 
@@ -306,24 +348,17 @@ def resolve_connector_headers(conn: Any, row: dict[str, Any]) -> dict[str, str]:
     prefix = header_secret_ref_prefix(connector_id)
     headers: dict[str, str] = {}
     for name, ref_key in refs.items():
-        encrypted_value = ""
-        if ref_key.startswith(prefix):
-            with conn.cursor() as cur:
-                cur.execute(
-                    """SELECT encrypted_value FROM secret_refs
-                        WHERE account_id::text = %s AND project_id::text = %s
-                          AND tenant_id::text = %s AND ref_key = %s
-                        LIMIT 1""",
-                    (account_id, project_id, tenant_id, ref_key),
-                )
-                db_row = cur.fetchone()
-            if isinstance(db_row, dict):
-                encrypted_value = _text(db_row.get("encrypted_value"))
-            elif isinstance(db_row, (tuple, list)) and db_row:
-                encrypted_value = _text(db_row[0])
-        if not encrypted_value:
+        if not ref_key.startswith(prefix):
             raise _missing_header(connector_id, name)
-        headers[name] = decrypt_secret(encrypted_value)
+        headers[name] = _resolve_typed_header(
+            conn,
+            account_id=account_id,
+            project_id=project_id,
+            tenant_id=tenant_id,
+            connector_id=connector_id,
+            name=name,
+            ref_key=ref_key,
+        )
     for name, (storage_key, header_prefix) in chosen.items():
         headers[name] = _resolve_catalog_header(
             conn,

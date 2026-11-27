@@ -14,6 +14,7 @@ from core.application.auth.principal import (
     principal_allowed_project_ids,
     principal_allowed_workflow_ids,
     principal_allowed_workspace_ids,
+    principal_user_id,
 )
 
 
@@ -26,6 +27,11 @@ class ScopeContext(BaseModel):
     project_id: Any | None = None
     workflow_id: str | None = None
     actor_id: str | None = None
+    #: The ``users.id`` of the person acting: a signed-in user or a personal token or
+    #: OAuth grant of that user. ``None`` for service accounts, machine tokens, the
+    #: system actor, external callbacks and worker or other internal callers. Only
+    #: :func:`scope_from_principal` derives it from an authenticated principal.
+    user_id: str | None = None
     principal_type: str | None = None
     # Trusted authentication mechanism (local session, PAT, machine token,
     # external provider).  This is deliberately separate from principal_type
@@ -39,6 +45,18 @@ class ScopeContext(BaseModel):
     #: request by the auth middleware; ``None`` for service accounts, extension runtime
     #: and system actors (their own rules apply) and for scopes built outside a request.
     permissions: frozenset[str] | None = None
+    #: A person limited to chosen projects (ADR 0076 section 8): the permissions held in
+    #: each reachable project, the lower of the global and the scoped role. ``None``
+    #: when the person has no limit, and for every principal that is not a person.
+    project_permissions: dict[str, frozenset[str]] | None = None
+    #: A limited person's permissions in each visible workspace (ADR 0076 section 8a).
+    workspace_permissions: dict[str, frozenset[str]] | None = None
+    #: ``{project id: {workflow id: permissions}}`` of a limited person's workflow
+    #: grants: in that workflow they replace the project's permissions.
+    workflow_permissions: dict[str, dict[str, frozenset[str]]] | None = None
+    #: ``{project id: workflow ids}``: projects a limited person reaches only through
+    #: workflow grants; only these workflows and their runs are reachable there.
+    project_workflow_ids: dict[str, frozenset[str]] | None = None
     user_timezone: str | None = None
     project_timezone: str | None = None
 
@@ -100,6 +118,7 @@ def normalize_scope(
     project_id: Any = None,
     workflow_id: Any = None,
     actor_id: str | None = None,
+    user_id: str | None = None,
     principal_type: str | None = None,
     auth_source: str | None = None,
     allowed_workspace_ids: frozenset[str] | None = None,
@@ -109,6 +128,10 @@ def normalize_scope(
     user_timezone: str | None = None,
     project_timezone: str | None = None,
     permissions: frozenset[str] | None = None,
+    project_permissions: Mapping[str, Any] | None = None,
+    workspace_permissions: Mapping[str, Any] | None = None,
+    workflow_permissions: Mapping[str, Any] | None = None,
+    project_workflow_ids: Mapping[str, Any] | None = None,
 ) -> ScopeContext:
     base: dict[str, Any]
     if isinstance(scope, ScopeContext):
@@ -141,6 +164,9 @@ def normalize_scope(
             else base.get("actor_id") or base.get("actor") or base.get("username") or ""
         ).strip()
         or None
+    )
+    resolved_user_id = (
+        str(user_id if user_id is not None else base.get("user_id") or "").strip() or None
     )
     resolved_principal_type = (
         str(principal_type or base.get("principal_type") or "").strip() or None
@@ -188,6 +214,25 @@ def normalize_scope(
     resolved_permissions = _permission_keys(
         permissions if permissions is not None else base.get("permissions")
     )
+    resolved_project_permissions = _project_permission_keys(
+        project_permissions if project_permissions is not None else base.get("project_permissions")
+    )
+
+    resolved_workspace_permissions = _place_permission_keys(
+        workspace_permissions
+        if workspace_permissions is not None
+        else base.get("workspace_permissions")
+    )
+    resolved_workflow_permissions = _workflow_permission_keys(
+        workflow_permissions
+        if workflow_permissions is not None
+        else base.get("workflow_permissions")
+    )
+    resolved_project_workflow_ids = _project_workflow_ids(
+        project_workflow_ids
+        if project_workflow_ids is not None
+        else base.get("project_workflow_ids")
+    )
 
     resolved_user_tz = (
         str(
@@ -213,6 +258,7 @@ def normalize_scope(
         project_id=resolved_project_id,
         workflow_id=resolved_workflow_id,
         actor_id=resolved_actor_id,
+        user_id=resolved_user_id,
         principal_type=resolved_principal_type,
         auth_source=resolved_auth_source,
         allowed_workspace_ids=resolved_allowed_workspace_ids,
@@ -220,6 +266,10 @@ def normalize_scope(
         allowed_workflow_ids=resolved_allowed_workflow_ids,
         token_scopes=resolved_token_scopes,
         permissions=resolved_permissions,
+        project_permissions=resolved_project_permissions,
+        workspace_permissions=resolved_workspace_permissions,
+        workflow_permissions=resolved_workflow_permissions,
+        project_workflow_ids=resolved_project_workflow_ids,
         user_timezone=resolved_user_tz,
         project_timezone=resolved_project_tz,
     )
@@ -230,6 +280,53 @@ def _permission_keys(value: Any) -> frozenset[str] | None:
     if not isinstance(value, (list, tuple, set, frozenset)):
         return None
     return frozenset(str(item).strip() for item in value if str(item).strip())
+
+
+def _project_permission_keys(value: Any) -> dict[str, frozenset[str]] | None:
+    """``{project id: permission keys}`` of a limited person; ``None`` when not limited."""
+    if not isinstance(value, Mapping):
+        return None
+    result: dict[str, frozenset[str]] = {}
+    for project_id, keys in value.items():
+        normalized = coerce_optional_project_id(project_id)
+        if normalized is not None:
+            result[normalized] = _permission_keys(keys) or frozenset()
+    return result
+
+
+def _place_permission_keys(value: Any) -> dict[str, frozenset[str]] | None:
+    """``{place id: permission keys}``; ``None`` when not limited."""
+    if not isinstance(value, Mapping):
+        return None
+    return {
+        str(key).strip(): _permission_keys(keys) or frozenset()
+        for key, keys in value.items()
+        if str(key or "").strip()
+    }
+
+
+def _workflow_permission_keys(value: Any) -> dict[str, dict[str, frozenset[str]]] | None:
+    """``{project id: {workflow id: permission keys}}``; ``None`` when not limited."""
+    if not isinstance(value, Mapping):
+        return None
+    result: dict[str, dict[str, frozenset[str]]] = {}
+    for project_id, flows in value.items():
+        normalized = coerce_optional_project_id(project_id)
+        if normalized is not None and isinstance(flows, Mapping):
+            result[normalized] = _place_permission_keys(flows) or {}
+    return result
+
+
+def _project_workflow_ids(value: Any) -> dict[str, frozenset[str]] | None:
+    """``{project id: workflow ids}`` of workflow-only projects; ``None`` when not limited."""
+    if not isinstance(value, Mapping):
+        return None
+    result: dict[str, frozenset[str]] = {}
+    for project_id, flows in value.items():
+        normalized = coerce_optional_project_id(project_id)
+        if normalized is not None and isinstance(flows, (list, tuple, set, frozenset)):
+            result[normalized] = frozenset(str(item).strip() for item in flows if str(item).strip())
+    return result
 
 
 def scope_from_principal(
@@ -253,6 +350,7 @@ def scope_from_principal(
         project_id=project_id,
         workflow_id=workflow_id,
         actor_id=actor_id if actor_id is not None else actor_name,
+        user_id=principal_user_id(principal_dict) or "",
         principal_type=actor_type,
         auth_source=str((principal_dict or {}).get("auth_source") or "").strip() or None,
         allowed_workspace_ids=frozenset(principal_allowed_workspace_ids(principal_dict)),
@@ -260,6 +358,12 @@ def scope_from_principal(
         allowed_workflow_ids=frozenset(principal_allowed_workflow_ids(principal_dict)),
         user_timezone=user_tz,
         permissions=_permission_keys((principal_dict or {}).get("permissions")),
+        project_permissions=_project_permission_keys(
+            (principal_dict or {}).get("project_permissions")
+        ),
+        workspace_permissions=(principal_dict or {}).get("workspace_permissions"),
+        workflow_permissions=(principal_dict or {}).get("workflow_permissions"),
+        project_workflow_ids=(principal_dict or {}).get("project_workflow_ids"),
     )
 
 
@@ -274,8 +378,10 @@ def scope_from_state(
     if isinstance(state, Mapping):
         nested_scope = state.get("scope_context")
         if isinstance(nested_scope, Mapping):
+            # Runtime state is never a person's authentication: no user id from it.
             return normalize_scope(
                 nested_scope,
+                user_id="",
                 workspace_id=workspace_id
                 if workspace_id is not None
                 else state.get("workspace_id"),
@@ -307,5 +413,6 @@ def scope_from_state(
             or state_obj.get("actor_username")
             or state_obj.get("username")
         ),
+        user_id="",
         principal_type=str(state_obj.get("principal_type") or "").strip() or None,
     )

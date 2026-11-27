@@ -18,9 +18,11 @@
     "core/application/auth/config.py",
     "core/application/auth/csrf.py",
     "core/application/auth/enforce.py",
+    "core/application/auth/external_session_revocation.py",
     "core/application/auth/first_admin.py",
     "core/application/auth/first_admin_repository.py",
     "core/application/auth/inbound_oauth_policy.py",
+    "core/application/auth/installation_admin.py",
     "core/application/auth/local_credentials.py",
     "core/application/auth/mcp_connector_oauth.py",
     "core/application/auth/mcp_connector_oauth_policy.py",
@@ -28,6 +30,7 @@
     "core/application/auth/mcp_connector_oauth_repository.py",
     "core/application/auth/mcp_connector_oauth_rpc.py",
     "core/application/auth/mcp_connector_oauth_tokens.py",
+    "core/application/auth/membership_roles.py",
     "core/application/auth/mfa_codes.py",
     "core/application/auth/mfa_repository.py",
     "core/application/auth/mfa_service.py",
@@ -50,6 +53,7 @@
     "core/application/datasets/saved_query_errors.py",
     "core/application/datasets/structured_query_contract.py",
     "core/application/extensions/__init__.py",
+    "core/application/extensions/account_enablement.py",
     "core/application/extensions/artifact_dataset_operations.py",
     "core/application/extensions/artifact_dataset_plane_v2.py",
     "core/application/extensions/artifact_plane_values.py",
@@ -195,6 +199,7 @@
     "core/application/lifecycle/routing_policy.py",
     "core/application/lifecycle/runtime_installation_context.py",
     "core/application/management/__init__.py",
+    "core/application/management/approval_journal.py",
     "core/application/management/command_models.py",
     "core/application/management/command_models_api_envelopes.py",
     "core/application/management/command_models_api_inputs.py",
@@ -290,6 +295,7 @@
     "core/application/projects/connection_config_repository.py",
     "core/application/projects/connection_repository.py",
     "core/application/registry/__init__.py",
+    "core/application/registry/account_references.py",
     "core/application/registry/active_workflow_dependencies.py",
     "core/application/registry/agent_manifest.py",
     "core/application/registry/agent_registry.py",
@@ -344,6 +350,7 @@
     "core/application/registry/step_skill_resolution.py",
     "core/application/registry/tool_manifest.py",
     "core/application/registry/tool_registry.py",
+    "core/application/registry/workflow_account.py",
     "core/application/registry/workflow_contract.py",
     "core/application/registry/workflow_contract_service.py",
     "core/application/registry/workflow_contract_shape.py",
@@ -374,6 +381,7 @@
     "core/application/settings/llm_provider_model_repository.py",
     "core/application/settings/llm_provider_repository_rows.py",
     "core/application/settings/llm_verification_policy.py",
+    "core/application/settings/platform_contracts.py",
     "core/application/settings/ui_i18n.py",
     "core/application/tooling/__init__.py",
     "core/application/tooling/db/__init__.py",
@@ -454,6 +462,7 @@
     "core/entrypoints/cli/control_process.py",
     "core/infrastructure/__init__.py",
     "core/infrastructure/config/__init__.py",
+    "core/infrastructure/config/account_scope.py",
     "core/infrastructure/config/connection_strings.py",
     "core/infrastructure/config/env_registry.py",
     "core/infrastructure/config/extension_dependencies.py",
@@ -529,6 +538,7 @@
     "core/infrastructure/db/logger_scheduled_providers_mixin.py",
     "core/infrastructure/db/logger_trace_mixin.py",
     "core/infrastructure/db/mcp_connector_oauth_store.py",
+    "core/infrastructure/db/membership_role_reader.py",
     "core/infrastructure/db/model_provider_store.py",
     "core/infrastructure/db/oauth_refresh_lock.py",
     "core/infrastructure/db/platform_logger.py",
@@ -562,6 +572,7 @@
     "core/infrastructure/db/schema_contract_catalog.py",
     "core/infrastructure/db/schema_state.py",
     "core/infrastructure/db/schema_store.py",
+    "core/infrastructure/db/secret_backend_store.py",
     "core/infrastructure/db/secret_storage_store.py",
     "core/infrastructure/db/step_replay_store.py",
     "core/infrastructure/db/system_settings_store.py",
@@ -628,6 +639,12 @@
     "core/infrastructure/observability/process_metrics_runtime.py",
     "core/infrastructure/observability/runtime_logging.py",
     "core/infrastructure/observability/sentry.py",
+    "core/infrastructure/platform_modules/__init__.py",
+    "core/infrastructure/platform_modules/dependencies.py",
+    "core/infrastructure/platform_modules/loader.py",
+    "core/infrastructure/platform_modules/module_jobs.py",
+    "core/infrastructure/platform_modules/module_settings.py",
+    "core/infrastructure/platform_modules/role_status.py",
     "core/infrastructure/public_identity.py",
     "core/infrastructure/runtime/__init__.py",
     "core/infrastructure/runtime/app_factory.py",
@@ -674,6 +691,7 @@
     "core/infrastructure/security/hmac_signatures.py",
     "core/infrastructure/security/integration.py",
     "core/infrastructure/security/models.py",
+    "core/infrastructure/security/module_secret_codec.py",
     "core/infrastructure/security/path_containment.py",
     "core/infrastructure/security/policy.py",
     "core/infrastructure/security/policy_loader.py",
@@ -683,6 +701,8 @@
     "core/infrastructure/security/scanners/injection.py",
     "core/infrastructure/security/scanners/pii.py",
     "core/infrastructure/security/scanners/secrets.py",
+    "core/infrastructure/security/secret_backend_policy.py",
+    "core/infrastructure/security/secret_backends.py",
     "core/infrastructure/security/secret_codec.py",
     "core/infrastructure/security/secret_detection.py",
     "core/infrastructure/security/secret_reference.py",
@@ -779,6 +799,58 @@
     },
     {
       "path": "db/migrations/20261122150000_connection_credentials_from.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261125120000_approval_assignees_journal.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126120000_scoped_role_users.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126150000_external_sign_in.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126170000_registry_account_ownership.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126180000_workflow_account_identity.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126190000_registry_same_account_refs.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126200000_secret_backends.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261126210000_multilevel_scoped_roles.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127090000_account_scoped_registry_ops.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127130000_extensions_per_account.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127150000_account_scoped_block_keys.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127170000_roles_per_account.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127190000_account_invitations.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

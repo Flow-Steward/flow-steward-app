@@ -17,9 +17,14 @@ from core.application.auth.config import AUTH_PASSWORD_RESET_TTL_MINUTES, DEFAUL
 from core.application.auth.csrf import csrf_request_valid as default_csrf_request_valid
 from core.application.auth.email import normalize_email_address
 from core.application.auth.password import password_reset_token_hash
+from core.application.auth.permissions import ADMIN_ROLE
 from core.application.auth.principal import ResolvedPrincipal, is_token_scoped_principal
 from core.application.auth.rate_limit import ClearUserLoginFailures
 from core.application.auth.serve_auth_runtime import public_base_url
+from core.application.auth.user_admin.account_invitations import (
+    AccountInvitationService,
+)
+from core.application.auth.user_admin.account_members import AccountMemberService
 from core.application.auth.user_admin.command_service import UserAdminCommandService
 from core.application.auth.user_admin.contracts import (
     UserAuditContext,
@@ -29,8 +34,11 @@ from core.application.auth.user_admin.contracts import (
     UserSelectorInput,
     UserUpdateInput,
 )
+from core.application.auth.user_admin.member_lookup_throttle import LookupThrottledError
+from core.application.auth.user_admin.projection import limit_view_to_accounts
 from core.application.auth.user_admin.query_service import UserAdminQueryService
 from core.application.extensions.system_email import (
+    send_email_address_in_use_email,
     send_email_change_verification_email,
     send_signup_notification_email,
 )
@@ -43,7 +51,11 @@ from core.application.management.errors import (
     ServiceValidationError,
 )
 from core.application.management.requests import (
+    AuthAccountInvitationRequest,
+    AuthAccountMemberAddRequest,
     AuthEmailChangeRequest,
+    AuthInvitationAcceptRequest,
+    AuthInvitationTokenRequest,
     AuthUserAuthenticatorRequest,
     AuthUserCreateRequest,
     AuthUserProfileUpdateRequest,
@@ -65,6 +77,70 @@ _ERR_EMAIL_UNREACHABLE = "The new email address cannot receive a verification em
 
 EMAIL_CHANGE_SCHEMA_NOT_APPLIED = "Email change schema is not applied. Run migrations and retry."
 _auth_email_change_tables_available = _email_change_helpers.auth_email_change_tables_available
+
+
+#: The conflict ``create_user`` raises for an address someone already has.
+EMAIL_ALREADY_EXISTS_MESSAGE = "Email already exists"
+
+#: Refusal of a profile write from a session of external sign-in (ADR 0085, F).
+EXTERNAL_PROFILE_REFUSED_CODE = "external_session_profile_read_only"
+EXTERNAL_PROFILE_REFUSED_MESSAGE = (
+    "Your profile cannot be changed from this sign-in. Sign in with your password to change it."
+)
+#: Refusal of an invitation answer from a token: only the person, signed in, answers.
+INVITATIONS_NEED_SESSION_MESSAGE = (
+    "Open the invitation link in your browser while signed in to answer it."
+)
+
+
+def _external_session(request: Request, user: dict[str, Any] | None) -> bool:
+    """Whether the request runs in a session issued by external sign-in (ADR 0083)."""
+    sources = {
+        str(getattr(request.state, "auth_source", "") or "").strip().lower(),
+        str((user or {}).get("auth_source") or "").strip().lower(),
+    }
+    return "external" in sources
+
+
+def admin_managed_account_ids(admin_user: dict[str, Any] | None) -> list[str]:
+    """The accounts an administrator's user management may reach.
+
+    Roles are held per account (ADR 0085): only accounts where the person's role is
+    admin, never every account they are a member of. The acting account counts when
+    the request's roles (the acting account's) hold admin. An external sign-in is
+    pinned to the account that issued it (ADR 0083): its session manages that account
+    only, whatever other memberships the person holds. A personal access token or an
+    inbound OAuth grant acts in its own account only (ADR 0085 §4), so it manages that
+    account and no other.
+    """
+    if not isinstance(admin_user, dict):
+        return []
+    acting = str(admin_user.get("account_id") or "").strip()
+    acting_roles = {
+        str(role or "").strip().lower() for role in admin_user.get("roles") or [] if role
+    }
+    if str(
+        admin_user.get("auth_source") or ""
+    ).strip().lower() == "external" or is_token_scoped_principal(admin_user):
+        return [acting] if acting and ADMIN_ROLE in acting_roles else []
+    seen: set[str] = set()
+    account_ids: list[str] = []
+
+    def add(raw: Any) -> None:
+        account_id = str(raw or "").strip()
+        if account_id and account_id not in seen:
+            seen.add(account_id)
+            account_ids.append(account_id)
+
+    if ADMIN_ROLE in acting_roles:
+        add(acting)
+    for membership in admin_user.get("account_memberships") or []:
+        if (
+            isinstance(membership, dict)
+            and str(membership.get("role") or "").strip().lower() == ADMIN_ROLE
+        ):
+            add(membership.get("account_id"))
+    return account_ids
 
 
 def create_auth_users_router(
@@ -96,6 +172,8 @@ def create_auth_users_router(
     csrf_request_valid: Callable[[Request], bool] = default_csrf_request_valid,
     user_query_service: UserAdminQueryService | None = None,
     user_command_service: UserAdminCommandService | None = None,
+    account_member_service: AccountMemberService | None = None,
+    account_invitation_service: AccountInvitationService | None = None,
 ) -> APIRouter:
     del auth_user_column_exists
     router = APIRouter(tags=["auth-users"])
@@ -118,6 +196,15 @@ def create_auth_users_router(
         auth_login_clear_user_failures_fn=auth_login_clear_user_failures,
     )
 
+    account_member_service = account_member_service or AccountMemberService(
+        get_logger=get_logger_only,
+        audit=log_auth_audit_event,
+    )
+    account_invitation_service = account_invitation_service or AccountInvitationService(
+        get_logger=get_logger_only,
+        audit=log_auth_audit_event,
+    )
+
     service_error_statuses: tuple[tuple[type[ServiceError], int], ...] = (
         (ServiceValidationError, 400),
         (ServiceNotFoundError, 404),
@@ -129,6 +216,12 @@ def create_auth_users_router(
     def _user_service_error(exc: Exception) -> JSONResponse:
         # A service error's `message` is the text it was raised with for the
         # user; anything else goes through the logging generic responder.
+        if isinstance(exc, LookupThrottledError):
+            return JSONResponse(
+                {"error": exc.message},
+                status_code=429,
+                headers={"Retry-After": str(exc.retry_after)},
+            )
         for error_type, status_code in service_error_statuses:
             if isinstance(exc, error_type):
                 return JSONResponse({"error": exc.message}, status_code=status_code)
@@ -143,25 +236,7 @@ def create_auth_users_router(
             status_code=400,
         )
 
-    def _admin_managed_account_ids(admin_user: dict[str, Any] | None) -> list[str]:
-        if not isinstance(admin_user, dict):
-            return []
-        seen: set[str] = set()
-        account_ids: list[str] = []
-
-        def add(raw: Any) -> None:
-            account_id = str(raw or "").strip()
-            if account_id and account_id not in seen:
-                seen.add(account_id)
-                account_ids.append(account_id)
-
-        add(admin_user.get("account_id"))
-        for raw in admin_user.get("account_ids") or []:
-            add(raw)
-        for membership in admin_user.get("account_memberships") or []:
-            if isinstance(membership, dict):
-                add(membership.get("account_id"))
-        return account_ids
+    _admin_managed_account_ids = admin_managed_account_ids
 
     def _accounts_allowed(account_ids: list[str], managed_account_ids: list[str]) -> bool:
         managed = {str(account_id or "").strip() for account_id in managed_account_ids}
@@ -256,6 +331,13 @@ def create_auth_users_router(
         user_id = str(auth_user.get("id") or "").strip()
         if not user_id:
             return JSONResponse({"error": err_authentication_required}, status_code=401)
+        if _external_session(request, auth_user):
+            # The name is the person's in every account; a session pinned to one
+            # account by external sign-in does not change it (ADR 0083, ADR 0085).
+            return JSONResponse(
+                {"error": EXTERNAL_PROFILE_REFUSED_MESSAGE, "code": EXTERNAL_PROFILE_REFUSED_CODE},
+                status_code=403,
+            )
 
         display_name = (
             str(body.display_name or "").strip()
@@ -371,8 +453,13 @@ def create_auth_users_router(
                 status_code=400,
             )
         existing_user = get_user_by_username(bl, new_email)
-        if existing_user and str(existing_user.get("id") or "").strip() != user_id:
-            return JSONResponse({"error": "Email already exists"}, status_code=409)
+        # ADR 0085, C2: the answer never says whether the address is taken. A request
+        # for a taken address is stored and answered like any other; the address
+        # gets a notice that it is in use instead of a verification link, so the
+        # change can never be verified.
+        address_in_use = bool(
+            existing_user and str(existing_user.get("id") or "").strip() != user_id
+        )
 
         verification_token = secrets.token_urlsafe(48)
         verification_token_hash = password_reset_token_hash(verification_token)
@@ -392,15 +479,24 @@ def create_auth_users_router(
             return api_error_response(exc)
 
         try:
-            delivery = _email_change_helpers.dispatch_email_change_verification_email(
-                request,
-                user=auth_user,
-                new_email=new_email,
-                verification_token=verification_token,
-                expires_in_minutes=int(AUTH_PASSWORD_RESET_TTL_MINUTES),
-                public_base_url_fn=public_base_url,
-                send_email_change_verification_email_fn=send_email_change_verification_email,
-            )
+            if address_in_use:
+                delivery = dict(
+                    send_email_address_in_use_email(
+                        recipient=new_email,
+                        locale=resolve_ui_locale(request, auth_user=auth_user),
+                    )
+                    or {}
+                )
+            else:
+                delivery = _email_change_helpers.dispatch_email_change_verification_email(
+                    request,
+                    user=auth_user,
+                    new_email=new_email,
+                    verification_token=verification_token,
+                    expires_in_minutes=int(AUTH_PASSWORD_RESET_TTL_MINUTES),
+                    public_base_url_fn=public_base_url,
+                    send_email_change_verification_email_fn=send_email_change_verification_email,
+                )
         except Exception:
             delivery = {"ok": False, "reason": "dispatch_exception"}
         if not bool(delivery.get("ok")):
@@ -431,7 +527,7 @@ def create_auth_users_router(
             username=current_email,
             actor=current_email,
             status="accepted",
-            detail={"new_email": new_email},
+            detail={"new_email": new_email, "address_in_use": address_in_use},
         )
         expires_at = None
         if isinstance(inserted_row, dict):
@@ -649,6 +745,12 @@ def create_auth_users_router(
         elif normalized_active in {"0", "false", "inactive"}:
             active_filter = False
 
+        # The page lists the people of the account the administrator acts in, with
+        # their role there (ADR 0085); another managed account is listed by switching.
+        acting_account_id = str(admin_user.get("account_id") or "").strip() or None
+        if acting_account_id is not None and acting_account_id not in managed_account_ids:
+            return _account_access_denied()
+
         try:
             normalized_page = max(1, int(page or 1))
             normalized_per_page = max(1, min(int(per_page or 25), 200))
@@ -661,11 +763,20 @@ def create_auth_users_router(
                 role=normalized_role,
                 active_filter=active_filter,
                 managed_account_ids=managed_account_ids,
+                role_account_id=acting_account_id,
+                member_account_id=acting_account_id,
             )
         except Exception as e:
             return _user_service_error(e)
 
-        users = [user.model_dump(mode="json") for user in result.users]
+        users = [
+            limit_view_to_accounts(
+                user.model_dump(mode="json"),
+                managed_account_ids,
+                role_account_id=acting_account_id,
+            )
+            for user in result.users
+        ]
         return {
             "users": users,
             "total": int(result.total),
@@ -673,6 +784,195 @@ def create_auth_users_router(
             "per_page": normalized_per_page,
             "total_pages": max(1, -(-int(result.total) // normalized_per_page)),
         }
+
+    def _member_admin(request: Request) -> dict[str, Any] | JSONResponse:
+        """The administrator of the acting account, or the refusal to answer."""
+        if not local_auth_enabled():
+            return JSONResponse({"error": err_local_auth_disabled}, status_code=400)
+        bl = get_logger_only()
+        if not bl:
+            return JSONResponse({"error": err_database_not_configured}, status_code=503)
+        if not auth_tables_available(bl):
+            return JSONResponse({"error": err_auth_tables_not_available}, status_code=503)
+        try:
+            return require_authenticated_user(request, required_roles=auth_admin_roles)
+        except PermissionError:
+            return JSONResponse({"error": err_admin_role_required}, status_code=403)
+
+    @router.get("/api/auth/users/candidates")
+    def api_auth_users_candidates(request: Request, q: Annotated[str, Query()] = ""):
+        """People who may be added to the acting account (ADR 0085)."""
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            people = account_member_service.candidates(
+                query=q,
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+                admin_user_id=str(admin_user.get("id") or ""),
+            )
+        except Exception as e:
+            return _user_service_error(e)
+        return {"people": people}
+
+    @router.post("/api/auth/users/{user_id}/membership")
+    async def api_auth_users_membership_add(
+        user_id: UUID, request: Request, body: AuthAccountMemberAddRequest
+    ):
+        """Add an existing person to the acting account with one role."""
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            return account_member_service.add(
+                user_id=str(user_id),
+                role=body.role,
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+                actor=str(admin_user.get("username") or "admin"),
+            )
+        except Exception as e:
+            return _user_service_error(e)
+
+    @router.post("/api/auth/users/invitations")
+    async def api_auth_users_invite(request: Request, body: AuthAccountInvitationRequest):
+        """Invite a person to the acting account by their exact email (ADR 0085).
+
+        The answer is the same whether or not the person exists.
+        """
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            return account_invitation_service.invite(
+                email=body.email,
+                role=body.role,
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+                admin_user_id=str(admin_user.get("id") or ""),
+                actor=str(admin_user.get("username") or "admin"),
+                link_base=_invitation_link_base(request),
+                locale=resolve_ui_locale(request),
+            )
+        except Exception as e:
+            return _user_service_error(e)
+
+    @router.get("/api/auth/users/invitations")
+    def api_auth_users_invitations(request: Request):
+        """The acting account's open invitations, each email as the administrator typed it.
+
+        Every invitation sent is listed, so the list never says whether a person exists.
+        """
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            invitations = account_invitation_service.sent(
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+            )
+        except Exception as e:
+            return _user_service_error(e)
+        return {"invitations": invitations}
+
+    @router.post("/api/auth/users/invitations/{invitation_id}/cancel")
+    async def api_auth_users_invitation_cancel(invitation_id: UUID, request: Request):
+        """Cancel an open invitation of the acting account."""
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            return account_invitation_service.cancel(
+                invitation_id=str(invitation_id),
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+                actor=str(admin_user.get("username") or "admin"),
+            )
+        except Exception as e:
+            return _user_service_error(e)
+
+    def _invitation_link_base(request: Request) -> str:
+        """Where an invitation link points: the public URL, else this request's origin."""
+        return public_base_url() or str(request.base_url or "").strip().rstrip("/")
+
+    def _invited_person(request: Request) -> dict[str, Any] | JSONResponse:
+        """The signed-in person who opened an invitation link (ADR 0085, C1).
+
+        Any session that is the person counts: a password sign-in or an external
+        sign-in, also one in an account where they have no role (P5). A personal access
+        token, an OAuth grant or a service account never answers an invitation.
+        """
+        if not (local_auth_enabled() or external_auth_enabled()):
+            return JSONResponse({"error": err_local_auth_disabled}, status_code=400)
+        try:
+            user = require_authenticated_user(request)
+        except PermissionError:
+            return JSONResponse({"error": err_authentication_required}, status_code=401)
+        if is_token_scoped_principal(user) or not str(user.get("id") or "").strip():
+            return JSONResponse({"error": INVITATIONS_NEED_SESSION_MESSAGE}, status_code=403)
+        return user
+
+    @router.post("/api/auth/invitations/preview")
+    async def api_auth_invitation_preview(request: Request, body: AuthInvitationTokenRequest):
+        """What the opened link invites to: company, role, who invited and until when."""
+        user = _invited_person(request)
+        if isinstance(user, JSONResponse):
+            return user
+        try:
+            return account_invitation_service.preview(token=body.token)
+        except Exception as e:
+            return _user_service_error(e)
+
+    @router.post("/api/auth/invitations/accept")
+    async def api_auth_invitation_accept(request: Request, body: AuthInvitationAcceptRequest):
+        """Join the account of the opened link with the role the person was shown."""
+        user = _invited_person(request)
+        if isinstance(user, JSONResponse):
+            return user
+        try:
+            return account_invitation_service.decide(
+                token=body.token,
+                user_id=str(user.get("id") or ""),
+                username=str(user.get("username") or ""),
+                accept=True,
+                role=body.role,
+            )
+        except Exception as e:
+            return _user_service_error(e)
+
+    @router.post("/api/auth/invitations/decline")
+    async def api_auth_invitation_decline(request: Request, body: AuthInvitationTokenRequest):
+        """Decline the opened link's invitation; no membership is created."""
+        user = _invited_person(request)
+        if isinstance(user, JSONResponse):
+            return user
+        try:
+            return account_invitation_service.decide(
+                token=body.token,
+                user_id=str(user.get("id") or ""),
+                username=str(user.get("username") or ""),
+                accept=False,
+            )
+        except Exception as e:
+            return _user_service_error(e)
+
+    @router.delete("/api/auth/users/{user_id}/membership")
+    async def api_auth_users_membership_remove(user_id: UUID, request: Request):
+        """Remove a person from the acting account; the person stays elsewhere."""
+        admin_user = _member_admin(request)
+        if isinstance(admin_user, JSONResponse):
+            return admin_user
+        try:
+            return account_member_service.remove(
+                user_id=str(user_id),
+                account_id=str(admin_user.get("account_id") or ""),
+                managed_account_ids=_admin_managed_account_ids(admin_user),
+                actor_user_id=str(admin_user.get("id") or ""),
+                actor=str(admin_user.get("username") or "admin"),
+            )
+        except Exception as e:
+            return _user_service_error(e)
 
     @router.post("/api/auth/users")
     async def api_auth_users_create(request: Request, body: AuthUserCreateRequest):
@@ -725,10 +1025,32 @@ def create_auth_users_router(
                     source="api",
                 ),
             )
+        except ServiceConflictError as conflict:
+            if conflict.message != EMAIL_ALREADY_EXISTS_MESSAGE:
+                return _user_service_error(conflict)
+            # ADR 0085, C2: an address someone already has is never confirmed. The
+            # person is invited instead, and the answer is the invitation's own.
+            try:
+                return account_invitation_service.invite(
+                    email=body.email,
+                    role=body.requested_role() or "viewer",
+                    account_id=primary_account_id,
+                    managed_account_ids=managed_account_ids,
+                    admin_user_id=str(admin_user.get("id") or ""),
+                    actor=str(admin_user.get("username") or "admin"),
+                    link_base=_invitation_link_base(request),
+                    locale=resolve_ui_locale(request),
+                )
+            except Exception as e:
+                return _user_service_error(e)
         except Exception as e:
             return _user_service_error(e)
         return {
-            "user": result.user.model_dump(mode="json"),
+            "user": limit_view_to_accounts(
+                result.user.model_dump(mode="json"),
+                managed_account_ids,
+                role_account_id=primary_account_id,
+            ),
             "warnings": list(result.warnings),
         }
 
@@ -756,6 +1078,16 @@ def create_auth_users_router(
                 password=body.password,
                 must_change_password=body.must_change_password,
                 role=body.requested_role(),
+                # A role is set in one account (ADR 0085): the named one, else the
+                # account the administrator acts in.
+                role_account_id=(
+                    str(body.role_account_id or "").strip()
+                    or str(admin_user.get("account_id") or "").strip()
+                    or None
+                )
+                if body.requested_role() is not None
+                else None,
+                actor_user_id=str(admin_user.get("id") or "").strip() or None,
                 account_ids=body.account_ids,
                 account_id=body.primary_account_id,
                 actor=str(admin_user.get("username") or "admin"),
@@ -773,7 +1105,18 @@ def create_auth_users_router(
             )
         except Exception as e:
             return _user_service_error(e)
-        return {"user": result.user.model_dump(mode="json")}
+        # The role shown is the person's role in the account the change named, or the
+        # acting one: never a role of an account the administrator does not manage.
+        return {
+            "user": limit_view_to_accounts(
+                result.user.model_dump(mode="json"),
+                managed_account_ids,
+                role_account_id=(
+                    str(body.role_account_id or "").strip()
+                    or str(admin_user.get("account_id") or "").strip()
+                ),
+            )
+        }
 
     @router.post("/api/auth/users/{user_id}/unlock")
     async def api_auth_users_unlock(user_id: UUID, request: Request):

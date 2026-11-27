@@ -721,7 +721,10 @@ def test_initial_provider_timeout_public_error_associates_only_the_real_host_eff
         get_logger=lambda: context.bl,
         get_operation_store=lambda: context.bl,
         get_project_by_id=context.bl.get_project,
-        resolve_extension_runtime_record=lambda _extension_id: (context.extension, context.bl),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            context.extension,
+            context.bl,
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
     )

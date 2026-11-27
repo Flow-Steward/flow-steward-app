@@ -75,8 +75,13 @@ def get_workflow_history(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ):
     db = _get_db()
-    _resolve_workflow_scope_target(db, request, workflow_id)
-    entries = db.get_entity_history(entity_type="workflow", entity_id=workflow_id, limit=limit)
+    _workflow, scope = _resolve_workflow_scope_target(db, request, workflow_id)
+    entries = db.get_entity_history(
+        entity_type="workflow",
+        entity_id=workflow_id,
+        limit=limit,
+        account_id=scope.account_id,
+    )
     return _get_workflow_portability_service(db).redact_workflow_history(
         entries,
         workflow_id=workflow_id,
@@ -96,7 +101,12 @@ def get_workflow_history(
 )
 def get_workflow_revision(workflow_id: str, revision: int, request: Request):
     db = _get_db()
-    entry = db.get_entity_revision(entity_type="workflow", entity_id=workflow_id, revision=revision)
+    entry = db.get_entity_revision(
+        entity_type="workflow",
+        entity_id=workflow_id,
+        revision=revision,
+        account_id=_request_scope(request).account_id,
+    )
     if not entry:
         raise HTTPException(
             status_code=404, detail=f"Revision {revision} not found for workflow '{workflow_id}'"
@@ -133,7 +143,7 @@ def get_workflow_diff(
 ):
     db = _get_db()
     try:
-        _resolve_workflow_scope_target(
+        _workflow, scope = _resolve_workflow_scope_target(
             db,
             request,
             workflow_id,
@@ -153,6 +163,7 @@ def get_workflow_diff(
                     entity_id=workflow_id,
                     from_entry_id=from_entry_id,
                     to_entry_id=to_entry_id,
+                    account_id=scope.account_id,
                 )
             )
         )
@@ -215,7 +226,12 @@ def restore_workflow_history_entry(
             workflow_id, entry_id=entry_id, expected_revision=expected_revision
         )
         guarded_revision = _workflow_revision_guard(expected_revision, workflow)
-        entry = db.get_changelog_entry(entry_id, entity_type="workflow", entity_id=workflow_id)
+        entry = db.get_changelog_entry(
+            entry_id,
+            entity_type="workflow",
+            entity_id=workflow_id,
+            account_id=scope.account_id,
+        )
         if not entry:
             raise HTTPException(
                 status_code=404,

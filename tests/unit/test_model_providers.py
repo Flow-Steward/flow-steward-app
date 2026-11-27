@@ -163,7 +163,9 @@ class TestResolveNamedProvider:
                 "core.infrastructure.db.platform_stores.PlatformConnectionStore.get_shared_instance",
                 return_value=logger,
             ),
-            patch("core.application.auth.secrets.decrypt_secret", return_value="plain-key"),
+            patch(
+                "core.infrastructure.security.secret_codec.decrypt_secret", return_value="plain-key"
+            ),
         ):
             result = mp._resolve_named_provider("provider-1", account_id="acc_alpha")
 
@@ -229,7 +231,9 @@ class TestResolveNamedProvider:
                 "core.infrastructure.db.platform_stores.PlatformConnectionStore.get_shared_instance",
                 return_value=logger,
             ),
-            patch("core.application.auth.secrets.decrypt_secret", return_value="plain-key"),
+            patch(
+                "core.infrastructure.security.secret_codec.decrypt_secret", return_value="plain-key"
+            ),
         ):
             result = mp._resolve_named_provider("provider-1", account_id="acc_alpha")
 

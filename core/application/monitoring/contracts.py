@@ -78,6 +78,65 @@ class CheckStatus(_ClosedValue):
         return self
 
 
+#: Bounds of the module failures one report carries: a heartbeat stays under 16 KiB.
+MAX_REPORTED_MODULE_FAILURES = 16
+_MODULE_FAILURE_ERROR_CHARS = 500
+
+
+class PlatformModuleFailure(_ClosedValue):
+    """A platform module this process skipped at start (ADR 0082 §5).
+
+    ``load_error`` is the loader's short, redacted reason; the traceback stays in
+    the process log.
+    """
+
+    id: str = Field(min_length=1, max_length=128)
+    version: str = Field(default="", max_length=64)
+    # The loader's own record says ``failed``; a report may carry it or leave it out.
+    status: str = Field(default="failed", max_length=32)
+    load_error: str = Field(default="", max_length=_MODULE_FAILURE_ERROR_CHARS)
+
+
+def platform_module_failures(records: object) -> tuple[PlatformModuleFailure, ...]:
+    """Bounded failure records from loader output; malformed entries are left out."""
+    if not isinstance(records, (list, tuple)):
+        return ()
+    failures: list[PlatformModuleFailure] = []
+    for raw in records:
+        if len(failures) >= MAX_REPORTED_MODULE_FAILURES:
+            break
+        if isinstance(raw, PlatformModuleFailure):
+            failures.append(raw)
+            continue
+        status: object = "failed"
+        if isinstance(raw, (list, tuple)) and len(raw) == 3:
+            module_id, version, load_error = raw
+        elif isinstance(raw, (list, tuple)) and len(raw) == 4:
+            module_id, version, load_error, status = raw
+        elif isinstance(raw, dict):
+            module_id = raw.get("id")
+            version = raw.get("version")
+            load_error = raw.get("load_error")
+            status = raw.get("status") or "failed"
+        else:
+            continue
+        module_id = str(module_id or "").strip()[:128]
+        if not module_id:
+            continue
+        error = str(load_error or "").strip()
+        if len(error) > _MODULE_FAILURE_ERROR_CHARS:
+            error = error[: _MODULE_FAILURE_ERROR_CHARS - 3] + "..."
+        failures.append(
+            PlatformModuleFailure(
+                id=module_id,
+                version=str(version or "").strip()[:64],
+                status=str(status or "failed").strip()[:32] or "failed",
+                load_error=error,
+            )
+        )
+    return tuple(failures)
+
+
 class RuntimeStatusPayload(_ClosedValue):
     type: Literal["runtime_status"]
     version: Annotated[int, Field(strict=True, ge=1, le=1)]
@@ -106,6 +165,10 @@ class RuntimeStatusPayload(_ClosedValue):
     #: When the reporting process or observer started; lets a newer start of the
     #: same role replace an older one instead of leaving it behind as "stale".
     started_at: datetime | None = None
+    #: Platform modules this process skipped at start; empty when all loaded.
+    platform_module_failures: tuple[PlatformModuleFailure, ...] = Field(
+        default=(), max_length=MAX_REPORTED_MODULE_FAILURES
+    )
 
     @field_validator("started_at")
     @classmethod
@@ -308,6 +371,7 @@ def build_observation_reports(
                     source_sequence=row.source_sequence,
                     observation_kind=row.observation_kind,
                     started_at=row.started_at,
+                    platform_module_failures=platform_module_failures(row.platform_module_failures),
                 ),
             )
         )

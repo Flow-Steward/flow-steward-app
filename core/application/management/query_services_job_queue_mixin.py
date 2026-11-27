@@ -8,6 +8,12 @@ from core.application.jobs.query_scope import job_row_in_scope
 from core.application.observability_vocabulary import job_status_filter_statuses
 from core.application.workflows.workflow_run_title import job_run_title
 
+from .approval_assignees import (
+    ApprovalAssigneeRepository,
+    assignment_view,
+    job_workflow_ids,
+    step_approvers,
+)
 from .query_models import AwaitingApprovalJobsPageView
 from .query_services_common import *  # NOSONAR
 from .query_services_job_core_mixin import job_page_window, job_status_filter_values
@@ -33,6 +39,48 @@ def _review_roots(bl: Any, job_ids: list[str]) -> dict[str, dict[str, Any]]:
     return roots if isinstance(roots, dict) else {}
 
 
+def _queue_row_workflow_ids(row: dict[str, Any]) -> list[str]:
+    return job_workflow_ids(
+        row, meta={"selected_workflow_id": row.get("meta_selected_workflow_id")}
+    )
+
+
+def _queue_assignments(
+    bl: Any, scope: ScopeContext, rows: list[dict[str, Any]]
+) -> list[dict[str, Any] | None]:
+    """``can_decide`` and ``approvers`` of each waiting approval (ADR 0082).
+
+    One query for the whole queue, whatever its length. The step is the one the
+    store reports waiting (``approval_step_id``); the workflow ids are the job's
+    own, as in the decision check. When the assignments cannot be read every row
+    keeps the fields absent and the decision check still applies.
+    """
+    conn = getattr(bl, "conn", None)
+    if not rows or conn is None or not callable(getattr(conn, "cursor", None)):
+        return [None] * len(rows)
+    workflow_ids = [_queue_row_workflow_ids(row) for row in rows]
+    try:
+        grouped = ApprovalAssigneeRepository(
+            conn, account_id=getattr(scope, "account_id", None)
+        ).approvers_by_step({workflow for ids in workflow_ids for workflow in ids})
+    except Exception as exc:
+        logger.warning("Could not read the approvers of the approvals queue: %s", exc)
+        return [None] * len(rows)
+    return [
+        assignment_view(
+            scope,
+            step_approvers(
+                grouped,
+                workflow_ids=ids,
+                step_id=str(row.get("approval_step_id") or ""),
+            ),
+            project_id=row.get("project_id"),
+            workflow_id=ids[0] if ids else None,
+        )
+        for row, ids in zip(rows, workflow_ids, strict=True)
+    ]
+
+
 class JobQueryServiceQueueMixin:
     def list_awaiting_approval_jobs(
         self, *, scope: ScopeContext | None = None
@@ -51,11 +99,15 @@ class JobQueryServiceQueueMixin:
             # not. Fail loudly instead (AUDIT-038 symptom d).
             logger.warning("list_awaiting_approval_jobs failed: %s", exc)
             raise ServiceUnavailableError("Approvals queue unavailable") from exc
-        rows = [
-            self._serialize_awaiting_approval_job_row(dict(job))
+        raw_rows = [
+            dict(job)
             for job in (jobs or [])
             if isinstance(job, dict) and job_row_in_scope(resolved, job)
         ]
+        rows = [self._serialize_awaiting_approval_job_row(dict(job)) for job in raw_rows]
+        for row, assignment in zip(rows, _queue_assignments(bl, resolved, raw_rows), strict=True):
+            if assignment is not None:
+                row.update(assignment)
         roots = _review_roots(bl, [str(row.get("id") or "") for row in rows])
         for row in rows:
             root = roots.get(str(row.get("id") or ""))
@@ -129,6 +181,13 @@ class JobQueryServiceQueueMixin:
             filters["workflow_id"] = str(resolved.workflow_id)
         if resolved.allowed_workflow_ids:
             filters["workflow_ids"] = sorted(resolved.allowed_workflow_ids)
+        limited_workflows = (resolved.project_workflow_ids or {}).get(str(normalized_project_id))
+        if limited_workflows is not None:
+            # A project reached only through workflow grants lists only their runs.
+            allowed_here = set(limited_workflows)
+            if resolved.allowed_workflow_ids:
+                allowed_here &= set(resolved.allowed_workflow_ids)
+            filters["workflow_ids"] = sorted(allowed_here) or [""]
         rows = (
             bl.get_jobs(normalized_project_id, limit=normalized_per_page, offset=offset, **filters)
             if hasattr(bl, "get_jobs")

@@ -6,6 +6,8 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 
 def test_reported_worker_subprocesses_are_returned_when_proc_scan_is_blind(monkeypatch):
     from core.application.monitoring import processes as monitoring
@@ -246,7 +248,7 @@ def test_kill_process_route_calls_service_for_admin(monkeypatch) -> None:
         "terminate_process",
         lambda pid: {"ok": True, "pid": pid},
     )
-    client = _process_route_client({"id": 1, "roles": ["admin"]})
+    client = _process_route_client({"account_id": DEFAULT_ACCOUNT_ID, "id": 1, "roles": ["admin"]})
 
     response = client.post("/api/processes/123/kill")
 

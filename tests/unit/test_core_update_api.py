@@ -13,6 +13,7 @@ from core.application.auth.request_principal_runtime import (
     roles_intersect,
 )
 from core.application.release.update_notice import CoreUpdateStatus
+from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 from core.entrypoints.api.system_core_updates import create_system_core_updates_router
 
 
@@ -21,7 +22,10 @@ def admin(request: Request, *, required_roles=None):
     return require_authenticated_user(
         request,
         required_roles=required_roles,
-        request_auth_user_payload_fn=lambda _request: {"roles": [role]} if role else None,
+        # A signed-in person always carries an account; the installation's own one here.
+        request_auth_user_payload_fn=lambda _request: (
+            {"roles": [role], "account_id": DEFAULT_ACCOUNT_ID} if role else None
+        ),
         roles_intersect_fn=roles_intersect,
         err_authentication_required="Authentication required",
     )

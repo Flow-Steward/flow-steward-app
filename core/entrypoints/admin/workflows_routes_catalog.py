@@ -136,7 +136,6 @@ def create_workflow_from_template_catalog(
 ):
     """Create one disabled draft from a catalog entry via portability apply."""
     scope = _request_scope(request)
-    require_default_registry_account(scope)
     if body.target_workflow_id:
         _enforce_workflow_scope(scope, body.target_workflow_id)
     _enforce_import_resolution_scope(_get_db(), scope, body.resolutions)

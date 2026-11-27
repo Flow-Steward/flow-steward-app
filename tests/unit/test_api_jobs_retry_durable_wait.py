@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.responses import JSONResponse
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.management.requests import RecoveryActionRequest
 from core.entrypoints.api.jobs import create_api_jobs_router
 
@@ -56,7 +57,11 @@ def test_retry_of_a_run_paused_on_a_durable_wait_requires_force(status: str) -> 
     enqueued: list[dict] = []
     job = {"id": "job-1", "status": status, "project_id": "project-1", "task_id": "t-1"}
     endpoint = _recover_endpoint(job, enqueued)
-    request = SimpleNamespace(state=SimpleNamespace(auth_user={"id": 1, "roles": ["admin"]}))
+    request = SimpleNamespace(
+        state=SimpleNamespace(
+            auth_user={"account_id": DEFAULT_ACCOUNT_ID, "id": 1, "roles": ["admin"]}
+        )
+    )
 
     response = asyncio.run(
         endpoint("job-1", RecoveryActionRequest(action="retry", reason="retry test"), request)

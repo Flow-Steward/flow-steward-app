@@ -10,6 +10,10 @@ from core.application.registry.db_store_workflows_mixin import (
     RegistryDBStoreWorkflowsMixin,
 )
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class _Cursor:
     def __init__(self, *, mutation_rowcount: int = 1, toggle_row: dict | None = None) -> None:

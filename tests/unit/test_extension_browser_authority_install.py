@@ -534,7 +534,7 @@ def test_real_cli_enable_binding_cannot_bypass_browser_authority_gate(tmp_path: 
     binding = ExtensionBindingService(
         get_logger=lambda: bl,
         get_operation_store=lambda: bl,
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,

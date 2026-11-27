@@ -23,6 +23,10 @@ from core.application.jobs.scheduled_job_concurrency import (
 from core.application.jobs.scheduled_job_outcomes import update_scheduled_job_outcome
 from core.application.orchestration.input_sanitization import sanitize_external_input
 from core.application.workflows.workflow_start_runtime import (
+    SCHEDULED_RUN_REQUESTED_BY_KEY,
+    STARTED_BY_META_KEY,
+    automated_run_started_by,
+    run_account_scope,
     workflow_run_summary,
     workflow_run_summary_metadata,
 )
@@ -278,7 +282,21 @@ def _enqueue_scheduled_job(
     )
 
 
-def _run_scheduled_job_once(
+def _run_scheduled_job_once(bl, scheduled_job: dict, cfg: ControlConfig, **kwargs: Any) -> dict:
+    """Run one schedule in its own account.
+
+    Every schedule carries its account (``scheduled_jobs.account_id`` is NOT NULL);
+    the workflow, its interface, defaults and secrets are resolved in that account
+    only, never in the default account (ADR 0020, C4c).
+    """
+    account_id = str((scheduled_job or {}).get("account_id") or "").strip()
+    if not account_id:
+        return _run_scheduled_job_once_in_account(bl, scheduled_job, cfg, **kwargs)
+    with run_account_scope(account_id):
+        return _run_scheduled_job_once_in_account(bl, scheduled_job, cfg, **kwargs)
+
+
+def _run_scheduled_job_once_in_account(
     bl,
     scheduled_job: dict,
     cfg: ControlConfig,
@@ -515,6 +533,13 @@ def _run_scheduled_job_once(
     if schedule_name:
         # The schedule's name titles its runs (meta.run_title, see workflow_run_title).
         meta["run_label"] = schedule_name
+    requested_by = scheduled_job.get(SCHEDULED_RUN_REQUESTED_BY_KEY)
+    # A "run now" names who asked for it; a due run names its schedule at enqueue.
+    meta[STARTED_BY_META_KEY] = (
+        dict(requested_by)
+        if isinstance(requested_by, dict) and str(requested_by.get("id") or "").strip()
+        else automated_run_started_by(meta, task_source="schedule")
+    )
 
     extra_state["inputs"] = workflow_inputs
 

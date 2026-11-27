@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
+from core.application.registry.workflow_account import account_scope_if_named
 from core.application.workflows.workflow_trigger_guards import provider_trigger_admission
 from core.entrypoints.api.provider_webhook_callbacks import (
     _MESSAGE_INVALID_WEBHOOK_SIGNATURE_FOR_ROUTING_PROJECT,
@@ -142,7 +143,12 @@ def handle_workflow_trigger_webhook(
             status_code=409,
         )
     selected_trigger = matches[0]
-    with provider_trigger_admission(bl, selected_trigger) as active:
+    # A public webhook has no principal to bind: the trigger's own account names
+    # every registry read of the admission and the start (ADR 0020, C5).
+    with (
+        account_scope_if_named(selected_trigger.get("account_id")),
+        provider_trigger_admission(bl, selected_trigger) as active,
+    ):
         if not active:
             return JSONResponse({"error": _MESSAGE_NO_PROVIDER_TRIGGER_MATCHED}, status_code=404)
         selected_workflow_id = str(selected_trigger.get("workflow_id") or "").strip()

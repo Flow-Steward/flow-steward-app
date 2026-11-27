@@ -10,7 +10,9 @@ from fastapi.responses import JSONResponse
 
 from core.application.auth.effective_permissions import resolve_effective_permissions
 from core.application.extensions.system_email import system_email_available
+from core.application.reports.ui_page_registry import HOST_RENDERER_KINDS
 from core.application.settings.date_time_format import stored_date_format, stored_time_format
+from core.application.settings.feature_endpoints import entitled_feature_endpoints
 from core.infrastructure.config.installation_mode import installation_mode
 from core.infrastructure.config.workflow_file_limits import (
     browser_run_upload_limits,
@@ -61,6 +63,84 @@ def _permission_keys(auth_user: Mapping[str, Any]) -> list[str] | None:
     return sorted({str(item).strip() for item in raw if str(item).strip()})
 
 
+def _project_permission_keys(auth_user: Mapping[str, Any]) -> dict[str, list[str]] | None:
+    """Per-project permission keys of a person limited to chosen projects, sorted.
+
+    ``None`` when the person has no project limit: ``permissions`` applies in every
+    project. Sent whether or not the account still holds the feature that writes
+    limits, because a stored limit keeps applying (ADR 0076 §8, 2026-11-26).
+    """
+    raw = auth_user.get("project_permissions")
+    if not isinstance(raw, Mapping):
+        return None
+    result: dict[str, list[str]] = {}
+    for project_id, keys in raw.items():
+        pid = str(project_id or "").strip()
+        if not pid or not isinstance(keys, (list, tuple, set, frozenset)):
+            continue
+        result[pid] = sorted({str(item).strip() for item in keys if str(item).strip()})
+    return result
+
+
+def _keys(value: Any) -> list[str] | None:
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return None
+    return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _workspace_permission_keys(auth_user: Mapping[str, Any]) -> dict[str, list[str]] | None:
+    """Per-workspace permission keys of a limited person; ``None`` without a limit.
+
+    A workspace with a grant carries that grant's role; a workspace shown only because
+    a project or workflow inside it is granted carries read access (ADR 0076 §8a).
+    """
+    raw = auth_user.get("workspace_permissions")
+    if not isinstance(raw, Mapping):
+        return None if auth_user.get("project_permissions") is None else {}
+    return {
+        str(key).strip(): keys
+        for key, value in raw.items()
+        if str(key or "").strip() and (keys := _keys(value)) is not None
+    }
+
+
+def _workflow_permission_keys(
+    auth_user: Mapping[str, Any],
+) -> dict[str, dict[str, list[str]]] | None:
+    """``{project id: {workflow id: keys}}`` of a limited person's workflow grants.
+
+    ``None`` without a limit. A workflow not listed takes its project's keys, unless
+    its project is listed in ``project_workflow_ids`` (reached only through workflow
+    grants), where it is out of reach.
+    """
+    raw = auth_user.get("workflow_permissions")
+    if not isinstance(raw, Mapping):
+        return None if auth_user.get("project_permissions") is None else {}
+    result: dict[str, dict[str, list[str]]] = {}
+    for project_id, flows in raw.items():
+        pid = str(project_id or "").strip()
+        if not pid or not isinstance(flows, Mapping):
+            continue
+        result[pid] = {
+            str(workflow_id).strip(): keys
+            for workflow_id, value in flows.items()
+            if str(workflow_id or "").strip() and (keys := _keys(value)) is not None
+        }
+    return result
+
+
+def _project_workflow_ids(auth_user: Mapping[str, Any]) -> dict[str, list[str]] | None:
+    """Projects a limited person reaches only through workflow grants, with those workflows."""
+    raw = auth_user.get("project_workflow_ids")
+    if not isinstance(raw, Mapping):
+        return None if auth_user.get("project_permissions") is None else {}
+    return {
+        str(project_id).strip(): keys
+        for project_id, value in raw.items()
+        if str(project_id or "").strip() and (keys := _keys(value)) is not None
+    }
+
+
 def _principal_type(principal: Any, auth_user: Mapping[str, Any] | None) -> str:
     value = str(getattr(principal, "principal_type", "") or "").strip().lower()
     if value:
@@ -91,6 +171,13 @@ def _user_summary(
         # ADR 0076: what the person may do; the interface derives menus and buttons
         # from these keys. ``roles`` stays until the interface reads only these.
         "permissions": _permission_keys(auth_user),
+        # A person limited to chosen projects: what they may do in each of them.
+        "project_permissions": _project_permission_keys(auth_user),
+        # ADR 0076 §8a: the same per workspace and per granted workflow, and the
+        # projects where only the granted workflows are reachable.
+        "workspace_permissions": _workspace_permission_keys(auth_user),
+        "workflow_permissions": _workflow_permission_keys(auth_user),
+        "project_workflow_ids": _project_workflow_ids(auth_user),
         "account_id": str(auth_user.get("account_id") or ""),
         "account_ids": list(auth_user.get("account_ids") or []),
         "account_memberships": list(auth_user.get("account_memberships") or []),
@@ -123,8 +210,15 @@ def _normalize_registered_pages(payload: Any) -> list[dict[str, Any]]:
         path = str(record.get("path") or "").strip()
         component_key = str(record.get("component_key") or "").strip()
         page_key = str(record.get("page_key") or record.get("key") or "").strip()
-        if not page_key or not path.startswith("/") or not component_key:
+        control_surface = record.get("control_surface")
+        host_rendered = (
+            isinstance(control_surface, Mapping)
+            and str(control_surface.get("kind") or "").strip() in HOST_RENDERER_KINDS
+        )
+        if not page_key or not path.startswith("/") or not (component_key or host_rendered):
             continue
+        if host_rendered:
+            record["control_surface"] = dict(control_surface)
         record["key"] = str(record.get("key") or page_key)
         record["page_key"] = page_key
         record["path"] = path
@@ -173,6 +267,7 @@ def create_api_app_bootstrap_router(
     external_sign_in_resolver: Callable[..., Any] | None = None,
     date_time_format_reader: Callable[[Mapping[str, Any]], tuple[str, str]] | None = None,
     api_error_response: Callable[..., JSONResponse],
+    feature_endpoints_resolver: Callable[[], Mapping[str, str]] | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["api-app-bootstrap"])
 
@@ -190,9 +285,13 @@ def create_api_app_bootstrap_router(
             )
             auth_source = str(getattr(request.state, "auth_source", "") or "").strip().lower()
 
+            # The browser sees the features of the signed-in account only.
+            account_id = str(auth_user.get("account_id") or "").strip() if authenticated else ""
             entitlement_service = platform_contract("entitlement_service")
             snapshot_fn = getattr(entitlement_service, "snapshot", None)
-            feature_flags = dict(snapshot_fn() or {}) if callable(snapshot_fn) else {}
+            feature_flags = (
+                dict(snapshot_fn(account_id) or {}) if account_id and callable(snapshot_fn) else {}
+            )
 
             local_enabled = bool(local_auth_enabled())
             bootstrap_required = bool(local_auth_bootstrap_required())
@@ -204,6 +303,12 @@ def create_api_app_bootstrap_router(
             auth_boundary_enabled = local_enabled or external_enabled or bootstrap_required
             include_authenticated_metadata = authenticated or not auth_boundary_enabled
             client_feature_flags = feature_flags if include_authenticated_metadata else {}
+            # ADR 0082: where a module-delivered feature's API lives, for entitled
+            # features only; an absent endpoint keeps Core's control hidden.
+            client_feature_endpoints = entitled_feature_endpoints(
+                feature_endpoints_resolver() if callable(feature_endpoints_resolver) else {},
+                client_feature_flags,
+            )
             client_edition = "community"
             if include_authenticated_metadata:
                 client_edition = str(current_app_edition() or "").strip() or "community"
@@ -258,6 +363,7 @@ def create_api_app_bootstrap_router(
                     "system_email_available": system_email_available(),
                 },
                 "feature_flags": client_feature_flags,
+                "feature_endpoints": client_feature_endpoints,
                 "environment": {
                     "edition": client_edition,
                     "mode": installation_mode(),

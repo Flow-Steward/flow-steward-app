@@ -366,7 +366,6 @@ class TestMCPAuthBootstrap:
                 "e2e_admin@example.com",
                 "E2E Admin",
             ),
-            ("20000000-0000-0000-0000-000000000001",),
             ("00000000-0000-0000-0000-000000000002",),
         ]
         logger = MagicMock()
@@ -405,17 +404,11 @@ class TestMCPAuthBootstrap:
             (" ".join(call.args[0].split()), call.args[1] if len(call.args) > 1 else None)
             for call in cursor.execute.call_args_list
         ]
-        assert any(
-            "INSERT INTO user_roles" in query
-            and params
-            == (
-                "10000000-0000-0000-0000-000000000001",
-                "20000000-0000-0000-0000-000000000001",
-            )
-            for query, params in statements
-        )
+        # The admin role is held on the installation account membership (ADR 0085).
+        assert not any("INSERT INTO user_roles" in query for query, _ in statements)
         assert any(
             "INSERT INTO user_account_memberships" in query
+            and "key = 'admin'" in query
             and params
             == (
                 "10000000-0000-0000-0000-000000000001",
@@ -693,6 +686,10 @@ class TestMCPAuthBootstrap:
                 "core.application.auth.password.session_token_hash",
                 return_value="hashed-session-token",
             ),
+            patch(
+                "core.application.auth.membership_roles.account_with_role",
+                return_value="00000000-0000-0000-0000-000000000002",
+            ),
         ):
             token = mcp_tools._bootstrap_fs_session_token("e2e_admin", "secret")
 
@@ -705,6 +702,94 @@ class TestMCPAuthBootstrap:
         assert fake_cursor.execute.call_args_list[0].args[1][1] == (
             "00000000-0000-0000-0000-000000000002"
         )
+
+    @pytest.mark.parametrize("account_id", [None, "", "  "])
+    def test_db_session_bootstrap_refuses_a_user_without_account(self, monkeypatch, account_id):
+        from core.application.auth import membership_roles, password, resolve
+        from core.application.orchestration.tools import mcp_tools
+
+        # ADR 0085: no account with a role; the home account is passed as preferred.
+        chosen: list[str] = []
+        monkeypatch.setattr(
+            membership_roles,
+            "account_with_role",
+            lambda _cur, _user_id, preferred="": chosen.append(preferred) or "",
+        )
+
+        monkeypatch.delenv("FS_AUTH_MFA_REQUIRED", raising=False)
+        connection = MagicMock(transaction=None, autocommit=True)
+        logger = SimpleNamespace(
+            conn=connection,
+            _table_exists=lambda _table: True,
+            _column_exists=lambda _table, _column: True,
+        )
+        user = {
+            "id": "42",
+            "account_id": account_id,
+            "is_active": True,
+            "must_change_password": False,
+            "password_hash": "stored-hash",
+            "password_changed_at": datetime.now(UTC) - timedelta(days=1),
+        }
+        monkeypatch.setattr(mcp_tools, "_get_platform_auth_logger", lambda: logger)
+        monkeypatch.setattr(resolve, "auth_tables_available", lambda _logger: True)
+        monkeypatch.setattr(resolve, "get_user_by_username", lambda _logger, _username: user)
+        monkeypatch.setattr(password, "verify_password", lambda _password, _hash: True)
+
+        assert mcp_tools._bootstrap_fs_session_token("owner@example.com", "password") == ""
+        # No session row is written, so no session for the default account exists.
+        assert chosen == [str(account_id or "").strip()]
+        executed = [call.args[0] for call in connection.cursor().execute.call_args_list]
+        assert not any("INSERT INTO auth_sessions" in sql for sql in executed)
+
+    def test_db_session_bootstrap_lands_in_an_account_with_a_role(self, monkeypatch):
+        """ADR 0085 (E): a home membership without a role is passed over for an
+        account where the person has one."""
+        from core.application.auth import password, resolve
+        from core.application.orchestration.tools import mcp_tools
+
+        monkeypatch.delenv("FS_AUTH_MFA_REQUIRED", raising=False)
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = ("other-account",)
+        connection = MagicMock(transaction=None, autocommit=True)
+        connection.cursor.return_value = cursor
+        logger = SimpleNamespace(
+            conn=connection,
+            _table_exists=lambda _table: False,
+            _column_exists=lambda _table, _column: True,
+        )
+        user = {
+            "id": "42",
+            "account_id": "home-account",
+            "is_active": True,
+            "must_change_password": False,
+            "password_hash": "stored-hash",
+            "password_changed_at": datetime.now(UTC) - timedelta(days=1),
+        }
+        monkeypatch.setattr(mcp_tools, "_get_platform_auth_logger", lambda: logger)
+        monkeypatch.setattr(resolve, "auth_tables_available", lambda _logger: True)
+        monkeypatch.setattr(resolve, "get_user_by_username", lambda _logger, _username: user)
+        monkeypatch.setattr(password, "verify_password", lambda _password, _hash: True)
+        monkeypatch.setattr(
+            "core.application.auth.local_credentials.authenticator_storage_available",
+            lambda _bl: False,
+        )
+        monkeypatch.setattr(
+            "core.application.auth.local_credentials.authenticator_policy_available",
+            lambda _bl: False,
+        )
+
+        assert mcp_tools._bootstrap_fs_session_token("owner@example.com", "password")
+        role_query, role_params = cursor.execute.call_args_list[0].args
+        assert "role_id IS NOT NULL" in role_query
+        assert role_params == ("42", "home-account")
+        insert = next(
+            call.args
+            for call in cursor.execute.call_args_list
+            if "INSERT INTO auth_sessions" in call.args[0]
+        )
+        assert insert[1][1] == "other-account"
 
     @pytest.mark.parametrize(
         ("factor_enabled", "expired", "required", "reset_pending", "issues_session"),
@@ -736,6 +821,7 @@ class TestMCPAuthBootstrap:
         password_changed_at = datetime.now(UTC) - timedelta(days=366 if expired else 1)
         user = {
             "id": "42",
+            "account_id": "00000000-0000-0000-0000-000000000002",
             "is_active": True,
             "must_change_password": False,
             "password_hash": "stored-hash",
@@ -747,6 +833,10 @@ class TestMCPAuthBootstrap:
         monkeypatch.setattr(password, "verify_password", lambda _password, _hash: True)
         enabled = MagicMock(return_value=factor_enabled)
         monkeypatch.setattr(mfa_service, "mfa_enabled", enabled)
+        monkeypatch.setattr(
+            "core.application.auth.membership_roles.account_with_role",
+            lambda _cur, _user_id, preferred="": preferred,
+        )
 
         token = mcp_tools._bootstrap_fs_session_token("owner@example.com", "password")
 

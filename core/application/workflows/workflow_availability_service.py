@@ -301,7 +301,11 @@ class WorkflowAvailabilityService:
             return ""
         if hasattr(bl, "get_published_block_contract"):
             try:
-                row = bl.get_published_block_contract(block_key)
+                # Resolved within the workflow's account: its own block of the key,
+                # else a platform block (ADR 0020).
+                row = bl.get_published_block_contract(
+                    block_key, account_id=_normalize_text(account_id) or None
+                )
                 if isinstance(row, dict):
                     return _normalize_text(row.get("source_install_id"))
             except Exception:

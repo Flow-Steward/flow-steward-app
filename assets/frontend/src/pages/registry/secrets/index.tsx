@@ -38,6 +38,22 @@ import {
   EMPTY_SECRET_EDITOR,
   type SecretEditorState,
 } from "@/pages/registry/secrets/secret-form-model";
+import {
+  AdoptStoredSecretDialog,
+  MoveSecretToLocalDialog,
+  MoveSecretToStorageDialog,
+  type SecretStorageAction,
+} from "@/pages/registry/secrets/secret-storage-dialogs";
+import {
+  type SecretStorageConfig,
+  SECRET_STORAGE_QUERY_KEY,
+  adoptStoredSecret,
+  fetchSecretStorage,
+  moveSecretToLocal,
+  moveSecretToStorage,
+  usableStorages,
+  writableStorages,
+} from "@/pages/settings/secret-storage/api";
 
 type SecretFilters = { search: string; usage: string };
 
@@ -64,6 +80,10 @@ function SecretRow({
   onReplace,
   onDelete,
   canDelete,
+  keptIn,
+  moveTargets,
+  onMove,
+  onMoveLocal,
 }: Readonly<{
   secret: CatalogSecret;
   menuOpen: boolean;
@@ -73,14 +93,37 @@ function SecretRow({
   onDelete: () => void;
   /** ADR 0066 amendment: deleting unbinds every consumer, so it is the admin's. */
   canDelete: boolean;
+  /** The external storage that keeps the value; `null` for one whose storage is gone; undefined when local. */
+  keptIn?: SecretStorageConfig | null;
+  /** Storages a local value may move to (account admin only). */
+  moveTargets: SecretStorageConfig[];
+  onMove: (storage: SecretStorageConfig) => void;
+  onMoveLocal: (() => void) | null;
 }>) {
   const { t } = useI18n();
   const uses = secret.usage_count ?? 0;
+  const remote = keptIn !== undefined;
+  const storageActions = remote
+    ? onMoveLocal
+      ? [{ key: "local", label: t("react.registry.secrets.storage.move_local", "Move back to this installation"), run: onMoveLocal }]
+      : []
+    : moveTargets.map((storage) => ({
+        key: storage.id,
+        label: t("react.registry.secrets.storage.move_to", "Move to {value0}", { value0: storage.name }),
+        run: () => onMove(storage),
+      }));
   return (
     <tr>
       <td>
         <span className="fs-ink-primary font-medium">{secret.name}</span>
         {secret.description ? <span className="block text-xs fs-ink-tertiary">{secret.description}</span> : null}
+        {remote ? (
+          <span className="block text-xs fs-ink-tertiary">
+            {keptIn
+              ? t("react.registry.secrets.storage.kept_in", "Kept in {value0}", { value0: keptIn.name })
+              : t("react.registry.secrets.storage.kept_external", "Kept in an external storage")}
+          </span>
+        ) : null}
       </td>
       <td>
         {uses > 0
@@ -105,6 +148,18 @@ function SecretRow({
               {t("react.registry.secrets.replace", "Replace value")}
             </button>
           </div>
+          {storageActions.length ? (
+            <>
+              <div className="fs-row-menu-separator" />
+              <div className="fs-row-menu-group">
+                {storageActions.map((action) => (
+                  <button key={action.key} onClick={action.run} role="menuitem" type="button">
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
           {canDelete ? (
             <>
               <div className="fs-row-menu-separator" />
@@ -142,6 +197,19 @@ export function RegistrySecretsPage() {
   const [feedback, setFeedback] = useState("");
 
   const secretsQuery = useQuery({ queryKey: CATALOG_SECRETS_QUERY_KEY, queryFn: fetchCatalogSecrets });
+  // Where values are kept is the account admin's; without access or an add-on the page is unchanged.
+  const storageQuery = useQuery({
+    queryKey: SECRET_STORAGE_QUERY_KEY,
+    queryFn: fetchSecretStorage,
+    enabled: canDelete,
+    retry: false,
+  });
+  const storage = storageQuery.isError ? undefined : storageQuery.data;
+  const storagesById = new Map((storage?.configs ?? []).map((config) => [config.id, config]));
+  const remoteBySecret = new Map((storage?.secrets ?? []).map((row) => [row.secret_id, storagesById.get(row.config_id) ?? null]));
+  const moveTargets = writableStorages(storage);
+  const adoptFrom = usableStorages(storage);
+  const [storageAction, setStorageAction] = useState<SecretStorageAction | null>(null);
   const secretsLoaderShown = useLoaderDelay(secretsQuery.isLoading);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["secrets"] });
 
@@ -187,6 +255,39 @@ export function RegistrySecretsPage() {
     },
   });
 
+  const storageMutation = useMutation({
+    mutationFn: async (input: { nameInStorage?: string; replace?: boolean; adopt?: Parameters<typeof adoptStoredSecret>[0] }) => {
+      if (storageAction?.kind === "move") {
+        await moveSecretToStorage(storageAction.secret.id, storageAction.storage.id, input.nameInStorage ?? "", input.replace === true);
+        return t("react.registry.secrets.storage.moved", "{value0} is now kept in {value1}.", {
+          value0: storageAction.secret.name,
+          value1: storageAction.storage.name,
+        });
+      }
+      if (storageAction?.kind === "move-local") {
+        await moveSecretToLocal(storageAction.secret.id);
+        return t("react.registry.secrets.storage.moved_local", "{value0} is kept in this installation again.", {
+          value0: storageAction.secret.name,
+        });
+      }
+      if (input.adopt) {
+        const adopted = await adoptStoredSecret(input.adopt);
+        return t("react.registry.secrets.created_message", "Secret {value0} created.", { value0: adopted.name });
+      }
+      return "";
+    },
+    onSuccess: async (message) => {
+      setFeedback(message);
+      setStorageAction(null);
+      await refresh();
+    },
+  });
+  const openStorageAction = (action: SecretStorageAction) => {
+    setMenuFor("");
+    storageMutation.reset();
+    setStorageAction(action);
+  };
+
   const validationError = (): string => {
     if (!editor.name.trim()) return t("react.registry.secrets.name_required", "Enter a name.");
     if (editorMode === "add" && !editor.value) return t("react.registry.secrets.value_required", "Enter the value.");
@@ -216,10 +317,19 @@ export function RegistrySecretsPage() {
       <section className="fs-panel-stack">
       <DsPageHeader
         action={
-          <button className="fs-button primary" onClick={openAdd} type="button">
-            <Plus aria-hidden="true" />
-            {t("react.registry.secrets.create_title", "New secret")}
-          </button>
+          <span className="fs-footer-actions">
+            {adoptFrom.length ? (
+              <button className="fs-button" onClick={() => openStorageAction({ kind: "adopt", storages: adoptFrom })} type="button">
+                {adoptFrom.length === 1
+                  ? t("react.registry.secrets.storage.adopt_from", "Use an existing secret from {value0}", { value0: adoptFrom[0]?.name ?? "" })
+                  : t("react.registry.secrets.storage.adopt_title", "Use an existing secret")}
+              </button>
+            ) : null}
+            <button className="fs-button primary" onClick={openAdd} type="button">
+              <Plus aria-hidden="true" />
+              {t("react.registry.secrets.create_title", "New secret")}
+            </button>
+          </span>
         }
         description={t("react.registry.secrets.page_description_shared", "Create a secret once and choose it wherever a key or password is asked for, in any project. Replace it here and everything that uses it gets the new value. Stored values are never shown again.")}
         eyebrow={t("shell.nav.registry", "Registry")}
@@ -280,6 +390,14 @@ export function RegistrySecretsPage() {
                     setDeleting(secret);
                   }}
                   onEdit={() => openEdit(secret)}
+                  keptIn={remoteBySecret.has(secret.id) ? remoteBySecret.get(secret.id) : undefined}
+                  moveTargets={moveTargets}
+                  onMove={(target) => openStorageAction({ kind: "move", secret, storage: target })}
+                  onMoveLocal={
+                    canDelete && remoteBySecret.has(secret.id)
+                      ? () => openStorageAction({ kind: "move-local", secret, storage: remoteBySecret.get(secret.id) ?? null })
+                      : null
+                  }
                   onReplace={() => {
                     setMenuFor("");
                     replace.reset();
@@ -337,6 +455,29 @@ export function RegistrySecretsPage() {
         onSubmit={(value) => replace.mutate(value)}
         saving={replace.isPending}
         secret={replacing}
+      />
+      <MoveSecretToStorageDialog
+        action={storageAction?.kind === "move" ? storageAction : null}
+        error={storageMutation.error}
+        key={storageAction?.kind === "move" ? `${storageAction.secret.id}:${storageAction.storage.id}` : "move-none"}
+        onClose={() => setStorageAction(null)}
+        onSubmit={(nameInStorage, replace) => storageMutation.mutate({ nameInStorage, replace })}
+        saving={storageMutation.isPending}
+      />
+      <MoveSecretToLocalDialog
+        action={storageAction?.kind === "move-local" ? storageAction : null}
+        error={errorText(storageMutation.error)}
+        onClose={() => setStorageAction(null)}
+        onConfirm={() => storageMutation.mutate({})}
+        saving={storageMutation.isPending}
+      />
+      <AdoptStoredSecretDialog
+        action={storageAction?.kind === "adopt" ? storageAction : null}
+        error={errorText(storageMutation.error)}
+        key={storageAction?.kind === "adopt" ? "adopt-open" : "adopt-none"}
+        onClose={() => setStorageAction(null)}
+        onSubmit={(adopt) => storageMutation.mutate({ adopt })}
+        saving={storageMutation.isPending}
       />
       <DeleteSecretDialog
         deleting={remove.isPending}

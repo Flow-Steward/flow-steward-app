@@ -5,10 +5,40 @@ from __future__ import annotations
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID, DEFAULT_TENANT_ID
+from core.application.management.errors import ServiceForbiddenError
+from core.application.management.guards import require_workspace_access
+
+#: What changing a workspace needs where a person's access is limited to places.
+WORKSPACE_MANAGE_PERMISSION = "workspaces.manage"
+#: A principal limited to chosen workspaces may not add another one.
+WORKSPACE_CREATE_REFUSAL_MESSAGE = (
+    "A principal limited to chosen workspaces cannot create a workspace"
+)
 
 
 class WorkspaceConflictError(ValueError):
     """Raised when an insert-only workspace create conflicts with an existing key."""
+
+
+def _workspace_reachable(scope: Any | None, workspace_id: Any, permission: str | None) -> bool:
+    """Whether ``scope`` reaches this workspace (and, with ``permission``, may act there).
+
+    A scope that is not a :class:`ScopeContext` (an internal caller) is not limited.
+    """
+    if scope is None or not hasattr(scope, "allowed_workspace_ids"):
+        return True
+    try:
+        require_workspace_access(scope, workspace_id, permission)
+    except ServiceForbiddenError:
+        return False
+    return True
+
+
+def _require_workspace(scope: Any | None, workspace_id: Any, permission: str | None) -> None:
+    """Workspace grants (ADR 0076 section 8a) and token allowlists: an unreachable
+    workspace is answered as missing (``KeyError``), so its existence is not revealed."""
+    if not _workspace_reachable(scope, workspace_id, permission):
+        raise KeyError(str(workspace_id))
 
 
 class WorkspaceService:
@@ -35,17 +65,19 @@ class WorkspaceService:
         include_archived: bool = False,
     ) -> list[dict[str, Any]]:
         account_id, tenant_id = self._scope(scope)
-        return list(
-            self._store.list_workspaces(
-                account_id=account_id,
-                tenant_id=tenant_id,
-                search=search,
-                status=status,
-                include_archived=include_archived,
-            )
+        rows = self._store.list_workspaces(
+            account_id=account_id,
+            tenant_id=tenant_id,
+            search=search,
+            status=status,
+            include_archived=include_archived,
         )
+        return [row for row in rows if _workspace_reachable(scope, (row or {}).get("id"), None)]
 
-    def get_workspace(self, workspace_id: str, *, scope: Any | None = None) -> dict[str, Any]:
+    def get_workspace(
+        self, workspace_id: str, *, scope: Any | None = None, permission: str | None = None
+    ) -> dict[str, Any]:
+        _require_workspace(scope, workspace_id, permission)
         account_id, tenant_id = self._scope(scope)
         row = self._store.get_workspace(
             workspace_id,
@@ -62,7 +94,13 @@ class WorkspaceService:
     ) -> dict[str, Any]:
         account_id, tenant_id = self._scope(scope)
         workspace_id = str(payload.get("id") or "").strip()
-        existing = self.get_workspace(workspace_id, scope=scope) if workspace_id else {}
+        if workspace_id:
+            existing = self.get_workspace(
+                workspace_id, scope=scope, permission=WORKSPACE_MANAGE_PERMISSION
+            )
+        else:
+            self._require_unlimited_create(scope)
+            existing = {}
         requested_key = str(payload.get("workspace_key") or "").strip()
         existing_key = str(existing.get("workspace_key") or "").strip()
         if requested_key and existing_key and requested_key != existing_key:
@@ -86,7 +124,9 @@ class WorkspaceService:
         *,
         scope: Any | None = None,
     ) -> dict[str, Any]:
-        current = self.get_workspace(workspace_id, scope=scope)
+        current = self.get_workspace(
+            workspace_id, scope=scope, permission=WORKSPACE_MANAGE_PERMISSION
+        )
         next_key = str(workspace_key or "").strip()
         rows = self.list_workspaces(scope=scope, include_archived=True)
         conflict = next(
@@ -144,6 +184,7 @@ class WorkspaceService:
     def create_workspace(
         self, payload: dict[str, Any], *, scope: Any | None = None
     ) -> dict[str, Any]:
+        self._require_unlimited_create(scope)
         account_id, tenant_id = self._scope(scope)
         row = self._store.create_workspace(
             payload,
@@ -157,6 +198,7 @@ class WorkspaceService:
         return dict(row)
 
     def restore_workspace(self, workspace_id: str, *, scope: Any | None = None) -> dict[str, Any]:
+        _require_workspace(scope, workspace_id, WORKSPACE_MANAGE_PERMISSION)
         account_id, tenant_id = self._scope(scope)
         return dict(
             self._store.set_workspace_archived(
@@ -169,11 +211,23 @@ class WorkspaceService:
         )
 
     def list_projects(self, workspace_id: str, *, scope: Any | None = None) -> list[dict[str, Any]]:
+        _require_workspace(scope, workspace_id, None)
         account_id, tenant_id = self._scope(scope)
-        return list(
-            self._store.list_workspace_projects(
-                workspace_id,
-                account_id=account_id,
-                tenant_id=tenant_id,
-            )
+        rows = self._store.list_workspace_projects(
+            workspace_id,
+            account_id=account_id,
+            tenant_id=tenant_id,
         )
+        allowed = getattr(scope, "allowed_project_ids", None) or frozenset()
+        if not allowed:
+            return list(rows)
+        return [row for row in rows if str((row or {}).get("id") or "") in allowed]
+
+    @staticmethod
+    def _require_unlimited_create(scope: Any | None) -> None:
+        limited = bool(getattr(scope, "allowed_workspace_ids", None)) or (
+            getattr(scope, "workspace_permissions", None) is not None
+            or getattr(scope, "project_permissions", None) is not None
+        )
+        if limited:
+            raise PermissionError(WORKSPACE_CREATE_REFUSAL_MESSAGE)

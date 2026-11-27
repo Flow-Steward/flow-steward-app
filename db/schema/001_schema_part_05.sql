@@ -173,7 +173,7 @@ CREATE TABLE public.workflow_kept_test_outputs (
 
 CREATE TABLE public.workflow_runtime_dependencies (
     dependency_id uuid DEFAULT gen_random_uuid() NOT NULL,
-    account_id uuid,
+    account_id uuid DEFAULT '00000000-0000-0000-0000-000000000002'::uuid NOT NULL,
     scope_kind text DEFAULT 'system'::text NOT NULL,
     workflow_id text NOT NULL,
     group_id text,

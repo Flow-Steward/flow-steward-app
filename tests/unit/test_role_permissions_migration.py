@@ -16,6 +16,9 @@ from core.infrastructure.db.schema_state import split_sql_statements
 
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = "20261120090000_role_permissions.sql"
+#: The later migration that makes the account-qualified workflow identity part of the
+#: same baseline block (ADR 0020, step C4b).
+WORKFLOW_IDENTITY_MIGRATION = "20261126180000_workflow_account_identity.sql"
 
 #: Statement prefixes that are a no-op when the object already exists.
 _IDEMPOTENT_PREFIXES = (
@@ -32,6 +35,14 @@ _IDEMPOTENT_PREFIXES = (
 _DROP_CONSTRAINT_RE = re.compile(r"^ALTER TABLE ONLY (\S+) DROP CONSTRAINT IF EXISTS (\w+)$")
 _ADD_CONSTRAINT_RE = re.compile(r"^ALTER TABLE ONLY (\S+) ADD CONSTRAINT (\w+) ")
 _CREATE_TRIGGER_RE = re.compile(r"^CREATE TRIGGER (\w+) .* ON (\S+) ")
+_INNER_ADD_CONSTRAINT_RE = re.compile(
+    r"ALTER TABLE ONLY (\S+) ADD CONSTRAINT (\w+) .*?(?:ON DELETE CASCADE|\))(?=; | END IF|; ELSE)"
+)
+
+
+def _do_block_statements(statement: str) -> list[str]:
+    """The ``ALTER TABLE`` statements a ``DO`` block may run, one per branch."""
+    return [match.group(0) for match in _INNER_ADD_CONSTRAINT_RE.finditer(statement)]
 
 
 def _statements(sql: str) -> list[str]:
@@ -54,9 +65,9 @@ def _baseline_block() -> list[str]:
     """The ADR 0076 statements at the end of baseline part 12."""
     text = (ROOT / "db" / "schema" / "001_schema_part_12.sql").read_text(encoding="utf-8")
     start = text.index("-- Role permissions and the scope of a role assignment (ADR 0076).")
-    # The agent expiry reminder columns after it belong to their own migration.
-    end = text.find("-- When the owner was reminded that an AI agent connection", start)
-    return _statements(text[start : end if end >= 0 else None])
+    # Each baseline block ends with its own marker; later blocks belong to their migrations.
+    end = text.index(f"-- End of block: migration {MIGRATION}.", start)
+    return _statements(text[start:end])
 
 
 def test_the_migration_runs_inside_the_runner_transaction() -> None:
@@ -79,6 +90,15 @@ def test_every_statement_is_safe_on_a_database_that_already_has_the_objects() ->
         if add := _ADD_CONSTRAINT_RE.match(statement):
             assert (add.group(1), add.group(2)) in dropped, statement
             continue
+        if statement.startswith("DO $$"):
+            # Picks the form of a key the database can hold; every key it adds was
+            # dropped above, so it runs again safely.
+            inner = _do_block_statements(statement)
+            assert inner, statement
+            for added in inner:
+                add = _ADD_CONSTRAINT_RE.match(added)
+                assert add and (add.group(1), add.group(2)) in dropped, added
+            continue
         if statement.startswith("DROP TRIGGER IF EXISTS "):
             name, _, table = statement.removeprefix("DROP TRIGGER IF EXISTS ").partition(" ON ")
             dropped_triggers.add((name, table))
@@ -90,7 +110,17 @@ def test_every_statement_is_safe_on_a_database_that_already_has_the_objects() ->
 
 
 def test_the_migration_makes_every_change_of_the_baseline_block() -> None:
-    migration = _statements(_migration_sql())
+    """Together with the workflow identity migration, which owns part of the block."""
+    identity = (ROOT / "db" / "migrations" / WORKFLOW_IDENTITY_MIGRATION).read_text(
+        encoding="utf-8"
+    )
+    migration = [
+        inner
+        for statement in _statements(_migration_sql()) + _statements(identity)
+        for inner in (
+            _do_block_statements(statement) if statement.startswith("DO $$") else [statement]
+        )
+    ]
     as_baseline = {
         statement.replace("CREATE TABLE IF NOT EXISTS ", "CREATE TABLE ", 1)
         .replace("CREATE OR REPLACE FUNCTION ", "CREATE FUNCTION ", 1)

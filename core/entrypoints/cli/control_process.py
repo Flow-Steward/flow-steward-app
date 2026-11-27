@@ -17,6 +17,156 @@ from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 logger = logging.getLogger("core.entrypoints.cli.control_process")
 
 
+#: Set by :func:`main` before modules register; ``None`` (nothing entitled) until then.
+_CONTROL_ENTITLEMENT_SERVICE = None
+#: The ``schedule`` port's scheduler; set while modules register, started by :func:`main`.
+_CONTROL_MODULE_JOBS = None
+
+
+def _log_platform_module_failures(failures: list[dict[str, str]]) -> None:
+    """Say once, at start, what a partly loaded module set means for this role."""
+    if not failures:
+        return
+    logger.warning(
+        "Control role runs without %d platform module(s) that failed to load (%s); "
+        "entitlement answers that only they could give stay unknown, so retention "
+        "keeps the approval journal rows of accounts with a journal retention until "
+        "the modules load",
+        len(failures),
+        ", ".join(f"{item.get('id')} {item.get('version')}" for item in failures),
+    )
+
+
+def _register_control_platform_modules(config, dsn: str) -> list[dict[str, str]]:
+    """Load the control hooks of platform modules with the control role's ports (ADR 0082).
+
+    The role's own entitlement decider, which only the module that declares
+    ``entitlement_source`` registers into and which the retention pass asks whether
+    an account keeps approval journal rows past their jobs; a ``db`` factory for the
+    role's connection store on ``dsn``; the auth audit writer, Core's secret codec
+    and the external sign-in revocation helpers (:func:`_control_module_ports`);
+    ``schedule``, which runs a module's periodic jobs on the control loop
+    (``core/infrastructure/platform_modules/module_jobs.py``); and the installation
+    id. The decider and the scheduler are sealed afterwards. Returns the failure
+    record of each module that failed to load (ADR 0082 §8); the control role
+    carries them in every heartbeat.
+    """
+    from core.application.jobs.submission_admission import public_submission_pause_active
+    from core.application.lifecycle.runtime_installation_context import (
+        projected_installation_id,
+    )
+    from core.application.settings.platform_contracts import CoreEntitlementService
+    from core.infrastructure.platform_modules.loader import register_platform_modules_for_role
+    from core.infrastructure.platform_modules.module_jobs import (
+        AdvisoryJobLease,
+        ModuleJobScheduler,
+        active_account_lister,
+        postgres_connector,
+    )
+    from core.infrastructure.runtime.entrypoint_db_adapters import module_db_factory
+    from core.infrastructure.security.secret_backends import SecretBackendPort
+
+    global _CONTROL_ENTITLEMENT_SERVICE, _CONTROL_MODULE_JOBS
+    _CONTROL_ENTITLEMENT_SERVICE = CoreEntitlementService()
+    # Where a module registers its secret backends; sealed with the decider.
+    secret_backends = SecretBackendPort()
+    ports = {
+        "entitlement_service": _CONTROL_ENTITLEMENT_SERVICE,
+        "secret_backends": secret_backends,
+        "db": module_db_factory(dsn),
+        **_control_module_ports(dsn),
+    }
+    connect = postgres_connector(dsn)
+    _CONTROL_MODULE_JOBS = ModuleJobScheduler(
+        services=ports,
+        lease=AdvisoryJobLease(connect, logger=logger) if connect is not None else None,
+        accounts=active_account_lister(connect),
+        maintenance_active=public_submission_pause_active,
+        logger=logger,
+    )
+    module_failures: list[dict[str, str]] = []
+    loaded_modules = register_platform_modules_for_role(
+        "control",
+        config=config,
+        logger=logger,
+        services={**ports, "schedule": _CONTROL_MODULE_JOBS},
+        failures=module_failures,
+        installation_id=projected_installation_id(dict(_runtime_env)),
+    )
+    _CONTROL_ENTITLEMENT_SERVICE.seal()
+    secret_backends.seal()
+    _CONTROL_MODULE_JOBS.seal(
+        {module.module_id: module.version for module in loaded_modules},
+        {module.module_id: module.requires for module in loaded_modules},
+    )
+    _log_platform_module_failures(module_failures)
+    if loaded_modules or module_failures:
+        from core.infrastructure.platform_modules.role_status import (
+            module_status_records,
+            write_role_module_status,
+        )
+
+        # Read by the release workflow after a module change (ADR 0082 §5).
+        write_role_module_status(
+            "control", loaded=module_status_records(loaded_modules), failures=module_failures
+        )
+    return module_failures
+
+
+def _control_module_ports(dsn: str) -> dict[str, object]:
+    """The control role's ports for platform modules beyond the decider and ``db``.
+
+    ``log_auth_audit_event(bl=None, *, action, username="", actor="", status="ok",
+    detail=None)`` writes the same ``auth_<action>`` audit event as the app role's
+    ``auth_helpers["log_auth_audit_event"]``; without ``bl`` it writes through the
+    role's own identity store. ``encrypt_secret``, ``decrypt_secret`` and
+    ``reseal_legacy_secrets`` are Core's secret codec bound to each module by the
+    loader, like ``container.external_sign_in`` in the app role: a module decrypts
+    only values it, or a module it requires, encrypted (ADR 0082 §12; an empty value
+    decrypts to ``""``). ``external_sign_in_revocation`` revokes what external
+    sign-in issued, inside the caller's transaction (ADR 0083).
+    """
+    from core.application.auth.audit import log_auth_audit_event
+    from core.application.auth.external_session_revocation import ExternalSignInRevocationPort
+    from core.infrastructure.runtime.entrypoint_db_adapters import create_identity_store
+    from core.infrastructure.security.module_secret_codec import ModuleSecretPort
+
+    audit_store: list[object] = []
+
+    def write_auth_audit_event(
+        bl=None,
+        *,
+        action: str,
+        username: str = "",
+        actor: str = "",
+        status: str = "ok",
+        detail: dict | None = None,
+    ) -> None:
+        store = bl
+        if store is None:
+            if not dsn:
+                return
+            if not audit_store:
+                audit_store.append(create_identity_store(dsn))
+            store = audit_store[0]
+        log_auth_audit_event(
+            store,
+            action=action,
+            username=username,
+            actor=actor,
+            status=status,
+            detail=dict(detail or {}),
+        )
+
+    return {
+        "log_auth_audit_event": write_auth_audit_event,
+        "encrypt_secret": ModuleSecretPort("encrypt"),
+        "decrypt_secret": ModuleSecretPort("decrypt"),
+        "reseal_legacy_secrets": ModuleSecretPort("reseal_legacy_secrets"),
+        "external_sign_in_revocation": ExternalSignInRevocationPort(),
+    }
+
+
 def _repair_canonical_guardrails(*, bl) -> None:
     dsn = str(getattr(bl, "dsn", "") or "").strip()
     if not dsn:
@@ -99,6 +249,7 @@ def main() -> None:
     dsn = resolve_platform_dsn(
         str(config.get("fs_observability_dsn") or config.get("fs_db_dsn") or "")
     )
+    module_failures = _register_control_platform_modules(config, dsn)
     enforce_runtime_schema(dsn, component="control")
 
     from core.infrastructure.runtime.control.config import ControlConfig
@@ -192,10 +343,22 @@ def main() -> None:
             "agent_expiry_reminders": REMINDER_SCAN_INTERVAL_SECONDS,
         },
     )
+    module_jobs = _CONTROL_MODULE_JOBS
+    if module_jobs is not None:
+        jobs_thread = module_jobs.start()
+        if jobs_thread is not None:
+            threads["platform_module_jobs"] = (jobs_thread, module_jobs.stop_event)
     from core.application.monitoring.runtime_composition import start_optional_process_reporting
 
+    # Every report names the modules this role skipped and the modules whose jobs
+    # are failing, so administrators see them on the monitoring page (ADR 0082 §5).
     status_publisher = start_optional_process_reporting(
-        runtime_values=dict(_runtime_env), service_type="control"
+        runtime_values=dict(_runtime_env),
+        service_type="control",
+        platform_module_failures=lambda: [
+            *module_failures,
+            *(module_jobs.failures() if module_jobs is not None else ()),
+        ],
     )
     if not threads and status_runtime is None:
         logger.warning(
@@ -214,6 +377,8 @@ def main() -> None:
     stop.wait()
 
     logger.info("Control-plane shutting down …")
+    if module_jobs is not None:
+        module_jobs.stop()
     stop_control_threads(threads)
     if status_runtime is not None:
         status_runtime.close()
@@ -291,7 +456,7 @@ def _run_agent_expiry_reminders(bl) -> dict[str, int]:
 def _run_retention_pass() -> dict[str, int]:
     from core.application.tooling.ops.retention_cleanup import run_scheduled_retention
 
-    return run_scheduled_retention()
+    return run_scheduled_retention(entitlement_service=_CONTROL_ENTITLEMENT_SERVICE)
 
 
 if __name__ == "__main__":

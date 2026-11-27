@@ -7,7 +7,12 @@ from core.application.installer.errors import InstallerFailure
 
 
 def checked_operator_settings(changes: dict[str, str]) -> dict[str, str]:
-    """`./install.sh --setting` names only settings the manifest lets the operator set."""
+    """`./install.sh --setting` names only settings the manifest lets the operator set.
+
+    Platform-module settings (``FS_MODULE_*``) pass here; the installer checks them
+    against the active module set once it can read the installation
+    (``InstallerGateway.check_module_settings``).
+    """
     from core.application.lifecycle.operator_settings import OperatorSettingError
     from core.application.lifecycle.setting_names import check_operator_settings
 
@@ -33,6 +38,10 @@ def applied_operator_settings(
 
     A reset writes the manifest default: the key may already be in the file.
     """
+    from core.application.lifecycle.module_settings import (
+        module_setting_names,
+        module_settings_environment,
+    )
     from core.application.lifecycle.operator_settings import (
         merge_operator_settings,
         operator_setting_specs,
@@ -46,10 +55,15 @@ def applied_operator_settings(
     )
     specs = operator_setting_specs()
     environment = "local_development" if config.environment == "development" else "production"
-    return candidate, {
+    keys = {
         name: value or specs[name].default_for_environment(environment)
         for name, value in changes.items()
+        if name in specs
     }
+    if module_setting_names(changes):
+        # Module settings are written as the one carrier variable the roles read.
+        keys.update(module_settings_environment(merged))
+    return candidate, keys
 
 
 __all__ = ["applied_operator_settings", "checked_operator_settings"]

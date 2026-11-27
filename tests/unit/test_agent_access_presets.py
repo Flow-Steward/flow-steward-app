@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from core.application.auth import agent_access_presets as presets
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.inbound_oauth_policy import SUPPORTED_SCOPES
 
 
@@ -142,7 +143,10 @@ def test_the_role_grant_never_exceeds_the_role_or_the_request() -> None:
 
 
 def test_only_an_admin_chooses_the_access() -> None:
-    assert presets.may_choose_agent_access({"roles": ["admin"]}) is True
+    assert (
+        presets.may_choose_agent_access({"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]})
+        is True
+    )
     assert presets.may_choose_agent_access({"roles": ["operator", "viewer"]}) is False
     assert presets.may_choose_agent_access({"roles": "viewer"}) is False
     assert presets.may_choose_agent_access(None) is False

@@ -459,6 +459,7 @@ def test_resolve_extension_runtime_record_supports_install_id_lookup():
         extension, bl = helpers.resolve_extension_runtime_record(
             "pi_test_install",
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert bl is fake_logger
@@ -491,6 +492,7 @@ def test_resolve_extension_runtime_record_by_install_id_supports_uuid_without_fi
         extension, bl = helpers.resolve_extension_runtime_record_by_install_id(
             install_id,
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert bl is fake_logger
@@ -540,6 +542,7 @@ def test_resolve_extension_runtime_record_by_install_id_attaches_host_install_me
         extension, _ = helpers.resolve_extension_runtime_record_by_install_id(
             install_id,
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert extension is not None
@@ -612,6 +615,7 @@ def test_resolve_extension_runtime_record_rejects_noncanonical_id_without_filesy
         extension, bl = helpers.resolve_extension_runtime_record(
             "conn_mariadb_connection",
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert extension is None
@@ -629,6 +633,7 @@ def test_resolve_extension_runtime_record_skips_install_lookup_for_extension_id(
         extension, bl = helpers.resolve_extension_runtime_record(
             "acme.missing",
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert extension is None
@@ -823,6 +828,7 @@ def test_resolve_extension_runtime_record_does_not_overlay_install_release_with_
         extension, _ = helpers.resolve_extension_runtime_record(
             "pi_test_install",
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     load_fs.assert_not_called()
@@ -847,6 +853,7 @@ def test_resolve_extension_runtime_record_does_not_fallback_for_missing_explicit
         extension, _ = helpers.resolve_extension_runtime_record(
             "pi_missing_install",
             get_logger_only=lambda: fake_logger,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert extension is None
@@ -865,6 +872,7 @@ def test_resolve_extension_runtime_record_requires_storage_for_explicit_install(
         extension, logger = helpers.resolve_extension_runtime_record(
             "pi_unavailable_install",
             get_logger_only=lambda: None,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     assert extension is None

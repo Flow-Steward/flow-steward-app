@@ -24,8 +24,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from tests._db_env import dsn_unreachable_reason, resolve_test_db_dsn
 from tests._workflow_definitions import edge, linear_graph, linear_workflow, node
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -2036,12 +2041,14 @@ class TestRegistryDatasetColumnCompatibility:
         monkeypatch.setattr(
             store,
             "_published_block_source_binding_cur",
-            lambda cur, block_key: ("agent", "designer::outline_plan"),
+            lambda cur, block_key, block_owner="": ("agent", "designer::outline_plan"),
         )
         monkeypatch.setattr(
             store,
             "_published_block_step_bindings_cur",
-            lambda cur, block_key: [{"workflow_id": "wf_demo", "step_id": "design_outline"}],
+            lambda cur, block_key, block_owner="": [
+                {"workflow_id": "wf_demo", "step_id": "design_outline"}
+            ],
         )
         monkeypatch.setattr(
             store,
@@ -2051,7 +2058,7 @@ class TestRegistryDatasetColumnCompatibility:
         monkeypatch.setattr(
             store,
             "get_published_block_contract",
-            lambda block_key: {
+            lambda block_key, **_kwargs: {
                 "block_key": block_key,
                 "display_name": "Designer / Outline",
                 "block_type": "agent",
@@ -2133,7 +2140,9 @@ class TestRegistryDatasetColumnCompatibility:
         monkeypatch.setattr(
             store, "_validate_published_block_source_ref_cur", lambda *args, **kwargs: None
         )
-        monkeypatch.setattr(store, "_field_id_for_key_cur", lambda _cur, key: f"{key}_id")
+        monkeypatch.setattr(
+            store, "_field_id_for_key_cur", lambda _cur, key, _account_id=None: f"{key}_id"
+        )
         monkeypatch.setattr(store, "_log_change_cur", lambda *args, **kwargs: None)
         monkeypatch.setattr(store, "_column_exists", lambda *args, **kwargs: False)
         payload = {**existing, "description": "Metadata only"}
@@ -2169,6 +2178,7 @@ class TestRegistryDatasetColumnCompatibility:
 
         monkeypatch.setattr(store, "_transaction", _fake_transaction)
         monkeypatch.setattr(store, "_exists", lambda *args, **kwargs: False)
+        monkeypatch.setattr(store, "get_published_block_contract", lambda *args, **kwargs: None)
         monkeypatch.setattr(
             store,
             "_published_block_source_binding_cur",
@@ -2179,7 +2189,9 @@ class TestRegistryDatasetColumnCompatibility:
             "_validate_published_block_source_ref_cur",
             lambda *args, **kwargs: None,
         )
-        monkeypatch.setattr(store, "_field_id_for_key_cur", lambda _cur, key: f"{key}_id")
+        monkeypatch.setattr(
+            store, "_field_id_for_key_cur", lambda _cur, key, _account_id=None: f"{key}_id"
+        )
         monkeypatch.setattr(store, "_log_change_cur", lambda *args, **kwargs: None)
         monkeypatch.setattr(store, "_column_exists", lambda *_args, **_kwargs: False)
 
@@ -2211,7 +2223,9 @@ class TestRegistryDatasetColumnCompatibility:
         executed_sql = "\n".join(str(call.args[0]) for call in cur.execute.call_args_list)
         assert "INSERT INTO registry_published_block_inputs" in executed_sql
         assert "INSERT INTO registry_published_block_outputs" in executed_sql
-        assert "ON CONFLICT (block_key, field_id) DO UPDATE SET" in executed_sql
+        # Inputs and outputs belong to the block of one owner (ADR 0020).
+        assert "ON CONFLICT (block_owner, block_key, field_id) DO UPDATE SET" in executed_sql
+        assert "ON CONFLICT (owner_key, block_key) DO UPDATE SET" in executed_sql
 
 
 # ---------------------------------------------------------------------------
@@ -2974,9 +2988,13 @@ class TestPublicContractProjection:
         summary = ProjectionSummary()
 
         _sync_data_contracts(
-            db, {"auto.payload.v1": contract}, {"auto.payload.v1": contract}, summary
+            db,
+            {"auto.payload.v1": contract},
+            {"auto.payload.v1": contract},
+            summary,
+            DEFAULT_ACCOUNT_ID,
         )
-        _sync_fields(db, {"payload": field}, {"payload": field}, summary)
+        _sync_fields(db, {"payload": field}, {"payload": field}, summary, DEFAULT_ACCOUNT_ID)
         _sync_blocks(db, {"workflow.demo": block}, {"workflow.demo": block}, summary)
 
         assert summary.unchanged == 3
@@ -3013,8 +3031,8 @@ class TestPublicContractProjection:
         }
         summary = ProjectionSummary()
 
-        _sync_data_contracts(db, {"auto.old.v1": contract}, {}, summary)
-        _sync_fields(db, {"old_payload": field}, {}, summary)
+        _sync_data_contracts(db, {"auto.old.v1": contract}, {}, summary, DEFAULT_ACCOUNT_ID)
+        _sync_fields(db, {"old_payload": field}, {}, summary, DEFAULT_ACCOUNT_ID)
         _sync_blocks(db, {"workflow.old": block}, {}, summary)
 
         assert summary.unchanged == 3

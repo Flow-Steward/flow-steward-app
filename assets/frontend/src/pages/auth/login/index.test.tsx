@@ -299,6 +299,69 @@ describe("LoginPage", () => {
     expect(screen.getByText("Password sign-in is unavailable.")).toBeInTheDocument();
   });
 
+  it("asks for the company before listing a company's sign-in options", async () => {
+    const user = userEvent.setup();
+    mockedFetchJson
+      .mockResolvedValueOnce({ options: [], account_hint_supported: true })
+      .mockResolvedValueOnce({
+        options: [{ provider_key: "acme-ticket:main", display_name: "Acme ID", login_path: "/api/auth/external/start?method=acme-ticket&key=main" }],
+        account_hint_supported: true,
+      });
+    renderLogin({
+      route: "/login?next=/settings/security",
+      sessionOverrides: {
+        external_sign_in: { providers_path: "/api/auth/external/options" },
+      },
+    });
+
+    const company = await screen.findByLabelText("Company identifier");
+    expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/external/options");
+    expect(screen.queryByText("No external providers are available.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Acme ID/ })).not.toBeInTheDocument();
+
+    await user.type(company, "acme corp");
+    await user.click(screen.getByRole("button", { name: "Company sign-in" }));
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "Continue with Acme ID" })).toHaveAttribute(
+      "href",
+      "/api/auth/external/start?method=acme-ticket&key=main&next=%2Fsettings%2Fsecurity",
+    ));
+    expect(mockedFetchJson).toHaveBeenLastCalledWith("/api/auth/external/options?account=acme%20corp");
+  });
+
+  it("says when a company has no sign-in options", async () => {
+    const user = userEvent.setup();
+    mockedFetchJson
+      .mockResolvedValueOnce({ options: [], account_hint_supported: true })
+      .mockResolvedValueOnce({ options: [], account_hint_supported: true });
+    renderLogin({
+      sessionOverrides: {
+        external_sign_in: { providers_path: "/api/auth/external/options" },
+      },
+    });
+
+    await user.type(await screen.findByLabelText("Company identifier"), "nobody");
+    await user.click(screen.getByRole("button", { name: "Company sign-in" }));
+
+    await waitFor(() => expect(screen.getByText("No sign-in options were found for this company.")).toBeInTheDocument());
+    expect(screen.getByLabelText("Company identifier")).toHaveValue("nobody");
+  });
+
+  it("lists installation-wide options without a company step", async () => {
+    mockedFetchJson.mockResolvedValueOnce({
+      options: [{ provider_key: "header:trusted", display_name: "Company network", login_path: "/api/auth/external/start?method=header&key=trusted" }],
+      account_hint_supported: false,
+    });
+    renderLogin({
+      sessionOverrides: {
+        external_sign_in: { providers_path: "/api/auth/external/options" },
+      },
+    });
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "Continue with Company network" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Company identifier")).not.toBeInTheDocument();
+  });
+
   it("explains an external-only deployment with no configured provider path", () => {
     renderLogin({
       sessionOverrides: {
@@ -567,6 +630,30 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => expect(screen.getByText("Security destination")).toBeInTheDocument());
+  });
+
+  it("sends the token of an invitation link being opened, and only then (ADR 0085, P5)", async () => {
+    mockedFetchJson.mockResolvedValue({ user: { username: "person@example.com" } });
+    renderLogin({ route: `/login?next=${encodeURIComponent("/invitations/tok-123")}` });
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalled());
+    const [, init] = mockedFetchJson.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body)).invitation_token).toBe("tok-123");
+  });
+
+  it("sends no invitation token for any other destination", async () => {
+    mockedFetchJson.mockResolvedValue({ user: { username: "person@example.com" } });
+    renderLogin({ route: "/login?next=/settings/security" });
+    fillCredentials();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalled());
+    const [, init] = mockedFetchJson.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("invitation_token");
   });
 
   it("rejects an unsafe next route and returns a successful sign-in to the role-based home", async () => {

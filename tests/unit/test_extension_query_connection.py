@@ -103,7 +103,7 @@ def _service(extension: dict, store: MagicMock, dispatch: MagicMock | None = Non
     return ExtensionOperationService(
         get_logger=lambda: store,
         get_operation_store=lambda: store,
-        resolve_extension_runtime_record=lambda _extension_id: (extension, store),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, store),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 502,
         command_dispatch_service_factory=dispatch,

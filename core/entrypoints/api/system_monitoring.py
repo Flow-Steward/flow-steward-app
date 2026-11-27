@@ -13,6 +13,10 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from core.application.auth.installation_admin import (
+    installation_admin_refusal,
+    is_installation_admin,
+)
 from core.application.management import ServiceError
 from core.application.monitoring.queries import ComponentsProjection
 from core.application.monitoring.system import (
@@ -65,9 +69,12 @@ def create_api_system_monitoring_router(
     def _api_auth_guard(request: Request):
         if local_auth_enabled() or _external_auth_enabled():
             try:
-                require_authenticated_user(request, required_roles=auth_admin_roles)
+                auth_user = require_authenticated_user(request, required_roles=auth_admin_roles)
             except PermissionError:
                 return JSONResponse({"error": "Admin role required"}, status_code=403)
+            # Monitoring, storage cleanup and diagnostics span the whole installation.
+            if not is_installation_admin(auth_user):
+                return JSONResponse(installation_admin_refusal(), status_code=403)
         return None
 
     @router.get("/api/system/monitoring/summary")
@@ -109,6 +116,7 @@ def create_api_system_monitoring_router(
             readiness=readiness,
             meta=meta,
             components=components,
+            platform_module_failures=getattr(request.app.state, "platform_module_failures", None),
         )
         # A produced report is a successful response, even when what it reports
         # is unhealthy. Mirroring the readiness probe's 503 here made the

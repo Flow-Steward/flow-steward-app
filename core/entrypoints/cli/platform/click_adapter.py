@@ -83,9 +83,9 @@ from core.entrypoints.cli.platform.modes import (
 )
 from core.entrypoints.cli.platform.operation_log import (
     OperationLog,
-    OperationLogUnavailable,
     operation_log_root,
     reported_log_path,
+    warn_operation_log_unavailable,
 )
 from core.entrypoints.cli.platform.redaction import RedactionContext, redact_text
 from core.entrypoints.cli.platform.renderers import renderer_for
@@ -503,16 +503,17 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
         result: ExecutionResult | None = None
         try:
             if _should_create_operation_log(spec, command_input):
-                # A mutating command records itself before it runs, so a log
-                # that cannot be opened stops it. Name the reason: this is a
-                # read-only or unwritable state directory, not a defect.
+                # A mutating command records itself before it runs. A log that
+                # cannot be opened never stops the operation: stderr says why
+                # (a read-only or unwritable state directory) and it runs without.
                 try:
                     operation_log = OperationLog(spec.command_id)
+                except OSError as exc:
+                    warn_operation_log_unavailable(operation_log_root(), exc)
+                else:
                     operation_log.write(
                         f"command={spec.command_id} operation_id={operation_log.operation_id}"
                     )
-                except OSError as exc:
-                    raise OperationLogUnavailable(operation_log_root(), exc) from exc
             progress_technical_sink = operation_log.write if operation_log is not None else None
             service_technical_sink = _service_technical_sink(
                 operation_log.write if operation_log is not None else None,
@@ -533,10 +534,11 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
                     known_secrets=known_secrets,
                     capture_stdout=decision.output_mode is OutputMode.JSON,
                 )
-            result = _with_operation_metadata(result, operation_log)
             if operation_log is not None:
                 operation_log.write(f"exit_code={int(result.exit_code)}")
                 operation_log.write(f"log_path={reported_log_path(operation_log.path)}")
+            # After the last write, so a log that failed is not reported as the record.
+            result = _with_operation_metadata(result, operation_log)
         except Exception as exc:
             result = _mapped_execution_failure(
                 exc,
@@ -561,6 +563,10 @@ def _build_leaf(spec: CommandSpec, registry: Any, runtime: Any) -> PublicCommand
                         known_secrets=known_secrets,
                         verbose=globals_["verbose"],
                     )
+                else:
+                    if result is not None and result.operation_id:
+                        # A close that failed leaves an incomplete log: drop its path.
+                        result = _with_operation_metadata(result, operation_log)
         assert result is not None
         try:
             renderer.render_result(spec, result)
@@ -726,12 +732,19 @@ def _with_operation_metadata(
     result: ExecutionResult,
     operation_log: OperationLog | None,
 ) -> ExecutionResult:
+    """The result with its operation id and, while the log is complete, its path.
+
+    A log whose write or close failed (stderr already said so) is incomplete, so
+    the result does not point to it: ``log_path`` stays empty and only the
+    operation id is reported.
+    """
     if operation_log is None:
         return result
+    log_failed = bool(getattr(operation_log, "failed", False))
     return result.model_copy(
         update={
             "operation_id": operation_log.operation_id,
-            "log_path": reported_log_path(operation_log.path),
+            "log_path": None if log_failed else reported_log_path(operation_log.path),
         }
     )
 

@@ -12,6 +12,8 @@ from core.application.release.service import (
     PreparedReleaseUpgrade,
     ReleaseCheckRequest,
     ReleaseInfoRequest,
+    ReleaseModulesApplyRequest,
+    ReleaseModulesListRequest,
     ReleaseResult,
     ReleaseUpgradeRequest,
 )
@@ -69,6 +71,45 @@ async def release_upgrade_preview(
     return PreparedCommand(execution_input=prepared, review=review)
 
 
+async def release_modules_list(
+    runtime: RuntimeServices, value: object, **_kwargs: object
+) -> object:
+    return await await_maybe(
+        runtime.release_service.modules_list(_request(value, ReleaseModulesListRequest))
+    )
+
+
+async def _prepare_module_change(runtime: RuntimeServices, value: object) -> PreparedReleaseUpgrade:
+    upgrade = await await_maybe(
+        runtime.release_service.module_upgrade_request(_request(value, ReleaseModulesApplyRequest))
+    )
+    return cast(
+        PreparedReleaseUpgrade,
+        await await_maybe(runtime.release_service.prepare_upgrade(upgrade)),
+    )
+
+
+async def release_modules_apply(
+    runtime: RuntimeServices, value: object, **kwargs: object
+) -> object:
+    """ADR 0082 §5: a module change is the journaled upgrade of the installed release."""
+    prepared = (
+        value
+        if isinstance(value, PreparedReleaseUpgrade)
+        else await _prepare_module_change(runtime, value)
+    )
+    return await release_upgrade(runtime, prepared, **kwargs)
+
+
+async def release_modules_apply_preview(
+    runtime: RuntimeServices,
+    value: object,
+) -> PreparedCommand:
+    prepared = await _prepare_module_change(runtime, value)
+    review = await await_maybe(runtime.release_service.review_upgrade(prepared))
+    return PreparedCommand(execution_input=prepared, review=review)
+
+
 def _request(value: object, model: type[_RequestModel]) -> _RequestModel:
     return value if isinstance(value, model) else model.model_validate(value)
 
@@ -77,6 +118,11 @@ RELEASE_SERVICE_FACTORIES: dict[str, ServiceFactory] = {
     "release.info": release_info,
     "release.check": release_check,
     "release.upgrade": release_upgrade,
+    "release.modules-list": release_modules_list,
+    "release.modules-apply": release_modules_apply,
 }
 
-RELEASE_PLAN_BUILDERS = {"release.upgrade.preview": release_upgrade_preview}
+RELEASE_PLAN_BUILDERS = {
+    "release.upgrade.preview": release_upgrade_preview,
+    "release.modules-apply.preview": release_modules_apply_preview,
+}

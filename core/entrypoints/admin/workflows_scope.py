@@ -26,7 +26,6 @@ def _request_scope(request: Request):
         )
     else:
         scope = normalize_scope()
-    require_default_registry_account(scope)
     return scope
 
 

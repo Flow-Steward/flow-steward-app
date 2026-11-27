@@ -134,7 +134,7 @@ class _Store:
         self.jobs = jobs or {}
         self.approvals: dict[str, dict[str, Any]] = {}
 
-    def list_workflow_reactions(self, workflow_id, enabled_only=True):
+    def list_workflow_reactions(self, workflow_id, enabled_only=True, account_id=None):
         return [rule for rule in self.rules if rule["workflow_id"] == workflow_id]
 
     def get_job(self, job_id):

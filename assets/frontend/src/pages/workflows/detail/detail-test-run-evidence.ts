@@ -5,6 +5,7 @@ import { useI18n } from "@/lib/i18n/useI18n";
 import { queryKeys } from "@/lib/query/keys";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { fetchJobApproval, submitApprovalDecision } from "@/pages/jobs/detail/api";
+import { approvalAssignment, approvalDecisionErrorMessage, isApprovalNotAssigned } from "@/lib/auth/approval-assignment";
 import { approvalQueryKey, dispatchApprovalsRefresh } from "@/pages/jobs/detail/job-detail-core";
 import { buildCanonicalJobDetailView } from "@/pages/jobs/detail/job-detail-view-model";
 import { jobStatusGroup } from "@/pages/jobs/status-groups";
@@ -63,6 +64,11 @@ export type TestRunApproval = {
   pending: boolean;
   error: string;
   decide: (approved: boolean, comment?: string) => void;
+  /**
+   * Set when the step is assigned to other people (`can_decide: false`): the
+   * approvers' names, shown instead of the decision. Absent: this person decides.
+   */
+  waitingFor?: readonly string[];
 };
 
 export type WorkflowTestRunEvidence = {
@@ -179,7 +185,8 @@ export function useWorkflowTestRunEvidence(options: Options): WorkflowTestRunEvi
       submitApprovalDecision(threadId, { approval_id: approvalId, approved, ...(comment ? { comment } : {}), ...(action ? { action } : {}) }),
     onError: (error, decision) => {
       if (currentDecision.current?.jobId === decision.jobId && currentDecision.current.approvalId === decision.approvalId)
-        setDecisionError(error instanceof Error ? error.message : t("react.jobs.approval_request_failed", "Approval request failed."));
+        setDecisionError(approvalDecisionErrorMessage(error, t));
+      if (isApprovalNotAssigned(error)) ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: testRunApprovalQueryKey(decision.jobId) }));
     },
     onSuccess: (_result, decision) => {
       if (currentDecision.current?.jobId === decision.jobId && currentDecision.current.approvalId === decision.approvalId) setDecisionError("");
@@ -222,6 +229,7 @@ export function useWorkflowTestRunEvidence(options: Options): WorkflowTestRunEvi
     const failureRecovery = recovery && text(gatePayload.recovery_kind) === "failure";
     const budgetRecovery = recovery && text(gatePayload.recovery_kind) === "rework_budget";
     const proof = selectedRun.selected?.proof;
+    const assignment = approvalAssignment(gate, gatePayload);
     const submit = (approved: boolean, comment: string, action?: "abort") => {
       const requestedAction = action || (approved ? "approve" : "reject");
       if (!threadId || !approvalId || activeDecision.current || decisionMutation.isPending || !allowedActions.includes(requestedAction) ||
@@ -246,6 +254,7 @@ export function useWorkflowTestRunEvidence(options: Options): WorkflowTestRunEvi
       pending: decisionMutation.isPending,
       error: decisionError,
       decide: (approved: boolean, comment = "") => submit(approved, comment),
+      ...(assignment.canDecide ? {} : { waitingFor: assignment.approvers }),
     };
   })() : null;
 

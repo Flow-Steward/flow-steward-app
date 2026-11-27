@@ -946,8 +946,8 @@ def test_authority_changes_follow_the_pat_policy(http, world) -> None:
     admin_id = world.users["admin"]["id"]
     assert _api(http, tokens["access_token"], "/api/auth/users").status_code == 200
     world.sql(
-        "UPDATE user_roles SET role_id = (SELECT id FROM roles WHERE key = 'operator') "
-        "WHERE user_id = %s",
+        "UPDATE user_account_memberships SET role_id = "
+        "(SELECT id FROM roles WHERE key = 'operator') WHERE user_id = %s",
         (admin_id,),
     )
     # Demoted: the admin-only route fails on the role gate at once; operator routes work.

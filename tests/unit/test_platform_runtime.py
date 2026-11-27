@@ -704,3 +704,33 @@ def test_bundled_ingress_overlay_names_the_address_status_probes() -> None:
         overlay["services"]["fs-cli"]["environment"]["FS_COMPACT_INGRESS_ADDRESS"]
         == "traefik:${APP_PORT:-8099}"
     )
+
+
+def test_platform_runtime_forwards_the_platform_module_commands() -> None:
+    """ADR 0082 §5: the Compact launcher's fixed operations for a module change."""
+    from core.entrypoints.cli.platform_runtime import _canonical_argv, _parser
+
+    listing = _parser().parse_args(["release-modules-list", "--json"])
+    assert _canonical_argv(listing) == ["release", "modules-list", "--json"]
+    apply = _parser().parse_args(
+        ["release-modules-apply", "--modules", "acme.ledger@1.1.0", "--confirm", "--plain"]
+    )
+    assert _canonical_argv(apply) == [
+        "release",
+        "modules-apply",
+        "--modules",
+        "acme.ledger@1.1.0",
+        "--confirm",
+        "--plain",
+    ]
+    restore = _parser().parse_args(["release-modules-apply", "--restore-previous", "--confirm"])
+    assert _canonical_argv(restore) == [
+        "release",
+        "modules-apply",
+        "--restore-previous",
+        "--confirm",
+    ]
+    with pytest.raises(ValueError, match="does not accept --modules"):
+        _canonical_argv(_parser().parse_args(["release-upgrade", "--modules", "acme.ledger@1"]))
+    with pytest.raises(ValueError, match="does not accept --restore-previous"):
+        _canonical_argv(_parser().parse_args(["release-modules-list", "--restore-previous"]))

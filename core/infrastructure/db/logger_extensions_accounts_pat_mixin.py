@@ -9,9 +9,9 @@ from typing import Any
 
 from core.infrastructure.db import psycopg_runtime as psycopg_runtime
 from core.infrastructure.db.logger_extensions_accounts_common import (
-    _default_account_id,
     _normalize_string_list,
 )
+from core.infrastructure.db.membership_role_reader import membership_role_keys
 
 
 class PlatformLoggerPersonalAccessTokensMixin:
@@ -67,22 +67,13 @@ class PlatformLoggerPersonalAccessTokensMixin:
                 (str(row.get("pat_id") or ""),),
             )
 
-            # Fetch user's actual roles
-            cur.execute(
-                """
-                SELECT r.key FROM user_roles ur
-                JOIN roles r ON r.id = ur.role_id
-                WHERE ur.user_id = %s
-                  AND ur.workspace_id IS NULL AND ur.project_id IS NULL AND ur.workflow_id IS NULL
-                ORDER BY r.key
-                """,
-                (str(row.get("user_id") or ""),),
-            )
-            roles = [str(r["key"]) for r in cur.fetchall() if r and r.get("key")]
+            # The owner's role in the token's account, read now (ADR 0085): a token
+            # never carries the role it was minted with, nor a role of another account.
+            account_id = str(row.get("pat_account_id") or "").strip()
+            if not account_id:
+                return None
+            roles = membership_role_keys(cur, row.get("user_id"), account_id)
 
-        account_id = (
-            str(row.get("pat_account_id") or _default_account_id()).strip() or _default_account_id()
-        )
         membership_allowed = getattr(self, "_user_has_active_account_membership", None)
         if callable(membership_allowed) and not membership_allowed(
             str(row.get("user_id") or ""), account_id
@@ -169,13 +160,16 @@ class PlatformLoggerPersonalAccessTokensMixin:
             "created_at": str(row["created_at"]),
         }
 
-    def list_user_pats(self, user_id: str, *, include_revoked: bool = False) -> list[dict]:
+    def list_user_pats(
+        self, user_id: str, *, include_revoked: bool = False, account_id: str | None = None
+    ) -> list[dict]:
         """List personal access tokens for a user."""
         return self.list_user_pats_paginated(
             user_id,
             include_revoked=include_revoked,
             limit=None,
             offset=0,
+            account_id=account_id,
         )
 
     def list_user_pats_paginated(
@@ -185,10 +179,19 @@ class PlatformLoggerPersonalAccessTokensMixin:
         include_revoked: bool = False,
         limit: int | None = 25,
         offset: int = 0,
+        account_id: str | None = None,
     ) -> list[dict]:
-        """List personal access tokens for a user with optional pagination."""
+        """List personal access tokens for a user with optional pagination.
+
+        ``account_id`` lists only the tokens of that account (a session pinned to one
+        account by external sign-in sees no other, ADR 0085).
+        """
         limit_sql = ""
+        account_sql = ""
         params: list[Any] = [str(user_id)]
+        if account_id:
+            account_sql = " AND account_id::text = %s"
+            params.append(str(account_id))
         if limit is not None:
             limit_sql = " LIMIT %s OFFSET %s"
             params.extend([max(1, min(int(limit or 25), 500)), max(0, int(offset or 0))])
@@ -200,7 +203,7 @@ class PlatformLoggerPersonalAccessTokensMixin:
                            allowed_workflow_ids_jsonb, expires_at, last_used_at,
                            revoked, created_at, updated_at
                     FROM personal_access_tokens
-                    WHERE user_id = %s
+                    WHERE user_id = %s{account_sql}
                     ORDER BY created_at DESC
                     {limit_sql}
                     """,
@@ -213,7 +216,7 @@ class PlatformLoggerPersonalAccessTokensMixin:
                            allowed_workflow_ids_jsonb, expires_at, last_used_at,
                            revoked, created_at, updated_at
                     FROM personal_access_tokens
-                    WHERE user_id = %s AND revoked = false
+                    WHERE user_id = %s AND revoked = false{account_sql}
                     ORDER BY created_at DESC
                     {limit_sql}
                     """,
@@ -245,41 +248,42 @@ class PlatformLoggerPersonalAccessTokensMixin:
             )
         return result
 
-    def count_user_pats(self, user_id: str, *, include_revoked: bool = False) -> int:
-        """Return total personal access token count for a user."""
+    def count_user_pats(
+        self, user_id: str, *, include_revoked: bool = False, account_id: str | None = None
+    ) -> int:
+        """Return total personal access token count for a user (of one account)."""
+        revoked_sql = "" if include_revoked else " AND revoked = false"
+        account_sql = " AND account_id::text = %s" if account_id else ""
+        params: tuple[Any, ...] = (str(user_id), str(account_id)) if account_id else (str(user_id),)
         with self.conn.cursor() as cur:
-            if include_revoked:
-                cur.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM personal_access_tokens
-                    WHERE user_id = %s
-                    """,
-                    (str(user_id),),
-                )
-            else:
-                cur.execute(
-                    """
-                    SELECT COUNT(*)
-                    FROM personal_access_tokens
-                    WHERE user_id = %s AND revoked = false
-                    """,
-                    (str(user_id),),
-                )
+            cur.execute(
+                f"""
+                SELECT COUNT(*)
+                FROM personal_access_tokens
+                WHERE user_id = %s{revoked_sql}{account_sql}
+                """,  # nosec B608 - fixed predicates.
+                params,
+            )
             row = cur.fetchone()
             return int(row[0] if row else 0)
 
-    def revoke_pat(self, pat_id: str, user_id: str) -> dict | None:
-        """Revoke a personal access token. Returns the revoked token info or None."""
+    def revoke_pat(
+        self, pat_id: str, user_id: str, *, account_id: str | None = None
+    ) -> dict | None:
+        """Revoke a personal access token (of one account). Returns its info or None."""
+        account_sql = " AND account_id::text = %s" if account_id else ""
+        params: tuple[Any, ...] = (str(pat_id), str(user_id))
+        if account_id:
+            params = (*params, str(account_id))
         with self.conn.cursor(cursor_factory=psycopg_runtime.extras.RealDictCursor) as cur:
             cur.execute(
-                """
+                f"""
                 UPDATE personal_access_tokens
                 SET revoked = true, updated_at = now()
-                WHERE id = %s AND user_id = %s
+                WHERE id = %s AND user_id = %s{account_sql}
                 RETURNING id, label, revoked
-                """,
-                (str(pat_id), str(user_id)),
+                """,  # nosec B608 - fixed predicates.
+                params,
             )
             row = cur.fetchone()
         if not row:

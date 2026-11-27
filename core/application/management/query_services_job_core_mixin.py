@@ -235,7 +235,14 @@ class JobQueryServiceCoreMixin(JobQueryServiceStatusMixin):
                 require_project_access(resolved_scope, project)
         else:
             require_account_access(resolved_scope, job)
-        require_workflow_access(resolved_scope, resolve_job_workflow_id(job))
+        job_workflow_id = resolve_job_workflow_id(job)
+        require_workflow_access(resolved_scope, job_workflow_id)
+        # ADR 0076 section 8b: in a project a limited person reaches only through
+        # workflow grants, a run of any other workflow is out of reach.
+        if normalized_project_id is not None and not workflow_in_scope_limit(
+            resolved_scope, normalized_project_id, job_workflow_id
+        ):
+            raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
         return bl, job, resolved_scope
 
     @staticmethod
@@ -378,6 +385,8 @@ class JobQueryServiceCoreMixin(JobQueryServiceStatusMixin):
             raise ServiceNotFoundError(PROJECT_NOT_FOUND_MESSAGE)
         require_project_access(resolved, dict(project))
         require_workflow_access(resolved, workflow_id)
+        if not workflow_in_scope_limit(resolved, project_id, workflow_id):
+            raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
         loaded = load_operator_workflow(workflow_id)
         if loaded is None:
             raise ServiceNotFoundError("Workflow not found")

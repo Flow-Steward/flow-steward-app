@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Mapping
 from typing import Any, Literal
 
+from core.application.auth.installation_admin import is_installation_admin
 from core.application.management.command_models import SkillMutationResultView
 from core.application.management.errors import (
     ServiceConflictError,
@@ -22,6 +23,7 @@ from core.application.registry.contract_validation_entities import validate_skil
 from core.application.registry.db_store_common import (
     RegistryCreateConflictError,
     RestoreValidationError,
+    platform_catalog_owner,
 )
 from core.application.registry.identifier_keys import unique_text_key
 from core.application.registry.projected_artifact_rows import (
@@ -118,17 +120,21 @@ class SkillCommandService:
 
     @staticmethod
     def _validate_expected_io(db: Any, skill_id: str, data: Mapping[str, Any]) -> None:
+        # A skill names data contracts of its own account (ADR 0020, C4a).
+        contract_owner = platform_catalog_owner(data.get("account_id"))
         _, input_issues = validate_contract_items(
             data.get("expected_inputs") or [],
             path_prefix=SKILL_EXPECTED_INPUTS_VALUE,
             default_required=False,
             db=db,
+            account_id=contract_owner,
         )
         _, output_issues = validate_contract_items(
             data.get("expected_outputs") or [],
             path_prefix=SKILL_EXPECTED_OUTPUTS_VALUE,
             default_required=True,
             db=db,
+            account_id=contract_owner,
         )
         if input_issues or output_issues:
             raise contract_items_error(
@@ -485,6 +491,8 @@ class SkillCommandService:
                 entity_id=skill_id,
                 entry_id=str(entry_id),
                 author="admin_restore",
+                account_id=scope.account_id,
+                installation_admin=is_installation_admin(scope),
                 validate_restored=lambda _entity_type, _entity_id, _restored: (
                     self._get_skill_validation(db, skill_id)
                 ),
@@ -529,7 +537,7 @@ class SkillCommandService:
     ) -> list[dict[str, Any]]:
         """Replace the skill's inputs or outputs and rematerialize the agents using it."""
         db = self._db()
-        self._require_skill(db, skill_id, scope)
+        skill = self._require_skill(db, skill_id, scope)
         _, issues = validate_contract_items(
             items,
             path_prefix=(
@@ -537,6 +545,7 @@ class SkillCommandService:
             ),
             default_required=kind == "outputs",
             db=db,
+            account_id=platform_catalog_owner(skill.get("account_id")),
         )
         if issues:
             raise contract_items_error(

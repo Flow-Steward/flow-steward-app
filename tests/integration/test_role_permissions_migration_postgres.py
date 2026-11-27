@@ -238,11 +238,28 @@ def test_the_schema_holds_one_system_role_per_user_and_scope(create_database) ->
             "RETURNING id"
         ).fetchone()[0]
 
+        # A role without a scope is held on the membership (ADR 0085): user_roles
+        # keeps scoped rows only, so the rule is shown within one project.
+        account_id = conn.execute(
+            "INSERT INTO public.accounts (account_key, display_name) "
+            "VALUES ('one-role', 'One role') RETURNING id"
+        ).fetchone()[0]
+        workspace_id = conn.execute(
+            "INSERT INTO public.workspaces (account_id, workspace_key, display_name) "
+            "VALUES (%s, 'one-role', 'One role') RETURNING id",
+            (account_id,),
+        ).fetchone()[0]
+        project_id = conn.execute(
+            "INSERT INTO public.projects (name, account_id, workspace_id) "
+            "VALUES ('One role', %s, %s) RETURNING id",
+            (account_id, workspace_id),
+        ).fetchone()[0]
+
         def assign(role: str) -> None:
             conn.execute(
-                "INSERT INTO public.user_roles (user_id, role_id) "
-                "SELECT %s, id FROM public.roles WHERE key = %s",
-                (user_id, role),
+                "INSERT INTO public.user_roles (user_id, role_id, project_id) "
+                "SELECT %s, id, %s FROM public.roles WHERE key = %s",
+                (user_id, project_id, role),
             )
 
         assign("operator")

@@ -31,6 +31,20 @@ def _install_table_identifier() -> psycopg_sql.Identifier:
     return psycopg_sql.Identifier(_INSTALL_TABLE)
 
 
+#: Another account reaches an installation's install only through its own enabled
+#: row (ADR 0020, step C6). Takes the account id as its one parameter; ``ei`` is the
+#: install row.
+_ENABLED_FOR_ACCOUNT = psycopg_sql.SQL(
+    """EXISTS (
+        SELECT 1 FROM extension_account_enablements AS ae
+         WHERE ae.install_id = ei.install_id
+           AND ae.extension_id = ei.extension_id
+           AND ae.account_id = %s
+           AND ae.state = 'enabled'
+    )"""
+)
+
+
 def _generate_install_id() -> str:
     return f"pi_{uuid.uuid4().hex[:24]}"
 
@@ -101,6 +115,9 @@ class ExtensionInstallStore:
 
     def __init__(self) -> None:
         self._records: dict[tuple[str, str], ExtensionInstallRecord] = {}
+        #: Per-account enablements (ADR 0020, C6); an
+        #: ``InMemoryExtensionAccountEnablementStore`` when a test needs them.
+        self.account_enablements: Any = None
 
     @staticmethod
     def participates_in_transaction(_transaction_connection: Any) -> bool:
@@ -200,8 +217,18 @@ class ExtensionInstallStore:
                 continue
             if record.state != InstallState.active:
                 continue
-            if include_global and record.visibility == InstallVisibility.global_:
+            if not include_global:
+                continue
+            if record.visibility == InstallVisibility.global_:
                 results.append(record)
+                continue
+            if self.account_enablements is not None:
+                from core.application.extensions.account_enablement import (
+                    install_reaches_account,
+                )
+
+                if install_reaches_account(record, account_id, self.account_enablements):
+                    results.append(record)
         return results
 
     def list_all_installs(self, extension_id: str) -> list[ExtensionInstallRecord]:
@@ -375,6 +402,15 @@ class DBExtensionInstallStore:
 
     def __init__(self, conn: Any) -> None:
         self._conn = conn
+
+    @property
+    def account_enablements(self) -> Any:
+        """The per-account enablements on the same connection (ADR 0020, C6)."""
+        from core.application.extensions.account_enablement import (
+            DBExtensionAccountEnablementStore,
+        )
+
+        return DBExtensionAccountEnablementStore(self._conn)
 
     def participates_in_transaction(self, transaction_connection: Any) -> bool:
         from core.infrastructure.db.db_pool import connection_participates_in_transaction
@@ -576,25 +612,38 @@ class DBExtensionInstallStore:
                     cur.execute(
                         psycopg_sql.SQL(
                             """
-                        SELECT * FROM {table}
-                        WHERE account_id = %s
-                           OR (visibility = 'global' AND state = 'active')
-                        ORDER BY extension_id
+                        SELECT * FROM {table} AS ei
+                        WHERE ei.account_id = %s
+                           OR (
+                               ei.state = 'active'
+                               AND (ei.visibility = 'global' OR {enabled_for_account})
+                           )
+                        ORDER BY ei.extension_id
                         """
-                        ).format(table=_install_table_identifier()),
-                        (account_id,),
+                        ).format(
+                            table=_install_table_identifier(),
+                            enabled_for_account=_ENABLED_FOR_ACCOUNT,
+                        ),
+                        (account_id, account_id),
                     )
                 else:
                     cur.execute(
                         psycopg_sql.SQL(
                             """
-                        SELECT * FROM {table}
-                        WHERE state = 'active'
-                          AND (account_id = %s OR visibility = 'global')
-                        ORDER BY extension_id
+                        SELECT * FROM {table} AS ei
+                        WHERE ei.state = 'active'
+                          AND (
+                              ei.account_id = %s
+                              OR ei.visibility = 'global'
+                              OR {enabled_for_account}
+                          )
+                        ORDER BY ei.extension_id
                         """
-                        ).format(table=_install_table_identifier()),
-                        (account_id,),
+                        ).format(
+                            table=_install_table_identifier(),
+                            enabled_for_account=_ENABLED_FOR_ACCOUNT,
+                        ),
+                        (account_id, account_id),
                     )
             else:
                 if include_inactive_owned:

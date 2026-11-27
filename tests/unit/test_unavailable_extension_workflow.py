@@ -15,11 +15,16 @@ from unittest.mock import patch
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.extensions.projected_dataset_bridge import projection_bridge_id
 from core.application.extensions.projection_dependency_availability import (
     missing_dependency_reason,
     resolve_projection_dependency_availability,
 )
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 INSTALL_ID = "install-showcase"
 DEPENDENCY = "acme.required-warehouse"
@@ -190,7 +195,7 @@ def test_a_run_of_the_blocked_workflow_is_refused_as_not_runnable(monkeypatch) -
             }
 
     reason = missing_dependency_reason([DEPENDENCY], [{"extension_id": DEPENDENCY}])
-    monkeypatch.setattr(snapshots, "load_workflow_definition_rows", lambda _cur, _ids: {})
+    monkeypatch.setattr(snapshots, "load_workflow_definition_rows", lambda _cur, _ids, **_kw: {})
     repository = snapshots.WorkflowDefinitionSnapshotRepository(conn=None)
     monkeypatch.setattr(
         repository,
@@ -262,7 +267,7 @@ def test_the_export_policy_passes_the_structured_reason_on() -> None:
 @pytest.mark.parametrize(
     ("state", "expected"),
     [
-        ({"auth_user": {"roles": ["admin"]}}, True),
+        ({"auth_user": {"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}}, True),
         ({"auth_user": {"roles": ["operator"]}}, False),
         ({"auth_principal": SimpleNamespace(roles=["Admin"])}, True),
         ({}, False),

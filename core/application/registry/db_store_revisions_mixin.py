@@ -2,11 +2,15 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from typing import ClassVar
+
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.registry.catalog_categories import known_catalog_category
 from core.application.workflows import workflow_history_snapshot
 
 from .db_store_common import *  # NOSONAR
 from .db_store_workflows_mixin import WorkflowRevisionConflictError
+from .workflow_account import workflow_owner
 
 WorkflowHistoryComparisonError = workflow_history_snapshot.WorkflowHistoryComparisonError
 
@@ -15,12 +19,17 @@ _SQL_ACCOUNT_ID = "account_id::text = %s"
 #: A cross-entity changelog read leaves out the revisions of a hook's storage
 #: workflow (``settings.hook_storage``): a place inside another workflow, never a
 #: workflow a person browses. A revision snapshot carries the marker, and so does
-#: the live row (a revision written before the marker needs the second test).
+#: the live row (a revision written before the marker needs the second test). The
+#: live row is the workflow of the revision's own account: another account's
+#: workflow with the same id never hides it (ADR 0020, C4c). Every workflow
+#: revision names its account (C5).
 _SQL_NOT_HOOK_STORAGE_REVISION = (
     "NOT (entity_type = 'workflow' AND ("
     "COALESCE(snapshot->'settings', '{}'::jsonb) ? 'hook_storage' "
-    "OR entity_id IN (SELECT hook_rw.workflow_id FROM registry_workflows hook_rw "
-    "WHERE hook_rw.settings ? 'hook_storage')))"
+    "OR EXISTS (SELECT 1 FROM registry_workflows hook_rw "
+    "WHERE hook_rw.workflow_id = registry_changelog.entity_id "
+    "AND hook_rw.account_id = registry_changelog.account_id "
+    "AND hook_rw.settings ? 'hook_storage')))"
 )
 #: The same marker, as a filter on a registry workflow row of a name search.
 _SQL_NOT_HOOK_STORAGE_WORKFLOW = "NOT (settings ? 'hook_storage')"
@@ -39,8 +48,33 @@ class RegistryDBStoreRevisionsMixin:
         account_id: str | None = None,
         actor_id: str | None = None,
         actor_type: str | None = None,
+        owner_account_id: str | None = None,
     ) -> None:
-        """Write changelog entry within an existing cursor/transaction."""
+        """Write changelog entry within an existing cursor/transaction.
+
+        Every entry names the account whose entity changed (ADR 0020, C5). With
+        actor attribution the three ownership values come together; without it the
+        owner is *owner_account_id*, else the account the snapshot names, else (for
+        an entity whose key is unique only per account) the bound account. An
+        account-keyed entry without any account is refused. A platform object (no
+        account) keeps an entry without one.
+        """
+        if account_id is None and actor_id is None and actor_type is None:
+            owner = self._changelog_owner(entity_type, snapshot, owner_account_id)
+            cur.execute(
+                """INSERT INTO registry_changelog
+                   (entity_type, entity_id, action, snapshot, author, account_id)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (
+                    entity_type,
+                    entity_id,
+                    action,
+                    json.dumps(snapshot, default=str),
+                    author,
+                    owner,
+                ),
+            )
+            return
         if account_id is not None or actor_id is not None or actor_type is not None:
             if not all(str(value or "").strip() for value in (account_id, actor_id, actor_type)):
                 raise ValueError("account_id, actor_id, and actor_type must be supplied together")
@@ -61,17 +95,71 @@ class RegistryDBStoreRevisionsMixin:
                 ),
             )
             return
-        cur.execute(
-            """INSERT INTO registry_changelog (entity_type, entity_id, action, snapshot, author)
-               VALUES (%s, %s, %s, %s, %s)""",
-            (entity_type, entity_id, action, json.dumps(snapshot, default=str), author),
-        )
+
+    @staticmethod
+    def _changelog_owner(
+        entity_type: str, snapshot: Any, owner_account_id: str | None = None
+    ) -> str | None:
+        owner = str(owner_account_id or "").strip()
+        if not owner and isinstance(snapshot, dict):
+            owner = str(snapshot.get("account_id") or "").strip()
+        if owner:
+            return owner
+        if entity_type in ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES:
+            return workflow_owner()
+        return None
 
     def log_change(
-        self, entity_type: str, entity_id: str, action: str, snapshot: dict, author: str = "admin"
+        self,
+        entity_type: str,
+        entity_id: str,
+        action: str,
+        snapshot: dict,
+        author: str = "admin",
+        *,
+        owner_account_id: str | None = None,
     ) -> None:
         with self._cursor() as cur:
-            self._log_change_cur(cur, entity_type, entity_id, action, snapshot, author)
+            self._log_change_cur(
+                cur,
+                entity_type,
+                entity_id,
+                action,
+                snapshot,
+                author,
+                owner_account_id=owner_account_id,
+            )
+
+    @staticmethod
+    def _append_changelog_account_clause(
+        clauses: list[str],
+        params: list[Any],
+        entity_type: str | None,
+        account_id: str | None,
+    ) -> None:
+        """Limit a history read to one account (ADR 0020, C5).
+
+        An entity whose key is unique only per account (workflow, field, data
+        contract) is always read in one account: the given one, else the bound one;
+        without either the read is refused. A guardrail is read in the given
+        account. Any other read sees that account's entries and those of platform
+        objects (entries without an account), which every account may read. A read
+        that names no account and has none bound is refused: there is no
+        installation-wide read.
+        """
+        # Every read names its account: the given one, else the bound one. A read
+        # with neither is refused (WorkflowAccountMissingError), never widened to
+        # the whole installation.
+        owner = workflow_owner(account_id)
+        normalized_type = str(entity_type or "").strip()
+        if (
+            normalized_type in ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES
+            or normalized_type == "guardrail"
+        ):
+            clauses.append(_SQL_ACCOUNT_ID)
+        else:
+            clauses.append(f"({_SQL_ACCOUNT_ID} OR account_id IS NULL)")
+        params.append(owner)
 
     @staticmethod
     def _to_snapshot_dict(snapshot: Any) -> dict:
@@ -247,7 +335,7 @@ class RegistryDBStoreRevisionsMixin:
         snapshot: dict,
         author: str = "admin",
         *,
-        account_id: str = DEFAULT_ACCOUNT_ID,
+        account_id: str | None = DEFAULT_ACCOUNT_ID,
         actor_id: str = "system",
         actor_type: str = "system",
         expected_revision: int | None = None,
@@ -263,7 +351,9 @@ class RegistryDBStoreRevisionsMixin:
             self.save_agent(normalized, author=author)
             return self.get_agent(entity_id) or normalized
         if entity_type == "tool":
-            normalized["account_id"] = str(account_id or DEFAULT_ACCOUNT_ID)
+            # ``None`` keeps a platform tool (no account) without one; a restore
+            # passes the live row's owner, never the installation account by default.
+            normalized["account_id"] = str(account_id or "").strip() or None
             self.save_tool(normalized, author=author)
             return self.get_tool(entity_id) or normalized
         if entity_type == "skill":
@@ -383,9 +473,7 @@ class RegistryDBStoreRevisionsMixin:
             if entity_id:
                 clauses.append(_SQL_ENTITY_ID)
                 params.append(entity_id)
-            if account_id:
-                clauses.append(_SQL_ACCOUNT_ID)
-                params.append(account_id)
+            self._append_changelog_account_clause(clauses, params, entity_type, account_id)
             where = SQL_AND.join(clauses)
             cur.execute(f"SELECT * FROM registry_changelog WHERE {where} LIMIT 1", params)
             row = cur.fetchone()
@@ -460,9 +548,7 @@ class RegistryDBStoreRevisionsMixin:
             str(workflow_history_snapshot.HISTORY_SCHEMA_VERSION),
             str(int(revision)),
         ]
-        if account_id:
-            clauses.append(_SQL_ACCOUNT_ID)
-            params.append(account_id)
+        self._append_changelog_account_clause(clauses, params, "workflow", account_id)
         with self._cursor() as cur:
             cur.execute(
                 "SELECT * FROM registry_changelog WHERE "  # nosec B608 -- fixed clauses; values are bound.
@@ -637,15 +723,26 @@ class RegistryDBStoreRevisionsMixin:
         account_id: str | None = None,
         actor_id: str | None = None,
         actor_type: str | None = None,
+        installation_admin: bool = False,
     ) -> dict:
+        """Restore a revision as a new write, in the caller's account (ADR 0020, C5).
+
+        *account_id* is the caller's account (else the bound one; with neither the
+        restore is refused). The entry is read in that account, and the write is
+        refused unless the live row belongs to it; a platform object (a live row
+        without an account) is restored only by an installation administrator
+        (*installation_admin*). The restored row keeps the owner of the live row,
+        never the snapshot's and never the installation account by default.
+        """
         if entity_type == "workflow":
             # A workflow is judged and written by its definition service, never here.
             raise ValueError("A workflow revision is restored through restore_workflow_snapshot")
+        caller_account = workflow_owner(account_id)
         entry = self.get_changelog_entry(
             str(entry_id),
             entity_type=entity_type,
             entity_id=entity_id,
-            account_id=account_id,
+            account_id=caller_account,
         )
         if not entry:
             raise KeyError(f"Revision '{entry_id}' was not found for {entity_type}:{entity_id}")
@@ -660,23 +757,37 @@ class RegistryDBStoreRevisionsMixin:
         validation = None
         try:
             with self._transaction():
+                ownership = None
+                if entity_type != "guardrail":
+                    # Checked inside the write transaction with the live row locked
+                    # (SELECT ... FOR UPDATE), so a concurrent move of the row to
+                    # another account cannot slip between the check and the write.
+                    ownership = self._restore_target_ownership(
+                        entity_type,
+                        entity_id,
+                        entry,
+                        caller_account=caller_account,
+                        installation_admin=installation_admin,
+                    )
                 if entity_type == "guardrail":
                     normalized = self._normalize_guardrail_restore_payload(entity_id, snapshot)
                     self.save_guardrail(
                         normalized,
                         author=author,
-                        account_id=str(account_id or ""),
+                        account_id=caller_account,
                         actor_id=str(actor_id or ""),
                         actor_type=str(actor_type or ""),
                     )
-                    restored = self.get_guardrail(entity_id, account_id=account_id) or normalized
+                    restored = (
+                        self.get_guardrail(entity_id, account_id=caller_account) or normalized
+                    )
                 else:
                     restored = self.apply_entity_snapshot(
                         entity_type,
                         entity_id,
-                        snapshot,
+                        {**snapshot, **(ownership or {})},
                         author=author,
-                        account_id=str(account_id or DEFAULT_ACCOUNT_ID),
+                        account_id=(ownership or {}).get("account_id"),
                     )
                 if callable(validate_restored):
                     validation = validate_restored(entity_type, entity_id, restored)
@@ -686,13 +797,80 @@ class RegistryDBStoreRevisionsMixin:
                             validation=validation,
                         )
         except Exception as e:
-            if isinstance(e, RestoreValidationError):
+            if isinstance(e, (RestoreValidationError, RestoreOwnershipError)):
                 raise
             raise ValueError(f"Failed to apply revision snapshot: {e}") from e
         return {
             "entry": entry,
             "restored": restored,
             "validation": validation,
+        }
+
+    _RESTORE_OWNERSHIP_COLUMNS = ("account_id", "project_id", "scope_kind", "source_install_id")
+    _RESTORE_TABLES: ClassVar[dict[str, tuple[str, str]]] = {
+        "agent": ("registry_agents", "agent_id"),
+        "tool": ("registry_tools", "tool_id"),
+        "skill": ("registry_skills", "skill_id"),
+    }
+
+    def _live_registry_ownership(
+        self, entity_type: str, entity_id: str, *, for_update: bool = False
+    ) -> dict | None:
+        """The ownership columns of the live row (a row in Trash included), if any.
+
+        With *for_update* the row is locked (``FOR UPDATE``) until the caller's
+        transaction ends; the caller must hold one (``_transaction``).
+        """
+        table, id_column = self._RESTORE_TABLES.get(entity_type, (None, None))
+        if table is None:
+            return None
+        columns = [
+            column
+            for column in self._RESTORE_OWNERSHIP_COLUMNS
+            if self._column_exists(table, column)
+        ]
+        if not columns:
+            return None
+        lock = " FOR UPDATE" if for_update else ""
+        with self._cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(columns)} FROM {table} WHERE {id_column} = %s{lock}",  # nosec B608 -- fixed identifiers
+                (entity_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        if not isinstance(row, dict):
+            row = dict(zip(columns, row, strict=False))
+        return {column: row.get(column) for column in columns}
+
+    def _restore_target_ownership(
+        self,
+        entity_type: str,
+        entity_id: str,
+        entry: dict,
+        *,
+        caller_account: str,
+        installation_admin: bool,
+    ) -> dict:
+        """The owner a restore writes under, after checking the caller may write it.
+
+        The live row decides; without one (the entity is gone) the entry's account
+        does. Another account's entity is reported as not found. Called inside the
+        restore's write transaction: the live row stays locked until it commits.
+        """
+        live = self._live_registry_ownership(entity_type, entity_id, for_update=True)
+        if live is None:
+            live = {"account_id": entry.get("account_id")}
+        owner = str(live.get("account_id") or "").strip()
+        if owner:
+            if owner != caller_account:
+                raise RestoreOwnershipError(entity_type, entity_id)
+        elif not installation_admin:
+            raise RestoreOwnershipError(entity_type, entity_id)
+        return {
+            column: (str(value).strip() or None) if value is not None else None
+            for column, value in live.items()
         }
 
     def get_changelog(
@@ -714,9 +892,7 @@ class RegistryDBStoreRevisionsMixin:
                 params.append(entity_id)
             elif entity_type in (None, "", "workflow"):
                 clauses.append(_SQL_NOT_HOOK_STORAGE_REVISION)
-            if account_id:
-                clauses.append(_SQL_ACCOUNT_ID)
-                params.append(account_id)
+            self._append_changelog_account_clause(clauses, params, entity_type, account_id)
             where = "WHERE " + SQL_AND.join(clauses) if clauses else ""
             params.append(limit)
             cur.execute(
@@ -725,8 +901,17 @@ class RegistryDBStoreRevisionsMixin:
             )
             return [self._project_history_entry(r) for r in cur.fetchall()]
 
-    def search_entities(self, query: str, entity_type: str | None = None) -> list[dict]:
-        """Search across all entity types by name/description."""
+    def search_entities(
+        self, query: str, entity_type: str | None = None, *, account_id: str | None = None
+    ) -> list[dict]:
+        """Search across all entity types by name/description, in one account.
+
+        Workflows are the account's own (the given account, else the bound one;
+        without either the search is refused). Agents, skills and tools are the
+        account's own and platform objects (no account), which every account may
+        use (ADR 0020, C5).
+        """
+        owner = workflow_owner(account_id)
         results = []
         pattern = f"%{query}%"
         tables = {
@@ -744,19 +929,24 @@ class RegistryDBStoreRevisionsMixin:
                 ]
                 if self._column_exists(table, "deleted_at"):
                     clauses.append(SQL_DELETED_AT_IS_NULL)
+                params: list[Any] = [pattern, pattern, pattern]
                 if etype == "workflow":
                     clauses.append(_SQL_NOT_HOOK_STORAGE_WORKFLOW)
+                    clauses.append("account_id = %s")
+                    params.append(owner)
+                has_account = self._column_exists(table, "account_id")
+                if etype != "workflow" and has_account:
+                    clauses.append("(account_id = %s OR account_id IS NULL)")
+                    params.append(owner)
                 where_sql = SQL_AND.join(clauses)
-                account_scope_select = (
-                    ", account_id" if self._column_exists(table, "account_id") else ""
-                )
+                account_scope_select = ", account_id" if has_account else ""
                 cur.execute(
                     f"""SELECT {id_col} AS entity_id, {name_col} AS display_name,
                                {desc_col} AS description, enabled{account_scope_select}
                         FROM {table}
                         WHERE {where_sql}
                         ORDER BY {id_col} LIMIT 20""",
-                    (pattern, pattern, pattern),
+                    tuple(params),
                 )
                 for r in cur.fetchall():
                     results.append({"entity_type": etype, **dict(r)})
@@ -789,13 +979,28 @@ class RegistryDBStoreRevisionsMixin:
                 stats["guardrails"] = {"total": 0, "enabled": 0}
             return stats
 
-    def _exists(self, table: str, pk_col: str, pk_val: str) -> bool:
+    def _exists(self, table: str, pk_col: str, pk_val: str, account_id: str | None = None) -> bool:
+        """Whether a row with *pk_val* exists; with *account_id*, within that account."""
+        account_sql = "" if account_id is None else " AND account_id = %s"
+        params = (pk_val,) if account_id is None else (pk_val, account_id)
         with self._cursor() as cur:
-            cur.execute(f"SELECT 1 FROM {table} WHERE {pk_col} = %s", (pk_val,))
+            cur.execute(f"SELECT 1 FROM {table} WHERE {pk_col} = %s{account_sql}", params)
             return cur.fetchone() is not None
+
+
+class RestoreOwnershipError(KeyError):
+    """A restore targeted an entity the caller's account does not own.
+
+    A ``KeyError`` so every restore surface answers "not found": another
+    account's entity is never disclosed (ADR 0020, C5).
+    """
+
+    def __init__(self, entity_type: str, entity_id: str) -> None:
+        super().__init__(f"{entity_type} '{entity_id}' was not found in this account")
 
 
 __all__ = [
     "RegistryDBStoreRevisionsMixin",
+    "RestoreOwnershipError",
     "WorkflowHistoryComparisonError",
 ]

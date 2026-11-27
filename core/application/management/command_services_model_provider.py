@@ -11,6 +11,37 @@ from .command_services_common import *  # NOSONAR
 _MESSAGE_MODEL_PROVIDER_NOT_FOUND = "Model provider not found"
 
 
+def _claimed_api_key(conn: Any, *, account_id: str, ref_key: str, ciphertext: Any) -> str | None:
+    """The claimed route's key, read through the host-selected stored-secret reader.
+
+    The local ciphertext was read with the claim, so the probe uses exactly the
+    value the claim compared. No pointer or no stored value: no key (``None``). A
+    value that cannot be read becomes an error the verification maps to a safe
+    category: an unreadable value to ``invalid_response``, storage that did not
+    answer to ``timeout``.
+    """
+    if not ref_key:
+        return None
+    from core.infrastructure.security.stored_secrets import (
+        SecretReadContext,
+        StoredSecretMissing,
+        StoredSecretUnavailable,
+        stored_secret_reader,
+    )
+
+    reader = stored_secret_reader(
+        conn, prefetched_ciphertexts={ref_key: str(ciphertext or "") or None}
+    )
+    try:
+        return reader.read(SecretReadContext.for_account(account_id), ref_key)
+    except StoredSecretMissing:
+        return None
+    except StoredSecretUnavailable as exc:
+        raise TimeoutError("stored provider key read timed out") from exc
+    except Exception as exc:
+        raise ValueError("stored provider key is malformed") from exc
+
+
 class ModelProviderCommandService:
     """CRUD for account-scoped encrypted model-provider configurations."""
 
@@ -128,11 +159,14 @@ class ModelProviderCommandService:
         result_published = False
         try:
             claimed_snapshot = dict(snapshot)
-            ciphertext = str(claimed_snapshot.pop("secret_ciphertext", "") or "")
-            if ciphertext:
-                from core.application.auth.secrets import decrypt_secret
-
-                claimed_snapshot["_decrypted_api_key"] = decrypt_secret(ciphertext)
+            api_key = _claimed_api_key(
+                conn,
+                account_id=account_id,
+                ref_key=str(claimed_snapshot.get("api_key_ref") or "").strip(),
+                ciphertext=claimed_snapshot.pop("secret_ciphertext", None),
+            )
+            if api_key is not None:
+                claimed_snapshot["_decrypted_api_key"] = api_key
             model = get_chat_model(
                 {
                     "account_id": account_id,

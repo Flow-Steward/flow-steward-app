@@ -178,7 +178,7 @@ def test_binding_facade_repeats_preflight_before_archive_install_entrypoints() -
     service = ExtensionBindingService(
         get_logger=lambda: None,
         get_operation_store=lambda: None,
-        resolve_extension_runtime_record=lambda _extension_id: (None, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (None, None),
         extension_identifier=lambda _extension: "",
         extension_operation_handler_mode=handler_mode,
         extension_operation_failure_status=lambda _extension: 500,

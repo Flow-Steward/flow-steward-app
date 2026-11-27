@@ -36,6 +36,7 @@ from core.application.management.errors import (
     ServiceForbiddenError,
     ServiceNotFoundError,
 )
+from core.application.management.guards import workflow_in_scope_limit
 from core.application.management.scope import ScopeContext
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -117,6 +118,10 @@ class DirectEffectRecoveryService:
         require_project_access(scope, project)
         if scope.project_id and str(scope.project_id) != project_id:
             raise ServiceForbiddenError("Access denied")
+        # A direct action belongs to no workflow: in a project reached only through
+        # workflow grants its effects are out of reach (ADR 0076 section 8b).
+        if not workflow_in_scope_limit(scope, project_id, None):
+            raise ServiceNotFoundError("Extension install not found")
         install = self._get_install_store().get_extension_install_for_operator(
             install_id, account_id=scope.account_id
         )

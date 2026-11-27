@@ -499,7 +499,7 @@ class TrashLifecycleServiceExecutionMixin:
                 )
             return
         if action_type == "restore":
-            self._restore_entity_direct(bl, entity_type, entity_id)
+            self._restore_entity_direct(bl, entity_type, entity_id, account_id=account_id)
         else:
             self._hard_delete_entity_direct(
                 bl,

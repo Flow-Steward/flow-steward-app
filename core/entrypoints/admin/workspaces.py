@@ -160,6 +160,8 @@ def create_workspace(request: Request, body: WorkspaceSave):
         raise HTTPException(status_code=400, detail="display_name is required")
     try:
         return _service().create_workspace(payload, scope=_request_scope(request))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except WorkspaceConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:

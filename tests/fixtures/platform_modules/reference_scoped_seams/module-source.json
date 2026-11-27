@@ -1,0 +1,5 @@
+{
+  "id": "acme.reference-scoped-seams",
+  "import": "fs_reference_scoped_seams",
+  "version": "1.0.0"
+}

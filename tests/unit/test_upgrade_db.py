@@ -6,6 +6,9 @@ import pytest
 
 from core.application.tooling.db import upgrade_db
 
+# Captured before the autouse fixture below replaces it for the sequence tests.
+_real_prepared_module_sources = upgrade_db.prepared_module_migration_sources
+
 
 @pytest.fixture(autouse=True)
 def _existing_migration_ledger(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -31,6 +34,17 @@ def _no_preflight_or_phases(monkeypatch):
     """These tests pin the upgrade sequence; preflight and phases have their own tests."""
     monkeypatch.setattr(upgrade_db, "_refuse_blocked_preflight", lambda *_a, **_k: None)
     monkeypatch.setattr(upgrade_db.upgrade_phases, "run_pending_phases", lambda *_a, **_k: {})
+
+
+@pytest.fixture(autouse=True)
+def _no_platform_modules(monkeypatch):
+    """No prepared platform module; module migrations have their own tests below."""
+    monkeypatch.setattr(upgrade_db, "prepared_module_migration_sources", lambda: ())
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "apply_platform_module_migrations",
+        lambda _conn, _modules, *, acquire_lock=True: {"modules": [], "orphaned_modules": []},
+    )
 
 
 @pytest.mark.parametrize("skip_backup", [False, True])
@@ -95,6 +109,9 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch, skip_backup) -> Non
         def fetchone(self):
 
             return (True,)
+
+        def fetchall(self):
+            return []
 
         def execute(self, sql, _params=None) -> None:
             if "advisory_lock(" in sql and "unlock" not in sql:
@@ -194,6 +211,7 @@ def test_upgrade_database_runs_upgrade_sequence(monkeypatch, skip_backup) -> Non
         "applied": ["0001.sql"],
         "skipped": ["0000.sql"],
         "repaired_user_memberships": 0,
+        "repaired_user_memberships_without_role": 0,
         "upgrade_phases": {},
     }
     assert summary["schema_reconcile"] == {
@@ -262,7 +280,7 @@ def test_upgrade_missing_tracking_table_verifies_baseline_then_applies_post_base
     monkeypatch.setattr(
         upgrade_db,
         "_repair_missing_user_memberships",
-        lambda _conn: calls.append("repair-memberships") or 1,
+        lambda _conn: calls.append("repair-memberships") or (1, 0),
     )
     monkeypatch.setattr(
         upgrade_db.migration_runner,
@@ -331,10 +349,9 @@ def test_membership_recovery_is_insert_only_and_idempotent() -> None:
     statements: list[str] = []
 
     class _Cursor:
-        def fetchone(self):
-            return (True,)
-
-        rowcount = 1
+        def fetchall(self):
+            # Two repaired memberships, neither with a role.
+            return [(True,), (True,)]
 
         def __enter__(self):
             return self
@@ -349,13 +366,43 @@ def test_membership_recovery_is_insert_only_and_idempotent() -> None:
         def cursor(self):
             return _Cursor()
 
-    assert upgrade_db._repair_missing_user_memberships(_Connection()) == 1
+    assert upgrade_db._repair_missing_user_memberships(_Connection()) == (2, 2)
     assert len(statements) == 1
     assert statements[0].startswith("INSERT INTO public.user_account_memberships")
     assert "WHERE NOT EXISTS" in statements[0]
     assert "ON CONFLICT (user_id, account_id) DO NOTHING" in statements[0]
     assert "DELETE" not in statements[0]
     assert "UPDATE" not in statements[0]
+
+
+def test_membership_recovery_grants_no_role_and_reports_the_count() -> None:
+    """ADR 0085: no role can be derived for a person without any membership (the
+    global role rows are gone), so a repaired membership carries none (NULL, no
+    access), never a guessed one, and the count is reported."""
+    statements: list[str] = []
+
+    class _Cursor:
+        def fetchall(self):
+            return [(True,)]
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, sql: str) -> None:
+            statements.append(" ".join(sql.split()))
+
+    class _Connection:
+        def cursor(self):
+            return _Cursor()
+
+    assert upgrade_db._repair_missing_user_memberships(_Connection()) == (1, 1)
+    sql = statements[0]
+    assert "(user_id, account_id, is_default, role_id)" in sql
+    assert "SELECT users.id, users.account_id, true, NULL" in sql
+    assert "RETURNING role_id IS NULL AS without_role" in sql
 
 
 def test_upgrade_database_stops_before_reconciliation_when_migration_fails(
@@ -473,6 +520,9 @@ def test_upgrade_database_aligns_runtime_status_before_seed(monkeypatch) -> None
     class _FakeCursor:
         def fetchone(self):
             return (True,)
+
+        def fetchall(self):
+            return []
 
         def __enter__(self):
             return self
@@ -820,3 +870,305 @@ def test_skip_backup_never_waives_writer_confirmation(monkeypatch):
     monkeypatch.setattr(upgrade_db.psycopg_runtime, "connect", connect)
     with pytest.raises(RuntimeError, match="writers must be stopped"):
         upgrade_db.upgrade_database(skip_db_backup=True)
+
+
+# ---------------------------------------------------------------------------
+# Platform-module migrations (ADR 0082)
+# ---------------------------------------------------------------------------
+
+
+def _stub_upgrade_sequence(monkeypatch, calls: list[str]) -> None:
+    monkeypatch.setattr(upgrade_db, "_resolved_dsn", lambda _dsn=None: "postgresql://example")
+    monkeypatch.setattr(upgrade_db.init_db, "validate_bootstrap_layout", lambda: None)
+    monkeypatch.setattr(
+        upgrade_db.psycopg_runtime, "connect", lambda _dsn: _LockRecordingConnection(calls)
+    )
+    monkeypatch.setattr(upgrade_db.vector_lifecycle, "require_pgvector_image", lambda _conn: {})
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "apply_pending_migrations",
+        lambda _conn, *, root=None, acquire_lock=True: (
+            calls.append(f"core-migrations:lock={acquire_lock}")
+            or {"total": 0, "applied": [], "skipped": []}
+        ),
+    )
+    monkeypatch.setattr(
+        upgrade_db.init_db,
+        "init_platform_observability_schema",
+        lambda: calls.append("platform"),
+    )
+    monkeypatch.setattr(upgrade_db.init_db, "cleanup_retired_project_schema", lambda **_: {})
+    monkeypatch.setattr(upgrade_db.init_db, "apply_clean_bootstrap", lambda **_: {})
+    monkeypatch.setattr(upgrade_db.init_db, "init_workflow_knowledge_graph", lambda **_: {})
+    monkeypatch.setattr(upgrade_db.init_db, "init_extension_catalog", lambda: None)
+    monkeypatch.setattr(upgrade_db.init_db, "init_langgraph_schema", lambda: None)
+    monkeypatch.setattr(upgrade_db, "_repair_missing_user_memberships", lambda _conn: (0, 0))
+    monkeypatch.setattr(
+        upgrade_db.vector_lifecycle,
+        "inspect_vector_health",
+        lambda *_args, **_kwargs: {"status": "healthy"},
+    )
+    monkeypatch.setattr(
+        upgrade_db,
+        "record_canonical_schema_state",
+        lambda *_args, **_kwargs: {"schema_fingerprint": "abc"},
+    )
+
+
+def test_upgrade_applies_module_migrations_after_core_under_the_same_lock(monkeypatch) -> None:
+    calls: list[str] = []
+    _stub_upgrade_sequence(monkeypatch, calls)
+    source = upgrade_db.migration_runner.ModuleMigrationSource(
+        "acme.billing", "1.2.0", Path("/modules/acme-billing/db/migrations")
+    )
+    received: list[tuple] = []
+    module_result = {
+        "modules": [{"module_id": "acme.billing", "applied": ["20261201000000_init.sql"]}],
+        "orphaned_modules": [],
+    }
+
+    def apply_modules(_conn, modules, *, acquire_lock=True):
+        received.append((tuple(modules), acquire_lock))
+        calls.append("module-migrations")
+        return module_result
+
+    monkeypatch.setattr(
+        upgrade_db.migration_runner, "apply_platform_module_migrations", apply_modules
+    )
+
+    summary = upgrade_db.upgrade_database(module_sources=lambda: [source])
+
+    assert received == [((source,), False)]
+    assert calls[:4] == ["lock", "core-migrations:lock=False", "module-migrations", "platform"]
+    assert calls[-2:] == ["unlock", "close"]
+    assert summary["platform_module_migrations"] == module_result
+    assert "platform_module_migrations" not in summary["schema_migrations"]
+
+
+def test_upgrade_uses_prepared_modules_when_no_provider_is_given(monkeypatch) -> None:
+    calls: list[str] = []
+    _stub_upgrade_sequence(monkeypatch, calls)
+    prepared = (("acme.billing", "2.0.0", Path("/modules/acme/db/migrations")),)
+    monkeypatch.setattr(upgrade_db, "prepared_module_migration_sources", lambda: prepared)
+    received: list[tuple] = []
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "apply_platform_module_migrations",
+        lambda _conn, modules, *, acquire_lock=True: (
+            received.append(tuple(modules)) or {"modules": [], "orphaned_modules": []}
+        ),
+    )
+
+    upgrade_db.upgrade_database()
+
+    assert received == [prepared]
+
+
+def test_prepared_module_sources_map_module_directories_without_touching_sys_path(
+    monkeypatch, tmp_path
+) -> None:
+    import sys
+    import types
+
+    seen: dict[str, object] = {}
+
+    def activate(role, *, root=None, sys_path=None, **_kwargs):
+        seen["role"] = role
+        seen["sys_path"] = sys_path
+        return (
+            types.SimpleNamespace(
+                module_id="acme.billing",
+                version="1.2.0",
+                import_name="acme_billing",
+                path=tmp_path / "acme-billing",
+            ),
+        )
+
+    fake = types.ModuleType("core.infrastructure.platform_modules.loader")
+    fake.activate_prepared_platform_modules = activate
+    monkeypatch.setitem(sys.modules, "core.infrastructure.platform_modules.loader", fake)
+
+    result = _real_prepared_module_sources()
+
+    assert seen["role"] == "control"
+    assert seen["sys_path"] == list(sys.path)
+    assert seen["sys_path"] is not sys.path
+    assert result == (
+        upgrade_db.migration_runner.ModuleMigrationSource(
+            module_id="acme.billing",
+            module_version="1.2.0",
+            migrations_dir=tmp_path / "acme-billing" / "db" / "migrations",
+        ),
+    )
+
+
+def test_prepared_module_sources_are_empty_without_platform_module_support(monkeypatch) -> None:
+    import sys
+
+    monkeypatch.setitem(sys.modules, "core.infrastructure.platform_modules.loader", None)
+
+    assert _real_prepared_module_sources() == ()
+
+
+def _inspection_without_core_changes(monkeypatch) -> None:
+    class _FakeConnection:
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(upgrade_db, "_resolved_dsn", lambda _dsn=None: "postgresql://example")
+    monkeypatch.setattr(upgrade_db.psycopg_runtime, "connect", lambda _dsn: _FakeConnection())
+    monkeypatch.setattr(
+        upgrade_db,
+        "inspect_canonical_schema_state",
+        lambda conn: {"needs_upgrade": False},
+    )
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "inspect_migrations",
+        lambda conn: {"pending": [], "drifted": []},
+    )
+
+
+def test_inspection_needs_an_upgrade_for_a_module_only_change(monkeypatch) -> None:
+    _inspection_without_core_changes(monkeypatch)
+    source = ("acme.billing", "1.1.0", Path("/modules/acme/db/migrations"))
+    report = {
+        "acme.billing": {
+            "pending": ["20261215000000_currency.sql"],
+            "drifted": [],
+            "unknown": [],
+        }
+    }
+    received: list[tuple] = []
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "inspect_module_migrations",
+        lambda _conn, modules: received.append(tuple(modules)) or report,
+    )
+
+    status = upgrade_db.inspect_database_upgrade(module_sources=lambda: [source])
+
+    assert received == [(source,)]
+    assert status["needs_upgrade"] is True
+    assert status["pending_migrations"] == []
+    assert status["module_migrations"] == report
+
+
+def test_inspection_of_up_to_date_modules_needs_no_upgrade(monkeypatch) -> None:
+    _inspection_without_core_changes(monkeypatch)
+    report = {"acme.billing": {"pending": [], "drifted": [], "unknown": []}}
+    monkeypatch.setattr(
+        upgrade_db.migration_runner, "inspect_module_migrations", lambda _conn, _m: report
+    )
+
+    status = upgrade_db.inspect_database_upgrade(
+        module_sources=lambda: [("acme.billing", "1.0.0", Path("/m"))]
+    )
+
+    assert status["needs_upgrade"] is False
+
+
+def test_inspection_without_modules_keeps_the_core_report(monkeypatch) -> None:
+    _inspection_without_core_changes(monkeypatch)
+
+    status = upgrade_db.inspect_database_upgrade()
+
+    assert "module_migrations" not in status
+    assert status["needs_upgrade"] is False
+
+
+def _baseline_database(monkeypatch, calls: list[str], *, ledger_exists: bool) -> None:
+    monkeypatch.setattr(upgrade_db, "_resolved_dsn", lambda _dsn=None: "postgresql://example")
+    monkeypatch.setattr(upgrade_db.init_db, "validate_bootstrap_layout", lambda: None)
+    monkeypatch.setattr(upgrade_db.upgrade_preflight, "validate_release_artifacts", lambda: None)
+    monkeypatch.setattr(
+        upgrade_db.psycopg_runtime, "connect", lambda _dsn: _LockRecordingConnection(calls)
+    )
+    monkeypatch.setattr(
+        upgrade_db.migration_runner, "migrations_table_exists", lambda _conn: ledger_exists
+    )
+
+
+def test_fresh_install_runs_prepared_module_migrations_after_core(monkeypatch) -> None:
+    calls: list[str] = []
+    _baseline_database(monkeypatch, calls, ledger_exists=False)
+    monkeypatch.setattr(
+        upgrade_db,
+        "_stamp_verified_canonical_baseline",
+        lambda _conn, *, component: calls.append("core-baseline") or {"applied": []},
+    )
+    source = ("acme.billing", "1.0.0", Path("/modules/acme/db/migrations"))
+    module_result = {"modules": [{"module_id": "acme.billing"}], "orphaned_modules": []}
+
+    def apply_modules(_conn, modules, *, acquire_lock=True):
+        calls.append(f"module-migrations:{tuple(modules) == (source,)}:lock={acquire_lock}")
+        return module_result
+
+    monkeypatch.setattr(
+        upgrade_db.migration_runner, "apply_platform_module_migrations", apply_modules
+    )
+
+    summary = upgrade_db.baseline_migration_history(module_sources=lambda: [source])
+
+    assert calls == [
+        "lock",
+        "core-baseline",
+        "module-migrations:True:lock=False",
+        "unlock",
+        "close",
+    ]
+    assert summary["platform_module_migrations"] == module_result
+
+
+def test_fresh_install_without_modules_keeps_the_core_summary(monkeypatch) -> None:
+    calls: list[str] = []
+    _baseline_database(monkeypatch, calls, ledger_exists=False)
+    monkeypatch.setattr(
+        upgrade_db,
+        "_stamp_verified_canonical_baseline",
+        lambda _conn, *, component: {"applied": []},
+    )
+
+    def must_not_run(*_args, **_kwargs):
+        raise AssertionError("no prepared module, nothing to apply")
+
+    monkeypatch.setattr(
+        upgrade_db.migration_runner, "apply_platform_module_migrations", must_not_run
+    )
+
+    assert upgrade_db.baseline_migration_history() == {"applied": []}
+
+
+def test_existing_ledger_refuses_a_baseline_with_pending_module_migrations(monkeypatch) -> None:
+    calls: list[str] = []
+    _baseline_database(monkeypatch, calls, ledger_exists=True)
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "inspect_migrations",
+        lambda _conn: {"pending": [], "drifted": []},
+    )
+    monkeypatch.setattr(upgrade_db.upgrade_phases, "unknown_recorded_phases", lambda _c: [])
+    monkeypatch.setattr(
+        upgrade_db.upgrade_phases,
+        "recorded_phases",
+        lambda _c: {phase.phase_id for phase in upgrade_db.upgrade_phases.UPGRADE_PHASES},
+    )
+    monkeypatch.setattr(
+        upgrade_db.migration_runner,
+        "inspect_module_migrations",
+        lambda _conn, _modules: {
+            "acme.billing": {
+                "pending": ["20261215000000_currency.sql"],
+                "drifted": [],
+                "unknown": [],
+            }
+        },
+    )
+
+    with pytest.raises(RuntimeError) as raised:
+        upgrade_db.baseline_migration_history(
+            module_sources=lambda: [("acme.billing", "1.1.0", Path("/m"))]
+        )
+
+    assert "database upgrade" in str(raised.value)
+    assert "acme.billing: 20261215000000_currency.sql" in str(raised.value)

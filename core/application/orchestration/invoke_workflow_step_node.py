@@ -387,6 +387,15 @@ def _invoke_workflow_step(
                 resolved_child = _resolve_invoked_child_snapshot(
                     bl, existing_child_id, child_workflow_id
                 )
+    if resolved_child is not None and not existing_child_id:
+        from core.application.orchestration.runtime_identity import runtime_identity_from_state
+        from core.application.registry.account_references import workflow_in_account
+
+        # The child is a workflow of the run's own account (ADR 0020, C4c); another
+        # account's workflow with the same id is not found.
+        run_account = runtime_identity_from_state(state).as_context().get("account_id")
+        if not workflow_in_account(resolved_child, run_account):
+            resolved_child = None
     if resolved_child is None:
         # Fail closed: an id that resolves to no workflow is a different problem from
         # a workflow that exists but is not callable, and saying so is what lets the
@@ -562,6 +571,10 @@ def _invoke_workflow_step(
     )
     if selected_revision is not None:
         child_meta["expected_workflow_revision"] = int(selected_revision)
+    # A child run is started by whoever started its parent run.
+    parent_started_by = _parent_meta(parent_job).get("submitted_by")
+    if isinstance(parent_started_by, dict) and str(parent_started_by.get("id") or "").strip():
+        child_meta["submitted_by"] = dict(parent_started_by)
     write_action_context(child_meta, action_plan)
     if lane_placement:
         child_meta[INVOKE_LANE_PLACEMENT_KEY] = True

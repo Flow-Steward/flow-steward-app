@@ -26,7 +26,11 @@ def list_workflow_provider_triggers(
     *,
     workflow_id: str,
     project_id: str | None = None,
+    account_id: str | None = None,
 ) -> list[dict[str, Any]]:
+    """The triggers of one account's workflow (the bound account by default)."""
+    from core.application.registry.workflow_account import workflow_owner
+
     with bl.conn.cursor() as cur:
         query = """
             SELECT
@@ -45,9 +49,9 @@ def list_workflow_provider_triggers(
                 created_at,
                 updated_at
             FROM workflow_provider_triggers
-            WHERE workflow_id = %s
+            WHERE workflow_id = %s AND account_id = %s
         """
-        params: list[Any] = [str(workflow_id or "").strip()]
+        params: list[Any] = [str(workflow_id or "").strip(), workflow_owner(account_id)]
         if project_id:
             query += " AND project_id = %s"
             params.append(str(project_id or "").strip())
@@ -83,7 +87,7 @@ def list_enabled_provider_triggers_for_provider(
             WHERE provider_key = %s
               AND enabled = true
               AND EXISTS (SELECT 1 FROM registry_workflows w
-                  WHERE w.workflow_id = workflow_provider_triggers.workflow_id AND w.deleted_at IS NULL)
+                  WHERE w.workflow_id = workflow_provider_triggers.workflow_id AND w.account_id = workflow_provider_triggers.account_id AND w.deleted_at IS NULL)
             ORDER BY created_at ASC, trigger_id ASC
             """,
             (str(provider_key or "").strip().lower(),),

@@ -29,7 +29,7 @@ def load_active_job_rows() -> list[dict[str, Any]]:
             with bl.conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT j.id, j.task_id, j.task_summary, j.status,
+                    SELECT j.id, j.project_id, j.task_id, j.task_summary, j.status,
                            j.started_at, j.worker_id, j.meta,
                            p.name AS project_name
                     FROM jobs j
@@ -93,6 +93,37 @@ def load_active_project_lease_rows() -> list[dict[str, Any]]:
                 cols = [d[0] for d in cur.description]
                 rows = [dict(zip(cols, row, strict=True)) for row in cur.fetchall()]
         return [dict(row) for row in rows if isinstance(row, dict)]
+    finally:
+        close_suppressing_errors(bl)
+
+
+def load_project_account_ids(project_ids: list[str]) -> dict[str, str]:
+    """``project_id -> account_id`` for the given projects; raises when unreadable."""
+    from core.infrastructure.db.platform_stores import PlatformJobStore
+
+    wanted = sorted({str(project_id) for project_id in project_ids if str(project_id or "")})
+    if not wanted:
+        return {}
+    dsn = monitoring_observability_dsn()
+    if not dsn:
+        raise RuntimeError("the observability database is not configured")
+    bl = PlatformJobStore(dsn)
+    try:
+        with bl.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id::text AS project_id, CAST(account_id AS TEXT) AS account_id
+                  FROM projects
+                 WHERE id::text = ANY(%s::text[])
+                """,
+                (wanted,),
+            )
+            cols = [d[0] for d in cur.description]
+            rows = [
+                dict(row) if isinstance(row, dict) else dict(zip(cols, row, strict=True))
+                for row in cur.fetchall()
+            ]
+            return {str(row["project_id"]): str(row["account_id"] or "") for row in rows}
     finally:
         close_suppressing_errors(bl)
 

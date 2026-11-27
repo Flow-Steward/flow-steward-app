@@ -4,10 +4,30 @@
 from __future__ import annotations
 
 import copy
+import logging
 import uuid
 from typing import Any
 
-from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.infrastructure.config.account_scope import ACCOUNT_SCOPE_MISSING_CODE
+
+logger = logging.getLogger(__name__)
+
+
+def _runtime_account_id(account_id: Any, *, extension_ref: str) -> str:
+    """Return the caller's account, or log the refusal and return an empty string.
+
+    An extension runs for the account that asked for it. A lookup without an
+    account is refused (the record resolves as absent); it is never answered
+    with the default account's install.
+    """
+    normalized = str(account_id or "").strip()
+    if not normalized:
+        logger.warning(
+            "%s: extension runtime lookup for %s has no account; refused",
+            ACCOUNT_SCOPE_MISSING_CODE,
+            extension_ref,
+        )
+    return normalized
 
 
 def _to_json_obj(value):
@@ -174,14 +194,21 @@ def resolve_extension_runtime_record(
     if not is_canonical_extension_id(normalized_id):
         return None, bl
 
+    normalized_account_id = _runtime_account_id(account_id, extension_ref=normalized_id)
+    if not normalized_account_id:
+        return None, bl
+
+    lookup_account_id, access = extension_install_account(bl, normalized_id, normalized_account_id)
+    if lookup_account_id is None:
+        return None, bl
+
     db_extension = None
     resolved_extension_id = normalized_id
-    normalized_account_id = str(account_id or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
     if bl:
         if not db_extension:
             db_extension = bl.get_extension(
                 normalized_id,
-                account_id=normalized_account_id,
+                account_id=lookup_account_id,
             )
         if db_extension:
             resolved_extension_id = extension_identifier(db_extension) or normalized_id
@@ -210,10 +237,112 @@ def resolve_extension_runtime_record(
                 merged,
                 bl=bl,
                 extension_id=resolved_extension_id or normalized_id,
-                account_id=normalized_account_id,
+                account_id=lookup_account_id,
             )
+        if merged is not None and lookup_account_id != normalized_account_id:
+            merged["account_id"] = normalized_account_id
+            merged["install_account_id"] = lookup_account_id
+            merged["account_settings"] = dict(access.get("account_settings") or {})
+            if access.get("install_state") != "active":
+                merged["enabled"] = False
         return merged, bl
     return None, bl
+
+
+class ExtensionAccessUnavailableError(RuntimeError):
+    """Whether an account may use an extension could not be decided (ADR 0020, C6).
+
+    Raised instead of guessing: another account's install is never used on a failed
+    lookup, and the extension is reported as unavailable rather than as absent.
+    """
+
+    def __init__(self, extension_id: str) -> None:
+        super().__init__(
+            f"Extension '{extension_id}' is temporarily unavailable: its account access "
+            "could not be checked"
+        )
+        self.extension_id = extension_id
+
+
+def _owns_extension(bl: Any, extension_id: str, account_id: str) -> bool:
+    """Whether ``account_id`` has its own install of the extension (no enablement needed)."""
+    get_extension = getattr(bl, "get_extension", None)
+    if not callable(get_extension):
+        return False
+    try:
+        return bool(get_extension(extension_id, account_id=account_id))
+    except Exception:
+        return False
+
+
+def _account_access(bl: Any, extension_id: str, account_id: str) -> dict | None:
+    """How the account reaches the extension's install, from the database (C6).
+
+    When the lookup fails, an account that owns its own install keeps using it (it
+    needs no other account's enablement); for any other account the failure is
+    raised as :class:`ExtensionAccessUnavailableError`, never answered with
+    another account's install and never reported as "not installed".
+    """
+    if bl is None or not callable(getattr(type(bl), "get_extension_account_access", None)):
+        return None
+    try:
+        return bl.get_extension_account_access(extension_id, account_id=account_id)
+    except Exception as exc:
+        if _owns_extension(bl, extension_id, account_id):
+            logger.warning(
+                "extension %s: account access lookup failed; the account's own install is used",
+                extension_id,
+            )
+            return {
+                "access": "owner",
+                "owner_account_id": account_id,
+                "install_state": "",
+                "account_settings": {},
+            }
+        logger.warning("extension %s: account access lookup failed; unavailable", extension_id)
+        raise ExtensionAccessUnavailableError(extension_id) from exc
+
+
+def extension_install_account(
+    bl: Any, extension_id: str, account_id: str
+) -> tuple[str | None, dict | None]:
+    """The account whose install of *extension_id* the caller's account uses (C6).
+
+    Returns ``(lookup_account_id, access)``. ``lookup_account_id`` is ``None`` when
+    the account may not use the extension: another account's install it has not
+    enabled, or (without any install) an uncatalogued bundle only the installation
+    account may resolve. An account that enabled an installation (or global) install
+    uses the owner's install under its own account. A failed access lookup raises
+    :class:`ExtensionAccessUnavailableError` unless the account owns an install.
+    """
+    normalized_account_id = str(account_id or "").strip()
+    if not normalized_account_id:
+        return None, None
+    access = _account_access(bl, extension_id, normalized_account_id)
+    if access is None:
+        if _installation_only_fallback(bl, normalized_account_id):
+            return None, None
+        return normalized_account_id, None
+    if access["access"] == "not_enabled":
+        logger.info(
+            "extension %s is not enabled for account %s; resolved as absent",
+            extension_id,
+            normalized_account_id,
+        )
+        return None, access
+    if access["access"] in {"enabled", "global"}:
+        return access["owner_account_id"] or normalized_account_id, access
+    return normalized_account_id, access
+
+
+def _installation_only_fallback(bl: Any, account_id: str) -> bool:
+    """An extension without any install is an uncatalogued bundle on disk: only the
+    installation account may resolve it from there; any other account sees none."""
+    if bl is None or not callable(getattr(type(bl), "get_extension_account_access", None)):
+        return False
+    from core.infrastructure.config.platform_identity import is_installation_account
+
+    return not is_installation_account(account_id)
 
 
 def resolve_extension_runtime_record_by_install_id(
@@ -236,7 +365,9 @@ def resolve_extension_runtime_record_by_install_id(
     if bl is None:
         return None, None
 
-    normalized_account_id = str(account_id or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
+    normalized_account_id = _runtime_account_id(account_id, extension_ref=normalized_install_id)
+    if not normalized_account_id:
+        return None, bl
     runtime_gate_lookup = (
         bl.get_extension_by_install_id_for_runtime_gate
         if callable(getattr(type(bl), "get_extension_by_install_id_for_runtime_gate", None))

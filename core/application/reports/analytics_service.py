@@ -313,6 +313,10 @@ class AnalyticsService:
         scope: ScopeContext,
         filters: dict[str, Any],
     ) -> dict[str, Any]:
+        if scope.allowed_project_ids:
+            # The metrics count every project of the account and cannot be cut to
+            # some of them: a caller limited to chosen projects is refused.
+            raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
         bl = self._logger_or_raise()
         if not hasattr(bl, "get_core_slo_metrics"):
             raise ServiceUnavailableError("Core SLO metrics are unavailable")

@@ -124,6 +124,21 @@ def require_approval_authority(scope: Any) -> None:
         raise _refuse_person(SECRET_APPROVE_PERMISSION, "approve the use of stored secrets")
 
 
+def require_secret_storage_admin(scope: Any) -> None:
+    """Choose where an account's secret values are kept, adopt or move one: a person
+    with the admin role in an interactive session (ADR 0066 amendment 2026-11-26).
+
+    Storage configuration decides which external system holds every value, so no
+    token, service account or operator may change it.
+    """
+    if not is_interactive_human(scope):
+        raise ServiceForbiddenError(
+            "Configuring secret storage requires a person signed in interactively"
+        )
+    if _role(scope) != ADMIN_ROLE or SECRET_DELETE_PERMISSION not in _person_permissions(scope):
+        raise ServiceForbiddenError("Admin role required to configure secret storage")
+
+
 def actor_identity(scope: Any) -> tuple[str, str]:
     """The (kind, id) pair recorded in audit rows."""
     kind = "human" if is_interactive_human(scope) else "machine"
@@ -146,5 +161,6 @@ __all__ = [
     "require_secret_bind",
     "require_secret_delete",
     "require_secret_read_metadata",
+    "require_secret_storage_admin",
     "require_secret_write",
 ]

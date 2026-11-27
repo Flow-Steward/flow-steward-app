@@ -28,6 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.application.registry.workflow_account import account_scope_if_named, workflow_owner
 from core.infrastructure.db.db_pool import (
     register_transaction_after_commit,
     transaction_after_commit_supported,
@@ -197,6 +198,7 @@ _RECORD_COLUMNS = (
     "source_id",
     "trigger_display_name",
     "trigger_type_id",
+    "account_id",
 )
 
 
@@ -207,7 +209,7 @@ def _load_record(bl: Any, delivery_key: str) -> dict[str, Any]:
             SELECT d.delivery_key, d.project_id::text, d.provider_key, d.workflow_id,
                    d.trigger_id, d.connection_id, d.config_generation, d.status,
                    d.job_id::text, d.attempts, i.event_type, i.payload, i.source_id,
-                   t.display_name, t.trigger_type_id
+                   t.display_name, t.trigger_type_id, i.account_id::text
               FROM provider_event_dispatches d
               JOIN provider_event_inbox i ON i.event_row_id = d.event_row_id
               LEFT JOIN workflow_provider_triggers t ON t.trigger_id::text = d.trigger_id
@@ -289,9 +291,9 @@ def accept_dispatch_in_job_transaction(conn: Any, job_id: str, *, record: dict[s
             if int(generation) != int(record.get("config_generation") or 0):
                 raise DispatchRejected("config_generation_changed")
         cur.execute(
-            "SELECT 1 FROM registry_workflows WHERE workflow_id = %s AND deleted_at IS NULL "
-            "FOR SHARE",
-            (_text(record.get("workflow_id")),),
+            "SELECT 1 FROM registry_workflows WHERE workflow_id = %s AND account_id = %s "
+            "AND deleted_at IS NULL FOR SHARE",
+            (_text(record.get("workflow_id")), workflow_owner(record.get("account_id"))),
         )
         if cur.fetchone() is None:
             raise DispatchRejected("trigger_inactive")
@@ -361,6 +363,24 @@ def dispatch_provider_event(
     enqueue_task_fn: Any,
 ) -> dict[str, Any]:
     """Start the workflow of one pending dispatch record, at most once."""
+    record = _load_record(bl, delivery_key)
+    if not record:
+        return {"delivery_key": delivery_key, "status": "missing"}
+    # No request or job is bound here (worker poll, sweep, public webhook): the
+    # event's own account names every registry read of this start (ADR 0020, C5).
+    with account_scope_if_named(record.get("account_id")):
+        return _dispatch_loaded_record(
+            bl, record, delivery_key=delivery_key, enqueue_task_fn=enqueue_task_fn
+        )
+
+
+def _dispatch_loaded_record(
+    bl: Any,
+    record: dict[str, Any],
+    *,
+    delivery_key: str,
+    enqueue_task_fn: Any,
+) -> dict[str, Any]:
     # Imported here: the registry/launch stack is heavy and this module is also
     # imported by the poll transaction, which only records.
     from core.application.registry.workflow_contract_service import WorkflowInterfaceService
@@ -372,9 +392,6 @@ def dispatch_provider_event(
     )
     from core.application.workflows.workflow_start_runtime import enqueue_workflow_start
 
-    record = _load_record(bl, delivery_key)
-    if not record:
-        return {"delivery_key": delivery_key, "status": "missing"}
     workflow_id = _text(record.get("workflow_id"))
     trigger_id = _text(record.get("trigger_id"))
     outcome: dict[str, Any] = {

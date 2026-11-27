@@ -158,6 +158,21 @@ class ExtensionToggleResultView(ViewModel):
     state: str = ""  # active | disabled
 
 
+class ExtensionAccountEnablementView(ViewModel):
+    """An installed extension's enablement for the caller's account (ADR 0020, C6)."""
+
+    extension_id: str = ""
+    install_id: str = ""
+    #: ``enabled``, ``disabled`` or ``not_enabled``.
+    state: str = ""
+    enabled: bool = False
+    settings: dict[str, Any] = Field(default_factory=dict)
+    enabled_at: str = ""
+    enabled_by: str = ""
+    updated_at: str = ""
+    updated_by: str = ""
+
+
 class ExtensionUninstallResultView(ViewModel):
     status: str = "uninstalled"
     extension_id: str = ""

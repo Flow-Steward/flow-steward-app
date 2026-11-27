@@ -35,6 +35,10 @@ from tests.unit.test_workflow_definition_validation import (
     step,
 )
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def stopped_workflow(kind="stop_success", outcome="error"):
     workflow = runnable()

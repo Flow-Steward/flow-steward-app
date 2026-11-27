@@ -12,7 +12,9 @@ from core.application.idempotency import (
 )
 from core.application.jobs.workflow_resume_state import WorkflowResumeRepositoryFactory
 
+from .approval_assignees import job_workflow_ids, require_step_approver
 from .approval_decision_service import ApprovalDecisionService
+from .approval_journal_recording import record_decision
 from .approval_repository import (
     ApprovalRepository,
     build_approval_resume_value,
@@ -22,12 +24,22 @@ from .command_models_api_inputs import ApprovalDecisionInput, ApprovalResumeAcce
 from .command_services_common import _service_scope
 from .errors import (
     ServiceError,
+    ServiceForbiddenError,
     ServiceNotFoundError,
     ServiceUnavailableError,
     ServiceValidationError,
 )
-from .guards import require_project_access, require_workflow_access
+from .guards import (
+    ACCESS_DENIED_MESSAGE,
+    require_project_permission,
+    require_workflow_access,
+    workflow_in_scope_limit,
+)
 from .scope import ScopeContext
+
+#: What deciding an approval needs; a person limited to chosen projects needs it in
+#: the job's project (ADR 0076 section 8).
+_DECIDE_PERMISSION = "approvals.decide"
 
 logger = logging.getLogger(__name__)
 
@@ -192,11 +204,30 @@ class ApprovalCommandService:
         decision: ApprovalDecisionInput,
         scope: ScopeContext,
     ) -> Any:
+        # The locked job row and the current gate name the step; the assigned
+        # approvers are checked here, after the project/workflow scope check in
+        # resume_task, so every decision path (API, MCP, CLI, command dispatch,
+        # reactions) passes the same check under the decision's lock.
+        # A gate without a live interrupt (a Test Run's state-based gate whose
+        # payload could not be read) names no step: the job row's current step is
+        # used, and a gate whose step is still unknown is refused when any step of
+        # the workflow is restricted.
+        db_conn = _decision_connection(bl, transaction_conn)
+        require_step_approver(
+            db_conn,
+            scope,
+            workflow_ids=_row_workflow_ids(row),
+            step_id=str(payload.get("step_id") or row.get("current_step_id") or ""),
+            external_actor=decision.external_actor,
+            unknown_step_fails_closed=True,
+            project_id=row.get("project_id"),
+            account_id=row.get("account_id"),
+        )
         snapshot = (
             self._get_thread_state_snapshot(thread_id) if self._get_thread_state_snapshot else None
         )
         values = getattr(snapshot, "values", None)
-        return self._approval_repository.persist_decision(
+        resume_row = self._approval_repository.persist_decision(
             bl=bl,
             transaction_conn=transaction_conn,
             row=row,
@@ -208,6 +239,19 @@ class ApprovalCommandService:
             record_in_progress=self._record_in_progress_marker,
             state_values=values if isinstance(values, Mapping) else None,
         )
+        if resume_row is not None:
+            # One journal row per applied decision, in the decision's transaction
+            # when there is one (inside a savepoint), else right after it. A
+            # journal failure is logged and never loses the decision.
+            record_decision(
+                db_conn,
+                row=row,
+                payload=payload,
+                decision=decision,
+                scope=scope,
+                in_transaction=transaction_conn is not None,
+            )
+        return resume_row
 
     @staticmethod
     def _record_in_progress_marker(
@@ -339,9 +383,14 @@ class ApprovalCommandService:
                     "account_id": row[1],
                     "workspace_id": row[2],
                 }
-                require_project_access(resolved_scope, project)
                 workflow_id = str(row[3] or "").strip() if len(row) > 3 else ""
+                # The run's workflow decides: a workflow grant, then the project's.
+                require_project_permission(
+                    resolved_scope, project, _DECIDE_PERMISSION, workflow_id=workflow_id or None
+                )
                 require_workflow_access(resolved_scope, workflow_id)
+                if not workflow_in_scope_limit(resolved_scope, row[0], workflow_id):
+                    raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
 
         if row is None:
             raise ServiceNotFoundError("Approval job not found")
@@ -430,6 +479,18 @@ class ApprovalCommandService:
             status="resume_pending",
             approval_reason=_approval_reason_of(interrupt_payload),
         )
+
+
+def _decision_connection(bl: Any, transaction_conn: Any | None) -> Any:
+    """The decision's pinned transaction, or the store connection when there is none."""
+    if transaction_conn is not None:
+        return transaction_conn
+    return getattr(bl, "conn", None)
+
+
+def _row_workflow_ids(row: Mapping[str, Any]) -> list[str]:
+    """Every id the job's workflow is known by; assignments under any of them apply."""
+    return job_workflow_ids(row, meta=decode_job_meta(row.get("meta")))
 
 
 def _approval_reason_of(interrupt_payload: Mapping[str, Any]) -> str | None:

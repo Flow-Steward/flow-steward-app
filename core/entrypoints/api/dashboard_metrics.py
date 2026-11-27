@@ -9,9 +9,18 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
-from core.application.management.errors import ServiceError, ServiceUnavailableError
+from core.application.management.errors import (
+    ServiceError,
+    ServiceForbiddenError,
+    ServiceUnavailableError,
+)
 from core.application.reports import dashboard_metrics_helpers as _helpers
 from core.application.reports.dashboard_wait_metrics import dashboard_wait_kpis
+
+#: Account-wide metrics refused to a caller limited to chosen projects.
+ACCOUNT_WIDE_METRICS_REFUSAL = (
+    "Account-wide metrics are not available to a caller limited to chosen projects"
+)
 
 
 # Runtime-configured dependencies; set by create_dashboard_metrics_router().
@@ -61,6 +70,16 @@ def _require_dashboard_ports(job_store: Any, slo_store: Any) -> None:
         raise ServiceUnavailableError("Dashboard projection is unavailable: " + ", ".join(missing))
 
 
+def _scope_project_ids(scope: Any) -> frozenset[str] | None:
+    """The projects a limited caller may see; ``None`` when the whole account is theirs."""
+    allowed = frozenset(
+        str(item).strip()
+        for item in (getattr(scope, "allowed_project_ids", None) or ())
+        if str(item or "").strip()
+    )
+    return allowed or None
+
+
 def api_dashboard_summary(
     request: Request,
     range: Annotated[str, Query()] = "7d",
@@ -82,6 +101,9 @@ def api_dashboard_summary(
         utc_today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
         historical_window_start = range_window_start
         historical_window_end = min(utc_today_start, now_utc)
+        # A caller limited to chosen projects sees only those projects' jobs.
+        project_ids = _scope_project_ids(scope)
+        project_workflow_ids = getattr(scope, "project_workflow_ids", None) or None
 
         rows: list[dict[str, Any]] = []
         historical_rows, historical_truncated, historical_source = (
@@ -91,6 +113,8 @@ def api_dashboard_summary(
                 account_id=scope.account_id,
                 historical_window_start=historical_window_start,
                 historical_window_end=historical_window_end,
+                project_ids=project_ids,
+                project_workflow_ids=project_workflow_ids,
             )
         )
         rows.extend(historical_rows)
@@ -101,6 +125,8 @@ def api_dashboard_summary(
             historical_source=historical_source,
             historical_window_start=historical_window_start,
             historical_window_end=historical_window_end,
+            project_ids=project_ids,
+            project_workflow_ids=project_workflow_ids,
         )
 
         live_window_start = max(range_window_start, utc_today_start)
@@ -109,6 +135,8 @@ def api_dashboard_summary(
             account_id=scope.account_id,
             live_window_start=live_window_start,
             now_utc=now_utc,
+            project_ids=project_ids,
+            project_workflow_ids=project_workflow_ids,
         )
         rows.extend(live_rows)
         truncated = bool(truncated or live_truncated)
@@ -149,6 +177,10 @@ def api_core_slo_metrics(
     """Return core SLO metrics for the caller account over a time window."""
     try:
         scope = _request_scope(request, default_actor="system")
+        if _scope_project_ids(scope) is not None:
+            # The metrics count every project of the account and cannot be cut to
+            # some of them: a caller limited to chosen projects is refused.
+            raise ServiceForbiddenError(ACCOUNT_WIDE_METRICS_REFUSAL)
         bl = _get_slo_store()
         if not bl:
             raise ServiceUnavailableError("Database not configured")

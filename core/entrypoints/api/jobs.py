@@ -10,6 +10,10 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 
 from core.application.auth.enforce import require_roles
+from core.application.auth.installation_admin import (
+    INSTALLATION_ADMIN_REQUIRED_MESSAGE,
+    is_installation_admin,
+)
 from core.application.auth.principal import is_token_scoped_principal
 from core.application.jobs.job_polling import build_job_polling_payload
 from core.application.jobs.public_approval_serializer import TOKEN_APPROVAL_KEYS
@@ -346,6 +350,9 @@ def create_api_jobs_router(
             require_roles(auth_user, {"admin"})
         except PermissionError as exc:
             raise HTTPException(status_code=403, detail=_MESSAGE_ADMIN_ROLE_REQUIRED) from exc
+        # The scan marks stuck jobs of every account: an installation-wide action.
+        if not is_installation_admin(auth_user):
+            raise HTTPException(status_code=403, detail=INSTALLATION_ADMIN_REQUIRED_MESSAGE)
         bl = get_logger_only()
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)

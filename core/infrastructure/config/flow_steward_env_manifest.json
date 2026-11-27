@@ -4657,6 +4657,42 @@
       "notes": "Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary."
     },
     {
+      "name": "FS_PLATFORM_MODULES_ROOT",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "runtime",
+      "notes": "Overrides the directory of prepared platform modules (ADR 0082). Unset uses /run/flow-steward-runtime/platform-modules, which every runtime role reads; Compact child processes do not receive this override."
+    },
+    {
+      "name": "FS_PLATFORM_MODULE_SETTINGS",
+      "groups": [
+        "core_runtime"
+      ],
+      "environments": [
+        "production",
+        "local_development"
+      ],
+      "installer_managed": false,
+      "doctor_required": false,
+      "doctor_secret": false,
+      "secret": false,
+      "preserve_existing": true,
+      "default": "",
+      "owner": "runtime",
+      "notes": "Rendered by flow-steward config apply and ./install.sh --setting from the FS_MODULE_* settings the operator set (ADR 0082): base64: followed by the base64 of a JSON object of name to value. The app, worker and control roles publish the names their active platform modules declare. Never edit it by hand; set a module setting with flow-steward config set FS_MODULE_NAME=VALUE."
+    },
+    {
       "name": "FS_PGVECTOR_DSN",
       "groups": [
         "vector_pgvector"

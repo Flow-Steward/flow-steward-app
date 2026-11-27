@@ -815,7 +815,9 @@ def evaluate_workflow_reactions(
     matching_rules: list[dict[str, Any]] = []
     if workflow_id and hasattr(bl, "list_workflow_reactions"):
         try:
-            rules = bl.list_workflow_reactions(workflow_id, enabled_only=True) or []
+            # The rules of the event's own account (ADR 0020): another account's
+            # workflow with the same id keeps its own reactions.
+            rules = list_account_workflow_reactions(bl, workflow_id, event.get("account_id"))
         except Exception as exc:
             logger.warning(
                 "evaluate_workflow_reactions: list failed for workflow=%s: %s",
@@ -901,3 +903,15 @@ def evaluate_workflow_reactions(
             action_result["executed"] = reaction_action_result_executed(action_result)
         results.append(action_result)
     return results
+
+
+def list_account_workflow_reactions(bl: Any, workflow_id: str, account_id: Any) -> list[Any]:
+    """The enabled reaction rules of *workflow_id* in the event's account.
+
+    Without an account the store's own default applies (a caller that predates
+    account-named events).
+    """
+    owner = str(account_id or "").strip()
+    if owner:
+        return bl.list_workflow_reactions(workflow_id, enabled_only=True, account_id=owner) or []
+    return bl.list_workflow_reactions(workflow_id, enabled_only=True) or []

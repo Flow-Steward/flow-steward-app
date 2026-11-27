@@ -270,6 +270,7 @@ export function labelFromKey(value: string, t: I18nContextValue["t"] = fallbackC
     stopped: t("react.monitoring.state_stopped", "Stopped"),
     replica_target_unobserved: t("react.monitoring.state_replica_target_unobserved", "Replica Target Unobserved"),
     stuck_jobs: t("react.monitoring.state_stuck_jobs", "Stuck Jobs"),
+    platform_modules: t("react.monitoring.state_platform_modules", "Platform Modules"),
     idle: t("react.monitoring.state_idle", "Idle"),
     active: t("react.monitoring.state_active", "Active"),
     disabled: t("react.monitoring.state_disabled", "Disabled"),

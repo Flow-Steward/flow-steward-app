@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from starlette.requests import Request
@@ -1459,3 +1460,114 @@ def test_the_other_catalog_scope_does_not_stand_in(method: str, path: str, scope
         principal=_catalog_pat(other),
     )
     assert response.status_code == 403
+
+
+def _roleless_session_middleware(path: str, method: str, *, roles: list[str]) -> Response:
+    """A cookie session of a person with ``roles`` in the session's account."""
+
+    async def _call_next(_request: Request) -> Response:
+        return Response(status_code=204)
+
+    return asyncio.run(
+        auth_http_runtime.local_auth_middleware(
+            _request(path, method=method),
+            _call_next,
+            local_auth_enabled_fn=lambda: True,
+            external_auth_enabled=False,
+            is_public_auth_path_fn=lambda _path: False,
+            route_registered_fn=lambda _path, _method: True,
+            request_principal_resolver_fn=lambda _request, _bl: None,
+            normalize_live_principal_fn=lambda user, **_kwargs: ResolvedPrincipal(
+                id=str(user["id"]),
+                username=str(user["username"]),
+                roles=list(user["roles"]),
+                auth_source="local",
+            ),
+            get_logger_only_fn=lambda: object(),
+            auth_tables_available_fn=lambda _bl: True,
+            get_user_by_session_token_fn=lambda _bl, _token: {
+                "id": "person-1",
+                "username": "invited@example.com",
+                "roles": roles,
+                "is_active": True,
+            },
+            local_auth_bootstrap_required_fn=lambda _bl=None: False,
+            auth_account_tables_available_fn=lambda _bl: False,
+            roles_intersect_fn=roles_intersect,
+            is_registry_read_route_fn=lambda _path: False,
+            is_self_service_auth_write_route_fn=lambda _path: False,
+            csrf_request_valid_fn=lambda _request: True,
+            auth_cookie_name="session",
+            auth_unsafe_methods={"POST", "PUT", "PATCH", "DELETE"},
+            auth_admin_roles={"admin"},
+            auth_write_roles={"admin", "operator"},
+            err_database_not_configured="Database not configured",
+            err_auth_tables_not_available="Auth tables unavailable",
+            err_authentication_required="Authentication required",
+            err_account_disabled="Account is disabled",
+            err_admin_role_required="Admin role required",
+            err_operator_role_required="Operator role required",
+            path_bootstrap="/bootstrap",
+            path_login="/login",
+            load_role_permissions_fn=lambda _bl: SYSTEM_ROLE_PERMISSIONS,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("POST", "/api/auth/invitations/preview"),
+        ("POST", "/api/auth/invitations/accept"),
+        ("POST", "/api/auth/invitations/decline"),
+        ("POST", "/api/auth/logout"),
+        ("POST", "/api/auth/switch-account"),
+        ("GET", "/api/auth/me"),
+        ("GET", "/api/app/bootstrap"),
+    ],
+)
+def test_a_session_without_a_role_answers_its_invitation_and_signs_out(
+    method: str, path: str
+) -> None:
+    """ADR 0085, P5: the minimal session of a person with a role nowhere."""
+    assert _roleless_session_middleware(path, method, roles=[]).status_code == 204
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/api/projects"),
+        ("GET", "/api/auth/oauth-grants"),
+        ("POST", "/api/auth/tokens"),
+        ("POST", "/api/auth/change-password"),
+        ("PATCH", "/api/users/me/profile"),
+        ("GET", "/api/auth/users"),
+    ],
+)
+def test_a_session_without_a_role_is_refused_everywhere_else(method: str, path: str) -> None:
+    response = _roleless_session_middleware(path, method, roles=[])
+
+    assert response.status_code == 403
+    assert json.loads(response.body) == {
+        "error": "You have no role in this company. Ask its administrator.",
+        "code": "no_role_in_account",
+    }
+
+
+def test_a_viewer_keeps_the_usual_refusal_wording() -> None:
+    response = _roleless_session_middleware("/api/auth/users", "GET", roles=["viewer"])
+
+    assert response.status_code == 403
+    assert json.loads(response.body) == {"error": "Admin role required"}
+
+
+def test_a_personal_token_of_a_person_without_a_role_reads_nothing() -> None:
+    """No role is not a viewer (ADR 0085 §1): the token is refused, not read as one."""
+    response = _run_middleware_with_principal(
+        path="/api/projects",
+        method="GET",
+        principal=_pat(roles=[], scopes=["projects.read", "read:*"]),
+    )
+
+    assert response.status_code == 403
+    assert json.loads(response.body)["code"] == "no_role_in_account"

@@ -146,3 +146,28 @@ def test_expected_dependencies_are_only_the_ones_something_checks(storage):
 
     names = json.loads(deployment_monitoring_dependencies(SimpleNamespace(file_storage=storage)))
     assert names == ["postgres", "rabbitmq"]
+
+
+def test_platform_modules_get_the_projected_installation_id_or_none():
+    from core.application.lifecycle.runtime_installation_context import (
+        projected_installation_id,
+        resolve_projected_runtime_installation_context,
+    )
+
+    compose = {"FS_COMPOSE_PROJECT_NAME": "my-stack", "FS_DEPLOYMENT_PROFILE": "compact"}
+    platform = {"FS_INSTALLATION_ID": PLATFORM_ID.upper()}
+
+    assert projected_installation_id(compose) == "my-stack"
+    assert (
+        projected_installation_id(compose)
+        == resolve_projected_runtime_installation_context(compose).installation_id
+    )
+    assert projected_installation_id(platform) == PLATFORM_ID
+    # A monitoring misconfiguration does not hide the id.
+    assert projected_installation_id({**compose, "FS_MONITORING_EXPECTATIONS": "[]"}) == "my-stack"
+    assert projected_installation_id({}) is None
+    assert projected_installation_id({"FS_INSTALLATION_ID": "not-a-uuid"}) is None
+    assert (
+        projected_installation_id({"FS_COMPOSE_PROJECT_NAME": "a", "FS_INSTALLATION_ID": "b"})
+        is None
+    )

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from core.application.auth.installation_admin import is_installation_admin
 from core.application.extensions.projected_dataset_bridge import projection_bridge_id
 from core.application.management.command_models import AgentMutationResultView
 from core.application.management.errors import (
@@ -468,6 +469,8 @@ class AgentCommandService(AgentRelationshipCommandsMixin):
                 entity_id=agent_id,
                 entry_id=str(entry_id),
                 author=f"{scope.actor_name}_restore",
+                account_id=scope.account_id,
+                installation_admin=is_installation_admin(scope),
                 validate_restored=lambda _entity_type, _entity_id, _restored: (
                     self._relationship_validator(db, agent_id)
                 ),

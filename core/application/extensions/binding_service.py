@@ -45,6 +45,7 @@ from .direct_effect_recovery_models import (
     DirectEffectListView,
 )
 from .extension_state_service import ExtensionStateService
+from .lifecycle_ports import require_installation_extension_scope
 from .managed_release_service import ManagedReleaseService
 from .operation_service import ExtensionOperationHandlerMode, ExtensionOperationService
 from .operation_support import (
@@ -65,7 +66,7 @@ class ExtensionBindingService:
         *,
         get_logger: Callable[[], Any],
         get_operation_store: Callable[[], Any],
-        resolve_extension_runtime_record: Callable[[str], tuple[dict[str, Any] | None, Any]],
+        resolve_extension_runtime_record: Callable[..., tuple[dict[str, Any] | None, Any]],
         extension_identifier: Callable[[dict[str, Any] | None], str],
         extension_operation_handler_mode: ExtensionOperationHandlerMode,
         extension_operation_failure_status: Callable[[dict[str, Any] | None], int],
@@ -190,6 +191,8 @@ class ExtensionBindingService:
         scope: ScopeContext | None = None,
         _bl: Any | None = None,
     ) -> ExtensionScanResultView:
+        # The managed extensions root is installation-wide.
+        require_installation_extension_scope(scope)
         result = self._state_service.scan_extensions(root=root, scope=scope, _bl=_bl)
         refresh_browser_permissions_for_lifecycle(
             bl=_bl if _bl is not None else self._get_logger(),

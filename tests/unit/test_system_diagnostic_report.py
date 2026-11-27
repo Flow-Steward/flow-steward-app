@@ -11,6 +11,7 @@ from uuid import uuid4
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.reports.system_diagnostic_report import (
     SYSTEM_DIAGNOSTIC_REPORT_SCHEMA,
     build_system_diagnostic_report,
@@ -209,7 +210,7 @@ def _diagnostics_client(*, role: str):
     def authorized(request, *, required_roles):
         if request.headers.get("x-test-role") != "admin":
             raise PermissionError
-        return {"roles": ["admin"]}
+        return {"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}
 
     app = FastAPI()
     app.include_router(

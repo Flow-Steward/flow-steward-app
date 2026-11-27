@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from core.application.projects.workflow_only_connections import connections_for_scope
+
 from .command_services_common import *  # NOSONAR
 
 
@@ -18,6 +20,16 @@ class ProjectConnectionServiceReadsMixin:
         from core.application.extensions.install import ExtensionInstallStore
 
         return ExtensionInstallStore()
+
+    def _install_reaches_account(self, bl: Any, install_record: Any, account_id: str) -> bool:
+        """The account owns the install, it is shared, or the account enabled it (C6)."""
+        from core.application.extensions.account_enablement import install_reaches_account
+
+        enablements = getattr(self._extension_install_store(bl), "account_enablements", None)
+        try:
+            return install_reaches_account(install_record, account_id, enablements)
+        except Exception:
+            return False
 
     def _extension_runtime_store(self, bl: Any) -> Any:
         if self._get_extension_runtime_store is not None:
@@ -96,9 +108,18 @@ class ProjectConnectionServiceReadsMixin:
         bl = self._get_logger()
         if not bl:
             raise ServiceUnavailableError(ERR_DATABASE_NOT_CONFIGURED)
-        self._require_project_in_scope(bl, str(project_id), scope)
+        project = self._require_project_in_scope(bl, str(project_id), scope)
 
         rows = self._list_connection_rows(bl, project_id)
+        # A project reached only through workflow grants shows only the connections
+        # a granted workflow needs (ADR 0076 section 8b).
+        rows = connections_for_scope(
+            bl,
+            scope,
+            project.get("id") or project_id,
+            rows,
+            account_id=self._normalize_text(project.get("account_id")) or None,
+        )
         return [ProjectConnectionView(**self._with_sender_flags(bl, scope, row)) for row in rows]
 
     def _credentials_link(
@@ -216,6 +237,16 @@ class ProjectConnectionServiceReadsMixin:
             raise ServiceNotFoundError(
                 f"Connection '{connection_id}' not found in project {project_id}"
             ) from None
+        if not connections_for_scope(
+            bl,
+            scope,
+            project.get("id") or project_id,
+            [row],
+            account_id=self._normalize_text(project.get("account_id")) or None,
+        ):
+            raise ServiceNotFoundError(
+                f"Connection '{connection_id}' not found in project {project_id}"
+            )
         return ProjectConnectionView(**self._with_sender_flags(bl, scope, row))
 
     # --- DB helpers ---

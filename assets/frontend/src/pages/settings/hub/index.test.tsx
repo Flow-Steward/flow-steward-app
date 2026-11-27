@@ -2,11 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter, Route, Routes } from "react-router";
 
 import { fetchJson } from "@/lib/http/client";
+import { HttpError } from "@/lib/http/errors";
 import { useAuth } from "@/lib/auth/useAuth";
-import { SettingsHubPage } from "@/pages/settings/hub";
+import { RegisteredSettingsResourceAdminPage, SettingsHubPage } from "@/pages/settings/hub";
 import { stringFromUnknownValue } from "@/lib/utils/unknown-values";
 import { fallbackContext, I18nContext } from "@/lib/i18n/context";
 import { interpolate } from "@/lib/i18n/interpolate";
+import { sessionUser } from "@/test/role-permissions";
 
 vi.mock("@/lib/http/client", () => ({
   fetchJson: vi.fn(),
@@ -48,6 +50,7 @@ describe("SettingsHubPage", () => {
         external_auth_enabled: false,
         local_auth_enabled: true,
         roles: ["admin"],
+        user: sessionUser("admin"),
         permissions: {
           can_read: true,
           can_mutate: true,
@@ -82,7 +85,7 @@ describe("SettingsHubPage", () => {
   it("localizes the loaded resource count in the registered settings surface", async () => {
     mockedFetchJson.mockResolvedValue({ items: [{ id: "record-1", name: "Fixture record" }, { id: "record-2", name: "Fixture record two" }] });
     const auth = mockedUseAuth();
-    mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [{ key: "records", title: "Fixture records", list_path: "/private/fixture", item_path: "/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Name", type: "text", required: true }] }] } }] } });
+    mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [{ key: "records", title: "Fixture records", list_path: "/api/private/fixture", item_path: "/api/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Name", type: "text", required: true }] }] } }] } });
     const messages: Record<string, string> = { "react.settings.records_count": "Įrašų: {count}" };
     render(<I18nContext.Provider value={{ ...fallbackContext, locale: "lt", messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}><MemoryRouter initialEntries={["/settings/fixture"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter></I18nContext.Provider>);
     await waitFor(() => expect(screen.getByText("Įrašų: 2")).toBeInTheDocument());
@@ -92,11 +95,11 @@ describe("SettingsHubPage", () => {
   it.each([undefined, "Owner empty label", ""])("localizes only an absent resource empty label, preserving explicit metadata %s", async (emptyLabel) => {
     mockedFetchJson.mockResolvedValue({ items: [] });
     const auth = mockedUseAuth();
-    const resource = { key: "records", title: "Fixture records", list_path: "/private/fixture", item_path: "/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Owner field", type: "text", required: true }], ...(emptyLabel === undefined ? {} : { empty_label: emptyLabel }) };
+    const resource = { key: "records", title: "Fixture records", list_path: "/api/private/fixture", item_path: "/api/private/fixture/{id}", collection_key: "items", id_field: "id", display_field: "name", fields: [{ key: "name", label: "Owner field", type: "text", required: true }], ...(emptyLabel === undefined ? {} : { empty_label: emptyLabel }) };
     mockedUseAuth.mockReturnValue({ ...auth, session: { ...auth.session!, settings_pages: [{ page_key: "fixture", title: "Fixture", path: "/settings/fixture", settings_tab: true, sort_order: 1, control_surface: { kind: "resource_admin", resources: [resource] } }] } });
     const messages: Record<string, string> = { "react.settings.no_records_configured": "Įrašų nesukonfigūruota." };
     render(<I18nContext.Provider value={{ ...fallbackContext, locale: "lt", messages, t: (key, text = "", params) => interpolate(messages[key] || text, params) }}><MemoryRouter initialEntries={["/settings/fixture"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter></I18nContext.Provider>);
-    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/private/fixture"));
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/fixture"));
     await waitFor(() => expect(screen.getByRole("table", { name: "Fixture records" })).toHaveAttribute("aria-busy", "false"));
     if (emptyLabel === undefined) expect(screen.getByText("Įrašų nesukonfigūruota.")).toBeInTheDocument();
     else if (emptyLabel) expect(screen.getByText(emptyLabel)).toBeInTheDocument();
@@ -208,7 +211,7 @@ describe("SettingsHubPage", () => {
   it("renders a registered resource admin control surface from registry metadata", async () => {
     mockedFetchJson.mockImplementation(async (path) => {
       const requestPath = stringFromUnknownValue(path);
-      if (requestPath === "/private/sources") {
+      if (requestPath === "/api/private/sources") {
         return {
           items: [
             {
@@ -220,7 +223,7 @@ describe("SettingsHubPage", () => {
           ],
         };
       }
-      if (requestPath === "/private/policies") {
+      if (requestPath === "/api/private/policies") {
         return {
           items: [
             {
@@ -254,8 +257,8 @@ describe("SettingsHubPage", () => {
                   key: "sources",
                   title: "Directory Sources",
                   description: "Sources available for sign-in.",
-                  list_path: "/private/sources",
-                  item_path: "/private/sources/{key}",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "key",
@@ -271,8 +274,8 @@ describe("SettingsHubPage", () => {
                 {
                   key: "policies",
                   title: "Access Policies",
-                  list_path: "/private/policies",
-                  item_path: "/private/policies/{id}",
+                  list_path: "/api/private/policies",
+                  item_path: "/api/private/policies/{id}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "id",
@@ -303,14 +306,118 @@ describe("SettingsHubPage", () => {
     expect(screen.getByText("example.com")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Add" })).toHaveLength(2);
     expect(screen.queryByText(/dedicated React screen/i)).not.toBeInTheDocument();
-    expect(mockedFetchJson).toHaveBeenCalledWith("/private/sources");
-    expect(mockedFetchJson).toHaveBeenCalledWith("/private/policies");
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/sources");
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/private/policies");
+  });
+
+  it("hides the delete action when a resource admin resource disallows delete", async () => {
+    mockedFetchJson.mockImplementation(async (path, init) => {
+      const requestPath = stringFromUnknownValue(path);
+      if (!init && requestPath === "/api/private/sources") {
+        return { items: [{ key: "source-a", name: "Source A" }] };
+      }
+      return { item: {} };
+    });
+    mockedUseAuth.mockReturnValueOnce({
+      ...mockedUseAuth(),
+      session: {
+        ...mockedUseAuth().session!,
+        settings_pages: [
+          {
+            page_key: "resource_admin",
+            title: "Resource Admin",
+            path: "/settings/resource-admin",
+            settings_tab: true,
+            sort_order: 50,
+            control_surface: {
+              kind: "resource_admin",
+              resources: [
+                {
+                  key: "sources",
+                  title: "Sources",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
+                  id_field: "key",
+                  display_field: "name",
+                  allow_delete: false,
+                  fields: [{ key: "name", label: "Name", type: "text", required: true }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/settings/resource-admin"]}>
+        <Routes>
+          <Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Source A")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
+  });
+
+  it("hides the edit action when a resource admin resource disallows edit", async () => {
+    mockedFetchJson.mockImplementation(async (path, init) => {
+      const requestPath = stringFromUnknownValue(path);
+      if (!init && requestPath === "/api/private/sources") {
+        return { items: [{ key: "source-a", name: "Source A" }] };
+      }
+      return { item: {} };
+    });
+    mockedUseAuth.mockReturnValueOnce({
+      ...mockedUseAuth(),
+      session: {
+        ...mockedUseAuth().session!,
+        settings_pages: [
+          {
+            page_key: "resource_admin",
+            title: "Resource Admin",
+            path: "/settings/resource-admin",
+            settings_tab: true,
+            sort_order: 50,
+            control_surface: {
+              kind: "resource_admin",
+              resources: [
+                {
+                  key: "sources",
+                  title: "Sources",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
+                  id_field: "key",
+                  display_field: "name",
+                  allow_edit: false,
+                  fields: [{ key: "name", label: "Name", type: "text", required: true }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/settings/resource-admin"]}>
+        <Routes>
+          <Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByText("Source A")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 
   it("submits create edit and delete actions for registered resource admin surfaces", async () => {
     mockedFetchJson.mockImplementation(async (path, init) => {
       const requestPath = stringFromUnknownValue(path);
-      if (!init && requestPath === "/private/sources") {
+      if (!init && requestPath === "/api/private/sources") {
         return {
           items: [{ key: "source-a", name: "Source A", kind: "external", enabled: true }],
         };
@@ -334,8 +441,8 @@ describe("SettingsHubPage", () => {
                 {
                   key: "sources",
                   title: "Sources",
-                  list_path: "/private/sources",
-                  item_path: "/private/sources/{key}",
+                  list_path: "/api/private/sources",
+                  item_path: "/api/private/sources/{key}",
                   collection_key: "items",
                   record_key: "item",
                   id_field: "key",
@@ -374,7 +481,7 @@ describe("SettingsHubPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources",
+        "/api/private/sources",
         expect.objectContaining({ method: "POST" }),
       );
     });
@@ -386,14 +493,14 @@ describe("SettingsHubPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources/source-a",
+        "/api/private/sources/source-a",
         expect.objectContaining({ method: "PUT" }),
       );
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(mockedFetchJson).not.toHaveBeenCalledWith(
-      "/private/sources/source-a",
+      "/api/private/sources/source-a",
       expect.objectContaining({ method: "DELETE" }),
     );
     fireEvent.click(
@@ -401,7 +508,7 @@ describe("SettingsHubPage", () => {
     );
     await waitFor(() => {
       expect(mockedFetchJson).toHaveBeenCalledWith(
-        "/private/sources/source-a",
+        "/api/private/sources/source-a",
         expect.objectContaining({ method: "DELETE" }),
       );
     });
@@ -421,11 +528,11 @@ describe("SettingsHubPage", () => {
       writes: [] as Record<string, unknown>[],
     };
     mockedFetchJson.mockImplementation(async (path, init) => {
-      if (!init && path === "/private/json-resources") {
+      if (!init && path === "/api/private/json-resources") {
         state.reads += 1;
         return { items: [{ ...state.record }] } as never;
       }
-      if (path === "/private/json-resources/resource-a" && init?.method === "PUT") {
+      if (path === "/api/private/json-resources/resource-a" && init?.method === "PUT") {
         if (typeof init.body !== "string") {
           throw new Error("Expected a serialized resource body.");
         }
@@ -451,8 +558,8 @@ describe("SettingsHubPage", () => {
             resources: [{
               key: "json_resources",
               title: "JSON Resources",
-              list_path: "/private/json-resources",
-              item_path: "/private/json-resources/{id}",
+              list_path: "/api/private/json-resources",
+              item_path: "/api/private/json-resources/{id}",
               collection_key: "items",
               record_key: "item",
               id_field: "id",
@@ -573,5 +680,395 @@ describe("SettingsHubPage", () => {
     expect(state.reads).toBe(2);
     expect(state.record.config).toEqual({ corrected: true });
     expect(JSON.parse((reopened as HTMLTextAreaElement).value)).toEqual({ corrected: true });
+  });
+});
+
+describe("RegisteredSettingsResourceAdminPage resource paths", () => {
+  const resource = {
+    key: "records",
+    title: "Module records",
+    list_path: "/api/modules/fixture/records",
+    item_path: "/api/modules/fixture/records/{id}",
+    collection_key: "items",
+    id_field: "id",
+    display_field: "name",
+    fields: [{ key: "name", label: "Name", type: "text", required: true }],
+  };
+
+  function renderPage(overrides: Record<string, unknown>) {
+    const page = {
+      key: "module_records",
+      page_key: "module_records",
+      label: "Module Records",
+      title: "Module Records",
+      path: "/modules/records",
+      control_surface: { kind: "resource_admin", resources: [{ ...resource, ...overrides }] },
+    };
+    render(<MemoryRouter><RegisteredSettingsResourceAdminPage page={page} /></MemoryRouter>);
+  }
+
+  beforeEach(() => {
+    mockedFetchJson.mockReset();
+    mockedFetchJson.mockResolvedValue({ items: [] });
+  });
+
+  it("loads a resource from its same-origin API path", async () => {
+    renderPage({});
+
+    await waitFor(() => expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/fixture/records"));
+    expect(screen.getByRole("table", { name: "Module records" })).toBeInTheDocument();
+  });
+
+  it.each<Record<string, string>>([
+    { list_path: "//evil.example/api/records" },
+    { list_path: "/private/records" },
+    { list_path: "https://evil.example/api/records" },
+    { list_path: "/api/../admin/records" },
+    { item_path: "//evil.example/api/records/{id}" },
+    { item_path: "/private/records/{id}" },
+  ])("rejects a resource whose path leaves the same-origin API: %j", (overrides) => {
+    renderPage(overrides);
+
+    expect(screen.getByRole("link", { name: "Open Module Records" })).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Module records" })).not.toBeInTheDocument();
+    expect(mockedFetchJson).not.toHaveBeenCalled();
+  });
+
+  it.each([".", "..", "a/b", "a\\b", "a?b", "a#b", "a\u0000b", "a\nb", "a\u007fb", "a\uD800b", "\uDC00"])(
+    "refuses to build an item URL from the record id %j",
+    async (id) => {
+      mockedFetchJson.mockResolvedValue({ items: [{ id, name: "Odd record" }] });
+      renderPage({});
+      await waitFor(() => expect(screen.getByText("Odd record")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+      expect(screen.getByRole("alert")).toHaveTextContent("Record ID is missing.");
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Record ID is missing.");
+
+      // Only the list was read; no request ever addressed an item path.
+      expect(mockedFetchJson).toHaveBeenCalledTimes(1);
+      expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/fixture/records");
+    },
+  );
+
+  it("substitutes a usable record id into the final item path segment", async () => {
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "a.b c", name: "Usable record" }] });
+    renderPage({});
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Delete record" }),
+    );
+
+    await waitFor(() => {
+      expect(mockedFetchJson).toHaveBeenCalledWith(
+        "/api/modules/fixture/records/a.b%20c",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
+  const revoke = {
+    key: "revoke",
+    label: "Revoke sessions",
+    method: "POST",
+    path_template: "/api/modules/fixture/records/{id}/revoke",
+  };
+
+  it("posts a row action to the row's path and shows its success text", async () => {
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "a b", name: "Usable record" }] });
+    renderPage({ row_actions: [{ ...revoke, success_text: "Sessions revoked." }] });
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+    // Next to Edit and Delete.
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke sessions" }));
+
+    await waitFor(() => {
+      expect(mockedFetchJson).toHaveBeenCalledWith(
+        "/api/modules/fixture/records/a%20b/revoke",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    await waitFor(() => expect(screen.getByText("Sessions revoked.")).toBeInTheDocument());
+    // The list is read again after the action.
+    expect(mockedFetchJson.mock.calls.filter(([path]) => path === "/api/modules/fixture/records")).toHaveLength(2);
+  });
+
+  it("asks before a row action that declares a confirmation and sends nothing on cancel", async () => {
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "r1", name: "Usable record" }] });
+    renderPage({ row_actions: [{ ...revoke, confirm: "Sign this person out everywhere?" }] });
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke sessions" }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("Sign this person out everywhere?");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(mockedFetchJson).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke sessions" }));
+    fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Revoke sessions" }));
+    await waitFor(() => {
+      expect(mockedFetchJson).toHaveBeenCalledWith(
+        "/api/modules/fixture/records/r1/revoke",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+    await waitFor(() => expect(screen.getByText("Done.")).toBeInTheDocument());
+  });
+
+  it("shows the error of a failed row action", async () => {
+    mockedFetchJson.mockImplementation((path) =>
+      String(path).endsWith("/revoke") ? Promise.reject(new Error("Not allowed.")) : Promise.resolve({ items: [{ id: "r1", name: "Usable record" }] }),
+    );
+    renderPage({ row_actions: [revoke] });
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke sessions" }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Not allowed."));
+  });
+
+  it.each<Record<string, string>>([
+    { path_template: "//evil.example/api/records/{id}/revoke" },
+    { path_template: "/private/records/{id}/revoke" },
+    { path_template: "/api/modules/fixture/records/revoke" },
+    { path_template: "/api/modules/fixture/{a}/{b}" },
+    { method: "DELETE" },
+    { label: "" },
+  ])("leaves out a row action the server would have refused: %j", async (overrides) => {
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "r1", name: "Usable record" }] });
+    renderPage({ row_actions: [{ ...revoke, ...overrides }] });
+    await waitFor(() => expect(screen.getByText("Usable record")).toBeInTheDocument());
+
+    expect(screen.queryByRole("button", { name: "Revoke sessions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+  });
+});
+
+describe("resource_report host renderer dispatch", () => {
+  const reportSurface = {
+    kind: "resource_report",
+    list_path: "/api/modules/acme.journal/journal",
+    columns: [{ key: "action", label: "Action", type: "text" }],
+    page_size: 25,
+    empty_text: "Nothing decided yet.",
+  };
+
+  beforeEach(() => {
+    mockedFetchJson.mockReset();
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "e-1", action: "approve" }], total: 1 });
+  });
+
+  it("renders a registered report page read only", async () => {
+    const page = {
+      key: "acme_journal",
+      page_key: "acme_journal",
+      label: "Journal",
+      title: "Journal",
+      path: "/acme/journal",
+      control_surface: reportSurface,
+    };
+    render(<MemoryRouter><RegisteredSettingsResourceAdminPage page={page} /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByRole("table", { name: "Journal" })).toHaveTextContent("approve"));
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/acme.journal/journal?limit=25&offset=0");
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Open Journal" })).not.toBeInTheDocument();
+  });
+
+  it("renders a report settings tab inside the hub", async () => {
+    mockedUseAuth.mockReturnValue({
+      error: null,
+      isAuthenticated: true,
+      logout: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined),
+      switchAccount: vi.fn(async () => undefined),
+      session: {
+        authenticated: true,
+        auth_source: "local",
+        bootstrap_required: false,
+        external_auth_enabled: false,
+        local_auth_enabled: true,
+        roles: ["admin"],
+        user: sessionUser("admin"),
+        permissions: { can_read: true, can_mutate: true },
+        account_memberships: [],
+        i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
+        feature_flags: {},
+        environment: { edition: "community" },
+        settings_pages: [{ page_key: "acme_journal", title: "Journal", path: "/settings/acme-journal", settings_tab: true, sort_order: 1, control_surface: reportSurface }],
+        registered_pages: [],
+        shell_navigation: {},
+      },
+      status: "authenticated",
+    });
+    render(<MemoryRouter initialEntries={["/settings/acme-journal"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByRole("table", { name: "Journal" })).toHaveTextContent("approve"));
+    expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+  });
+
+  it("shows the page-unavailable state for a resource_admin page that is not entitled", async () => {
+    mockedFetchJson.mockRejectedValue(new HttpError({ status: 403, url: "/api/modules/fixture/records", payload: { code: "feature_not_entitled", message: "Not entitled" } }));
+    const page = {
+      key: "module_records",
+      page_key: "module_records",
+      title: "Module Records",
+      path: "/modules/records",
+      control_surface: {
+        kind: "resource_admin",
+        resources: [{ key: "records", title: "Module records", list_path: "/api/modules/fixture/records", id_field: "id", fields: [{ key: "name", label: "Name", type: "text" }] }],
+      },
+    };
+    render(<MemoryRouter><RegisteredSettingsResourceAdminPage page={page} /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText("This page is not available.")).toBeInTheDocument());
+    expect(screen.queryByRole("table", { name: "Module records" })).not.toBeInTheDocument();
+  });
+});
+
+describe("SettingsHubPage for someone who does not administer the platform", () => {
+  const journal = {
+    page_key: "acme_journal",
+    title: "Journal",
+    path: "/settings/acme-journal",
+    settings_tab: true,
+    sort_order: 1,
+    required_permission: "viewer",
+    control_surface: { kind: "resource_report", list_path: "/api/modules/acme/journal", columns: [{ key: "action", label: "Action", type: "text" }] },
+  };
+
+  function renderAsOperator(settingsPages: Array<Record<string, unknown>>) {
+    mockedFetchJson.mockReset();
+    mockedFetchJson.mockResolvedValue({ items: [{ id: "e-1", action: "approve" }], total: 1 });
+    mockedUseAuth.mockReturnValue({
+      error: null,
+      isAuthenticated: true,
+      logout: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined),
+      switchAccount: vi.fn(async () => undefined),
+      session: {
+        authenticated: true,
+        auth_source: "local",
+        bootstrap_required: false,
+        external_auth_enabled: false,
+        local_auth_enabled: true,
+        roles: ["operator"],
+        user: sessionUser("operator"),
+        permissions: { can_read: true, can_mutate: true },
+        account_memberships: [],
+        i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
+        feature_flags: {},
+        environment: { edition: "community" },
+        settings_pages: settingsPages as never,
+        registered_pages: [],
+        shell_navigation: {},
+      },
+      status: "authenticated",
+    });
+    render(<MemoryRouter initialEntries={["/settings/acme-journal"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter>);
+  }
+
+  it("shows only the module pages the operator may open, never the built-in tabs", async () => {
+    renderAsOperator([
+      journal,
+      { page_key: "general", title: "General", path: "/settings/general", settings_tab: true, sort_order: 0, required_permission: "view_settings" },
+      { page_key: "acme_admin", title: "Admin module", path: "/settings/acme-admin", settings_tab: true, sort_order: 2, required_permission: "admin" },
+    ]);
+
+    await waitFor(() => expect(screen.getByRole("table", { name: "Journal" })).toHaveTextContent("approve"));
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Journal"]);
+    expect(screen.queryByText("General surface")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Registry dashboard" })).not.toBeInTheDocument();
+  });
+
+  it("offers no built-in fallback tabs when the bootstrap lists none for the operator", () => {
+    renderAsOperator([]);
+
+    expect(screen.queryByRole("tab", { name: "General" })).not.toBeInTheDocument();
+    expect(screen.queryByText("General surface")).not.toBeInTheDocument();
+  });
+});
+
+describe("status_document host renderer dispatch", () => {
+  const statusSurface = {
+    kind: "status_document",
+    status_path: "/api/modules/acme.status/status",
+    upload_path: "/api/modules/acme.status/document",
+    fields: [{ key: "state", label: "State", type: "badge" }],
+    upload_label: "Document text",
+  };
+  const statusPage = {
+    page_key: "acme_status",
+    title: "Module status",
+    path: "/settings/acme-status",
+    settings_tab: true,
+    sort_order: 1,
+    required_permission: "installation_admin",
+    control_surface: statusSurface,
+  };
+
+  function mockSession(roles: string[], settingsPages: Array<Record<string, unknown>>) {
+    const role = roles.includes("admin") ? "admin" : "operator";
+    mockedUseAuth.mockReturnValue({
+      error: null,
+      isAuthenticated: true,
+      logout: vi.fn(async () => undefined),
+      refresh: vi.fn(async () => undefined),
+      switchAccount: vi.fn(async () => undefined),
+      session: {
+        authenticated: true,
+        auth_source: "local",
+        bootstrap_required: false,
+        external_auth_enabled: false,
+        local_auth_enabled: true,
+        roles,
+        user: sessionUser(role),
+        permissions: { can_read: true, can_mutate: true },
+        account_memberships: [],
+        i18n: { locale: "en", fallback_locale: "en", supported_locales: [], messages: {} },
+        feature_flags: {},
+        environment: { edition: "community" },
+        settings_pages: settingsPages as never,
+        registered_pages: [],
+        shell_navigation: {},
+      },
+      status: "authenticated",
+    });
+  }
+
+  beforeEach(() => {
+    mockedFetchJson.mockReset();
+    mockedFetchJson.mockResolvedValue({ state: "active" });
+  });
+
+  it("renders a registered status page with its upload form", async () => {
+    render(<MemoryRouter><RegisteredSettingsResourceAdminPage page={{ key: "acme_status", label: "Module status", ...statusPage }} /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText("active")).toBeInTheDocument());
+    expect(mockedFetchJson).toHaveBeenCalledWith("/api/modules/acme.status/status");
+    expect(screen.getByLabelText("Document text")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Upload" })).toBeInTheDocument();
+  });
+
+  it("renders an installation-wide status tab for the administrator the bootstrap listed it for", async () => {
+    mockSession(["admin"], [statusPage]);
+    render(<MemoryRouter initialEntries={["/settings/acme-status"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText("active")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Module status" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps an installation-wide status tab from someone who does not administer the platform", () => {
+    mockSession(["operator"], [statusPage]);
+    render(<MemoryRouter initialEntries={["/settings/acme-status"]}><Routes><Route path="/settings/:settingsPageKey" element={<SettingsHubPage />} /></Routes></MemoryRouter>);
+
+    expect(screen.queryByRole("tab", { name: "Module status" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Upload" })).not.toBeInTheDocument();
+    expect(mockedFetchJson).not.toHaveBeenCalledWith("/api/modules/acme.status/status");
   });
 });

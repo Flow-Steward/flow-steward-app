@@ -232,7 +232,7 @@ def test_binding_service_applies_installed_operation_requirements_before_runtime
     service = ExtensionBindingService(
         get_logger=lambda: store,
         get_operation_store=lambda: store,
-        resolve_extension_runtime_record=lambda _extension_id: (extension, store),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, store),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
@@ -292,7 +292,10 @@ def test_operation_service_passes_exact_install_to_extension_runtime(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
@@ -352,7 +355,10 @@ def test_operator_extension_action_requires_trusted_project_scope(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
@@ -408,7 +414,10 @@ def test_operator_extension_action_rejects_foreign_project_scope_before_runtime(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: project,
@@ -495,7 +504,10 @@ def test_normal_action_blocks_reflected_runtime_secret_before_processing_and_aud
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
@@ -609,7 +621,10 @@ def test_normal_action_blocks_short_secret_embedded_only_in_nested_result(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
@@ -998,7 +1013,7 @@ def test_oversized_hydrated_secret_map_stops_early_and_blocks_action(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
             extension,
             _Store(_connection()),
         ),
@@ -1102,7 +1117,10 @@ def test_normal_action_allows_safe_result_after_secret_leak_check(
     service = ExtensionOperationService(
         get_logger=lambda: _Store(_connection()),
         get_operation_store=lambda: _Store(_connection()),
-        resolve_extension_runtime_record=lambda _extension_id: (extension, _Store(_connection())),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
+            extension,
+            _Store(_connection()),
+        ),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=lambda _project_id: {"id": "project-1", "account_id": "account-1"},
@@ -1292,7 +1310,7 @@ def test_browser_picker_action_projects_only_current_declared_oauth_configuratio
     service = ExtensionOperationService(
         get_logger=lambda: store,
         get_operation_store=lambda: store,
-        resolve_extension_runtime_record=lambda _extension_id: (extension, store),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, store),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
         get_project_by_id=store.get_project,
@@ -1389,7 +1407,7 @@ def test_extension_action_client_payload_omits_server_runtime_details(
     service = ExtensionOperationService(
         get_logger=lambda: None,
         get_operation_store=lambda: None,
-        resolve_extension_runtime_record=lambda _extension_id: (extension, None),
+        resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (extension, None),
         extension_operation_handler_mode=lambda *_args, **_kwargs: "extension",
         extension_operation_failure_status=lambda _invocation: 400,
     )
@@ -1752,7 +1770,7 @@ def test_service_serialization_is_scoped_to_oauth_configuration_identity(
         return ExtensionOperationService(
             get_logger=lambda: store,
             get_operation_store=lambda: store,
-            resolve_extension_runtime_record=lambda _extension_id: (
+            resolve_extension_runtime_record=lambda _extension_id, **_kwargs: (
                 {**extension, "extension_install_id": install_id},
                 store,
             ),

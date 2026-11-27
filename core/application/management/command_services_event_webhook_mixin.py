@@ -2,6 +2,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.registry.workflow_account import account_scope_if_named
 from core.application.workflows.notification_recipients import (
     validate_notification_reaction_actions,
 )
@@ -104,6 +105,29 @@ class EventCommandServiceWebhookMixin:
         raise ServiceForbiddenError(_MESSAGE_PROVIDER_WEBHOOK_IS_NOT_AUTHORIZED_FOR_THIS_PROJECT)
 
     def ingest_provider_webhook(
+        self,
+        command: ProviderWebhookIngestInput,
+        *,
+        scope: ScopeContext | None = None,
+    ) -> ProviderWebhookIngestResultView:
+        # A provider webhook has no principal: the project's account names every
+        # registry read of the start (ADR 0020, C5), e.g. its secret defaults.
+        account_id = self._project_account(str(command.project_id or "").strip())
+        with account_scope_if_named(account_id):
+            return self._ingest_provider_webhook(command, scope=scope)
+
+    def _project_account(self, project_id: str) -> str:
+        """The account of a project row, or empty when it cannot be read here."""
+        if not project_id:
+            return ""
+        try:
+            bl = self._get_logger()
+            project = bl.get_project(project_id) if hasattr(bl, "get_project") else None
+        except Exception:
+            return ""
+        return str(project.get("account_id") or "").strip() if isinstance(project, dict) else ""
+
+    def _ingest_provider_webhook(
         self,
         command: ProviderWebhookIngestInput,
         *,
@@ -456,6 +480,28 @@ class EventCommandServiceWebhookMixin:
         scope: ScopeContext | None = None,
         expected_project_id: Any | None = None,
     ) -> ReactionEventIngestResultView:
+        # A worker poll or a public callback has no principal: the job's account
+        # names the registry reads of the reaction (ADR 0020, C5).
+        job = None
+        bl = self._get_logger()
+        if bl and command.job_id is not None:
+            job_store = self._get_job_store() if self._get_job_store else bl
+            if hasattr(job_store, "get_job"):
+                job = job_store.get_job(str(command.job_id or "").strip())
+        job_account = str(job.get("account_id") or "").strip() if isinstance(job, dict) else ""
+        with account_scope_if_named(job_account):
+            return self._ingest_reaction_event(
+                command, scope=scope, expected_project_id=expected_project_id, loaded_job=job
+            )
+
+    def _ingest_reaction_event(
+        self,
+        command: ReactionEventIngestInput,
+        *,
+        scope: ScopeContext | None = None,
+        expected_project_id: Any | None = None,
+        loaded_job: Any = None,
+    ) -> ReactionEventIngestResultView:
         resolved_scope = _service_scope(scope, project_id=None, workflow_id=command.workflow_id)
         bl = self._get_logger()
         if not bl:
@@ -476,8 +522,8 @@ class EventCommandServiceWebhookMixin:
         )
 
         if job_id is not None:
-            job_store = self._get_job_store() if self._get_job_store else bl
-            job = job_store.get_job(job_id) if hasattr(job_store, "get_job") else None
+            # Read once, by ingest_reaction_event, which binds the job's account.
+            job = loaded_job
             if not job:
                 raise ServiceNotFoundError(ERR_JOB_NOT_FOUND)
             resolved_project_id = str(job.get("project_id") or "").strip() or None
@@ -781,10 +827,8 @@ class EventCommandServiceWebhookMixin:
             )
             validate_notification_reaction_actions(
                 [row.model_dump() for row in command.reactions],
-                extension_for=lambda key: (
-                    bl.get_extension(key, account_id=resolved.account_id)
-                    if hasattr(bl, "get_extension")
-                    else None
+                extension_for=lambda key: _reaction_extension_for_account(
+                    bl, key, resolved.account_id
                 ),
             )
             target_kind, target_scope_id, scoped_rows = bl.replace_scoped_workflow_reactions(
@@ -809,6 +853,27 @@ class EventCommandServiceWebhookMixin:
             available_trigger_sources=available_trigger_sources,
             reactions=[WorkflowReactionRuleView.model_validate(row) for row in scoped_rows],
         )
+
+
+def _reaction_extension_for_account(bl: Any, extension_key: str, account_id: Any) -> Any:
+    """The extension a notification reaction of *account_id* would use (ADR 0020, C6).
+
+    An account that enabled the installation's install uses it; an install the
+    account has not enabled is not available to its reactions.
+    """
+    if not hasattr(bl, "get_extension"):
+        return None
+    from core.infrastructure.extension_runtime.extension_runtime_helpers import (
+        extension_install_account,
+    )
+
+    caller = str(account_id or "").strip()
+    if not caller:
+        return None
+    lookup_account_id, _access = extension_install_account(bl, extension_key, caller)
+    if not lookup_account_id:
+        return None
+    return bl.get_extension(extension_key, account_id=lookup_account_id)
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

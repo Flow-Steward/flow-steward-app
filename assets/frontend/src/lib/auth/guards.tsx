@@ -7,9 +7,12 @@ import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { PagePlaceholder } from "@/components/shared/page-placeholder";
 import {
   type FrontendCapability,
+  hasCapability,
   useHasCapability,
 } from "@/lib/auth/capabilities";
+import { sessionPermissions } from "@/lib/auth/permissions";
 import { useAuth } from "@/lib/auth/useAuth";
+import { bootstrapPageAt, pageOpensWithoutAdministration } from "@/lib/auth/settings-page-access";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
@@ -96,22 +99,46 @@ export function RequireCapability({
 }: Readonly<PropsWithChildren<{ capability: FrontendCapability }>>) {
   const auth = useAuth();
   const allowed = useHasCapability(capability);
-  const { t } = useI18n();
 
   if (auth.status === "loading") {
     return null;
   }
 
   if (!allowed) {
-    return (
-      <PagePlaceholder
-        description={t("react.auth.access_denied_detail", "Your current role does not allow access to this area. No privileged inventory was loaded.")}
-        eyebrow={t("react.auth.authorization", "Authorization")}
-        status={t("react.auth.denied", "Denied")}
-        title={t("react.auth.access_denied", "Access denied")}
-      />
-    );
+    return <AccessDenied />;
   }
 
   return <>{children}</>;
+}
+
+function AccessDenied() {
+  const { t } = useI18n();
+  return (
+    <PagePlaceholder
+      description={t("react.auth.access_denied_detail", "Your current role does not allow access to this area. No privileged inventory was loaded.")}
+      eyebrow={t("react.auth.authorization", "Authorization")}
+      status={t("react.auth.denied", "Denied")}
+      title={t("react.auth.access_denied", "Access denied")}
+    />
+  );
+}
+
+/**
+ * Gate `/settings/:settingsPageKey`: an administrator opens any page as before; anyone
+ * else opens only a module page their bootstrap lists whose declared permission is one
+ * the server grants without administration (a `viewer` report, for example). Every
+ * other page shows the same refusal as {@link RequireCapability}.
+ */
+export function RequireSettingsPage({ children }: Readonly<PropsWithChildren>) {
+  const auth = useAuth();
+  const location = useLocation();
+
+  if (auth.status === "loading") {
+    return null;
+  }
+  const administers = hasCapability(sessionPermissions(auth.session), "administer_platform");
+  if (administers || pageOpensWithoutAdministration(bootstrapPageAt(auth.session, location.pathname))) {
+    return <>{children}</>;
+  }
+  return <AccessDenied />;
 }

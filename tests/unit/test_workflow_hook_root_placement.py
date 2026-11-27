@@ -30,6 +30,10 @@ from tests.unit.test_workflow_hook_binding_postgres import request
 from tests.unit.test_workflow_hook_contract import declaration
 from tests.unit.test_workflow_portability import _resolved_db
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 ROOT_ONLY = "workflow.hook.root_only"
 HOOK_PATH = "steps.hook.override.invoke_workflow.hook"
 PLACEMENTS = [

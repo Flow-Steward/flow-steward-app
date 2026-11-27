@@ -109,34 +109,11 @@
   opacity: 0.6;
 }
 
-.fs-dropzone-files {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--fs-border-subtle);
-  border-radius: var(--fs-radius-container);
-  list-style: none;
-}
-
-.fs-dropzone-file {
-  display: grid;
+/* The list and its rows are the design system's Selected list
+   (.fs-selected-list / .fs-selected-row); a file row adds the size column.
+   Both classes, so the override wins whichever stylesheet loads last. */
+.fs-selected-row.fs-dropzone-file {
   grid-template-columns: 20px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: var(--fs-space-100);
-  min-height: 48px;
-  padding: var(--fs-space-050) var(--fs-space-075) var(--fs-space-050) var(--fs-space-150);
-  border-bottom: 1px solid var(--fs-border-subtle);
-}
-
-.fs-dropzone-file:last-child {
-  border-bottom: 0;
-}
-
-.fs-dropzone-file-icon {
-  width: 16px;
-  height: 16px;
-  color: var(--fs-text-tertiary);
 }
 
 /* The head shrinks with an ellipsis; the tail with the extension always shows.

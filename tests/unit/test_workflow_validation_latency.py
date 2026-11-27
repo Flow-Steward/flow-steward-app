@@ -25,6 +25,10 @@ from core.application.registry.io_resolver import IOResolver
 from core.application.workflows.execution_graph_queries import DefinitionGraph
 from tests._workflow_definitions import linear_workflow
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 INSTALL_ID = "install-mail"
 
 

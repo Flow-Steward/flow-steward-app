@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { CatalogIcon } from "@/components/shared/catalog-browse";
 import type { ExtensionRecord } from "@/pages/extensions/api";
+import { isAccountEnablementRow } from "@/pages/extensions/account-enablement";
 import {
   EXTENSION_CATALOG_QUERY_KEY,
   EXTENSION_UPDATES_QUERY_KEY,
@@ -237,8 +238,9 @@ function createExtensionColumns({
   statusById,
   busyById,
   archiveLifecycleAvailable,
+  canManageInstalls,
 }: Pick<ReturnType<typeof useExtensionsHubState>,
-  "rememberedProjectId" | "statusById" | "busyById" | "archiveLifecycleAvailable"
+  "rememberedProjectId" | "statusById" | "busyById" | "archiveLifecycleAvailable" | "canManageInstalls"
 >, {
   handleToggle,
   handleHealthCheck,
@@ -325,7 +327,16 @@ function createExtensionColumns({
       cell: (extension) => {
         const extId = extension.extension_id;
         const pending = busyById[extId];
-        const toggleLabel = choose(Boolean(extension.active), t("react.extensions.display_disable", "Disable"), t("react.extensions.display_enable", "Enable"));
+        // Another account turns the installation's extension on for itself only;
+        // installing and removing the code is the installation administrator's.
+        const forThisCompany = isAccountEnablementRow(extension);
+        const toggleLabel = choose(
+          Boolean(extension.active),
+          t("react.extensions.display_disable", "Disable"),
+          forThisCompany
+            ? t("react.extensions.enable_for_this_company", "Enable for this company")
+            : t("react.extensions.display_enable", "Enable"),
+        );
         return (
           <div className="fs-extensions-actions">
             <Link
@@ -352,15 +363,17 @@ function createExtensionColumns({
               label={t("react.extensions.extension_runtime_health", "Extension runtime health")}
               onClick={() => { if (!pending) ignoreAsyncResult(handleHealthCheck(extension)); }}
             />
-            <IconButton
-              aria-busy={pending === "uninstall" || undefined}
-              className="fs-extensions-uninstall"
-              disabled={!archiveLifecycleAvailable}
-              icon={Trash2}
-              tooltipInViewport
-              label={t("react.extensions.uninstall", "Uninstall")}
-              onClick={() => { if (!pending) ignoreAsyncResult(handleUninstall(extension)); }}
-            />
+            {renderWhen(canManageInstalls && !forThisCompany, (
+              <IconButton
+                aria-busy={pending === "uninstall" || undefined}
+                className="fs-extensions-uninstall"
+                disabled={!archiveLifecycleAvailable}
+                icon={Trash2}
+                tooltipInViewport
+                label={t("react.extensions.uninstall", "Uninstall")}
+                onClick={() => { if (!pending) ignoreAsyncResult(handleUninstall(extension)); }}
+              />
+            ))}
           </div>
         );
       },
@@ -446,6 +459,7 @@ export function ExtensionsHubPage() {
     hasCatalogFilters,
     disabledExtensionCount,
     canAdministerPlatform,
+    canManageInstalls,
     catalogInstallById,
     uninstallPlan,
     uninstallLifecycleAvailable,
@@ -535,7 +549,7 @@ export function ExtensionsHubPage() {
   const extensionUpdates: ExtensionUpdates = {
     byId: Object.fromEntries((updatesQuery.data?.items ?? []).map((entry) => [entry.extension_id, entry])),
     installStateById: catalogInstallById,
-    canAdminister: canAdministerPlatform,
+    canAdminister: canAdministerPlatform && canManageInstalls,
     installBlockedReason: archiveInstallBlockedReason,
     permissionLabels: updatesQuery.data?.permission_labels ?? {},
     onUpdate: installCatalogExtension,
@@ -551,6 +565,7 @@ export function ExtensionsHubPage() {
   }));
 
   const extensionColumns = createExtensionColumns(hubState, lifecycleActions, extensionUpdates, t);
+  const emptyScope = { canManageInstalls, installedCount: extensions.length };
   let tableState: ReactNode = null;
   if (extensionsQuery.isLoading || extensionsLoaderShown) {
     tableState = extensionsLoaderShown ? (
@@ -561,8 +576,8 @@ export function ExtensionsHubPage() {
   } else if (!visibleExtensions.length) {
     tableState = (
       <div className="fs-table-state">
-        <strong>{emptyExtensionsTitle(hasCatalogFilters, viewFilter, disabledExtensionCount, t)}</strong>
-        <span>{emptyExtensionsDescription(hasCatalogFilters, viewFilter, disabledExtensionCount, t)}</span>
+        <strong>{emptyExtensionsTitle(hasCatalogFilters, viewFilter, disabledExtensionCount, emptyScope, t)}</strong>
+        <span>{emptyExtensionsDescription(hasCatalogFilters, viewFilter, disabledExtensionCount, emptyScope, t)}</span>
         {renderWhen(
           allTrue([!hasCatalogFilters, viewFilter === "active", disabledExtensionCount > 0]),
           // One click to the thing they already have. Telling someone to
@@ -579,7 +594,7 @@ export function ExtensionsHubPage() {
     );
   }
 
-  const installAction = renderWhen(!detailMode, (
+  const installAction = renderWhen(!detailMode && canManageInstalls, (
     <>
       <input
         accept=".zip,application/zip"
@@ -745,6 +760,7 @@ export function ExtensionsHubPage() {
             handleToggle={handleToggle}
             handleUninstall={handleUninstall}
             archiveLifecycleAvailable={archiveLifecycleAvailable}
+            canManageInstalls={canManageInstalls}
             manifestPages={manifestPages}
             manifestQuery={manifestQuery}
             oauthConnectionTypes={oauthConnectionTypes}
@@ -827,15 +843,17 @@ export function ExtensionsHubPage() {
         ))}
 
         {renderWhen(!detailMode, (
+          // Only the installation administrator installs code, so only their
+          // list is a drop target; everyone else sees the same card without it.
           <article
-            className={choose(installDropActive, "fs-card fs-table-card is-drop-target", "fs-card fs-table-card")}
-            data-testid="extension-install-dropzone"
-            onDragEnter={handleInstallDragOver}
-            onDragLeave={handleInstallDragLeave}
-            onDragOver={handleInstallDragOver}
-            onDrop={(event) => {
+            className={choose(canManageInstalls && installDropActive, "fs-card fs-table-card is-drop-target", "fs-card fs-table-card")}
+            data-testid={choose(canManageInstalls, "extension-install-dropzone", "extensions-installed-list")}
+            onDragEnter={canManageInstalls ? handleInstallDragOver : undefined}
+            onDragLeave={canManageInstalls ? handleInstallDragLeave : undefined}
+            onDragOver={canManageInstalls ? handleInstallDragOver : undefined}
+            onDrop={canManageInstalls ? (event) => {
               ignoreAsyncResult(handleInstallDrop(event));
-            }}
+            } : undefined}
           >
             <div className="fs-table-toolbar">
               <AdvancedTableFilters
@@ -863,7 +881,11 @@ export function ExtensionsHubPage() {
                 {choose(
                   extensionsQuery.isLoading,
                   "",
-                  t("react.extensions.display_extension_visible_count", "{visible} of {total} · drop a .zip here to install", { visible: visibleExtensions.length, total: extensions.length }),
+                  choose(
+                    canManageInstalls,
+                    t("react.extensions.display_extension_visible_count", "{visible} of {total} · drop a .zip here to install", { visible: visibleExtensions.length, total: extensions.length }),
+                    t("react.extensions.display_extension_visible_count_plain", "{visible} of {total}", { visible: visibleExtensions.length, total: extensions.length }),
+                  ),
                 )}
               </span>
             </div>
@@ -892,7 +914,7 @@ export function ExtensionsHubPage() {
           // Both preconditions the installer itself enforces for an uploaded
           // archive, each with its own visible reason; offering the action to
           // anyone else only produces a refusal.
-          canAdminister={canAdministerPlatform}
+          canAdminister={canAdministerPlatform && canManageInstalls}
           installBlockedReason={archiveInstallBlockedReason}
           installStateById={catalogInstallById}
           onInstall={installCatalogExtension}

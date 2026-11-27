@@ -611,7 +611,7 @@ ALTER TABLE ONLY public.domain_event_ledger
 --
 
 ALTER TABLE ONLY public.domain_event_ledger
-    ADD CONSTRAINT domain_event_ledger_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE SET NULL;
+    ADD CONSTRAINT domain_event_ledger_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE SET NULL (workflow_id);
 
 
 --
@@ -731,7 +731,7 @@ ALTER TABLE ONLY public.event_dispatches
 --
 
 ALTER TABLE ONLY public.event_dispatches
-    ADD CONSTRAINT event_dispatches_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE SET NULL;
+    ADD CONSTRAINT event_dispatches_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE SET NULL (workflow_id);
 
 
 --
@@ -779,7 +779,7 @@ ALTER TABLE ONLY public.extension_invocation_logs
 --
 
 ALTER TABLE ONLY public.extension_invocation_logs
-    ADD CONSTRAINT extension_invocation_logs_workflow_id_fkey FOREIGN KEY (workflow_id) REFERENCES public.registry_workflows(workflow_id) ON DELETE SET NULL;
+    ADD CONSTRAINT extension_invocation_logs_workflow_id_fkey FOREIGN KEY (account_id, workflow_id) REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE SET NULL (workflow_id);
 
 
 --

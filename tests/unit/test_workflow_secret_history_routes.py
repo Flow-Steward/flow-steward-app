@@ -11,6 +11,10 @@ from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.workflows.workflow_definition_service import WorkflowChangeResult
 from core.application.workflows.workflow_portability import WorkflowPortabilityService
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def _diff(ref: str) -> dict:
     return {
@@ -271,7 +275,12 @@ def test_dedicated_workflow_diff_masks_password_values() -> None:
 
     with (
         patch.object(routes, "_get_db", return_value=db),
-        patch.object(routes, "_resolve_workflow_scope_target"),
+        # The route reads history in the caller's account (ADR 0020, C5).
+        patch.object(
+            routes,
+            "_resolve_workflow_scope_target",
+            return_value=({}, SimpleNamespace(account_id=DEFAULT_ACCOUNT_ID)),
+        ),
         patch.object(routes, "_get_workflow_portability_service", return_value=service),
     ):
         result = routes.get_workflow_diff("orders", MagicMock(), "entry-1", "entry-2")
@@ -303,7 +312,12 @@ def test_dedicated_lifecycle_diff_keeps_empty_changes_and_summary() -> None:
 
     with (
         patch.object(routes, "_get_db", return_value=db),
-        patch.object(routes, "_resolve_workflow_scope_target"),
+        # The route reads history in the caller's account (ADR 0020, C5).
+        patch.object(
+            routes,
+            "_resolve_workflow_scope_target",
+            return_value=({}, SimpleNamespace(account_id=DEFAULT_ACCOUNT_ID)),
+        ),
         patch.object(routes, "_get_workflow_portability_service", return_value=service),
     ):
         result = routes.get_workflow_diff("orders", MagicMock(), "entry-1", "entry-2")
@@ -388,14 +402,18 @@ def test_workflow_diff_http_routes_apply_the_same_redaction(history_diff_client,
 
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
-    assert db.diff_calls == [
-        {
-            "entity_type": "workflow",
-            "entity_id": "orders",
-            "from_entry_id": "entry-1",
-            "to_entry_id": "entry-2",
-        }
-    ] * 2
+    assert (
+        db.diff_calls
+        == [
+            {
+                "entity_type": "workflow",
+                "entity_id": "orders",
+                "from_entry_id": "entry-1",
+                "to_entry_id": "entry-2",
+            }
+        ]
+        * 2
+    )
     _assert_safe_diff(first.json())
     assert second.json() == first.json()
     assert db.raw_diff == original

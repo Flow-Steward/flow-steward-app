@@ -12,7 +12,20 @@ from core.application.management.command_services_common import (
     _require_role,
     _service_scope,
 )
+from core.application.management.errors import ServiceForbiddenError
+from core.application.management.guards import require_workspace_access
 from core.application.management.scope import ScopeContext
+
+#: Trashing a workspace needs this where a person's access is limited to places.
+_WORKSPACE_MANAGE_PERMISSION = "workspaces.manage"
+
+
+def _require_trash_workspace(scope: ScopeContext, workspace_id: Any) -> None:
+    """A workspace out of the principal's reach is answered as missing."""
+    try:
+        require_workspace_access(scope, str(workspace_id), _WORKSPACE_MANAGE_PERMISSION)
+    except ServiceForbiddenError as exc:
+        raise ServiceNotFoundError(WORKSPACE_NOT_FOUND_MESSAGE) from exc
 
 
 class TrashLifecycleServiceWorkspaceMixin:
@@ -33,6 +46,7 @@ class TrashLifecycleServiceWorkspaceMixin:
     ) -> dict[str, Any]:
         resolved = _service_scope(scope)
         _require_role(resolved, "operator")
+        _require_trash_workspace(resolved, workspace_id)
         bl = self._logger()
         workspace = self._get_workspace_row_including_trashed_and_scoped(
             bl,
@@ -230,6 +244,7 @@ class TrashLifecycleServiceWorkspaceMixin:
     ) -> dict[str, Any]:
         resolved = _service_scope(scope)
         _require_role(resolved, "operator")
+        _require_trash_workspace(resolved, workspace_id)
         bl = self._logger()
         from core.infrastructure.db.db_pool import transaction_connection
 

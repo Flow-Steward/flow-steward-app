@@ -186,13 +186,14 @@ def test_normalize_pat_dict():
     assert p.account_id == "acc_99"
 
 
-def test_normalize_missing_account_id_defaults():
+def test_normalize_missing_account_id_names_no_account():
+    """Fail closed (ADR 0083): a principal without an account is not the installation's."""
     raw = {"id": USER_ID, "username": "alice", "auth_source": "local"}
     p = _normalize_principal_dict(raw)
-    assert p.account_id == DEFAULT_ACCOUNT_ID
+    assert p.account_id == ""
 
 
-def test_normalize_external_dict_sets_default_account_and_principal_type():
+def test_normalize_external_dict_sets_no_account_and_derives_principal_type():
     raw = {
         "id": USER_ID,
         "username": "external-admin",
@@ -205,7 +206,7 @@ def test_normalize_external_dict_sets_default_account_and_principal_type():
     assert p.auth_source == "external"
     # External auth with roles=["admin"] derives principal_type as "admin".
     assert p.principal_type == "admin"
-    assert p.account_id == DEFAULT_ACCOUNT_ID
+    assert p.account_id == ""
 
 
 def test_normalize_coerces_invalid_project_ids():
@@ -247,7 +248,7 @@ def test_resolve_to_principal_normalizes_session_user_path():
     assert principal is not None
     assert principal.username == "alice"
     assert principal.auth_source == ""
-    assert principal.account_id == DEFAULT_ACCOUNT_ID
+    assert principal.account_id == ""
     assert principal.must_change_password is True
 
 

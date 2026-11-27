@@ -18,7 +18,9 @@ _LIFECYCLE_CHANGELOG_TYPES = {
 
 
 class TrashLifecycleServiceEntitiesMixin:
-    def _restore_entity_direct(self, bl: Any, entity_type: str, entity_id: str) -> None:
+    def _restore_entity_direct(
+        self, bl: Any, entity_type: str, entity_id: str, *, account_id: str = ""
+    ) -> None:
         cfg = self._entity_config(entity_type)
         table = cfg["table"]
         id_col = cfg["id_col"]
@@ -28,8 +30,9 @@ class TrashLifecycleServiceEntitiesMixin:
         )
         with bl.conn.cursor() as cur:
             cur.execute(
-                f"UPDATE {table} SET {set_clause} WHERE {id_col} = %s AND deleted_at IS NOT NULL",
-                (entity_id,),
+                f"UPDATE {table} SET {set_clause} WHERE {id_col} = %s{_trash_key_sql(cfg)} "
+                "AND deleted_at IS NOT NULL",
+                _trash_key_params(cfg, entity_id, account_id),
             )
             if not cur.rowcount:
                 raise ServiceNotFoundError(f"{entity_type} not found or not trashed")
@@ -71,14 +74,15 @@ class TrashLifecycleServiceEntitiesMixin:
                 transaction=transaction,
             )
         sample_workflow = (
-            self._workflow_with_sample_files(bl.conn, entity_id)
+            self._workflow_with_sample_files(bl.conn, entity_id, account_id)
             if entity_type == "registry_workflow"
             else None
         )
         with bl.conn.cursor() as cur:
             cur.execute(
-                f"DELETE FROM {table} WHERE {id_col} = %s AND deleted_at IS NOT NULL",
-                (entity_id,),
+                f"DELETE FROM {table} WHERE {id_col} = %s{_trash_key_sql(cfg)} "
+                "AND deleted_at IS NOT NULL",
+                _trash_key_params(cfg, entity_id, account_id),
             )
             if not cur.rowcount:
                 raise ServiceValidationError(f"{entity_type} must be trashed before hard delete")
@@ -102,13 +106,18 @@ class TrashLifecycleServiceEntitiesMixin:
         )
 
     @staticmethod
-    def _workflow_with_sample_files(conn: Any, workflow_id: str) -> dict[str, Any] | None:
+    def _workflow_with_sample_files(
+        conn: Any, workflow_id: str, account_id: str
+    ) -> dict[str, Any] | None:
         """The workflow row a hard delete is about to remove, for its test-run files."""
+        if not str(account_id or "").strip():
+            return None
         try:
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT account_id, settings FROM registry_workflows WHERE workflow_id = %s",
-                    (workflow_id,),
+                    "SELECT account_id, settings FROM registry_workflows "
+                    "WHERE workflow_id = %s AND account_id = %s",
+                    (workflow_id, str(account_id).strip()),
                 )
                 row = cur.fetchone()
             if isinstance(row, dict):
@@ -509,7 +518,7 @@ class TrashLifecycleServiceEntitiesMixin:
         table_exists = getattr(bl, "_table_exists", None)
         if not callable(table_exists) or not bool(table_exists("registry_changelog")):
             return
-        ownership = {}
+        ownership: dict[str, str] = {}
         if changelog_type == "guardrail":
             # Guardrail history is account-qualified; unowned lifecycle markers
             # are invisible even after the entity itself was restored.
@@ -518,6 +527,10 @@ class TrashLifecycleServiceEntitiesMixin:
                 "actor_id": str(scope.actor_id or scope.actor_name).strip(),
                 "actor_type": str(scope.principal_type or "unknown").strip(),
             }
+        elif changelog_type in ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES:
+            # A workflow's or a contract's history is kept per account (ADR 0020,
+            # C5): the marker belongs to the account whose row was trashed.
+            ownership = {"owner_account_id": str(scope.account_id or "").strip()}
         with bl.conn.cursor() as cur:
             snapshot = {
                 "lifecycle_action": action,
@@ -547,7 +560,30 @@ class TrashLifecycleServiceEntitiesMixin:
         account_id: str | None = None,
         actor_id: str | None = None,
         actor_type: str | None = None,
+        owner_account_id: str | None = None,
     ) -> None:
+        if owner_account_id is not None and account_id is None:
+            if (
+                entity_type in ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES
+                and not str(owner_account_id or "").strip()
+            ):
+                raise ValueError(f"A {entity_type} history entry needs its account")
+            cur.execute(
+                """
+                INSERT INTO registry_changelog
+                    (entity_type, entity_id, action, snapshot, author, account_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    entity_type,
+                    entity_id,
+                    action,
+                    json.dumps(dict(snapshot), default=str),
+                    author,
+                    str(owner_account_id).strip() or None,
+                ),
+            )
+            return
         if account_id is not None or actor_id is not None or actor_type is not None:
             if not all(str(value or "").strip() for value in (account_id, actor_id, actor_type)):
                 raise ValueError("account_id, actor_id, and actor_type must be supplied together")

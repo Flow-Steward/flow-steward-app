@@ -5,9 +5,15 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.application.registry.db_store import RegistryDBStore
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
 
 
 def test_search_entities_filters_trashed_rows_when_deleted_at_exists():

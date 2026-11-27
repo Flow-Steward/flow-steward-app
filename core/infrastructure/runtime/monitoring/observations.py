@@ -29,6 +29,9 @@ class SourceObservation:
     #: and source replaces an older one that stopped reporting.
     started_at: datetime | None = None
     consumer_state: ConsumerState | None = None
+    #: Platform modules this process skipped at start, or whose background jobs are
+    #: failing, as ``(id, version, reason)`` or ``(id, version, reason, status)``.
+    platform_module_failures: tuple[tuple[str, ...], ...] = ()
     lifecycle: Literal[
         "not_observed",
         "starting",

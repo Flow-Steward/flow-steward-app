@@ -19,6 +19,8 @@ from core.entrypoints.admin.project_schedules import create_project_schedules_ro
 from core.entrypoints.admin.settings_retention import create_settings_retention_router
 from core.entrypoints.api.trash import create_api_trash_router
 
+_INSTALLATION_ACCOUNT = "00000000-0000-0000-0000-000000000002"
+
 
 class _SeqCursor:
     def __init__(
@@ -175,7 +177,9 @@ def test_api_trash_list_and_actions_cover_error_branches() -> None:
         auth_admin_roles={"admin"},
         get_logger_only=lambda: bl,
         real_dict_cursor_kwargs=dict,
-        request_scope=lambda _request: SimpleNamespace(actor_name="alice"),
+        request_scope=lambda _request: SimpleNamespace(
+            actor_name="alice", account_id=_INSTALLATION_ACCOUNT
+        ),
         trash_lifecycle_service=lambda: svc,
         service_error_response=_service_error_response,
         api_error_response=_api_error_response,
@@ -269,7 +273,9 @@ def test_api_trash_list_supports_entity_type_filter_and_hides_non_visible_workfl
         auth_admin_roles={"admin"},
         get_logger_only=lambda: bl,
         real_dict_cursor_kwargs=dict,
-        request_scope=lambda _request: SimpleNamespace(actor_name="alice"),
+        request_scope=lambda _request: SimpleNamespace(
+            actor_name="alice", account_id=_INSTALLATION_ACCOUNT
+        ),
         trash_lifecycle_service=lambda: SimpleNamespace(),
         service_error_response=_service_error_response,
         api_error_response=_api_error_response,
@@ -436,17 +442,14 @@ def test_mcp_trash_list_and_actions_keep_restricted_project_scope() -> None:
     assert len(action_scopes) == 3
 
 
-def test_api_trash_list_rejects_foreign_account_before_database_access() -> None:
+def test_api_trash_list_refuses_a_scope_without_an_account_before_database_access() -> None:
     get_logger_only = MagicMock()
     router = create_api_trash_router(
         require_authenticated_user=lambda _request, **_kwargs: {"id": 1},
         auth_admin_roles={"admin"},
         get_logger_only=get_logger_only,
         real_dict_cursor_kwargs=dict,
-        request_scope=lambda _request: SimpleNamespace(
-            account_id="11111111-1111-1111-1111-111111111111",
-            actor_name="foreign-admin",
-        ),
+        request_scope=lambda _request: SimpleNamespace(actor_name="nobody"),
         trash_lifecycle_service=lambda: SimpleNamespace(),
         service_error_response=_service_error_response,
         api_error_response=_api_error_response,
@@ -455,11 +458,44 @@ def test_api_trash_list_rejects_foreign_account_before_database_access() -> None
     )
     client = _client_with_state(router)
 
-    response = client.get("/api/trash")
-
-    assert response.status_code == 403
-    assert "default account" in response.text
+    assert client.get("/api/trash").status_code == 403
     get_logger_only.assert_not_called()
+
+
+def test_api_trash_list_shows_another_account_only_its_own_rows() -> None:
+    # ADR 0020, C5: the default-account-only fence is gone; every account lists its
+    # own trashed rows, and rows without any owner are not another account's.
+    foreign = "11111111-1111-1111-1111-111111111111"
+    cursor = _SeqCursor(fetchall_seq=[[], []])
+    bl = SimpleNamespace(conn=_Conn(cursor))
+    bl._table_exists = lambda name: name in {"registry_workflows", "registry_guardrails"}
+    bl._column_exists = lambda table, column: (
+        table == "registry_workflows" and column in {"account_id", "deleted_by"}
+    )
+    router = create_api_trash_router(
+        require_authenticated_user=lambda _request, **_kwargs: {"id": 1},
+        auth_admin_roles={"admin"},
+        get_logger_only=lambda: bl,
+        real_dict_cursor_kwargs=dict,
+        request_scope=lambda _request: SimpleNamespace(account_id=foreign, actor_name="b-admin"),
+        trash_lifecycle_service=lambda: SimpleNamespace(),
+        service_error_response=_service_error_response,
+        api_error_response=_api_error_response,
+        err_admin_role_required="admin-required",
+        err_database_not_configured="db-missing",
+    )
+    client = _client_with_state(router)
+
+    assert client.get("/api/trash").status_code == 200
+    queries = {
+        sql.split(" FROM ")[1].split(" ")[0]: (sql, params) for sql, params in cursor.executions
+    }
+    workflow_sql, workflow_params = queries["registry_workflows"]
+    assert "account_id = %s" in workflow_sql
+    assert "account_id IS NULL" not in workflow_sql
+    assert workflow_params == (foreign,)
+    guardrail_sql, _ = queries["registry_guardrails"]
+    assert " AND FALSE " in guardrail_sql
 
 
 def test_project_history_api_routes_success_and_error_paths() -> None:

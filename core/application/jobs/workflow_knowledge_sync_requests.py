@@ -33,13 +33,22 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 
 def _scope_from_changelog_entry(entry: Mapping[str, Any]) -> dict[str, str]:
+    """The knowledge scope a registry change refreshes.
+
+    The entry's own account comes first: a workflow, field or contract change
+    names the account whose catalog changed (ADR 0020, C5), so two accounts with
+    the same workflow id refresh their own scopes. An entry without one is a change
+    of a platform object, which the installation account's scope carries.
+    """
     snapshot = _mapping(entry.get("snapshot"))
     scope = _mapping(snapshot.get("scope"))
     return {
         "account_id": _text(
-            snapshot.get("account_id") or scope.get("account_id") or DEFAULT_ACCOUNT_ID
-        )
-        or DEFAULT_ACCOUNT_ID,
+            entry.get("account_id")
+            or snapshot.get("account_id")
+            or scope.get("account_id")
+            or DEFAULT_ACCOUNT_ID
+        ),
         "tenant_id": _text(snapshot.get("tenant_id") or scope.get("tenant_id"))
         or DEFAULT_TENANT_ID,
         "project_id": _text(snapshot.get("project_id") or scope.get("project_id")),

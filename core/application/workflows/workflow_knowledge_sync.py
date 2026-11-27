@@ -1,11 +1,32 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+import functools
+from collections.abc import Callable, Mapping
+from typing import Any, TypeVar
 
+from core.application.registry.workflow_account import workflow_account_scope
 from core.application.workflows.knowledge_projection import build_workflow_catalog_projection
 
 from .discovery.capability_discovery import WorkflowCapabilityDiscovery
+
+_Result = TypeVar("_Result")
+
+
+def _in_scope_account(function: Callable[..., _Result]) -> Callable[..., _Result]:
+    """Run a knowledge sync with its scope's account bound (ADR 0020, C5).
+
+    The sync reads workflows, fields and contracts through the registry store, which
+    resolves them in the bound account. Binding the scope's account keeps a sync of
+    one account from reading another account's workflow with the same id; a sync
+    without an account is refused.
+    """
+
+    @functools.wraps(function)
+    def wrapper(*args: Any, **kwargs: Any) -> _Result:
+        with workflow_account_scope(kwargs.get("account_id")):
+            return function(*args, **kwargs)
+
+    return wrapper
 
 
 def catalog_sync_digest(
@@ -34,6 +55,7 @@ def projection_counts(projection: Any) -> dict[str, int]:
     }
 
 
+@_in_scope_account
 def workflow_knowledge_scope_status(
     *,
     store: Any,
@@ -62,6 +84,7 @@ def workflow_knowledge_scope_status(
     }
 
 
+@_in_scope_account
 def sync_workflow_knowledge_catalog(
     *,
     store: Any,
@@ -154,6 +177,7 @@ def _sync_prepared_workflow_knowledge_projection(
     return result
 
 
+@_in_scope_account
 def sync_workflow_knowledge_catalog_if_stale(
     *,
     store: Any,

@@ -54,6 +54,22 @@ def create_connection_store(dsn: str) -> PlatformConnectionStore:
     return PlatformConnectionStore(dsn)
 
 
+def module_db_factory(dsn: str) -> Callable[[], PlatformConnectionStore | None]:
+    """The ``db`` factory a background role hands its platform modules (ADR 0082).
+
+    The same kind of object the app role's ``service_factories["db"]`` returns, a
+    connection store whose ``cursor()`` borrows from the shared pool for ``dsn``.
+    It is created on first call, after the role started, and the factory answers
+    ``None`` when the role has no database configured.
+    """
+    resolved = str(dsn or "").strip()
+
+    def factory() -> PlatformConnectionStore | None:
+        return PlatformConnectionStore(resolved) if resolved else None
+
+    return factory
+
+
 def create_identity_store(dsn: str) -> PlatformIdentityStore:
     return PlatformIdentityStore(dsn)
 

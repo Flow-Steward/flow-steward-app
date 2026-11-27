@@ -18,6 +18,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
@@ -677,6 +679,7 @@ class TestCSRFEdgeCases:
             patch(
                 "core.entrypoints.api.route_registration._get_user_by_session_token",
                 return_value={
+                    "account_id": DEFAULT_ACCOUNT_ID,
                     "id": 1,
                     "username": "admin",
                     "roles": ["admin"],
@@ -711,6 +714,7 @@ class TestCSRFEdgeCases:
             patch(
                 "core.entrypoints.api.route_registration._get_user_by_session_token",
                 return_value={
+                    "account_id": DEFAULT_ACCOUNT_ID,
                     "id": 1,
                     "username": "admin",
                     "roles": ["admin"],
@@ -742,6 +746,7 @@ class TestCSRFEdgeCases:
             patch(
                 "core.entrypoints.api.route_registration._get_user_by_session_token",
                 return_value={
+                    "account_id": DEFAULT_ACCOUNT_ID,
                     "id": 1,
                     "username": "admin",
                     "roles": ["admin"],
@@ -778,6 +783,7 @@ class TestCSRFEdgeCases:
             patch(
                 "core.entrypoints.api.route_registration._get_user_by_session_token",
                 return_value={
+                    "account_id": DEFAULT_ACCOUNT_ID,
                     "id": 1,
                     "username": "admin",
                     "roles": ["admin"],

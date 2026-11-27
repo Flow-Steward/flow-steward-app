@@ -12,6 +12,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests._step_run_state import step_run_state
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def test_invoke_message_carries_the_active_workflow_step_identity(monkeypatch):
     from core.application.orchestration.agents import common

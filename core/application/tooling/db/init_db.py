@@ -231,7 +231,18 @@ def init_platform_observability_schema():
 
 
 def backfill_registry_changelog() -> None:
-    """Seed missing registry changelog entries from current live snapshots."""
+    """Seed missing registry changelog entries from current live snapshots.
+
+    A maintenance path of the installation account (ADR 0020, C5): it binds that
+    account, so workflow history is backfilled for its workflows only.
+    """
+    from core.application.registry.workflow_account import installation_account_scope
+
+    with installation_account_scope():
+        _backfill_registry_changelog()
+
+
+def _backfill_registry_changelog() -> None:
     dsn = _resolve_sql_dsn()
     if not dsn:
         print("[SKIP] No Postgres DSN configured — skipping registry changelog backfill")
@@ -244,8 +255,9 @@ def backfill_registry_changelog() -> None:
     def _existing_entity_ids(entity_type: str) -> set[str]:
         with store._cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT entity_id FROM registry_changelog WHERE entity_type = %s",
-                (str(entity_type),),
+                "SELECT DISTINCT entity_id FROM registry_changelog WHERE entity_type = %s "
+                "AND (account_id = %s OR account_id IS NULL)",
+                (str(entity_type), DEFAULT_ACCOUNT_ID),
             )
             rows = cur.fetchall() or []
         return {str(row["entity_id"]) for row in rows if row and row.get("entity_id") is not None}
@@ -436,7 +448,19 @@ def init_extension_catalog() -> None:
 
 
 def initialize_database() -> dict[str, Any]:
-    """Finalize database initialization after Postgres loads db/schema/*.sql."""
+    """Finalize database initialization after Postgres loads db/schema/*.sql.
+
+    Initialization acts for the installation account: a documented bootstrap path
+    that binds it explicitly, since registry reads and writes refuse to guess an
+    account (ADR 0020, C5).
+    """
+    from core.application.registry.workflow_account import installation_account_scope
+
+    with installation_account_scope():
+        return _initialize_database()
+
+
+def _initialize_database() -> dict[str, Any]:
     validate_bootstrap_layout()
     init_platform_observability_schema()
     dsn = _resolve_sql_dsn()

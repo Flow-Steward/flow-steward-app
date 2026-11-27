@@ -63,6 +63,15 @@ def _seed_temp_auth_tables(conn: Any, *, reject_delete: bool = False) -> None:
         )
         cur.execute(
             """
+            CREATE TEMP TABLE user_account_memberships (
+                user_id text NOT NULL,
+                account_id text NOT NULL,
+                role_id text
+            ) ON COMMIT PRESERVE ROWS
+            """
+        )
+        cur.execute(
+            """
             CREATE TEMP TABLE auth_sessions (
                 user_id text NOT NULL,
                 revoked boolean NOT NULL DEFAULT false,
@@ -76,6 +85,18 @@ def _seed_temp_auth_tables(conn: Any, *, reject_delete: bool = False) -> None:
                 user_id text NOT NULL,
                 revoked boolean NOT NULL DEFAULT false,
                 updated_at timestamptz NOT NULL DEFAULT now()
+            ) ON COMMIT PRESERVE ROWS
+            """
+        )
+        cur.execute(
+            """
+            CREATE TEMP TABLE account_invitations (
+                id text PRIMARY KEY,
+                account_id text NOT NULL,
+                invited_email text NOT NULL,
+                role text NOT NULL,
+                invited_by text,
+                status text NOT NULL DEFAULT 'pending'
             ) ON COMMIT PRESERVE ROWS
             """
         )
@@ -211,8 +232,10 @@ def test_delete_auth_user_enforces_lifecycle_guards_in_postgres(guard: str) -> N
                 cur.execute("DELETE FROM users WHERE id = 'u_peer'")
             else:
                 cur.execute("INSERT INTO roles (id, key) VALUES ('r_admin', 'admin')")
+                # The role is held on the account membership (ADR 0085).
                 cur.execute(
-                    "INSERT INTO user_roles (user_id, role_id) VALUES ('u_target', 'r_admin')"
+                    "INSERT INTO user_account_memberships (user_id, account_id, role_id)"
+                    " VALUES ('u_target', 'acc-1', 'r_admin')"
                 )
 
         expected = "last user" if guard == "last_user" else "last active administrator"

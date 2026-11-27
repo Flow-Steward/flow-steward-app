@@ -42,6 +42,11 @@ from .contract_validation_readiness_checks import (
     _workflow_issue_path,
 )
 from .state_selector_shape import StateSelectorShape
+from .account_references import (
+    shared_object_in_account,
+    step_shared_reference_ids,
+    workflow_in_account,
+)
 from .workflow_lookup import get_registry_artifact_row, get_workflow_row
 from core.application.workflows.workflow_step_kinds import STEP_KIND_APPROVAL, STEP_KIND_WAIT
 from core.application.workflows.approval_review import (
@@ -215,12 +220,43 @@ def _approval_review_issues(
     return issues
 
 
-def _child_definition_loader(db):
-    """Child definitions at the revision a run would launch, for the lane check."""
+def _foreign_step_references(db, *, step: dict, agent_id: str, account_id: str) -> list[str]:
+    """The agents, skills and published blocks *step* names that are another account's.
+
+    A platform object (no account) or one of the workflow's own account is fine; a
+    getter the store does not have, or an object that does not exist, is left to
+    the checks that already report it.
+    """
+    ids = step_shared_reference_ids({**step, "agent_id": agent_id or step.get("agent_id")})
+    getters = (
+        ("agent", "get_agent"),
+        ("skill", "get_skill"),
+        ("published block", "get_published_block_contract"),
+    )
+    messages: list[str] = []
+    for kind, getter_name in getters:
+        getter = getattr(db, getter_name, None)
+        if not callable(getter):
+            continue
+        for ref in sorted(ids.get(kind) or ()):
+            try:
+                row = getter(ref)
+            except Exception:
+                row = None
+            if isinstance(row, dict) and not shared_object_in_account(row, account_id or None):
+                messages.append(f"{kind.capitalize()} '{ref}' not found")
+    return messages
+
+
+def _child_definition_loader(db, account_id: str | None = None):
+    """Child definitions at the revision a run would launch, for the lane check.
+
+    Children are workflows of the parent's account (ADR 0020, C4c).
+    """
 
     def load(workflow_id: str) -> ChildDefinition | None:
-        row = get_workflow_row(db, workflow_id)
-        if not isinstance(row, dict):
+        row = get_workflow_row(db, workflow_id, account_id=account_id)
+        if not isinstance(row, dict) or not workflow_in_account(row, account_id):
             return None
         return ChildDefinition(
             workflow_id=workflow_id,
@@ -366,7 +402,9 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
         {**issue, "path": _workflow_issue_path(issue.get("path"))}
         for issue in validate_workflow_definition(
             definition_from_workflow(wf),
-            load_child=_child_definition_loader(db),
+            load_child=_child_definition_loader(
+                db, str(wf.get("account_id") or "").strip() or None
+            ),
             max_invoke_depth=_resolve_invoke_workflow_max_depth(),
         )
     )
@@ -505,6 +543,21 @@ def _validate_workflow_readiness(db, workflow_id: str) -> dict:
         )
         errors.extend(invoke_validation.get("errors") or [])
         warnings.extend(invoke_validation.get("warnings") or [])
+        foreign_references = _foreign_step_references(
+            db, step=step, agent_id=agent_id, account_id=str(wf.get("account_id") or "").strip()
+        )
+        if foreign_references:
+            # Another account's agent, skill or published block: reported as missing,
+            # and nothing about it is read further (ADR 0020, C4c).
+            errors.extend(
+                _issue(
+                    code="workflow.step_reference_not_found",
+                    message=f"Step '{step_id}': {message}",
+                    path=step_path,
+                )
+                for message in foreign_references
+            )
+            continue
         errors.extend(
             _validate_step_published_block_binding(
                 db,

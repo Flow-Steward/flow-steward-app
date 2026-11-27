@@ -12,8 +12,13 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from core.application.jobs.public_approval_serializer import serialize_approval_history_entry
+from core.application.jobs.workflow_identity import resolve_job_workflow_id
 from core.application.management.errors import ServiceForbiddenError
-from core.application.management.guards import require_project_access
+from core.application.management.guards import (
+    require_project_access,
+    require_workflow_access,
+    workflow_in_scope_limit,
+)
 from core.application.management.scope import scope_from_principal
 
 _MESSAGE_ACCESS_DENIED = "Access denied"
@@ -27,7 +32,12 @@ REVALIDATE_SECONDS = 10.0
 
 
 def _project_access_denied(bl: Any, principal: Any, job: dict[str, Any]) -> bool:
-    """Whether ``principal`` may not read ``job``'s project."""
+    """Whether ``principal`` may not read ``job``: its project, then its workflow.
+
+    The workflow is checked against the token's workflow allowlist and, for a person
+    limited to chosen places, against the workflow grants of a project reached only
+    through them (ADR 0076 section 8b), exactly as the job detail reads check it.
+    """
     if not isinstance(principal, dict):
         return False
     project_id = str(job.get("project_id") or "").strip()
@@ -36,11 +46,14 @@ def _project_access_denied(bl: Any, principal: Any, job: dict[str, Any]) -> bool
     project = bl.get_project(project_id) if hasattr(bl, "get_project") else None
     if not project:
         return True
+    scope = scope_from_principal(principal, project_id=project_id)
+    workflow_id = resolve_job_workflow_id(job)
     try:
-        require_project_access(scope_from_principal(principal, project_id=project_id), project)
+        require_project_access(scope, project)
+        require_workflow_access(scope, workflow_id)
     except ServiceForbiddenError:
         return True
-    return False
+    return not workflow_in_scope_limit(scope, project_id, workflow_id)
 
 
 async def _send_frame(websocket: WebSocket, payload: dict[str, Any]) -> bool:

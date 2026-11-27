@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from core.application.management import ServiceError, ServiceValidationError
 from core.application.management.command_models import (
+    ExtensionAccountEnablementView,
     ExtensionDescriptorImportFileInput,
     ExtensionDescriptorImportUrlInput,
     ExtensionDescriptorValidateInput,
@@ -19,6 +20,7 @@ from core.application.management.command_models import (
     ExtensionRuntimeTokenInput,
 )
 from core.application.management.requests import (
+    ExtensionAccountSettingsRequest,
     ExtensionDescriptorImportFileRequest,
     ExtensionDescriptorImportUrlRequest,
     ExtensionDescriptorValidateRequest,
@@ -439,6 +441,71 @@ def register_extension_routes(
         except Exception as e:
             return api_error_response(e)
         return payload.dump()
+
+    def _account_enablement_service():
+        from core.application.extensions.account_enablement import (
+            ExtensionAccountEnablementService,
+            default_enablement_store,
+        )
+
+        return ExtensionAccountEnablementService(
+            get_install_store=get_extension_install_store,
+            get_enablement_store=lambda: (
+                getattr(get_extension_install_store(), "account_enablements", None)
+                or default_enablement_store(get_logger)
+            ),
+        )
+
+    # Per-account enablement of an extension the installation installed (ADR 0020,
+    # C6): an administrator of another account enables, disables and configures it
+    # for that account only. Installing, updating and removing the code stays above.
+    @router.get("/api/extensions/{extension_id}/account-enablement")
+    def api_extension_account_enablement(request: Request, extension_id: str):
+        try:
+            payload = _account_enablement_service().get(extension_id, scope=request_scope(request))
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        return ExtensionAccountEnablementView(**payload).dump()
+
+    @router.post("/api/extensions/{extension_id}/account-enablement/enable")
+    def api_extension_account_enable(request: Request, extension_id: str):
+        try:
+            payload = _account_enablement_service().enable(
+                extension_id, scope=request_scope(request)
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        return ExtensionAccountEnablementView(**payload).dump()
+
+    @router.post("/api/extensions/{extension_id}/account-enablement/disable")
+    def api_extension_account_disable(request: Request, extension_id: str):
+        try:
+            payload = _account_enablement_service().disable(
+                extension_id, scope=request_scope(request)
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        return ExtensionAccountEnablementView(**payload).dump()
+
+    @router.put("/api/extensions/{extension_id}/account-enablement/settings")
+    def api_extension_account_settings(
+        request: Request, extension_id: str, body: ExtensionAccountSettingsRequest
+    ):
+        try:
+            payload = _account_enablement_service().update_settings(
+                extension_id, body.settings, scope=request_scope(request)
+            )
+        except ServiceError as e:
+            return service_error_response(e)
+        except Exception as e:
+            return api_error_response(e)
+        return ExtensionAccountEnablementView(**payload).dump()
 
     @router.get("/api/extensions/{extension_id}/uninstall-plan")
     def api_extension_uninstall_plan(request: Request, extension_id: str):

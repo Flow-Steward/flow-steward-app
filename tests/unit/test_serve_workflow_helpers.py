@@ -3,6 +3,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
+
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.registry.workflow_account import WorkflowAccountMissingError
 from core.application.workflows import serve_workflow_helpers
 
 FOREIGN_ACCOUNT_ID = "11111111-1111-1111-1111-111111111111"
@@ -55,6 +59,7 @@ def test_list_workflow_choices_returns_empty_without_db_store() -> None:
 
     result = serve_workflow_helpers.list_workflow_choices(
         logger=logger,
+        account_id=DEFAULT_ACCOUNT_ID,
         registry_manager_factory=lambda: SimpleNamespace(db_store=None),
     )
 
@@ -69,6 +74,7 @@ def test_list_workflow_choices_reads_registry_store_when_available() -> None:
     result = serve_workflow_helpers.list_workflow_choices(
         enabled_only=False,
         logger=MagicMock(),
+        account_id=DEFAULT_ACCOUNT_ID,
         registry_manager_factory=lambda: SimpleNamespace(db_store=db_store),
     )
 
@@ -76,6 +82,7 @@ def test_list_workflow_choices_reads_registry_store_when_available() -> None:
     db_store.list_workflows.assert_called_once_with(
         enabled_only=False,
         include_definitions=False,
+        account_id=DEFAULT_ACCOUNT_ID,
     )
 
 
@@ -96,6 +103,7 @@ def test_list_workflow_choices_includes_projected_extension_workflows(monkeypatc
     result = serve_workflow_helpers.list_workflow_choices(
         enabled_only=True,
         logger=MagicMock(),
+        account_id=DEFAULT_ACCOUNT_ID,
         registry_manager_factory=lambda: SimpleNamespace(db_store=db_store),
     )
 
@@ -123,20 +131,40 @@ def test_list_workflow_choices_excludes_inactive_durable_projection_rows(monkeyp
     result = serve_workflow_helpers.list_workflow_choices(
         enabled_only=True,
         logger=MagicMock(),
+        account_id=DEFAULT_ACCOUNT_ID,
         registry_manager_factory=lambda: SimpleNamespace(db_store=db_store),
     )
 
     assert [row["workflow_id"] for row in result] == ["platform-workflow"]
 
 
-def test_list_workflow_choices_rejects_foreign_account_before_registry_access() -> None:
-    registry_manager_factory = MagicMock()
+def test_list_workflow_choices_reads_another_accounts_own_workflows() -> None:
+    # ADR 0020, C5: the default-account-only fence is gone; each account is offered
+    # its own workflows.
+    db_store = MagicMock()
+    db_store.list_workflows.return_value = [{"workflow_id": "wf-b"}]
 
     result = serve_workflow_helpers.list_workflow_choices(
+        enabled_only=False,
         logger=MagicMock(),
         account_id=FOREIGN_ACCOUNT_ID,
-        registry_manager_factory=registry_manager_factory,
+        registry_manager_factory=lambda: SimpleNamespace(db_store=db_store),
     )
 
-    assert result == []
+    assert [row["workflow_id"] for row in result] == ["wf-b"]
+    db_store.list_workflows.assert_called_once_with(
+        enabled_only=False,
+        include_definitions=False,
+        account_id=FOREIGN_ACCOUNT_ID,
+    )
+
+
+def test_list_workflow_choices_without_an_account_is_refused() -> None:
+    registry_manager_factory = MagicMock()
+
+    with pytest.raises(WorkflowAccountMissingError):
+        serve_workflow_helpers.list_workflow_choices(
+            logger=MagicMock(),
+            registry_manager_factory=registry_manager_factory,
+        )
     registry_manager_factory.assert_not_called()

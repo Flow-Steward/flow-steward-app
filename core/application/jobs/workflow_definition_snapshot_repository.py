@@ -12,6 +12,7 @@ from typing import Any
 
 from core.application.extensions.runtime_store_db import DBExtensionRuntimeStore
 from core.application.registry.db_store_workflows_mixin import load_workflow_definition_rows
+from core.application.registry.workflow_account import workflow_owner
 from core.application.registry.workflow_lookup import get_workflow_row, is_projection_anchor
 from core.application.workflows.workflow_definition_snapshot import (
     DEFINITION_SNAPSHOT_SCHEMA_VERSION,
@@ -87,7 +88,7 @@ class WorkflowDefinitionSnapshotRepository:
             extension_runtime_store = DBExtensionRuntimeStore(self.conn)
 
             @staticmethod
-            def get_workflow(_workflow_id: str) -> dict[str, Any]:
+            def get_workflow(_workflow_id: str, **_kwargs: Any) -> dict[str, Any]:
                 return dict(anchor)
 
         projected = get_workflow_row(
@@ -100,17 +101,20 @@ class WorkflowDefinitionSnapshotRepository:
     ) -> dict[str, Any] | None:
         cur.execute(
             """SELECT id, workflow_id, revision, settings, source_install_id, projection_mode,
-                      local_workflow_id
+                      local_workflow_id, account_id
                  FROM registry_workflows
-                WHERE workflow_id = %s AND deleted_at IS NULL
+                WHERE account_id = %s AND workflow_id = %s AND deleted_at IS NULL
                 FOR SHARE""",
-            (workflow_id,),
+            (workflow_owner(account_id), workflow_id),
         )
         row = cur.fetchone()
         if row is None:
             return None
         workflow = dict(row)
-        rows = load_workflow_definition_rows(cur, [workflow_id]).get(workflow_id)
+        # A run pins the workflow of its own account (ADR 0020, C4b).
+        rows = load_workflow_definition_rows(
+            cur, [workflow_id], account_id=workflow_owner(account_id)
+        ).get(workflow_id)
         workflow["steps"] = rows.steps if rows else []
         workflow["groups"] = rows.groups if rows else []
         workflow["for_each"] = rows.for_each if rows else []

@@ -238,7 +238,9 @@ class ExtensionUninstallPlanService:
             raise ServiceNotFoundError(f"Extension '{extension_id}' not found")
         install_id = str(getattr(install, "install_id", "") or "").strip()
         release_id = str(getattr(install, "release_id", "") or "").strip()
-        include_consumers = _install_visibility(install) == "global"
+        include_consumers = _install_visibility(install) == "global" or (
+            _enabled_by_other_accounts(install, self._context.install_store(bl))
+        )
         runtime_store = self._context.runtime_store(bl)
         account_id = resolved_scope.account_id or DEFAULT_ACCOUNT_ID
         subject = PlanSubject(
@@ -308,3 +310,15 @@ class ExtensionUninstallPlanService:
 
 
 __all__ = ["ExtensionUninstallPlanService"]
+
+
+def _enabled_by_other_accounts(install: Any, install_store: Any) -> bool:
+    """Other accounts enabled the install (ADR 0020, C6): their use is in the plan."""
+    from .account_enablement import install_serves_other_accounts
+
+    try:
+        return install_serves_other_accounts(
+            install, getattr(install_store, "account_enablements", None)
+        )
+    except Exception:
+        return False

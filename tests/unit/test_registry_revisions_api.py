@@ -311,6 +311,7 @@ def test_changelog_diff_uses_request_scope_context_account_for_registry_entities
         entity_id=entity_id,
         from_entry_id="1",
         to_entry_id="2",
+        account_id="account-A",
     )
 
 

@@ -195,6 +195,110 @@ and change auditing on top of these tables, without changing the catalogue,
 the checks or the interfaces. If the community asks for project restrictions in
 open source too, that is one decision — lift the ban — with no core rework.
 
+#### 8a. Narrowing project scope (2026-11-26)
+
+This amends item 8 for project-scoped assignments written through the scoped
+roles port that Core offers to platform modules (ADR 0082 §3a). For these
+assignments "the higher one applies" is replaced by narrowing:
+
+- The global role is the ceiling. A scoped assignment never grants more than it.
+- A person is limited when `scoped_role_users` holds a row for them. A limited
+  person reaches only the projects they hold a project-scoped assignment for; in
+  each of them the effective role is the lower of the global role and the scoped
+  role. A person without that row is not limited, and their global role applies in
+  every project as before.
+- Only `operator` and `viewer` can be held for a project, and a person whose
+  global role is `admin` cannot be limited.
+- The limit row is separate from the assignments, so deleting a project — even
+  the last one a person holds — never turns a limited person into an unrestricted
+  one.
+- A stored limit keeps applying when the feature that writes limits is no longer
+  entitled (ADR 0082 §4). Only writes stop; the check and the interface still read
+  the limit.
+- The check fails closed: when the limit cannot be read, the request is answered
+  with 503, as when role permissions cannot be read.
+
+The middleware fills `allowed_project_ids` and per-project permissions
+(`ScopeContext.project_permissions`) from the limit; a personal token acts within
+the intersection of its own project list and its owner's limit. The app
+bootstrap sends `auth.user.project_permissions` (a map of project id to sorted
+permission keys, or `null` without a limit) so the interface disables actions per
+project; it is sent whether or not the feature is entitled. Workspace- and
+workflow-scoped grants are added by 8b.
+
+#### 8b. Workspaces, projects and workflows (2026-11-26)
+
+A company's departments (accounting, marketing, sales, IT, business lines) are
+workspaces. 8a extends to three levels; its other rules (global role as ceiling,
+durable limit row, `operator` / `viewer` only, admins never limited, fail closed,
+limits kept after the entitlement ends) stand.
+
+- A grant names one place: a workspace (`workspace_id`), a project (`project_id`)
+  or a workflow of a project (`project_id` + `workflow_id`). The port takes
+  `{scope: "workspace" | "project" | "workflow", id, role}`; a workflow grant also
+  names its project, and the workflow must be a workflow of the account linked to
+  that project. Every place must belong to the caller's account.
+- A workspace grant covers every live project of the workspace and all their
+  workflows. The projects are read on every request, so a project created later is
+  covered.
+- A workflow grant makes its project reachable, but in that project only the
+  granted workflows (and their runs, approvals and search results) are reachable,
+  unless a project or workspace grant also covers the project. The project itself
+  holds read access (the viewer role, capped by the global role); acting on a
+  workflow is checked against the workflow's grant.
+- The effective role in a place is the most specific grant covering it — workflow,
+  then project, then workspace — capped by the global role. A more specific grant
+  may narrow as well as widen within the ceiling (a project viewer grant in an
+  operator workspace makes the person a viewer there).
+- A workspace without a covering grant, and every project in it, is invisible:
+  lists, search, the dashboard and navigation. A workspace holding a reachable
+  project is visible with read access.
+- A limit applies only in the account it was set in (`scoped_role_users.account_id`):
+  the person's grants are read only for places of that account.
+
+The middleware fills `allowed_workspace_ids`, `allowed_project_ids` and, on the
+scope, `project_permissions`, `workspace_permissions`, `workflow_permissions`
+(granted workflows) and `project_workflow_ids` (projects reached only through
+workflow grants). Guards: `require_workspace_access`, `require_project_permission`
+(inheriting from the workspace; with an optional workflow) and
+`require_workflow_permission`. The run query predicate, the dashboard, search, a
+project's workflow list and the operator sections apply the workflow-only rule.
+The bootstrap sends `workspace_permissions`, `workflow_permissions` and
+`project_workflow_ids` beside `project_permissions`, each `null` without a limit.
+Migration `20261126210000_multilevel_scoped_roles.sql` indexes the workspace and
+workflow foreign keys of `user_roles`. A workflow grant uses the account-qualified
+workflow identity of ADR 0020 step C4b: the trigger fills `workflow_account_id`
+from the project, every read joins `registry_workflows` on
+(`workflow_account_id`, `workflow_id`), and the workflow index has the same two
+columns, so another account's workflow with the same id never names, keeps or
+removes a grant.
+
+Project-level listings in a project reached only through workflow grants
+(2026-11-27). Each listing is decided by what its items belong to:
+
+- An item that belongs to a workflow (runs, the queue, schedules, notification
+  routes and deliveries, entrypoints, workflow secret approvals, project reports)
+  is kept only when its workflow is granted. Acting on it is checked in its own
+  workflow: changing, pausing, deleting and "run now" of a schedule load the
+  schedule and check the permission in the schedule's workflow
+  (`require_workflow_permission`: workflow, then project, then workspace), and a
+  schedule of a workflow out of reach is answered as not found.
+- Project-wide configuration that any workflow may use (connections, their secret
+  approval status, the provider inventory built from connections, and extension
+  project state) is shown read-only, and only the part a granted workflow needs:
+  a connection one of its steps is bound to, a connection of an extension install
+  one of its steps or Invokes calls, a connection of the install a granted
+  projected workflow (`extension.<install>.<id>`) belongs to, or a connection that
+  maps an event to a granted workflow. The needs are read from
+  `workflow_runtime_dependencies`. Connections are returned as the viewer summary
+  whatever the global role, and every write stays refused by the project-level
+  permission (the project itself holds read access only). Everything else is
+  hidden; one item asked for by id is answered as not found.
+- An item that belongs to no workflow and is not configuration (direct external
+  effects of extension page actions, `source_type = 'api_action'`) is out of reach,
+  like a run without a workflow.
+- Fail closed: when the dependency read fails, no configuration is shown.
+
 ### Change to ADR 0066
 
 The item "Do not add unused policy registries, membership tables, configuration

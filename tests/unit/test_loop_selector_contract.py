@@ -13,6 +13,10 @@ from tests._workflow_definitions import edge, linear_workflow, node
 from tests.unit.test_workflow_authoring_catalog import SCOPE
 from tests.unit.test_workflow_authoring_drafts import DraftDB, bundle, service
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 ORDERS = [
     {"id": "A", "items": [1], "active": False, "count": 0},
     {"id": "B", "items": [2, 3], "active": True, "count": 2},

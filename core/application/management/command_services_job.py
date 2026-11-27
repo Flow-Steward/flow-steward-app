@@ -2,11 +2,20 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.jobs.workflow_identity import resolve_job_workflow_id
 from core.application.orchestration.agent_message_projection import (
     public_replay_outcome,
 )
 
+from .approval_assignees import require_step_approver
+from .approval_journal_recording import record_override
 from .command_services_common import *  # NOSONAR
+from .guards import (
+    PROJECT_ROLE_REFUSAL_MESSAGE,
+    require_project_permission,
+    require_workflow_access,
+    workflow_in_scope_limit,
+)
 from .job_operator_actions import journal_acknowledge, journal_cancel, require_restartable
 
 
@@ -18,6 +27,51 @@ def _cursor_execution_for_step(runtime_state: dict[str, Any], step_id: str | Non
     if str(cursor.get("step_id") or "").strip() != step_id:
         return ""
     return str(cursor.get("step_execution_id") or "").strip()
+
+
+def _current_approval_gate_step(job: dict[str, Any], runtime_state: dict[str, Any]) -> str:
+    """The step of the approval gate the job waits on now, or ``""`` when it waits on none.
+
+    Only a job in ``awaiting_approval`` has a gate; its step is the run cursor's
+    step (where the gate paused the run), else the job row's current step.
+    """
+    if str(job.get("status") or "").strip() != "awaiting_approval":
+        return ""
+    cursor = runtime_state.get("run_cursor") if isinstance(runtime_state, dict) else None
+    if isinstance(cursor, dict):
+        step = str(cursor.get("step_id") or "").strip()
+        if step:
+            return step
+    return str(job.get("current_step_id") or "").strip()
+
+
+def _original_started_by(job: dict[str, Any]) -> dict[str, Any] | None:
+    """The ``submitted_by`` of the run a restart repeats, when it names one."""
+    from .approval_repository import decode_job_meta
+
+    started_by = decode_job_meta(job.get("meta")).get("submitted_by")
+    if isinstance(started_by, dict) and str(started_by.get("id") or "").strip():
+        return dict(started_by)
+    return None
+
+
+def _run_permission_refusal(
+    scope: ScopeContext, project: dict[str, Any], job: dict[str, Any], permission: str
+) -> str | None:
+    """Why a limited person may not act on this run of ``project``; ``None`` when they may.
+
+    ``not_found`` for a run of a workflow out of their reach (it is not revealed),
+    ``forbidden`` when their role in the run's workflow lacks ``permission``.
+    """
+    workflow_id = resolve_job_workflow_id(job) or None
+    if not workflow_in_scope_limit(scope, project.get("id"), workflow_id):
+        return "not_found"
+    try:
+        require_workflow_access(scope, workflow_id or "")
+        require_project_permission(scope, project, permission, workflow_id=workflow_id)
+    except ServiceForbiddenError as exc:
+        return "forbidden" if str(exc) == PROJECT_ROLE_REFUSAL_MESSAGE else "not_found"
+    return None
 
 
 def _job_group_for_step(job: dict[str, Any], step_id: Any) -> str | None:
@@ -178,11 +232,21 @@ class JobCommandService:
             raise ServiceNotFoundError(ERR_JOB_NOT_FOUND)
         return job
 
-    def _require_job_in_scope(self, bl: Any, job_id: str, scope: ScopeContext) -> dict[str, Any]:
+    def _require_job_in_scope(
+        self, bl: Any, job_id: str, scope: ScopeContext, *, permission: str | None = None
+    ) -> dict[str, Any]:
+        """The job, when ``scope`` may reach it; with ``permission``, may also act on it.
+
+        A person limited to chosen projects (ADR 0076 section 8) must hold
+        ``permission`` in the job's project; a job without a live project is out of
+        their reach.
+        """
         job = self._require_job(bl, job_id)
         project_id = str(job.get("project_id") or "").strip()
         if not project_id:
             require_account_access(scope, job)
+            if permission is not None:
+                require_project_permission(scope, None, permission)
             return job
         project = bl.get_project(project_id)
         if not project:
@@ -194,8 +258,19 @@ class JobCommandService:
             # account instead, the same rule already applied to jobs that never
             # had a project; a caller from another account is still refused.
             require_account_access(scope, job)
+            if permission is not None:
+                require_project_permission(scope, None, permission)
             return job
-        require_project_access(scope, project)
+        job_workflow_id = resolve_job_workflow_id(job) or None
+        if permission is None:
+            require_project_access(scope, project)
+            if not workflow_in_scope_limit(scope, project_id, job_workflow_id):
+                raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
+        else:
+            # The job's workflow decides: a workflow grant, then the project's.
+            require_project_permission(scope, project, permission, workflow_id=job_workflow_id)
+            if not workflow_in_scope_limit(scope, project_id, job_workflow_id):
+                raise ServiceForbiddenError(ACCESS_DENIED_MESSAGE)
         job_account_id = str(job.get("account_id") or "").strip()
         project_account_id = str(project.get("account_id") or "").strip()
         if job_account_id and project_account_id and job_account_id != project_account_id:
@@ -269,7 +344,8 @@ class JobCommandService:
     ) -> JobLifecycleResultView:
         bl = self._logger()
         resolved = _service_scope(scope)
-        self._require_job_in_scope(bl, str(job_id), resolved) if hasattr(bl, "get_job") else None
+        if hasattr(bl, "get_job"):
+            self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.write")
         actor = str(command.actor or "system").strip() or "system"
         try:
             ok = bl.acknowledge_job(str(job_id), actor)
@@ -289,7 +365,8 @@ class JobCommandService:
     ) -> JobLifecycleResultView:
         bl = self._logger()
         resolved = _service_scope(scope)
-        self._require_job_in_scope(bl, str(job_id), resolved) if hasattr(bl, "get_job") else None
+        if hasattr(bl, "get_job"):
+            self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.write")
         try:
             ok = bl.unacknowledge_job(str(job_id))
         except Exception as exc:
@@ -309,7 +386,7 @@ class JobCommandService:
     ) -> JobLifecycleResultView:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.write")
         job_status = str(job.get("status") or "").strip().lower()
         if job_status in self._TERMINAL_STATUSES:
             raise ServiceConflictError(f"Job is already {job.get('status')}")
@@ -381,7 +458,7 @@ class JobCommandService:
     ) -> JobLifecycleResultView:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.write")
         require_restartable(job_id, job)
         if self._build_rerun_workflow_selection is None or self._enqueue_task is None:
             raise ServiceUnavailableError("Job restart is not available")
@@ -397,6 +474,12 @@ class JobCommandService:
             job,
             replay_snapshot=replay_snapshot,
         )
+        # The restart is started by whoever restarted it; an internal restart keeps
+        # the original run's starter.
+        rerun_meta = dict(rerun_meta or {})
+        started_by = run_started_by(resolved) or _original_started_by(job)
+        if started_by is not None:
+            rerun_meta["submitted_by"] = started_by
 
         try:
             new_job_id = self._enqueue_task(
@@ -435,7 +518,7 @@ class JobCommandService:
         """Soft-delete (trash) a job.  Logs and observability data are preserved."""
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.manage")
         conflict_message = _job_delete_conflict_message(
             str(job_id),
             job,
@@ -468,7 +551,14 @@ class JobCommandService:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=command.project_id)
         project = self._require_project(bl, str(command.project_id))
-        require_project_access(resolved, project)
+        # A person limited to chosen places may hold ``jobs.manage`` only in some
+        # workflows of the project (ADR 0076 section 8b): the project is checked for
+        # reach here and each run against its own workflow below.
+        per_run_permission = resolved.project_permissions is not None
+        if per_run_permission:
+            require_project_access(resolved, project)
+        else:
+            require_project_permission(resolved, project, "jobs.manage")
         if str(command.confirm or "").strip() != "DELETE":
             raise ServiceValidationError("Confirmation must be exactly DELETE")
 
@@ -486,6 +576,11 @@ class JobCommandService:
             if str(job.get("project_id") or "").strip() != str(command.project_id):
                 skipped.append({"job_id": job_id, "reason": "wrong_project"})
                 continue
+            if per_run_permission:
+                refusal = _run_permission_refusal(resolved, project, job, "jobs.manage")
+                if refusal is not None:
+                    skipped.append({"job_id": job_id, "reason": refusal})
+                    continue
             blocker = _job_delete_blocker(job, allow_quiescing=True)
             if blocker is not None:
                 blocker_type, status_label = blocker
@@ -523,7 +618,7 @@ class JobCommandService:
     ) -> JobDecisionOverrideResultView:
         bl = self._logger()
         resolved = _service_scope(scope)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="approvals.decide")
         if not hasattr(bl, "create_job_decision_override"):
             raise ServiceUnavailableError("Decision override storage is unavailable")
 
@@ -563,6 +658,35 @@ class JobCommandService:
                 f"{normalized_domain} decision overrides are no longer supported"
             )
 
+        # An override of an Approval step's outcome is a decision on that step: a
+        # step with assigned approvers accepts it only from one of them. The step is
+        # looked up under every workflow id the job is known by, so naming another
+        # workflow in the request cannot step around the restriction. Without a
+        # connection the assignments cannot be read, so an override naming a step
+        # is refused rather than let through unchecked.
+        override_conn = getattr(bl, "conn", None)
+        if override_conn is None and effective_step_id:
+            raise ServiceUnavailableError(
+                "The approvers of this step cannot be checked; the override was not applied"
+            )
+        require_step_approver(
+            override_conn,
+            resolved,
+            workflow_ids=[
+                str(item or "").strip()
+                for item in (
+                    effective_workflow_id,
+                    job.get("selected_workflow"),
+                    job.get("selected_workflow_key"),
+                    job.get("workflow_id"),
+                    runtime_state.get("workflow_id"),
+                )
+            ],
+            step_id=str(effective_step_id or ""),
+            project_id=job.get("project_id"),
+            account_id=job.get("account_id"),
+        )
+
         effective_original_value = command.original_value
         if self._is_empty_original_value(effective_original_value):
             if self._derive_override_original_value is None:
@@ -601,6 +725,23 @@ class JobCommandService:
 
         serialized_override = self._serialize_decision_override_row(dict(row))
 
+        gate_step = _current_approval_gate_step(job, runtime_state)
+        if gate_step and effective_step_id == gate_step:
+            # An override of the approval gate the job waits on is a decision on it:
+            # one journal row, action "override". An override of any other step
+            # (an earlier step, another workflow's step) is not an approval decision
+            # and writes no journal row.
+            record_override(
+                override_conn,
+                job=job,
+                scope=resolved,
+                workflow_id=effective_workflow_id,
+                step_id=effective_step_id,
+                original_value=serialized_override.get("original_value"),
+                override_value=serialized_override.get("override_value"),
+                reason=command.reason,
+            )
+
         try:
             if hasattr(bl, "log_event"):
                 bl.log_event(
@@ -638,7 +779,7 @@ class JobCommandService:
     ) -> JobStepReplayExecutionResultView:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.manage")
         message_row = self._replay_message_row(
             bl,
             job_id=str(job_id),
@@ -841,7 +982,7 @@ class JobCommandService:
     ) -> JobLifecycleResultView:
         bl = self._logger()
         resolved = _service_scope(scope, project_id=None)
-        job = self._require_job_in_scope(bl, str(job_id), resolved)
+        job = self._require_job_in_scope(bl, str(job_id), resolved, permission="jobs.write")
 
         meta = self._to_json_obj(job.get("meta"))
         if not isinstance(meta, dict):

@@ -32,11 +32,11 @@ class _WorkflowHistoryReader:
         assert workflow_id == WORKFLOW_ID
         return deepcopy(self.current)
 
-    def get_entity_revision(self, *, entity_type, entity_id, revision):
+    def get_entity_revision(self, *, entity_type, entity_id, revision, account_id=None):
         assert (entity_type, entity_id, revision) == ("workflow", WORKFLOW_ID, 1)
         return deepcopy(self.entry)
 
-    def get_entity_history(self, *, entity_type, entity_id, limit):
+    def get_entity_history(self, *, entity_type, entity_id, limit, account_id=None):
         assert (entity_type, entity_id) == ("workflow", WORKFLOW_ID)
         assert limit > 0
         return [deepcopy(self.entry)] if self.entry is not None else []

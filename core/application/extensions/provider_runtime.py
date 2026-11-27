@@ -7,6 +7,11 @@ import os
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+from core.infrastructure.config.account_scope import (
+    MissingAccountScopeError,
+    active_account_ids_from_store,
+    resolve_unit_account_id,
+)
 from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
 from core.infrastructure.security.stored_secrets import StoredSecretError
 
@@ -88,6 +93,22 @@ def _process_provider_project_state_updates(
 ) -> None:
     if invocation.get("status") != "succeeded":
         return
+    resolved_account_id = _as_str(account_id)
+    if not resolved_account_id:
+        # A provider response changes state only for the account it was issued
+        # for. One without an account (e.g. already in flight before accounts
+        # were carried explicitly) is accepted only when the installation has
+        # exactly one active account. Otherwise it keeps no account, and every
+        # state change it asks for (project state, host mutations, resume
+        # waits) is refused downstream; it never falls to the default account.
+        try:
+            resolved_account_id = resolve_unit_account_id(
+                None,
+                unit="provider project-state update",
+                list_active_account_ids=active_account_ids_from_store(db),
+            )
+        except MissingAccountScopeError:
+            resolved_account_id = ""
     try:
         from core.application.extensions.response_envelope import process_project_state_updates
 
@@ -96,7 +117,7 @@ def _process_provider_project_state_updates(
             extension=extension,
             extension_id=_extension_runtime_id(extension),
             db=db,
-            account_id=_as_str(account_id) or _default_account_id(),
+            account_id=resolved_account_id,
             project_id=_as_str(project_id),
             connection_id=_as_str(connection_id) or None,
             actor_id=_as_str(actor_id) or None,

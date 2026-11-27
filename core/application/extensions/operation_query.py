@@ -167,7 +167,9 @@ def execute_extension_query(
 ) -> ExtensionQueryResultView:
     timings = _PhaseTimer()
     resolved_scope = normalize_scope(scope)
-    extension, bl = service._resolve_extension_runtime_record(extension_id)
+    extension, bl = service._resolve_extension_runtime_record(
+        extension_id, account_id=resolved_scope.account_id
+    )
     timings.lap("resolve_extension")
     if not extension:
         raise ServiceNotFoundError(ERR_EXTENSION_NOT_FOUND)

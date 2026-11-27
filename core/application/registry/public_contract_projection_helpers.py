@@ -50,13 +50,15 @@ def _stable_hash(payload: Any) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
 
 
-def _list_workflows_safe(db) -> list[dict]:
+def _list_workflows_safe(db, *, account_id: str) -> list[dict]:
+    """One account's workflows (ADR 0020, C5)."""
     list_fn = getattr(db, "list_workflows", None)
     if not callable(list_fn):
         return []
     try:
-        return list(list_fn(enabled_only=False) or [])
+        return list(list_fn(enabled_only=False, account_id=account_id) or [])
     except TypeError:
+        # A stand-in store without the keyword reads the bound account.
         return list(list_fn(enabled_only=False) or [])
 
 

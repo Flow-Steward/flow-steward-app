@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def test_disabled_projection_anchor_does_not_resolve_as_an_empty_workflow() -> None:
     from core.application.registry.workflow_lookup import get_workflow_row

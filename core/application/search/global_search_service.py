@@ -424,6 +424,45 @@ def _select_project_rows(
     return filtered
 
 
+#: Result groups whose items belong to one workflow of a project.
+_WORKFLOW_BOUND_RESULT_GROUPS = frozenset({"jobs", "workflows", "events", "runtime_messages"})
+
+
+def _item_workflow_in_scope_limit(
+    item: Mapping[str, Any], scope: ScopeContext, project_id: str | None
+) -> bool:
+    """A limited person's project reached only through workflow grants shows only those
+    workflows and their runs (ADR 0076 section 8a)."""
+    restricted = (scope.project_workflow_ids or {}).get(str(project_id or ""))
+    group = str(item.get("group") or "").strip().lower()
+    if restricted is None or group not in _WORKFLOW_BOUND_RESULT_GROUPS:
+        return True
+    meta = item.get("meta") if isinstance(item.get("meta"), Mapping) else {}
+    workflow_id = str(
+        item.get("workflow_id") or meta.get("selected_workflow") or meta.get("workflow_id") or ""
+    ).strip()
+    return bool(workflow_id) and workflow_id in restricted
+
+
+def _unbound_workflow_visible(item: Mapping[str, Any], scope: ScopeContext) -> bool:
+    """A workflow result that names no project, for a principal limited to places.
+
+    A token's workflow allowlist applies. A person limited to chosen places (ADR 0076
+    section 8b) sees such a result only for a workflow they hold a workflow grant on:
+    which projects link the others is not known here, so they are left out (fail
+    closed) instead of revealing workflows of projects out of reach.
+    """
+    workflow_id = str(item.get("workflow_id") or "").strip()
+    if scope.allowed_workflow_ids and workflow_id not in scope.allowed_workflow_ids:
+        return False
+    if scope.project_permissions is None and scope.project_workflow_ids is None:
+        return True
+    granted = {
+        str(flow) for flows in (scope.workflow_permissions or {}).values() for flow in (flows or {})
+    } | {str(flow) for flows in (scope.project_workflow_ids or {}).values() for flow in flows}
+    return bool(workflow_id) and workflow_id in granted
+
+
 def _filter_item_for_scope(
     item: Mapping[str, Any],
     *,
@@ -433,6 +472,10 @@ def _filter_item_for_scope(
 ) -> bool:
     group = str(item.get("group") or "").strip().lower()
     project_id = coerce_optional_project_id(item.get("project_id"))
+    if not _item_workflow_in_scope_limit(item, scope, project_id):
+        return False
+    if group == "workflows" and project_id is None and not _unbound_workflow_visible(item, scope):
+        return False
     if (
         group in PROJECT_OPTIONAL_RESULT_GROUPS
         and selected_project_id is None

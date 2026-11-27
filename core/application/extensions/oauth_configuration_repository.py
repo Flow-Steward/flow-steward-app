@@ -205,6 +205,7 @@ class OAuthConfigurationRepositoryMixin:
                      FROM registry_workflow_steps AS step
                      JOIN registry_workflows AS workflow
                        ON workflow.workflow_id = step.owner_workflow_id
+                      AND workflow.account_id = step.account_id
                       AND workflow.deleted_at IS NULL
                      LEFT JOIN registry_workflow_groups AS grp ON grp.id = step.group_id
                     CROSS JOIN LATERAL (

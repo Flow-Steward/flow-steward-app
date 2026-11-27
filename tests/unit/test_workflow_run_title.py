@@ -285,7 +285,8 @@ def test_enqueue_job_leaves_meta_alone_when_nothing_names_the_run(
         extra_state={"workflow_id": "plain"},
         meta=None,
     )
-    assert captured["meta"] is None
+    # No title; only who started the run, which every job names.
+    assert set(captured["meta"]) == {"submitted_by"}
 
 
 def test_enqueue_scheduled_job_stamps_the_schedule_name(monkeypatch: pytest.MonkeyPatch) -> None:

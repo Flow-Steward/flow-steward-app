@@ -36,6 +36,10 @@ from core.application.management.scope import ScopeContext
 from core.entrypoints.api.integrations_connectors import create_integrations_connectors_router
 from core.entrypoints.api.reactions_extensions import create_reactions_extensions_router
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 # FS-DEEP-CAND-042/043/044: extension build / descriptor-import / bootstrap /
 # runtime-token issuance now require the deployment lifecycle / runtime admin
 # gate (admin role + default account). Lifecycle-seeding helpers use this scope.
@@ -94,7 +98,7 @@ def test_uninstall_target_uses_existing_install_when_legacy_bundle_is_missing():
     bl.get_extension.return_value = None
     service = ExtensionBindingService(
         get_logger=lambda: bl,
-        resolve_extension_runtime_record=lambda extension_id: (None, None),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *args, **kwargs: "extension",
         extension_operation_failure_status=lambda invocation: 502,
@@ -140,7 +144,7 @@ def test_uninstall_target_uses_install_descriptor_source_for_existing_bundle():
     }
     service = ExtensionBindingService(
         get_logger=lambda: bl,
-        resolve_extension_runtime_record=lambda extension_id: (None, None),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: (None, None),
         extension_identifier=lambda payload: str((payload or {}).get("extension_key") or ""),
         extension_operation_handler_mode=lambda *args, **kwargs: "extension",
         extension_operation_failure_status=lambda invocation: 502,

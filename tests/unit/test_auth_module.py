@@ -16,6 +16,8 @@ from unittest.mock import MagicMock, patch
 import psycopg
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from tests.unit._sql_debug import composable_to_debug_sql
@@ -266,14 +268,14 @@ class TestEnforceFunctions:
     def test_require_authenticated_valid(self):
         from core.application.auth.enforce import require_authenticated
 
-        user = {"id": 1, "username": "admin", "roles": ["admin"]}
+        user = {"account_id": DEFAULT_ACCOUNT_ID, "id": 1, "username": "admin", "roles": ["admin"]}
         result = require_authenticated(user)
         assert result["id"] == 1
 
     def test_require_roles_match(self):
         from core.application.auth.enforce import require_roles
 
-        user = {"id": 1, "username": "admin", "roles": ["admin"]}
+        user = {"account_id": DEFAULT_ACCOUNT_ID, "id": 1, "username": "admin", "roles": ["admin"]}
         result = require_roles(user, {"admin"})
         assert result["id"] == 1
 
@@ -670,6 +672,45 @@ class TestResolveUserLookupFilters:
         first_sql = composable_to_debug_sql(cur.execute.call_args_list[0].args[0])
         assert "u.deleted_at IS NULL" in first_sql
 
+    def test_a_session_from_external_sign_in_resolves_as_external(self):
+        """ADR 0083: local-only checks must see an external session as external."""
+        from core.application.auth.resolve import resolve_user_from_session
+
+        bl, cur = self._make_bl(has_deleted_at=False)
+        bl._column_exists = lambda table, column: (
+            table == "auth_sessions"
+            and column
+            in {
+                "auth_method",
+                "account_id",
+            }
+        )
+        row = {
+            "id": 7,
+            "username": "pat@acme.test",
+            "display_name": "Pat",
+            "is_active": True,
+            "must_change_password": False,
+            "session_id": 99,
+            "expires_at": None,
+            "account_id": "00000000-0000-0000-0000-000000000002",
+        }
+        cur.fetchone.return_value = {**row, "auth_method": "external"}
+
+        with (
+            patch("core.application.auth.resolve.auth_tables_available", return_value=True),
+            patch("core.application.auth.resolve.get_user_roles", return_value=["viewer"]),
+        ):
+            external = resolve_user_from_session(bl, "token-123")
+            cur.fetchone.return_value = {**row, "auth_method": "local"}
+            local = resolve_user_from_session(bl, "token-123")
+
+        first_sql = composable_to_debug_sql(cur.execute.call_args_list[0].args[0])
+        assert "s.auth_method AS auth_method" in first_sql
+        assert external["auth_source"] == "external"
+        assert "auth_method" not in external
+        assert local["auth_source"] == "local"
+
     def test_get_user_by_session_token_casts_account_ids_before_nullif(self):
         from core.application.auth.resolve import get_user_by_session_token
 
@@ -786,8 +827,7 @@ class TestPrincipalNormalization:
 
         assert principal is None
 
-    def test_normalize_principal_keeps_external_default_account(self):
-        from core.application.auth.config import DEFAULT_ACCOUNT_ID
+    def test_normalize_principal_gives_an_external_principal_no_default_account(self):
         from core.application.auth.resolve import normalize_principal
 
         principal = normalize_principal(
@@ -801,4 +841,5 @@ class TestPrincipalNormalization:
         )
 
         assert principal is not None
-        assert principal.account_id == DEFAULT_ACCOUNT_ID
+        # Fail closed (ADR 0083): no account is never the installation account.
+        assert principal.account_id == ""

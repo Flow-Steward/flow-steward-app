@@ -5,8 +5,15 @@ from typing import Any
 
 from fastapi import FastAPI
 
+from core.application.auth.installation_admin import is_installation_admin
+from core.application.auth.route_permissions import ModuleRoutePermissionRegistry
 from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
+from core.entrypoints.admin.deps import require_entitlement
 from core.entrypoints.api import route_registration as api_routes
+from core.entrypoints.api.platform_module_loading import (
+    MODULE_SERVICE_ERROR_TYPES,
+    load_platform_modules,
+)
 from core.entrypoints.api.public_openapi_policy import PUBLIC_OPENAPI_POLICY
 from core.infrastructure.extension_runtime.extension_runtime_helpers import (
     get_extension_query_provider,
@@ -111,6 +118,17 @@ def _is_self_service_auth_write_route(current_app: FastAPI, path: str) -> bool:
     Core's own-account writes are ``account.self`` in the route table (ADR 0076).
     """
     return _optional_route_allowed(current_app, path, "self_service_auth_write_paths")
+
+
+def _module_route_rules(current_app: FastAPI) -> tuple[Any, ...]:
+    """Route permission rules platform modules registered (ADR 0082, section 2)."""
+    container = _runtime_container(current_app)
+    registries = getattr(container, "registries", None)
+    if not isinstance(registries, dict):
+        return ()
+    registry = registries.get("module_route_permissions")
+    rules = getattr(registry, "rules", None)
+    return tuple(rules()) if callable(rules) else ()
 
 
 def _build_event_command_service_factory(current_app: FastAPI):
@@ -266,8 +284,10 @@ def _build_composed_service_factories(
         # workflow connector steps; without it their grant fields were dropped.
         get_artifact_plane=lambda: runtime._artifact_plane,
         get_project_by_id=lambda project_id: get_project_store().get_project(project_id),
-        resolve_extension_runtime_record=lambda extension_id: resolve_extension_runtime_record(
-            extension_id, get_logger_only=get_integration_store
+        resolve_extension_runtime_record=lambda extension_id, *, account_id=None: (
+            resolve_extension_runtime_record(
+                extension_id, get_logger_only=get_integration_store, account_id=account_id
+            )
         ),
         extension_identifier=lambda *args, **kwargs: api_routes._extension_identifier(
             *args, **kwargs
@@ -404,13 +424,16 @@ def create_app(
             is_self_service_auth_write_route=lambda path: _is_self_service_auth_write_route(
                 current_app, path
             ),
+            contributed_route_rules=lambda: _module_route_rules(current_app),
             csrf_request_valid=lambda request: api_routes._csrf_request_valid(request),
             start_runtime_reporting=lambda: start_optional_process_reporting(
                 runtime_values=dict(runtime_env), service_type=runtime_service_type
             ),
         ),
     )
-    runtime._register_core_exception_handlers(current_app)
+    runtime._register_core_exception_handlers(
+        current_app, service_error_types=MODULE_SERVICE_ERROR_TYPES
+    )
     if runtime.CONFIG.get("extension_installer_proxy_enabled", False):
         from core.application.extensions.installer_projection_refresh import (
             InstallerProjectionSync,
@@ -434,10 +457,13 @@ def create_app(
     runtime._register_core_http_middleware(current_app)
 
     operator_roles = set(runtime._AUTH_WRITE_ROLES) - set(runtime._AUTH_ADMIN_ROLES)
+    # Pages declaring "installation_admin" follow Core's installation-administrator
+    # rule (ADR 0082 §3b, §9), not the plain admin role.
     platform_contracts = runtime._platform_contracts.build_platform_contracts(
         admin_roles=runtime._AUTH_ADMIN_ROLES,
         operator_roles=operator_roles or {"operator"},
         viewer_roles={"viewer"},
+        installation_admin_predicate=is_installation_admin,
     )
     default_legacy_db_factory = runtime._get_connection_store
 
@@ -450,6 +476,7 @@ def create_app(
             "request_scope": runtime._request_scope,
             "request_principal": runtime._request_principal,
             "request_auth_user_payload": runtime._request_auth_user_payload,
+            "require_entitlement": require_entitlement,
             "api_error_response": runtime._api_error_response,
             "service_error_response": runtime._service_error_response,
             "public_base_url": runtime._public_base_url,
@@ -515,6 +542,7 @@ def create_app(
             "request_principal_resolvers": [],
             "extension_query_provider_factory": get_extension_query_provider,
             "platform_contracts": platform_contracts,
+            "module_route_permissions": ModuleRoutePermissionRegistry(),
         },
         metadata={
             "edition": "community",
@@ -523,6 +551,7 @@ def create_app(
         },
     )
     runtime._ui_page_registry.register_core_settings_pages(container.registries)
+    _attach_module_ports(container)
     from core.entrypoints.api.runtime_port_manifest import RUNTIME_SERVICE_PORT_CONTRACTS
     from core.infrastructure.runtime.app_factory import validate_runtime_service_ports
 
@@ -553,11 +582,71 @@ def create_app(
         )
     api_routes._register_core_routes(current_app)
 
-    optional_private_modules_loaded = runtime._load_optional_private_modules(
-        current_app,
-        container,
-        logger=runtime.logger,
+    from core.infrastructure.platform_modules.loader import (
+        PLATFORM_MODULE_FAILURES_KEY,
+        activate_prepared_platform_modules,
+        describe_platform_modules,
+        mark_failed_modules_degraded,
     )
+
+    # A module that fails its activation checks is skipped and listed as failed; the
+    # app starts without it (ADR 0082 §5).
+    activation_failures: list[dict[str, str]] = []
+    platform_modules = activate_prepared_platform_modules(
+        "app", failures=activation_failures, logger=runtime.logger
+    )
+    mark_failed_modules_degraded(activation_failures, container, app=current_app)
+    platform_modules_loaded = [
+        {"id": module.module_id, "version": module.version} for module in platform_modules
+    ]
+    container.metadata["platform_modules_loaded"] = platform_modules_loaded
+    current_app.state.platform_modules_loaded = platform_modules_loaded
+    optional_private_modules_loaded = load_platform_modules(
+        current_app, container, platform_modules, logger=runtime.logger
+    )
+    # A module that failed to load was skipped and rolled back; it is listed as
+    # failed, with its error, and never as loaded.
+    platform_module_failures = [
+        *activation_failures,
+        *list(container.metadata.get(PLATFORM_MODULE_FAILURES_KEY) or []),
+    ]
+    container.metadata[PLATFORM_MODULE_FAILURES_KEY] = platform_module_failures
+    failed_ids = {failure["id"] for failure in platform_module_failures}
+    platform_modules = tuple(
+        module for module in platform_modules if module.module_id not in failed_ids
+    )
+    platform_modules_loaded[:] = [
+        record for record in platform_modules_loaded if record["id"] not in failed_ids
+    ]
+    current_app.state.platform_module_failures = platform_module_failures
+    if platform_modules or platform_module_failures:
+        from core.infrastructure.platform_modules.role_status import (
+            module_status_records,
+            write_role_module_status,
+        )
+
+        # Read by the release workflow after a module change (ADR 0082 §5).
+        write_role_module_status(
+            "app",
+            loaded=module_status_records(platform_modules),
+            failures=platform_module_failures,
+        )
+    # Core pages and every module's pages are in; any later registration is refused.
+    runtime._ui_page_registry.seal_page_registries(container.registries)
+    container.feature_endpoints.seal()
+    container.secret_backends.seal()
+    # The one entitlement source, if any, is registered; nothing may add another.
+    seal_entitlement_sources = getattr(platform_contracts["entitlement_service"], "seal", None)
+    if callable(seal_entitlement_sources):
+        seal_entitlement_sources()
+    current_app.state.platform_module_registrations = container.metadata[
+        "platform_module_registrations"
+    ]
+    if platform_modules:
+        runtime.logger.info(
+            "Platform modules active for role app: %s",
+            describe_platform_modules(platform_modules),
+        )
     container.metadata["optional_private_modules_loaded"] = list(optional_private_modules_loaded)
     current_app.state.optional_private_modules_loaded = list(optional_private_modules_loaded)
     api_routes._register_registered_frontend_shell_routes(current_app)
@@ -570,6 +659,40 @@ def create_app(
     instrument_fastapi(current_app)
 
     return current_app
+
+
+def _attach_module_ports(container: Any) -> None:
+    """Set the ADR 0082 ports platform modules read from the container before they load."""
+    from core.application.auth.account_lifecycle import AccountsPort
+    from core.application.auth.external_sign_in_ports import ExternalSignInPort
+    from core.application.auth.scoped_role_ports import ScopedRolesPort
+    from core.application.lifecycle.runtime_installation_context import (
+        projected_installation_id,
+    )
+    from core.application.management.approval_ports import (
+        ApprovalAssignmentsPort,
+        ApprovalJournalPort,
+    )
+    from core.application.settings.feature_endpoints import FeatureEndpointRegistry
+    from core.infrastructure.config.runtime_env import runtime_env
+    from core.infrastructure.db.db_pool import transaction_connection
+    from core.infrastructure.security.secret_backends import SecretBackendPort
+
+    def connection():
+        return transaction_connection(runtime._get_job_store().conn)
+
+    container.installation_id = projected_installation_id(dict(runtime_env))
+    container.feature_endpoints = FeatureEndpointRegistry()
+    container.approval_assignments = ApprovalAssignmentsPort(connection)
+    container.approval_journal = ApprovalJournalPort(connection)
+    container.scoped_roles = ScopedRolesPort(connection)
+    container.external_sign_in = ExternalSignInPort(connection)
+    container.secret_backends = SecretBackendPort()
+    factories = container.service_factories
+    container.accounts = AccountsPort(
+        store=lambda: factories["identity_store"](),
+        entitlement_service=lambda: factories["entitlement_service"](),
+    )
 
 
 def _auth_users_route_endpoint(path: str, method: str):

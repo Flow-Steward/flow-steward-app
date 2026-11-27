@@ -25,6 +25,10 @@ import pytest
 from tests._db_env import dsn_unreachable_reason, resolve_test_db_dsn
 from tests._workflow_definitions import linear_graph
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 FIXED_NODES = {

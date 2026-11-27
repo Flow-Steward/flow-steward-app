@@ -138,9 +138,32 @@ ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_project_id_fkey FOREIGN KEY (project_id)
         REFERENCES public.projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.user_roles DROP CONSTRAINT IF EXISTS user_roles_workflow_id_fkey;
-ALTER TABLE ONLY public.user_roles
-    ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_id)
-        REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+-- A database whose workflows still have the global identity gets the global key; one
+-- built from a baseline with the account-qualified identity (ADR 0020, step C4b) has
+-- no unique key on registry_workflows(workflow_id) and gets the composite key that
+-- migration 20261126180000_workflow_account_identity.sql makes.
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM pg_catalog.pg_constraint AS c
+          JOIN pg_catalog.pg_attribute AS a
+            ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+         WHERE c.conrelid = 'public.registry_workflows'::regclass
+           AND c.contype IN ('p', 'u')
+           AND array_length(c.conkey, 1) = 1
+           AND a.attname = 'workflow_id'
+    ) THEN
+        ALTER TABLE ONLY public.user_roles
+            ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_id)
+                REFERENCES public.registry_workflows(workflow_id) ON DELETE CASCADE;
+    ELSE
+        ALTER TABLE ONLY public.user_roles
+            ADD CONSTRAINT user_roles_workflow_id_fkey FOREIGN KEY (workflow_account_id, workflow_id)
+                REFERENCES public.registry_workflows(account_id, workflow_id) ON DELETE CASCADE;
+    END IF;
+END;
+$$;
 ALTER TABLE ONLY public.user_roles
     ADD CONSTRAINT user_roles_role_is_system_fkey FOREIGN KEY (role_id, role_is_system)
         REFERENCES public.roles(id, is_system) ON UPDATE CASCADE ON DELETE CASCADE;

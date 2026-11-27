@@ -25,6 +25,7 @@ from core.application.registry.contract_validation import (
     validate_workflow_readiness,
 )
 from core.application.registry.db_store import RestoreValidationError
+from core.application.registry.workflow_account import bind_workflow_account
 from core.application.registry.workflow_contract_service import WorkflowInterfaceService
 from core.application.workflows.canvas_graph_service import build_workflow_canvas_graph
 from core.application.workflows.workflow_portability import (
@@ -39,7 +40,6 @@ from core.application.workflows.workflow_step_config_contracts import (
     validate_workflow_step_config_keys,
 )
 from core.entrypoints.admin._readiness import enforce_enabled_save_validation
-from core.entrypoints.admin._registry_scope import require_default_registry_account
 from core.entrypoints.admin.workflows_definition import create_workflow_definition_router
 from core.infrastructure.runtime.entrypoint_db_adapters import (
     DATABASE_OPERATION_ERRORS,
@@ -59,29 +59,32 @@ ACCESS_DENIED_VALUE = "Access denied"
 logger = logging.getLogger(__name__)
 
 
-def _require_default_workflow_registry_request(request: Request) -> None:
-    """Reject dormant secondary accounts before any workflow route touches storage."""
+async def _bind_caller_workflow_account(request: Request) -> None:
+    """Work on the caller's own account's workflows for the rest of the request.
+
+    Workflow identity is account-qualified (ADR 0020, C4b): two accounts may own a
+    workflow with the same id, and a workflow read or write that names no account
+    uses the account bound here (``core.application.registry.workflow_account``).
+    The authentication middleware binds the principal's account as well; binding
+    the resolved request scope again keeps every route on the scope it checks.
+    An async dependency runs in the request task, so the binding reaches the route
+    handler and ends with the request.
+    """
     state_scope = getattr(request.state, "scope_context", None)
     auth_user = getattr(request.state, "auth_user", None)
     if state_scope is not None:
-        scope = normalize_scope(state_scope)
+        account_id = getattr(normalize_scope(state_scope), "account_id", None)
     elif isinstance(auth_user, dict):
-        scope = normalize_scope(
-            auth_user,
-            account_id=str(auth_user.get("account_id") or DEFAULT_ACCOUNT_ID).strip(),
-            tenant_id=str(auth_user.get("tenant_id") or DEFAULT_TENANT_ID).strip(),
-            actor_id=str(auth_user.get("username") or auth_user.get("id") or "").strip() or None,
-            principal_type=str(auth_user.get("principal_type") or "").strip() or None,
-        )
+        account_id = auth_user.get("account_id")
     else:
-        scope = normalize_scope()
-    require_default_registry_account(scope)
+        account_id = None
+    bind_workflow_account(str(account_id or "").strip() or DEFAULT_ACCOUNT_ID)
 
 
 router = APIRouter(
     prefix="/api/workflows",
     tags=["workflows"],
-    dependencies=[Depends(_require_default_workflow_registry_request)],
+    dependencies=[Depends(_bind_caller_workflow_account)],
 )
 FORBIDDEN_TRIGGER_KEYS = {"task_types", "complexity"}
 
@@ -217,7 +220,6 @@ __all__ = [
     "WorkflowSecretDefaultService",
     "validate_workflow_step_config_keys",
     "enforce_enabled_save_validation",
-    "require_default_registry_account",
     "create_workflow_definition_router",
     "DATABASE_OPERATION_ERRORS",
     "workflow_import_transaction",

@@ -136,6 +136,8 @@ def test_global_changelog_redacts_response_copy_without_mutating_store_snapshot(
         entity_type="tool" if filtered else None,
         entity_id="owned-tool" if filtered else None,
         limit=50,
+        # Every changelog read names the caller's account (ADR 0020, C5).
+        account_id=DEFAULT_ACCOUNT_ID,
     )
     assert stored_entry == original
 

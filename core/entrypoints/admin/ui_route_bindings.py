@@ -72,6 +72,7 @@ def register_ui_routes(
     available_models,
     providers_with_models=None,
     resolve_model_selection_context=None,
+    entitlement_service=None,
 ):
     _ = (
         local_auth_bootstrap_required,
@@ -144,6 +145,7 @@ def register_ui_routes(
         get_logger_only=get_logger_only,
         request_scope=request_scope,
         resolve_actor_username=resolve_actor_username,
+        entitlement_service=entitlement_service,
     )
     app.include_router(settings_retention_router)
 

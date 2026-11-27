@@ -12,6 +12,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.management.approval_journal import require_journal_retention_entitled
+from core.application.settings.platform_contracts import FeatureNotEntitledError
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.runtime.entrypoint_db_adapters import (
     MAX_RETENTION_DAYS,
@@ -57,6 +59,7 @@ def create_settings_retention_router(
     get_logger_only: Callable[[], Any],
     request_scope: Callable[..., Any],
     resolve_actor_username: Callable[..., str],
+    entitlement_service: Callable[[], Any] | None = None,
 ) -> APIRouter:
     router = APIRouter(tags=["settings-retention"])
 
@@ -80,6 +83,21 @@ def create_settings_retention_router(
             except Exception:
                 return {**defaults, "account_id": account_id}, False
         return {**defaults, "account_id": account_id}, False
+
+    def _stored_journal_days(bl: Any, account_id: str) -> Any:
+        """The account's saved journal retention, or ``None`` when it cannot be read."""
+        if not hasattr(bl, "get_retention_settings"):
+            return None
+        try:
+            settings = bl.get_retention_settings(
+                defaults=_retention_defaults(), account_id=account_id
+            )
+        except Exception:
+            logger.warning("Could not read the saved retention settings of %s", account_id)
+            return None
+        if not isinstance(settings, dict):
+            return None
+        return settings.get("approval_journal_retention_days")
 
     def _ensure_admin_api(request: Request) -> dict[str, Any] | None:
         try:
@@ -128,6 +146,17 @@ def create_settings_retention_router(
 
         actor = resolve_actor_username(request, "", default="system")
         account_id = _account_id_for_request(request)
+        try:
+            require_journal_retention_entitled(
+                body,
+                account_id=account_id,
+                entitlement_service=entitlement_service()
+                if callable(entitlement_service)
+                else None,
+                stored_days=_stored_journal_days(bl, account_id),
+            )
+        except FeatureNotEntitledError as exc:
+            return JSONResponse(dict(exc.payload or {}), status_code=exc.status_code)
         try:
             saved = bl.save_retention_settings(body, actor=actor, account_id=account_id)
         except ValueError as exc:

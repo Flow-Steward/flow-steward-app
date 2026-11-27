@@ -304,6 +304,79 @@ def operations_readiness_checks(checks: Any) -> dict[str, dict[str, Any]]:
     return result
 
 
+#: The check under which administrators see platform modules that failed to load.
+PLATFORM_MODULES_CHECK = "platform_modules"
+_PLATFORM_MODULE_TEXT_MAX_CHARS = 500
+
+
+def _failure_records(failures: Any) -> list[dict[str, str]]:
+    if not isinstance(failures, (list, tuple)):
+        return []
+    records: list[dict[str, str]] = []
+    for raw in failures:
+        if not isinstance(raw, dict):
+            continue
+        module_id = str(raw.get("id") or "").strip()
+        if not module_id:
+            continue
+        record = {
+            "id": module_id[:_PLATFORM_MODULE_TEXT_MAX_CHARS],
+            "version": str(raw.get("version") or "").strip()[:_PLATFORM_MODULE_TEXT_MAX_CHARS],
+            "load_error": str(raw.get("load_error") or "").strip()[
+                :_PLATFORM_MODULE_TEXT_MAX_CHARS
+            ],
+        }
+        role = str(raw.get("role") or "").strip()[:_PLATFORM_MODULE_TEXT_MAX_CHARS]
+        if role:
+            record["role"] = role
+        status = str(raw.get("status") or "").strip()[:_PLATFORM_MODULE_TEXT_MAX_CHARS]
+        if status and status != "failed":
+            record["status"] = status
+        records.append(record)
+    return records
+
+
+def platform_module_failures_check(failures: Any) -> dict[str, Any] | None:
+    """The degraded check an administrator sees for modules that failed to load
+    or whose background jobs are failing (``status: "job_failed"``).
+
+    ``None`` when every platform module loaded. The app keeps serving without the
+    failed modules (ADR 0082 §5), so the check is degraded, never failed, and does
+    not change readiness. ``load_error`` is the loader's short, redacted reason.
+    """
+    records = _failure_records(failures)
+    if not records:
+        return None
+    lines = []
+    for record in records:
+        name = " ".join(part for part in (record["id"], record["version"]) if part)
+        role = record.get("role", "")
+        if role and role != "app":
+            # The app's own failures keep the plain form; a background role is named.
+            name = f"{name} ({role} role)"
+        reason = record["load_error"] or "unknown error"
+        # A module that loaded but whose background job fails (ADR 0082) is named
+        # as such, not as a module that failed to load.
+        what = (
+            "Background job failing" if record.get("status") == "job_failed" else "Failed to load"
+        )
+        lines.append(f"{name}: {what}: {reason}")
+    return {
+        "status": "degraded",
+        "degraded": True,
+        "error": "; ".join(lines),
+        "failed_modules": records,
+    }
+
+
+def public_platform_module_status(failures: Any) -> dict[str, Any] | None:
+    """What the public readiness probe says about failed modules: only how many."""
+    records = _failure_records(failures)
+    if not records:
+        return None
+    return {"degraded": True, "failed_count": len(records)}
+
+
 def workflow_knowledge_storage_status(source: dict[str, Any]) -> dict[str, Any]:
     """Expose workflow knowledge availability and known backend failure reasons."""
     projected = _project_fields(source, {"graph_name": _GRAPH_NAME, **_WORKFLOW_BACKEND_FIELDS})

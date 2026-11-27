@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from core.application.registry.workflow_account import workflow_owner
 from core.application.workflows.workflow_entrypoint_repository import _row_to_dict
 from core.infrastructure.db.db_pool import transaction_connection
 
@@ -20,8 +21,9 @@ def update_scheduled_job_outcome(
     """Serialize W then schedule; observations cannot reactivate a retired claim."""
     with transaction_connection(store.conn) as connection, connection.cursor() as cursor:
         cursor.execute(
-            "SELECT deleted_at FROM registry_workflows WHERE workflow_id=%s FOR SHARE",
-            (workflow_id,),
+            "SELECT deleted_at FROM registry_workflows "
+            "WHERE workflow_id=%s AND account_id=%s FOR SHARE",
+            (workflow_id, workflow_owner(account_id)),
         )
         owner = _row_to_dict(cursor, cursor.fetchone())
         if not owner:

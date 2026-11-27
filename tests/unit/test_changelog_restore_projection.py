@@ -111,6 +111,8 @@ def test_nonworkflow_restore_redacts_only_the_response_snapshot() -> None:
         "entry-7",
         entity_type="tool",
         entity_id="owned-tool",
+        # Every changelog read names the caller's account (ADR 0020, C5).
+        account_id=DEFAULT_ACCOUNT_ID,
     )
     db.restore_entity_revision.assert_called_once()
     restore_call = db.restore_entity_revision.call_args

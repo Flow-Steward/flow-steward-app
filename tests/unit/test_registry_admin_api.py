@@ -30,6 +30,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from tests._workflow_definitions import edge, linear_graph, linear_workflow, node
 from tests.unit._psycopg_runtime_stub import install_psycopg_runtime_stub
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 install_psycopg_runtime_stub()
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -3339,7 +3343,8 @@ def _catalog_write_store():
                     "source_hints_json": json.loads(parameters["source_hints_json"]),
                 }
             elif statement.lstrip().startswith("SELECT") and "registry_data_contracts" in statement:
-                self.row = contracts.get(parameters[0])
+                # The contract is read within the field's account: (account_id, contract_id).
+                self.row = contracts.get(parameters[-1])
             else:
                 raise AssertionError(f"Unexpected catalog SQL: {statement}")
 
@@ -3356,7 +3361,7 @@ def _catalog_write_store():
         key in (contracts if table == "registry_data_contracts" else fields)
     )
     store.get_data_contract = lambda key, **_kwargs: contracts.get(key)
-    store.get_field = lambda key: fields.get(key)
+    store.get_field = lambda key, **_kwargs: fields.get(key)
     store._log_change_cur = MagicMock()
     return store, contracts, fields
 
@@ -10902,6 +10907,7 @@ class TestWorkflowCRUD:
             entity_type="workflow",
             entity_id="wf_demo",
             revision=7,
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     def test_protected_workflow_history_redacts_internal_snapshot(self, registry_client):
@@ -11143,6 +11149,7 @@ class TestWorkflowCRUD:
             entity_id="wf_demo",
             from_entry_id="4",
             to_entry_id="7",
+            account_id=DEFAULT_ACCOUNT_ID,
         )
 
     def test_protected_workflow_diff_is_blocked(self, registry_client):
@@ -12504,7 +12511,11 @@ def _scoped_agents_client(monkeypatch, scope_context):
 
     @app.middleware("http")
     async def _inject_scope(request, call_next):
-        request.state.auth_user = {"username": "admin", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin",
+            "roles": ["admin"],
+        }
         request.state.scope_context = scope_context
         return await call_next(request)
 
@@ -12522,7 +12533,11 @@ def _scoped_skills_client(monkeypatch, scope_context):
 
     @app.middleware("http")
     async def _inject_scope(request, call_next):
-        request.state.auth_user = {"username": "admin", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin",
+            "roles": ["admin"],
+        }
         request.state.scope_context = scope_context
         return await call_next(request)
 
@@ -12911,7 +12926,11 @@ def _scoped_guardrails_client(monkeypatch, scope_context):
 
     @app.middleware("http")
     async def _inject(request, call_next):
-        request.state.auth_user = {"username": "admin", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin",
+            "roles": ["admin"],
+        }
         request.state.scope_context = scope_context
         return await call_next(request)
 

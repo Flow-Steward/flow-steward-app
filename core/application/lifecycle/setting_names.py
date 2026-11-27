@@ -51,9 +51,18 @@ def unknown_setting_error(name: str) -> OperatorSettingError:
 
 
 def check_operator_settings(settings: Mapping[str, str]) -> dict[str, str]:
-    """Refuse a host setting the manifest does not list, or a value it does not accept."""
+    """Refuse a host setting the manifest does not list, or a value it does not accept.
+
+    A platform-module setting (``FS_MODULE_*``) is not the manifest's: it is passed
+    over here and checked against the active module set by its caller
+    (``module_settings.check_module_settings``).
+    """
+    from core.infrastructure.platform_modules.module_settings import is_module_setting_name
+
     specs = operator_setting_specs()
     for name, value in settings.items():
+        if is_module_setting_name(name):
+            continue
         spec = specs.get(name)
         if spec is None:
             raise unknown_setting_error(name)

@@ -9,6 +9,8 @@ import type { FormFieldView, FormValues } from "@/components/workflow-inputs/for
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { Button } from "@/components/ui/button";
 import { useFilePreviewMaxBytes } from "@/lib/auth/file-preview-limit";
+import { useWorkflowLimitAllows } from "@/lib/auth/project-permissions";
+import { approvalAssignment, approvalDecisionErrorMessage, approvalWaitingForText } from "@/lib/auth/approval-assignment";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { ignoreAsyncResult } from "@/lib/utils/async";
 import { submitApprovalDecision, type ApprovalDecisionPayload } from "@/pages/jobs/detail/api";
@@ -143,6 +145,8 @@ type Decided = { approved: boolean; status: string; actor: string };
  */
 export function OperatorReviewPanel({
   review,
+  projectId,
+  workflowId,
   head,
   back,
   onApprovedNext,
@@ -150,6 +154,10 @@ export function OperatorReviewPanel({
   onDecided,
 }: Readonly<{
   review: JobReview;
+  /** The section's project: a person limited to chosen projects decides only where it allows (ADR 0076 §8). */
+  projectId?: string;
+  /** The section's workflow: a workflow grant decides before the project's (ADR 0076 §8b). */
+  workflowId?: string;
   /** The panel's heading: title, what to do and the steps through the list. */
   head?: ReactNode;
   /** The way back to the list, kept in the panel's footer beside the decision. */
@@ -165,7 +173,10 @@ export function OperatorReviewPanel({
   const captured = gate?.review;
   const reviewJobId = gate?.job_id ?? "";
   const payload = gate?.payload ?? {};
-  const canDecide = review.access === "decide";
+  // Assigned approvers (ADR 0082): absent `can_decide` keeps the access the review states.
+  const assignment = approvalAssignment(review, gate, payload);
+  const projectAllowsDecision = useWorkflowLimitAllows(projectId, workflowId, "approvals.decide");
+  const canDecide = review.access === "decide" && assignment.canDecide && projectAllowsDecision;
   // Only the decisions the gate allows, as the existing review panel does.
   const actions = gateActions(gate);
   const canApprove = canDecide && actions.has("approve");
@@ -246,7 +257,7 @@ export function OperatorReviewPanel({
       } else if (reviewConflict(error)) {
         setFormError(t("react.operator_review.already_decided", "This review was already decided elsewhere. Open the next job."));
       } else {
-        setFormError(error instanceof Error ? error.message : t("react.jobs.approval_request_failed", "Approval request failed."));
+        setFormError(approvalDecisionErrorMessage(error, t));
       }
     } finally {
       setPending(null);
@@ -345,8 +356,10 @@ export function OperatorReviewPanel({
             {formError}
           </p>
         ) : canDecide ? null : (
-          <p className="fs-operator-review-foot-note">
-            {t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")}
+          <p className="fs-operator-review-foot-note" data-testid="review-waiting-for">
+            {assignment.canDecide
+              ? t("react.jobs.viewer_mode_is_read_only_an_operator_or_admin_has_to_decide_this_gate", "Viewer mode is read-only. An operator or admin has to decide this gate.")
+              : approvalWaitingForText(assignment.approvers, t)}
           </p>
         )
       }

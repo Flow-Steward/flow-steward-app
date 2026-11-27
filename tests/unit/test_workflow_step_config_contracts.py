@@ -19,6 +19,10 @@ from core.application.workflows.workflow_step_config_contracts import (
 from core.application.workflows.workflow_step_kinds import SUPPORTED_STEP_KINDS
 from tests._workflow_definitions import edge, linear_workflow, node, stop_step
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class _WorkflowDB:
     def __init__(self, workflow: dict):

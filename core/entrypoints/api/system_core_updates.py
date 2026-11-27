@@ -9,6 +9,10 @@ from typing import Any
 from fastapi import APIRouter, Request, Response
 from starlette.responses import JSONResponse
 
+from core.application.auth.installation_admin import (
+    installation_admin_refusal,
+    is_installation_admin,
+)
 from core.application.release.catalog import GitHubReleaseDiscovery, PublishedRelease
 from core.application.release.update_notice import CoreUpdateQuery, CoreUpdateStatus
 from core.infrastructure.config.version import APP_VERSION
@@ -42,10 +46,17 @@ def create_system_core_updates_router(
         # Sync discovery runs in FastAPI's worker pool, never on the event loop.
         # Keep a local guard as well as the global admin-only route classification.
         try:
-            require_authenticated_user(request, required_roles={"admin"})
+            auth_user = require_authenticated_user(request, required_roles={"admin"})
         except PermissionError:
             return JSONResponse(
                 {"error": "Admin role required"},
+                status_code=403,
+                headers={"Cache-Control": "private, no-store"},
+            )
+        # Core updates concern the whole installation.
+        if not is_installation_admin(auth_user):
+            return JSONResponse(
+                installation_admin_refusal(),
                 status_code=403,
                 headers={"Cache-Control": "private, no-store"},
             )

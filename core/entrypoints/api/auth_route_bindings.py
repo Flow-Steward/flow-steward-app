@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from fastapi import FastAPI
 
 from core.entrypoints.api.auth_mfa import create_auth_mfa_router
@@ -9,6 +12,14 @@ from core.entrypoints.api.auth_passwords import create_auth_passwords_router
 from core.entrypoints.api.auth_sessions import create_auth_sessions_router
 from core.entrypoints.api.auth_tokens_accounts import create_auth_tokens_accounts_router
 from core.entrypoints.api.auth_users import create_auth_users_router
+
+
+def _app_entitlement_service(app: FastAPI) -> Any:
+    """The app's entitlement service (ADR 0082), or ``None`` when it has none."""
+    container = getattr(app.state, "runtime_container", None)
+    registries = getattr(container, "registries", None)
+    contracts = registries.get("platform_contracts") if isinstance(registries, Mapping) else None
+    return contracts.get("entitlement_service") if isinstance(contracts, Mapping) else None
 
 
 def register_auth_routes(
@@ -141,6 +152,7 @@ def register_auth_routes(
         err_admin_role_required=err_admin_role_required,
         err_service_account_key_required=err_service_account_key_required,
         err_machine_token_tables_not_available=err_machine_token_tables_not_available,
+        entitlement_service=lambda: _app_entitlement_service(app),
     )
     app.include_router(auth_tokens_accounts_router)
 

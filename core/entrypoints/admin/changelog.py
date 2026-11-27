@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.enforce import require_roles
+from core.application.auth.installation_admin import is_installation_account
 from core.application.management.errors import ServiceForbiddenError
 from core.application.management.guards import (
     require_account_access,
@@ -170,6 +171,17 @@ def _request_is_admin(request: Request) -> bool:
     return True
 
 
+def _request_is_installation_admin(request: Request) -> bool:
+    """An administrator acting in the installation account.
+
+    Only such an administrator passes the account boundary of a registry object:
+    an administrator of another account is held to its own account (ADR 0020, C5).
+    """
+    return _request_is_admin(request) and is_installation_account(
+        _request_scope(request).account_id
+    )
+
+
 def _history_snapshot(entry: object) -> dict | None:
     if not isinstance(entry, dict):
         return None
@@ -226,21 +238,21 @@ def _lookup_entity_history_snapshot(
             entry_id,
             entity_type=entity_type,
             entity_id=entity_id,
-            **({"account_id": account_id} if entity_type == "guardrail" else {}),
+            account_id=account_id,
         )
     elif revision is not None and hasattr(db, "get_entity_revision"):
         entry = db.get_entity_revision(
             entity_type=entity_type,
             entity_id=entity_id,
             revision=revision,
-            **({"account_id": account_id} if entity_type == "guardrail" else {}),
+            account_id=account_id,
         )
     elif hasattr(db, "get_entity_history"):
         rows = db.get_entity_history(
             entity_type=entity_type,
             entity_id=entity_id,
             limit=1,
-            **({"account_id": account_id} if entity_type == "guardrail" else {}),
+            account_id=account_id,
         )
         if isinstance(rows, list) and rows:
             entry = rows[0]
@@ -281,7 +293,7 @@ def _assert_entity_scope(
         return
     if _request_auth_user(request) is None:
         return
-    if _request_is_admin(request):
+    if _request_is_installation_admin(request):
         return
     payload = dict(record or _lookup_entity_record(db, entity_type, entity_id) or {})
     if not payload:
@@ -290,6 +302,7 @@ def _assert_entity_scope(
                 db,
                 entity_type=entity_type,
                 entity_id=entity_id,
+                account_id=scope.account_id,
             )
             or {}
         )
@@ -380,7 +393,7 @@ def get_changelog(
         entity_type=entity_type,
         entity_id=entity_id,
         limit=limit,
-        **({"account_id": scope.account_id} if entity_type == "guardrail" else {}),
+        account_id=scope.account_id,
     )
     return _redact_changelog_entries(db, rows)
 
@@ -441,7 +454,9 @@ def search_entities(
     """Search across all registry entities."""
     _require_admin_request(request)
     db = _get_db()
-    return db.search_entities(q, entity_type=entity_type)
+    return db.search_entities(
+        q, entity_type=entity_type, account_id=_request_scope(request).account_id
+    )
 
 
 @router.get(
@@ -467,7 +482,7 @@ def get_entity_history(
         entity_type=normalized_type,
         entity_id=entity_id,
         limit=limit,
-        **({"account_id": scope.account_id} if normalized_type == "guardrail" else {}),
+        account_id=scope.account_id,
     )
     record = _history_snapshot(rows[0]) if rows else None
     _assert_entity_scope(
@@ -503,7 +518,7 @@ def get_entity_revision(request: Request, entity_type: str, entity_id: str, revi
         entity_type=normalized_type,
         entity_id=entity_id,
         revision=revision,
-        **({"account_id": scope.account_id} if normalized_type == "guardrail" else {}),
+        account_id=scope.account_id,
     )
     if not entry:
         raise HTTPException(
@@ -559,7 +574,7 @@ def get_entity_diff(
             entity_id=entity_id,
             from_entry_id=from_entry_id,
             to_entry_id=to_entry_id,
-            **({"account_id": scope.account_id} if normalized_type == "guardrail" else {}),
+            account_id=scope.account_id,
         )
     except WorkflowPortabilityError as exc:
         _raise_portability_http_error(exc)
@@ -600,7 +615,7 @@ def restore_entity_revision(
         entity_type=normalized_type,
         entity_id=entity_id,
         entry_id=str(body.entry_id),
-        account_id=scope.account_id if normalized_type == "guardrail" else None,
+        account_id=scope.account_id,
     )
     _assert_entity_scope(
         request,
@@ -636,9 +651,12 @@ def restore_entity_revision(
             entity_id=entity_id,
             entry_id=str(body.entry_id),
             author="admin_restore",
+            # The caller's account always names the restore: its entry is read in
+            # that account and only that account's live row is written.
+            account_id=scope.account_id,
+            installation_admin=_request_is_installation_admin(request),
             **(
                 {
-                    "account_id": scope.account_id,
                     "actor_id": scope.actor_id or scope.actor_name,
                     "actor_type": scope.principal_type or "unknown",
                 }

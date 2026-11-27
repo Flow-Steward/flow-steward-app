@@ -216,17 +216,27 @@ def apply_registry_seed(*, dsn: str | None = None, author: str = "system") -> di
     resolved_dsn = str(dsn or _resolve_sql_dsn()).strip()
     if not resolved_dsn:
         raise RuntimeError("No Postgres DSN configured for registry seed")
+    # The canonical seed is the installation account's catalog: a documented
+    # bootstrap path that names its account instead of relying on a fallback
+    # (ADR 0020, C5).
+    from core.application.registry.workflow_account import installation_account_scope
+
+    with installation_account_scope():
+        return _apply_registry_seed(resolved_dsn, author=author)
+
+
+def _apply_registry_seed(resolved_dsn: str, *, author: str) -> dict[str, int]:
 
     payload = _load_seed(REGISTRY_SEED_PATH)
     store = RegistryDBStore(resolved_dsn)
     counts: dict[str, int] = {}
 
     for row in payload.get("data_contracts") or []:
-        store.save_data_contract(dict(row or {}), author=author)
+        store.save_data_contract(dict(row or {}), author=author, account_id=DEFAULT_ACCOUNT_ID)
     counts["data_contracts"] = len(payload.get("data_contracts") or [])
 
     for row in payload.get("fields") or []:
-        store.save_field(dict(row or {}), author=author)
+        store.save_field(dict(row or {}), author=author, account_id=DEFAULT_ACCOUNT_ID)
     counts["fields"] = len(payload.get("fields") or [])
 
     for row in payload.get("tools") or []:

@@ -97,6 +97,12 @@ class AwaitingApprovalJobView(ViewModel):
     #: operator opened in a section (ADR 0075). The job itself when it has no parent.
     root_job_id: str | None = None
     root_workflow: str | None = None
+    #: ADR 0082, assigned approvers: whether the caller may decide this approval;
+    #: ``None`` when the assignment could not be read (absent means true).
+    can_decide: bool | None = None
+    #: The waiting step's assigned approvers, ``{"username", "display_name"}`` each;
+    #: empty when the step is not restricted.
+    approvers: list[dict[str, str]] = Field(default_factory=list)
 
 
 class AwaitingApprovalJobsPageView(ViewModel):
@@ -297,6 +303,8 @@ class AuthAccountMembershipView(ViewModel):
     display_name: str = ""
     is_active: bool = True
     is_default: bool = False
+    #: The person's role in this account (ADR 0085); empty: no role there.
+    role: str = ""
 
 
 class AuthUserView(ViewModel):

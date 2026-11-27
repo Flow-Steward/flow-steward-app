@@ -125,6 +125,9 @@ class UserAdminCommandRepository(Protocol):
         requested_account_ids: list[str] | None,
         primary_account_id: str | None,
         revoke_sessions: bool,
+        on_scope_limit_lifted: Callable[[], None] | None = None,
+        actor: str = "",
+        role_account_id: str | None = None,
     ) -> int: ...
 
     def force_password_reset(self, bl: Any, *, user_id: Any) -> int: ...
@@ -136,6 +139,47 @@ class UserAdminCommandRepository(Protocol):
         user_id: Any,
         deleted_by: str,
     ) -> int: ...
+
+
+def _require_update_access(
+    user: dict[str, Any],
+    command: UserUpdateInput,
+    role_account_id: str | None,
+    allowed_account_ids: list[str] | None,
+) -> None:
+    """Who may make the change (ADR 0085).
+
+    A person never changes their own role. A change of the role alone needs the
+    account whose role changes to be one the administrator manages, even when the
+    person also belongs to other accounts; every other change needs every account of
+    the person to be managed by the administrator.
+    """
+    if command.role is not None:
+        actor_user_id = str(command.actor_user_id or "").strip().casefold()
+        if actor_user_id and actor_user_id == str(user.get("id") or "").strip().casefold():
+            raise ServiceForbiddenError("You cannot change your own role")
+    role_only = command.role is not None and all(
+        value is None
+        for value in (
+            command.display_name,
+            command.password,
+            command.is_active,
+            command.must_change_password,
+            command.account_ids,
+            command.account_id,
+        )
+    )
+    if role_only and allowed_account_ids is not None:
+        account = role_account_id or str(user.get("account_id") or "").strip()
+        require_account_access([account], allowed_account_ids)
+        members_of = {str(item or "").strip() for item in user.get("account_ids") or []}
+        if account not in members_of:
+            # Not a member of the administrator's account: out of reach, as before.
+            raise ServiceForbiddenError("account access denied")
+        return
+    require_user_access(user, allowed_account_ids)
+    if role_account_id is not None:
+        require_account_access([role_account_id], allowed_account_ids)
 
 
 class UserAdminCommandService:
@@ -473,6 +517,7 @@ class UserAdminCommandService:
                 user_id=command.user_id,
                 email=command.email,
                 role=command.role,
+                role_account_id=command.role_account_id,
                 actor=command.actor,
             ),
             audit_context=audit_context,
@@ -505,7 +550,8 @@ class UserAdminCommandService:
     ) -> UserMutationResultView:
         bl = self._logger()
         user = self._resolve(bl, user_id=command.user_id, email=command.email)
-        require_user_access(user, allowed_account_ids)
+        role_account_id = str(command.role_account_id or "").strip() or None
+        _require_update_access(user, command, role_account_id, allowed_account_ids)
         if all(
             value is None
             for value in (
@@ -550,6 +596,7 @@ class UserAdminCommandService:
 
         if roles is not None:
             self._seed_default_roles(bl)
+        lifted_scope_limit: list[bool] = []
         revoked_sessions = self._repository.update_auth_user(
             bl,
             user_id=str(user["id"]),
@@ -563,6 +610,9 @@ class UserAdminCommandService:
             requested_account_ids=requested_account_ids,
             primary_account_id=primary_account_id,
             revoke_sessions=revoke_sessions,
+            on_scope_limit_lifted=lambda: lifted_scope_limit.append(True),
+            actor=resolve_audit_context(command.actor, audit_context).actor,
+            role_account_id=role_account_id,
         )
 
         username = str(user.get("username") or "")
@@ -582,11 +632,14 @@ class UserAdminCommandService:
                 "changed_display_name": command.display_name is not None,
                 "changed_password": command.password is not None,
                 "changed_roles": command.role is not None,
+                "role_account_id": role_account_id or str(user.get("account_id") or "").strip(),
                 "changed_is_active": command.is_active is not None,
                 "changed_must_change_password": command.must_change_password is not None,
                 "changed_accounts": command.account_ids is not None
                 or command.account_id is not None,
             }
+        if lifted_scope_limit:
+            detail["lifted_project_scope_limit"] = True
         self._log_auth_audit_event(
             bl,
             action=audit_action,

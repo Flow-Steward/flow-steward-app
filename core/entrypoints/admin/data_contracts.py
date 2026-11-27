@@ -1,5 +1,8 @@
 """
 Admin API routes — Data contracts CRUD for structured payload schemas.
+
+Every data contract belongs to the caller's account (ADR 0020, C4a): a contract id
+is unique within an account, and a contract of another account is answered with 404.
 """
 
 from __future__ import annotations
@@ -9,10 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.entrypoints.admin._registry_scope import (
-    request_scope,
-    require_default_registry_account,
-)
+from core.entrypoints.admin._registry_scope import registry_catalog_account, request_scope
 
 router = APIRouter(prefix="/api/data-contracts", tags=["data-contracts"])
 
@@ -89,9 +89,9 @@ class DataContractPatch(BaseModel):
     },
 )
 def list_data_contracts(request: Request, enabled_only: Annotated[bool, Query()] = False):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    return db.list_data_contracts(enabled_only=enabled_only)
+    return db.list_data_contracts(enabled_only=enabled_only, account_id=account_id)
 
 
 @router.get(
@@ -104,9 +104,9 @@ def list_data_contracts(request: Request, enabled_only: Annotated[bool, Query()]
     },
 )
 def get_data_contract(contract_id: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    row = db.get_data_contract(contract_id)
+    row = db.get_data_contract(contract_id, account_id=account_id)
     if not row:
         raise HTTPException(status_code=404, detail=f"Data contract '{contract_id}' not found")
     return row
@@ -122,16 +122,16 @@ def get_data_contract(contract_id: str, request: Request):
     },
 )
 def create_data_contract(body: DataContractSave, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    existing = db.get_data_contract(body.contract_id, include_trashed=True)
+    existing = db.get_data_contract(body.contract_id, include_trashed=True, account_id=account_id)
     if existing:
         raise HTTPException(
             status_code=409, detail=f"Data contract '{body.contract_id}' already exists"
         )
     payload = body.model_dump(by_alias=True)
     _validate_data_contract_payload(payload)
-    db.save_data_contract(payload, author=request_scope(request).actor_name)
+    db.save_data_contract(payload, author=request_scope(request).actor_name, account_id=account_id)
     return {"status": "created", "contract_id": body.contract_id}
 
 
@@ -145,12 +145,12 @@ def create_data_contract(body: DataContractSave, request: Request):
     },
 )
 def update_data_contract(contract_id: str, body: DataContractSave, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     payload = body.model_dump(by_alias=True)
     payload["contract_id"] = contract_id
     _validate_data_contract_payload(payload)
-    db.save_data_contract(payload, author=request_scope(request).actor_name)
+    db.save_data_contract(payload, author=request_scope(request).actor_name, account_id=account_id)
     return {"status": "updated", "contract_id": contract_id}
 
 
@@ -164,9 +164,9 @@ def update_data_contract(contract_id: str, body: DataContractSave, request: Requ
     },
 )
 def patch_data_contract(contract_id: str, body: DataContractPatch, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
-    existing = db.get_data_contract(contract_id)
+    existing = db.get_data_contract(contract_id, account_id=account_id)
     if not existing:
         raise HTTPException(status_code=404, detail=f"Data contract '{contract_id}' not found")
     updates = body.model_dump(exclude_none=True, by_alias=True)
@@ -174,7 +174,7 @@ def patch_data_contract(contract_id: str, body: DataContractPatch, request: Requ
     existing_payload["schema"] = existing_payload.pop("schema_json", {})
     merged = {**existing_payload, **updates, "contract_id": contract_id}
     _validate_data_contract_payload(merged)
-    db.save_data_contract(merged, author=request_scope(request).actor_name)
+    db.save_data_contract(merged, author=request_scope(request).actor_name, account_id=account_id)
     return {"status": "updated", "contract_id": contract_id}
 
 
@@ -188,10 +188,10 @@ def patch_data_contract(contract_id: str, body: DataContractPatch, request: Requ
     },
 )
 def toggle_data_contract(contract_id: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     try:
-        enabled = db.toggle_data_contract(contract_id)
+        enabled = db.toggle_data_contract(contract_id, account_id=account_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "updated", "contract_id": contract_id, "enabled": enabled}
@@ -207,10 +207,12 @@ def toggle_data_contract(contract_id: str, request: Request):
     },
 )
 def delete_data_contract(contract_id: str, request: Request):
-    require_default_registry_account(request_scope(request))
+    account_id = registry_catalog_account(request_scope(request))
     db = _get_db()
     try:
-        db.delete_data_contract(contract_id, author=request_scope(request).actor_name)
+        db.delete_data_contract(
+            contract_id, author=request_scope(request).actor_name, account_id=account_id
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"status": "deleted", "contract_id": contract_id}

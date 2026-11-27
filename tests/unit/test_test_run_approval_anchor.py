@@ -227,3 +227,38 @@ class TestTheRunPathPassesTheLoggerThrough:
 
         assert "submit_test_run(" in source
         assert "run_workflow_test_run_ephemeral" not in source
+
+
+class TestTheAnchorNamesWhoStartedTheRun:
+    def _meta(self, bl: Any) -> dict[str, Any]:
+        return bl.create_job.call_args.kwargs["meta"]
+
+    def test_a_person_who_started_the_test_run_is_its_starter(self):
+        bl = _logger()
+
+        anchor_test_run_awaiting_approval(
+            bl,
+            AWAITING,
+            project_id="project_alpha",
+            workflow_id="monthly_review",
+            task_id="task-1",
+            task_summary="Run the workflow",
+            started_by={"id": "alice", "kind": "person"},
+        )
+
+        assert self._meta(bl)["submitted_by"] == {"id": "alice", "kind": "person"}
+
+    def test_without_a_starter_the_anchor_is_named_by_its_source(self):
+        bl = _logger()
+
+        anchor_test_run_awaiting_approval(
+            bl,
+            AWAITING,
+            project_id="project_alpha",
+            workflow_id="monthly_review",
+            task_id="task-1",
+            task_summary="Run the workflow",
+            started_by={"id": " "},
+        )
+
+        assert self._meta(bl)["submitted_by"]["id"] == "automation:workflow_test_run"

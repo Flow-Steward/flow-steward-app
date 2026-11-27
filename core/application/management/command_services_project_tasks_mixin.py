@@ -96,6 +96,13 @@ class ProjectCommandServiceTasksMixin:
             job_meta = {}
         client_context = dict(command.client_context or {})
         job_meta.pop("client_context", None)
+        # Who started the run comes from the authenticated scope only (a person,
+        # a personal token's owner or a service account), never from the caller's
+        # metadata; an internal caller's run is named by its source at enqueue.
+        job_meta.pop("submitted_by", None)
+        started_by = run_started_by(resolved)
+        if started_by is not None:
+            job_meta["submitted_by"] = started_by
         if client_context:
             # Exact caller context is execution-only. Job metadata is exposed
             # through public API and UI projections, so it must never retain

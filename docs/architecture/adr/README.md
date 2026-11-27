@@ -65,7 +65,7 @@ ADR takes the next unused number; never reuse a retired number.
 | [0017](0017-schema-driven-cli-tui-stack.md) | Schema-Driven CLI and Terminal UI Stack | Accepted |
 | [0018](0018-verified-llm-routing-and-extension-boundaries.md) | Verified LLM Routing and Extension Boundaries | Accepted |
 | [0019](0019-dataset-connection-actions-in-application-layer.md) | Dataset Connection Actions Belong to the Application Layer | Accepted |
-| [0020](0020-oss-single-tenant-registry-boundary.md) | OSS Single-Tenant Registry Boundary | Accepted |
+| [0020](0020-oss-single-tenant-registry-boundary.md) | OSS Single-Tenant Registry Boundary | Superseded by 0084 |
 | [0021](0021-quality-evidence-trust-boundary.md) | Quality Evidence Trust Boundary | Accepted (amended by 0036) |
 | 0022 | Google Workspace OAuth boundary | Retired: superseded by 0023 and removed |
 | [0023](0023-extension-owned-oauth-boundary.md) | Extension-Owned OAuth Boundary | Accepted |
@@ -124,6 +124,10 @@ ADR takes the next unused number; never reuse a retired number.
 | [0079](0079-classify-only-inferred-workflow-selection.md) | Classify a task only when nobody chose its workflow | Accepted |
 | [0080](0080-in-browser-document-preview.md) | In-browser document preview | Proposed |
 | [0081](0081-notification-connection-capabilities-and-system-email-sender.md) | Per-connection notification capabilities, an explicit system email sender, and borrowed connection credentials | Proposed |
+| [0082](0082-platform-modules-and-feature-entitlements.md) | Platform modules, extension page links and feature entitlements | Proposed |
+| [0083](0083-external-sign-in.md) | External sign-in with pluggable sign-in methods | Proposed |
+| [0084](0084-multiple-accounts-in-one-installation.md) | Multiple accounts in one installation | Proposed |
+| [0085](0085-roles-per-account.md) | Roles per account | Proposed |
 
 ADR 0043 (RabbitMQ transport) and ADR 0044 (browser-local edit session) were
 first filed as second 0036 and 0039 documents and renumbered on 2026-10-26;

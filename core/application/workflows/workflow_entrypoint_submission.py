@@ -384,6 +384,7 @@ class WorkflowEntrypointSubmissionUseCase:
         staged_files: list[Any],
         request_context: dict[str, Any],
         entry_label: str = "",
+        entrypoint_id: str = "",
     ) -> WorkflowEntrypointSubmissionOutcome:
         prepared = self._prepare_submission(
             entry_key=entry_key,
@@ -433,6 +434,7 @@ class WorkflowEntrypointSubmissionUseCase:
                 idempotency_identities=ownership.identities,
                 primary_idempotency_identity=ownership.primary_identity,
                 entry_label=entry_label,
+                entrypoint_id=entrypoint_id,
             )
         except Exception as exc:
             from core.application.jobs.task_enqueue_runtime import QueueTransportUnavailableError

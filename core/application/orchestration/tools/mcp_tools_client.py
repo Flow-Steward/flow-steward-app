@@ -24,6 +24,7 @@ from mcp.client.streamable_http import streamable_http_client
 
 from core.application.auth.local_credentials import installation_requires_mfa
 from core.application.observability.workflow_telemetry import current_workflow_span
+from core.infrastructure.config.account_scope import ACCOUNT_SCOPE_MISSING_CODE
 from core.infrastructure.config.runtime_env import runtime_env as _runtime_env
 from core.infrastructure.observability import otel_instruments
 
@@ -214,13 +215,14 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
         return ""
 
     try:
-        from core.application.auth.config import AUTH_SESSION_TTL_HOURS, DEFAULT_ACCOUNT_ID
+        from core.application.auth.config import AUTH_SESSION_TTL_HOURS
         from core.application.auth.local_credentials import (
             authenticator_policy_available,
             authenticator_storage_available,
             lock_local_user,
             read_authenticator_policy,
         )
+        from core.application.auth.membership_roles import account_with_role
         from core.application.auth.mfa_service import mfa_enabled
         from core.application.auth.password import session_token_hash, verify_password
         from core.application.auth.password_policy import password_expires_in_days
@@ -249,8 +251,21 @@ def _bootstrap_fs_session_token(username: str, password: str) -> str:
         user_id = str(user.get("id") or "").strip()
         if not user_id:
             return ""
+        # The session belongs to an account where the person has a role (ADR 0085):
+        # their own account when they have one there, else another membership with a
+        # role. A person with a role nowhere is refused instead of being signed in to
+        # an empty session or the default account.
+        with bl.conn.cursor() as role_cur:
+            account_id = account_with_role(
+                role_cur, user_id, str(user.get("account_id") or "").strip()
+            )
+        if not account_id:
+            logger.warning(
+                "%s: MCP auth bootstrap refused for a user without a role in any account",
+                ACCOUNT_SCOPE_MISSING_CODE,
+            )
+            return ""
         session_token = secrets.token_urlsafe(48)
-        account_id = str(user.get("account_id") or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
         session_has_account_id = False
         with suppress(Exception):
             session_has_account_id = bool(bl._column_exists("auth_sessions", "account_id"))

@@ -258,3 +258,86 @@ def test_public_readiness_lets_a_release_upgrade_wait_for_its_own_journal(
     )
 
     assert _expected_lifecycle_mutation_only(client.get("/health/ready").json()) is expected
+
+
+_MODULE_FAILURE = {
+    "id": "acme.notes",
+    "version": "1.0.0",
+    "status": "failed",
+    "load_error": "AttributeError: 'RuntimeContainer' object has no attribute 'missing_port'",
+}
+
+
+def test_public_readiness_stays_up_and_reports_only_a_count_of_failed_modules(monkeypatch):
+    health, client = _import_health_module()
+    client.app.state.platform_module_failures = [dict(_MODULE_FAILURE)]
+    monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
+    monkeypatch.setattr(
+        health.deps,
+        "compute_readiness",
+        lambda _bl: {"ready": True, "checks": {"postgres": {"ok": True}}},
+    )
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["status"] == "ready"
+    assert body["checks"] == {"postgres": {"ok": True}}
+    assert body["degraded"] is True
+    assert body["platform_modules"] == {"degraded": True, "failed_count": 1}
+    # The public probe never names a module or its error.
+    assert "acme.notes" not in response.text
+    assert "missing_port" not in response.text
+
+
+def test_public_readiness_is_not_degraded_when_every_module_loaded(monkeypatch):
+    health, client = _import_health_module()
+    client.app.state.platform_module_failures = []
+    monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
+    monkeypatch.setattr(
+        health.deps,
+        "compute_readiness",
+        lambda _bl: {"ready": True, "checks": {"postgres": {"ok": True}}},
+    )
+
+    body = client.get("/health/ready").json()
+
+    assert "degraded" not in body
+    assert "platform_modules" not in body
+
+
+def test_deep_readiness_names_each_failed_module_for_operators(monkeypatch):
+    health, client = _import_health_module()
+    client.app.state.platform_module_failures = [dict(_MODULE_FAILURE)]
+    monkeypatch.setattr(health, "_operations_request_authorized", lambda _request: True)
+    monkeypatch.setattr(health.deps, "get_logger_only", lambda: object())
+    monkeypatch.setattr(health.deps, "env_flag", lambda _name, default: default)
+    monkeypatch.setattr(health.deps, "local_auth_enabled", lambda: False)
+    monkeypatch.setattr(health.deps, "external_auth_enabled", lambda: False)
+    monkeypatch.setattr(health.HealthCountsQueryService, "get_counts", lambda _self, _bl: {})
+    monkeypatch.setattr(
+        health.deps,
+        "compute_readiness",
+        lambda _bl: {"ready": True, "checks": {"postgres": {"ok": True}}},
+    )
+
+    response = client.get("/health/deep")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ready"] is True
+    assert body["degraded"] is True
+    modules = body["platform_modules"]
+    assert modules["status"] == "degraded"
+    assert modules["failed_modules"] == [
+        {
+            "id": "acme.notes",
+            "version": "1.0.0",
+            "load_error": _MODULE_FAILURE["load_error"],
+        }
+    ]
+    assert modules["error"] == (
+        "acme.notes 1.0.0: Failed to load: " + _MODULE_FAILURE["load_error"]
+    )

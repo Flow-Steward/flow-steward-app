@@ -3,6 +3,7 @@ import { useFilterSearchParams } from "@/lib/filters/use-filter-search-params";
 import {
   ROLE_OPTIONS,
   isUserAuthenticatorAction,
+  roleLabel,
   userAuthenticatorActionLabel,
   userLabel,
   type ConfirmAction,
@@ -10,6 +11,11 @@ import {
   type EditorState,
 } from "./user-form-model";
 import { UserEditorDialog, TemporaryPasswordDialog, ConfirmUserActionDialog } from "./user-dialogs";
+import { AddExistingPersonDialog } from "./add-existing-person-dialog";
+import { PendingInvitations } from "./pending-invitations";
+import { OneTimeTokenSecret } from "@/pages/settings/shared/one-time-token-secret";
+import { projectAccessLabel, useProjectAccessColumn } from "./user-project-access-model";
+import type { ProjectAccessGrants } from "./user-project-access-api";
 import { useI18n } from "@/lib/i18n/useI18n";
 import {
   useState,
@@ -28,6 +34,8 @@ import {
   deleteUser,
   fetchUsersCollection,
   forceResetUser,
+  removeAccountMember,
+  SENT_INVITATIONS_QUERY_KEY,
   setTemporaryUserPassword,
   unlockUser,
   updateUser,
@@ -107,6 +115,7 @@ function UserInventoryRow({
   onEdit,
   onImmediateAction,
   onPassword,
+  projectAccess,
   rowMenu,
   setRowMenu,
   user,
@@ -120,6 +129,8 @@ function UserInventoryRow({
   rowMenu: UserRecord | null;
   setRowMenu: Dispatch<SetStateAction<UserRecord | null>>;
   user: UserRecord;
+  /** Present only while the account holds the scoped roles feature. */
+  projectAccess?: { data: ProjectAccessGrants | undefined };
 }>) {
   const { t } = useI18n();
   const statusLabel = userStatusLabel(user, busyUserId, t);
@@ -143,13 +154,16 @@ function UserInventoryRow({
       </td>
       <td>
         <span className="fs-badge-row">
-          {user.roles.map((role) => (
+          {user.roles.length ? user.roles.map((role) => (
             <span className="fs-badge" key={role}>
-              {role}
+              {roleLabel(role, t)}
             </span>
-          ))}
+          )) : (
+            <span className="fs-badge">{t("react.settings.no_role_here", "No role here")}</span>
+          )}
         </span>
       </td>
+      {projectAccess ? <td data-testid="user-project-access-cell">{projectAccessLabel(user, projectAccess.data, t)}</td> : null}
       <td>{user.must_change_password ? t("react.settings.change_required", "Change required") : t("monitoring.table.current", "Current")}</td>
       <td className="fs-table-action-cell">
         <RowActionMenu
@@ -213,6 +227,15 @@ function UserInventoryRow({
               >
                 {t("react.settings.activate_user", "Activate user")} </button>
             )}
+            {user.id !== authUserId ? (
+              <button
+                className="danger"
+                onClick={() => onConfirmAction("remove", user)}
+                role="menuitem"
+                type="button"
+              >
+                {t("react.settings.remove_from_this_company", "Remove from this company")} </button>
+            ) : null}
             {user.id !== authUserId ? (
               <button
                 className="danger"
@@ -312,6 +335,8 @@ function UsersInventory({
   users: UserRecord[];
 }>) {
   const { t } = useI18n();
+  // ADR 0076 §8: who is limited to chosen projects, while the account holds the feature.
+  const projectAccess = useProjectAccessColumn();
   return (
     <article className="fs-card fs-table-card">
       <div className="fs-table-toolbar">
@@ -369,7 +394,8 @@ function UsersInventory({
         >
           <thead>
             <tr>
-              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.role", "Role")}</th>
+              <th>{t("trash.type.user", "User")}</th><th>{t("account_settings.card.status", "Status")}</th><th>{t("react.settings.role_here", "Role here")}</th>
+              {projectAccess.enabled ? <th>{t("react.settings.project_access", "Project access")}</th> : null}
               <th>{t("auth.common.password", "Password")}</th><th aria-label={t("monitoring.table.actions", "Actions")} />
             </tr>
           </thead>
@@ -383,6 +409,7 @@ function UsersInventory({
                 onEdit={onEdit}
                 onImmediateAction={onImmediateAction}
                 onPassword={onPassword}
+                projectAccess={projectAccess.enabled ? projectAccess : undefined}
                 rowMenu={rowMenu}
                 setRowMenu={setRowMenu}
                 user={user}
@@ -445,6 +472,9 @@ export function SettingsUsersPage() {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [feedback, setFeedback] = useState<{ tone: "success" | "danger"; message: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState("");
+  const [addingExisting, setAddingExisting] = useState(false);
+  // ADR 0085: without system email, the link of a new invitation is shown here once.
+  const [invitationLink, setInvitationLink] = useState("");
 
   function openAdd() { setEditorMode("add"); setEditingUser(null); setEditor({ ...EMPTY_EDITOR }); setEditorError(""); setFeedback(null); }
   function openEdit(user: UserRecord) { setEditorMode("edit"); setEditingUser(user); setEditor(editorForUser(user)); setEditorError(""); setFeedback(null); setRowMenu(null); }
@@ -461,8 +491,10 @@ export function SettingsUsersPage() {
     }
     setSaving(true); setEditorError("");
     try {
-      const message = await persistUserEditor(editorMode, editor, editingUser, t);
+      const { message, invitationLink: link } = await persistUserEditor(editorMode, editor, editingUser, t);
       setFeedback({ tone: "success", message });
+      setInvitationLink(link);
+      if (link) ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: SENT_INVITATIONS_QUERY_KEY }));
       setEditorMode("closed"); setEditingUser(null); await refreshUsers();
     } catch (error) { setEditorError(error instanceof Error ? error.message : t("react.settings.the_user_update_was_not_saved", "The user update was not saved.")); }
     finally { setSaving(false); }
@@ -516,6 +548,9 @@ export function SettingsUsersPage() {
       } else if (kind === "reset-password") {
         await forceResetUser(user.id);
         message = t("react.settings.value1_must_reset_their_password_other_sessions_were_revoked", "{value1} must reset their password. Other sessions were revoked.", { value1 });
+      } else if (kind === "remove") {
+        await removeAccountMember(user.id);
+        message = t("react.settings.value1_was_removed_from_this_company", "{value1} was removed from this company.", { value1 });
       } else if (kind === "delete") {
         await deleteUser(user.id);
         message = t("react.settings.value1_was_deleted", "{value1} was deleted.", { value1 });
@@ -561,13 +596,26 @@ export function SettingsUsersPage() {
     <PageContainer className="fs-page-sections" width="wide">
       <DsPageHeader
         action={
-          <button className="fs-button primary" onClick={openAdd} type="button">
-            {t("react.settings.add_user", "Add user")} </button>
+          <>
+            <button className="fs-button" onClick={() => { setAddingExisting(true); setFeedback(null); }} type="button">
+              {t("react.settings.add_an_existing_person", "Add an existing person")} </button>
+            <button className="fs-button primary" onClick={openAdd} type="button">
+              {t("react.settings.add_user", "Add user")} </button>
+          </>
         }
         description={t("react.settings.manage_who_can_access_flow_steward_their_roles_and_how_they_sign_in", "Manage who can access Flow Steward, their roles and how they sign in.")}
         title={t("react.settings.users_access", "Users & access")}
       />
       <UsersFeedback feedback={feedback} />
+      <OneTimeTokenSecret
+        copiedMessage={t("react.settings.invitation_link_copied", "Invitation link copied.")}
+        copyLabel={t("react.settings.copy_invitation_link", "Copy invitation link")}
+        label={t("react.settings.invitation_link", "Invitation link")}
+        notice={t("react.settings.invitation_link_shown_once", "Email is not set up, so send this link to the person yourself. It is shown only now and works once.")}
+        onHide={() => setInvitationLink("")}
+        secret={invitationLink}
+        title={t("react.settings.invitation_link", "Invitation link")}
+      />
       <UsersInventory
         authUserId={auth.session?.user?.id}
         busyUserId={busyUserId}
@@ -587,6 +635,12 @@ export function SettingsUsersPage() {
         total={total}
         updateFilters={updateFilters}
         users={users}
+      />
+      <PendingInvitations
+        onCancelled={(invitation) =>
+          setFeedback({ tone: "success", message: t("react.settings.invitation_to_value1_was_cancelled", "The invitation to {value1} was cancelled.", { value1: invitation.email }) })
+        }
+        onError={(message) => setFeedback({ tone: "danger", message })}
       />
       <UserEditorDialog
         authUserId={auth.session?.user?.id}
@@ -608,6 +662,21 @@ export function SettingsUsersPage() {
         setTemporaryRequireChange={setTemporaryRequireChange}
         temporaryPassword={temporaryPassword}
         temporaryRequireChange={temporaryRequireChange}
+      />
+      <AddExistingPersonDialog
+        onAdded={(person) => {
+          setAddingExisting(false);
+          setFeedback({ tone: "success", message: t("react.settings.value1_was_added_to_this_company", "{value1} was added to this company.", { value1: person.display_name || person.email }) });
+          ignoreAsyncResult(refreshUsers());
+        }}
+        onClose={() => setAddingExisting(false)}
+        onInvited={(message, link) => {
+          setAddingExisting(false);
+          setFeedback({ tone: "success", message });
+          setInvitationLink(link);
+          ignoreAsyncResult(queryClient.invalidateQueries({ queryKey: SENT_INVITATIONS_QUERY_KEY }));
+        }}
+        open={addingExisting}
       />
       <ConfirmUserActionDialog
         confirmAction={confirmAction}

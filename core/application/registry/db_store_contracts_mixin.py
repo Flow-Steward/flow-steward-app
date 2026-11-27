@@ -124,9 +124,15 @@ class RegistryDBStoreContractsMixin:
             )
             return cur.fetchone() is not None
 
-    def get_data_contract(self, contract_id: str, include_trashed: bool = False) -> dict | None:
-        clauses = ["contract_id = %s"]
-        params: list[Any] = [contract_id]
+    def get_data_contract(
+        self,
+        contract_id: str,
+        include_trashed: bool = False,
+        *,
+        account_id: str | None = None,
+    ) -> dict | None:
+        clauses = ["account_id = %s", "contract_id = %s"]
+        params: list[Any] = [registry_catalog_owner(account_id), contract_id]
         if not include_trashed and self._column_exists("registry_data_contracts", "deleted_at"):
             clauses.append(SQL_DELETED_AT_IS_NULL)
         where_sql = SQL_AND.join(clauses)
@@ -144,34 +150,45 @@ class RegistryDBStoreContractsMixin:
         *,
         ensure_projection: bool = True,
         include_trashed: bool = False,
+        account_id: str | None = None,
     ) -> list[dict]:
         if ensure_projection:
             self._ensure_public_contract_projection()
-        clauses: list[str] = []
+        clauses: list[str] = ["account_id = %s"]
         if enabled_only:
             clauses.append(SQL_ENABLED_TRUE)
         if not include_trashed and self._column_exists("registry_data_contracts", "deleted_at"):
             clauses.append(SQL_DELETED_AT_IS_NULL)
-        where_sql = f"WHERE {SQL_AND.join(clauses)}" if clauses else ""
+        where_sql = f"WHERE {SQL_AND.join(clauses)}"
         with self._cursor() as cur:
-            cur.execute(f"SELECT * FROM registry_data_contracts {where_sql} ORDER BY contract_id")
+            cur.execute(
+                f"SELECT * FROM registry_data_contracts {where_sql} ORDER BY contract_id",
+                (registry_catalog_owner(account_id),),
+            )
             return [dict(r) for r in cur.fetchall()]
 
     def save_data_contract(
-        self, data: dict, author: str = "admin", *, create_only: bool = False
+        self,
+        data: dict,
+        author: str = "admin",
+        *,
+        create_only: bool = False,
+        account_id: str | None = None,
     ) -> None:
         """Upsert a contract; *create_only* inserts it or raises, never touching an existing row."""
         contract_id = str(data.get("contract_id") or "").strip()
         if not contract_id:
             raise ValueError("contract_id is required")
-        is_new = not self._exists("registry_data_contracts", "contract_id", contract_id)
-        existing = self.get_data_contract(contract_id) if not is_new else {}
+        owner = registry_catalog_owner(account_id)
+        is_new = self.get_data_contract(contract_id, include_trashed=True, account_id=owner) is None
+        existing = self.get_data_contract(contract_id, account_id=owner) if not is_new else {}
         existing_map: dict[str, Any] = existing if isinstance(existing, dict) else {}
         schema = data["schema"] if "schema" in data else data.get("schema_json", {})
         if schema is None:
             schema = {}
         last_sync_error = data.get("last_sync_error", existing_map.get("last_sync_error"))
         snapshot = {
+            "account_id": owner,
             "contract_id": contract_id,
             "version": data.get("version", "1.0.0"),
             "display_name": data.get("display_name", contract_id),
@@ -223,24 +240,24 @@ class RegistryDBStoreContractsMixin:
                 # Claim the id first: a taken id, even one in Trash, fails here
                 # instead of being overwritten by the upsert below.
                 cur.execute(
-                    """INSERT INTO registry_data_contracts (contract_id, display_name)
-                       VALUES (%s, %s)
-                       ON CONFLICT (contract_id) DO NOTHING RETURNING contract_id""",
-                    (contract_id, snapshot["display_name"]),
+                    """INSERT INTO registry_data_contracts (account_id, contract_id, display_name)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (account_id, contract_id) DO NOTHING RETURNING contract_id""",
+                    (owner, contract_id, snapshot["display_name"]),
                 )
                 if cur.fetchone() is None:
                     raise RegistryCreateConflictError("data_contract", contract_id)
                 is_new = True
             cur.execute(
                 """INSERT INTO registry_data_contracts
-                   (contract_id, version, display_name, description, kind, schema_json, enabled, tags,
+                   (account_id, contract_id, version, display_name, description, kind, schema_json, enabled, tags,
                     projection_mode, derived_from_kind, derived_from_ref, derived_hash,
                     sync_status, last_synced_at, last_sync_error)
-                   VALUES (%(contract_id)s, %(version)s, %(display_name)s, %(description)s,
+                   VALUES (%(account_id)s, %(contract_id)s, %(version)s, %(display_name)s, %(description)s,
                            %(kind)s, %(schema_json)s, %(enabled)s, %(tags)s,
                            %(projection_mode)s, %(derived_from_kind)s, %(derived_from_ref)s, %(derived_hash)s,
                            %(sync_status)s, %(last_synced_at)s, %(last_sync_error)s)
-                   ON CONFLICT (contract_id) DO UPDATE SET
+                   ON CONFLICT (account_id, contract_id) DO UPDATE SET
                        version = EXCLUDED.version,
                        display_name = EXCLUDED.display_name,
                        description = EXCLUDED.description,
@@ -267,29 +284,36 @@ class RegistryDBStoreContractsMixin:
                 "create" if is_new else "update",
                 snapshot,
                 author,
+                owner_account_id=owner,
             )
 
-    def toggle_data_contract(self, contract_id: str) -> bool:
+    def toggle_data_contract(self, contract_id: str, *, account_id: str | None = None) -> bool:
+        owner = registry_catalog_owner(account_id)
         has_deleted_at = self._column_exists("registry_data_contracts", "deleted_at")
         with self._cursor() as cur:
             if has_deleted_at:
                 cur.execute(
                     "UPDATE registry_data_contracts SET enabled = NOT enabled "
-                    "WHERE contract_id = %s AND deleted_at IS NULL RETURNING enabled",
-                    (contract_id,),
+                    "WHERE account_id = %s AND contract_id = %s AND deleted_at IS NULL "
+                    "RETURNING enabled",
+                    (owner, contract_id),
                 )
             else:
                 cur.execute(
-                    "UPDATE registry_data_contracts SET enabled = NOT enabled WHERE contract_id = %s RETURNING enabled",
-                    (contract_id,),
+                    "UPDATE registry_data_contracts SET enabled = NOT enabled "
+                    "WHERE account_id = %s AND contract_id = %s RETURNING enabled",
+                    (owner, contract_id),
                 )
             row = cur.fetchone()
             if not row:
                 raise KeyError(f"Data contract '{contract_id}' not found")
             return bool(row["enabled"])
 
-    def delete_data_contract(self, contract_id: str, author: str = "admin") -> None:
-        snapshot = self.get_data_contract(contract_id)
+    def delete_data_contract(
+        self, contract_id: str, author: str = "admin", *, account_id: str | None = None
+    ) -> None:
+        owner = registry_catalog_owner(account_id)
+        snapshot = self.get_data_contract(contract_id, account_id=owner)
         if not snapshot:
             raise KeyError(f"Data contract '{contract_id}' not found")
         has_deleted_at = self._column_exists("registry_data_contracts", "deleted_at")
@@ -298,20 +322,29 @@ class RegistryDBStoreContractsMixin:
             if has_deleted_at and has_deleted_by:
                 cur.execute(
                     "UPDATE registry_data_contracts SET deleted_at = NOW(), deleted_by = %s "
-                    "WHERE contract_id = %s AND deleted_at IS NULL",
-                    (author, contract_id),
+                    "WHERE account_id = %s AND contract_id = %s AND deleted_at IS NULL",
+                    (author, owner, contract_id),
                 )
             elif has_deleted_at:
                 cur.execute(
                     "UPDATE registry_data_contracts SET deleted_at = NOW() "
-                    "WHERE contract_id = %s AND deleted_at IS NULL",
-                    (contract_id,),
+                    "WHERE account_id = %s AND contract_id = %s AND deleted_at IS NULL",
+                    (owner, contract_id),
                 )
             else:
                 cur.execute(
-                    "DELETE FROM registry_data_contracts WHERE contract_id = %s", (contract_id,)
+                    "DELETE FROM registry_data_contracts WHERE account_id = %s AND contract_id = %s",
+                    (owner, contract_id),
                 )
-            self._log_change_cur(cur, "data_contract", contract_id, "delete", snapshot, author)
+            self._log_change_cur(
+                cur,
+                "data_contract",
+                contract_id,
+                "delete",
+                snapshot,
+                author,
+                owner_account_id=owner,
+            )
 
     @staticmethod
     def _normalize_workspace_row(row: dict | None) -> dict | None:

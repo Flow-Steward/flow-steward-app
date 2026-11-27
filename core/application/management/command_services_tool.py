@@ -2,6 +2,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from core.application.auth.installation_admin import is_installation_admin
 from core.application.registry.active_workflow_dependencies import (
     enabled_workflow_dependencies,
 )
@@ -466,7 +467,9 @@ class ToolCommandService:
                 entry_id=str(command.entry_id),
                 author=author,
                 validate_restored=_validate_restored,
-                account_id=str(current.get("account_id") or resolved.account_id),
+                # The caller's account; the restore keeps the live row's owner.
+                account_id=resolved.account_id,
+                installation_admin=is_installation_admin(resolved),
             )
         except Exception as exc:
             if restore_validation_error_cls is not None and isinstance(

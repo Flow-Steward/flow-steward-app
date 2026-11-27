@@ -1,6 +1,6 @@
 /** Single and multi-value comboboxes of the design system. */
 import { useI18n } from "@/lib/i18n/useI18n";
-import { Check, Search, X } from "lucide-react";
+import { Check, Search, User, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -152,6 +152,7 @@ export function MultiCombobox({
   required,
   loading,
   loadingLabel,
+  selectionLayout = "chips",
 }: Readonly<{
   ariaLabel: string;
   options: DsOption[];
@@ -160,6 +161,13 @@ export function MultiCombobox({
   placeholder: string;
   disabled?: boolean;
   required?: boolean;
+  /**
+   * Where chosen values show. "chips" (default) puts them in the field. "list"
+   * keeps the field for search only, always empty with its placeholder, and
+   * lists the chosen values under it as a Selected list (icon, label, its
+   * description, a remove X), so a long choice never crowds out the search.
+   */
+  selectionLayout?: "chips" | "list";
 } & ComboboxLoadingProps>) {
   const { t } = useI18n();
   const { busy, loaderShown } = useComboboxLoading(loading);
@@ -170,6 +178,9 @@ export function MultiCombobox({
   const fieldRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Set while remove() hands focus back to the search in list layout, so that
+  // focus does not open the menu over the Selected list.
+  const focusWithoutMenuRef = useRef(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -191,14 +202,28 @@ export function MultiCombobox({
     // The loading row adds or removes a row without changing the option count.
     remeasureKey: `${filtered.length}:${loaderShown}`,
   });
+  const listLayout = selectionLayout === "list";
   function toggle(value: string) {
     onChange(selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value]);
   }
+  function remove(value: string) {
+    onChange(selected.filter((item) => item !== value));
+    const input = inputRef.current;
+    if (listLayout) {
+      // The menu opens over the Selected list: left open, the next click on
+      // another row's X would land on an option and toggle someone else.
+      setOpen(false);
+      setActiveIndex(-1);
+      if (input && document.activeElement !== input) focusWithoutMenuRef.current = true;
+    }
+    input?.focus();
+  }
+  const removeLabel = (option: DsOption) => t("react.shared.remove_value1", "Remove {value1}", { value1: String(option.label) });
   return (
-    <div className="fs-multi" data-has-query={query.length > 0 ? "true" : "false"} data-has-selection={selectedOptions.length > 0 ? "true" : "false"} ref={rootRef}>
+    <div className="fs-multi" data-has-query={query.length > 0 ? "true" : "false"} data-has-selection={selectedOptions.length > 0 ? "true" : "false"} data-selection-layout={selectionLayout} ref={rootRef}>
       <div className="fs-multi-field" ref={fieldRef}>
         <Search className="fs-multi-search" aria-hidden="true" />
-        {selectedOptions.length ? <span className="fs-multi-summary">{selectedOptions.map((option) => <span className="fs-multi-chip" key={option.value}><span className="fs-multi-chip-label">{option.label}</span><button aria-label={t("react.shared.remove_value1", "Remove {value1}", { value1: String(option.label) })} className="fs-multi-chip-remove" onClick={() => { onChange(selected.filter((value) => value !== option.value)); inputRef.current?.focus(); }} type="button"><X aria-hidden="true" /></button></span>)}</span> : null}
+        {!listLayout && selectedOptions.length ? <span className="fs-multi-summary">{selectedOptions.map((option) => <span className="fs-multi-chip" key={option.value}><span className="fs-multi-chip-label">{option.label}</span><button aria-label={removeLabel(option)} className="fs-multi-chip-remove" onClick={() => remove(option.value)} type="button"><X aria-hidden="true" /></button></span>)}</span> : null}
         <input
           aria-autocomplete="list"
           aria-activedescendant={normalizedActiveIndex >= 0 ? `${listboxId}-option-${normalizedActiveIndex}` : undefined}
@@ -208,7 +233,11 @@ export function MultiCombobox({
           aria-required={required}
           disabled={disabled}
           onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(-1); }}
-          onFocus={() => { setOpen(true); setActiveIndex(-1); }}
+          onFocus={() => {
+            setActiveIndex(-1);
+            if (focusWithoutMenuRef.current) { focusWithoutMenuRef.current = false; return; }
+            setOpen(true);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Escape") { event.preventDefault(); setOpen(false); setActiveIndex(-1); }
             else if (event.key === "ArrowDown") { event.preventDefault(); moveActive(normalizedActiveIndex + 1); }
@@ -216,16 +245,32 @@ export function MultiCombobox({
             else if (event.key === "Home" && open) { event.preventDefault(); moveActive(0); }
             else if (event.key === "End" && open) { event.preventDefault(); moveActive(filtered.length - 1); }
             else if (event.key === "Enter" && open && normalizedActiveIndex >= 0 && filtered[normalizedActiveIndex]) { event.preventDefault(); toggle(filtered[normalizedActiveIndex].value); }
-            else if (event.key === "Backspace" && !query && selected.length) onChange(selected.slice(0, -1));
+            // In list layout the chosen values sit outside the field, so an
+            // empty Backspace must not silently drop the last one.
+            else if (event.key === "Backspace" && !listLayout && !query && selected.length) onChange(selected.slice(0, -1));
           }}
-          placeholder={selectedOptions.length ? "" : placeholder}
+          placeholder={listLayout || !selectedOptions.length ? placeholder : ""}
           ref={inputRef}
           role="combobox"
           value={query}
         />
         {/* Chosen values stay visible while options load; Clear does not. */}
-        {selected.length && !loaderShown ? <button aria-label={t("react.shared.clear_value1", "Clear {value1}", { value1: String(ariaLabel.toLowerCase()) })} className="fs-icon-button" onClick={() => { onChange([]); setQuery(""); setActiveIndex(-1); inputRef.current?.focus(); }} type="button"><X aria-hidden="true" /></button> : null}
+        {!listLayout && selected.length && !loaderShown ? <button aria-label={t("react.shared.clear_value1", "Clear {value1}", { value1: String(ariaLabel.toLowerCase()) })} className="fs-icon-button" onClick={() => { onChange([]); setQuery(""); setActiveIndex(-1); inputRef.current?.focus(); }} type="button"><X aria-hidden="true" /></button> : null}
       </div>
+      {listLayout && selectedOptions.length ? (
+        <ul aria-label={ariaLabel} className="fs-selected-list">
+          {selectedOptions.map((option) => (
+            <li className="fs-selected-row" key={option.value}>
+              <User aria-hidden="true" className="fs-selected-row-icon" />
+              <span className="fs-selected-row-text" title={option.description ? `${option.label} · ${option.description}` : option.label}>
+                <span className="fs-selected-row-label">{option.label}</span>
+                {option.description ? <span className="fs-selected-row-description">{option.description}</span> : null}
+              </span>
+              <button aria-label={removeLabel(option)} className="fs-multi-chip-remove" disabled={disabled} onClick={() => remove(option.value)} type="button"><X aria-hidden="true" /></button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {menuOpen ? createPortal(
         <div className="fs-settings-portal fs-multi-menu fs-multi-menu-layer" id={listboxId} ref={menuRef} role="listbox" aria-busy={busy || undefined} aria-label={t("react.shared.value1_options", "{value1} options", { value1: String(ariaLabel) })} aria-multiselectable="true" style={menuPosition}>
           {loaderShown ? <ComboboxLoadingRow label={loadingLabel ?? ""} /> : null}

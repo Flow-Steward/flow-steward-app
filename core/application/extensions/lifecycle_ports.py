@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.auth.installation_admin import acts_in_installation_account
 from core.application.auth.principal import principal_type_has_minimum_role
 from core.application.extensions.json_schema_subset import (
     validate_json_schema_value as _validate_json_schema_value,
@@ -50,14 +50,23 @@ def require_role(scope: ScopeContext, minimum_role: str) -> None:
     raise ServiceForbiddenError(f"{required.title()} role required")
 
 
-def require_global_extension_lifecycle_scope(scope: ScopeContext) -> None:
-    require_role(scope, "admin")
-    account_id = str(scope.account_id or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID
-    if account_id != DEFAULT_ACCOUNT_ID:
+def require_installation_extension_scope(scope: ScopeContext | None) -> None:
+    """Refuse an extension lifecycle change made from an account other than the installation's.
+
+    Extension installs and the managed extensions root are installation-wide
+    (``core.application.auth.installation_admin``).
+    """
+    if not acts_in_installation_account(normalize_scope(scope)):
         raise ServiceValidationError(
             "Extension install/uninstall is deployment-scoped and is only supported "
             "for the default account"
         )
+
+
+def require_global_extension_lifecycle_scope(scope: ScopeContext) -> None:
+    """Extension installs are installation-wide: only an installation administrator."""
+    require_role(scope, "admin")
+    require_installation_extension_scope(scope)
 
 
 def require_project_access(scope: ScopeContext, project: dict[str, Any]) -> None:
@@ -212,6 +221,7 @@ __all__ = [
     "ExtensionCommandServicePort",
     "ExtensionQueryServicePort",
     "require_global_extension_lifecycle_scope",
+    "require_installation_extension_scope",
     "require_project_access",
     "require_role",
     "service_scope",

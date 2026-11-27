@@ -1641,6 +1641,8 @@ run_compact_platform_command() {
   compact_baseline=""
   compact_output=""
   compact_label=""
+  compact_modules=""
+  compact_restore_previous=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --json) compact_json=1 ;;
@@ -1664,6 +1666,14 @@ run_compact_platform_command() {
       --no-skip-db-backup) compact_skip_db_backup=0 ;;
       --maintenance-confirmed) compact_maintenance_confirmed=1 ;;
       --allow-unlabeled-sessions) compact_allow_unlabeled_sessions=1 ;;
+      --restore-previous) compact_restore_previous=1 ;;
+      --no-restore-previous) compact_restore_previous=0 ;;
+      --modules)
+        [ "$#" -ge 2 ] || fail "$1 requires a value." 2
+        compact_modules=$2
+        shift
+        ;;
+      --modules=*) compact_modules=${1#--modules=} ;;
       --author|--target-version|--timeout-seconds|--operation-id)
         [ "$#" -ge 2 ] || fail "$1 requires a value." 2
         case "$1" in
@@ -1720,6 +1730,8 @@ run_compact_platform_command() {
     2:release:info) compact_operation=release-info ;;
     2:release:check) compact_operation=release-check ;;
     2:release:upgrade) compact_operation=release-upgrade ;;
+    2:release:modules-list) compact_operation=release-modules-list ;;
+    2:release:modules-apply) compact_operation=release-modules-apply ;;
     2:database:status) compact_operation=database-status ;;
     2:database:preflight) compact_operation=database-preflight ;;
     2:database:upgrade) compact_operation=database-upgrade ;;
@@ -1794,6 +1806,12 @@ run_compact_platform_command() {
   fi
   if [ -n "$compact_timeout_seconds" ]; then
     set -- "$@" --timeout-seconds "$compact_timeout_seconds"
+  fi
+  if [ -n "$compact_modules" ]; then
+    set -- "$@" --modules "$compact_modules"
+  fi
+  if [ "$compact_restore_previous" -eq 1 ]; then
+    set -- "$@" --restore-previous
   fi
   if [ "$compact_dry_run" -eq 1 ]; then
     set -- "$@" --dry-run
@@ -1929,7 +1947,7 @@ Platform commands:
   proxy-fragment
   config show|set|validate|apply (host management only)
   maintenance status|enable|disable
-  release info|check|upgrade
+  release info|check|upgrade|modules-list|modules-apply
   database status|upgrade|restore-parity-capture|restore-parity-verify
   backup create|list|verify
   clone create|restore
@@ -1980,6 +1998,35 @@ Options:
   -h, --help               Show this message and exit.
 EOF
       ;;
+    modules-apply)
+      cat <<'EOF'
+Usage: flow-steward release modules-apply [OPTIONS]
+
+Activate staged platform modules on the installed release, including maintenance,
+backup, migrations, role restart and health checks.
+
+Options:
+  --modules ID@VERSION,...  Name exact staged versions (default: highest staged).
+  --restore-previous        Activate the previous set of an unfinished module change.
+  --confirm                 Confirm the reviewed module change.
+  --json                    Emit one JSON document.
+  --plain                   Print without colour or animation.
+  --non-interactive         Never prompt for input.
+  -h, --help                Show this message and exit.
+EOF
+      ;;
+    modules-list)
+      cat <<'EOF'
+Usage: flow-steward release modules-list [OPTIONS]
+
+Show the active platform modules and every staged module version.
+
+Options:
+  --json             Emit one JSON document.
+  --plain            Print without colour or animation.
+  -h, --help         Show this message and exit.
+EOF
+      ;;
     info|check)
       cat <<EOF
 Usage: flow-steward release ${1} [OPTIONS]
@@ -2000,6 +2047,8 @@ Commands:
   release info
   release check
   release upgrade
+  release modules-list
+  release modules-apply
 
 Run `flow-steward release COMMAND --help` for command options.
 EOF

@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from typing import Any
 
+from core.application.registry.workflow_account import workflow_owner
+
 
 class WorkflowActivationValidationError(ValueError):
     def __init__(self, validation: dict[str, Any]) -> None:
@@ -21,8 +23,8 @@ def toggle_workflow_enabled(
     with db._transaction() as cursor:
         cursor.execute(
             "SELECT revision FROM registry_workflows "
-            "WHERE workflow_id = %s AND deleted_at IS NULL FOR UPDATE",
-            (workflow_id,),
+            "WHERE workflow_id = %s AND account_id = %s AND deleted_at IS NULL FOR UPDATE",
+            (workflow_id, workflow_owner()),
         )
         if cursor.fetchone() is None:
             raise KeyError(workflow_id)

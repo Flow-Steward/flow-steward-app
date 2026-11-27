@@ -486,7 +486,11 @@ def test_cancel_and_acknowledge_record_the_signed_in_user_not_a_placeholder():
 
     @client.app.middleware("http")
     async def _signed_in(request, call_next):
-        request.state.auth_user = {"username": "admin@example.test", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin@example.test",
+            "roles": ["admin"],
+        }
         return await call_next(request)
 
     client.post("/api/jobs/7/cancel", json={"comment": "Stop it"})

@@ -183,6 +183,7 @@ def _canonical_column_rows() -> list[tuple[str, str, str, bool, str | None]]:
             True,
             "now()",
         ),
+        ("user_account_memberships", "role_id", "uuid", False, None),
     ]
 
 
@@ -213,6 +214,14 @@ def _canonical_constraint_rows() -> list[tuple[str, str, str, bool, bool, bool]]
             False,
             True,
         ),
+        (
+            "user_account_memberships_role_id_fkey",
+            "f",
+            "FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL",
+            False,
+            False,
+            True,
+        ),
     ]
 
 
@@ -237,6 +246,15 @@ def _canonical_index_rows() -> list[tuple[Any, ...]]:
             2,
             2,
             ("account_id", "user_id"),
+            None,
+        ),
+        (
+            "idx_user_account_memberships_role",
+            "user_account_memberships",
+            *common,
+            2,
+            2,
+            ("account_id", "role_id"),
             None,
         ),
         (
@@ -316,6 +334,18 @@ def _canonical_runtime_index_rows() -> list[tuple[str, str]]:
         (
             "idx_mcp_connector_oauth_states_expiry",
             "CREATE INDEX idx_mcp_connector_oauth_states_expiry ON public.mcp_connector_oauth_states USING btree (expires_at) WHERE (consumed_at IS NULL)",
+        ),
+        (
+            "external_identities_account_issuer_subject_key",
+            "CREATE UNIQUE INDEX external_identities_account_issuer_subject_key ON public.external_identities USING btree (account_id, issuer, subject)",
+        ),
+        (
+            "account_invitations_pending_key",
+            "CREATE UNIQUE INDEX account_invitations_pending_key ON public.account_invitations USING btree (account_id, lower(invited_email)) WHERE (status = 'pending'::text)",
+        ),
+        (
+            "account_invitations_token_hash_key",
+            "CREATE UNIQUE INDEX account_invitations_token_hash_key ON public.account_invitations USING btree (token_hash)",
         ),
     ]
 

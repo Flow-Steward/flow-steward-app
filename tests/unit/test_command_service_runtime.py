@@ -391,7 +391,7 @@ def test_misc_service_factories_return_expected_types() -> None:
     external = create_external_agent_command_service(get_logger=lambda: None)
     binding = create_extension_binding_service(
         get_logger=lambda: None,
-        resolve_extension_runtime_record=lambda extension_id: ({}, None),
+        resolve_extension_runtime_record=lambda extension_id, **_kwargs: ({}, None),
         extension_identifier=lambda extension: "ext",
         extension_operation_handler_mode=lambda extension, operation_type, operation_id: (
             "extension"

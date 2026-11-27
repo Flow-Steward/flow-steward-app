@@ -9,6 +9,10 @@ from core.application.workflows.workflow_definition_validation import validate_w
 from core.application.workflows.workflow_group_extraction_structure import extract_group_structure
 from tests.unit.test_workflow_definition_service import _Store, edge, ref, step, workflow
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 def source_workflow(*, parallel: bool = False, group_entry: bool = False) -> dict:
     """prepare → Group 'process' → done.

@@ -18,6 +18,7 @@ from core.infrastructure.monitoring.process_storage import (
     load_active_job_rows,
     load_active_project_lease_rows,
     load_latest_agent_message,
+    load_project_account_ids,
     load_reported_worker_subprocess_rows,
     monitoring_observability_dsn,
     reap_stale_worker_reports,
@@ -393,6 +394,77 @@ def list_process_payload() -> dict[str, Any]:
         # Empty on Scalable, where they are in another container and genuinely not visible.
         "worker_processes": worker_processes,
         "reaped_worker_subprocess_count": reaped_count,
+    }
+
+
+def _project_key(value: Any) -> str:
+    return str(value if value is not None else "").strip()
+
+
+def scope_process_payload_to_account(payload: dict[str, Any], account_id: str) -> dict[str, Any]:
+    """The part of ``payload`` that belongs to ``account_id``.
+
+    Workers are shared by every account of the installation, so a caller who is not
+    the installation administrator sees only the jobs and project leases of the
+    account they act in, the workers serving those, and the subprocesses that can
+    only belong to those jobs. Worker processes and suspected orphans carry no
+    account and are installation-wide, so they are left out. When the projects'
+    accounts cannot be read, no job or lease is shown.
+    """
+    account = str(account_id or "").strip()
+    jobs = [job for job in payload.get("jobs") or [] if isinstance(job, dict)]
+    leases = [lease for lease in payload.get("project_leases") or [] if isinstance(lease, dict)]
+    project_ids = {_project_key(row.get("project_id")) for row in (*jobs, *leases)}
+    project_ids.discard("")
+    try:
+        project_accounts = load_project_account_ids(sorted(project_ids))
+    except Exception as exc:
+        logger.warning("scoping processes to an account failed: %s", type(exc).__name__)
+        project_accounts = {}
+
+    def owned(row: dict[str, Any]) -> bool:
+        project_account = project_accounts.get(_project_key(row.get("project_id")))
+        return bool(account) and project_account == account
+
+    own_jobs = [job for job in jobs if owned(job)]
+    own_leases = [lease for lease in leases if owned(lease)]
+    own_job_ids = {str(job.get("id") or "").strip() for job in own_jobs}
+    own_job_ids.discard("")
+    # A worker pid that also runs another account's job is shared: its children
+    # cannot be attributed, so they are not shown.
+    own_worker_pids: set[int] = set()
+    other_worker_pids: set[int] = set()
+    for job in jobs:
+        worker_pid = _parse_worker_pid(str(job.get("worker_id") or ""))
+        if worker_pid is None:
+            continue
+        (own_worker_pids if owned(job) else other_worker_pids).add(worker_pid)
+    exclusive_worker_pids = own_worker_pids - other_worker_pids
+
+    def own_subprocess(row: dict[str, Any]) -> bool:
+        job_id = str(row.get("job_id") or "").strip()
+        if job_id:
+            return job_id in own_job_ids
+        try:
+            worker_pid = int(row.get("worker_pid") or 0)
+        except (TypeError, ValueError):
+            return False
+        return worker_pid in exclusive_worker_pids
+
+    subprocesses = [
+        row
+        for row in payload.get("subprocesses") or []
+        if isinstance(row, dict) and own_subprocess(row)
+    ]
+    return {
+        **payload,
+        "jobs": own_jobs,
+        "subprocesses": subprocesses,
+        "suspected_orphans": [],
+        "project_leases": own_leases,
+        "workers": _build_worker_lease_rows(own_jobs, own_leases),
+        "worker_processes": [],
+        "reaped_worker_subprocess_count": 0,
     }
 
 

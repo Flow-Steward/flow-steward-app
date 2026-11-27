@@ -78,6 +78,15 @@ REQUIRED_RUNTIME_TABLES: tuple[str, ...] = (
     "workflow_wait_events",
     "provider_event_inbox",
     "provider_event_dispatches",
+    "approval_step_approvers",
+    "approval_decision_journal",
+    "scoped_role_users",
+    "external_identities",
+    "external_sign_in_states",
+    "secret_backend_configs",
+    "secret_backend_locators",
+    "extension_account_enablements",
+    "account_invitations",
     "fs_runtime_status_current",
     "fs_runtime_status_history",
     "fs_tabular_snapshot_heads",
@@ -305,6 +314,8 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("users", "password_changed_at"),
     ("users", "authenticator_required"),
     ("users", "authenticator_reset_pending"),
+    ("auth_sessions", "auth_method"),
+    ("auth_sessions", "external_identity_id"),
     ("auth_password_history", "user_id"),
     ("auth_password_history", "id"),
     ("auth_password_history", "password_hash"),
@@ -321,6 +332,7 @@ REQUIRED_RUNTIME_COLUMNS: tuple[tuple[str, str], ...] = (
     ("user_roles", "project_id"),
     ("user_roles", "workflow_id"),
     ("user_roles", "role_is_system"),
+    ("user_account_memberships", "role_id"),
 )
 
 REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (
@@ -338,9 +350,31 @@ REQUIRED_RUNTIME_INDEXES: tuple[str, ...] = (
     "idx_project_connections_oauth_release",
     "idx_mcp_connector_oauth_states_connector",
     "idx_mcp_connector_oauth_states_expiry",
+    # ADR 0083: an external identity is unique within its account, never globally.
+    "external_identities_account_issuer_subject_key",
+    # ADR 0085: one pending invitation per account and email address, and a link
+    # token that names one invitation.
+    "account_invitations_pending_key",
+    "account_invitations_token_hash_key",
 )
 
 _REQUIRED_RUNTIME_INDEX_DEFINITIONS: dict[str, tuple[str, ...]] = {
+    "account_invitations_pending_key": (
+        "UNIQUE INDEX",
+        "account_invitations",
+        "(account_id, lower(invited_email))",
+        "WHERE (status = 'pending'::text)",
+    ),
+    "account_invitations_token_hash_key": (
+        "UNIQUE INDEX",
+        "account_invitations",
+        "(token_hash)",
+    ),
+    "external_identities_account_issuer_subject_key": (
+        "UNIQUE INDEX",
+        "external_identities",
+        "(account_id, issuer, subject)",
+    ),
     "ux_extension_project_state_install_scope_key": (
         "UNIQUE INDEX",
         "extension_project_state",
@@ -473,6 +507,7 @@ _EXPECTED_USER_ADMIN_COLUMNS: dict[tuple[str, str], tuple[str, bool, str | None]
         True,
         _TOKEN_NOW,
     ),
+    ("user_account_memberships", "role_id"): ("uuid", False, None),
 }
 
 _EXPECTED_MEMBERSHIP_CONSTRAINTS: dict[str, tuple[str, str, bool, bool, bool]] = {
@@ -500,6 +535,13 @@ _EXPECTED_MEMBERSHIP_CONSTRAINTS: dict[str, tuple[str, str, bool, bool, bool]] =
     "user_account_memberships_account_id_fkey": (
         "f",
         "FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE RESTRICT",
+        False,
+        False,
+        True,
+    ),
+    "user_account_memberships_role_id_fkey": (
+        "f",
+        "FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL",
         False,
         False,
         True,
@@ -569,6 +611,22 @@ _EXPECTED_USER_ADMIN_INDEXES: dict[str, tuple[Any, ...]] = {
         2,
         2,
         ("account_id", "user_id"),
+        None,
+    ),
+    "idx_user_account_memberships_role": (
+        "user_account_memberships",
+        "btree",
+        False,
+        False,
+        False,
+        True,
+        True,
+        True,
+        True,
+        False,
+        2,
+        2,
+        ("account_id", "role_id"),
         None,
     ),
     "idx_user_account_memberships_default": (

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 from .command_services_common import *  # NOSONAR
+from .guards import require_workspace_access
+
+#: What adding a project to a workspace needs where a person's access is limited.
+_PROJECT_WRITE_PERMISSION = "projects.write"
 
 
 class ProjectCommandServiceCrudMixin:
@@ -39,6 +43,8 @@ class ProjectCommandServiceCrudMixin:
             tenant_id=resolved.tenant_id,
             allowed_workspace_ids=resolved.allowed_workspace_ids,
         )
+        # ADR 0076 section 8a: a project is added where the person may add projects.
+        require_workspace_access(resolved, command.workspace_id, _PROJECT_WRITE_PERMISSION)
         selected_workflow_ids = self._selected_workflow_ids_for_create(
             command,
             account_id=resolved.account_id,
@@ -168,6 +174,12 @@ class ProjectCommandServiceCrudMixin:
             tenant_id=resolved.tenant_id,
             allowed_workspace_ids=resolved.allowed_workspace_ids,
         )
+        if (
+            str(existing_project.get("workspace_id") or "").strip()
+            != str(command.workspace_id or "").strip()
+        ):
+            # Moving the project needs the right to add projects to the target workspace.
+            require_workspace_access(resolved, command.workspace_id, _PROJECT_WRITE_PERMISSION)
         previous_data_connection_ids = (
             self._data_connection_ids(bl.list_project_data_connections(str(project_id)))
             if hasattr(bl, "list_project_data_connections")
@@ -269,6 +281,9 @@ class ProjectCommandServiceCrudMixin:
             tenant_id=resolved.tenant_id,
             allowed_workspace_ids=resolved.allowed_workspace_ids,
         )
+        if str(project.get("workspace_id") or "").strip() != normalized_workspace_id:
+            # Moving the project needs the right to add projects to the target workspace.
+            require_workspace_access(resolved, normalized_workspace_id, _PROJECT_WRITE_PERMISSION)
         if str(project.get("workspace_id") or "").strip() == normalized_workspace_id:
             return ProjectMutationResultView(
                 status="moved",

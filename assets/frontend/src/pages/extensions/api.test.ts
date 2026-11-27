@@ -1,4 +1,5 @@
 import * as extensionsApi from "@/pages/extensions/api";
+import { isAccountEnablementRow } from "@/pages/extensions/account-enablement";
 import { extensionInstallWarnings } from "@/pages/extensions/extension-install-warnings";
 import { fetchJson } from "@/lib/http/client";
 import {
@@ -84,6 +85,42 @@ describe("extensions api", () => {
         method: "POST",
         body: JSON.stringify({ enabled: false }),
       },
+    );
+  });
+
+  it("turns an installed extension on or off for this company only", async () => {
+    mockedFetchJson.mockResolvedValue({});
+
+    await extensionsApi.setExtensionAccountEnabled("acme.crm sync", true);
+    await extensionsApi.setExtensionAccountEnabled("acme.crm sync", false);
+
+    expect(mockedFetchJson).toHaveBeenNthCalledWith(
+      1,
+      "/api/extensions/acme.crm%20sync/account-enablement/enable",
+      { method: "POST" },
+    );
+    expect(mockedFetchJson).toHaveBeenNthCalledWith(
+      2,
+      "/api/extensions/acme.crm%20sync/account-enablement/disable",
+      { method: "POST" },
+    );
+  });
+
+  it("tells a row another account enables apart from the installation's own", () => {
+    expect(isAccountEnablementRow({ extension_id: "a", account_enablement: "not_enabled" })).toBe(true);
+    expect(isAccountEnablementRow({ extension_id: "a", account_enablement: "enabled" })).toBe(true);
+    expect(isAccountEnablementRow({ extension_id: "a", account_enablement: "" })).toBe(false);
+    expect(isAccountEnablementRow({ extension_id: "a" })).toBe(false);
+  });
+
+  it("reads whether the caller may install, update and remove extensions", async () => {
+    mockedFetchJson.mockResolvedValue({ available: true, can_manage_installs: false });
+    await expect(fetchExtensionArchiveLifecycleAvailability()).resolves.toEqual(
+      expect.objectContaining({ available: true, can_manage_installs: false }),
+    );
+    mockedFetchJson.mockResolvedValue({ available: true });
+    await expect(fetchExtensionArchiveLifecycleAvailability()).resolves.toEqual(
+      expect.objectContaining({ can_manage_installs: true }),
     );
   });
 

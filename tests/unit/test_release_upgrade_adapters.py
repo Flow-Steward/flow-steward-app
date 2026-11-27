@@ -131,6 +131,60 @@ def test_release_workflow_journal_blocks_reopen_until_activation_completes(tmp_p
     assert lifecycle.unfinished_journals() == ()
 
 
+@pytest.mark.parametrize("activation_completed", [False, True])
+def test_module_rollback_journal_blocks_until_the_rollback_finishes(tmp_path, activation_completed):
+    state = InstallerStateStore(tmp_path / ".flow-steward")
+    lifecycle = LifecycleStateStore(tmp_path)
+    journal = ReleaseUpgradeJournal(
+        prepared=Harness().service.prepare_upgrade(ReleaseUpgradeRequest()),
+        previous_modules=(),
+        modules_required=True,
+        activation_completed=activation_completed,
+        modules_rollback_started=True,
+    )
+    state.save_release_upgrade(journal)
+    assert len(lifecycle.unfinished_journals()) == 1
+
+    state.save_release_upgrade(journal.model_copy(update={"modules_rolled_back": True}))
+
+    # A finished rollback ends the operation as failed: maintenance disable and
+    # new work are no longer blocked, and the primary journal is kept.
+    assert lifecycle.unfinished_journals() == ()
+    assert state.load_release_upgrade().modules_rolled_back is True
+
+
+def test_projection_names_the_module_set_that_is_actually_active(tmp_path):
+    from core.application.release.platform_modules import PreparedModuleRef
+
+    previous = (PreparedModuleRef(id="acme.ledger", version="1.0.0", digest="sha256:" + "a" * 64),)
+    target = (PreparedModuleRef(id="acme.ledger", version="2.0.0", digest="sha256:" + "b" * 64),)
+    state = InstallerStateStore(tmp_path / ".flow-steward")
+    journal = ReleaseUpgradeJournal(
+        prepared=Harness().service.prepare_upgrade(ReleaseUpgradeRequest()),
+        prepared_modules=target,
+        previous_modules=previous,
+        modules_required=True,
+        modules_activated=True,
+        activation_completed=True,
+    )
+
+    def projected(saved):
+        state.save_release_upgrade(saved)
+        path = state.lifecycle_lock_paths[0].parent / f"{saved.operation_id}.json"
+        return json.loads(path.read_text(encoding="utf-8"))["parameters"]
+
+    succeeded = projected(journal)
+    assert succeeded["platform_modules"] == ["acme.ledger@2.0.0"]
+    assert succeeded["platform_modules_target"] == ["acme.ledger@2.0.0"]
+    assert succeeded["platform_modules_previous"] == ["acme.ledger@1.0.0"]
+
+    rolled_back = projected(
+        journal.model_copy(update={"modules_rollback_started": True, "modules_rolled_back": True})
+    )
+    assert rolled_back["platform_modules"] == ["acme.ledger@1.0.0"]
+    assert rolled_back["platform_modules_target"] == ["acme.ledger@2.0.0"]
+
+
 def test_terminal_projection_failure_keeps_primary_journal_resumable(tmp_path, monkeypatch):
     state = InstallerStateStore(tmp_path / ".flow-steward")
     journal = ReleaseUpgradeJournal(

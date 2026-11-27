@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { isFileField, optionLabel, type FormFieldView, type FormFiles, type FormValues } from "@/components/workflow-inputs/form-field";
 import { WorkflowInputFields } from "@/components/workflow-inputs/workflow-input-fields";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { useWorkflowLimitAllows } from "@/lib/auth/project-permissions";
 import { fetchArrayBuffer } from "@/lib/http/client";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { formatDateTime } from "@/lib/time/date-time-format";
@@ -325,6 +326,8 @@ export function OperatorJobView({
   const { t } = useI18n();
   const isAdmin = useHasCapability("administer_platform");
   const canRun = useHasCapability("run_workflows");
+  // ADR 0076 §8b: a limited person runs here only where the workflow's place allows it.
+  const runAllowed = useWorkflowLimitAllows(section.project_id, section.workflow_id, "workflows.run");
   const runnable = Boolean(section.runnable && section.operator.runnable);
   // The page keys this view by job, so its state never outlives its job; a
   // load still running when the operator leaves is aborted and its result ignored.
@@ -396,7 +399,9 @@ export function OperatorJobView({
                 busy={preparing}
                 busyLabel={t("react.operator_job.loading_files", "Loading the files…")}
                 data-testid="operator-job-send-again"
+                disabled={!runAllowed}
                 onClick={() => void startResend()}
+                title={runAllowed ? undefined : t("react.auth.project_action_not_allowed", "Your access to this project does not include this action.")}
                 type="button"
                 variant="secondary"
               >

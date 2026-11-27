@@ -53,6 +53,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Your account has been created. You can now sign in using {email}.\n\n"
             "If you did not expect this, please contact your administrator.",
         ),
+        "account_invitation": (
+            "{inviter} invited you to {company}",
+            "Hi,\n\n"
+            "{inviter} invited you to {company} as {role}.\n\n"
+            "Open this link to see the invitation and accept or decline it:\n"
+            "{invitation_url}\n\n"
+            "The link works once and expires in {expires_in_days} days. "
+            "Sign in first, or create your sign-in if you do not have one yet.\n\n"
+            "If you did not expect this invitation, you can ignore this email.",
+        ),
+        "email_address_in_use": (
+            "Your email address was entered for another sign-in",
+            "Hi,\n\n"
+            "Someone asked to use {email} as the sign-in email of a Flow Steward account. "
+            "This address already signs in to an account, so nothing was changed.\n\n"
+            "If this was you, sign in with this address instead. "
+            "If it was not, you can ignore this email.",
+        ),
         "agent_connection_expiring": (
             "Your AI agent connection stops working soon",
             "Hi {display_name},\n\n"
@@ -96,6 +114,24 @@ _MESSAGES: dict[str, dict[str, tuple[str, str]]] = {
             "Sveiki, {display_name},\n\n"
             "Jūsų paskyra sukurta. Dabar galite prisijungti naudodami adresą {email}.\n\n"
             "Jei nesitikėjote šio laiško, susisiekite su administratoriumi.",
+        ),
+        "account_invitation": (
+            "{inviter} pakvietė jus į {company}",
+            "Sveiki,\n\n"
+            "{inviter} pakvietė jus į {company}, vaidmuo: {role}.\n\n"
+            "Atverkite šią nuorodą, kad pamatytumėte kvietimą ir jį priimtumėte arba atmestumėte:\n"
+            "{invitation_url}\n\n"
+            "Nuoroda veikia vieną kartą ir galioja {expires_in_days} d. "
+            "Pirmiausia prisijunkite arba susikurkite prisijungimą, jei jo dar neturite.\n\n"
+            "Jei šio kvietimo nesitikėjote, galite nepaisyti šio laiško.",
+        ),
+        "email_address_in_use": (
+            "Jūsų el. pašto adresas nurodytas kitam prisijungimui",
+            "Sveiki,\n\n"
+            "Kažkas paprašė naudoti {email} kaip Flow Steward paskyros prisijungimo el. paštą. "
+            "Šiuo adresu jau prisijungiama prie paskyros, todėl niekas nepakeista.\n\n"
+            "Jei tai buvote jūs, prisijunkite šiuo adresu. "
+            "Jei ne, galite nepaisyti šio laiško.",
         ),
         "agent_connection_expiring": (
             "Jūsų DI agento ryšys netrukus nustos veikti",
@@ -146,7 +182,9 @@ def render_system_email(kind: str, *, locale: str = "", **values: Any) -> tuple[
     filled = {key: _text(value) for key, value in values.items()}
     for name_field in ("username", "display_name"):
         filled[name_field] = filled.get(name_field) or anonymous
-    return subject, body.format(**filled)
+    # A subject is one line: a value that names a person or a company cannot add one.
+    one_line = {key: " ".join(value.split()) for key, value in filled.items()}
+    return subject.format(**one_line), body.format(**filled)
 
 
 def _platform_store() -> Any:
@@ -331,6 +369,51 @@ def send_signup_notification_email(
     )
 
 
+def send_account_invitation_email(
+    *,
+    recipient: str,
+    inviter: str,
+    company: str,
+    role: str,
+    invitation_url: str,
+    expires_in_days: int,
+    locale: str = "",
+    bl: Any = None,
+) -> dict[str, Any]:
+    """Send an invitation to join ``company`` with its single-use link (ADR 0085)."""
+    return _send(
+        "account_invitation",
+        recipient=recipient,
+        locale=locale,
+        bl=bl,
+        inviter=inviter,
+        company=company,
+        role=role,
+        invitation_url=invitation_url,
+        expires_in_days=max(1, int(expires_in_days or 1)),
+    )
+
+
+def send_email_address_in_use_email(
+    *,
+    recipient: str,
+    locale: str = "",
+    bl: Any = None,
+) -> dict[str, Any]:
+    """Tell the owner of ``recipient`` that it was entered as another sign-in email.
+
+    Sent instead of a verification link when the requested new address already
+    belongs to someone, so the requester's answer is the same either way (ADR 0085).
+    """
+    return _send(
+        "email_address_in_use",
+        recipient=recipient,
+        locale=locale,
+        bl=bl,
+        email=_normalize_email(recipient),
+    )
+
+
 def send_agent_connection_expiring_email(
     *,
     recipient: str,
@@ -362,7 +445,9 @@ def send_agent_connection_expiring_email(
 __all__ = [
     "find_email_connection",
     "render_system_email",
+    "send_account_invitation_email",
     "send_agent_connection_expiring_email",
+    "send_email_address_in_use_email",
     "send_email_change_verification_email",
     "send_password_reset_email",
     "send_signup_notification_email",

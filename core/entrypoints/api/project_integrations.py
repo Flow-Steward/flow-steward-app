@@ -9,6 +9,10 @@ from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
+from core.application.auth.installation_admin import (
+    installation_admin_refusal,
+    is_installation_admin,
+)
 from core.application.extensions.connection_partition_validation import (
     ConnectionPartitionsRejected,
     require_valid_connection_partitions,
@@ -34,6 +38,7 @@ from core.application.management.requests import (
     ProviderRequest,
     ProviderSecretRequest,
 )
+from core.application.projects.workflow_only_connections import connections_for_scope
 from core.application.workflows.notification_recipients import notification_recipient_format
 
 _MESSAGE_EXACT_INSTALLED_CONNECTION_CONTRACT_IS_UNAVAILABLE = (
@@ -132,9 +137,12 @@ def create_project_integrations_router(
         if not bl:
             return JSONResponse({"error": err_database_not_configured}, status_code=503)
         try:
-            require_authenticated_user(request, required_roles=auth_admin_roles)
+            auth_user = require_authenticated_user(request, required_roles=auth_admin_roles)
         except PermissionError:
             return JSONResponse({"error": err_admin_role_required}, status_code=403)
+        # The providers table is one catalogue for the whole installation.
+        if not is_installation_admin(auth_user):
+            return JSONResponse(installation_admin_refusal(), status_code=403)
         try:
             if not hasattr(bl, "save_provider"):
                 raise RuntimeError("Provider persistence is not available")
@@ -177,9 +185,12 @@ def create_project_integrations_router(
                 return service_error_response(e)
         else:
             try:
-                require_authenticated_user(request, required_roles=auth_admin_roles)
+                auth_user = require_authenticated_user(request, required_roles=auth_admin_roles)
             except PermissionError:
                 return JSONResponse({"error": err_admin_role_required}, status_code=403)
+            # A secret with no project belongs to the installation-wide provider.
+            if not is_installation_admin(auth_user):
+                return JSONResponse(installation_admin_refusal(), status_code=403)
 
         try:
             saved = bl.save_provider_secret(
@@ -233,6 +244,15 @@ def create_project_integrations_router(
                 )
                 if not isinstance(connection_rows, list):
                     connection_rows = []
+                # Only connections a granted workflow needs, in a workflow-only
+                # project (ADR 0076 section 8b; the route is admin-only today).
+                connection_rows = connections_for_scope(
+                    bl,
+                    scope,
+                    project_id,
+                    [to_json_obj(row) or {} for row in connection_rows],
+                    account_id=str(project.get("account_id") or "") or None,
+                )
                 for row in connection_rows:
                     payload = to_json_obj(row) or {}
                     extension_id = str(payload.get("extension_id") or "").strip()

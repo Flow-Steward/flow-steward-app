@@ -25,6 +25,7 @@ from core.application.jobs.workflow_resume_state import (
     workflow_resume_intent,
 )
 from core.application.jobs.workflow_wait_projection import DURABLE_WAIT_STATUSES
+from core.application.registry.workflow_account import account_scope_if_named
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,19 @@ class WorkflowResumeExecutionService:
         job_row = dict(job_lookup.row) if isinstance(job_lookup.row, Mapping) else None
         if job_row is None:
             return _delivery("retry", reason="workflow_resume_job_lookup_failed")
+        # The resumed job runs the workflows of its own account (ADR 0020, C4b); a
+        # job without one binds nothing, so registry access inside refuses (C5).
+        with account_scope_if_named(job_row.get("account_id")):
+            return self._execute_resume(message, job_id, thread_id, resume_revision, job_row)
+
+    def _execute_resume(
+        self,
+        message: dict[str, Any],
+        job_id: str,
+        thread_id: str,
+        resume_revision: Any,
+        job_row: dict[str, Any],
+    ) -> dict[str, object]:
         intent = workflow_resume_intent(job_row)
         validation = _validate_intent(job_row, intent, resume_revision)
         if validation is not None:

@@ -1,7 +1,9 @@
 import { useI18n } from "@/lib/i18n/useI18n";
+import type { I18nContextValue } from "@/lib/i18n/context";
 import { useId, useState, type ReactNode } from "react";
 
 import {
+  Building2,
   Check,
   ChevronDown,
   ChevronsUpDown,
@@ -62,10 +64,33 @@ function SidebarTooltip({
   ) : null;
 }
 
+/** One account the signed-in person belongs to and may switch into. */
+export type AccountOption = {
+  id: string;
+  displayName: string;
+  /** The person's role in this account (ADR 0085): admin, operator or viewer. */
+  role?: string;
+};
+
+/** The role's human name in the account menu. */
+function accountRoleLabel(role: string | undefined, t: I18nContextValue["t"]): string {
+  if (role === "admin") return t("react.settings.role_admin", "Admin");
+  if (role === "operator") return t("react.settings.role_operator", "Operator");
+  if (role === "viewer") return t("react.settings.role_viewer", "Viewer");
+  return "";
+}
+
 export type AppShellSidebarProps = {
+  /**
+   * The person's own active account memberships. The account menu offers a
+   * switch only when there are two or more.
+   */
+  accountOptions?: AccountOption[];
   /** Whether the account menu links to Users & access (the `administer_platform` capability). */
   canManageUsers: boolean;
+  currentAccountId?: string;
   loggingOut: boolean;
+  onAccountChange?: (accountId: string) => void;
   onExpandRail: () => void;
   onLogout: () => Promise<void>;
   onRetryWorkspaces: () => void;
@@ -278,8 +303,11 @@ function WorkspaceMenu({
 }
 
 type AccountMenuProps = {
+  accountOptions: AccountOption[];
   canManageUsers: boolean;
+  currentAccountId: string;
   loggingOut: boolean;
+  onAccountChange: (accountId: string) => void;
   onLogout: () => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onThemeChange: (theme: "light" | "dark") => void;
@@ -290,8 +318,11 @@ type AccountMenuProps = {
 };
 
 function AccountMenu({
+  accountOptions,
   canManageUsers,
+  currentAccountId,
   loggingOut,
+  onAccountChange,
   onLogout,
   onOpenChange,
   onThemeChange,
@@ -366,6 +397,40 @@ function AccountMenu({
           </span>
           <span>{t("react.shared.users_amp_access", "Users & access")}</span>
         </NavLink>
+      ) : null}
+      {/* A person in several accounts works in one at a time; the session's
+          current account is checked and the others switch into. */}
+      {accountOptions.length > 1 ? (
+        <>
+          <hr className="fs-shell-menu__separator" />
+          <fieldset className="fs-shell-menu__section">
+            <legend className="fs-shell-menu__label">{t("react.shared.accounts", "Accounts")}</legend>
+            {accountOptions.map((option) => (
+              <button
+                aria-checked={option.id === currentAccountId}
+                aria-label={option.displayName}
+                className="fs-shell-menu__item"
+                key={option.id}
+                onClick={() => {
+                  if (option.id !== currentAccountId) onAccountChange(option.id);
+                }}
+                role="menuitemradio"
+                type="button"
+              >
+                <span className="fs-shell-menu__icon">
+                  <Building2 aria-hidden="true" size={16} strokeWidth={1.5} />
+                </span>
+                <span className="fs-shell-menu__item-label">{option.displayName}</span>
+                {accountRoleLabel(option.role, t) ? (
+                  <span className="fs-shell-menu__item-shortcut">{accountRoleLabel(option.role, t)}</span>
+                ) : null}
+                {option.id === currentAccountId ? (
+                  <Check aria-hidden="true" size={14} strokeWidth={1.5} />
+                ) : null}
+              </button>
+            ))}
+          </fieldset>
+        </>
       ) : null}
       <hr className="fs-shell-menu__separator" />
       <fieldset className="fs-shell-menu__section">
@@ -516,9 +581,15 @@ function CollapsibleSidebarGroup({
   );
 }
 
+const NO_ACCOUNT_OPTIONS: AccountOption[] = [];
+const ignoreAccountChange = () => undefined;
+
 export function AppShellSidebar({
+  accountOptions = NO_ACCOUNT_OPTIONS,
   canManageUsers,
+  currentAccountId = "",
   loggingOut,
+  onAccountChange = ignoreAccountChange,
   onExpandRail,
   onLogout,
   onRetryWorkspaces,
@@ -598,8 +669,11 @@ export function AppShellSidebar({
       </nav>
       <footer className="fs-app-sidebar__footer">
         <AccountMenu
+          accountOptions={accountOptions}
           canManageUsers={canManageUsers}
+          currentAccountId={currentAccountId}
           loggingOut={loggingOut}
+          onAccountChange={onAccountChange}
           onLogout={onLogout}
           onOpenChange={(open) => setOpenMenu(open ? "account" : null)}
           onThemeChange={onThemeChange}

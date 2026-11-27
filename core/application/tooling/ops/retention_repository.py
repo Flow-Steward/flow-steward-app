@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
-from core.infrastructure.db.checkpoint_history import prune_threads_to_latest
 from core.application.tooling.ops.retention_cleanup_common import (
     psycopg_runtime,
     system_settings_store,
 )
+from core.infrastructure.db.checkpoint_history import prune_threads_to_latest
 
 _TERMINAL_JOB_STATUSES = [
     "completed",
@@ -38,14 +38,18 @@ _TRASH_ENTITY_TABLES: tuple[tuple[str, str], ...] = (
 
 _TRASH_GLOBAL_ONLY_TABLES = frozenset(
     {
-        "registry_workflows",
         "registry_guardrails",
         "registry_skills",
         "registry_tools",
         "registry_agents",
-        "registry_data_contracts",
     }
 )
+
+# Tables whose trash id is unique only within the owning account (ADR 0020, C4a
+# for data contracts, C4c for workflows): expired rows are listed and purged per
+# account, so purging one account's workflow never removes another account's
+# trashed workflow with the same id.
+_TRASH_ACCOUNT_KEYED_TABLES = frozenset({"registry_data_contracts", "registry_workflows"})
 
 
 # Rows that are not content revisions: lifecycle markers, and the dataset
@@ -367,6 +371,18 @@ def _list_trashed_entity_ids(
             )
         else:
             return []
+    elif table in _TRASH_ACCOUNT_KEYED_TABLES:
+        cur.execute(
+            f"""
+            SELECT {id_col}
+            FROM {table}
+            WHERE account_id = %s
+              AND deleted_at IS NOT NULL
+              AND deleted_at < NOW() - (%s * INTERVAL '1 day')
+            ORDER BY deleted_at ASC
+            """,
+            (resolved_account_id, days),
+        )
     elif table in _TRASH_GLOBAL_ONLY_TABLES:
         if resolved_account_id != DEFAULT_ACCOUNT_ID:
             return []
@@ -466,7 +482,16 @@ def _list_terminal_job_ids(
     return [row[0] for row in (cur.fetchall() or []) if row and row[0] is not None]
 
 
-def _delete_trashed_row(cur, *, table: str, id_col: str, entity_id: Any) -> int:
+def _delete_trashed_row(
+    cur, *, table: str, id_col: str, entity_id: Any, account_id: str = ""
+) -> int:
+    if table in _TRASH_ACCOUNT_KEYED_TABLES:
+        cur.execute(
+            f"DELETE FROM {table} WHERE {id_col} = %s AND account_id = %s "
+            "AND deleted_at IS NOT NULL",
+            (entity_id, system_settings_store.normalize_account_id(account_id)),
+        )
+        return int(cur.rowcount or 0)
     cur.execute(
         f"DELETE FROM {table} WHERE {id_col} = %s AND deleted_at IS NOT NULL",
         (entity_id,),

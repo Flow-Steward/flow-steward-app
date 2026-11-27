@@ -65,6 +65,10 @@ _PUBLIC_CONTRACT_PROJECTION_LOCK_KEY = "reconcile"
 # apply_entity_snapshot() — doing so would overwrite a live entity with a
 # lifecycle stub, or resurrect a purged one.
 LIFECYCLE_CHANGELOG_ACTIONS = frozenset({"trash", "restore", "hard_delete"})
+#: Entities whose id is unique only within an account (ADR 0020, C4a/C4b). Their
+#: history is kept per account: every entry names its account, and a read names
+#: the account it reads (C5). Two accounts with the same key never share history.
+ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES = frozenset({"workflow", "field", "data_contract"})
 # Delete retains a full snapshot for existing replay policy, but its audit
 # event is not a content change. Read presentation must not define replay policy.
 LIFECYCLE_PRESENTATION_ACTIONS = LIFECYCLE_CHANGELOG_ACTIONS | frozenset({"delete"})
@@ -193,7 +197,33 @@ def _normalize_extension_runtime_account_id(value: Any) -> str:
         return ""
 
 
+def registry_catalog_owner(account_id: Any = None) -> str:
+    """The account that owns a registry field or data contract (ADR 0020, C4a/C5).
+
+    An explicit *account_id* wins; otherwise the account bound to the current
+    request or job. A caller with neither is refused
+    (:class:`~core.application.registry.workflow_account.WorkflowAccountMissingError`);
+    projection, seed and import name their account or bind it.
+    """
+    from core.application.registry.workflow_account import workflow_owner
+
+    return workflow_owner(account_id)
+
+
+def platform_catalog_owner(row_account_id: Any = None) -> str:
+    """The account whose fields and contracts a skill or block binds.
+
+    An object with an account binds its own account's catalog. A platform object
+    (no account) binds the installation account's catalog: platform objects are
+    shared by every account, and their fields and contracts were always the
+    installation account's (ADR 0020, C4a). This is a documented rule, not a
+    fallback for a missing caller account.
+    """
+    return str(row_account_id or "").strip() or DEFAULT_ACCOUNT_ID
+
+
 __all__ = [
+    "ACCOUNT_KEYED_CHANGELOG_ENTITY_TYPES",
     "A_DELETED_AT_IS_NULL_VALUE",
     "Any",
     "BUILDER_METADATA_JSONB_EXCLUDED_BUILDER_METADATA_SQL",
@@ -243,6 +273,8 @@ __all__ = [
     "pooling_enabled",
     "psycopg_runtime",
     "register_transaction_after_commit",
+    "platform_catalog_owner",
+    "registry_catalog_owner",
     "strip_agent_output_format",
     "suppress",
     "threading",

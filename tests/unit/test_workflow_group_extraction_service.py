@@ -17,6 +17,10 @@ from tests.unit.test_workflow_definition_service import _Store
 from tests.unit.test_workflow_group_extraction_bindings import source
 from tests.unit.test_workflow_group_extraction_structure import source_workflow
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 class Store(_Store):
     def __init__(self):

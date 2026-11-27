@@ -96,6 +96,9 @@ from core.application.auth.config import PUBLIC_HEALTH_PATHS as _PUBLIC_HEALTH_P
 from core.application.auth.config import (
     PUBLIC_WEBHOOK_PATH_PREFIXES as _PUBLIC_WEBHOOK_PATH_PREFIXES,
 )
+from core.application.auth.installation_admin import (
+    is_installation_admin as _is_installation_admin,
+)
 from core.application.auth.password import password_hash as _password_hash_impl
 from core.application.auth.password import (
     password_reset_token_hash as _password_reset_token_hash_impl,
@@ -149,6 +152,13 @@ from core.application.management import (
     snapshot_serializers as _serve_snapshot_serializers_runtime,
 )
 from core.application.management.command_models import (
+    AuthAccountInvitationCancelledView,
+    AuthAccountInvitationDecisionView,
+    AuthAccountInvitationPreviewView,
+    AuthAccountInvitationSentView,
+    AuthAccountMemberCandidatesView,
+    AuthAccountMemberResultView,
+    AuthAccountSentInvitationsView,
     AuthAccountStatusResultView,
     AuthChangePasswordResultView,
     AuthSwitchAccountResultView,
@@ -167,6 +177,7 @@ from core.application.management.command_models import (
     DatasetProjectAssignmentUpdateResultView,
     DatasetQueryTemplateMutationResultView,
     EventRedriveResultView,
+    ExtensionAccountEnablementView,
     ExtensionActionResultView,
     ExtensionArchiveInstallResultView,
     ExtensionBuildResultView,

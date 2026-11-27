@@ -517,4 +517,40 @@ describe("MonitoringPage", () => {
     expect(screen.getByText(/Restore the project if this job should run/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: `Open job ${jobId}` })).toHaveAttribute("href", `/jobs/${jobId}`);
   });
+
+  it("shows a platform module that failed to load as a check to review while the app stays ready", async () => {
+    const detail = "acme.notes 1.0.0: Failed to load: ImportError: cannot import name 'gone'";
+    mockedFetchMonitoringSummary.mockResolvedValueOnce({
+      ready: true,
+      degraded: true,
+      summary: { checks_total: 2, checks_ok: 1, checks_failed: 0, checks_degraded: 1 },
+      checks: {
+        postgres: { ok: true },
+        platform_modules: {
+          status: "degraded",
+          degraded: true,
+          error: detail,
+          failed_modules: [{ id: "acme.notes", version: "1.0.0", load_error: "ImportError: cannot import name 'gone'" }],
+        },
+      },
+      meta: {},
+    });
+
+    renderPage();
+
+    await screen.findByText(detail);
+    const row = screen.getByRole("row", { name: /Platform Modules/ });
+    expect(within(row).getByText(detail)).toBeInTheDocument();
+    expect(within(row).getByText("Needs review")).toBeInTheDocument();
+    expect(screen.getByText("Ready: yes")).toBeInTheDocument();
+    expect(screen.getByText("Failed checks: 0")).toBeInTheDocument();
+    expect(screen.getByText("Checks to review: 1")).toBeInTheDocument();
+  });
+
+  it("shows no checks-to-review badge when nothing is degraded", async () => {
+    renderPage();
+
+    await screen.findByText("Connection refused");
+    expect(screen.queryByText(/Checks to review:/)).not.toBeInTheDocument();
+  });
 });

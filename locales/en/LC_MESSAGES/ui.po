@@ -3510,6 +3510,18 @@ msgstr "Choose another account or contact your workspace administrator."
 msgid "react.auth.choose_the_workspace_account_you_want_to_enter"
 msgstr "Choose the workspace account you want to enter."
 
+msgid "react.auth.company_identifier"
+msgstr "Company identifier"
+
+msgid "react.auth.company_identifier_help"
+msgstr "Enter the identifier your company gave you to see its sign-in options."
+
+msgid "react.auth.company_sign_in"
+msgstr "Company sign-in"
+
+msgid "react.auth.company_sign_in_not_found"
+msgstr "No sign-in options were found for this company."
+
 msgid "react.auth.confirm_password"
 msgstr "Confirm password"
 
@@ -4061,6 +4073,9 @@ msgstr "{count} extension"
 msgid "react.extensions.change_the_filter_or_install_an_extension_from_a_zip_file"
 msgstr "Change the filter or install an extension from a `.zip` file."
 
+msgid "react.extensions.change_the_filter_to_see_other_extensions"
+msgstr "Change the filter to see the other extensions."
+
 msgid "react.extensions.check_again"
 msgstr "Check again"
 
@@ -4332,6 +4347,9 @@ msgstr "Extension state saved."
 msgid "react.extensions.display_extension_visible_count"
 msgstr "{visible} of {total} · drop a .zip here to install"
 
+msgid "react.extensions.display_extension_visible_count_plain"
+msgstr "{visible} of {total}"
+
 msgid "react.extensions.display_extensions_hub"
 msgstr "Extensions hub"
 
@@ -4500,6 +4518,9 @@ msgstr ""
 
 msgid "react.extensions.enable_before_checking_connection"
 msgstr "Enable this extension before checking the connection."
+
+msgid "react.extensions.enable_for_this_company"
+msgstr "Enable for this company"
 
 msgid "react.extensions.enable_this_extension_to_configure_its_project_scoped_ui"
 msgstr "Enable this extension to configure its project-scoped UI."
@@ -4833,6 +4854,15 @@ msgstr "No active extensions"
 
 msgid "react.extensions.no_extensions_in_this_view"
 msgstr "No extensions in this view"
+
+msgid "react.extensions.no_extensions_installed_ask_installation_administrator"
+msgstr ""
+"No extensions are installed for this installation yet. Ask your "
+"installation administrator to install one; you can then enable it for your"
+" company."
+
+msgid "react.extensions.no_extensions_installed_yet"
+msgstr "No extensions installed yet"
 
 msgid "react.extensions.no_extensions_match"
 msgstr "No extensions match."
@@ -6243,6 +6273,9 @@ msgstr "Checks:"
 msgid "react.monitoring.checks_behind_the_readiness_endpoint"
 msgstr "Checks behind the readiness endpoint."
 
+msgid "react.monitoring.checks_to_review"
+msgstr "Checks to review:"
+
 msgid "react.monitoring.clean_orphan_data"
 msgstr "Clean orphan data"
 
@@ -6852,6 +6885,9 @@ msgstr "Not Observed"
 
 msgid "react.monitoring.state_not_ready"
 msgstr "Not Ready"
+
+msgid "react.monitoring.state_platform_modules"
+msgstr "Platform Modules"
 
 msgid "react.monitoring.state_process"
 msgstr "Process"
@@ -12575,6 +12611,36 @@ msgstr "Record"
 msgid "react.settings.record_created"
 msgstr "Record created."
 
+msgid "react.settings.advanced_settings"
+msgstr "Advanced settings"
+
+msgid "react.settings.choose_option"
+msgstr "Choose…"
+
+msgid "react.settings.choose_options"
+msgstr "Choose one or more…"
+
+msgid "react.settings.reference_options_missing"
+msgstr "Nothing to choose for {field} yet."
+
+msgid "react.settings.secret_keep_blank"
+msgstr "Leave blank to keep the saved value"
+
+msgid "react.settings.summary_disabled"
+msgstr "disabled"
+
+msgid "react.settings.summary_enabled"
+msgstr "enabled"
+
+msgid "react.settings.row_action_done"
+msgstr "Done."
+
+msgid "react.settings.row_action_failed"
+msgstr "The action failed."
+
+msgid "react.settings.close_action_confirmation"
+msgstr "Close confirmation"
+
 msgid "react.settings.record_deleted"
 msgstr "Record deleted."
 
@@ -12937,6 +13003,36 @@ msgstr "Sign-in lockout cleared for {value1}."
 msgid "react.settings.snapshot"
 msgstr "Snapshot"
 
+msgid "react.settings.status_document_choose_file"
+msgstr "Choose file"
+
+msgid "react.settings.status_document_document"
+msgstr "Document"
+
+msgid "react.settings.status_document_empty"
+msgstr "Paste the document or choose a file first."
+
+msgid "react.settings.status_document_no_status"
+msgstr "No status is available yet."
+
+msgid "react.settings.status_document_read_failed"
+msgstr "The file could not be read."
+
+msgid "react.settings.status_document_saved"
+msgstr "Document uploaded."
+
+msgid "react.settings.status_document_too_large"
+msgstr "The document is larger than {limit}."
+
+msgid "react.settings.status_document_upload"
+msgstr "Upload"
+
+msgid "react.settings.status_document_upload_failed"
+msgstr "The document was not accepted."
+
+msgid "react.settings.status_document_uploading"
+msgstr "Uploading…"
+
 msgid "react.settings.store_this_value_in_a_secure_credential_manager"
 msgstr "Store this value in a secure credential manager."
 
@@ -13272,6 +13368,9 @@ msgstr "Account menu"
 
 msgid "react.shared.account_profile"
 msgstr "Account profile"
+
+msgid "react.shared.accounts"
+msgstr "Accounts"
 
 msgid "react.shared.active_child_projects"
 msgstr "Active child projects:"
@@ -13892,6 +13991,9 @@ msgstr "Save dataset links"
 
 msgid "react.settings.records_count"
 msgstr "{count} records"
+
+msgid "react.settings.records_count_one"
+msgstr "1 record"
 
 msgid "react.monitoring.download_diagnostics"
 msgstr "Download diagnostics"
@@ -32544,3 +32646,451 @@ msgstr "Change installation settings, security policy, model providers and updat
 
 msgid "react.permissions.platform_manage"
 msgstr "Run generic commands, restore or purge the trash, and take agent and reaction intake"
+
+msgid "react.approvals.not_assigned"
+msgstr "Only the approvers assigned to this step can decide it."
+
+msgid "react.approvals.waiting_for_approvers"
+msgstr "Waiting for {approvers} to decide."
+
+msgid "react.approvals.waiting_for_assigned_approvers"
+msgstr "Waiting for the approvers assigned to this step to decide."
+
+msgid "react.workflows.approval_waiting_for_assigned"
+msgstr "Waiting for a decision"
+
+msgid "react.workflows.approvers"
+msgstr "Approvers"
+
+msgid "react.workflows.approvers_after_save"
+msgstr "Save the workflow with this step to choose who may decide it."
+
+msgid "react.workflows.approvers_anyone_help"
+msgstr "No one chosen: anyone who may decide approvals can decide this step."
+
+msgid "react.workflows.approvers_load_failed"
+msgstr "Approvers could not be loaded. Reopen the step to try again."
+
+msgid "react.workflows.approvers_placeholder"
+msgstr "Search people"
+
+msgid "react.workflows.approvers_restricted_help"
+msgstr "Only the people chosen here can decide this step."
+
+msgid "react.workflows.approvers_save"
+msgstr "Save approvers"
+
+msgid "react.workflows.approvers_save_failed"
+msgstr "Approvers were not saved."
+
+msgid "react.workflows.approvers_save_failed_reason"
+msgstr "Approvers were not saved: {reason}"
+
+msgid "react.workflows.approvers_saved"
+msgstr "Approvers saved."
+
+msgid "react.workflows.approvers_saved_separately"
+msgstr "Approvers are saved on their own and apply at once; Save parameters does not include them."
+
+msgid "react.workflows.approvers_saving"
+msgstr "Saving approvers…"
+
+msgid "react.workflows.loading_people"
+msgstr "Loading people…"
+
+msgid "react.auth.project_action_not_allowed"
+msgstr "Your access to this project does not include this action."
+
+msgid "react.settings.project_access"
+msgstr "Project access"
+
+msgid "react.settings.project_access_all"
+msgstr "All projects"
+
+msgid "react.settings.project_access_one"
+msgstr "1 project"
+
+msgid "react.settings.project_access_count"
+msgstr "{count} projects"
+
+msgid "react.settings.project_access_admin"
+msgstr "Administrators reach every project."
+
+msgid "react.settings.project_access_no_access"
+msgstr "No access"
+
+msgid "react.settings.project_access_all_help"
+msgstr "This person reaches every project their role reaches."
+
+msgid "react.settings.project_access_role_for"
+msgstr "Role in {project}"
+
+msgid "react.settings.project_access_load_failed"
+msgstr "Project access could not be loaded. Reopen the dialog to try again."
+
+msgid "react.settings.project_access_not_saved"
+msgstr "Project access was not saved"
+
+msgid "react.settings.project_access_save"
+msgstr "Save project access"
+
+msgid "react.settings.project_access_saved"
+msgstr "Project access saved."
+
+msgid "react.settings.project_access_limit_places"
+msgstr "Limit to chosen places"
+
+msgid "react.settings.project_access_places_help"
+msgstr "This person reaches only the places chosen here. A workspace covers all its projects, a project all its workflows; the most specific choice applies, never above their own role."
+
+msgid "react.settings.project_access_inherited"
+msgstr "As above ({role})"
+
+msgid "react.settings.project_access_whole_workspace"
+msgstr "Whole workspace, including projects added later"
+
+msgid "react.settings.project_access_projects_of"
+msgstr "Projects of {workspace}"
+
+msgid "react.settings.project_access_workflows_of"
+msgstr "Workflows of {project}"
+
+msgid "react.settings.project_access_workspace_named"
+msgstr "{name} (workspace)"
+
+msgid "react.settings.project_access_workspace_count"
+msgstr "{count} workspaces"
+
+msgid "react.settings.project_access_workflow_one"
+msgstr "1 workflow"
+
+msgid "react.settings.project_access_workflow_count"
+msgstr "{count} workflows"
+
+msgid "react.settings.secret_storage.name"
+msgstr "Name"
+
+msgid "react.settings.secret_storage.name_help"
+msgstr "How this storage is called in lists, for example Production vault."
+
+msgid "react.settings.secret_storage.kind"
+msgstr "Kind of storage"
+
+msgid "react.settings.secret_storage.turned_on"
+msgstr "Turned on"
+
+msgid "react.settings.secret_storage.turned_on_help"
+msgstr "While it is off, secrets kept there cannot be read."
+
+msgid "react.settings.secret_storage.health_unknown"
+msgstr "Not checked"
+
+msgid "react.settings.secret_storage.health_ok"
+msgstr "Connected"
+
+msgid "react.settings.secret_storage.health_off"
+msgstr "Turned off"
+
+msgid "react.settings.secret_storage.health_not_installed"
+msgstr "Add-on not installed"
+
+msgid "react.settings.secret_storage.health_failed"
+msgstr "Cannot connect"
+
+msgid "react.settings.secret_storage.updated"
+msgstr "{value0} saved."
+
+msgid "react.settings.secret_storage.created"
+msgstr "{value0} added."
+
+msgid "react.settings.secret_storage.edit_title"
+msgstr "Edit {value0}"
+
+msgid "react.settings.secret_storage.add"
+msgstr "Add storage"
+
+msgid "react.settings.secret_storage.not_saved"
+msgstr "Not saved"
+
+msgid "react.settings.secret_storage.description"
+msgstr "Secret values are kept encrypted in this installation. An add-on can keep them in an external secret manager instead; set it up here, then move secrets there from Registry → Secrets."
+
+msgid "react.settings.secret_storage.loading"
+msgstr "Loading secret storage…"
+
+msgid "react.settings.secret_storage.load_failed"
+msgstr "Could not load secret storage"
+
+msgid "react.settings.secret_storage.add_on_only"
+msgstr "Secret values are kept encrypted in this installation's database. Keeping them in an external secret manager is an add-on: once one is installed, you can set it up here."
+
+msgid "react.settings.secret_storage.title"
+msgstr "Secret storage"
+
+msgid "react.settings.secret_storage.state"
+msgstr "State"
+
+msgid "react.settings.secret_storage.on"
+msgstr "On"
+
+msgid "react.settings.secret_storage.off"
+msgstr "Off"
+
+msgid "react.settings.secret_storage.connection"
+msgstr "Connection"
+
+msgid "react.settings.secret_storage.checking"
+msgstr "Checking…"
+
+msgid "react.settings.secret_storage.check"
+msgstr "Check connection"
+
+msgid "react.settings.secret_storage.count"
+msgstr "Configured storages: {value0}"
+
+msgid "react.settings.secret_storage.not_entitled"
+msgstr "The installed secret storage add-on is not available for this account."
+
+msgid "react.settings.secret_storage.empty"
+msgstr "No external storage is set up. Values stay in this installation."
+
+msgid "react.registry.secrets.storage.move_local"
+msgstr "Move back to this installation"
+
+msgid "react.registry.secrets.storage.move_to"
+msgstr "Move to {value0}"
+
+msgid "react.registry.secrets.storage.kept_in"
+msgstr "Kept in {value0}"
+
+msgid "react.registry.secrets.storage.kept_external"
+msgstr "Kept in an external storage"
+
+msgid "react.registry.secrets.storage.moved"
+msgstr "{value0} is now kept in {value1}."
+
+msgid "react.registry.secrets.storage.moved_local"
+msgstr "{value0} is kept in this installation again."
+
+msgid "react.registry.secrets.storage.adopt_from"
+msgstr "Use an existing secret from {value0}"
+
+msgid "react.registry.secrets.storage.adopt_title"
+msgstr "Use an existing secret"
+
+msgid "react.registry.secrets.storage.move_description"
+msgstr "The value is written to {value0} and removed from this installation. Everything that uses the secret keeps working."
+
+msgid "react.registry.secrets.storage.moving"
+msgstr "Moving…"
+
+msgid "react.registry.secrets.storage.move"
+msgstr "Move"
+
+msgid "react.registry.secrets.storage.move_title"
+msgstr "Move {value0} to {value1}"
+
+msgid "react.registry.secrets.storage.not_moved"
+msgstr "Not moved"
+
+msgid "react.registry.secrets.storage.name_in"
+msgstr "Name in {value0}"
+
+msgid "react.registry.secrets.storage.target_exists"
+msgstr "A secret with this name already exists in {value0}. Choose another name or replace it."
+
+msgid "react.registry.secrets.storage.replace_existing"
+msgstr "Replace the existing secret in {value0}"
+
+msgid "react.registry.secrets.storage.replace_warning_title"
+msgstr "The existing secret is overwritten"
+
+msgid "react.registry.secrets.storage.replace_warning"
+msgstr "If {value0} already keeps a secret under this name, its value is replaced and cannot be restored from here. Anything else that reads it gets this value."
+
+msgid "react.registry.secrets.storage.external"
+msgstr "the external storage"
+
+msgid "react.registry.secrets.storage.move_local_description"
+msgstr "The value is read from {value0} and kept encrypted in this installation again. The copy in {value0} is not deleted."
+
+msgid "react.registry.secrets.storage.move_back"
+msgstr "Move back"
+
+msgid "react.registry.secrets.storage.move_local_title"
+msgstr "Move {value0} back to this installation?"
+
+msgid "react.registry.secrets.storage.adopt_description"
+msgstr "The secret stays where it is. Its value is checked once and never copied here; only where it is kept is remembered."
+
+msgid "react.registry.secrets.storage.adopt"
+msgstr "Use this secret"
+
+msgid "react.registry.secrets.storage.storage"
+msgstr "Storage"
+
+msgid "react.registry.secrets.storage.name_helper"
+msgstr "How it is called here. Leave blank to use the name in the storage."
+
+msgid "react.settings.role_here"
+msgstr "Role here"
+
+msgid "react.settings.no_role_here"
+msgstr "No role here"
+
+msgid "react.settings.remove_from_this_company"
+msgstr "Remove from this company"
+
+msgid "react.settings.value1_was_removed_from_this_company"
+msgstr "{value1} was removed from this company."
+
+msgid "react.settings.remove_value1_from_this_company"
+msgstr "Remove {value1} from this company?"
+
+msgid "react.settings.value1_keeps_their_other_companies"
+msgstr "{value1} loses access to this company only and keeps their other companies, password and history."
+
+msgid "react.settings.the_role_applies_in_this_company_only"
+msgstr "The role applies in this company only."
+
+msgid "react.settings.add_an_existing_person"
+msgstr "Add an existing person"
+
+msgid "react.settings.value1_was_added_to_this_company"
+msgstr "{value1} was added to this company."
+
+msgid "react.settings.close_add_existing_person_dialog"
+msgstr "Close add existing person dialog"
+
+msgid "react.settings.add_or_invite_person_description"
+msgstr "Find people of the companies you manage by name or email. Anyone else is invited by their full email address and joins after they accept."
+
+msgid "react.settings.add_to_this_company"
+msgstr "Add to this company"
+
+msgid "react.settings.person"
+msgstr "Person"
+
+msgid "react.settings.find_a_person"
+msgstr "Find a person"
+
+msgid "react.settings.name_or_email"
+msgstr "Name or email address"
+
+msgid "react.settings.no_one_found_type_full_email_to_invite"
+msgstr "No one found. Type their full email address to invite them, or add them as a new user."
+
+msgid "react.settings.matching_people"
+msgstr "Matching people"
+
+msgid "react.settings.role_in_this_company"
+msgstr "Role in this company"
+
+msgid "react.settings.choose_a_person"
+msgstr "Choose a person."
+
+msgid "react.settings.the_person_could_not_be_added"
+msgstr "The person could not be added."
+
+msgid "react.settings.invite_by_email_helper"
+msgstr "No one of your companies has this address. Send an invitation: they join after they accept."
+
+msgid "react.settings.send_invitation"
+msgstr "Send invitation"
+
+msgid "react.settings.if_this_person_exists_they_will_get_an_invitation"
+msgstr "If this person exists, they will get an invitation."
+
+
+
+
+
+msgid "react.settings.pending_invitations"
+msgstr "Pending invitations"
+
+msgid "react.settings.pending_invitations_description"
+msgstr "People join this company only when they accept. An invitation to an address nobody uses stays here until it expires."
+
+msgid "react.settings.invited_by"
+msgstr "Invited by"
+
+msgid "react.settings.cancel_the_invitation_to_value1"
+msgstr "Cancel the invitation to {value1}"
+
+msgid "react.settings.the_invitation_could_not_be_cancelled"
+msgstr "The invitation could not be cancelled."
+
+msgid "react.settings.invitation_to_value1_was_cancelled"
+msgstr "The invitation to {value1} was cancelled."
+
+msgid "react.invitations.eyebrow"
+msgstr "Invitation"
+
+msgid "react.invitations.title"
+msgstr "Join {company}?"
+
+msgid "react.invitations.description"
+msgstr "You join only if you accept. You can decline instead."
+
+msgid "react.invitations.details_title"
+msgstr "The invitation"
+
+msgid "react.invitations.company"
+msgstr "Company"
+
+msgid "react.invitations.role"
+msgstr "Your role there"
+
+msgid "react.invitations.invited_by"
+msgstr "Invited by"
+
+msgid "react.invitations.valid_until"
+msgstr "Valid until"
+
+msgid "react.invitations.accept"
+msgstr "Join {company} as {role}"
+
+msgid "react.invitations.decline"
+msgstr "Decline"
+
+msgid "react.invitations.loading"
+msgstr "Opening the invitation"
+
+msgid "react.invitations.continue"
+msgstr "Continue"
+
+msgid "react.invitations.declined_title"
+msgstr "Invitation declined"
+
+msgid "react.invitations.declined_description"
+msgstr "You did not join {company}."
+
+msgid "react.invitations.changed_title"
+msgstr "This invitation has changed"
+
+msgid "react.invitations.changed_copy"
+msgstr "The company changed the invitation. Open the newest link you received."
+
+msgid "react.invitations.invalid_title"
+msgstr "This invitation is no longer valid"
+
+msgid "react.invitations.invalid_copy"
+msgstr "It was answered, cancelled or has expired. Ask the company's administrator for a new one."
+
+msgid "react.invitations.failed_title"
+msgstr "The invitation could not be opened"
+
+msgid "react.invitations.failed_copy"
+msgstr "Check the connection and try again."
+
+msgid "react.settings.invitation_link"
+msgstr "Invitation link"
+
+msgid "react.settings.copy_invitation_link"
+msgstr "Copy invitation link"
+
+msgid "react.settings.invitation_link_copied"
+msgstr "Invitation link copied."
+
+msgid "react.settings.invitation_link_shown_once"
+msgstr "Email is not set up, so send this link to the person yourself. It is shown only now and works once."

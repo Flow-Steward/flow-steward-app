@@ -9,6 +9,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from core.application.auth.config import DEFAULT_ACCOUNT_ID
+from core.application.extensions.account_enablement import install_reaches_account
 from core.application.management import ServiceConflictError, ServiceError, ServiceValidationError
 from core.application.management.command_models import (
     ProjectConnectionCreateInput,
@@ -27,6 +28,10 @@ from core.application.management.requests import (
     ProjectWorkflowSelectionRequest,
 )
 from core.application.management.scope import ScopeContext
+from core.application.projects.workflow_only_connections import (
+    require_install_needed,
+    restricted_workflow_ids,
+)
 from core.entrypoints.api.integrations_extension_routes import register_extension_routes
 from core.entrypoints.api.integrations_mcp_routes import register_mcp_routes
 from core.entrypoints.api.integrations_request_helpers import (
@@ -38,6 +43,7 @@ from core.entrypoints.api.integrations_request_helpers import (
     _valid_project_id,
 )
 from core.entrypoints.api.integrations_secret_routes import register_secret_approval_routes
+from core.entrypoints.api.secret_backend_routes import register_secret_backend_routes
 
 
 def create_integrations_connectors_router(
@@ -67,7 +73,10 @@ def create_integrations_connectors_router(
         record = store.get(extension_id=extension_id, account_id=account_id)
         if record is None and account_id != DEFAULT_ACCOUNT_ID:
             candidate = store.get(extension_id=extension_id, account_id=DEFAULT_ACCOUNT_ID)
-            if str(getattr(candidate, "visibility", "") or "") == "global":
+            # Shared with every account, or enabled by this one (ADR 0020, C6).
+            if install_reaches_account(
+                candidate, account_id, getattr(store, "account_enablements", None)
+            ):
                 record = candidate
         install_id = str(getattr(record, "install_id", "") or "").strip()
         if not install_id:
@@ -93,8 +102,13 @@ def create_integrations_connectors_router(
             return service_error_response(e, request)
         except Exception as e:
             return api_error_response(e, request=request)
+        # Project configuration is read-only to a person reaching the project only
+        # through workflow grants (ADR 0076 section 8b).
+        read_only = restricted_workflow_ids(scope, project_id) is not None
         return {
-            "connections": [_browser_connection_view(scope, c.dump()) for c in connections],
+            "connections": [
+                _browser_connection_view(scope, c.dump(), read_only=read_only) for c in connections
+            ],
             "project_id": project_id,
         }
 
@@ -164,7 +178,9 @@ def create_integrations_connectors_router(
             return service_error_response(e)
         except Exception as e:
             return api_error_response(e)
-        return _browser_connection_view(scope, payload.dump())
+        return _browser_connection_view(
+            scope, payload.dump(), read_only=restricted_workflow_ids(scope, project_id) is not None
+        )
 
     @router.put("/api/projects/{project_id}/connections/{connection_id}")
     async def api_project_connection_update(
@@ -408,6 +424,10 @@ def create_integrations_connectors_router(
                 account_id=account_id,
                 extension_id=extension_id,
                 connection_install_id=connection_install_id,
+            )
+            # Only an install a granted workflow uses, in a workflow-only project.
+            require_install_needed(
+                bl, scope, project_id, extension_install_id, account_id=account_id
             )
             include_all_connections = _parse_bool_query(
                 request.query_params.get("include_all_connections"),
@@ -729,6 +749,14 @@ def create_integrations_connectors_router(
     register_secret_approval_routes(
         api_error_response=api_error_response,
         err_not_found=err_not_found,
+        get_logger=integration_store,
+        request_scope=request_scope,
+        router=router,
+        service_error_response=service_error_response,
+    )
+
+    register_secret_backend_routes(
+        api_error_response=api_error_response,
         get_logger=integration_store,
         request_scope=request_scope,
         router=router,

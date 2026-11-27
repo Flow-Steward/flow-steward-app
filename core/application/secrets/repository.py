@@ -220,7 +220,8 @@ def bindings_for_secret(cur: Any, *, account_id: str, secret_id: str) -> list[di
                ) AS consumer_name
           FROM catalog_secret_bindings AS b
           LEFT JOIN project_connections AS c ON c.connection_id = b.project_connection_id
-          LEFT JOIN registry_workflows AS w ON w.workflow_id = b.workflow_id
+          LEFT JOIN registry_workflows AS w
+            ON w.workflow_id = b.workflow_id AND w.account_id = b.account_id
           LEFT JOIN workspace_data_connections AS d ON d.connection_id = b.data_connection_id
           LEFT JOIN mcp_connectors AS m ON m.connector_id = b.mcp_connector_id
           LEFT JOIN projects AS p

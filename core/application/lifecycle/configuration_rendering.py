@@ -17,6 +17,7 @@ from core.application.lifecycle.contracts import (
     public_base_url,
 )
 from core.application.lifecycle.errors import LifecycleError
+from core.application.lifecycle.module_settings import module_settings_environment
 from core.application.lifecycle.operator_settings import operator_setting_specs
 from core.application.lifecycle.runtime_installation_context import (
     deployment_monitoring_dependencies,
@@ -368,6 +369,9 @@ class ConfigurationRenderingMixin:
             managed[name] = config.operator_settings.get(name) or spec.default_for_environment(
                 stack_environment
             )
+        # ADR 0082: platform-module settings travel in one carrier variable that every
+        # module role receives; each role publishes the names its modules declare.
+        managed.update(module_settings_environment(config.operator_settings))
         # AC17-R167: never the source profile's, which `existing` holds on a switch.
         managed.update(profile_owned_environment(config.deployment_profile))
         if (

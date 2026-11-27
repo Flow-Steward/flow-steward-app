@@ -69,3 +69,60 @@ def normalize_user_payload(
             str(normalized.get("account_id") or DEFAULT_ACCOUNT_ID).strip() or DEFAULT_ACCOUNT_ID,
         )
     return normalized
+
+
+def limit_view_to_accounts(
+    view: dict[str, Any],
+    visible_account_ids: list[str],
+    *,
+    role_account_id: str | None = None,
+) -> dict[str, Any]:
+    """The user view as an administrator of ``visible_account_ids`` may see it.
+
+    Roles and memberships are per account (ADR 0085): an administrator learns which
+    of the accounts they manage a person belongs to, never the person's other
+    accounts. A home account outside them is replaced by the first visible one.
+
+    ``roles`` is the person's role in one visible account: ``role_account_id`` when it
+    is visible, else the view's (visible) account. A role of an account the
+    administrator does not manage is never shown (ADR 0085, C3); a person without a
+    membership role there has none.
+    """
+    visible = {str(item or "").strip() for item in visible_account_ids or ()} - {""}
+    limited = dict(view or {})
+    all_memberships = [
+        dict(item) for item in limited.get("account_memberships") or [] if isinstance(item, dict)
+    ]
+    home_account = str(limited.get("account_id") or "").strip()
+    memberships = [
+        item for item in all_memberships if str(item.get("account_id") or "").strip() in visible
+    ]
+    limited["account_memberships"] = memberships
+    limited["account_ids"] = [
+        account_id
+        for account_id in (str(item or "").strip() for item in limited.get("account_ids") or [])
+        if account_id in visible
+    ]
+    if home_account not in visible:
+        first = memberships[0] if memberships else {}
+        limited["account_id"] = str(first.get("account_id") or "").strip()
+        limited["account_display_name"] = str(
+            first.get("display_name") or limited["account_id"]
+        ).strip()
+    role_account = str(role_account_id or "").strip()
+    if role_account not in visible:
+        role_account = str(limited.get("account_id") or "").strip()
+    membership = next(
+        (item for item in memberships if str(item.get("account_id") or "").strip() == role_account),
+        None,
+    )
+    if membership is not None and "role" in membership:
+        role = str(membership.get("role") or "").strip()
+        limited["roles"] = [role] if role else []
+    elif role_account and role_account == home_account and role_account in visible:
+        # Storage without membership roles: the view's roles are those of its home
+        # account, which the administrator manages.
+        limited["roles"] = list(limited.get("roles") or [])
+    else:
+        limited["roles"] = []
+    return limited

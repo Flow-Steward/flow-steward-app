@@ -36,6 +36,8 @@ class WorkflowEntrypointRequestCommand:
     request_context: dict[str, object]
     #: The webhook's description; the jobs it starts are titled with it.
     entry_label: str = ""
+    #: The webhook's row id; names it as the starter of its runs instead of its key.
+    entrypoint_id: str = ""
 
     def submission(self) -> dict[str, object]:
         return {
@@ -54,6 +56,7 @@ class WorkflowEntrypointRequestCommand:
             "staged_files": list(self.staged_files),
             "request_context": self.request_context,
             "entry_label": self.entry_label,
+            "entrypoint_id": self.entrypoint_id,
         }
 
 

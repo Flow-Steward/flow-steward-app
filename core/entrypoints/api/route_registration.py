@@ -2,7 +2,16 @@
 # mypy: ignore-errors
 from typing import Any
 
+from core.application.auth.project_scope_limit import (
+    limit_principal_projects,
+    stored_scope_limit,
+)
 from core.application.extensions.artifact_presentation import ArtifactPresentationResolver
+from core.application.management.approval_assignees import (
+    APPROVAL_NOT_ASSIGNED_CODE,
+    StepApproverRequiredError,
+    without_personal_identity,
+)
 from core.application.management.command_models import ApprovalDecisionInput
 from core.application.management.errors import ServiceConflictError
 from core.application.workflows.workflow_secret_default_service import (
@@ -127,6 +136,13 @@ def _app_edition(current_app: FastAPI) -> str:
     return str(metadata.get("edition") or "community").strip() or "community"
 
 
+def _app_feature_endpoints(current_app: FastAPI) -> dict[str, str]:
+    """Every registered feature endpoint (ADR 0082); bootstrap filters by entitlement."""
+    registry = getattr(_app_container(current_app), "feature_endpoints", None)
+    snapshot = getattr(registry, "snapshot", None)
+    return dict(snapshot()) if callable(snapshot) else {}
+
+
 def _app_platform_contract(current_app: FastAPI, contract_key: str):
     contracts = _app_registries(current_app).get("platform_contracts")
     if not isinstance(contracts, dict):
@@ -224,7 +240,18 @@ def _app_shell_navigation(current_app: FastAPI, *, auth_user=None, locale=None):
 
 def _app_external_sign_in(current_app: FastAPI) -> dict:
     payload = _app_registries(current_app).get("external_sign_in")
-    return dict(payload) if isinstance(payload, Mapping) else {}
+    if isinstance(payload, Mapping) and payload:
+        return dict(payload)
+    from core.application.auth.external_sign_in_service import (
+        OPTIONS_PATH,
+        external_sign_in_offered,
+    )
+
+    port = getattr(_app_container(current_app), "external_sign_in", None)
+    if external_sign_in_offered(port):
+        # The sign-in page reads its buttons from this path (bootstrap key kept).
+        return {"providers_path": OPTIONS_PATH}
+    return {}
 
 
 def _initialize_shared_route_dependencies(current_app: FastAPI) -> None:
@@ -278,7 +305,8 @@ def _resume_approval_reaction(
     try:
         accepted = approval_command_service().resume_task(
             thread_id=thread_id,
-            scope=scope,
+            # A reaction never decides as a person (assigned approvers, ADR 0082).
+            scope=without_personal_identity(scope),
             decision=ApprovalDecisionInput(
                 approved=approved,
                 action=action,
@@ -287,6 +315,8 @@ def _resume_approval_reaction(
             ),
             idempotency_key=idempotency_key,
         )
+    except StepApproverRequiredError:
+        return {"status": "ignored", "reason": APPROVAL_NOT_ASSIGNED_CODE}
     except ServiceConflictError as exc:
         code = str((exc.payload or {}).get("code") or "").strip()
         from core.application.management.approval_outcome import (
@@ -433,6 +463,7 @@ def _register_api_route_bindings(current_app: FastAPI) -> None:
             current_app, auth_user=auth_user, locale=locale
         ),
         external_sign_in_resolver=lambda: _app_external_sign_in(current_app),
+        feature_endpoints_resolver=lambda: _app_feature_endpoints(current_app),
         project_create_input_cls=ProjectCreateInput,
         project_update_input_cls=ProjectUpdateInput,
         service_error_cls=ServiceError,
@@ -569,6 +600,38 @@ def _register_auth_route_bindings(current_app: FastAPI) -> None:
             password_hash=lambda raw: _password_hash(raw),
         ),
     )
+    _register_external_sign_in_routes(current_app)
+
+
+def _register_external_sign_in_routes(current_app: FastAPI) -> None:
+    from core.application.auth.serve_auth_runtime import (
+        auth_session_issue_guard_response,
+        public_base_url,
+    )
+    from core.entrypoints.api.external_sign_in_routes import create_external_sign_in_router
+    from core.infrastructure.runtime.entrypoint_db_adapters import database_transaction
+
+    current_app.include_router(
+        create_external_sign_in_router(
+            get_logger_only=lambda: _composed_service(current_app, "identity_store"),
+            connection_for=database_transaction,
+            external_sign_in_port=lambda: getattr(
+                _app_container(current_app), "external_sign_in", None
+            ),
+            entitlement_service=lambda: _app_platform_contract(current_app, "entitlement_service"),
+            session_issue_guard=auth_session_issue_guard_response,
+            request_scope=lambda request, **kwargs: _request_scope(request, **kwargs),
+            service_error_response=lambda exc, request=None: _service_error_response(exc, request),
+            api_error_response=lambda exc, request=None: _api_error_response(exc, request=request),
+            log_auth_audit_event=lambda bl, **kwargs: _log_auth_audit_event(bl, **kwargs),
+            public_base_url=public_base_url,
+            auth_cookie_secure=lambda: _auth_cookie_secure(),
+            auth_cookie_name=_AUTH_COOKIE_NAME,
+            auth_csrf_cookie_name=_AUTH_CSRF_COOKIE_NAME,
+            auth_session_ttl_hours=_AUTH_SESSION_TTL_HOURS,
+            request_client_ip=lambda request: _request_client_ip(request),
+        )
+    )
 
 
 def _inbound_oauth_service(current_app: FastAPI):
@@ -673,6 +736,9 @@ def _register_ui_route_bindings(current_app: FastAPI) -> None:
             resolved_principal_type=ResolvedPrincipal,
             err_authentication_required=ERR_AUTHENTICATION_REQUIRED,
             sleep_fn=asyncio.sleep,
+            limit_principal_projects_fn=lambda user, bl: limit_principal_projects(
+                user, bl, stored_scope_limit
+            ),
         ),
         serialize_log_row=lambda row, job_id: _serialize_log_row(row, job_id),
         serialize_event_row=lambda row: _serialize_event_row(row),
@@ -738,6 +804,7 @@ def _register_ui_route_bindings(current_app: FastAPI) -> None:
         resolve_model_selection_context=lambda request=None: _request_model_selection_context(
             request
         ),
+        entitlement_service=lambda: _app_platform_contract(current_app, "entitlement_service"),
     )
 
 

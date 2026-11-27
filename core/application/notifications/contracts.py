@@ -6,7 +6,7 @@ import fnmatch
 import uuid
 from typing import Any
 
-from core.infrastructure.config.platform_identity import DEFAULT_ACCOUNT_ID
+from core.infrastructure.config.account_scope import require_account_id
 from core.infrastructure.runtime.test_mode import is_test_mode_enabled, parse_test_mode
 
 _SEVERITY_ORDER = {
@@ -171,6 +171,12 @@ def _is_test_mode_dispatch(bl, event: dict) -> bool:
 def _resolve_authoritative_account_id(
     bl, project_id: Any, explicit_account_id: str | None = None
 ) -> str:
+    """Return the event's account: the one it carries, else its project's.
+
+    An event whose account is neither carried nor found on its project is
+    refused (``MissingAccountScopeError``); it is never delivered as the
+    default account's notification.
+    """
     normalized_account_id = _as_str(explicit_account_id)
     if normalized_account_id:
         return normalized_account_id
@@ -182,4 +188,8 @@ def _resolve_authoritative_account_id(
         normalized_account_id = _as_str((project or {}).get("account_id"))
         if normalized_account_id:
             return normalized_account_id
-    return DEFAULT_ACCOUNT_ID
+    return require_account_id(
+        "",
+        unit="notification event",
+        detail=f"project {_as_str(project_id) or '?'} has no resolvable account",
+    )

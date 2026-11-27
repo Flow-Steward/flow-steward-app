@@ -6,6 +6,7 @@ import json
 from collections.abc import Callable
 from typing import Any
 
+from core.application.registry.workflow_account import workflow_owner
 from core.application.workflows.reaction_scopes import (
     merge_scoped_reaction_rules,
     serialize_scoped_reaction_rows,
@@ -197,7 +198,9 @@ class NotificationRepositoryMixin:
 
     _ROUTE_WORKFLOW_INDEX = 2
 
-    def _reject_unknown_route_workflows(self, cur: Any, prepared_rows: list[tuple]) -> None:
+    def _reject_unknown_route_workflows(
+        self, cur: Any, prepared_rows: list[tuple], *, account_id: str | None = None
+    ) -> None:
         """Refuse a route naming a workflow that does not exist, by name.
 
         `notification_routes.workflow_id` references `registry_workflows`, so an
@@ -215,9 +218,11 @@ class NotificationRepositoryMixin:
         )
         if not requested or not self._table_exists("registry_workflows"):
             return
+        # A route names a workflow of its project's account (ADR 0020, C4b).
         cur.execute(
-            "SELECT workflow_id FROM registry_workflows WHERE workflow_id = ANY(%s)",
-            (requested,),
+            "SELECT workflow_id FROM registry_workflows WHERE workflow_id = ANY(%s) "
+            "AND account_id = %s",
+            (requested, workflow_owner(account_id)),
         )
         known = set()
         for row in cur.fetchall() or []:
@@ -275,7 +280,6 @@ class NotificationRepositoryMixin:
             )
 
         with self.conn.cursor() as cur:
-            self._reject_unknown_route_workflows(cur, prepared_rows)
             project_account_id = _default_account_id()
             if has_account_column and has_project_account_column:
                 cur.execute("SELECT account_id FROM projects WHERE id = %s", (project_id,))
@@ -291,6 +295,7 @@ class NotificationRepositoryMixin:
                             str(project_row[0] or _default_account_id()).strip()
                             or _default_account_id()
                         )
+            self._reject_unknown_route_workflows(cur, prepared_rows, account_id=project_account_id)
             for row in prepared_rows:
                 provider_id = self._resolve_notification_provider_id_cur(cur, row[3])
                 if has_account_column:
@@ -623,7 +628,9 @@ class NotificationRepositoryMixin:
             rows = cur.fetchall()
         return [self._normalize_workflow_reaction_row(dict(row)) for row in rows]
 
-    def list_workflow_reaction_scope_names(self, workflow_id: str) -> dict[str, dict[str, str]]:
+    def list_workflow_reaction_scope_names(
+        self, workflow_id: str, *, account_id: str | None = None
+    ) -> dict[str, dict[str, str]]:
         """Display names of the groups and steps a workflow's rules can be scoped to.
 
         Read from the same tables that validate a rule's scope, so a name exists
@@ -634,20 +641,21 @@ class NotificationRepositoryMixin:
             (
                 "group",
                 "registry_workflow_groups",
-                "SELECT group_id, display_name FROM registry_workflow_groups WHERE workflow_id = %s",
+                "SELECT group_id, display_name FROM registry_workflow_groups "
+                "WHERE workflow_id = %s AND account_id = %s",
             ),
             (
                 "step",
                 "registry_workflow_steps",
                 "SELECT step_id, display_name FROM registry_workflow_steps "
-                "WHERE owner_workflow_id = %s",
+                "WHERE owner_workflow_id = %s AND account_id = %s",
             ),
         )
         with self.conn.cursor() as cur:
             for kind, table, query in queries:
                 if not self._table_exists(table):
                     continue
-                cur.execute(query, (workflow_id,))
+                cur.execute(query, (workflow_id, workflow_owner(account_id)))
                 for scope_id, display_name in cur.fetchall():
                     key = str(scope_id or "").strip()
                     if key:
@@ -670,7 +678,7 @@ class NotificationRepositoryMixin:
             # Lock the workflow even when it has no rules yet. Definition writes
             # use this same lock, before reading or validating reaction scopes.
             with conn.cursor() as cur:
-                require_current_reaction_scopes(cur, workflow_id, [])
+                require_current_reaction_scopes(cur, workflow_id, [], account_id=account_id)
             existing = self.list_workflow_reactions(
                 workflow_id, enabled_only=False, account_id=account_id
             )
@@ -744,7 +752,9 @@ class NotificationRepositoryMixin:
                 )
 
         with transaction_connection(self.conn) as conn, conn.cursor() as cur:
-            require_current_reaction_scopes(cur, workflow_id, normalized_reactions)
+            require_current_reaction_scopes(
+                cur, workflow_id, normalized_reactions, account_id=normalized_account_id
+            )
             for row in prepared_rows:
                 if has_account_column:
                     cur.execute(

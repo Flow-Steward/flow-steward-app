@@ -51,7 +51,6 @@ def _event_row_matches_scope(
 ):
     return _domain_event_runtime.event_row_matches_scope(
         row,
-        default_account_id=DEFAULT_ACCOUNT_ID,
         account_id=account_id,
         allowed_project_ids=allowed_project_ids,
         allowed_workflow_ids=allowed_workflow_ids,
@@ -64,7 +63,6 @@ def _resolve_domain_event_by_ref(
     return _domain_event_runtime.resolve_domain_event_by_ref(
         bl,
         event_ref,
-        default_account_id=DEFAULT_ACCOUNT_ID,
         account_id=account_id,
         allowed_project_ids=allowed_project_ids,
         allowed_workflow_ids=allowed_workflow_ids,

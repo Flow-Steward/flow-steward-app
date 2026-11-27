@@ -7,6 +7,7 @@ import { DsAlert, DsCheckbox, PageContainer } from "@/components/shared/design-s
 import { PageLoadingState } from "@/components/shared/page-loading-state";
 import { DsPopover } from "@/components/shared/popover";
 import { useHasCapability } from "@/lib/auth/capabilities";
+import { useWorkflowLimitAllows } from "@/lib/auth/project-permissions";
 import { useI18n } from "@/lib/i18n/useI18n";
 import { queryKeys } from "@/lib/query/keys";
 import { JobsListPage, type JobsListScope } from "@/pages/jobs/list";
@@ -64,6 +65,8 @@ function ColumnPicker({
 function SectionList({ section }: Readonly<{ section: OperatorSectionDetail }>) {
   const { t } = useI18n();
   const canRun = useHasCapability("run_workflows");
+  // ADR 0076 §8b: a limited person runs here only where the workflow's place allows it.
+  const runAllowed = useWorkflowLimitAllows(section.project_id, section.workflow_id, "workflows.run");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogGeneration, setDialogGeneration] = useState(0);
   const storageKey = hiddenColumnsKey(section.project_id, section.workflow_id);
@@ -98,10 +101,13 @@ function SectionList({ section }: Readonly<{ section: OperatorSectionDetail }>) 
       canRun && runnable ? (
         <button
           className="fs-button primary"
+          data-testid="operator-new-submission"
+          disabled={!runAllowed}
           onClick={() => {
             setDialogGeneration((current) => current + 1);
             setDialogOpen(true);
           }}
+          title={runAllowed ? undefined : t("react.auth.project_action_not_allowed", "Your access to this project does not include this action.")}
           type="button"
         >
           <Plus aria-hidden="true" />

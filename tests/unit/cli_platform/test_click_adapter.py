@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -343,15 +344,17 @@ def test_click_module_entrypoint_uses_public_prog_name_and_clean_stderr() -> Non
 
 
 @pytest.mark.parametrize("setup_failure", ("construction", "initial_write"))
-def test_json_log_setup_failures_are_emitted_as_one_central_failure_envelope(
-    monkeypatch: pytest.MonkeyPatch, setup_failure: str
+def test_an_operation_log_that_cannot_be_written_never_stops_the_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, setup_failure: str
 ) -> None:
     from core.application.management.command_specs.contracts import OperationType
     from core.application.management.command_specs.users import USERS_LIST_SPEC
     from core.entrypoints.cli.platform import click_adapter
+    from core.entrypoints.cli.platform.operation_log import OperationLog
 
     spec = USERS_LIST_SPEC.model_copy(update={"operation_type": OperationType.CHANGE})
     monkeypatch.setattr(click_adapter, "PUBLIC_COMMAND_SPECS", (spec,))
+    monkeypatch.setenv("FS_OPERATION_LOG_ROOT", str(tmp_path / "state" / "logs"))
 
     if setup_failure == "construction":
 
@@ -361,42 +364,92 @@ def test_json_log_setup_failures_are_emitted_as_one_central_failure_envelope(
         monkeypatch.setattr(click_adapter, "OperationLog", fail_construction)
     else:
 
-        class FailingInitialWriteLog:
-            operation_id = "partial-operation"
-            path = Path("partial-operation.log")
+        class FailingWriteLog(OperationLog):
+            def __init__(self, command_id: str) -> None:
+                super().__init__(command_id, root=tmp_path)
+                # The descriptor goes bad after opening, as on a full or lost disk.
+                os.close(self._file)
 
-            def __init__(self, _command_id: str) -> None:
-                pass
-
-            def write(self, _message: str) -> None:
-                raise OSError("operation log is unavailable")
-
-            def close(self) -> None:
-                pass
-
-        monkeypatch.setattr(click_adapter, "OperationLog", FailingInitialWriteLog)
+        monkeypatch.setattr(click_adapter, "OperationLog", FailingWriteLog)
 
     registry = _Registry()
     result = CliRunner().invoke(
         click_adapter.build_click_app(registry, SimpleNamespace()), ["users", "list", "--json"]
     )
 
-    # A mutating command still refuses to run without its own record, but the
-    # refusal names the reason: an unwritable state directory is an environment
-    # problem an operator can fix, not an unexpected internal error.
-    assert result.exit_code == 4
-    assert registry.calls == []
-    lines = result.output.splitlines()
+    # The operation runs; stderr says why it has no log, stdout stays one envelope.
+    assert result.exit_code == 0, result.output
+    assert [key for key, _value in registry.calls] == ["users.list"]
+    lines = result.stdout.splitlines()
     assert len(lines) == 1
     payload = json.loads(lines[0])
-    assert payload["error"]["code"] == "operation_log_unavailable"
-    assert "operation log is unavailable" in payload["error"]["message"]
-    assert ".flow-steward/logs" in payload["error"]["message"]
-    assert payload["error"]["hint"]
-    assert payload["operation_id"] is None
+    assert payload["ok"] is True
+    # No complete log exists, so the result never points to one.
     assert payload["log_path"] is None
+    if setup_failure == "initial_write":
+        assert payload["operation_id"]
+    assert result.stderr.count("Warning: cannot write the operation log in ") == 1
+    assert "The command continues without it." in result.stderr
     assert "Traceback" not in result.output
-    assert "running:" not in result.output
+
+
+def test_an_operation_log_whose_close_fails_is_not_reported_as_the_record(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.application.management.command_specs.contracts import OperationType
+    from core.application.management.command_specs.users import USERS_LIST_SPEC
+    from core.entrypoints.cli.platform import click_adapter
+    from core.entrypoints.cli.platform.operation_log import OperationLog
+
+    spec = USERS_LIST_SPEC.model_copy(update={"operation_type": OperationType.CHANGE})
+    monkeypatch.setattr(click_adapter, "PUBLIC_COMMAND_SPECS", (spec,))
+
+    class CloseFailingLog(OperationLog):
+        def __init__(self, command_id: str) -> None:
+            super().__init__(command_id, root=tmp_path)
+
+        def close(self) -> None:
+            # Every write succeeded; the close fails, as on a lost network volume.
+            os.close(self._file)
+            super().close()
+
+    monkeypatch.setattr(click_adapter, "OperationLog", CloseFailingLog)
+    registry = _Registry()
+    result = CliRunner().invoke(
+        click_adapter.build_click_app(registry, SimpleNamespace()), ["users", "list", "--json"]
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout.splitlines()[0])
+    assert payload["ok"] is True
+    assert payload["operation_id"]
+    assert payload["log_path"] is None
+    assert result.stderr.count("Warning: cannot write the operation log in ") == 1
+
+
+def test_a_complete_operation_log_is_reported_with_its_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from core.application.management.command_specs.contracts import OperationType
+    from core.application.management.command_specs.users import USERS_LIST_SPEC
+    from core.entrypoints.cli.platform import click_adapter
+    from core.entrypoints.cli.platform.operation_log import OperationLog
+
+    spec = USERS_LIST_SPEC.model_copy(update={"operation_type": OperationType.CHANGE})
+    monkeypatch.setattr(click_adapter, "PUBLIC_COMMAND_SPECS", (spec,))
+
+    class TmpLog(OperationLog):
+        def __init__(self, command_id: str) -> None:
+            super().__init__(command_id, root=tmp_path)
+
+    monkeypatch.setattr(click_adapter, "OperationLog", TmpLog)
+    result = CliRunner().invoke(
+        click_adapter.build_click_app(_Registry(), SimpleNamespace()), ["users", "list", "--json"]
+    )
+
+    payload = json.loads(result.stdout.splitlines()[0])
+    assert payload["log_path"]
+    assert "Warning: cannot write the operation log" not in result.stderr
 
 
 def test_json_progress_setup_failure_is_emitted_as_one_central_failure_envelope(

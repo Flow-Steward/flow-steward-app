@@ -2,6 +2,7 @@
 # mypy: ignore-errors
 from __future__ import annotations
 
+from .approval_assignees import without_personal_identity
 from .command_services_common import *  # NOSONAR
 
 
@@ -748,7 +749,9 @@ class CommandDispatchService:
                 raise ServiceConflictError("Job has no approval thread")
             resolved = resume_task(
                 thread_id=thread_id,
-                scope=scope,
+                # A dispatched command never decides as a person: a step with
+                # assigned approvers refuses it.
+                scope=without_personal_identity(scope),
                 decision=ApprovalDecisionInput(
                     approved=approved,
                     action=payload.get("action"),

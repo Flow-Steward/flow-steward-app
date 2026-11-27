@@ -17,6 +17,7 @@ from core.application.jobs.submission_admission import (
     SubmissionAdmissionController,
     SubmissionAdmissionLease,
 )
+from core.application.registry.workflow_account import account_scope_if_named
 from core.application.workflows import workflow_entrypoint_repository
 from core.application.workflows.workflow_entrypoint_audit_service import (
     WorkflowEntrypointAuditRejection,
@@ -777,6 +778,12 @@ class _WorkflowEntrypointHttpController:
         preparation = await run_in_threadpool(self._service.prepare, self._entry_key)
         if not preparation.ok:
             return await self._preparation_failure(preparation)
+        # A public webhook has no principal to bind: the entrypoint's own account
+        # names every registry read of the admission and the start (ADR 0020, C5).
+        with account_scope_if_named((preparation.entrypoint or {}).get("account_id")):
+            return await self._execute_prepared(preparation)
+
+    async def _execute_prepared(self, preparation: WorkflowEntrypointPreparation):
         transport = await _load_transport_payload(
             preparation,
             request=self._request,
@@ -827,6 +834,7 @@ class _WorkflowEntrypointHttpController:
             staged_files=tuple(transport.staged_files),
             request_context=dict(transport.request_context),
             entry_label=str(preparation.entrypoint.get("description") or "").strip(),
+            entrypoint_id=str(preparation.entrypoint.get("entrypoint_id") or "").strip(),
         )
         result = await run_in_threadpool(self._service.execute, command)
         if result.outcome.operator_error:

@@ -1,4 +1,8 @@
-"""Fail-closed OSS account boundary for deployment-global registry catalogs."""
+"""Account boundary of the field and data-contract catalogs (ADR 0020, step C4a).
+
+Fields and data contracts belong to an account, so a caller of any account reaches
+the catalog, and every store call is made for the caller's own account only.
+"""
 
 from __future__ import annotations
 
@@ -23,7 +27,11 @@ def _client_for_account(account_id: str) -> TestClient:
 
     @app.middleware("http")
     async def _inject_scope(request, call_next):
-        request.state.auth_user = {"username": "admin", "roles": ["admin"]}
+        request.state.auth_user = {
+            "account_id": DEFAULT_ACCOUNT_ID,
+            "username": "admin",
+            "roles": ["admin"],
+        }
         request.state.scope_context = normalize_scope(
             account_id=account_id,
             actor_id="admin@example.com",
@@ -70,23 +78,47 @@ CONTRACT_BODY = {
         ("DELETE", "/api/data-contracts/rr006.contract", None),
     ],
 )
-def test_foreign_account_is_rejected_before_global_registry_store_access(
+def test_every_store_call_is_made_for_the_callers_account(
     monkeypatch,
     method: str,
     path: str,
     body: dict | None,
 ) -> None:
     field_db = MagicMock()
+    field_db.get_field.return_value = None
+    field_db.list_fields.return_value = []
+    field_db.toggle_field.return_value = True
     contract_db = MagicMock()
+    contract_db.get_data_contract.return_value = None
+    contract_db.list_data_contracts.return_value = []
+    contract_db.toggle_data_contract.return_value = True
     monkeypatch.setattr(field_routes, "_get_db", lambda: field_db)
     monkeypatch.setattr(data_contract_routes, "_get_db", lambda: contract_db)
 
     response = _client_for_account(FOREIGN_ACCOUNT_ID).request(method, path, json=body)
 
-    assert response.status_code == 403
-    assert "default account" in response.text
-    assert not field_db.mock_calls
-    assert not contract_db.mock_calls
+    assert response.status_code != 403, response.text
+    calls = [*field_db.mock_calls, *contract_db.mock_calls]
+    assert calls
+    for name, _args, kwargs in calls:
+        assert kwargs.get("account_id") == FOREIGN_ACCOUNT_ID, name
+
+
+def test_another_accounts_row_is_answered_as_not_found(monkeypatch) -> None:
+    field_db = MagicMock()
+    field_db.get_field.return_value = None
+    contract_db = MagicMock()
+    contract_db.get_data_contract.return_value = None
+    monkeypatch.setattr(field_routes, "_get_db", lambda: field_db)
+    monkeypatch.setattr(data_contract_routes, "_get_db", lambda: contract_db)
+    client = _client_for_account(FOREIGN_ACCOUNT_ID)
+
+    assert client.get("/api/fields/rr006.field").status_code == 404
+    assert client.get("/api/data-contracts/rr006.contract").status_code == 404
+    field_db.get_field.assert_called_once_with("rr006.field", account_id=FOREIGN_ACCOUNT_ID)
+    contract_db.get_data_contract.assert_called_once_with(
+        "rr006.contract", account_id=FOREIGN_ACCOUNT_ID
+    )
 
 
 def test_default_account_can_read_deployment_registry_catalogs(monkeypatch) -> None:
@@ -100,5 +132,5 @@ def test_default_account_can_read_deployment_registry_catalogs(monkeypatch) -> N
 
     assert client.get("/api/fields").status_code == 200
     assert client.get("/api/data-contracts").status_code == 200
-    field_db.list_fields.assert_called_once()
-    contract_db.list_data_contracts.assert_called_once()
+    assert field_db.list_fields.call_args.kwargs["account_id"] == DEFAULT_ACCOUNT_ID
+    assert contract_db.list_data_contracts.call_args.kwargs["account_id"] == DEFAULT_ACCOUNT_ID

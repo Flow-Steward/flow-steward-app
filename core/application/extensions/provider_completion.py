@@ -7,7 +7,6 @@ from typing import Any
 from core.application.extensions.provider_runtime import (
     _as_dict,
     _as_str,
-    _default_account_id,
     _extension_row,
     _process_provider_project_state_updates,
     resolve_extension_runtime_config,
@@ -142,11 +141,7 @@ def _extension_action_response(
         invocation,
         extension=normalized_extension,
         db=bl,
-        account_id=(
-            _as_str(context.get("account_id"))
-            or _as_str(extension.get("account_id"))
-            or _default_account_id()
-        ),
+        account_id=(_as_str(context.get("account_id")) or _as_str(extension.get("account_id"))),
         project_id=_as_str(project_id) or _as_str(context.get("project_id")),
         connection_id=_as_str(context.get("connection_id")) or None,
         actor_id=_as_str(context.get("actor_id")) or None,
@@ -226,6 +221,8 @@ def sync_provider_completion_status(job_id: Any, final_status: str, bl) -> None:
         },
         request_context={
             "trace_id": _job_trace_id(job_id),
+            # The job carries its account; the provider's state update uses it.
+            "account_id": _as_str(row.get("account_id")) or None,
             "job_id": _as_str(job_id),
             "project_id": _as_str(project_id) or None,
             "correlation_id": f"job:{_as_str(job_id)}:provider.sync_completion_status",

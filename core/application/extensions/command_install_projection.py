@@ -7,6 +7,7 @@ from core.application.management.command_models import (
     ExtensionRuntimeTokenResultView,
 )
 from core.application.management.errors import ServiceConflictError
+from core.application.registry.workflow_account import workflow_account_scope
 
 from .command_context import ExtensionCommandContext
 from .extension_runtime import ExtensionRegistryProjectionRecord
@@ -241,6 +242,8 @@ class ExtensionInstallProjectionService:
             # In-memory lifecycle stores keep no registry rows and run no jobs.
             return
         install_id = _normalize_text(getattr(install_record, "install_id", ""))
+        # The anchor belongs to the install's account (ADR 0020, C4b).
+        owner_account = _normalize_text(getattr(install_record, "account_id", "")) or None
 
         def ensure() -> None:
             for snapshot in implementations:
@@ -275,8 +278,12 @@ class ExtensionInstallProjectionService:
                     ),
                 )
 
-        if not self._run_with_lifecycle_connection(registry_store, ensure):
-            ensure()
+        def ensure_for_install_account() -> None:
+            with workflow_account_scope(owner_account):
+                ensure()
+
+        if not self._run_with_lifecycle_connection(registry_store, ensure_for_install_account):
+            ensure_for_install_account()
 
     def _check_release_actions(
         self, snapshots: list[Any], *, install_record: Any, release: Any, account_id: str

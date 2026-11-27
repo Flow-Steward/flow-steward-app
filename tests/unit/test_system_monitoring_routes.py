@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
@@ -155,7 +157,7 @@ def _component_api_client(projection, queries):
         assert required_roles == {"admin"}
         if request.headers.get("x-test-role") != "admin":
             raise PermissionError
-        return {"roles": ["admin"]}
+        return {"account_id": DEFAULT_ACCOUNT_ID, "roles": ["admin"]}
 
     def query(_bl):
         queries.append(True)
@@ -802,3 +804,89 @@ def test_scalable_still_reports_a_missing_socket_as_a_problem(monkeypatch):
     assert payload["container_discovery_applicable"] is True
     assert payload["available"] is False
     assert "not mounted into the app container" in payload["error"]
+
+
+def test_monitoring_summary_shows_a_failed_platform_module_as_a_degraded_check():
+    from core.application.monitoring.system import build_monitoring_summary_payload
+
+    payload = build_monitoring_summary_payload(
+        readiness={"ready": True, "checks": {"postgres": {"ok": True}}},
+        meta={},
+        platform_module_failures=[
+            {
+                "id": "acme.notes",
+                "version": "1.0.0",
+                "status": "failed",
+                "load_error": "ImportError: cannot import name 'gone'",
+            },
+            {"id": "", "load_error": "ignored without an id"},
+        ],
+    )
+
+    # Degraded but up: the app serves everything except the failed module.
+    assert payload["ready"] is True
+    assert payload["status"] == "ready"
+    assert payload["degraded"] is True
+    check = payload["checks"]["platform_modules"]
+    assert "ok" not in check
+    assert check["status"] == "degraded"
+    assert check["error"] == (
+        "acme.notes 1.0.0: Failed to load: ImportError: cannot import name 'gone'"
+    )
+    assert [record["id"] for record in check["failed_modules"]] == ["acme.notes"]
+    assert payload["summary"] == {
+        "checks_total": 2,
+        "checks_ok": 1,
+        "checks_failed": 0,
+        "failed_checks": [],
+        "checks_degraded": 1,
+        "degraded_checks": ["platform_modules"],
+    }
+
+
+def test_monitoring_summary_has_no_module_check_when_every_module_loaded():
+    from core.application.monitoring.system import build_monitoring_summary_payload
+
+    payload = build_monitoring_summary_payload(
+        readiness={"ready": True, "checks": {"postgres": {"ok": True}}},
+        meta={},
+        platform_module_failures=[],
+    )
+
+    assert "platform_modules" not in payload["checks"]
+    assert "degraded" not in payload
+    assert "checks_degraded" not in payload["summary"]
+
+
+def test_monitoring_summary_api_reads_the_app_platform_module_failures(api_client):
+    api_client.app.state.platform_module_failures = [
+        {
+            "id": "acme.notes",
+            "version": "1.0.0",
+            "status": "failed",
+            "load_error": "RuntimeError: schema acme_notes is missing",
+        }
+    ]
+    with (
+        patch(
+            "core.entrypoints.api.system_monitoring.deps.get_logger_only",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "core.entrypoints.api.system_monitoring.deps.compute_readiness",
+            return_value={"ready": True, "checks": {"postgres": {"ok": True}}},
+        ),
+        patch("core.entrypoints.api.system_monitoring.build_monitoring_meta", return_value={}),
+        patch(
+            "core.entrypoints.api.system_monitoring.extension_runtime_target",
+            return_value="linux-arm64",
+        ),
+    ):
+        response = api_client.get("/api/system/monitoring/summary")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["ready"] is True
+    assert body["checks"]["platform_modules"]["error"] == (
+        "acme.notes 1.0.0: Failed to load: RuntimeError: schema acme_notes is missing"
+    )

@@ -63,13 +63,19 @@ RETENTION_SETTINGS_FIELDS = (
     "trash_days",
     "terminal_job_checkpoints_days",
     "revisions_keep",
+    "approval_journal_retention_days",
 )
+#: How long approval journal rows are kept past their job. 0 keeps the default rule:
+#: rows go when their job is purged. A positive value applies only to an account
+#: entitled to the approval journal (ADR 0082); the retention pass checks that.
+APPROVAL_JOURNAL_RETENTION_FIELD = "approval_journal_retention_days"
 DEFAULT_RETENTION_SETTINGS: dict[str, int] = {
     "action_logs_days": 30,
     "job_logs_days": 30,
     "trash_days": 30,
     "terminal_job_checkpoints_days": 30,
     "revisions_keep": 5,
+    APPROVAL_JOURNAL_RETENTION_FIELD: 0,
 }
 MIN_RETENTION_DAYS = 1
 MAX_RETENTION_DAYS = 3650
@@ -101,6 +107,12 @@ def _coerce_days(value: Any, default: int) -> int:
 
 
 def _coerce_retention_value(field: str, value: Any, default: int) -> int:
+    if field == APPROVAL_JOURNAL_RETENTION_FIELD:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return int(default)
+        return max(0, min(MAX_RETENTION_DAYS, parsed))
     if field != "revisions_keep":
         return _coerce_days(value, default)
     try:
@@ -204,8 +216,13 @@ def save_retention_settings(
     actor: str = "system",
     account_id: Any = None,
 ) -> dict[str, Any]:
-    normalized = normalize_retention_settings(settings)
     resolved_account_id = normalize_account_id(account_id)
+    submitted = dict(settings) if isinstance(settings, dict) else {}
+    normalized = normalize_retention_settings(submitted)
+    if APPROVAL_JOURNAL_RETENTION_FIELD not in submitted:
+        # A form that does not show this field must not reset it: the upsert
+        # below keeps the stored value when the payload leaves it out.
+        normalized.pop(APPROVAL_JOURNAL_RETENTION_FIELD, None)
     updated_by = str(actor or "system").strip() or "system"
     try:
         with _dict_cursor(conn) as cur:
@@ -218,7 +235,17 @@ def save_retention_settings(
                     updated_by
                 ) VALUES (%s, %s, %s::jsonb, %s)
                 ON CONFLICT (account_id, setting_key) DO UPDATE SET
-                    setting_value_jsonb = EXCLUDED.setting_value_jsonb,
+                    setting_value_jsonb = CASE
+                        WHEN EXCLUDED.setting_value_jsonb ? 'approval_journal_retention_days'
+                            THEN EXCLUDED.setting_value_jsonb
+                        ELSE EXCLUDED.setting_value_jsonb || jsonb_strip_nulls(
+                            jsonb_build_object(
+                                'approval_journal_retention_days',
+                                system_settings.setting_value_jsonb
+                                    -> 'approval_journal_retention_days'
+                            )
+                        )
+                    END,
                     updated_at = NOW(),
                     updated_by = EXCLUDED.updated_by
                 RETURNING

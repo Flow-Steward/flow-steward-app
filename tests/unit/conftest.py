@@ -568,3 +568,19 @@ def audit_db():
             )
             conn.execute("DELETE FROM registry_workflows WHERE workflow_id = %s", (workflow_id,))
             conn.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+
+
+@pytest.fixture
+def installation_account():
+    """Bind the installation account around a test that calls the registry store directly.
+
+    Registry reads and writes name their account or run inside a request or a job
+    that bound one; with neither they are refused (ADR 0020, step C5). A test that
+    exercises the store outside both acts for the installation account, the way the
+    documented installation paths do. The module is imported here, not at the top,
+    so import-boundary tests never see it loaded for them.
+    """
+    from core.application.registry.workflow_account import installation_account_scope
+
+    with installation_account_scope() as account_id:
+        yield account_id

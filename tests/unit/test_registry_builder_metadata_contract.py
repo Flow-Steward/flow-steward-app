@@ -14,6 +14,10 @@ from core.application.registry.db_store import RegistryDBStore
 from core.application.registry.skill_manifest import SkillManifest
 from core.application.registry.workflow_manifest import WorkflowManifest
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 
 @pytest.mark.parametrize(
     "manifest_type, id_key",

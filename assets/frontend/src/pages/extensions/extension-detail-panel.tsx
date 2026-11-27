@@ -18,6 +18,7 @@ import type {
   ExtensionCallbackRegistration,
   ExtensionRecord,
 } from "@/pages/extensions/api";
+import { isAccountEnablementRow } from "@/pages/extensions/account-enablement";
 import { catalogLabel } from "./hub-support";
 import type { ExtensionBusyAction } from "./use-extensions-hub-state";
 import { manifestActionHostEffect } from "./manifest-action-support";
@@ -135,6 +136,8 @@ type ExtensionDetailPanelProps = {
   handleToggle: (extension: ExtensionRecord) => void | Promise<void>;
   handleUninstall: (extension: ExtensionRecord) => void | Promise<void>;
   archiveLifecycleAvailable: boolean;
+  /** Install, update and remove are the installation administrator's (ADR 0020, C6). */
+  canManageInstalls?: boolean;
   manifestPages: Array<Record<string, unknown>>;
   manifestQuery: {
     data?: unknown;
@@ -416,16 +419,23 @@ function ExtensionInstallWarnings({ detailExtension }: Readonly<{ detailExtensio
 function ExtensionAdminActions({ detailExtension, panel }: Readonly<{ detailExtension: ExtensionRecord; panel: ExtensionDetailPanelProps }>) {
   const { t } = useI18n();
   const pending = panel.busyById[detailExtension.extension_id];
+  // Another account turns the installation's extension on or off for itself
+  // only; installing and removing the code is the installation administrator's.
+  const forThisCompany = isAccountEnablementRow(detailExtension);
+  const canRemove = panel.canManageInstalls !== false && !forThisCompany;
+  let enableLabel = t("extensions.detail.enable", "Enable");
+  if (forThisCompany) enableLabel = t("react.extensions.enable_for_this_company", "Enable for this company");
   return (
     <div className="fs-extension-detail-actions">
       <div className="fs-extension-detail-action-row">
-        <Button busy={pending === "toggle"} busyLabel={t("react.extensions.updating", "Updating…")} disabled={Boolean(detailExtension.broken && !detailExtension.active) || Boolean(panel.activationBlockedReason && !detailExtension.active)} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleToggle(detailExtension)); }} type="button" variant="secondary">{detailExtension.active ? t("extensions.detail.disable", "Disable") : t("extensions.detail.enable", "Enable")}</Button>
+        <Button busy={pending === "toggle"} busyLabel={t("react.extensions.updating", "Updating…")} disabled={Boolean(detailExtension.broken && !detailExtension.active) || Boolean(panel.activationBlockedReason && !detailExtension.active && !forThisCompany)} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleToggle(detailExtension)); }} type="button" variant="secondary">{detailExtension.active ? t("extensions.detail.disable", "Disable") : enableLabel}</Button>
         <Button busy={pending === "health"} busyLabel={t("react.extensions.checking", "Checking…")} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleHealthCheck(detailExtension)); }} type="button" variant="secondary">{t("extensions.detail.health", "Extension runtime health")}</Button>
         {/* Among peer actions a destructive one takes the quiet ghost-danger
             lane; the uninstall plan dialog owns the filled Danger Button. */}
-        <Button busy={pending === "uninstall"} busyLabel={t("react.shared.uninstalling", "Uninstalling…")} disabled={!panel.archiveLifecycleAvailable} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleUninstall(detailExtension)); }} type="button" variant="ghost-danger">{t("extensions.detail.uninstall", "Uninstall")}</Button>
+        {canRemove ? <Button busy={pending === "uninstall"} busyLabel={t("react.shared.uninstalling", "Uninstalling…")} disabled={!panel.archiveLifecycleAvailable} onClick={() => { if (!pending) ignoreAsyncResult(panel.handleUninstall(detailExtension)); }} type="button" variant="ghost-danger">{t("extensions.detail.uninstall", "Uninstall")}</Button> : null}
       </div>
-      <p className="fs-extension-detail-note">{t("extensions.detail.uninstall_note", "Uninstall removes the extension and the lifecycle data it owns.")}</p>
+      {canRemove ? <p className="fs-extension-detail-note">{t("extensions.detail.uninstall_note", "Uninstall removes the extension and the lifecycle data it owns.")}</p> : null}
+      {forThisCompany ? <p className="fs-extension-detail-note">{t("react.extensions.enabled_for_this_company_note", "The installation administrator installs and updates this extension. Enabling it here turns it on for this company only; its connections and settings stay with this company.")}</p> : null}
     </div>
   );
 }

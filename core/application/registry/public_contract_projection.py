@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.registry.public_contract_projection_helpers import (
     STRUCTURED_VALUE_TYPES,
     _default_schema_for_value_type,
@@ -19,6 +20,7 @@ from core.application.registry.public_contract_projection_helpers import (
     _register_public_field_source,
     _stable_hash,
 )
+from core.application.registry.workflow_account import workflow_account_scope
 
 logger = logging.getLogger(__name__)
 
@@ -78,49 +80,125 @@ def sync_workflow_projection(db, workflow_id: str) -> dict[str, Any]:
     return reconcile_public_contract_projection(db, apply=True)
 
 
-def reconcile_public_contract_projection(db, *, apply: bool = True) -> dict[str, Any]:
+def reconcile_public_contract_projection(
+    db, *, apply: bool = True, account_id: str | None = None
+) -> dict[str, Any]:
+    """Reconcile derived fields, data contracts and published blocks.
+
+    The projection works per account (ADR 0020, C5): an account's skills, agents,
+    tools and workflows derive fields and contracts in that account only, and its
+    published blocks are that account's. Platform objects (no account) are the
+    installation account's sources. With *account_id* one account is reconciled;
+    without it every account that owns a source or a derived row is reconciled in
+    turn (the installation-wide reconcile run after a registry change).
+    """
+    accounts = (
+        [str(account_id).strip()] if str(account_id or "").strip() else _projection_accounts(db)
+    )
+    summary = ProjectionSummary()
+    per_account: dict[str, dict[str, int]] = {}
+    for owner in accounts:
+        with workflow_account_scope(owner):
+            account_summary = _reconcile_account(db, apply=apply, account_id=owner)
+        per_account[owner] = account_summary.to_dict()
+        for key, value in account_summary.to_dict().items():
+            setattr(summary, key, getattr(summary, key) + int(value))
+    return {
+        "applied": bool(apply),
+        "accounts": per_account,
+        "counts": _projection_counts(db),
+        "summary": summary.to_dict(),
+    }
+
+
+def _row_owner(row: dict[str, Any]) -> str:
+    """The account a source or derived row belongs to; a platform row is the installation's."""
+    return str(row.get("account_id") or "").strip() or DEFAULT_ACCOUNT_ID
+
+
+def _projection_accounts(db) -> list[str]:
+    """Every account that owns a projection source or a derived row, installation first."""
+    accounts: set[str] = set()
+    with db._cursor() as cur:
+        cur.execute(
+            """
+            SELECT account_id::text AS account_id FROM registry_workflows
+            UNION SELECT account_id::text FROM registry_fields
+            UNION SELECT account_id::text FROM registry_data_contracts
+            UNION SELECT account_id::text FROM registry_skills WHERE account_id IS NOT NULL
+            UNION SELECT account_id::text FROM registry_agents WHERE account_id IS NOT NULL
+            UNION SELECT account_id::text FROM registry_tools WHERE account_id IS NOT NULL
+            UNION SELECT account_id::text FROM registry_published_block_contracts
+                   WHERE account_id IS NOT NULL
+            """
+        )
+        for row in cur.fetchall() or []:
+            value = row.get("account_id") if isinstance(row, dict) else row[0]
+            if str(value or "").strip():
+                accounts.add(str(value).strip())
+    accounts.discard(DEFAULT_ACCOUNT_ID)
+    return [DEFAULT_ACCOUNT_ID, *sorted(accounts)]
+
+
+def _reconcile_account(db, *, apply: bool, account_id: str) -> ProjectionSummary:
     now = datetime.now(UTC)
-    desired = _build_desired_projection_state(db, now=now)
+    desired = _build_desired_projection_state(db, now=now, account_id=account_id)
     summary = ProjectionSummary()
 
     current_fields = {
         str(row.get("field_key") or "").strip(): row
-        for row in (db.list_fields(enabled_only=False, ensure_projection=False) or [])
+        for row in (
+            db.list_fields(enabled_only=False, ensure_projection=False, account_id=account_id) or []
+        )
         if str(row.get("field_key") or "").strip()
     }
     current_contracts = {
         str(row.get("contract_id") or "").strip(): row
-        for row in (db.list_data_contracts(enabled_only=False, ensure_projection=False) or [])
+        for row in (
+            db.list_data_contracts(
+                enabled_only=False, ensure_projection=False, account_id=account_id
+            )
+            or []
+        )
         if str(row.get("contract_id") or "").strip()
     }
-    current_blocks = {
+    # A published block key is unique within its owner (ADR 0020): every account
+    # derives its own blocks, whatever keys other accounts use. Only a platform
+    # block (no account) keeps its key from the accounts.
+    visible_blocks = {
         str(row.get("block_key") or "").strip(): row
         for row in (
-            db.list_published_block_contracts(enabled_only=False, ensure_projection=False) or []
+            db.list_published_block_contracts(
+                enabled_only=False, ensure_projection=False, account_id=account_id
+            )
+            or []
         )
         if str(row.get("block_key") or "").strip()
     }
+    current_blocks = {
+        key: row for key, row in visible_blocks.items() if _row_owner(row) == account_id
+    }
+    for block_key in [key for key in desired["blocks"] if key in visible_blocks]:
+        if _row_owner(visible_blocks[block_key]) != account_id:
+            desired["blocks"].pop(block_key)
+            summary.errors += 1
+            logger.warning(
+                "Projection skipped block %s for account %s: a platform block uses the key",
+                block_key,
+                account_id,
+            )
 
     if not apply:
         _summarize_data_contract_diff(current_contracts, desired["contracts"], summary)
         _summarize_field_diff(current_fields, desired["fields"], summary)
         _summarize_block_diff(current_blocks, desired["blocks"], summary)
-        return {
-            "applied": False,
-            "counts": _projection_counts(db),
-            "summary": summary.to_dict(),
-        }
+        return summary
 
-    _sync_data_contracts(db, current_contracts, desired["contracts"], summary)
-    _apply_skill_contract_backrefs(db, desired["contract_backrefs"])
-    _sync_fields(db, current_fields, desired["fields"], summary)
+    _sync_data_contracts(db, current_contracts, desired["contracts"], summary, account_id)
+    _apply_skill_contract_backrefs(db, desired["contract_backrefs"], account_id)
+    _sync_fields(db, current_fields, desired["fields"], summary, account_id)
     _sync_blocks(db, current_blocks, desired["blocks"], summary)
-
-    return {
-        "applied": True,
-        "counts": _projection_counts(db),
-        "summary": summary.to_dict(),
-    }
+    return summary
 
 
 def _projection_counts(db) -> dict[str, int]:
@@ -142,22 +220,56 @@ def _projection_counts(db) -> dict[str, int]:
 
 
 def _projection_source_counts(db) -> dict[str, int]:
-    desired = _build_desired_projection_state(db, now=datetime.now(UTC))
-    return {
-        "fields": len(desired["fields"]),
-        "data_contracts": len(desired["contracts"]),
-        "published_blocks": len(desired["blocks"]),
+    counts = {"fields": 0, "data_contracts": 0, "published_blocks": 0}
+    for owner in _projection_accounts(db):
+        with workflow_account_scope(owner):
+            desired = _build_desired_projection_state(db, now=datetime.now(UTC), account_id=owner)
+        counts["fields"] += len(desired["fields"])
+        counts["data_contracts"] += len(desired["contracts"])
+        counts["published_blocks"] += len(desired["blocks"])
+    return counts
+
+
+def _build_desired_projection_state(db, *, now: datetime, account_id: str) -> dict[str, Any]:
+    """The derived rows one account's sources ask for.
+
+    Sources are the account's own skills, agents, tools and workflows; platform
+    skills, agents and tools (no account) are the installation account's sources.
+    An account's agent may pair with a platform skill, so that skill's inputs and
+    outputs are projected as fields of the agent's account as well; the skill's own
+    contract references stay the installation account's.
+    """
+    all_skills = list(db.list_skills(enabled_only=False) or [])
+    agents = [
+        row for row in (db.list_agents(enabled_only=False) or []) if _row_owner(row) == account_id
+    ]
+    paired_skill_ids = {
+        str(pair.get("skill_id") or "").strip()
+        for agent in agents
+        for pair in (agent.get("_skills") or [])
+        if str(pair.get("skill_id") or "").strip()
     }
-
-
-def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
-    skills = list(db.list_skills(enabled_only=False) or [])
-    agents = list(db.list_agents(enabled_only=False) or [])
-    workflows = _list_workflows_safe(db)
-    tools = list(db.list_tools(enabled_only=False) or [])
+    skills = [
+        row
+        for row in all_skills
+        if _row_owner(row) == account_id
+        or (
+            not str(row.get("account_id") or "").strip()
+            and str(row.get("skill_id") or "").strip() in paired_skill_ids
+        )
+    ]
+    workflows = _list_workflows_safe(db, account_id=account_id)
+    tools = [
+        row for row in (db.list_tools(enabled_only=False) or []) if _row_owner(row) == account_id
+    ]
     current_contracts = {
         str(row.get("contract_id") or "").strip(): row
-        for row in (db.list_data_contracts(enabled_only=False, ensure_projection=False) or [])
+        for row in (
+            db.list_data_contracts(
+                enabled_only=False, ensure_projection=False, account_id=account_id
+            )
+            or []
+        )
         if str(row.get("contract_id") or "").strip()
     }
 
@@ -429,6 +541,7 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
             "projection_mode": "derived",
             "derived_from_kind": "callable_workflow",
             "derived_from_ref": workflow_id,
+            "account_id": account_id,
             "sync_status": sync_status,
             "last_synced_at": now,
             "last_sync_error": None,
@@ -548,6 +661,7 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
             "projection_mode": "derived",
             "derived_from_kind": "connector_tool",
             "derived_from_ref": tool_id,
+            "account_id": account_id,
             "sync_status": sync_status,
             "last_synced_at": now,
             "last_sync_error": None,
@@ -642,6 +756,7 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
                 "projection_mode": "derived",
                 "derived_from_kind": "agent_skill_pair",
                 "derived_from_ref": source_ref,
+                "account_id": account_id,
                 "sync_status": sync_status,
                 "last_synced_at": now,
                 "last_sync_error": None,
@@ -665,7 +780,11 @@ def _build_desired_projection_state(db, *, now: datetime) -> dict[str, Any]:
 
 
 def _sync_data_contracts(
-    db, current_rows: dict[str, dict], desired_rows: dict[str, dict], summary: ProjectionSummary
+    db,
+    current_rows: dict[str, dict],
+    desired_rows: dict[str, dict],
+    summary: ProjectionSummary,
+    account_id: str,
 ) -> None:
     desired_keys = set(desired_rows)
     for contract_id, payload in desired_rows.items():
@@ -678,7 +797,7 @@ def _sync_data_contracts(
             continue
         summary.created += 1 if not existing else 0
         summary.updated += 0 if not existing else 1
-        db.save_data_contract(payload, author="projection_sync")
+        db.save_data_contract(payload, author="projection_sync", account_id=account_id)
 
     for contract_id, row in current_rows.items():
         if str(row.get("projection_mode") or "manual") != "derived":
@@ -696,11 +815,15 @@ def _sync_data_contracts(
             continue
         summary.orphaned += 1
         summary.disabled += 1
-        db.save_data_contract(orphaned, author="projection_sync")
+        db.save_data_contract(orphaned, author="projection_sync", account_id=account_id)
 
 
 def _sync_fields(
-    db, current_rows: dict[str, dict], desired_rows: dict[str, dict], summary: ProjectionSummary
+    db,
+    current_rows: dict[str, dict],
+    desired_rows: dict[str, dict],
+    summary: ProjectionSummary,
+    account_id: str,
 ) -> None:
     desired_keys = set(desired_rows)
     for field_key, payload in desired_rows.items():
@@ -713,7 +836,7 @@ def _sync_fields(
             continue
         summary.created += 1 if not existing else 0
         summary.updated += 0 if not existing else 1
-        db.save_field(payload, author="projection_sync")
+        db.save_field(payload, author="projection_sync", account_id=account_id)
 
     for field_key, row in current_rows.items():
         if str(row.get("projection_mode") or "manual") != "derived":
@@ -731,7 +854,7 @@ def _sync_fields(
             continue
         summary.orphaned += 1
         summary.disabled += 1
-        db.save_field(orphaned, author="projection_sync")
+        db.save_field(orphaned, author="projection_sync", account_id=account_id)
 
 
 def _sync_blocks(
@@ -772,7 +895,7 @@ def _sync_blocks(
         db.save_published_block_contract(orphaned, author="projection_sync")
 
 
-def _apply_skill_contract_backrefs(db, backrefs: list[dict[str, str]]) -> None:
+def _apply_skill_contract_backrefs(db, backrefs: list[dict[str, str]], account_id: str) -> None:
     if not backrefs:
         return
     affected_skills: set[str] = set()
@@ -791,19 +914,35 @@ def _apply_skill_contract_backrefs(db, backrefs: list[dict[str, str]]) -> None:
                 continue
             affected_skills.add(skill_id)
             table_name = "registry_skill_inputs" if io_kind == "input" else "registry_skill_outputs"
+            # Projected contracts belong to the account whose sources derived them
+            # (ADR 0020, C5): only a skill of that account is linked to one, and a
+            # platform skill (no account) only to the installation account's.
             update_query = "\n".join(
                 [
                     "UPDATE ",
                     table_name,
-                    "SET contract_id = %s",
+                    "SET contract_id = %s, contract_account_id = %s",
                     "WHERE skill_id = %s",
                     "  AND name = %s",
                     "  AND COALESCE(contract_id, '') <> %s",
+                    "  AND EXISTS (SELECT 1 FROM registry_skills s",
+                    "               WHERE s.skill_id = %s",
+                    "                 AND COALESCE(s.account_id::text, %s) = %s)",
                 ]
             )
+            projection_owner = account_id
             cur.execute(
                 update_query,
-                (contract_id, skill_id, field_key, contract_id),
+                (
+                    contract_id,
+                    projection_owner,
+                    skill_id,
+                    field_key,
+                    contract_id,
+                    skill_id,
+                    DEFAULT_ACCOUNT_ID,
+                    projection_owner,
+                ),
             )
         for skill_id in affected_skills:
             schema_builder = getattr(db, "_build_contract_schema", None)

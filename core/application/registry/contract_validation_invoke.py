@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from .state_selector_shape import StateSelectorShape
+from .account_references import workflow_in_account
 from .workflow_lookup import get_workflow_row
 
 from .contract_validation_workflow import *  # noqa: F403,F401  # NOSONAR
@@ -117,11 +118,6 @@ def validate_invoke_workflow_step(
             )
         )
 
-    child_workflow = (
-        load_workflow(child_workflow_id)
-        if load_workflow
-        else get_workflow_row(db, child_workflow_id)
-    )
     from core.application.workflows.workflow_action_validation import action_invoke_issues
 
     # An extension action implemented by a workflow, or its refusal (ADR 0065).
@@ -129,6 +125,16 @@ def validate_invoke_workflow_step(
         load_workflow(workflow_id) if load_workflow else get_workflow_row(db, workflow_id)
     )
     parent_row = parent_workflow if isinstance(parent_workflow, dict) else {}
+    # The child is a workflow of the parent's own account (ADR 0020, C4c): it is
+    # resolved there, and a row of another account is an unknown workflow.
+    parent_account = str(parent_row.get("account_id") or "").strip() or None
+    child_workflow = (
+        load_workflow(child_workflow_id)
+        if load_workflow
+        else get_workflow_row(db, child_workflow_id, account_id=parent_account)
+    )
+    if not workflow_in_account(child_workflow, parent_account):
+        child_workflow = None
     child_row = child_workflow if isinstance(child_workflow, dict) else {}
     action_issues = action_invoke_issues(
         db,

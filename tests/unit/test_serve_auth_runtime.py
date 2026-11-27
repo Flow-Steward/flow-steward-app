@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.application.auth import request_principal_runtime, serve_auth_runtime
+from core.application.auth.config import DEFAULT_ACCOUNT_ID
 from core.application.auth.route_permissions import route_permission
 
 
@@ -757,13 +758,13 @@ def test_request_auth_helpers_resolve_payload_actor_token_and_ip() -> None:
             "x-forwarded-for": "10.0.0.5, 10.0.0.6",
         },
         cookies={"session": "cookie-token"},
-        auth_user={"username": "alice", "roles": ["admin"]},
+        auth_user={"account_id": DEFAULT_ACCOUNT_ID, "username": "alice", "roles": ["admin"]},
     )
 
     assert request_principal_runtime.request_auth_user_payload(
         request,
         resolved_principal_type=_FakePrincipal,
-    ) == {"username": "alice", "roles": ["admin"]}
+    ) == {"account_id": DEFAULT_ACCOUNT_ID, "username": "alice", "roles": ["admin"]}
     assert (
         request_principal_runtime.resolve_actor_username(
             request,

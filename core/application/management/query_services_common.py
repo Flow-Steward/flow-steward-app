@@ -45,6 +45,8 @@ from .guards import (
     require_event_access,
     require_project_access,
     require_workflow_access,
+    rows_in_workflow_scope_limit,
+    workflow_in_scope_limit,
 )
 from .query_models import (
     ApprovalGateView,
@@ -286,7 +288,9 @@ __all__ = [
     "require_project_access",
     "require_account_access",
     "require_workflow_access",
+    "rows_in_workflow_scope_limit",
     "scope_audit_fields",
+    "workflow_in_scope_limit",
     "serialize_scoped_reaction_rows",
     "uuid",
 ]

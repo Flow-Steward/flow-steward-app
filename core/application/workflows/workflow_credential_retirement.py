@@ -29,7 +29,7 @@ SELECT 'callback', to_jsonb(c) FROM extension_callback_registrations c, scope
 UNION ALL
 SELECT 'step', jsonb_build_object('workflow_id',w.workflow_id,'account_id',w.account_id,
                                  'step_kind',s.step_kind,'override',s.override)
-  FROM registry_workflow_steps s JOIN registry_workflows w ON w.workflow_id=s.owner_workflow_id, scope
+  FROM registry_workflow_steps s JOIN registry_workflows w ON w.workflow_id=s.owner_workflow_id AND w.account_id=s.account_id, scope
  WHERE w.account_id IS NULL OR w.account_id=ANY(scope.accounts)
 UNION ALL
 SELECT 'projection', jsonb_build_object('account_id',p.account_id,'definition',p.projection_jsonb)

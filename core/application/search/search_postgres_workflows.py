@@ -81,12 +81,13 @@ def _workflow_rows(
     base_cte_sql = f"""
         WITH workflow_links AS (
             SELECT
+                pw.account_id,
                 pw.workflow_id,
                 MIN(CAST(pw.project_id AS TEXT)) AS project_id
             FROM project_workflows pw
             WHERE {VALUE_AND_SQL.join(link_conditions)}
             {project_link_sql}
-            GROUP BY pw.workflow_id
+            GROUP BY pw.account_id, pw.workflow_id
         ),
         base_workflows AS (
             SELECT
@@ -97,7 +98,8 @@ def _workflow_rows(
                 wl.project_id,
                 true AS globally_visible
             FROM registry_workflows w
-            LEFT JOIN workflow_links wl ON wl.workflow_id = w.workflow_id
+            LEFT JOIN workflow_links wl
+              ON wl.workflow_id = w.workflow_id AND wl.account_id = w.account_id
             WHERE {VALUE_AND_SQL.join(workflow_conditions)}
             {extension_projection_sql}
         ),
@@ -162,7 +164,8 @@ def _workflow_rows(
                     ELSE 0.48
                 END AS relevance
             FROM scoped_workflows w
-            JOIN registry_workflow_groups g ON g.workflow_id = w.workflow_id
+            JOIN registry_workflow_groups g
+              ON g.workflow_id = w.workflow_id AND g.account_id = w.account_id
             WHERE (
                 COALESCE(g.group_id, '') ILIKE %s ESCAPE '\\'
                 OR COALESCE(g.display_name, '') ILIKE %s ESCAPE '\\'
@@ -218,7 +221,8 @@ def _workflow_rows(
             FROM scoped_workflows w
             -- A step belongs to its workflow directly; the group join only supplies the
             -- business group id and stays empty for root steps.
-            JOIN registry_workflow_steps s ON s.owner_workflow_id = w.workflow_id
+            JOIN registry_workflow_steps s
+              ON s.owner_workflow_id = w.workflow_id AND s.account_id = w.account_id
             LEFT JOIN registry_workflow_groups g ON g.id = s.group_id
             WHERE (
                 COALESCE(s.step_id, '') ILIKE %s ESCAPE '\\'

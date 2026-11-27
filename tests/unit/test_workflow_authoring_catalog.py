@@ -16,6 +16,10 @@ from core.application.workflows.discovery.capability_discovery import (
 )
 from tests._workflow_definitions import linear_workflow
 
+# These tests call the registry store outside a request or a job; they act for
+# the installation account (ADR 0020, C5).
+pytestmark = pytest.mark.usefixtures("installation_account")
+
 SCOPE = {"account_id": DEFAULT_ACCOUNT_ID, "project_id": "project"}
 
 

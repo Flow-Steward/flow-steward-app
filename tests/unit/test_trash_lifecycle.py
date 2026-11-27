@@ -256,7 +256,8 @@ class TestTrashLifecycleService:
             for call in cur.execute.call_args_list
             if "DELETE FROM registry_workflows" in call.args[0]
         )
-        assert delete_call.args[1] == ("wf_sync",)
+        # A workflow id is unique only per account: the purge names the caller's.
+        assert delete_call.args[1] == ("wf_sync", DEFAULT_ACCOUNT_ID)
 
     def test_direct_workflow_hard_delete_rolls_back_when_conditional_delete_loses_race(self):
         from contextlib import contextmanager
@@ -458,7 +459,13 @@ class TestTrashLifecycleService:
     @pytest.mark.parametrize(
         ("entity_type", "entity_id", "ownership_columns", "scope_row"),
         [
-            ("registry_data_contract", "contract-1", set(), ("contract-1",)),
+            # A contract is owned by an account (ADR 0020, C4a/C5).
+            (
+                "registry_data_contract",
+                "contract-1",
+                {"account_id"},
+                ("contract-1", DEFAULT_ACCOUNT_ID),
+            ),
             (
                 "registry_guardrail",
                 "00000000-0000-0000-0000-000000000029",
@@ -492,7 +499,13 @@ class TestTrashLifecycleService:
     @pytest.mark.parametrize(
         ("entity_type", "entity_id", "ownership_columns", "scope_row"),
         [
-            ("registry_data_contract", "contract-1", set(), ("contract-1",)),
+            # A contract is owned by an account (ADR 0020, C4a/C5).
+            (
+                "registry_data_contract",
+                "contract-1",
+                {"account_id"},
+                ("contract-1", DEFAULT_ACCOUNT_ID),
+            ),
             (
                 "registry_guardrail",
                 "00000000-0000-0000-0000-000000000029",
@@ -531,7 +544,13 @@ class TestTrashLifecycleService:
     @pytest.mark.parametrize(
         ("entity_type", "entity_id", "ownership_columns", "scope_row"),
         [
-            ("registry_data_contract", "contract-1", set(), ("contract-1",)),
+            # A contract is owned by an account (ADR 0020, C4a/C5).
+            (
+                "registry_data_contract",
+                "contract-1",
+                {"account_id"},
+                ("contract-1", DEFAULT_ACCOUNT_ID),
+            ),
             (
                 "registry_guardrail",
                 "00000000-0000-0000-0000-000000000029",
@@ -1176,7 +1195,7 @@ class TestTrashLifecycleService:
 
         assert {"trash", "restore", "hard_delete"} <= set(LIFECYCLE_CHANGELOG_ACTIONS)
         with pytest.raises(ValueError, match="lifecycle transition"):
-            store.restore_entity_revision("skill", "skill-1", entry_id="7")
+            store.restore_entity_revision("skill", "skill-1", entry_id="7", account_id="account-a")
 
     def test_workspace_delete_plan_enumerates_connections_without_store_lister_methods(self):
         """RS5-010 regression.
