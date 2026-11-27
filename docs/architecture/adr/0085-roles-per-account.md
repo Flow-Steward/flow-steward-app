@@ -440,6 +440,12 @@ companies and a move from one to another. They led to three changes:
   is an active company where they have a role, before the default and the oldest
   membership.
 
+- **Every role switches.** `POST /api/auth/switch-account` needed
+  `account.profile.write`, which a viewer does not hold, so a viewer in the acting
+  company could not move to another of their companies (while a person with no role at
+  all could, P5). It needs `account.self` now, which every role holds; the route still
+  checks the role in the target company and refuses an external session.
+
 What stays: workflows, runs, history and schedules the person made remain the
 account's (a due scheduled run is started by its schedule, never with the authority of
 whoever set it up), and service accounts and machine tokens belong to the account, not
