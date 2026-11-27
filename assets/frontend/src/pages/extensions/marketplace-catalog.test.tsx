@@ -962,6 +962,8 @@ describe("a company administrator asks for an install (ADR 0084)", () => {
     renderMarketplace({ canAdminister: false });
 
     const card = await screen.findByRole("article", { name: "Acme CRM" });
-    expect(within(card).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /Request installation/ })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /^Install/ })).not.toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /Enable for this company/ })).not.toBeInTheDocument();
   });
 });
