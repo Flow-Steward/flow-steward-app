@@ -25,6 +25,13 @@ option:
    included), so one account's sign-in source never signs in as a person outside it
    or as an administrator. The session stays pinned to that account and holds the
    person's role there only (ADR 0085): switching accounts is refused for it.
+   A method declared ``installation_wide`` (ADR 0083 amendment of 2026-11-27) is
+   set up once for the installation: its options belong to no account, its feature
+   is the installation account's, and its identity may sign in an administrator of
+   an ordinary account (never of the installation account). Core tells the resolver
+   the account of an open invitation the sign-in returns to
+   (``invitation_account_id``), and shows a resolver's ``public_message`` on the
+   sign-in page.
 
 Identities are stored under issuers prefixed with the method's kind, so one method
 can never name an identity another one verified. Every success and refusal is
@@ -38,6 +45,7 @@ import hashlib
 import hmac
 import json
 import logging
+import re
 import secrets
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
@@ -55,6 +63,7 @@ from core.application.auth.external_sign_in_ports import (
     VerifiedExternalIdentity,
     namespaced_issuer,
 )
+from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
 from core.application.auth.password import session_token_hash
 from core.application.auth.secrets import decrypt_secret, encrypt_secret
 
@@ -118,12 +127,24 @@ class SignInResult:
 
 
 class ExternalSignInRefused(Exception):
-    """Sign-in did not complete. ``reason`` is the audit code; ``return_path`` survives."""
+    """Sign-in did not complete. ``reason`` is the audit code; ``return_path`` survives.
 
-    def __init__(self, reason: str, *, return_path: str = "/") -> None:
+    ``public_message`` is the resolver's sentence for the person, if it gave one.
+    """
+
+    def __init__(self, reason: str, *, return_path: str = "/", public_message: str = "") -> None:
         super().__init__(reason)
         self.reason = reason
         self.return_path = return_path
+        self.public_message = public_message
+
+
+#: An invitation link the sign-in may return to (ADR 0085, C1).
+_INVITATION_PATH = re.compile(r"^/invitations/([A-Za-z0-9_-]{16,128})/?$")
+
+
+def _installation_wide(method: Any) -> bool:
+    return getattr(method, "installation_wide", False) is True
 
 
 SessionGuard = Callable[[Mapping[str, Any], str, str], str | None]
@@ -166,18 +187,26 @@ class ExternalSignInService:
             logger.exception("Entitlement check failed for external sign-in")
             return False
 
-    def _offered(self, option: Any) -> bool:
+    def _offered(self, option: Any, *, installation_wide: bool = False) -> bool:
         feature = str(getattr(option, "feature", "") or "")
+        if installation_wide:
+            # An installation-wide option is offered behind the installation's feature.
+            return not feature or self._is_entitled(INSTALLATION_ACCOUNT_ID, feature)
         account_id = str(getattr(option, "account_id", "") or "")
         if feature and account_id:
             return self._is_entitled(account_id, feature)
         return True
 
+    def _option_account(self, kind: str, option: Any) -> str:
+        """The account an option belongs to; none for an installation-wide method."""
+        method = self.methods().get(kind)
+        if _installation_wide(method):
+            return ""
+        return str(getattr(option, "account_id", "") or "")
+
     def has_account_options(self) -> bool:
         """Whether any method offers an option that belongs to one account."""
-        return any(
-            str(getattr(option, "account_id", "") or "") for _kind, option in self._all_options()
-        )
+        return any(self._option_account(kind, option) for kind, option in self._all_options())
 
     def _all_options(self) -> list[tuple[str, Any]]:
         listed: list[tuple[str, Any]] = []
@@ -202,12 +231,14 @@ class ExternalSignInService:
         wanted = str(account_id or "")
         buttons: list[dict[str, str]] = []
         seen: set[str] = set()
+        methods = self.methods()
         for kind, option in self._all_options():
             button_key = f"{kind}:{option.key}"
-            option_account = str(getattr(option, "account_id", "") or "")
+            option_account = self._option_account(kind, option)
             if option_account and option_account != wanted:
                 continue
-            if button_key in seen or not option.display_name or not self._offered(option):
+            offered = self._offered(option, installation_wide=_installation_wide(methods.get(kind)))
+            if button_key in seen or not option.display_name or not offered:
                 continue
             seen.add(button_key)
             query = urlencode({"method": kind, "key": option.key})
@@ -260,7 +291,9 @@ class ExternalSignInService:
         except Exception:
             logger.exception("Sign-in method %s failed to find option %s", kind, option_key)
             option = None
-        if option is None or not self._offered(option):
+        if option is None or not self._offered(
+            option, installation_wide=_installation_wide(sign_in)
+        ):
             self._refuse("option_unavailable", option=f"{kind}:{option_key}", path=return_path)
         state = new_secret_value()
         try:
@@ -372,17 +405,37 @@ class ExternalSignInService:
         issuer = str(identity.issuer or "").strip()
         if not subject or not issuer or len(subject) > 255:
             self._refuse("identity_invalid", option=label, path=path)
-        # Core, not the method, names the method and the issuer namespace.
+        installation_wide = _installation_wide(sign_in)
+        # Core, not the method, names the method and the issuer namespace, and
+        # whether the identity is installation-wide (then it names no account).
         return VerifiedExternalIdentity(
             method=sign_in.kind,
             option_key=option_key,
-            account_id=str(identity.account_id or ""),
+            account_id="" if installation_wide else str(identity.account_id or ""),
             issuer=namespaced_issuer(sign_in.kind, issuer),
             subject=subject,
             tenant_id=str(identity.tenant_id or ""),
             claims=identity.claims,
             feature=str(identity.feature or option.feature or ""),
+            installation_wide=installation_wide,
+            invitation_account_id=self._invitation_account(path),
         )
+
+    def _invitation_account(self, return_path: str) -> str:
+        """The account of the open invitation the sign-in returns to, or ``""``."""
+        match = _INVITATION_PATH.match(str(return_path or ""))
+        if match is None:
+            return ""
+        from core.application.auth.user_admin.account_invitations import (
+            open_invitation_account,
+        )
+
+        try:
+            with self._connection() as conn, conn.cursor() as cur:
+                return open_invitation_account(cur, match.group(1))
+        except Exception:
+            logger.warning("The invitation of an external sign-in could not be read")
+            return ""
 
     # --- the common end ---------------------------------------------------------------
 
@@ -401,7 +454,12 @@ class ExternalSignInService:
         try:
             resolution = self._port.resolver.resolve(identity)
         except ExternalIdentityRefused as exc:
-            self._refuse(exc.reason, identity=identity, path=return_path)
+            self._refuse(
+                exc.reason,
+                identity=identity,
+                path=return_path,
+                public_message=str(getattr(exc, "public_message", "") or ""),
+            )
         except Exception:
             logger.exception("The external identity resolver failed")
             self._refuse("resolver_failed", identity=identity, path=return_path)
@@ -412,7 +470,9 @@ class ExternalSignInService:
         if identity.account_id and identity.account_id != account_id:
             # The session belongs to the account that issued the identity, never another.
             self._refuse("account_mismatch", identity=identity, path=return_path)
-        if identity.feature and not self._is_entitled(account_id, identity.feature):
+        # An installation-wide identity's feature is the installation's.
+        entitled_account = INSTALLATION_ACCOUNT_ID if identity.installation_wide else account_id
+        if identity.feature and not self._is_entitled(entitled_account, identity.feature):
             self._refuse("not_entitled", identity=identity, path=return_path)
         session_token = secrets.token_urlsafe(48)
         with self._connection() as conn, conn.cursor() as cur:
@@ -422,7 +482,10 @@ class ExternalSignInService:
             if not repository.user_in_account(cur, user_id=user_id, account_id=account_id):
                 self._refuse("account_unavailable", identity=identity, path=return_path)
             person_refusal = repository.external_person_refusal(
-                cur, user_id=user_id, account_id=account_id
+                cur,
+                user_id=user_id,
+                account_id=account_id,
+                allow_account_admin=identity.installation_wide,
             )
             if person_refusal:
                 self._refuse(person_refusal, identity=identity, path=return_path)
@@ -501,7 +564,10 @@ class ExternalSignInService:
                 self._refuse("account_unavailable", identity=identity, path=return_path)
             # The same rule as sign-in: a link that could never sign in is not made.
             person_refusal = repository.external_person_refusal(
-                cur, user_id=user_id, account_id=account_id
+                cur,
+                user_id=user_id,
+                account_id=account_id,
+                allow_account_admin=identity.installation_wide,
             )
             if person_refusal:
                 self._refuse(person_refusal, identity=identity, path=return_path)
@@ -562,9 +628,10 @@ class ExternalSignInService:
         option: str = "",
         identity: VerifiedExternalIdentity | None = None,
         path: str = "/",
+        public_message: str = "",
     ) -> NoReturn:
         self._audit_event("rejected", identity=identity, option=option, reason=reason)
-        raise ExternalSignInRefused(reason, return_path=path)
+        raise ExternalSignInRefused(reason, return_path=path, public_message=public_message)
 
 
 def external_sign_in_offered(port: Any) -> bool:

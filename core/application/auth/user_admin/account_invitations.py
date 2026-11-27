@@ -297,6 +297,15 @@ def _open_invitation(cur: Any, token_hash: str, *, lock: bool) -> dict[str, str]
     }
 
 
+def open_invitation_account(cur: Any, token: str) -> str:
+    """The account of the open invitation ``token`` names, or ``""`` (ADR 0083
+    amendment: an external sign-in that returns to an invitation link)."""
+    if not _text(token):
+        return ""
+    found = _open_invitation(cur, invitation_token_hash(token), lock=False)
+    return found["account_id"] if found else ""
+
+
 def preview(cur: Any, token_hash: str) -> dict[str, str]:
     """What the person is invited to: company, role, inviter and expiry."""
     found = _open_invitation(cur, token_hash, lock=False)

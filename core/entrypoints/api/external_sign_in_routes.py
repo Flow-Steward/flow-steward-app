@@ -143,8 +143,9 @@ def create_external_sign_in_router(
             session_guard=guard,
         )
 
-    def _to_login(return_path: str) -> RedirectResponse:
-        query = {"flash": _FAILED_FLASH}
+    def _to_login(return_path: str, message: str = "") -> RedirectResponse:
+        # A resolver's own sentence for the person, else the generic one.
+        query = {"flash": str(message or "").strip()[:240] or _FAILED_FLASH}
         if return_path and return_path != "/":
             query["next"] = return_path
         response = RedirectResponse(f"/login?{urlencode(query)}", status_code=303)
@@ -226,7 +227,7 @@ def create_external_sign_in_router(
                 )
             )
         except ExternalSignInRefused as exc:
-            return _to_login(exc.return_path)
+            return _to_login(exc.return_path, exc.public_message)
         except Exception:
             return _to_login(next_path)
         if not isinstance(started, StartResult):
@@ -259,7 +260,7 @@ def create_external_sign_in_router(
                 lambda: service.callback(params=params, browser_binding=binding, headers=headers)
             )
         except ExternalSignInRefused as exc:
-            return _to_login(exc.return_path)
+            return _to_login(exc.return_path, exc.public_message)
         except Exception:
             return _to_login("/")
         return _signed_in(result)

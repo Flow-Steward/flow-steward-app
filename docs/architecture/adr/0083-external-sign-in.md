@@ -290,3 +290,43 @@ the person or the account, still revokes their external sessions and, for a pers
 who signs in externally, their personal tokens. Adding someone as an administrator
 of another account revokes them too, because such a person may no longer sign in
 externally.
+
+## Amendment 2026-11-27 (2): installation-wide sign-in methods
+
+A hosted installation offers one set of sign-in buttons to every visitor, set up once
+by the installation administrator and owned by no account. Three neutral additions
+to the seam let a platform module provide them; Core still implements no protocol.
+
+- **`installation_wide = True` on a sign-in method.** Its options belong to no account
+  (Core ignores an option's `account_id`), its identities name none (Core sets
+  `account_id` to empty), and Core marks each identity `installation_wide`. An
+  option's feature is checked for the installation account, on the sign-in page, at
+  start and at the callback; the session's own account needs no feature. The resolver
+  still chooses the user and the account, and Core's checks (membership, active
+  person and account, session guards, link uniqueness per account) are unchanged.
+- **The person rule for such an identity** (`external_person_refusal(...,
+  allow_account_admin=True)`): it may sign in, or be linked by the signed-in person,
+  as an administrator of an ordinary account, because it is the person's own sign-in
+  and no account's administrator configured it. An administrator of the installation
+  account, or a holder of a scoped administrator role, is still refused
+  (`admin_not_external`). Identities of account methods keep the rule above.
+- **Invitation answers.** When the attempt returns to an invitation link
+  (`/invitations/<token>`), Core reads the open invitation and passes its account to
+  the resolver as `VerifiedExternalIdentity.invitation_account_id` (empty otherwise).
+  The invitation is still accepted only by the person on the invitation page
+  (ADR 0085 C1); the resolver may only use it to decide where a new person lands.
+- **The resolver's sentence.** `ExternalIdentityRefused(..., public_message=...)`
+  (at most 240 characters, no personal data) replaces Core's generic text on the
+  sign-in page.
+- **Own account (self-service sign-up).** `ExternalSignInPort.create_own_account(email,
+  display_name, account_name, created_by)` creates, in one transaction under the
+  account lifecycle lock, a new account within the installation's `accounts` limit
+  (`AccountLimitError` 409/503 as for an administrator), a person without a local
+  password and their membership with the administrator role, and audits
+  `account_create` with `source: self_service`. A taken address is refused
+  (`ValueError`); the port never links or moves an existing person. Whether a module
+  calls it is the module's decision (an installation setting, off by default).
+
+Sessions stay pinned to the account they were issued for. A person who belongs to
+several accounts reaches the one the resolver chose; letting installation-wide
+sessions switch accounts is open.

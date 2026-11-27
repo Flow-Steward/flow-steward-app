@@ -293,8 +293,41 @@ def user_holds_admin_role(cur: Any, user_id: str) -> bool:
     return _flag(cur.fetchone())
 
 
+def user_holds_installation_admin_role(cur: Any, user_id: str) -> bool:
+    """The person is an administrator of the installation account, or holds a scoped
+    administrator role anywhere."""
+    if not is_uuid(user_id):
+        return False
+    from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM user_account_memberships m JOIN roles r ON r.id = m.role_id
+            WHERE m.user_id = %s AND CAST(m.account_id AS TEXT) = %s AND r.key = ANY(%s)
+        ) OR EXISTS (
+            SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+            WHERE ur.user_id = %s AND r.key = ANY(%s)
+        )
+        """,
+        (
+            user_id,
+            str(INSTALLATION_ACCOUNT_ID),
+            list(ADMIN_ROLE_KEYS),
+            user_id,
+            list(ADMIN_ROLE_KEYS),
+        ),
+    )
+    return _flag(cur.fetchone())
+
+
 def external_person_refusal(
-    cur: Any, *, user_id: str, account_id: str, allow_admin: bool = False
+    cur: Any,
+    *,
+    user_id: str,
+    account_id: str,
+    allow_admin: bool = False,
+    allow_account_admin: bool = False,
 ) -> str | None:
     """Why an identity of ``account_id`` may not sign in as, or be linked to, a person.
 
@@ -304,10 +337,18 @@ def external_person_refusal(
     no longer matter (ADR 0083 amendment of 2026-11-27). ``None`` unless the person
     is an administrator of any account, the installation account included, or holds
     a scoped administrator role; ``allow_admin`` (a role grant, which never removes
-    or raises an administrator) waives that check.
+    or raises an administrator) waives that check. ``allow_account_admin`` (an
+    identity of an installation-wide sign-in method: the person's own sign-in, set up
+    by the installation and not by one account) waives it for administrators of
+    ordinary accounts; an administrator of the installation account, or a scoped
+    administrator, is still refused.
     """
     del account_id
-    if not allow_admin and user_holds_admin_role(cur, user_id):
+    if allow_admin:
+        return None
+    if allow_account_admin:
+        return REFUSED_ADMIN if user_holds_installation_admin_role(cur, user_id) else None
+    if user_holds_admin_role(cur, user_id):
         return REFUSED_ADMIN
     return None
 

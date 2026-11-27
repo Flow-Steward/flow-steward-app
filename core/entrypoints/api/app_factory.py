@@ -686,9 +686,11 @@ def _attach_module_ports(container: Any) -> None:
     container.approval_assignments = ApprovalAssignmentsPort(connection)
     container.approval_journal = ApprovalJournalPort(connection)
     container.scoped_roles = ScopedRolesPort(connection)
-    container.external_sign_in = ExternalSignInPort(connection)
-    container.secret_backends = SecretBackendPort()
     factories = container.service_factories
+    container.external_sign_in = ExternalSignInPort(
+        connection, entitlement_service=lambda: factories["entitlement_service"]()
+    )
+    container.secret_backends = SecretBackendPort()
     container.accounts = AccountsPort(
         store=lambda: factories["identity_store"](),
         entitlement_service=lambda: factories["entitlement_service"](),
