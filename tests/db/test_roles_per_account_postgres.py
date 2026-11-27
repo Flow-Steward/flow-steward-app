@@ -189,6 +189,9 @@ def test_a_personal_token_carries_its_own_accounts_role_at_use_time(world: World
     assert (principal_b["account_id"], principal_b["roles"]) == (world.b, ["viewer"])
 
     # A downgrade in A reaches the token minted in A on its next use, and only it.
+    # Bob owns A (ADR 0085, "Company owner"): Alice, its first administrator, would
+    # otherwise own it, and nobody demotes the owner.
+    world.conn.execute("UPDATE accounts SET owner_user_id = %s WHERE id = %s", (world.bob, world.a))
     with world.conn.cursor() as cur:
         set_membership_role(cur, user_id=world.alice, account_id=world.a, role="operator")
     assert store.resolve_pat(minted_in_a["raw_token"])["roles"] == ["operator"]
