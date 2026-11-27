@@ -861,7 +861,7 @@ describe("SettingsServiceAccountsPage", () => {
 
     const ciBot = await screen.findByRole("button", { name: /CI Bot/i });
     expect(within(ciBot).getByText("Created by a person who has left")).toBeVisible();
-    expect(within(screen.getByRole("button", { name: /Nightly/i })).queryByText("Created by a person who has left")).toBeNull();
+    expect(within(screen.getByRole("button", { name: /Nightly/i })).queryByText("Created by a person who has left")).not.toBeInTheDocument();
 
     await user.click(ciBot);
     const token = await screen.findByRole("button", { name: /Deploy token/i });
