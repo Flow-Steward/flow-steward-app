@@ -471,6 +471,121 @@ when the person named in `created_by` is no active member of the account any mor
 Settings → Service accounts shows "Created by a person who has left" on such an
 identity or token.
 
+## Company owner (2026-11-27)
+
+The person who decides for a company may invite outside
+help, a freelancer for example, as an administrator. If they fall out, the freelancer
+must never be able to remove or lock out that person. Every company therefore has one
+**owner**, who keeps the ultimate rights.
+
+### Who the owner is
+
+- `accounts.owner_user_id` (foreign key to `users`, `ON DELETE SET NULL`) names the
+  owner: a person who is a member with the admin role there.
+- The first active administrator of an account becomes its owner. A trigger on
+  `user_account_memberships` (`trg_user_account_memberships_first_admin_owner`, after
+  an insert or a role change) sets the owner of an account that has none when an
+  active, undeleted person gets the admin role there. So the person who creates their
+  own company (self-service sign-up: account, person, membership, admin role through
+  `set_membership_role`), the first administrator an installation administrator adds
+  to a new company and the installation's first administrator all become owners, with
+  no code path of their own. An account without an active administrator has no owner
+  until it gets one.
+- The upgrade gives every account its earliest active administrator membership
+  (membership `created_at`, then the person's `created_at`, then the person's id).
+- `core.application.auth.account_owner.is_account_owner(cur, user_id, account_id)` is
+  the predicate for anything only the owner may do (transferring ownership, and later
+  owner-only actions a platform module adds). It reads the database in the caller's transaction;
+  nothing caches it. Memberships carry `is_owner` (the users list, `/api/auth/me`).
+
+### What protects the owner
+
+Two rules in `core/application/auth/account_owner.py`, checked in the transaction that
+writes, refusing with `AccountOwnerProtectedError` (403, code `account_owner_protected`):
+
+- **The owner stays** (`require_owner_kept`). Nobody, the owner included, removes the
+  owner from the company, changes the owner's role there (to any role, even admin, since
+  a role change ends that account's sessions), deactivates or deletes the owner. The
+  owner transfers ownership first. Checked by `set_membership_role` (the one writer of
+  a membership role: users API, CLI, `ExternalSignInPort.remove_role`, a module's
+  grants), `revoke_account_access` (what a removal or a role change ends, and
+  `ExternalSignInRevocationPort.revoke_access_in_account`), `remove_member`,
+  `update_auth_user` (deactivation, role change, memberships set) and `delete_auth_user`.
+  It runs after the last-administrator rule, whose refusal wins when both apply.
+- **Only the owner touches their own sign-in** (`require_owner_consent`). No one but
+  the owner sets or resets the owner's password, requires a password change, changes
+  their memberships (which ends every session), revokes their sessions, personal tokens
+  or OAuth grants, unlinks their external sign-in identities or changes their
+  authenticator. Checked by `update_auth_user`, `force_password_reset`,
+  `UserAdminCommandService.update_authenticator` and `ExternalSignInAdmin.unlink_identity`.
+  The command line and platform modules name no person, so they are never the owner.
+
+The rules hold for every company the person owns, whichever company the acting
+administrator manages: an administrator of B cannot deactivate, delete or reset the
+password of a person who owns A, though they may change that person's role in B or
+remove them from B. The owner removes and demotes any other administrator.
+
+### Transferring ownership
+
+- `POST /api/auth/users/owner/transfer` `{user_id}`: the owner offers ownership of the
+  acting company to another active administrator of it. The offer waits in
+  `account_owner_transfers` (`id, account_id, from_user_id, to_user_id, status,
+  created_at, expires_at, decided_at`; one pending row per account, 14 days; status
+  `pending`, `accepted`, `declined` or `cancelled`); a new offer cancels the open one.
+- `POST /api/auth/users/owner/transfer/accept|decline` `{transfer_id}`: the recipient,
+  signed in as a person (never a token) and still an active administrator there,
+  answers. Accepting makes them the owner; the former owner stays an administrator and
+  can now be demoted or removed like anyone else. An offer that is not open for the
+  caller is answered 404 "This ownership transfer is no longer open".
+- `POST /api/auth/users/owner/transfer/cancel`: the owner withdraws the offer.
+- `GET /api/auth/users/owner`: the owner, whether the caller is the owner, the open offer
+  and whether it is for the caller.
+- Settings → Users shows "Owner" on the owner's row and does not offer the refused
+  actions on it; the owner has "Transfer ownership" on the rows of active
+  administrators; the recipient sees the offer with Accept and Decline, the owner sees
+  whom it waits for with Cancel.
+
+### Recovery
+
+When the owner has lost access, the installation administrator reassigns the owner of
+any company, always with a reason: `POST /api/auth/accounts/{account_id}/owner`
+`{user_id, reason}` (installation administrators only; a company administrator is
+refused with `installation_admin_required`) or
+`flow-steward users reassign-owner --account-id … --email … --reason …` (the
+installation operator). The new owner must be an active member of the company; a member
+without the admin role there gets it (and loses any scope limit there). An open offer is
+cancelled. This is the only way to change an owner without the owner's consent, and it
+is not available to company administrators.
+
+### Not available to an account administrator
+
+Core has no route by which an account administrator deletes or disables their company:
+creating, disabling and enabling accounts stay with the installation administrator
+(ADR 0084 §2). A module that adds such an action, or any other owner-only action, checks
+`is_account_owner`.
+
+### Audit
+
+`account_owner_transfer_offer`, `_cancel`, `_accept`, `_decline` and
+`account_owner_reassign` (with the reason, the previous owner and whether the new owner
+was promoted) are written to the auth audit like member changes. A refused attempt
+changes nothing and is answered with the refusal.
+
+### Schema
+
+Migration `db/migrations/20261127220000_account_owner.sql`, the same block at the end of
+`db/schema/001_schema_part_12.sql`: the column and its index, the backfill, the trigger
+function `accounts_first_admin_becomes_owner` and its trigger, the transfers table, its
+pending key (`account_owner_transfers_pending_key`, part of the runtime schema contract
+with the table and the column) and a recipient index. Every statement is safe to run
+again.
+
+### Tests
+
+`tests/db/test_company_owner_postgres.py` (the scenarios above on PostgreSQL, the
+harness in `tests/db/_companies.py` gains `owner_of` and `make_owner`) and
+`tests/unit/test_account_owner.py` (the predicate, each refusal path and the routes).
+
 ## Not in this stage
 
 - A `user_roles.account_id` column naming a scoped row's account explicitly (today
