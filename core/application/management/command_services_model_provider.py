@@ -150,7 +150,13 @@ class ModelProviderCommandService:
             from core.application.observability.model_call_telemetry import model_call_scope
 
             with model_call_scope("verification"):
-                capabilities = sorted(run_capability_suite(model, timeout_seconds=60))
+                capabilities = sorted(
+                    run_capability_suite(
+                        model,
+                        provider_type=str(snapshot.get("provider_type") or ""),
+                        timeout_seconds=60,
+                    )
+                )
         except Exception as exc:
             safe_error = normalize_verification_error(exc)
             result_published = persist_result(
