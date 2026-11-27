@@ -281,10 +281,17 @@ def remove_member(
             "UPDATE users SET account_id = %s, updated_at = now() WHERE id::text = %s",
             (home, user_id),
         )
+        # One default per person (a unique index checked row by row): clear the old
+        # default before marking the new one, never in one statement.
         cur.execute(
-            """UPDATE user_account_memberships SET is_default = (account_id::text = %s)
-                WHERE user_id::text = %s""",
-            (home, user_id),
+            """UPDATE user_account_memberships SET is_default = false
+                WHERE user_id::text = %s AND is_default AND account_id::text <> %s""",
+            (user_id, home),
+        )
+        cur.execute(
+            """UPDATE user_account_memberships SET is_default = true
+                WHERE user_id::text = %s AND account_id::text = %s""",
+            (user_id, home),
         )
     cur.execute(
         "DELETE FROM user_account_memberships WHERE user_id::text = %s AND account_id::text = %s",

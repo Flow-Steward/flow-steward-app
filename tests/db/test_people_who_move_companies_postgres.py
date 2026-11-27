@@ -508,3 +508,22 @@ def test_the_listing_marks_credentials_set_up_by_a_person_who_left(
     assert [(row["id"], row["created_by_has_left"], row["revoked"]) for row in tokens] == [
         (dave_token, True, False)
     ]
+
+
+def test_leaving_the_home_company_moves_the_default_without_a_conflict(
+    world: World, people: People
+) -> None:
+    """Regression: one statement that set the new default and cleared the old one broke
+    the one-default-per-person unique index when the new default's row came first."""
+    # B's membership row is written before A's (home, default) row.
+    fred = person(world, "fred", world.a.id, {world.b.id: "operator", world.a.id: "operator"})
+
+    bobs = client(world, cookie=session(world, people.bob, world.a.id))
+    removed = bobs.delete(f"/api/auth/users/{fred}/membership")
+    assert removed.status_code == 200, removed.text
+
+    defaults = world.conn.execute(
+        "SELECT account_id::text FROM user_account_memberships WHERE user_id = %s AND is_default",
+        (fred,),
+    ).fetchall()
+    assert [row[0] for row in defaults] == [world.b.id]

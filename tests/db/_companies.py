@@ -17,6 +17,7 @@ full ``create_app()`` opens pooled connections of its own and cannot join it.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -61,10 +62,23 @@ from core.infrastructure.db.logger_extensions_accounts_service_tokens_mixin impo
 )
 from core.infrastructure.db.platform_logger_common import SQL_AND, SQL_PROJECT_ACCOUNT_ID_EQ
 from core.infrastructure.db.psycopg_runtime._connection import ConnectionAdapter
+from core.infrastructure.runtime.serve_request_runtime import (
+    build_api_error_response_factory,
+    build_error_payload_factory,
+)
 
 TENANT_ID = "00000000-0000-0000-0000-000000000001"
 PASSWORD = "correct horse battery staple"
 COOKIE = "fs_session"
+
+#: The production answer to an unexpected error: logged, never shown (no exception text).
+GENERIC_ERROR_RESPONSE = build_api_error_response_factory(
+    logger=logging.getLogger("tests.db.companies"),
+    error_payload=build_error_payload_factory(
+        err_request_failed="Request failed", default_correlation_id_fn=lambda: "test"
+    ),
+    request_correlation_id=lambda _request: "test",
+)
 APPROVAL_STEP = "sign_off"
 
 
@@ -585,7 +599,7 @@ def build_app(world: World) -> FastAPI:
             auth_user_column_exists=lambda _bl, _column: False,
             auth_login_clear_failures=lambda _username, _client_ip: None,
             csrf_request_valid=lambda _request: True,
-            api_error_response=lambda exc: JSONResponse({"error": repr(exc)}, status_code=500),
+            api_error_response=GENERIC_ERROR_RESPONSE,
             err_database_not_configured="db-missing",
             err_local_auth_disabled="local-disabled",
             err_auth_tables_not_available="auth-missing",
@@ -610,7 +624,7 @@ def build_app(world: World) -> FastAPI:
                     request, resolved_principal_type=ResolvedPrincipal
                 )
             ),
-            api_error_response=lambda exc: JSONResponse({"error": repr(exc)}, status_code=500),
+            api_error_response=GENERIC_ERROR_RESPONSE,
             log_auth_audit_event=_record,
             auth_login_clear_user_failures=lambda *_args, **_kwargs: None,
             get_user_by_id=resolve.get_user_by_id,
