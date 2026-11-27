@@ -193,6 +193,13 @@ DECOMPOSED_ADAPTER_BOUNDARIES = {
                 "core.application.maintenance.contracts.MaintenanceState",
             }
         ),
+        # Label-based container and volume inventory of one Compose project.
+        "core/infrastructure/lifecycle/docker_project_inventory.py": frozenset(
+            {
+                "core.application.lifecycle.stack_service.StackGatewayError",
+                "core.application.lifecycle.stack_service.StackVolumeState",
+            }
+        ),
         "core/infrastructure/lifecycle/docker_rollback_operations.py": frozenset(
             {
                 "core.application.lifecycle.contracts.ComposeTarget",
