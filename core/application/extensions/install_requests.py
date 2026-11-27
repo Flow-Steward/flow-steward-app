@@ -197,7 +197,7 @@ class DBExtensionInstallRequestStore:
             FROM r
             LEFT JOIN accounts a ON a.id = r.account_id
             LEFT JOIN users u ON u.id = r.requested_by
-            """,
+            """,  # nosec B608 - constant column and join lists; values are bound parameters
             (account_id, extension_id, extension_name, requested_by, note),
         )
         return _row_to_request(rows[0]) if rows else None
@@ -253,7 +253,7 @@ class DBExtensionInstallRequestStore:
             FROM r
             LEFT JOIN accounts a ON a.id = r.account_id
             LEFT JOIN users u ON u.id = r.requested_by
-            """,
+            """,  # nosec B608 - constant column and join lists; values are bound parameters
             (status, decided_by, decline_reason, request_id),
         )
         return _row_to_request(rows[0]) if rows else None
