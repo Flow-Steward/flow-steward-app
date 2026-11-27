@@ -25,9 +25,19 @@ import pytest
 from tests._db_env import dsn_unreachable_reason, resolve_test_db_dsn
 from tests._workflow_definitions import linear_graph
 
-# These tests call the registry store outside a request or a job; they act for
-# the installation account (ADR 0020, C5).
-pytestmark = pytest.mark.usefixtures("installation_account")
+
+@pytest.fixture(scope="class", autouse=True)
+def _installation_account_for_the_class():
+    """These tests read and write the registry outside a request or a job; they act
+    for the installation account (ADR 0084, C3). Class-scoped, so the class-scoped
+    catalog, registry and graph fixtures run inside the binding too (a
+    function-scoped binding starts only after them).
+    """
+    from core.application.registry.workflow_account import installation_account_scope
+
+    with installation_account_scope() as account_id:
+        yield account_id
+
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -263,14 +273,8 @@ class TestGraphBuilderDynamicNodes:
         if unreachable:
             pytest.skip(f"Database host is not reachable from this test environment: {unreachable}")
         from core.application.registry.db_store import RegistryDBStore
-        from core.application.registry.workflow_account import installation_account_scope
 
         db = RegistryDBStore(db_dsn)
-        # The catalog is authored outside a request or a job: it acts for the
-        # installation account, whose workflows the registry graph is built from
-        # (ADR 0084, C3). The binding ends before the tests run.
-        authoring = installation_account_scope()
-        authoring.__enter__()
         suffix = uuid.uuid4().hex[:8]
         ids = SimpleNamespace(
             skill_id=f"draft_summary_{suffix}",
@@ -385,15 +389,13 @@ class TestGraphBuilderDynamicNodes:
             },
             author="test",
         )
-        authoring.__exit__(None, None, None)
         try:
             yield ids
         finally:
-            with installation_account_scope():
-                db.delete_workflow(ids.workflow_id, author="test")
-                db.delete_agent(ids.disabled_agent_id, author="test")
-                db.delete_agent(ids.agent_id, author="test")
-                db.delete_skill(ids.skill_id, author="test")
+            db.delete_workflow(ids.workflow_id, author="test")
+            db.delete_agent(ids.disabled_agent_id, author="test")
+            db.delete_agent(ids.agent_id, author="test")
+            db.delete_skill(ids.skill_id, author="test")
             import core.application.registry.registry_manager as rm_module
 
             rm_module._instance = None
