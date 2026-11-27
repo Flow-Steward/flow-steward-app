@@ -44,11 +44,13 @@
     "core/application/auth/account_lifecycle.py",
     "core/application/auth/account_limit.py",
     "core/application/auth/account_memberships.py",
+    "core/application/auth/account_owner.py",
     "core/application/auth/agent_access_presets.py",
     "core/application/auth/agent_connection_catalog.py",
     "core/application/auth/agent_connection_reminders.py",
     "core/application/auth/agent_connection_repository.py",
     "core/application/auth/agent_connection_service.py",
+    "core/application/auth/approver_release.py",
     "core/application/auth/audit.py",
     "core/application/auth/auth_http_runtime.py",
     "core/application/auth/auth_http_scopes.py",
@@ -110,6 +112,7 @@
     "core/application/auth/user_admin/__init__.py",
     "core/application/auth/user_admin/account_invitations.py",
     "core/application/auth/user_admin/account_members.py",
+    "core/application/auth/user_admin/account_ownership.py",
     "core/application/auth/user_admin/command_service.py",
     "core/application/auth/user_admin/contracts.py",
     "core/application/auth/user_admin/member_lookup_throttle.py",
@@ -1287,6 +1290,7 @@
     "core/entrypoints/api/app_bootstrap.py",
     "core/entrypoints/api/app_factory.py",
     "core/entrypoints/api/approval_decision_transport.py",
+    "core/entrypoints/api/auth_account_owner_routes.py",
     "core/entrypoints/api/auth_mfa.py",
     "core/entrypoints/api/auth_passwords.py",
     "core/entrypoints/api/auth_personal_token_routes.py",
@@ -2147,6 +2151,10 @@
     },
     {
       "path": "db/migrations/20261127210000_extension_install_requests.sql",
+      "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
+    },
+    {
+      "path": "db/migrations/20261127220000_account_owner.sql",
       "consumer": "core.infrastructure.db.schema_contract expected runtime migration history"
     },
     {

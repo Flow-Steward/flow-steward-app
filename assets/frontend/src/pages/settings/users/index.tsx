@@ -13,6 +13,8 @@ import {
 import { UserEditorDialog, TemporaryPasswordDialog, ConfirmUserActionDialog } from "./user-dialogs";
 import { AddExistingPersonDialog } from "./add-existing-person-dialog";
 import { PendingInvitations } from "./pending-invitations";
+import { OwnerTransferNotice, TransferOwnershipDialog } from "./owner-transfer";
+import { useAccountOwner } from "./owner-transfer-api";
 import { OneTimeTokenSecret } from "@/pages/settings/shared/one-time-token-secret";
 import { projectAccessLabel, useProjectAccessColumn } from "./user-project-access-model";
 import type { ProjectAccessGrants } from "./user-project-access-api";
@@ -115,6 +117,8 @@ function UserInventoryRow({
   onEdit,
   onImmediateAction,
   onPassword,
+  onTransfer,
+  owner,
   projectAccess,
   rowMenu,
   setRowMenu,
@@ -126,6 +130,9 @@ function UserInventoryRow({
   onEdit: (user: UserRecord) => void;
   onImmediateAction: (kind: "unlock" | "activate", user: UserRecord) => void;
   onPassword: (user: UserRecord) => void;
+  onTransfer: (user: UserRecord) => void;
+  /** The company owner (ADR 0085): who it is, and whether the signed-in person is. */
+  owner: { userId: string; viewerIsOwner: boolean };
   rowMenu: UserRecord | null;
   setRowMenu: Dispatch<SetStateAction<UserRecord | null>>;
   user: UserRecord;
@@ -135,7 +142,12 @@ function UserInventoryRow({
   const { t } = useI18n();
   const statusLabel = userStatusLabel(user, busyUserId, t);
   const requirementAction = user.authenticator_required ? "unrequire" : "require";
-  const canManageAuthenticator = Boolean(authUserId && user.id !== authUserId && !user.deleted_at);
+  const isOwner = Boolean(owner.userId) && user.id === owner.userId;
+  // Nobody but the owner changes the owner's role, name or sign-in, and nobody removes,
+  // deactivates or deletes the owner (ADR 0085): no action is offered on their row.
+  const protectedOwner = isOwner && user.id !== authUserId;
+  const canManageAuthenticator = Boolean(authUserId && user.id !== authUserId && !user.deleted_at) && !isOwner;
+  const canReceiveOwnership = owner.viewerIsOwner && !isOwner && user.is_active && user.roles.includes("admin");
   return (
     <tr>
       <td>
@@ -161,11 +173,15 @@ function UserInventoryRow({
           )) : (
             <span className="fs-badge">{t("react.settings.no_role_here", "No role here")}</span>
           )}
+          {isOwner ? (
+            <span className="fs-badge green" data-testid="user-owner-badge">{t("react.settings.owner", "Owner")}</span>
+          ) : null}
         </span>
       </td>
       {projectAccess ? <td data-testid="user-project-access-cell">{projectAccessLabel(user, projectAccess.data, t)}</td> : null}
       <td>{user.must_change_password ? t("react.settings.change_required", "Change required") : t("monitoring.table.current", "Current")}</td>
       <td className="fs-table-action-cell">
+        {protectedOwner ? null : (
         <RowActionMenu
           label={t("react.settings.actions_for_value1", "Actions for {value1}", { value1: String(userLabel(user)) })}
           onOpenChange={(open) => setRowMenu(open ? user : null)}
@@ -175,6 +191,10 @@ function UserInventoryRow({
             <span className="fs-row-menu-label">{t("settings.access.keys.columns.access", "Access")}</span>
             <button onClick={() => onEdit(user)} role="menuitem" type="button">
               {t("react.settings.edit_access", "Edit access")} </button>
+            {canReceiveOwnership ? (
+              <button onClick={() => onTransfer(user)} role="menuitem" type="button">
+                {t("react.settings.transfer_ownership", "Transfer ownership")} </button>
+            ) : null}
           </div>
           <div className="fs-row-menu-separator" />
           <div className="fs-row-menu-group">
@@ -208,45 +228,50 @@ function UserInventoryRow({
               </>
             ) : null}
           </div>
-          <div className="fs-row-menu-separator" />
-          <div className="fs-row-menu-group">
-            <span className="fs-row-menu-label">{t("react.settings.user_status", "User status")}</span>
-            {user.is_active ? (
-              <button
-                className="danger"
-                onClick={() => onConfirmAction("deactivate", user)}
-                role="menuitem"
-                type="button"
-              >
-                {t("react.settings.deactivate_user", "Deactivate user")} </button>
-            ) : (
-              <button
-                onClick={() => onImmediateAction("activate", user)}
-                role="menuitem"
-                type="button"
-              >
-                {t("react.settings.activate_user", "Activate user")} </button>
-            )}
-            {user.id !== authUserId ? (
-              <button
-                className="danger"
-                onClick={() => onConfirmAction("remove", user)}
-                role="menuitem"
-                type="button"
-              >
-                {t("react.settings.remove_from_this_company", "Remove from this company")} </button>
-            ) : null}
-            {user.id !== authUserId ? (
-              <button
-                className="danger"
-                onClick={() => onConfirmAction("delete", user)}
-                role="menuitem"
-                type="button"
-              >
-                {t("react.settings.delete_user", "Delete user")} </button>
-            ) : null}
-          </div>
+          {isOwner ? null : (
+            <>
+              <div className="fs-row-menu-separator" />
+              <div className="fs-row-menu-group">
+                <span className="fs-row-menu-label">{t("react.settings.user_status", "User status")}</span>
+                {user.is_active ? (
+                  <button
+                    className="danger"
+                    onClick={() => onConfirmAction("deactivate", user)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t("react.settings.deactivate_user", "Deactivate user")} </button>
+                ) : (
+                  <button
+                    onClick={() => onImmediateAction("activate", user)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t("react.settings.activate_user", "Activate user")} </button>
+                )}
+                {user.id !== authUserId ? (
+                  <button
+                    className="danger"
+                    onClick={() => onConfirmAction("remove", user)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t("react.settings.remove_from_this_company", "Remove from this company")} </button>
+                ) : null}
+                {user.id !== authUserId ? (
+                  <button
+                    className="danger"
+                    onClick={() => onConfirmAction("delete", user)}
+                    role="menuitem"
+                    type="button"
+                  >
+                    {t("react.settings.delete_user", "Delete user")} </button>
+                ) : null}
+              </div>
+            </>
+          )}
         </RowActionMenu>
+        )}
       </td>
     </tr>
   );
@@ -310,6 +335,8 @@ function UsersInventory({
   onEdit,
   onImmediateAction,
   onPassword,
+  onTransfer,
+  owner,
   onRetry,
   rowMenu,
   setRowMenu,
@@ -327,6 +354,8 @@ function UsersInventory({
   onEdit: (user: UserRecord) => void;
   onImmediateAction: (kind: "unlock" | "activate", user: UserRecord) => void;
   onPassword: (user: UserRecord) => void;
+  onTransfer: (user: UserRecord) => void;
+  owner: { userId: string; viewerIsOwner: boolean };
   onRetry: () => void;
   rowMenu: UserRecord | null;
   setRowMenu: Dispatch<SetStateAction<UserRecord | null>>;
@@ -409,6 +438,8 @@ function UsersInventory({
                 onEdit={onEdit}
                 onImmediateAction={onImmediateAction}
                 onPassword={onPassword}
+                onTransfer={onTransfer}
+                owner={owner}
                 projectAccess={projectAccess.enabled ? projectAccess : undefined}
                 rowMenu={rowMenu}
                 setRowMenu={setRowMenu}
@@ -443,6 +474,9 @@ export function SettingsUsersPage() {
   const [params, setParams] = useFilterSearchParams("users", ["search", "role", "status"]);
   // Users & access needs users.manage (ADR 0076), the permission of /api/auth/users.
   const isAdmin = hasCapability(sessionPermissions(auth.session), "manage_users");
+  // The company owner (ADR 0085): badge, protected actions and transfer offers.
+  const ownerQuery = useAccountOwner(isAdmin);
+  const owner = { userId: ownerQuery.data?.owner_user_id || "", viewerIsOwner: Boolean(ownerQuery.data?.is_owner) };
   const filters: UserFilters = {
     search: params.get("search") || "",
     role: params.get("role") || "",
@@ -475,6 +509,7 @@ export function SettingsUsersPage() {
   const [addingExisting, setAddingExisting] = useState(false);
   // ADR 0085: without system email, the link of a new invitation is shown here once.
   const [invitationLink, setInvitationLink] = useState("");
+  const [transferUser, setTransferUser] = useState<UserRecord | null>(null);
 
   function openAdd() { setEditorMode("add"); setEditingUser(null); setEditor({ ...EMPTY_EDITOR }); setEditorError(""); setFeedback(null); }
   function openEdit(user: UserRecord) { setEditorMode("edit"); setEditingUser(user); setEditor(editorForUser(user)); setEditorError(""); setFeedback(null); setRowMenu(null); }
@@ -607,6 +642,10 @@ export function SettingsUsersPage() {
         title={t("react.settings.users_access", "Users & access")}
       />
       <UsersFeedback feedback={feedback} />
+      <OwnerTransferNotice
+        onDone={(message) => setFeedback({ tone: "success", message })}
+        onError={(message) => setFeedback({ tone: "danger", message })}
+      />
       <OneTimeTokenSecret
         copiedMessage={t("react.settings.invitation_link_copied", "Invitation link copied.")}
         copyLabel={t("react.settings.copy_invitation_link", "Copy invitation link")}
@@ -629,12 +668,19 @@ export function SettingsUsersPage() {
           ignoreAsyncResult(runImmediateAction(kind, user))
         }
         onPassword={openPassword}
+        onTransfer={(user) => { setTransferUser(user); setRowMenu(null); setFeedback(null); }}
+        owner={owner}
         onRetry={() => ignoreAsyncResult(usersQuery.refetch())}
         rowMenu={rowMenu}
         setRowMenu={setRowMenu}
         total={total}
         updateFilters={updateFilters}
         users={users}
+      />
+      <TransferOwnershipDialog
+        onClose={() => setTransferUser(null)}
+        onOffered={(message) => { setTransferUser(null); setFeedback({ tone: "success", message }); }}
+        user={transferUser}
       />
       <PendingInvitations
         onCancelled={(invitation) =>

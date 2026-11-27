@@ -13015,6 +13015,9 @@ msgstr "Atšauktas"
 msgid "react.settings.revoked_lowercase"
 msgstr "atšauktas"
 
+msgid "react.settings.created_by_person_who_left"
+msgstr "Sukūrė asmuo, kuris jau išėjo"
+
 msgid "react.settings.revoking"
 msgstr "Atšaukiama…"
 
@@ -33075,10 +33078,10 @@ msgid "react.agent_access.expiry_notice_dismiss"
 msgstr "Paslėpti"
 
 msgid "react.permissions.account_self"
-msgstr "Tvarkyti savo prisijungimą: atsijungti, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
+msgstr "Tvarkyti savo paskyrą: profilį, kalbą, laiko juostą ir datos formatą, atsijungti, perjungti savo įmones, keisti slaptažodį ir el. paštą, asmeninius prieigos raktus, OAuth leidimus ir DI agento ryšį"
 
 msgid "react.permissions.account_profile_write"
-msgstr "Keisti savo profilį, laiko juostą, kalbą ir datos formatą bei perjungti paskyrą"
+msgstr "Keisti savo paskyrą iš išorinio prisijungimo sesijos"
 
 msgid "react.permissions.jobs_read"
 msgstr "Skaityti užduotis, jų rezultatus, failus, žurnalus ir patvirtinimus"
@@ -33457,6 +33460,54 @@ msgstr "Čia vaidmens nėra"
 
 msgid "react.settings.remove_from_this_company"
 msgstr "Pašalinti iš šios įmonės"
+
+msgid "react.settings.owner"
+msgstr "Savininkas"
+
+msgid "react.settings.transfer_ownership"
+msgstr "Perduoti nuosavybę"
+
+msgid "react.settings.transfer_ownership_to_value1"
+msgstr "Perduoti nuosavybę asmeniui {value1}?"
+
+msgid "react.settings.transfer_ownership_description"
+msgstr "Kai {value1} sutiks, galutinis žodis šioje įmonėje priklausys šiam asmeniui. Po to šis asmuo galės jus pašalinti arba pakeisti jūsų vaidmenį."
+
+msgid "react.settings.ownership_offered_to_value1_message"
+msgstr "Nuosavybė pasiūlyta asmeniui {value1}. Savininku liekate, kol šis asmuo sutiks."
+
+msgid "react.settings.ownership_transfer_failed"
+msgstr "Nuosavybės perdavimas nepasiūlytas"
+
+msgid "react.settings.value1_offers_you_ownership"
+msgstr "{value1} siūlo jums tapti šios įmonės savininku (-e)"
+
+msgid "react.settings.ownership_offer_description"
+msgstr "Būdami savininku turėsite galutinį žodį: niekas kitas negalės jūsų pašalinti, pakeisti jūsų vaidmens ar prisijungimo. Pasiūlymas galioja iki {value1}."
+
+msgid "react.settings.accept_ownership"
+msgstr "Priimti nuosavybę"
+
+msgid "react.settings.decline"
+msgstr "Atsisakyti"
+
+msgid "react.settings.ownership_offered_to_value1"
+msgstr "Nuosavybė pasiūlyta asmeniui {value1}"
+
+msgid "react.settings.ownership_offer_waits"
+msgstr "Savininku liekate, kol šis asmuo sutiks. Pasiūlymas galioja iki {value1}."
+
+msgid "react.settings.cancel_the_transfer"
+msgstr "Atšaukti perdavimą"
+
+msgid "react.settings.ownership_transfer_cancelled"
+msgstr "Nuosavybės perdavimas atšauktas."
+
+msgid "react.settings.you_are_now_the_owner"
+msgstr "Dabar esate šios įmonės savininkas (-ė)."
+
+msgid "react.settings.ownership_transfer_declined"
+msgstr "Atsisakėte nuosavybės perdavimo."
 
 msgid "react.settings.value1_was_removed_from_this_company"
 msgstr "{value1} pašalintas (-a) iš šios įmonės."

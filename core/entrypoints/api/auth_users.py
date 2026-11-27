@@ -20,6 +20,7 @@ from core.application.auth.user_admin.account_invitations import (
     AccountInvitationService,
 )
 from core.application.auth.user_admin.account_members import AccountMemberService
+from core.application.auth.user_admin.account_ownership import AccountOwnershipService
 from core.application.auth.user_admin.command_service import UserAdminCommandService
 from core.application.auth.user_admin.contracts import (
     UserAuditContext,
@@ -58,6 +59,7 @@ from core.application.settings.ui_i18n import (
 )
 from core.entrypoints.api import auth_users_introspection as _introspection
 from core.entrypoints.api import auth_users_preferences as _preferences
+from core.entrypoints.api.auth_account_owner_routes import register_account_owner_routes
 from core.entrypoints.api.auth_users_email_change_routes import (
     EMAIL_CHANGE_SCHEMA_NOT_APPLIED as EMAIL_CHANGE_SCHEMA_NOT_APPLIED,
 )
@@ -161,6 +163,7 @@ def create_auth_users_router(
     user_command_service: UserAdminCommandService | None = None,
     account_member_service: AccountMemberService | None = None,
     account_invitation_service: AccountInvitationService | None = None,
+    account_ownership_service: AccountOwnershipService | None = None,
 ) -> APIRouter:
     del auth_user_column_exists
     router = APIRouter(tags=["auth-users"])
@@ -191,6 +194,10 @@ def create_auth_users_router(
         get_logger=get_logger_only,
         audit=log_auth_audit_event,
     )
+    account_ownership_service = account_ownership_service or AccountOwnershipService(
+        get_logger=get_logger_only,
+        audit=log_auth_audit_event,
+    )
 
     service_error_statuses: tuple[tuple[type[ServiceError], int], ...] = (
         (ServiceValidationError, 400),
@@ -211,7 +218,12 @@ def create_auth_users_router(
             )
         for error_type, status_code in service_error_statuses:
             if isinstance(exc, error_type):
-                return JSONResponse({"error": exc.message}, status_code=status_code)
+                body = {"error": exc.message}
+                # A refusal with a code (the company owner, ADR 0085) keeps it.
+                code = str((exc.payload or {}).get("code") or "")
+                if code:
+                    body["code"] = code
+                return JSONResponse(body, status_code=status_code)
         return api_error_response(exc)
 
     def _user_input_error(exc: ValidationError) -> JSONResponse:
@@ -462,6 +474,14 @@ def create_auth_users_router(
             return require_authenticated_user(request, required_roles=auth_admin_roles)
         except PermissionError:
             return JSONResponse({"error": err_admin_role_required}, status_code=403)
+
+    # The company owner (ADR 0085): transfer offers and installation recovery.
+    register_account_owner_routes(
+        router,
+        member_admin=_member_admin,
+        ownership_service=account_ownership_service,
+        service_error=_user_service_error,
+    )
 
     @router.get("/api/auth/users/candidates")
     def api_auth_users_candidates(request: Request, q: Annotated[str, Query()] = ""):
@@ -813,6 +833,7 @@ def create_auth_users_router(
                     actor=str(admin_user.get("username") or "admin"),
                     source="api",
                 ),
+                actor_user_id=str(admin_user.get("id") or "").strip() or None,
             )
         except Exception as e:
             return _user_service_error(e)
@@ -890,6 +911,7 @@ def create_auth_users_router(
                     actor=str(admin_user.get("username") or "admin"),
                     source="api",
                 ),
+                actor_user_id=str(admin_user.get("id") or "").strip() or None,
             )
         except Exception as e:
             return _user_service_error(e)

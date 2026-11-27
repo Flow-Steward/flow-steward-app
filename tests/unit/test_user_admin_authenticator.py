@@ -8,6 +8,15 @@ from core.application.auth.user_admin import command_service
 from core.application.auth.user_admin.command_service import UserAdminCommandService
 from core.application.management.errors import ServiceForbiddenError
 
+
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 _USER_ID = "8f223319-f856-463a-9e78-e53a8415c28d"
 _ADMIN_ID = "a37721ff-bacf-44d1-a32a-bafb57b1926c"
 

@@ -13,9 +13,10 @@ def test_user_admin_is_owned_by_focused_auth_package_without_compatibility_modul
     package = ROOT / "core" / "application" / "auth" / "user_admin"
     expected_modules = {
         "__init__.py",
-        # Account members, invitations and their shared limits (ADR 0085).
+        # Account members, invitations, ownership and their shared limits (ADR 0085).
         "account_invitations.py",
         "account_members.py",
+        "account_ownership.py",
         "command_service.py",
         "contracts.py",
         "member_lookup_throttle.py",

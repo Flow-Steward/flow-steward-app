@@ -7,11 +7,13 @@ from typing import Any, Protocol
 
 from core.application.auth.user_admin.contracts import (
     AccountListView,
+    AccountOwnerReassignResultView,
     UserActiveUpdateInput,
     UserAuditContext,
     UserCreateInput,
     UserListView,
     UserMutationResultView,
+    UserOwnerReassignInput,
     UserPasswordUpdateInput,
     UserRolesUpdateInput,
     UserSelectorInput,
@@ -96,6 +98,7 @@ class UserCommandServiceProtocol(Protocol):
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView: ...
 
     def unlock_user(
@@ -104,6 +107,7 @@ class UserCommandServiceProtocol(Protocol):
         *,
         allowed_account_ids: list[str] | None = None,
         audit_context: UserAuditContext | None = None,
+        actor_user_id: str | None = None,
     ) -> UserMutationResultView: ...
 
     def set_active(
@@ -119,6 +123,13 @@ class UserCommandServiceProtocol(Protocol):
         *,
         audit_context: UserAuditContext | None = None,
     ) -> UserMutationResultView: ...
+
+    def reassign_owner(
+        self,
+        command: UserOwnerReassignInput,
+        *,
+        audit_context: UserAuditContext | None = None,
+    ) -> AccountOwnerReassignResultView: ...
 
 
 class ProjectQueryServiceProtocol(Protocol):

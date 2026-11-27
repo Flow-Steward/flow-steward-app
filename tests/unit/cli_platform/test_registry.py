@@ -143,6 +143,7 @@ _PHASE2_USER_IDS = [
     "users.unlock",
     "users.set-active",
     "users.set-roles",
+    "users.reassign-owner",
     "users.issue-bootstrap-token",
 ]
 _PHASE2_EXTENSION_IDS = [
@@ -297,8 +298,9 @@ def test_public_command_specifications_have_unique_ids_and_paths() -> None:
     # the nine workflow authoring adapters (authoring-schema .. stats) make 118;
     # the read-only `database preflight` of ADR 0056 makes 119;
     # `extensions install-catalog` makes 120;
-    # ADR 0082 `release modules-list` and `release modules-apply` make 122.
-    assert len(command_ids) == 122
+    # ADR 0082 `release modules-list` and `release modules-apply` make 122;
+    # ADR 0085 `users reassign-owner` (company owner recovery) makes 123.
+    assert len(command_ids) == 123
     assert len(command_ids) == len(set(command_ids))
     assert len(paths) == len(set(paths))
 

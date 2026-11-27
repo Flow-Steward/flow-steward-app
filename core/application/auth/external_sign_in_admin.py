@@ -14,6 +14,7 @@ from contextlib import AbstractContextManager
 from typing import Any
 
 from core.application.auth import external_sign_in_repository as repository
+from core.application.auth.account_owner import require_owner_consent
 from core.application.management.errors import ServiceForbiddenError, ServiceNotFoundError
 
 ConnectionFactory = Callable[[], AbstractContextManager[Any]]
@@ -84,6 +85,12 @@ class ExternalSignInAdmin:
     def unlink_identity(self, scope: Any, identity_id: str) -> dict[str, Any]:
         account_id, actor = _require_admin(scope)
         with self._connection() as conn, conn.cursor() as cur:
+            # Only a company owner unlinks their own sign-in (ADR 0085, "Company owner").
+            linked = repository.identity_user_id(cur, identity_id, account_id=account_id)
+            if linked:
+                require_owner_consent(
+                    cur, user_id=linked, actor_user_id=_text(getattr(scope, "user_id", ""))
+                )
             if not repository.delete_identity(cur, identity_id, account_id=account_id):
                 raise ServiceNotFoundError("External identity not found")
         self._log(actor, "external_identity_unlink", {"identity_id": identity_id})

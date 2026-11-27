@@ -38,6 +38,7 @@ def test_users_specs_expose_only_phase2_leaves() -> None:
         ("users", "unlock"),
         ("users", "set-active"),
         ("users", "set-roles"),
+        ("users", "reassign-owner"),
         ("users", "issue-bootstrap-token"),
     ]
 

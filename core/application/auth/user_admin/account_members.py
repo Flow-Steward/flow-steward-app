@@ -17,6 +17,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from core.application.auth.account_owner import require_owner_kept
+from core.application.auth.approver_release import release_approver
 from core.application.auth.audit import log_auth_audit_event
 from core.application.auth.external_session_revocation import revoke_external_sign_in_grants
 from core.application.auth.membership_roles import (
@@ -204,6 +206,39 @@ def add_member(
     return person
 
 
+def _next_home(cur: Any, user_id: str, leaving_account_id: str) -> str:
+    """The membership that becomes the home of a person leaving their home account.
+
+    An active account where the person has a role comes first, so the home never
+    points at a company they cannot work in while they have one they can; then the
+    default membership and the oldest. ``""`` when no other membership exists.
+    """
+    cur.execute(
+        """
+        SELECT m.account_id::text AS account_id
+          FROM user_account_memberships AS m
+          LEFT JOIN accounts AS a ON a.id = m.account_id
+         WHERE m.user_id::text = %s AND m.account_id::text <> %s
+         ORDER BY (m.role_id IS NOT NULL AND COALESCE(a.is_active, false)) DESC,
+                  m.is_default DESC, m.created_at, m.account_id
+         LIMIT 1
+        """,
+        (user_id, leaving_account_id),
+    )
+    return _text(_value(cur.fetchone(), "account_id", 0))
+
+
+def _release_approval_steps(cur: Any, user_id: str, account_id: str) -> list[dict[str, Any]]:
+    """Take the person off the approval steps of the account they leave.
+
+    A person who is no member any more can never decide, and a later membership must
+    not bring an old assignment back. A step they were the last approver of goes to the
+    account's administrators, never to everyone (:mod:`core.application.auth.approver_release`).
+    Returns the steps, for the audit.
+    """
+    return release_approver(cur, user_id=user_id, account_id=account_id)
+
+
 def remove_member(
     cur: Any,
     *,
@@ -214,10 +249,13 @@ def remove_member(
     """Remove the person's membership of ``account_id``; returns the person.
 
     Refused for the administrator themselves, for the account's last active
-    administrator and for the person's only membership (the person is deleted
-    instead). The
+    administrator, for the account's owner (who transfers ownership first) and for
+    the person's only membership (the person is deleted instead). The
     person's scope limit there, their sessions, personal tokens and OAuth grants of
-    that account go with the membership; a home account moves to another membership.
+    that account and their assignments as an approver there go with the membership; a
+    home account moves to another membership where the person has a role, if any.
+    What the person made in the account (workflows, runs, schedules, history) stays the
+    account's.
     """
     if _text(actor_user_id).casefold() == _text(user_id).casefold():
         raise ServiceForbiddenError("You cannot remove yourself from this company")
@@ -235,18 +273,28 @@ def remove_member(
             "The last active administrator of this company cannot be removed: "
             "give another person the admin role here first"
         ) from exc
+    # The company's owner stays until they transfer ownership (ADR 0085).
+    require_owner_kept(cur, user_id=user_id, account_ids=[account_id])
     remaining = [item for item in accounts if item != account_id]
     if not remaining:
         raise ServiceConflictError("This is the person's only company: delete the person instead")
     if person["account_id"] == account_id:
+        home = _next_home(cur, user_id, account_id) or remaining[0]
         cur.execute(
             "UPDATE users SET account_id = %s, updated_at = now() WHERE id::text = %s",
-            (remaining[0], user_id),
+            (home, user_id),
+        )
+        # One default per person (a unique index checked row by row): clear the old
+        # default before marking the new one, never in one statement.
+        cur.execute(
+            """UPDATE user_account_memberships SET is_default = false
+                WHERE user_id::text = %s AND is_default AND account_id::text <> %s""",
+            (user_id, home),
         )
         cur.execute(
-            """UPDATE user_account_memberships SET is_default = (account_id::text = %s)
-                WHERE user_id::text = %s""",
-            (remaining[0], user_id),
+            """UPDATE user_account_memberships SET is_default = true
+                WHERE user_id::text = %s AND account_id::text = %s""",
+            (user_id, home),
         )
     cur.execute(
         "DELETE FROM user_account_memberships WHERE user_id::text = %s AND account_id::text = %s",
@@ -267,6 +315,7 @@ def remove_member(
         "DELETE FROM external_identities WHERE user_id::text = %s AND account_id::text = %s",
         (user_id, account_id),
     )
+    person["released_approval_steps"] = _release_approval_steps(cur, user_id, account_id)
     # An administrator removed from the account no longer invites to it (ADR 0085, C4).
     person["cancelled_invitations"] = cancel_invitations_of_former_admins(cur, user_id)
     return person
@@ -377,7 +426,15 @@ class AccountMemberService:
             username=person["username"],
             actor=actor,
             status="ok",
-            detail={"user_id": person["id"], "account_id": account},
+            detail={
+                "user_id": person["id"],
+                "account_id": account,
+                **(
+                    {"released_approval_steps": person["released_approval_steps"]}
+                    if person.get("released_approval_steps")
+                    else {}
+                ),
+            },
         )
         for item in person.get("cancelled_invitations") or ():
             self._audit(

@@ -472,8 +472,14 @@ class ExternalSignInPort:
         their sessions, personal tokens and OAuth grants of that account; other
         accounts are untouched. Refused with :class:`LookupError` for a person who is
         not a member and with :class:`ValueError` for the account's last active
-        administrator. Returns the stored roles in the account (``[]``).
+        administrator and for its owner (ADR 0085, "Company owner": the owner keeps the
+        role until ownership is transferred). Returns the stored roles in the account
+        (``[]``).
         """
+        from core.application.auth.account_owner import (
+            AccountOwnerProtectedError,
+            require_owner_kept,
+        )
         from core.application.auth.membership_roles import (
             LastAccountAdminError,
             cancel_invitations_of_former_admins,
@@ -490,6 +496,10 @@ class ExternalSignInPort:
                 require_other_admins(cur, user_id=user_id, account_ids=[account_id])
             except LastAccountAdminError as exc:
                 raise ValueError(str(exc)) from exc
+            try:
+                require_owner_kept(cur, user_id=user_id, account_ids=[account_id])
+            except AccountOwnerProtectedError as exc:
+                raise ValueError(exc.message) from exc
             stored = set_membership_role(cur, user_id=user_id, account_id=account_id, role=None)
             revoke_account_access(
                 cur, user_id=user_id, account_id=account_id, reason="account_role_removed"

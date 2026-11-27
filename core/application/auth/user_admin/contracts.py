@@ -134,6 +134,31 @@ class UserUpdateInput(_ExistingUserInput):
         return normalized
 
 
+class UserOwnerReassignInput(_ExistingUserInput):
+    """Installation recovery: make the person the owner of a company (ADR 0085)."""
+
+    #: The company (account id) that gets a new owner.
+    account_id: str
+    #: Why the owner is reassigned; recorded in the auth audit.
+    reason: str
+
+    @field_validator("account_id", "reason")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        normalized = str(value or "").strip()
+        if not normalized:
+            raise ValueError("a value is required")
+        return normalized
+
+
+class AccountOwnerReassignResultView(ViewModel):
+    status: str = "reassigned"
+    account_id: str
+    owner_user_id: str
+    previous_owner_id: str = ""
+    promoted_to_admin: bool = False
+
+
 class UserAuditContext(ViewModel):
     actor: str
     source: str

@@ -24,6 +24,12 @@ import {
   updateUser,
   updateUserAuthenticator,
 } from "@/pages/settings/shared/api";
+import {
+  answerOwnershipTransfer,
+  fetchAccountOwner,
+  offerOwnershipTransfer,
+  type AccountOwnerState,
+} from "@/pages/settings/users/owner-transfer-api";
 
 vi.mock("@/lib/auth/useAuth", () => ({ useAuth: vi.fn() }));
 vi.mock("@/pages/settings/shared/api", () => ({
@@ -44,6 +50,19 @@ vi.mock("@/pages/settings/shared/api", () => ({
   updateUser: vi.fn(),
   updateUserAuthenticator: vi.fn(),
 }));
+vi.mock("@/pages/settings/users/owner-transfer-api", async () => {
+  const { useQuery } = await import("@tanstack/react-query");
+  const fetchAccountOwner = vi.fn();
+  return {
+    ACCOUNT_OWNER_QUERY_KEY: ["settings", "users", "owner"],
+    answerOwnershipTransfer: vi.fn(),
+    cancelOwnershipTransfer: vi.fn(),
+    fetchAccountOwner,
+    offerOwnershipTransfer: vi.fn(),
+    useAccountOwner: (enabled: boolean) =>
+      useQuery({ queryKey: ["settings", "users", "owner"], queryFn: () => fetchAccountOwner(), enabled }),
+  };
+});
 
 const mockedUseAuth = vi.mocked(useAuth);
 const mockedCreateUser = vi.mocked(createUser);
@@ -59,6 +78,13 @@ const mockedSearchCandidates = vi.mocked(searchAccountMemberCandidates);
 const mockedInviteAccountMember = vi.mocked(inviteAccountMember);
 const mockedFetchSentInvitations = vi.mocked(fetchSentAccountInvitations);
 const mockedCancelInvitation = vi.mocked(cancelAccountInvitation);
+const mockedFetchAccountOwner = vi.mocked(fetchAccountOwner);
+const mockedOfferOwnershipTransfer = vi.mocked(offerOwnershipTransfer);
+const mockedAnswerOwnershipTransfer = vi.mocked(answerOwnershipTransfer);
+
+function ownerState(state: Partial<AccountOwnerState> = {}): AccountOwnerState {
+  return { owner_user_id: "", owner_name: "", is_owner: false, pending_transfer: null, transfer_is_for_me: false, ...state };
+}
 
 const mayaRecord = { id: "u1", email: "maya@example.com", username: "maya@example.com", display_name: "Maya Chen", roles: ["operator"], is_active: true, must_change_password: false, account_id: "acc-1", account_ids: ["acc-1"] };
 
@@ -106,6 +132,7 @@ describe("SettingsUsersPage", () => {
     mockedFetchUsersCollection.mockResolvedValue(userPage());
     mockedFetchSentInvitations.mockResolvedValue([]);
     mockedUpdateUserAuthenticator.mockReset();
+    mockedFetchAccountOwner.mockResolvedValue(ownerState());
   });
 
   it("lists pending invitations with the email as typed and cancels one (ADR 0085)", async () => {
@@ -721,5 +748,62 @@ describe("SettingsUsersPage", () => {
     await user.click(await screen.findByRole("button", { name: "Actions for Current Admin" }));
 
     expect(screen.queryByRole("menuitem", { name: "Remove from this company" })).not.toBeInTheDocument();
+  });
+
+  describe("the company owner (ADR 0085)", () => {
+    const owner = { ...mayaRecord, id: "owner-1", display_name: "Olivia Owner", email: "olivia@example.com", roles: ["admin"] };
+    const freelancer = { ...mayaRecord, id: "admin-self", display_name: "Fred Freelancer", roles: ["admin"] };
+
+    it("marks the owner and offers nobody else the actions refused for them", async () => {
+      mockedFetchAccountOwner.mockResolvedValue(ownerState({ owner_user_id: "owner-1", owner_name: "Olivia Owner" }));
+      mockedFetchUsersCollection.mockResolvedValue(userPage([owner, freelancer]));
+      renderUsersPage();
+
+      await waitFor(() => expect(within(screen.getByRole("row", { name: /Olivia Owner/ })).getByTestId("user-owner-badge")).toHaveTextContent("Owner"));
+      expect(within(screen.getByRole("row", { name: /Fred Freelancer/ })).queryByTestId("user-owner-badge")).not.toBeInTheDocument();
+      // Nothing is offered on the owner's row: no role, name, sign-in or status change.
+      expect(screen.queryByRole("button", { name: "Actions for Olivia Owner" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Actions for Fred Freelancer" })).toBeInTheDocument();
+    });
+
+    it("lets the owner offer ownership to another administrator, who must accept", async () => {
+      const user = userEvent.setup();
+      const self = { ...owner, id: "admin-self" };
+      const admin = { ...mayaRecord, id: "u2", display_name: "Fred Freelancer", roles: ["admin"] };
+      mockedFetchAccountOwner.mockResolvedValue(ownerState({ owner_user_id: "admin-self", is_owner: true }));
+      mockedFetchUsersCollection.mockResolvedValue(userPage([self, admin, mayaRecord]));
+      mockedOfferOwnershipTransfer.mockResolvedValue({ status: "pending", transfer: { id: "t1", from_user_id: "admin-self", from_name: "Olivia Owner", to_user_id: "u2", to_name: "Fred Freelancer", expires_at: null } });
+      renderUsersPage();
+
+      // Only an active administrator can receive it.
+      await user.click(await screen.findByRole("button", { name: "Actions for Maya Chen" }));
+      expect(screen.queryByRole("menuitem", { name: "Transfer ownership" })).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Actions for Fred Freelancer" }));
+      await user.click(screen.getByRole("menuitem", { name: "Transfer ownership" }));
+      const dialog = await screen.findByRole("alertdialog", { name: "Transfer ownership to Fred Freelancer?" });
+      await user.click(within(dialog).getByRole("button", { name: "Transfer ownership" }));
+
+      await waitFor(() => expect(mockedOfferOwnershipTransfer).toHaveBeenCalledWith("u2"));
+      await waitFor(() => expect(screen.getByText("Ownership was offered to Fred Freelancer. You stay the owner until they accept.")).toBeInTheDocument());
+    });
+
+    it("shows the recipient the offer and accepts it", async () => {
+      const user = userEvent.setup();
+      mockedFetchAccountOwner.mockResolvedValue(ownerState({
+        owner_user_id: "owner-1",
+        owner_name: "Olivia Owner",
+        transfer_is_for_me: true,
+        pending_transfer: { id: "t1", from_user_id: "owner-1", from_name: "Olivia Owner", to_user_id: "admin-self", to_name: "Fred Freelancer", expires_at: null },
+      }));
+      mockedAnswerOwnershipTransfer.mockResolvedValue({ status: "accepted" });
+      mockedFetchUsersCollection.mockResolvedValue(userPage([owner, freelancer]));
+      renderUsersPage();
+
+      await waitFor(() => expect(screen.getByText("Olivia Owner offers you ownership of this company")).toBeInTheDocument());
+      await user.click(within(screen.getByTestId("owner-transfer-offer")).getByRole("button", { name: "Accept ownership" }));
+
+      await waitFor(() => expect(mockedAnswerOwnershipTransfer).toHaveBeenCalledWith("t1", true));
+      await waitFor(() => expect(screen.getByText("You are now the owner of this company.")).toBeInTheDocument());
+    });
   });
 });

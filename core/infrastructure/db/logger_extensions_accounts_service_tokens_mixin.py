@@ -19,6 +19,27 @@ from core.infrastructure.db.logger_extensions_accounts_common import (
 )
 
 _MESSAGE_AND_ACCOUNT_ID_S = "AND account_id = %s"
+
+
+def _created_by_has_left(alias: str) -> str:
+    """SQL: the person named by ``<alias>.created_by`` is no live member of its account.
+
+    Service accounts and machine tokens belong to the company and are kept when the
+    person who set them up leaves (ADR 0085 section 4); the listing marks them so an
+    administrator sees who no longer answers for them. ``created_by`` is a username;
+    a name that is no person (``system``, the CLI) is never marked.
+    """
+    return f"""(
+        EXISTS (SELECT 1 FROM users AS cu WHERE cu.username = {alias}.created_by)
+        AND NOT EXISTS (
+            SELECT 1 FROM users AS cu
+              JOIN user_account_memberships AS cm ON cm.user_id = cu.id
+             WHERE cu.username = {alias}.created_by
+               AND cu.is_active AND cu.deleted_at IS NULL
+               AND cm.account_id = {alias}.account_id)
+    ) AS created_by_has_left"""
+
+
 _MESSAGE_SERVICE_ACCOUNT_KEY_IS_REQUIRED = (  # pragma: allowlist secret - validation text
     "service_account_key is required"
 )
@@ -92,6 +113,7 @@ class PlatformLoggerServiceTokensMixin:
                     allowed_workflow_ids_jsonb,
                     is_active,
                     created_by,
+                    {_created_by_has_left("service_accounts")},
                     created_at,
                     updated_at
                 FROM service_accounts
@@ -310,6 +332,7 @@ class PlatformLoggerServiceTokensMixin:
                     mt.last_used_at,
                     mt.revoked,
                     mt.created_by,
+                    {_created_by_has_left("mt")},
                     mt.created_at,
                     mt.updated_at
                 FROM machine_tokens mt

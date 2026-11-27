@@ -12708,6 +12708,9 @@ msgstr ""
 msgid "react.settings.revoked_lowercase"
 msgstr ""
 
+msgid "react.settings.created_by_person_who_left"
+msgstr ""
+
 msgid "react.settings.revoking"
 msgstr ""
 
@@ -31970,6 +31973,54 @@ msgid "react.settings.no_role_here"
 msgstr ""
 
 msgid "react.settings.remove_from_this_company"
+msgstr ""
+
+msgid "react.settings.owner"
+msgstr ""
+
+msgid "react.settings.transfer_ownership"
+msgstr ""
+
+msgid "react.settings.transfer_ownership_to_value1"
+msgstr ""
+
+msgid "react.settings.transfer_ownership_description"
+msgstr ""
+
+msgid "react.settings.ownership_offered_to_value1_message"
+msgstr ""
+
+msgid "react.settings.ownership_transfer_failed"
+msgstr ""
+
+msgid "react.settings.value1_offers_you_ownership"
+msgstr ""
+
+msgid "react.settings.ownership_offer_description"
+msgstr ""
+
+msgid "react.settings.accept_ownership"
+msgstr ""
+
+msgid "react.settings.decline"
+msgstr ""
+
+msgid "react.settings.ownership_offered_to_value1"
+msgstr ""
+
+msgid "react.settings.ownership_offer_waits"
+msgstr ""
+
+msgid "react.settings.cancel_the_transfer"
+msgstr ""
+
+msgid "react.settings.ownership_transfer_cancelled"
+msgstr ""
+
+msgid "react.settings.you_are_now_the_owner"
+msgstr ""
+
+msgid "react.settings.ownership_transfer_declined"
 msgstr ""
 
 msgid "react.settings.value1_was_removed_from_this_company"

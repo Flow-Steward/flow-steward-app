@@ -39,6 +39,15 @@ from core.application.auth.role_assignments import (
 from core.application.auth.scope_contracts import EXACT_ONLY_SCOPES
 from core.application.management.errors import ServiceValidationError
 
+
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATION = ROOT / "db" / "migrations" / "20261120090000_role_permissions.sql"
 
@@ -405,7 +414,9 @@ def test_assigning_roles_keeps_the_highest_system_role_on_the_membership() -> No
     )
 
     assert stored == ["operator"]
-    [update] = cursor.statements
+    update, *after = cursor.statements
+    # An operator still decides approvals: no approval step is released.
+    assert not any("approval_step_approvers" in sql for sql, _ in after)
     assert update[0].startswith("UPDATE user_account_memberships SET role_id")
     assert update[1] == ("operator", "u1", "a1")
     assert "user_roles" not in update[0]
@@ -417,8 +428,10 @@ def test_assigning_no_roles_leaves_the_membership_without_a_role() -> None:
     assert (
         replace_user_role_assignments(cursor, user_id="u1", account_id="a1", assignments=[]) == []
     )
-    [update] = cursor.statements
+    update, *after = cursor.statements
     assert update[1] == (None, "u1", "a1")
+    # No role decides nothing: the person leaves the account's approval steps.
+    assert [sql.split(" WHERE ")[0] for sql, _ in after] == ["DELETE FROM approval_step_approvers"]
 
 
 def test_assigning_a_role_without_a_membership_is_refused() -> None:

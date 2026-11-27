@@ -123,10 +123,12 @@ ROUTE_PERMISSION_RULES: tuple[RoutePermissionRule, ...] = (
     _rule(
         frozenset({"PATCH"}),
         r"/api/users/me/(?:profile|timezone|locale|date-time-format)",
-        "account.profile.write",
+        # Every role changes its own profile, language, time zone and date format.
+        "account.self",
     ),
-    _rule(frozenset({"POST"}), r"/api/users/me/detect-timezone", "account.profile.write"),
-    _rule(frozenset({"POST"}), r"/api/auth/switch-account", "account.profile.write"),
+    _rule(frozenset({"POST"}), r"/api/users/me/detect-timezone", "account.self"),
+    # ADR 0085: every role moves between its companies, a viewer included.
+    _rule(frozenset({"POST"}), r"/api/auth/switch-account", "account.self"),
     # --- users, accounts, installation settings -----------------------------------------
     _rule(
         _ANY,

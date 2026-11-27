@@ -128,7 +128,8 @@ def list_user_account_memberships(bl: Any, user_id: Any) -> list[dict[str, Any]]
                 COALESCE(a.display_name, '') AS display_name,
                 COALESCE(a.is_active, true) AS is_active,
                 COALESCE(uam.is_default, false) AS is_default,
-                COALESCE(r.key, '') AS role
+                COALESCE(r.key, '') AS role,
+                COALESCE(a.owner_user_id = uam.user_id, false) AS is_owner
             FROM user_account_memberships uam
             JOIN accounts a ON {account_expr} = uam.account_id
             LEFT JOIN roles r ON r.id = uam.role_id
@@ -151,6 +152,9 @@ def list_user_account_memberships(bl: Any, user_id: Any) -> list[dict[str, Any]]
         # the column says nothing about roles and carries no "role" key.
         if "role" in payload:
             membership["role"] = str(payload.get("role") or "").strip()
+        # Whether the person owns that company (ADR 0085, "Company owner").
+        if "is_owner" in payload:
+            membership["is_owner"] = bool(payload.get("is_owner"))
         normalized_rows.append(membership)
     return normalized_rows
 
@@ -174,7 +178,8 @@ def get_user_membership_map(
                 COALESCE(a.display_name, '') AS display_name,
                 COALESCE(a.is_active, true) AS is_active,
                 COALESCE(uam.is_default, false) AS is_default,
-                COALESCE(r.key, '') AS role
+                COALESCE(r.key, '') AS role,
+                COALESCE(a.owner_user_id = uam.user_id, false) AS is_owner
             FROM user_account_memberships uam
             JOIN accounts a ON {account_expr} = uam.account_id
             LEFT JOIN roles r ON r.id = uam.role_id
@@ -187,15 +192,17 @@ def get_user_membership_map(
     mapping: dict[str, list[dict[str, Any]]] = {user_id: [] for user_id in normalized_user_ids}
     for row in rows:
         payload = dict(row or {})
-        mapping.setdefault(str(payload.get("user_id") or "").strip(), []).append(
-            {
-                "account_id": str(payload.get("account_id") or "").strip(),
-                "display_name": str(payload.get("display_name") or "").strip(),
-                "is_active": bool(payload.get("is_active", True)),
-                "is_default": bool(payload.get("is_default", False)),
-                "role": str(payload.get("role") or "").strip(),
-            }
-        )
+        membership = {
+            "account_id": str(payload.get("account_id") or "").strip(),
+            "display_name": str(payload.get("display_name") or "").strip(),
+            "is_active": bool(payload.get("is_active", True)),
+            "is_default": bool(payload.get("is_default", False)),
+            "role": str(payload.get("role") or "").strip(),
+        }
+        # Whether the person owns that company (ADR 0085, "Company owner").
+        if "is_owner" in payload:
+            membership["is_owner"] = bool(payload.get("is_owner"))
+        mapping.setdefault(str(payload.get("user_id") or "").strip(), []).append(membership)
     return mapping
 
 

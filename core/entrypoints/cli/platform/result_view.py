@@ -112,6 +112,7 @@ _MESSAGES = {
     "users.set-active": "User updated",
     "users.unlock": "User unlocked",
     "users.force-reset": "Password reset required at next sign-in",
+    "users.reassign-owner": "Company owner reassigned",
     "extensions.install": "Extension installed",
     "extensions.install-catalog": "Catalog release applied",
     "extensions.uninstall": "Extension uninstalled",

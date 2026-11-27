@@ -29,6 +29,15 @@ from core.application.auth.user_admin import account_members
 from core.application.auth.user_admin.projection import limit_view_to_accounts
 from core.entrypoints.api.auth_users import admin_managed_account_ids, create_auth_users_router
 
+
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 ROOT = Path(__file__).resolve().parents[2]
 USER = "11111111-1111-1111-1111-111111111111"
 ACCOUNT_A = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
@@ -107,6 +116,11 @@ def test_removing_a_membership_ends_that_accounts_oauth_grants(
     assert grants == [("account_membership_removed", USER, ACCOUNT_B)]
     sessions = [params for sql, params in cur.calls if sql.startswith("UPDATE auth_sessions")]
     assert sessions == [(USER, ACCOUNT_B)]
+    # The person is taken off that account's approval steps, and only that account's.
+    approvers = [
+        params for sql, params in cur.calls if sql.startswith("DELETE FROM approval_step_approvers")
+    ]
+    assert approvers == [(USER, ACCOUNT_B, ACCOUNT_B)]
 
 
 def test_adding_an_administrator_revokes_external_sign_in_of_that_account_only(

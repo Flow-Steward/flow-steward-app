@@ -60,9 +60,17 @@ def set_membership_role(cur: Any, *, user_id: str, account_id: str, role: str | 
 
     The membership must exist; :class:`LookupError` when it does not. ``role`` is one
     system role key; ``None`` removes the role (the person keeps the membership and
-    has no access there).
+    has no access there). The account's owner keeps the admin role: any other role
+    for them is refused with
+    :class:`~core.application.auth.account_owner.AccountOwnerProtectedError`.
     """
     key = _text(role).lower() or None
+    if key != ADMIN_ROLE:
+        # The owner keeps the admin role until ownership is transferred (ADR 0085,
+        # "Company owner"): every writer of a membership role passes here.
+        from core.application.auth.account_owner import require_owner_kept
+
+        require_owner_kept(cur, user_id=user_id, account_ids=[account_id])
     cur.execute(
         """UPDATE user_account_memberships
               SET role_id = (SELECT r.id FROM roles AS r WHERE r.key = %s),
@@ -74,6 +82,14 @@ def set_membership_role(cur: Any, *, user_id: str, account_id: str, role: str | 
     )
     if cur.fetchone() is None:
         raise LookupError("The person is not a member of the account")
+    # A role that no longer decides approvals leaves the account's approval steps, as
+    # leaving the account does (ADR 0085, "Leaving a company"). Imported here: the
+    # permission reader imports this module.
+    from core.application.auth.approver_release import release_if_no_longer_deciding
+
+    release_if_no_longer_deciding(
+        cur, user_id=_text(user_id), account_id=_text(account_id), role=key
+    )
     return [key] if key else []
 
 
@@ -162,6 +178,11 @@ def revoke_account_access(cur: Any, *, user_id: str, account_id: str, reason: st
     user, account = _text(user_id), _text(account_id)
     if not user or not account:
         return 0
+    # Nobody ends the owner's access to the company they own (ADR 0085, "Company
+    # owner"); a role change or a removal of the owner is refused before this.
+    from core.application.auth.account_owner import require_owner_kept
+
+    require_owner_kept(cur, user_id=user, account_ids=[account])
     cur.execute(
         """UPDATE auth_sessions SET revoked = true, updated_at = now()
             WHERE CAST(user_id AS TEXT) = %s AND CAST(account_id AS TEXT) = %s

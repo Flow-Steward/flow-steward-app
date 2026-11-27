@@ -84,6 +84,21 @@ MACHINE_SELF_SERVICE_TIGHTENED = frozenset(
     }
 )
 
+#: Routes whose frozen answer was loosened on purpose, with the answer they give now.
+#: Switching between one's companies (ADR 0085) needs ``account.self``, which every
+#: role holds: a viewer in the acting company was stuck there while a person with no
+#: role at all could switch (P5). A viewer also changes their own profile, language,
+#: time zone and date format (owner decision, 2026-11-27). An external session keeps the
+#: external own-account rule and a service account keeps the write-role rule.
+LOOSENED_ON_PURPOSE: dict[tuple[str, str], dict[str, str]] = {
+    ("POST", "/api/auth/switch-account"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/profile"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/timezone"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/locale"): {"session": "aov", "pat": "aov"},
+    ("PATCH", "/api/users/me/date-time-format"): {"session": "aov", "pat": "aov"},
+    ("POST", "/api/users/me/detect-timezone"): {"session": "aov", "pat": "aov"},
+}
+
 _ROUTE_TABLE = """
 import json
 from core.entrypoints.api import app_factory
@@ -307,6 +322,10 @@ def test_every_principal_kind_gets_the_frozen_answer_on_every_route(kind) -> Non
         if kind == "machine" and (row["method"], row["path"]) in MACHINE_SELF_SERVICE_TIGHTENED:
             assert expected == "aov", key  # the frozen answer this set documents
             expected = "ao"
+        loosened = LOOSENED_ON_PURPOSE.get((row["method"], row["path"]), {})
+        if kind in loosened:
+            assert expected == "ao", key  # the frozen answer this map documents
+            expected = loosened[kind]
         allowed, scopes = _decisions(row, kind)
         if (row["method"], row["path"]) in PUBLIC_ROUTE_EXCEPTIONS and kind != "machine":
             # The documented exceptions: every role reaches the public handler.
@@ -526,8 +545,11 @@ def test_every_permission_the_table_names_is_in_the_catalogue() -> None:
     named = {rule.permission for rule in ROUTE_PERMISSION_RULES if rule.permission is not None}
 
     assert named <= ALL_PERMISSION_KEYS
-    # Every catalogue permission is checked by at least one route.
-    assert named >= ALL_PERMISSION_KEYS
+    # Every catalogue permission is checked by at least one route, except those the
+    # middleware checks itself: account.profile.write gates an external sign-in
+    # session's writes to its own account (auth_http_runtime), not a route.
+    checked_outside_the_table = {"account.profile.write"}
+    assert named | checked_outside_the_table >= ALL_PERMISSION_KEYS
 
 
 @pytest.mark.parametrize(
@@ -550,8 +572,9 @@ def test_every_permission_the_table_names_is_in_the_catalogue() -> None:
         ("GET", "/api/extensions/marketplace", "registry.read"),
         ("GET", "/api/extensions/install/compiled-manifest", "registry.read"),
         ("HEAD", "/api/jobs", "jobs.read"),
-        ("PATCH", "/api/users/me/locale", "account.profile.write"),
+        ("PATCH", "/api/users/me/locale", "account.self"),
         ("POST", "/api/auth/tokens", "account.self"),
+        ("POST", "/api/auth/switch-account", "account.self"),
         ("GET", "/api/auth/users", "users.manage"),
     ],
 )

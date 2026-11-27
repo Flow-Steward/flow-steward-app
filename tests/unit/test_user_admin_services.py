@@ -23,6 +23,14 @@ from core.application.auth.user_admin import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _no_company_owners(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The scripted cursors here answer no owner query (ADR 0085, "Company owner")."""
+    from core.application.auth import account_owner
+
+    monkeypatch.setattr(account_owner, "owned_account_ids", lambda *_args, **_kwargs: [])
+
+
 def _clear_user_login_failures(_username: str, *, bl: Any = None) -> None:
     _ = bl
 
@@ -310,6 +318,8 @@ def test_delete_repository_soft_deletes_and_revokes_auth_material() -> None:
     assert "UPDATE auth_sessions" in sql
     assert "UPDATE personal_access_tokens" in sql
     assert "UPDATE users SET is_active = false, deleted_at = now()" in sql
+    # Soft deletion never fires the row's ON DELETE CASCADE: the assignments go here.
+    assert "DELETE FROM approval_step_approvers WHERE user_id::text = %s" in sql
 
 
 def test_user_update_input_rejects_blank_display_name() -> None:
@@ -582,7 +592,7 @@ def test_force_password_reset_delegates_persistence_to_repository() -> None:
     result = service.force_password_reset(UserSelectorInput(user_id="u_repo"))
 
     assert result.revoked_sessions == 4
-    assert repository.force_reset_calls == [{"user_id": "u_repo"}]
+    assert repository.force_reset_calls == [{"user_id": "u_repo", "actor_user_id": None}]
 
 
 def test_unlock_clears_shared_login_rate_limit_state() -> None:
