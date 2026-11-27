@@ -545,8 +545,11 @@ def test_every_permission_the_table_names_is_in_the_catalogue() -> None:
     named = {rule.permission for rule in ROUTE_PERMISSION_RULES if rule.permission is not None}
 
     assert named <= ALL_PERMISSION_KEYS
-    # Every catalogue permission is checked by at least one route.
-    assert named >= ALL_PERMISSION_KEYS
+    # Every catalogue permission is checked by at least one route, except those the
+    # middleware checks itself: account.profile.write gates an external sign-in
+    # session's writes to its own account (auth_http_runtime), not a route.
+    checked_outside_the_table = {"account.profile.write"}
+    assert named | checked_outside_the_table >= ALL_PERMISSION_KEYS
 
 
 @pytest.mark.parametrize(
