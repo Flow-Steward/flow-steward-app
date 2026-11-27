@@ -27,6 +27,7 @@ import {
   type ExtensionCatalogInstallState,
 } from "@/pages/extensions/catalog-api";
 import { errorMessage } from "@/pages/extensions/hub-support";
+import type { InstallRequestActions } from "@/pages/extensions/install-requests";
 import {
   InstallAnnouncements,
   MarketplaceCard,
@@ -97,6 +98,7 @@ export function ExtensionMarketplaceCatalog({
   installBlockedReason,
   installStateById,
   onInstall,
+  requests,
 }: Readonly<{
   /** Whether the Marketplace tab is the one on screen. */
   active: boolean;
@@ -113,6 +115,8 @@ export function ExtensionMarketplaceCatalog({
    */
   installStateById: Readonly<Record<string, ExtensionCatalogInstallState>>;
   onInstall: (entry: ExtensionCatalogEntry) => void;
+  /** A company account's administrator asks instead of installing (ADR 0084). */
+  requests?: InstallRequestActions;
 }>) {
   const { t, locale } = useI18n();
   const countLabel = (count: number) => count === 1
@@ -264,7 +268,7 @@ export function ExtensionMarketplaceCatalog({
     installationVersion: versionQuery.data ?? "",
     activeCapabilities: filters.capability,
     onOpen: openEntry,
-    install: { canAdminister, installBlockedReason, stateById: installStateById, onInstall },
+    install: { canAdminister, installBlockedReason, stateById: installStateById, onInstall, request: requests },
   };
 
   const retryButton = (
@@ -312,6 +316,7 @@ export function ExtensionMarketplaceCatalog({
           installBlockedReason={installBlockedReason}
           onBack={backToResults}
           onInstall={onInstall}
+          requests={requests}
         />
       </div>
     );

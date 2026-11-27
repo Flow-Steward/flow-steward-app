@@ -4055,6 +4055,9 @@ msgstr "by {value0}"
 msgid "react.extensions.callback_setup_is_managed_by_project_managers"
 msgstr "Callback setup is managed by project managers."
 
+msgid "react.extensions.cancel_install_request"
+msgstr "Cancel request"
+
 msgid "react.extensions.cancel_replacement"
 msgstr "Cancel replacement"
 
@@ -4525,6 +4528,9 @@ msgstr "Enable for this company"
 msgid "react.extensions.enable_this_extension_to_configure_its_project_scoped_ui"
 msgstr "Enable this extension to configure its project-scoped UI."
 
+msgid "react.extensions.enabled_for_this_company_note"
+msgstr "The installation administrator installs and updates this extension. Enabling it here turns it on for this company only; its connections and settings stay with this company."
+
 msgid "react.extensions.extension_action_failed"
 msgstr "Extension action failed."
 
@@ -4619,6 +4625,87 @@ msgstr "Install extension from file accepts only .zip archives."
 
 msgid "react.extensions.install_or_update_with"
 msgstr "Install or update with"
+
+msgid "react.extensions.install_request_ask_consequence"
+msgstr "The installation administrator is asked to install it for your company. You can cancel the request until they answer."
+
+msgid "react.extensions.install_request_ask_title"
+msgstr "Request installation of {name}?"
+
+msgid "react.extensions.install_request_asked_by"
+msgstr "Asked by"
+
+msgid "react.extensions.install_request_asked_on"
+msgstr "Asked on"
+
+msgid "react.extensions.install_request_company"
+msgstr "Company"
+
+msgid "react.extensions.install_request_decline"
+msgstr "Decline"
+
+msgid "react.extensions.install_request_decline_confirm"
+msgstr "Decline request"
+
+msgid "react.extensions.install_request_decline_consequence"
+msgstr "{company} sees that the request was declined, with your reason if you give one. Nothing is installed."
+
+msgid "react.extensions.install_request_decline_title"
+msgstr "Decline the request for {name}?"
+
+msgid "react.extensions.install_request_declined"
+msgstr "Your last request was declined. You can ask again."
+
+msgid "react.extensions.install_request_declined_reason"
+msgstr "Your last request was declined: {reason}"
+
+msgid "react.extensions.install_request_declining"
+msgstr "Declining…"
+
+msgid "react.extensions.install_request_enable_note"
+msgstr "It is installed on this server. Turn it on for your company to use it."
+
+msgid "react.extensions.install_request_failed"
+msgstr "The request could not be sent."
+
+msgid "react.extensions.install_request_not_approved"
+msgstr "The request could not be approved."
+
+msgid "react.extensions.install_request_not_cancelled"
+msgstr "The request could not be cancelled."
+
+msgid "react.extensions.install_request_not_enabled"
+msgstr "The extension could not be turned on."
+
+msgid "react.extensions.install_request_not_installable"
+msgstr "This extension cannot be installed from the catalog now."
+
+msgid "react.extensions.install_request_note"
+msgstr "Only the installation administrator installs extensions. Ask them to install this one for your company."
+
+msgid "react.extensions.install_request_note_label"
+msgstr "Note for the administrator (optional)"
+
+msgid "react.extensions.install_request_pending_note"
+msgstr "Installation requested. The installation administrator will install it or answer your request."
+
+msgid "react.extensions.install_request_reason_label"
+msgstr "Reason (optional)"
+
+msgid "react.extensions.install_request_send"
+msgstr "Send request"
+
+msgid "react.extensions.install_request_sending"
+msgstr "Sending…"
+
+msgid "react.extensions.installation_requested"
+msgstr "Installation requested"
+
+msgid "react.extensions.installation_requests"
+msgstr "Installation requests"
+
+msgid "react.extensions.installation_requests_description"
+msgstr "Companies on this server asked for these extensions. Install adds the extension to the server and turns it on for the company that asked."
 
 msgid "react.extensions.installed"
 msgstr "Installed"
@@ -5286,6 +5373,9 @@ msgstr ""
 
 msgid "react.extensions.replace"
 msgstr "Replace"
+
+msgid "react.extensions.request_installation"
+msgstr "Request installation"
 
 msgid "react.extensions.required_field"
 msgstr "Required field"

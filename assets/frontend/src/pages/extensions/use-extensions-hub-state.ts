@@ -222,6 +222,9 @@ export function useExtensionsHubState() {
   // while it loads or when it cannot be read, nobody is offered them.
   const canManageInstalls = archiveLifecycleQuery.isSuccess
     && archiveLifecycleQuery.data?.can_manage_installs !== false;
+  // A company account's administrator asks for an install instead (ADR 0084).
+  const canRequestInstalls = archiveLifecycleQuery.isSuccess
+    && archiveLifecycleQuery.data?.can_request_installs === true;
 
   const extensions = useMemo(() => extensionsQuery.data || [], [extensionsQuery.data]);
   const stateFilteredExtensions = useMemo(() => {
@@ -937,6 +940,7 @@ export function useExtensionsHubState() {
     disabledExtensionCount,
     canAdministerPlatform,
     canManageInstalls,
+    canRequestInstalls,
     catalogInstallById,
     uninstallError,
     browserApprovalError,

@@ -81,6 +81,7 @@ import { useExtensionsHubState } from "./use-extensions-hub-state";
 import { useExtensionLifecycleActions } from "./use-extension-lifecycle-actions";
 import { useExtensionManifestActions } from "./use-extension-manifest-actions";
 import { useExtensionConnectionActions } from "./use-extension-connection-actions";
+import { useExtensionInstallRequests } from "./install-requests-section";
 
 /**
  * What the Installed page knows about available updates: WordPress's update
@@ -460,6 +461,7 @@ export function ExtensionsHubPage() {
     disabledExtensionCount,
     canAdministerPlatform,
     canManageInstalls,
+    canRequestInstalls,
     catalogInstallById,
     uninstallPlan,
     uninstallLifecycleAvailable,
@@ -487,6 +489,9 @@ export function ExtensionsHubPage() {
     confirmUninstall,
     confirmBrowserAuthorityApproval,
   } = lifecycleActions;
+  // Requests to install from a company account and their answers (ADR 0084).
+  const installRequests = useExtensionInstallRequests({ canRequest: !detailMode && canRequestInstalls, canAnswer: !detailMode && canAdministerPlatform && canManageInstalls,
+    extensions, installStateById: catalogInstallById, install: installCatalogExtension, onEnable: handleToggle });
   const {
     handleCallbackSetup,
     handleExternalResourcePickerBootstrap,
@@ -701,6 +706,8 @@ export function ExtensionsHubPage() {
           />
         </div>
       ))}
+
+      {renderWhen(!detailMode, installRequests.section)}
 
       {/* Canon: the tab row sits directly on its panel, with no section gap
           between them, so both live in one wrapper that adds none. */}
@@ -918,6 +925,7 @@ export function ExtensionsHubPage() {
           installBlockedReason={archiveInstallBlockedReason}
           installStateById={catalogInstallById}
           onInstall={installCatalogExtension}
+          requests={installRequests.actions}
         />
       </div>
       </div>
@@ -935,6 +943,7 @@ export function ExtensionsHubPage() {
         pendingLabel={confirmation?.pendingLabel ?? ""}
         title={confirmation?.title ?? ""}
       />
+      {installRequests.dialog}
       <ExtensionUninstallPlanModal
         busy={Boolean(uninstallPlan && busyById[uninstallPlan.extension_id])}
         confirmDisabled={!uninstallLifecycleAvailable}

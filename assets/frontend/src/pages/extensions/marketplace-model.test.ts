@@ -377,3 +377,37 @@ describe("update notices", () => {
       .toBe("There is a new version of Docling available, but it does not work with this server.");
   });
 });
+
+describe("requesting an installation (ADR 0084)", () => {
+  const notInstalled = entry({ extension_id: "acme.crm", name: "Acme CRM" });
+  const base = { canAdminister: false, installBlockedReason: "", installationVersion: "1.0.0" };
+  const state = { canRequest: true, pending: false, enableable: false, declined: false, declineReason: "" };
+
+  it("offers Request installation where the installation administrator sees Install", () => {
+    expect(mainAction(notInstalled, { ...base, request: state }).kind).toBe("request");
+    expect(mainAction(notInstalled, { ...base, canAdminister: true, request: state }).kind).toBe("install");
+  });
+
+  it("keeps the old refusal for a viewer who may not ask", () => {
+    expect(mainAction(notInstalled, base)).toEqual({
+      kind: "install",
+      disabled: true,
+      note: "Only administrators can install extensions.",
+    });
+    expect(mainAction(notInstalled, { ...base, request: { ...state, canRequest: false } }).kind).toBe("install");
+  });
+
+  it("shows a waiting request, an installed extension to enable, and a declined one", () => {
+    expect(mainAction(notInstalled, { ...base, request: { ...state, pending: true } }).kind).toBe("requested");
+    expect(mainAction(notInstalled, { ...base, request: { ...state, enableable: true, pending: true } }).kind).toBe("enable");
+    expect(mainAction(notInstalled, { ...base, request: { ...state, declined: true, declineReason: "Not this year" } })).toEqual({
+      kind: "request",
+      note: "Your last request was declined: Not this year",
+    });
+  });
+
+  it("never offers a request for an extension this server cannot run", () => {
+    const incompatible = entry({ extension_id: "acme.crm", display_state: "incompatible" });
+    expect(mainAction(incompatible, { ...base, request: state }).kind).toBe("install");
+  });
+});

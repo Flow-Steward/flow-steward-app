@@ -366,6 +366,12 @@ export function describeEntry(entry: ExtensionCatalogEntry, context: BrowseConte
 
 export type MainAction =
   | { kind: "install"; disabled: boolean; note: string }
+  /** A company account's administrator asks the installation administrator instead. */
+  | { kind: "request"; note: string }
+  /** Asked and waiting; the request can be cancelled. */
+  | { kind: "requested"; note: string }
+  /** On this server already, not turned on for this company. */
+  | { kind: "enable"; note: string }
   /** Update to the catalog release; "Open installed extension" stays beside it. */
   | { kind: "update"; disabled: boolean; note: string; addedPermissions: string[] }
   | { kind: "open"; note: string };
@@ -379,8 +385,31 @@ export const STAYS_TURNED_OFF = "It's turned off and stays off after the update.
  * action-rights rule: without it the cards have no Install button and the
  * table has no Install column.
  */
-export function canInstallFromResults(install?: { canAdminister: boolean; installBlockedReason: string }): boolean {
+export function canInstallFromResults(install?: { canAdminister: boolean; installBlockedReason: string; request?: { canRequest: boolean } }): boolean {
+  if (install?.request?.canRequest) return true;
   return Boolean(install?.canAdminister && !install.installBlockedReason);
+}
+
+/** What a company account's administrator has asked for, for one catalog item. */
+export type RequestState = { canRequest: boolean; pending: boolean; enableable: boolean; declined: boolean; declineReason: string };
+
+/** Request installation, Installation requested, or Enable for this company. */
+function requestAction(request: RequestState, t: I18nContextValue["t"]): MainAction {
+  if (request.enableable) {
+    return { kind: "enable", note: t("react.extensions.install_request_enable_note", "It is installed on this server. Turn it on for your company to use it.") };
+  }
+  if (request.pending) {
+    return { kind: "requested", note: t("react.extensions.install_request_pending_note", "Installation requested. The installation administrator will install it or answer your request.") };
+  }
+  if (request.declined) {
+    return {
+      kind: "request",
+      note: request.declineReason
+        ? t("react.extensions.install_request_declined_reason", "Your last request was declined: {reason}", { reason: request.declineReason })
+        : t("react.extensions.install_request_declined", "Your last request was declined. You can ask again."),
+    };
+  }
+  return { kind: "request", note: t("react.extensions.install_request_note", "Only the installation administrator installs extensions. Ask them to install this one for your company.") };
 }
 
 export function mainAction(
@@ -389,12 +418,14 @@ export function mainAction(
     canAdminister,
     installBlockedReason,
     installationVersion,
-  }: { canAdminister: boolean; installBlockedReason: string; installationVersion: string }, t: I18nContextValue["t"] = fallbackContext.t
+    request,
+  }: { canAdminister: boolean; installBlockedReason: string; installationVersion: string; request?: RequestState }, t: I18nContextValue["t"] = fallbackContext.t
 ): MainAction {
   switch (entry.display_state) {
     case "incompatible":
       return { kind: "install", disabled: true, note: incompatibleReason(entry, installationVersion, t)?.full ?? "" };
     case "install":
+      if (!canAdminister && request?.canRequest) return requestAction(request, t);
       if (!canAdminister) return { kind: "install", disabled: true, note: t("react.extensions.marketplace_final_only_admins_install", "Only administrators can install extensions.") };
       if (installBlockedReason) return { kind: "install", disabled: true, note: installBlockedReason };
       return { kind: "install", disabled: false, note: "" };
