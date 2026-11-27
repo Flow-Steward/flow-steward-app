@@ -218,6 +218,7 @@
     "core/application/extensions/query_detail.py",
     "core/application/extensions/query_detail_projection.py",
     "core/application/extensions/query_list.py",
+    "core/application/extensions/query_list_account_view.py",
     "core/application/extensions/query_marketplace.py",
     "core/application/extensions/query_marketplace_data.py",
     "core/application/extensions/query_marketplace_filters.py",
