@@ -172,6 +172,7 @@ class CallerPermissionLookup:
             )
             permissions = _permissions_from_introspection(payload)
         except AppApiError as exc:
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- only a status code or exception type is logged, never the token.
             logger.warning(
                 "MCP tool discovery lists by token scopes only: role permissions "
                 "unavailable (HTTP %s)",
@@ -179,6 +180,7 @@ class CallerPermissionLookup:
             )
             return None
         except Exception as exc:
+            # nosemgrep: python.lang.security.audit.logging.logger-credential-leak.python-logger-credential-disclosure -- only a status code or exception type is logged, never the token.
             logger.warning(
                 "MCP tool discovery lists by token scopes only: role permissions unavailable (%s)",
                 type(exc).__name__,

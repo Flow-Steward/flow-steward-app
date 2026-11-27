@@ -27,7 +27,7 @@ from core.entrypoints.mcp.server_tool_scopes import MCP_TOOL_SCOPES, tool_allowe
 from tests.unit.test_route_permission_parity import middleware_decision
 
 ALL_TOOLS = sorted(MCP_TOOL_SCOPES)
-_SECRET_MARK = "fs_pat_secret_value_never_logged"
+_SECRET_MARK = "fs_pat_secret_value_never_logged"  # pragma: allowlist secret
 
 
 def _role_keys(role: str) -> list[str]:
