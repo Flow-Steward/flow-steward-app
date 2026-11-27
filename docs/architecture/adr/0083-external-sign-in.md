@@ -396,3 +396,14 @@ sessions switch accounts is open.
 - **Own-account hooks.** `create_own_account(..., before=, after=)` runs a module's
   check (`before(cursor)`, after Core's checks, under the account lifecycle lock) and
   record (`after(cursor, created)`) in Core's transaction.
+
+### Round 4 (2026-11-27)
+
+- Settling on acceptance applies only to newcomers: people still carrying the
+  awaiting marker, or recorded as such by a module that registered a
+  `NewcomerSource` (`core.application.auth.invitation_policies.register_newcomer_source`,
+  rolled back with a failed module). Only links of the source's `identity_methods`
+  move; a newcomer with a role in another company keeps home and default. Anybody
+  else homed role-less in the installation account is left alone.
+- `decide` answers `sign_in_again: true` after a settle (the accepting session was
+  revoked); the invitation page sends the person to sign in again with a message.

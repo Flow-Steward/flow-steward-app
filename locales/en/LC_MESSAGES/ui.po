@@ -33062,6 +33062,9 @@ msgstr "Continue"
 msgid "react.invitations.declined_title"
 msgstr "Invitation declined"
 
+msgid "react.invitations.sign_in_again"
+msgstr "You joined {company}. Sign in again to open it."
+
 msgid "react.invitations.declined_description"
 msgstr "You did not join {company}."
 

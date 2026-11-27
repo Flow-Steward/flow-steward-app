@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from core.application.auth.user_admin.member_lookup_throttle import ThrottleLimit
@@ -52,19 +53,52 @@ def extra_invitation_limits(account_id: str) -> list[ThrottleLimit]:
     return limits
 
 
+@dataclass(frozen=True)
+class NewcomerSource:
+    """A module that creates people only to answer an invitation.
+
+    ``is_newcomer(user_id)`` says whether the module created this person for an
+    invitation (a durable record of its own, which survives the person setting a
+    password); ``identity_methods`` are the sign-in method kinds whose identity links
+    move with the person into the company they join. Accepting settles such a person
+    (see ``account_invitations._settle_newcomer``).
+    """
+
+    is_newcomer: Callable[[str], bool]
+    identity_methods: tuple[str, ...] = ()
+
+
+_NEWCOMER_SOURCES: list[NewcomerSource] = []
+
+
+def register_newcomer_source(source: NewcomerSource) -> None:
+    if isinstance(source, NewcomerSource) and source not in _NEWCOMER_SOURCES:
+        _NEWCOMER_SOURCES.append(source)
+
+
+def newcomer_sources() -> tuple[NewcomerSource, ...]:
+    return tuple(_NEWCOMER_SOURCES)
+
+
 def loading_checkpoint() -> tuple[Any, ...]:
-    return tuple(_POLICIES)
+    return (*_POLICIES, *_NEWCOMER_SOURCES)
 
 
 def restore_loading_checkpoint(checkpoint: tuple[Any, ...] | None) -> None:
     kept = tuple(checkpoint or ())
     _POLICIES[:] = [policy for policy in _POLICIES if any(policy is old for old in kept)]
+    _NEWCOMER_SOURCES[:] = [
+        source for source in _NEWCOMER_SOURCES if any(source is old for old in kept)
+    ]
 
 
 __all__ = [
     "InvitationPolicyUnavailable",
+    "NewcomerSource",
     "extra_invitation_limits",
     "loading_checkpoint",
+    "newcomer_sources",
     "register_invitation_limits",
+    "register_newcomer_source",
     "restore_loading_checkpoint",
 ]

@@ -304,17 +304,39 @@ def _open_invitation(cur: Any, token_hash: str, *, lock: bool) -> dict[str, str]
     }
 
 
-def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
-    """Accepting moves a person whose home is the installation account, where they
-    hold no role, into the company they joined (ADR 0083 amendment, review fixes).
+def _is_invitation_newcomer(user_id: str, password_hash: str) -> tuple[bool, tuple[str, ...]]:
+    """Whether the person was created only to answer an invitation, and the identity
+    methods whose links move with them. The awaiting marker says so; a person who
+    has set a password since counts only when a module's durable record says so."""
+    from core.application.auth.external_sign_in_repository import AWAITING_INVITATION_MARKER
+    from core.application.auth.invitation_policies import newcomer_sources
 
-    That is a person created only to answer an invitation (their awaiting marker
-    becomes the ordinary external-only one), or one who has set a password with
-    Forgot password meanwhile (a normal person now). The joined company becomes their
-    home and default; their identity links move there (a link the company already
-    has for that identity is dropped); what they held in the installation account is
-    revoked (sessions, tokens, grants) and the role-less membership goes. A person
-    with a role in the installation account is not touched.
+    awaiting = password_hash == AWAITING_INVITATION_MARKER
+    methods: list[str] = []
+    recorded = False
+    for source in newcomer_sources():
+        methods.extend(str(kind) for kind in source.identity_methods if kind)
+        if not awaiting and not recorded:
+            try:
+                recorded = bool(source.is_newcomer(user_id))
+            except Exception:
+                recorded = False  # unknown: not a newcomer, nothing moves
+    return awaiting or recorded, tuple(dict.fromkeys(methods))
+
+
+def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> bool:
+    """Accepting moves a person created only to answer an invitation into the company
+    they joined (ADR 0083 amendment, review fixes); returns whether it did.
+
+    Only a newcomer: homed in the installation account with no role there, and either
+    still carrying the awaiting marker or recorded as a newcomer by the module that
+    created them (when they set a password meanwhile). Anybody else, for example a
+    person a company sign-in provisioned there or one with a local password, is left
+    as they are. For a newcomer: the awaiting marker becomes the ordinary one; when
+    they already hold a role in another company nothing else changes; otherwise the
+    joined one becomes their home and default; their links of the newcomer's identity methods move there (a link the
+    company already has for that identity is dropped; other links stay); what they
+    held in the installation account is revoked and the role-less membership goes.
     """
     from core.application.auth.external_sign_in_repository import (
         AWAITING_INVITATION_MARKER,
@@ -324,10 +346,14 @@ def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
 
     installation = _text(INSTALLATION_ACCOUNT_ID)
     if not _text(user_id) or _text(account_id) == installation:
-        return
+        return False
     cur.execute(
         """
-        SELECT u.id::text
+        SELECT u.password_hash,
+               EXISTS (
+                   SELECT 1 FROM user_account_memberships o
+                    WHERE o.user_id = u.id AND o.role_id IS NOT NULL
+                      AND o.account_id::text NOT IN (%s, %s)) AS has_roles_elsewhere
           FROM users u
          WHERE u.id::text = %s AND u.account_id::text = %s
            AND NOT EXISTS (
@@ -336,35 +362,51 @@ def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
                   AND m.role_id IS NOT NULL)
            FOR UPDATE OF u
         """,
-        (user_id, installation, installation),
+        (installation, account_id, user_id, installation, installation),
     )
-    if cur.fetchone() is None:
-        return
+    row = cur.fetchone()
+    if row is None:
+        return False
+    password_hash = _text(_value(row, "password_hash", 0))
+    roles_elsewhere = bool(_value(row, "has_roles_elsewhere", 1))
+    newcomer, methods = _is_invitation_newcomer(user_id, password_hash)
+    if not newcomer:
+        return False
     cur.execute(
-        """
-        UPDATE users
-           SET account_id = %s::uuid,
-               password_hash = CASE WHEN password_hash = %s THEN %s ELSE password_hash END,
-               updated_at = now()
-         WHERE id::text = %s
-        """,
-        (account_id, AWAITING_INVITATION_MARKER, UNUSABLE_PASSWORD_MARKER, user_id),
+        "UPDATE users SET password_hash = %s, updated_at = now() "
+        "WHERE id::text = %s AND password_hash = %s",
+        (UNUSABLE_PASSWORD_MARKER, user_id, AWAITING_INVITATION_MARKER),
     )
+    if roles_elsewhere:
+        # A company already holds them: their home, default and links stay.
+        return False
     cur.execute(
-        """
-        UPDATE external_identities e SET account_id = %s::uuid
-         WHERE e.user_id::text = %s AND e.account_id::text = %s
-           AND NOT EXISTS (
-               SELECT 1 FROM external_identities o
-                WHERE o.account_id::text = %s AND o.issuer = e.issuer
-                  AND o.subject = e.subject)
-        """,
-        (account_id, user_id, installation, account_id),
+        "UPDATE users SET account_id = %s::uuid, updated_at = now() WHERE id::text = %s",
+        (account_id, user_id),
     )
     cur.execute(
-        "DELETE FROM external_identities WHERE user_id::text = %s AND account_id::text = %s",
-        (user_id, installation),
+        "UPDATE user_account_memberships SET is_default = (account_id::text = %s) "
+        "WHERE user_id::text = %s",
+        (account_id, user_id),
     )
+    if methods:
+        cur.execute(
+            """
+            UPDATE external_identities e SET account_id = %s::uuid
+             WHERE e.user_id::text = %s AND e.account_id::text = %s
+               AND e.method = ANY(%s)
+               AND NOT EXISTS (
+                   SELECT 1 FROM external_identities o
+                    WHERE o.account_id::text = %s AND o.issuer = e.issuer
+                      AND o.subject = e.subject)
+            """,
+            (account_id, user_id, installation, list(methods), account_id),
+        )
+        cur.execute(
+            "DELETE FROM external_identities "
+            "WHERE user_id::text = %s AND account_id::text = %s AND method = ANY(%s)",
+            (user_id, installation, list(methods)),
+        )
     revoke_account_access(
         cur, user_id=user_id, account_id=installation, reason="invitation_accepted"
     )
@@ -373,11 +415,7 @@ def _settle_newcomer(cur: Any, *, user_id: str, account_id: str) -> None:
         "WHERE user_id::text = %s AND account_id::text = %s AND role_id IS NULL",
         (user_id, installation),
     )
-    cur.execute(
-        "UPDATE user_account_memberships SET is_default = (account_id::text = %s) "
-        "WHERE user_id::text = %s",
-        (account_id, user_id),
-    )
+    return True
 
 
 def open_invitation_ref(cur: Any, token: str) -> tuple[str, str]:
@@ -434,6 +472,7 @@ def decide(
     if accept and external_session and found["account_id"] == _text(INSTALLATION_ACCOUNT_ID):
         # The installation account is administered with a local password only.
         raise ServiceForbiddenError(INSTALLATION_INVITATION_NEEDS_PASSWORD_MESSAGE)
+    settled = False
     if accept:
         # Already a member (added meanwhile): the invitation is simply done.
         with contextlib.suppress(ServiceConflictError):
@@ -444,7 +483,7 @@ def decide(
                 role=role,
                 managed_account_ids=None,
             )
-        _settle_newcomer(cur, user_id=_text(user_id), account_id=found["account_id"])
+        settled = _settle_newcomer(cur, user_id=_text(user_id), account_id=found["account_id"])
     # The person who answered is recorded on the invitation.
     cur.execute(
         "UPDATE account_invitations SET status = %s, user_id = %s::uuid WHERE id::text = %s",
@@ -456,6 +495,9 @@ def decide(
         "account_id": found["account_id"],
         "account_name": found["account_name"],
         "role": role,
+        # The person was moved out of the account their session is in: the session
+        # is revoked, so the page asks them to sign in again.
+        **({"sign_in_again": True} if settled else {}),
     }
 
 

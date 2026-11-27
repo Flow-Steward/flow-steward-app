@@ -32003,6 +32003,9 @@ msgstr ""
 msgid "react.invitations.declined_title"
 msgstr ""
 
+msgid "react.invitations.sign_in_again"
+msgstr ""
+
 msgid "react.invitations.declined_description"
 msgstr ""
 

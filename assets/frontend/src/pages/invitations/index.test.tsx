@@ -88,7 +88,7 @@ describe("InvitationPage (ADR 0085)", () => {
 
   it("shows the company, the role and the inviter, and joins with the role shown", async () => {
     mockedPreview.mockResolvedValue({ accountName: "Northwind", role: "operator", invitedBy: "Bob", expiresAt: "" });
-    mockedAccept.mockResolvedValue({ status: "accepted", accountId: "acct-n", accountName: "Northwind", role: "operator" });
+    mockedAccept.mockResolvedValue({ status: "accepted", accountId: "acct-n", accountName: "Northwind", role: "operator", signInAgain: false });
     const { auth } = renderPage();
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Join Northwind?" })).toBeInTheDocument());
@@ -103,7 +103,7 @@ describe("InvitationPage (ADR 0085)", () => {
 
   it("still lands at home when the session cannot switch accounts", async () => {
     mockedPreview.mockResolvedValue({ accountName: "Northwind", role: "viewer", invitedBy: "", expiresAt: "" });
-    mockedAccept.mockResolvedValue({ status: "accepted", accountId: "acct-n", accountName: "Northwind", role: "viewer" });
+    mockedAccept.mockResolvedValue({ status: "accepted", accountId: "acct-n", accountName: "Northwind", role: "viewer", signInAgain: false });
     const { auth } = renderPage();
     vi.mocked(auth.switchAccount).mockRejectedValueOnce(new Error("pinned"));
 
@@ -113,9 +113,25 @@ describe("InvitationPage (ADR 0085)", () => {
     await waitFor(() => expect(screen.getByTestId("where")).toHaveTextContent("/"));
   });
 
+  it("sends a newcomer moved into the company to sign in again, saying so", async () => {
+    mockedPreview.mockResolvedValue({ accountName: "Northwind", role: "viewer", invitedBy: "", expiresAt: "" });
+    mockedAccept.mockResolvedValue({ status: "accepted", accountId: "acct-n", accountName: "Northwind", role: "viewer", signInAgain: true });
+    const { auth } = renderPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Join Northwind as Viewer" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("where")).toHaveTextContent(
+        `/login?flash=${encodeURIComponent("You joined Northwind. Sign in again to open it.")}`,
+      ),
+    );
+    expect(auth.refresh).toHaveBeenCalled();
+    expect(auth.switchAccount).not.toHaveBeenCalled();
+  });
+
   it("declines without joining", async () => {
     mockedPreview.mockResolvedValue({ accountName: "Northwind", role: "viewer", invitedBy: "", expiresAt: "" });
-    mockedDecline.mockResolvedValue({ status: "declined", accountId: "acct-n", accountName: "Northwind", role: "viewer" });
+    mockedDecline.mockResolvedValue({ status: "declined", accountId: "acct-n", accountName: "Northwind", role: "viewer", signInAgain: false });
     renderPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "Decline" }));

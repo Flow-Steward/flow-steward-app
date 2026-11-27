@@ -625,7 +625,18 @@ def test_a_port_newcomer_takes_the_awaiting_marker_and_no_role() -> None:
     assert not repository.is_awaiting_invitation(repository.UNUSABLE_PASSWORD_MARKER)
 
 
-def test_accepting_moves_a_waiting_person_and_ends_their_installation_access(
+def _accept_with(cur: Any) -> dict[str, Any]:
+    return decide(
+        cur,
+        token_hash="h" * 64,
+        user_id=PERSON,
+        accept=True,
+        expected_role="operator",
+        external_session=True,
+    )
+
+
+def test_accepting_settles_an_awaiting_newcomer_and_moves_only_its_methods_links(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
@@ -637,30 +648,31 @@ def test_accepting_moves_a_waiting_person_and_ends_their_installation_access(
         "revoke_account_access",
         lambda _cur, **kwargs: revoked.append(kwargs) or 0,
     )
-    other = "00000000-0000-0000-0000-00000000000b"
-    # The open invitation, then the person found waiting in the installation account.
-    cur = _Cursor(rows=[_open_row(other), (PERSON,)])
-    decide(
-        cur,
-        token_hash="h" * 64,
-        user_id=PERSON,
-        accept=True,
-        expected_role="operator",
-        external_session=True,
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda _u: False, ("wide",))],
     )
+    other = "00000000-0000-0000-0000-00000000000b"
+    # The open invitation, then the person found: awaiting, no role elsewhere.
+    cur = _Cursor(rows=[_open_row(other), (repository.AWAITING_INVITATION_MARKER, False)])
+    result = _accept_with(cur)
+
+    assert result["sign_in_again"] is True
     statements = [sql for sql, _ in cur.executed]
-    moved = next(i for i, sql in enumerate(statements) if sql.startswith("UPDATE users"))
-    params = cur.executed[moved][1]
-    # Home moves; the awaiting marker becomes the ordinary one; a set password stays.
-    assert params == (
-        other,
-        repository.AWAITING_INVITATION_MARKER,
+    marker = next(i for i, sql in enumerate(statements) if "SET password_hash" in sql)
+    assert cur.executed[marker][1] == (
         repository.UNUSABLE_PASSWORD_MARKER,
         PERSON,
+        repository.AWAITING_INVITATION_MARKER,
     )
-    assert "CASE WHEN password_hash" in statements[moved]
-    assert statements[moved + 1].startswith("UPDATE external_identities")
-    assert statements[moved + 2].startswith("DELETE FROM external_identities")
+    assert "SET account_id" in statements[marker + 1]
+    assert "is_default" in statements[marker + 2]
+    moved = next(sql for sql in statements if sql.startswith("UPDATE external_identities"))
+    assert "method = ANY(%s)" in moved
+    assert next(
+        params for sql, params in cur.executed if sql.startswith("UPDATE external_identities")
+    )[3] == ["wide"]
     assert revoked == [
         {
             "user_id": PERSON,
@@ -668,11 +680,63 @@ def test_accepting_moves_a_waiting_person_and_ends_their_installation_access(
             "reason": "invitation_accepted",
         }
     ]
-    assert any(
-        sql.startswith("DELETE FROM user_account_memberships") and "role_id IS NULL" in sql
-        for sql in statements
-    )
     assert statements[-1].startswith("UPDATE account_invitations")
+
+
+@pytest.mark.parametrize("password_hash", [repository.UNUSABLE_PASSWORD_MARKER, "a-real-hash"])
+def test_somebody_who_is_no_newcomer_is_never_moved(
+    monkeypatch: pytest.MonkeyPatch, password_hash: str
+) -> None:
+    """A company sign-in person or a password person homed role-less in the
+    installation account stays where they are when joining another company."""
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda _u: False, ("wide",))],
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), (password_hash, False)])
+    result = _accept_with(cur)
+
+    assert "sign_in_again" not in result
+    statements = [sql for sql, _ in cur.executed]
+    assert not any(
+        sql.startswith(("UPDATE users", "UPDATE external_identities")) for sql in statements
+    )
+    assert not any(sql.startswith("DELETE") for sql in statements)
+
+
+def test_a_recorded_newcomer_who_set_a_password_is_settled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    from core.application.auth import membership_roles
+
+    monkeypatch.setattr(membership_roles, "revoke_account_access", lambda _cur, **_k: 0)
+    asked: list[str] = []
+    monkeypatch.setattr(
+        invitation_policies,
+        "_NEWCOMER_SOURCES",
+        [invitation_policies.NewcomerSource(lambda u: asked.append(u) or True, ("wide",))],
+    )
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), ("a-real-hash", False)])
+    assert _accept_with(cur)["sign_in_again"] is True
+    assert asked == [PERSON]
+
+
+def test_a_newcomer_with_a_role_elsewhere_keeps_home_and_links(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(account_invitations, "add_member", lambda *_a, **_k: None)
+    other = "00000000-0000-0000-0000-00000000000b"
+    cur = _Cursor(rows=[_open_row(other), (repository.AWAITING_INVITATION_MARKER, True)])
+    result = _accept_with(cur)
+    assert "sign_in_again" not in result
+    statements = [sql for sql, _ in cur.executed]
+    assert sum(1 for sql in statements if sql.startswith("UPDATE users")) == 1  # marker only
+    assert not any("SET account_id" in sql for sql in statements)
 
 
 def test_a_person_with_an_installation_role_is_not_moved(
