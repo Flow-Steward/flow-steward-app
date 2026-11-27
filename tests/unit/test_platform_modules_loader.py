@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.infrastructure.platform_modules import loader as platform_modules
+from core.infrastructure.platform_modules import module_names
 from core.infrastructure.platform_modules.loader import (
     PlatformModuleCompatibilityError,
     PlatformModuleConflictError,
@@ -639,12 +640,12 @@ def test_a_global_registry_first_imported_by_a_failing_module_is_emptied(
     monkeypatch,
 ) -> None:
     from core.application.auth import serve_auth_runtime
-    from core.infrastructure.platform_modules import loader
+    from core.infrastructure.platform_modules import registration_rollback
 
     monkeypatch.setattr(serve_auth_runtime, "_AUTH_SESSION_ISSUE_GUARDS", [])
     name = serve_auth_runtime.__name__
     monkeypatch.delitem(sys.modules, name)
-    restore = loader._global_registry_restorer(name)
+    restore = registration_rollback._global_registry_restorer(name)
     monkeypatch.setitem(sys.modules, name, serve_auth_runtime)
     serve_auth_runtime.register_auth_session_issue_guard(lambda **_kwargs: "refused")
 
@@ -1212,12 +1213,12 @@ def test_installed_names_fall_back_to_packages_distributions(tmp_path: Path) -> 
     site = tmp_path / "os-site"
     _write(site / "FakeDist-1.0.dist-info/METADATA", "Name: FakeDist\nVersion: 1.0\n")
 
-    names = platform_modules._installed_top_level_names(
+    names = module_names._installed_top_level_names(
         "FakeDist",
         [str(site)],
         packages_distributions=lambda: {"fakedist": ["fakedist"], "other": ["Other"]},
     )
-    missing = platform_modules._installed_top_level_names(
+    missing = module_names._installed_top_level_names(
         "FakeDist", [str(site)], packages_distributions=lambda: {"other": ["Other"]}
     )
 
