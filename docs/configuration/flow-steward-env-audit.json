@@ -8799,14 +8799,16 @@
     "code_read_locations": [
       "core/infrastructure/platform_modules/role_status.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_runtime"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
+    "notes": "Overrides the directory where each runtime role reports the platform modules it loaded (ADR 0082). Unset uses the container's own /dev/shm, fresh at every container start.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
@@ -10490,18 +10492,20 @@
     "code_read_locations": [
       "core/infrastructure/security/secret_backend_policy.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
+    "notes": "Operator allowlist, as JSON, of the secret storage configurations each account may use (ADR 0066 amendment 2026-11-27). Unset leaves the installation account unrestricted and gives other accounts no external secret storage; an unreadable policy refuses every external configuration.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_SECRET_BACKEND_POLICY"
   },
   {
@@ -10509,18 +10513,20 @@
     "code_read_locations": [
       "core/infrastructure/security/secret_backend_policy.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
+    "notes": "Path to a file holding the FS_SECRET_BACKEND_POLICY JSON; FS_SECRET_BACKEND_POLICY wins when both are set.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_SECRET_BACKEND_POLICY_FILE"
   },
   {
@@ -10562,18 +10568,20 @@
     "code_read_locations": [
       "core/application/secrets/backend_service.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
+    "notes": "How many secret storage adopt or check probes one account may make within FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS (ADR 0066 amendment 2026-11-27).; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_SECRET_STORAGE_PROBE_MAX_ATTEMPTS"
   },
   {
@@ -10581,18 +10589,20 @@
     "code_read_locations": [
       "core/application/secrets/backend_service.py"
     ],
-    "conditional_groups": [],
+    "conditional_groups": [
+      "core_security_auth"
+    ],
     "default_example_value": "",
     "documented_sources": [],
     "environments": [
       "production",
       "local_development"
     ],
-    "notes": "used but undocumented in .env.example surfaces",
+    "notes": "Window, in seconds, of the per-account secret storage probe limit.; used but undocumented in .env.example surfaces",
     "owning_subsystem": "runtime",
     "required": false,
     "retired_alias_names": [],
-    "secret": true,
+    "secret": false,
     "variable_name": "FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS"
   },
   {

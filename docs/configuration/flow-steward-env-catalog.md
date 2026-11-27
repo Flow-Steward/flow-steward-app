@@ -31,8 +31,8 @@ python -m core.application.tooling.ops.generate_env_catalog
 | `compact_runtime` | Compact profile process inventory, ports, and bounded lifecycle budgets. | `46` |
 | `core_attachment_policy` | Attachment upload policy defaults that must stay aligned with runtime parsing. | `22` |
 | `core_redaction_pii` | Payload redaction and PII-protection defaults. | `8` |
-| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `180` |
-| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `37` |
+| `core_runtime` | Always-on runtime and service wiring for Flow Steward stacks. | `181` |
+| `core_security_auth` | Auth, bootstrap, secret, and origin settings required for OSS deployments. | `41` |
 | `graph_postgres_age` | PostgreSQL plus Apache AGE graph topology. | `5` |
 | `local_development` | Local development-only runtime defaults. | `6` |
 | `openapi_docs` | Curated public/internal OpenAPI schema and Swagger UI exposure controls. | `6` |
@@ -52,21 +52,21 @@ python -m core.application.tooling.ops.generate_env_catalog
 
 ## Summary
 - Raw env-like names discovered by audit: `840`
-- Cataloged variables from `.env.example*` or manifest: `612`
-- Raw audit-only names outside examples/manifest: `228`
+- Cataloged variables from `.env.example*` or manifest: `617`
+- Raw audit-only names outside examples/manifest: `223`
 - Unique variables in shipped `.env.example*` files: `380`
-- Variables in canonical manifest: `522`
+- Variables in canonical manifest: `527`
 
 Cataloged variables by scope:
 - Internal Bridge: `5`
-- Internal Runtime: `143`
+- Internal Runtime: `148`
 - Public / Operator: `333`
 - Test Config: `34`
 - Test Only: `16`
 - Tooling Internal: `81`
 
 Raw audit-only names by scope:
-- Internal Runtime: `8`
+- Internal Runtime: `3`
 - Script Internal: `128`
 - Test Only: `44`
 - Tooling Internal: `8`
@@ -818,6 +818,7 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_OPTIONAL_PRIVATE_BOOTSTRAP_MODULES` | core_runtime | production, local_development | no | no | - | - | Infrastructure (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/runtime/app_factory.py` |
 | `FS_PLATFORM_MODULES_ROOT` | core_runtime | production, local_development | no | no | - | - | Infrastructure (1) | Overrides the directory of prepared platform modules (ADR 0082). Unset uses /run/flow-steward-runtime/platform-modules, which every runtime role reads; Compact child processes do not receive this override. | `core/infrastructure/platform_modules/loader.py` |
 | `FS_PLATFORM_MODULE_SETTINGS` | core_runtime | production, local_development | no | no | - | - | Docker Compose (3) | Rendered by flow-steward config apply and ./install.sh --setting from the FS_MODULE_* settings the operator set (ADR 0082): base64: followed by the base64 of a JSON object of name to value. The app, worker and control roles publish the names their active platform modules declare. Never edit it by hand; set a module setting with flow-steward config set FS_MODULE_NAME=VALUE. | `infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
+| `FS_PLATFORM_MODULE_STATUS_DIR` | core_runtime | production, local_development | no | no | - | - | Infrastructure (1) | Overrides the directory where each runtime role reports the platform modules it loaded (ADR 0082). Unset uses the container's own /dev/shm, fresh at every container start. | `core/infrastructure/platform_modules/role_status.py` |
 | `FS_PUBLIC_HOST` | core_runtime | production | no | no | `localhost` | - | Docker Compose (6) | Public hostname of the installation; consumed by the Compact ingress overlays. | `infra/docker/compact/ingress-external_traefik-http-redirect.yaml`<br>`infra/docker/compact/ingress-external_traefik.yaml`<br>`infra/docker/compact/tls-bundled-acme.yaml`<br>`infra/docker/scalable/ingress-external_traefik-http-redirect.yaml`<br>`infra/docker/scalable/ingress-external_traefik.yaml`<br>`infra/docker/scalable/tls-bundled-acme.yaml` |
 | `FS_PYTHON_BIN` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/lint.sh` |
 | `FS_PYTHON_CACHE_DIR` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
@@ -830,6 +831,10 @@ The table below includes every variable that is either shipped in an `.env.examp
 | `FS_REVERSE_PROXY_BACKEND_PORT` | core_runtime | production | no | no | `18099` | - | Docker Compose (2) | Loopback port an external reverse proxy dials for host placement. | `infra/docker/compact/ingress-external_proxy-host.yaml`<br>`infra/docker/scalable/ingress-external_proxy-host.yaml` |
 | `FS_ROOT_DIR` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_SCRIPTS_DIR` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
+| `FS_SECRET_BACKEND_POLICY` | core_security_auth | production, local_development | no | no | - | - | Security (1) | Operator allowlist, as JSON, of the secret storage configurations each account may use (ADR 0066 amendment 2026-11-27). Unset leaves the installation account unrestricted and gives other accounts no external secret storage; an unreadable policy refuses every external configuration. | `core/infrastructure/security/secret_backend_policy.py` |
+| `FS_SECRET_BACKEND_POLICY_FILE` | core_security_auth | production, local_development | no | no | - | - | Security (1) | Path to a file holding the FS_SECRET_BACKEND_POLICY JSON; FS_SECRET_BACKEND_POLICY wins when both are set. | `core/infrastructure/security/secret_backend_policy.py` |
+| `FS_SECRET_STORAGE_PROBE_MAX_ATTEMPTS` | core_security_auth | production, local_development | no | no | `20` | - | Application (1) | How many secret storage adopt or check probes one account may make within FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS (ADR 0066 amendment 2026-11-27). | `core/application/secrets/backend_service.py` |
+| `FS_SECRET_STORAGE_PROBE_WINDOW_SECONDS` | core_security_auth | production, local_development | no | no | `300` | - | Application (1) | Window, in seconds, of the per-account secret storage probe limit. | `core/application/secrets/backend_service.py` |
 | `FS_SECURITY_POSTURE_ENABLED` | core_runtime | production, local_development | no | no | `1` | - | Control plane (1), Docker Compose (3), Infrastructure (1) | Whether the control-plane runs the periodic security-posture scan. Readiness treats the capability as required only while this is on, so a deployment that turns it off is not reported broken. | `core/infrastructure/runtime/control/config.py`<br>`core/infrastructure/runtime/readiness_runtime.py`<br>`infra/docker/docker-compose.compact.yaml`<br>`infra/docker/docker-compose.prod.yaml`<br>`infra/docker/docker-compose.yaml` |
 | `FS_STACK_ENV_FILE` | core_runtime | production, local_development | no | no | - | - | CLI scripts (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/entrypoints/cli/scripts/docker_compose_env.sh` |
 | `FS_STATIC_ASSET_VERSION` | core_runtime | production, local_development | no | no | - | - | Config (1) | Promoted from the audited runtime environment-read surface; parsed through the canonical runtime environment boundary. | `core/infrastructure/config/runtime_config.py` |
@@ -984,7 +989,7 @@ These names were found by broad env-read scanning, but they are not in shipped `
 
 | Scope | Count | Common Usage Areas |
 |---|---|---|
-| Internal Runtime | `8` | CLI scripts (3), Security (2), Application (2), Tests (1), Infrastructure (1) |
+| Internal Runtime | `3` | CLI scripts (3), Tests (1) |
 | Script Internal | `128` | CLI scripts (196), CLI (12), Tests (8), Tooling (6), Docker Compose (4) |
 | Test Only | `44` | Tests (81), Tooling (1), Database (1), Control plane (1), CLI scripts (1) |
 | Tooling Internal | `8` | CLI scripts (8), Tooling (2) |
