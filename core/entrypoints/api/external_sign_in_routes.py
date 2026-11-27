@@ -171,7 +171,12 @@ def create_external_sign_in_router(
         return response
 
     def _signed_in(result: SignInResult) -> RedirectResponse:
-        response = RedirectResponse(result.return_path, status_code=303, headers=_NO_STORE)
+        target = result.return_path
+        if getattr(result, "choose_account", False):
+            # Several companies: the sign-in page asks which one, as after a password
+            # sign-in, then goes on to the return path.
+            target = f"/login?{urlencode({'choose_account': '1', 'next': result.return_path})}"
+        response = RedirectResponse(target, status_code=303, headers=_NO_STORE)
         response.delete_cookie(BINDING_COOKIE, path=_BINDING_COOKIE_PATH)
         if not result.session_token:
             return response

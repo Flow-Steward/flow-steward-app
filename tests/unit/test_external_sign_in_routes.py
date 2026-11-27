@@ -266,3 +266,23 @@ def test_an_external_session_is_interactive_only_from_its_cookie(
     )
 
     assert (response is not None) is refused
+
+
+def test_a_sign_in_with_several_companies_goes_to_the_chooser(client, monkeypatch) -> None:
+    def callback(self, **kwargs):
+        type(self).calls.append(("callback", kwargs))
+        return SignInResult(
+            return_path="/jobs",
+            session_token="session-token",
+            session_ttl_hours=12,
+            choose_account=True,
+        )
+
+    monkeypatch.setattr(_FakeService, "callback", callback)
+    client.cookies.set(routes.BINDING_COOKIE, "bind", path="/api/auth/external")
+
+    response = client.get("/api/auth/external/callback?state=s&code=c")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?choose_account=1&next=%2Fjobs"
+    assert any(item.startswith("fs_session=") for item in response.headers.get_list("set-cookie"))

@@ -426,3 +426,46 @@ def session_is_recent(cur: Any, token_hash: str, max_age_seconds: int) -> bool:
         (int(max_age_seconds), str(token_hash or "")),
     )
     return _flag(cur.fetchone())
+
+
+def session_identity_method(cur: Any, token_hash: str, user_id: str) -> str:
+    """The sign-in method kind of the identity a live external session was issued for,
+    or ``""``."""
+    cur.execute(
+        """
+        SELECT ei.method
+          FROM auth_sessions s
+          JOIN external_identities ei ON ei.id = s.external_identity_id
+         WHERE s.session_token_hash = %s AND CAST(s.user_id AS TEXT) = %s
+           AND s.revoked = false AND s.expires_at > now()
+           AND s.auth_method = 'external'
+        """,
+        (str(token_hash or ""), str(user_id or "")),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return ""
+    value = row.get("method") if isinstance(row, Mapping) else row[0]
+    return str(value or "")
+
+
+def companies_with_role(cur: Any, user_id: str) -> list[str]:
+    """The active accounts, the installation account aside, where the person holds a
+    role: the companies an installation-wide session may choose between."""
+    from core.application.auth.installation_admin import INSTALLATION_ACCOUNT_ID
+
+    cur.execute(
+        """
+        SELECT CAST(m.account_id AS TEXT)
+          FROM user_account_memberships m
+          JOIN accounts a ON a.id = m.account_id AND a.is_active
+         WHERE CAST(m.user_id AS TEXT) = %s AND m.role_id IS NOT NULL
+           AND CAST(m.account_id AS TEXT) <> %s
+         ORDER BY m.is_default DESC, m.account_id
+        """,
+        (str(user_id or ""), str(INSTALLATION_ACCOUNT_ID)),
+    )
+    rows = cur.fetchall() or []
+    return [
+        str(row[0] if not isinstance(row, Mapping) else next(iter(row.values()))) for row in rows
+    ]

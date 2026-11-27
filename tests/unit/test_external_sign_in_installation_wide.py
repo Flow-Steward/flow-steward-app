@@ -320,3 +320,36 @@ def test_an_own_account_needs_a_limit_source() -> None:
     port = ExternalSignInPort(_connection)
     with pytest.raises(AccountLimitError):
         port.create_own_account(email="pat@example.test", created_by="self-service")
+
+
+def test_a_person_with_several_companies_is_asked_which_one(
+    wide_store: FakeStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(repository, "companies_with_role", lambda _cur, _user: ["a", "b"])
+    result = _sign_in(_service({(INSTALLATION_ACCOUNT_ID, FEATURE)}, Recorder()))
+    assert result.choose_account is True
+
+    monkeypatch.setattr(repository, "companies_with_role", lambda _cur, _user: ["a"])
+    assert (
+        _sign_in(_service({(INSTALLATION_ACCOUNT_ID, FEATURE)}, Recorder())).choose_account is False
+    )
+
+
+def test_a_company_sign_in_is_never_asked_to_choose(
+    wide_store: FakeStore, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class AccountMethod(WideMethod):
+        installation_wide = False
+
+    monkeypatch.setattr(repository, "companies_with_role", lambda _cur, _user: ["a", "b"])
+    port = ExternalSignInPort(_connection)
+    port.register_sign_in_method(AccountMethod())
+    port.set_identity_resolver(Recorder())
+    service = ExternalSignInService(
+        connection=_connection,
+        port=port,
+        entitled=lambda _account, _feature: True,
+        audit=lambda **_entry: None,
+        session_ttl_hours=12,
+    )
+    assert _sign_in(service).choose_account is False

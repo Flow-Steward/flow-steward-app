@@ -407,3 +407,29 @@ sessions switch accounts is open.
   else homed role-less in the installation account is left alone.
 - `decide` answers `sign_in_again: true` after a settle (the accepting session was
   revoked); the invitation page sends the person to sign in again with a message.
+
+### Choosing and switching companies (2026-11-27)
+
+A session issued by an **installation-wide** method is the person's own sign-in, not
+one company's, so it is no longer pinned:
+
+- After the sign-in, a person with a role in more than one active company (the
+  installation account aside) is sent to `/login?choose_account=1&next=<path>`; the
+  sign-in page shows the same company chooser as after a password sign-in, with the
+  default company preselected (the session starts there), and switches on Continue.
+- `POST /api/auth/switch-account` moves such a session between the person's
+  companies (`auth_method = 'external'` and the session's identity of an
+  installation-wide method kind, which Core reads from the registered methods). Kept:
+  never into a company without a role (`no_role_in_account`), never into the
+  installation account (`external_session_installation_account`), never for a person
+  an external identity may not sign in as (`external_person_refusal` with
+  `allow_account_admin`), and a session of a per-account method stays pinned
+  (`external_session_account_pinned`).
+- Everything else reads the session's current account, as for a local session:
+  roles, the installation-administrator predicate (never true, the installation
+  account being out of reach), the account an OAuth grant is made in and which grants
+  are listed, and revocation: removing the person from the company the session acts
+  in revokes it (`revoke_account_access` matches the session's account).
+- Residual: the session's identity link stays in the company where it was made, so
+  that company's administrator can still list the link and, by unlinking it, end the
+  person's session wherever it acts.

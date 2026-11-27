@@ -599,8 +599,20 @@ def _register_auth_route_bindings(current_app: FastAPI) -> None:
             seed_default_roles=lambda logger: _seed_default_roles(logger),
             password_hash=lambda raw: _password_hash(raw),
         ),
+        installation_wide_methods=lambda: _installation_wide_methods(current_app),
     )
     _register_external_sign_in_routes(current_app)
+
+
+def _installation_wide_methods(current_app: FastAPI) -> list[str]:
+    """The sign-in method kinds modules declared installation-wide (ADR 0083)."""
+    port = getattr(_app_container(current_app), "external_sign_in", None)
+    methods = getattr(port, "sign_in_methods", ()) if port is not None else ()
+    return [
+        str(method.kind)
+        for method in methods
+        if getattr(method, "installation_wide", False) is True
+    ]
 
 
 def _register_external_sign_in_routes(current_app: FastAPI) -> None:

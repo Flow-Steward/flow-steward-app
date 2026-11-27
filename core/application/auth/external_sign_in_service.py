@@ -124,6 +124,9 @@ class SignInResult:
     user_id: str = ""
     account_id: str = ""
     linked: bool = False
+    #: An installation-wide sign-in of a person with roles in several companies: the
+    #: sign-in page lets them choose (the session starts in their default one).
+    choose_account: bool = False
 
 
 class ExternalSignInRefused(Exception):
@@ -153,6 +156,14 @@ def _client_kwargs(method: Any, client_address: str) -> dict[str, str]:
     if getattr(method, "wants_client_address", False) is True:
         return {"client_address": str(client_address or "")}
     return {}
+
+
+def _several_companies(cur: Any, user_id: str) -> bool:
+    try:
+        return len(repository.companies_with_role(cur, user_id)) > 1
+    except Exception:
+        logger.warning("The companies of an external sign-in could not be read")
+        return False
 
 
 def _call_quietly(callback: Any, name: str) -> None:
@@ -564,6 +575,7 @@ class ExternalSignInService:
                 ttl_hours=self._session_ttl_hours,
                 external_identity_id=str(link["id"]),
             )
+            choose_account = identity.installation_wide and _several_companies(cur, user_id)
         self._audit_event(
             "ok",
             identity=identity,
@@ -576,6 +588,7 @@ class ExternalSignInService:
             session_ttl_hours=self._session_ttl_hours,
             user_id=user_id,
             account_id=account_id,
+            choose_account=choose_account,
         )
 
     @staticmethod

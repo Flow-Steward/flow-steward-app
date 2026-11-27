@@ -6,6 +6,7 @@ import {
   type FocusEvent,
   type RefObject,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -27,6 +28,7 @@ import {
 } from "react-hook-form";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router";
 
+import { normalizeAccountMemberships } from "@/components/layout/app-shell-helpers";
 import { DsLoader } from "@/components/shared/ds-loader";
 import { useLoaderDelay } from "@/components/shared/use-loader-delay";
 import { PASSWORD_MIN_LENGTH, passwordRequirements } from "@/lib/auth/password-policy";
@@ -626,6 +628,20 @@ export function LoginPage() {
     status: "idle",
   });
   const [companyAccount, setCompanyAccount] = useState("");
+  // ADR 0083 amendment: after an installation-wide external sign-in, a person with a
+  // role in several companies chooses one here, as after a password sign-in; the
+  // session starts in their default company and can switch later too.
+  const chooseAccountRequested = searchParams.get("choose_account") === "1";
+  const [accountChosen, setAccountChosen] = useState(false);
+  const [choosingAccount, setChoosingAccount] = useState(false);
+  const sessionAccountId = firstStringFromUnknownValue([auth.session?.user?.account_id, ""]).trim();
+  const sessionAccountOptions = useMemo<AccountOption[]>(
+    () => normalizeAccountMemberships(auth.session?.user?.account_memberships)
+      .filter((membership) => membership.isActive && !membership.withoutRole)
+      .map((membership) => ({ account_id: membership.accountId, account_name: membership.accountName })),
+    [auth.session?.user?.account_memberships],
+  );
+  const chooserShown = auth.isAuthenticated && chooseAccountRequested && !accountChosen && sessionAccountOptions.length > 1;
   const accountSelectRef = useRef<HTMLSelectElement | null>(null);
   const flashMessage = flashDismissed ? "" : normalizeFlashMessage(searchParams.get("flash"));
   const localAuthEnabled = auth.session ? auth.session.local_auth_enabled : true;
@@ -691,7 +707,11 @@ export function LoginPage() {
     };
   }, [companyAccount, externalSignInProvidersPath, shouldLoadExternalSignIn]);
 
-  if (auth.isAuthenticated && !recovery && !form.formState.isSubmitting) {
+  useEffect(() => {
+    if (chooserShown && !form.getValues("accountId")) form.setValue("accountId", sessionAccountId);
+  }, [chooserShown, form, sessionAccountId]);
+
+  if (auth.isAuthenticated && !recovery && !form.formState.isSubmitting && !chooserShown) {
     return <Navigate replace to={nextPath} />;
   }
 
@@ -723,6 +743,26 @@ export function LoginPage() {
   async function finishLogin(state: LoginCompletion) {
     await auth.refresh();
     await navigate(nextPath, { replace: true, state });
+  }
+
+  async function chooseSignedInAccount() {
+    const accountId = form.getValues("accountId");
+    if (!accountId) {
+      form.setError("accountId", { message: t("react.auth.choose_an_account_to_continue", "Choose an account to continue."), type: "required" });
+      accountSelectRef.current?.focus();
+      return;
+    }
+    setChoosingAccount(true);
+    setNotice(null);
+    try {
+      if (accountId !== sessionAccountId) await auth.switchAccount(accountId);
+      setAccountChosen(true);
+      await navigate(nextPath, { replace: true });
+    } catch (error) {
+      setNotice(loginErrorNotice(error, t));
+    } finally {
+      setChoosingAccount(false);
+    }
   }
 
   async function continueFromRecovery() {
@@ -946,6 +986,15 @@ export function LoginPage() {
                     {recovery.codes.map((code) => <li key={code}><code className="break-all">{code}</code></li>)}
                   </ul>
                   <LoginSubmitArea activeNotice={activeNotice} label={t("react.settings.authenticator_continue_setup", "Continue")} submitting={continuing} />
+                </form>
+              ) : chooserShown ? (
+                <form className="fs-public-auth__form" onSubmit={(event) => { event.preventDefault(); ignoreAsyncResult(chooseSignedInAccount()); }}>
+                  <header className="fs-public-auth__sign-in-header">
+                    <h2 id="public-auth-sign-in-title">{t("react.auth.choose_an_account_2", "Choose an account.")}</h2>
+                    <p>{t("react.auth.select_the_workspace_account_you_want_to_enter", "Select the workspace account you want to enter.")}</p>
+                  </header>
+                  <LoginAccountField accountOptions={sessionAccountOptions} accountRegistration={accountRegistration} accountSelectRef={accountSelectRef} form={form} />
+                  <LoginSubmitArea activeNotice={activeNotice} label={t("react.settings.authenticator_continue_setup", "Continue")} submitting={choosingAccount} />
                 </form>
               ) : <>
                 <header className="fs-public-auth__sign-in-header">

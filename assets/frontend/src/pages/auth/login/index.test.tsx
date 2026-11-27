@@ -125,6 +125,46 @@ describe("LoginPage", () => {
     mockedFetchJson.mockReset();
   });
 
+  it("lets a person signed in externally with roles in two companies choose one", async () => {
+    const user = {
+      id: "u-1",
+      email: "pat@example.com",
+      username: "pat@example.com",
+      display_name: "Pat",
+      roles: ["operator"],
+      account_id: "acct-a",
+      account_ids: ["acct-a", "acct-b"],
+      account_memberships: [
+        { account_id: "acct-a", account_name: "Alpha", role: "operator", is_active: true, is_default: true },
+        { account_id: "acct-b", account_name: "Beta", role: "admin", is_active: true },
+        { account_id: "acct-c", account_name: "Gamma", role: "", is_active: true },
+      ],
+    };
+    renderLogin({
+      authenticated: true,
+      route: "/login?choose_account=1&next=%2Fdashboard",
+      sessionOverrides: { auth_source: "external", user },
+    });
+    const auth = mockedUseAuth.mock.results[0].value as ReturnType<typeof useAuth>;
+
+    expect(await screen.findByRole("heading", { name: "Choose an account." })).toBeInTheDocument();
+    const select = screen.getByLabelText("Account") as HTMLSelectElement;
+    // Only companies with a role; the default one is preselected.
+    expect(Array.from(select.options).map((option) => option.textContent)).toEqual(["Choose an account", "Alpha", "Beta"]);
+    await waitFor(() => expect(select.value).toBe("acct-a"));
+
+    fireEvent.change(select, { target: { value: "acct-b" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(auth.switchAccount).toHaveBeenCalledWith("acct-b"));
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+  });
+
+  it("goes straight on when the chooser is asked for but there is one company", async () => {
+    renderLogin({ authenticated: true, route: "/login?choose_account=1&next=%2Fdashboard" });
+    expect(await screen.findByText("Dashboard destination")).toBeInTheDocument();
+  });
+
   it("renders the accepted Flow Steward sign-in pattern and local form", () => {
     renderLogin();
 
