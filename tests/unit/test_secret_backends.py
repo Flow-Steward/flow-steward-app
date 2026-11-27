@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from core.infrastructure.platform_modules import loader
+from core.infrastructure.platform_modules import loader, registration_rollback
 from core.infrastructure.security import secret_backends, secret_codec, stored_secrets
 from core.infrastructure.security.secret_backends import (
     SecretBackendContext,
@@ -289,7 +289,10 @@ def test_a_backend_label_is_short_text() -> None:
 def test_core_knows_the_capability_and_rolls_back_a_failed_module() -> None:
     assert "secret_backend" in loader.PLATFORM_MODULE_CAPABILITIES
     assert loader.parse_module_capabilities(["secret_backend"], where="t") == {"secret_backend"}
-    assert "core.infrastructure.security.secret_backends" in loader._CORE_GLOBAL_REGISTRY_MODULES
+    assert (
+        "core.infrastructure.security.secret_backends"
+        in registration_rollback._CORE_GLOBAL_REGISTRY_MODULES
+    )
 
     port = SecretBackendPort()
     container = SimpleNamespace(

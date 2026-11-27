@@ -6,7 +6,7 @@ import pytest
 
 from core.application.auth import user_lifecycle_events as events
 from core.application.auth.external_sign_in_ports import ExternalSignInPort
-from core.infrastructure.platform_modules import loader
+from core.infrastructure.platform_modules import loader, registration_rollback
 
 
 @pytest.fixture(autouse=True)
@@ -41,7 +41,10 @@ def test_the_port_subscribes_through_the_same_registry() -> None:
 
 
 def test_the_loader_rolls_back_a_failed_modules_subscription() -> None:
-    assert "core.application.auth.user_lifecycle_events" in loader._CORE_GLOBAL_REGISTRY_MODULES
+    assert (
+        "core.application.auth.user_lifecycle_events"
+        in registration_rollback._CORE_GLOBAL_REGISTRY_MODULES
+    )
     port = ExternalSignInPort(lambda: None)
     container = type("Container", (), {"external_sign_in": port, "registries": {}})()
     rollback = loader.ModuleRegistrationRollback.capture(container)

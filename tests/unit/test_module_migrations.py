@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.application.tooling.db import migration_runner
+from core.application.tooling.db import migration_runner, module_migration_guard
 
 MODULE_ID = "acme.billing"
 SCHEMA = "mod_acme_billing"
@@ -25,11 +25,11 @@ _MODULE_PATH = f"SET LOCAL search_path TO {SCHEMA}, pg_catalog, pg_temp"
 # ---------------------------------------------------------------------------
 
 
-_FINGERPRINT_PARTS = {query: part for part, query in migration_runner._FINGERPRINT_QUERIES}
+_FINGERPRINT_PARTS = {query: part for part, query in module_migration_guard._FINGERPRINT_QUERIES}
 
 
 def _is_catalog_read(sql: str) -> bool:
-    return sql in _FINGERPRINT_PARTS or sql == migration_runner._MODULE_SCHEMA_NAMES_SQL
+    return sql in _FINGERPRINT_PARTS or sql == module_migration_guard._MODULE_SCHEMA_NAMES_SQL
 
 
 def _catalog_rows(schema: str) -> dict[str, list[tuple]]:
@@ -85,14 +85,14 @@ class _FakeCursor:
                     for row in conn.catalog.get(name, {}).get(part, [])
                 ]
             return
-        if sql == migration_runner._MODULE_SCHEMA_NAMES_SQL:
+        if sql == module_migration_guard._MODULE_SCHEMA_NAMES_SQL:
             conn.fingerprint_reads += 1
             assert params == {"pattern": "mod\\_%"}
             self._result = [
                 (name,) for name in sorted(conn.schema_names) if name.startswith("mod_")
             ]
             return
-        if sql == migration_runner._SCHEMAS_WITH_COMMENTS_SQL:
+        if sql == module_migration_guard._SCHEMAS_WITH_COMMENTS_SQL:
             self._result = list(conn.schema_names.items())
             return
         if "platform_schema_migrations" in sql:
@@ -703,10 +703,10 @@ def test_guard_accepts_plain_sequence_calls_and_temp_as_a_column_name(sql):
 
 
 def test_fingerprint_sql_does_not_use_md5():
-    constants = [query for _part, query in migration_runner._FINGERPRINT_QUERIES]
+    constants = [query for _part, query in module_migration_guard._FINGERPRINT_QUERIES]
     constants += [
-        migration_runner._MODULE_SCHEMA_NAMES_SQL,
-        migration_runner._SCHEMAS_WITH_COMMENTS_SQL,
+        module_migration_guard._MODULE_SCHEMA_NAMES_SQL,
+        module_migration_guard._SCHEMAS_WITH_COMMENTS_SQL,
     ]
     assert all("md5(" not in query.lower() for query in constants)
     hashed = [query for query in constants if "sha256(" in query]
