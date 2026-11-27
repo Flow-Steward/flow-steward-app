@@ -675,11 +675,11 @@ def _attach_module_ports(container: Any) -> None:
     )
     from core.application.settings.feature_endpoints import FeatureEndpointRegistry
     from core.infrastructure.config.runtime_env import runtime_env
-    from core.infrastructure.db.db_pool import transaction_connection
+    from core.infrastructure.runtime.entrypoint_db_adapters import database_transaction
     from core.infrastructure.security.secret_backends import SecretBackendPort
 
     def connection():
-        return transaction_connection(runtime._get_job_store().conn)
+        return database_transaction(runtime._get_job_store().conn)
 
     container.installation_id = projected_installation_id(dict(runtime_env))
     container.feature_endpoints = FeatureEndpointRegistry()

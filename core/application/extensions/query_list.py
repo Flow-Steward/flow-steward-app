@@ -3,11 +3,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from core.application.auth.installation_admin import (
-    INSTALLATION_ACCOUNT_ID,
-    is_installation_account,
-)
-from core.application.auth.principal import principal_type_has_minimum_role
 from core.application.management.errors import ServiceUnavailableError
 from core.application.management.query_models import (
     ExtensionListFilterInput,
@@ -16,12 +11,6 @@ from core.application.management.query_models import (
 )
 from core.application.management.scope import ScopeContext
 
-from .account_enablement import (
-    ENABLED,
-    NOT_ENABLED,
-    DBExtensionAccountEnablementStore,
-    InMemoryExtensionAccountEnablementStore,
-)
 from .extension_runtime import (
     ExtensionArtifactSnapshotRecord,
     ExtensionEntitlementRecord,
@@ -32,6 +21,7 @@ from .query_catalog import (
     _descriptor_catalog_fields,
     _has_runtime_module,
 )
+from .query_list_account_view import with_account_enablement, with_account_view
 from .query_ports import ExtensionInstallStorePort, ExtensionRuntimeStorePort
 from .service_support import (
     _entitlement_status_value,
@@ -47,6 +37,11 @@ from .service_support import (
 )
 
 FILES_MISSING_REASON = "Files missing. Uninstall to clean up."
+
+
+def _record_ids(records: list[Any], field: str) -> list[str]:
+    """The non-empty *field* values of the install records, in order."""
+    return [value for row in records if (value := _normalize_text(getattr(row, field, "")))]
 
 
 def extension_files_missing(record: Any) -> bool:
@@ -144,19 +139,11 @@ class ExtensionQueryList:
             )
         except Exception as exc:
             raise ServiceUnavailableError("Extension install store is unavailable") from exc
-        records, account_enablement = self._with_account_enablement(store, records, scope)
+        records, account_enablement = with_account_enablement(store, records, scope)
 
         runtime_store = self.runtime_store()
-        install_ids = [
-            _normalize_text(getattr(row, "install_id", ""))
-            for row in records
-            if _normalize_text(getattr(row, "install_id", ""))
-        ]
-        release_ids = [
-            _normalize_text(getattr(row, "release_id", ""))
-            for row in records
-            if _normalize_text(getattr(row, "release_id", ""))
-        ]
+        install_ids = _record_ids(records, "install_id")
+        release_ids = _record_ids(records, "release_id")
         entitlement_map = self.batch_entitlements(
             runtime_store, account_id=account_id, install_ids=install_ids
         )
@@ -171,8 +158,13 @@ class ExtensionQueryList:
             enabled_only=True,
         )
 
+        def connected(row: Any) -> int:
+            return int(
+                connection_counts.get(_normalize_text(getattr(row, "install_id", "")), 0) or 0
+            )
+
         extensions = [
-            self._with_account_view(
+            with_account_view(
                 self.summary_from_install_record(
                     record=row,
                     viewer_account_id=account_id,
@@ -183,16 +175,11 @@ class ExtensionQueryList:
                     release_artifacts=artifacts_by_release.get(
                         _normalize_text(getattr(row, "release_id", "")), []
                     ),
-                    connected_count=int(
-                        connection_counts.get(_normalize_text(getattr(row, "install_id", "")), 0)
-                        or 0
-                    ),
+                    connected_count=connected(row),
                 ),
                 record=row,
                 enablement=account_enablement.get(_normalize_text(row.extension_id), ""),
-                connected_count=int(
-                    connection_counts.get(_normalize_text(getattr(row, "install_id", "")), 0) or 0
-                ),
+                connected_count=connected(row),
             )
             for row in records
         ]
@@ -210,70 +197,6 @@ class ExtensionQueryList:
             key=lambda row: (_normalize_text(row.installed_at), row.extension_id), reverse=True
         )
         return ExtensionListView(extensions=filtered, total=len(filtered))
-
-    @staticmethod
-    def _with_account_enablement(
-        store: ExtensionInstallStorePort,
-        records: list[Any],
-        scope: ScopeContext,
-    ) -> tuple[list[Any], dict[str, str]]:
-        """Add the installation's installs an account administrator may enable (C6).
-
-        Returns the rows and, for every installation-owned row another account sees,
-        that account's enablement: ``enabled``, ``disabled`` or ``not_enabled``. The
-        installation account owns its installs and gets no entry.
-        """
-        account_id = _normalize_text(scope.account_id)
-        if not account_id or is_installation_account(account_id):
-            return records, {}
-        enablements = getattr(store, "account_enablements", None)
-        if not isinstance(
-            enablements,
-            (DBExtensionAccountEnablementStore, InMemoryExtensionAccountEnablementStore),
-        ):
-            return records, {}
-        rows = {row.extension_id: row for row in enablements.list_for_account(account_id)}
-        visible = list(records)
-        known = {_normalize_text(row.extension_id) for row in visible}
-        if principal_type_has_minimum_role(_normalize_text(scope.principal_type), "admin"):
-            for install in store.list_for_account(
-                INSTALLATION_ACCOUNT_ID, include_global=False, include_inactive_owned=False
-            ):
-                if _normalize_text(install.extension_id) not in known:
-                    visible.append(install)
-                    known.add(_normalize_text(install.extension_id))
-        result: dict[str, str] = {}
-        for install in visible:
-            if _normalize_text(getattr(install, "account_id", "")) != INSTALLATION_ACCOUNT_ID:
-                continue
-            row = rows.get(_normalize_text(install.extension_id))
-            if row is None or row.install_id != _normalize_text(install.install_id):
-                result[_normalize_text(install.extension_id)] = NOT_ENABLED
-            else:
-                result[_normalize_text(install.extension_id)] = row.state
-        return visible, result
-
-    @staticmethod
-    def _with_account_view(
-        summary: ExtensionSummaryView,
-        *,
-        record: Any,
-        enablement: str,
-        connected_count: int,
-    ) -> ExtensionSummaryView:
-        """How an installation-owned extension looks to another account (C6)."""
-        if not enablement:
-            return summary
-        enabled = enablement == ENABLED
-        return summary.model_copy(
-            update={
-                "account_enablement": enablement,
-                "state": "active" if enabled else "disabled",
-                # The account's connections name the install it enabled.
-                "install_id": _normalize_text(getattr(record, "install_id", "")) if enabled else "",
-                "connected": enabled and int(connected_count or 0) > 0,
-            }
-        )
 
     def filter_summaries(
         self,
