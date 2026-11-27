@@ -14717,10 +14717,10 @@
       "test_name": "hardcoded_sql_expressions"
     },
     {
-      "code": "647                 cur.execute(\n648                     f\"DELETE FROM {table_name} WHERE project_id = %s\",\n649                     (project_id,),\n",
+      "code": "157                 cur.execute(\n158                     f\"DELETE FROM {table_name} WHERE project_id = %s\",\n159                     (project_id,),\n",
       "col_offset": 20,
       "end_col_offset": 69,
-      "filename": "core/application/management/command_services_trash_entities_mixin.py",
+      "filename": "core/application/management/command_services_trash_purge_mixin.py",
       "issue_confidence": "MEDIUM",
       "issue_cwe": {
         "id": 89,
@@ -14728,9 +14728,9 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Possible SQL injection vector through string-based query construction.",
-      "line_number": 648,
+      "line_number": 158,
       "line_range": [
-        648
+        158
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html",
       "test_id": "B608",

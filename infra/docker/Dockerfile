@@ -253,6 +253,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/db_store_datasets_mixin.py \
     core/application/registry/db_store_guardrails_mixin.py \
     core/application/registry/db_store_projected_skills_mixin.py \
+    core/application/registry/db_store_restore_payloads_mixin.py \
     core/application/registry/db_store_revisions_mixin.py \
     core/application/registry/db_store_tools_mixin.py \
     core/application/registry/db_store_skills_mixin.py \
@@ -262,6 +263,7 @@ COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/registry/step_skill_resolution.py \
     core/application/registry/workflow_definition_rows.py \
     core/application/registry/workflow_lookup.py \
+    core/application/registry/workflow_step_row_values.py \
     core/application/registry/
 COPY --chmod=u=rwX,go=rX --chown=fs:fs \
     core/application/reports/activity_repository.py \

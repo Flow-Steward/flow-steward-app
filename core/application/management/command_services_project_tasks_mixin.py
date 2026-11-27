@@ -6,6 +6,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from .command_services_common import *  # NOSONAR
+from .command_services_project_tasks_failure_mixin import ProjectCommandServiceTaskFailureMixin
 
 
 def _idempotency_result_expires_at(*, retention_days: int) -> datetime:
@@ -16,7 +17,7 @@ def _idempotency_result_expires_at(*, retention_days: int) -> datetime:
 logger = logging.getLogger(__name__)
 
 
-class ProjectCommandServiceTasksMixin:
+class ProjectCommandServiceTasksMixin(ProjectCommandServiceTaskFailureMixin):
     def enqueue_manual_task(
         self,
         command: ProjectTaskEnqueueInput,
@@ -900,80 +901,20 @@ class ProjectCommandServiceTasksMixin:
                 fail_on_pre_publish_error=True,
             )
         except Exception as exc:
-            preserve_recoverable_artifacts = False
-            if idempotency_claim is not None and idempotency_claim.claimed and created_job_id:
-                created_job = bl.get_job(created_job_id) if hasattr(bl, "get_job") else None
-                created_meta = (
-                    (created_job or {}).get("meta") if isinstance(created_job, dict) else {}
-                )
-                if isinstance(created_meta, str):
-                    created_meta = json.loads(created_meta)
-                created_delivery = (
-                    created_meta.get("queue_delivery") if isinstance(created_meta, dict) else {}
-                )
-                delivery_state = str((created_delivery or {}).get("state") or "").strip().lower()
-                preserve_recoverable_artifacts = (
-                    str((created_job or {}).get("status") or "").strip().lower() == "pending"
-                    and delivery_state in {"queued", "retrying_delivery"}
-                    and not bool((created_delivery or {}).get("delivery_succeeded"))
-                )
-            delete_artifact = getattr(plane, "delete_artifact", None)
-            if callable(delete_artifact) and not preserve_recoverable_artifacts:
-                for attachment in attachment_metadata:
-                    artifact_id = str(attachment.get("artifact_id") or "").strip()
-                    if artifact_id:
-                        try:
-                            if not delete_artifact(artifact_id):
-                                logger.error(
-                                    "Staged attachment rollback did not complete artifact_id=%s",
-                                    artifact_id,
-                                )
-                        except Exception:
-                            logger.exception(
-                                "Failed to roll back staged attachment artifact_id=%s",
-                                artifact_id,
-                            )
-            if idempotency_claim is not None and idempotency_claim.claimed:
-                from core.application.idempotency import (
-                    RequestIdempotencyRepository,
-                    RequestIdempotencyService,
-                )
-                from core.infrastructure.db.db_pool import transaction_connection
-
-                try:
-                    with transaction_connection(bl.conn) as conn:
-                        RequestIdempotencyService(RequestIdempotencyRepository(conn)).fail(
-                            claim=idempotency_claim,
-                            error_code="task_enqueue_failed",
-                        )
-                except Exception as idempotency_error:
-                    # The primary failure (including an ownership-fencing 409) is
-                    # authoritative. A reclaimed lease must not be masked by a
-                    # best-effort transition of the former owner's reservation.
-                    logger.warning(
-                        "Could not mark failed idempotency claim after enqueue failure: %s",
-                        safe_operator_exception(idempotency_error),
-                    )
-            if isinstance(exc, ServiceError):
-                raise
-            from core.application.jobs.task_enqueue_runtime import QueueTransportUnavailableError
-
-            if isinstance(exc, QueueTransportUnavailableError):
-                raise ServiceUnavailableError("RabbitMQ task queue is unavailable") from exc
-            if (not_runnable := _workflow_not_runnable_error(exc)) is not None:
-                raise not_runnable from exc
-            if attachment_rows and _is_attachment_storage_misconfigured(exc):
-                raise ServiceUnavailableError(
-                    "Attachment storage is unavailable (FS_SECRET_KEY / cryptography required)"
-                ) from exc
-            if _is_artifact_storage_misconfigured(exc):
-                raise ServiceUnavailableError(artifact_storage_misconfigured_message()) from exc
-            logger.exception(
-                "Task enqueue failed task_id=%s workflow_id=%s",
-                task_id,
-                selected_workflow_id,
+            failure = self._enqueue_failure_error(
+                exc,
+                bl=bl,
+                plane=plane,
+                attachment_rows=attachment_rows,
+                attachment_metadata=attachment_metadata,
+                idempotency_claim=idempotency_claim,
+                created_job_id=created_job_id,
+                task_id=task_id,
+                selected_workflow_id=selected_workflow_id,
             )
-            raise ServiceError("Failed to enqueue task") from exc
+            if failure is None:
+                raise
+            raise failure from exc
 
         result = ProjectTaskEnqueueResultView(
             project_id=str(project_id),
